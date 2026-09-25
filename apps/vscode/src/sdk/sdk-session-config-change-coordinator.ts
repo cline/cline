@@ -3,6 +3,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import type { ActiveSession } from "./cline-session-factory"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -34,7 +35,21 @@ interface RebuildDetails {
 	failureMessage: string
 }
 
+interface DeferredCheckpointFollowUp {
+	prompt: string
+	userImages?: string[]
+	userFiles?: string[]
+	delivery: "queue"
+}
+
+interface CheckpointTransition {
+	session: ActiveSession
+	followUps: DeferredCheckpointFollowUp[]
+}
+
 export class SdkSessionConfigChangeCoordinator {
+	private checkpointTransition: CheckpointTransition | undefined
+
 	constructor(private readonly options: SdkSessionConfigChangeCoordinatorOptions) {}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
@@ -53,12 +68,38 @@ export class SdkSessionConfigChangeCoordinator {
 		if (previous === next) {
 			return
 		}
+		const activeSession = this.options.sessions.getActiveSession()
+		if (activeSession && this.checkpointTransition?.session !== activeSession) {
+			this.checkpointTransition = { session: activeSession, followUps: [] }
+		}
 		this.requestRebuild({
 			reason: "checkpoints",
 			description: `checkpoints ${previous ? "enabled" : "disabled"} -> ${next ? "enabled" : "disabled"}`,
 			disposeReason: "checkpointsSettingChange",
 			failureMessage: "Failed to reload checkpoint settings. The change may not apply until the next task.",
 		})
+	}
+
+	/**
+	 * Holds a follow-up at the checkpoint-setting consistency boundary. The
+	 * replacement session receives it before another model request can start.
+	 */
+	deferFollowUpForCheckpointRebuild(
+		session: ActiveSession,
+		prompt: string,
+		userImages?: string[],
+		userFiles?: string[],
+	): boolean {
+		const transition = this.checkpointTransition
+		if (!transition || transition.session !== session) {
+			return false
+		}
+		transition.followUps.push({ prompt, userImages, userFiles, delivery: "queue" })
+		return true
+	}
+
+	cancelPendingCheckpointFollowUps(): void {
+		this.checkpointTransition = undefined
 	}
 
 	private requestRebuild(details: RebuildDetails): void {
@@ -130,6 +171,9 @@ export class SdkSessionConfigChangeCoordinator {
 
 			const { startResult, sdkHost } = restartResult
 			if (!context.isCurrent()) {
+				if (details.reason === "checkpoints" && this.checkpointTransition?.session === activeSession) {
+					this.checkpointTransition = undefined
+				}
 				await this.stopReplacementIfCurrent(sdkHost, startResult)
 				return
 			}
@@ -139,8 +183,16 @@ export class SdkSessionConfigChangeCoordinator {
 				)
 			}
 
-			const nextPrompt = pendingPrompts[0]
-			const remainingPrompts = pendingPrompts.slice(1)
+			const deferredFollowUps =
+				details.reason === "checkpoints" && this.checkpointTransition?.session === activeSession
+					? this.checkpointTransition.followUps
+					: []
+			if (details.reason === "checkpoints" && this.checkpointTransition?.session === activeSession) {
+				this.checkpointTransition = undefined
+			}
+			const replayPrompts = [...pendingPrompts, ...deferredFollowUps]
+			const nextPrompt = replayPrompts[0]
+			const remainingPrompts = replayPrompts.slice(1)
 			if (nextPrompt) {
 				if (!context.isCurrent()) {
 					await this.stopReplacementIfCurrent(sdkHost, startResult)
@@ -195,7 +247,41 @@ export class SdkSessionConfigChangeCoordinator {
 				type: "status",
 				payload: { sessionId: oldSessionId, status: "error" },
 			})
+			if (details.reason === "checkpoints") {
+				this.releaseDeferredFollowUpsToCurrentSession(activeSession)
+			}
 			await this.options.postStateToWebview()
+		}
+	}
+
+	private releaseDeferredFollowUpsToCurrentSession(expectedSession: ActiveSession): void {
+		const transition = this.checkpointTransition
+		const currentSession = this.options.sessions.getActiveSession()
+		if (!transition || transition.session !== expectedSession || currentSession !== expectedSession) {
+			return
+		}
+		this.checkpointTransition = undefined
+		const [nextPrompt, ...remainingPrompts] = transition.followUps
+		if (!nextPrompt) {
+			return
+		}
+		this.options.sessions.setRunning(true)
+		this.options.sessions.fireAndForgetSend(
+			currentSession.sdkHost,
+			currentSession.sessionId,
+			nextPrompt.prompt,
+			nextPrompt.userImages,
+			nextPrompt.userFiles,
+		)
+		for (const pendingPrompt of remainingPrompts) {
+			this.options.sessions.fireAndForgetSend(
+				currentSession.sdkHost,
+				currentSession.sessionId,
+				pendingPrompt.prompt,
+				pendingPrompt.userImages,
+				pendingPrompt.userFiles,
+				pendingPrompt.delivery,
+			)
 		}
 	}
 

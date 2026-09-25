@@ -49,6 +49,13 @@ export interface SdkFollowupCoordinatorOptions {
 	hasPendingCheckpointRebuild: () => boolean
 	/** Resolves after the pending checkpoint rebuild completes or is cancelled. */
 	waitForPendingCheckpointRebuild: () => Promise<void>
+	/** Holds a follow-up for the replacement session at the checkpoint-setting boundary. */
+	deferFollowUpForCheckpointRebuild: (
+		session: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		prompt: string,
+		images?: string[],
+		files?: string[],
+	) => boolean
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -88,7 +95,7 @@ export class SdkFollowupCoordinator {
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		const waitingForCheckpointRebuild = this.options.hasPendingCheckpointRebuild()
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.queueToActiveSession(activeSession, prompt, images, files)
+			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
 			return
 		}
 
@@ -114,7 +121,7 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.queueToActiveSession(currentSession, prompt, images, files)
+				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
 				return
 			}
 
@@ -142,16 +149,41 @@ export class SdkFollowupCoordinator {
 	/** Queue a follow-up onto a session whose turn is still running. */
 	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		displayedTaskId: string | undefined,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
 	): Promise<void> {
-		const { sdkHost, sessionId } = activeSession
+		const { sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
+		// The submitted turn phase is authoritative when the lifecycle flag is
+		// briefly stale. Keep passive rebuilds behind the active turn while mention
+		// resolution runs; deferred checkpoint follow-ups are transferred once the
+		// turn later marks the session idle.
 		this.options.sessions.setRunning(true)
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
+		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
+			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
+			return
+		}
+		if (this.options.deferFollowUpForCheckpointRebuild(activeSession, resolvedPrompt, images, files)) {
+			return
+		}
+
+		const currentSession = this.options.sessions.getActiveSession()
+		if (!currentSession) {
+			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
+			return
+		}
+		this.options.sessions.fireAndForgetSend(
+			currentSession.sdkHost,
+			currentSession.sessionId,
+			resolvedPrompt,
+			images,
+			files,
+			"queue",
+		)
 	}
 
 	/**

@@ -238,19 +238,90 @@ describe("SdkFollowupCoordinator", () => {
 			hasPendingCheckpointRebuild: () => true,
 		})
 		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
+		options.deferFollowUpForCheckpointRebuild.mockReturnValue(true)
 
 		await coordinator.askResponse("queue after approval", undefined, undefined, "messageResponse", "awaiting_approval")
 
 		expect(options.waitForPendingCheckpointRebuild).not.toHaveBeenCalled()
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			activeSession.sdkHost,
-			"session-123",
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.deferFollowUpForCheckpointRebuild).toHaveBeenCalledWith(
+			activeSession,
 			"resolved: queue after approval",
+			undefined,
+			undefined,
+		)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("queues on the replacement if mention resolution outlives the checkpoint rebuild", async () => {
+		const oldSession = makeActiveSession({ isRunning: true })
+		const replacementSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		let resolveMentions: (prompt: string) => void = () => {}
+		const { coordinator, options } = makeCoordinator({
+			activeSession: oldSession,
+			task,
+			hasPendingCheckpointRebuild: () => true,
+		})
+		options.resolveContextMentions.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveMentions = resolve
+				}),
+		)
+		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(replacementSession)
+
+		const send = coordinator.askResponse("with @mention", undefined, undefined, "messageResponse", "streaming")
+		await Promise.resolve()
+		resolveMentions("resolved after rebuild")
+		await send
+
+		expect(options.deferFollowUpForCheckpointRebuild).toHaveBeenCalledWith(
+			oldSession,
+			"resolved after rebuild",
+			undefined,
+			undefined,
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementSession.sdkHost,
+			"session-123",
+			"resolved after rebuild",
 			undefined,
 			undefined,
 			"queue",
 		)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalledWith(
+			oldSession.sdkHost,
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+		)
+	})
+
+	it("abandons a follow-up if task navigation occurs while mentions resolve", async () => {
+		const oldSession = makeActiveSession({ isRunning: true })
+		const oldTask = makeTask("session-123")
+		let currentTask = oldTask
+		let resolveMentions: (prompt: string) => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, task: oldTask })
+		options.getTask.mockImplementation(() => currentTask)
+		options.resolveContextMentions.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveMentions = resolve
+				}),
+		)
+
+		const send = coordinator.askResponse("with @mention", undefined, undefined, "messageResponse", "streaming")
+		await Promise.resolve()
+		currentTask = makeTask("other-task")
+		resolveMentions("resolved after navigation")
+		await send
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
 	})
 
 	it("queues a message response after a pending tool approval is not resolved by chat text", async () => {
@@ -659,6 +730,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
 		hasPendingCheckpointRebuild: input.hasPendingCheckpointRebuild ?? (() => false),
 		waitForPendingCheckpointRebuild: input.waitForPendingCheckpointRebuild ?? vi.fn().mockResolvedValue(undefined),
+		deferFollowUpForCheckpointRebuild: vi.fn(() => false),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
 		onFollowUpAbandoned: vi.fn(),
@@ -695,6 +767,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		deferFollowUpForCheckpointRebuild: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>
 		onFollowUpAbandoned: ReturnType<typeof vi.fn>

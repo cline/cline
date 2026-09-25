@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
+import type { ActiveSession } from "./cline-session-factory"
 import {
 	SdkSessionConfigChangeCoordinator,
 	type SdkSessionConfigChangeCoordinatorOptions,
@@ -158,6 +159,61 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		)
 	})
 
+	it("holds active-turn follow-ups for the checkpoint replacement session", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "after toggle", ["image.png"], ["a.ts"])).toBe(true)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+
+		activeSession.isRunning = false
+		await runScheduledRebuild()
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementHost,
+			"new-session",
+			"after toggle",
+			["image.png"],
+			["a.ts"],
+		)
+	})
+
+	it("releases held follow-ups to the old session when the checkpoint rebuild fails", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
+		options.sessionConfigBuilder.build.mockRejectedValueOnce(new Error("config failed"))
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "still deliver")).toBe(true)
+		activeSession.isRunning = false
+		await runScheduledRebuild()
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"old-session",
+			"still deliver",
+			undefined,
+			undefined,
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error", text: expect.stringContaining("config failed") })],
+			{ type: "status", payload: { sessionId: "old-session", status: "error" } },
+		)
+	})
+
+	it("discards held follow-ups when the task cancels its checkpoint transition", () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator } = makeCoordinator({ activeSession })
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "cancelled")).toBe(true)
+		coordinator.cancelPendingCheckpointFollowUps()
+
+		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "too late")).toBe(false)
+	})
+
 	it("stops a replacement invalidated while it was starting", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, runScheduledRebuild, invalidateRebuild } = makeCoordinator({ activeSession })
@@ -187,6 +243,7 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 
 		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("cancelledSessionConfigChange")
 		expect(replacementHost.send).not.toHaveBeenCalled()
+		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "after cancellation")).toBe(false)
 	})
 })
 
@@ -270,17 +327,14 @@ type TestOptions = SdkSessionConfigChangeCoordinatorOptions & {
 }
 
 function makeActiveSession(overrides: Partial<{ isRunning: boolean }> = {}) {
-	return {
+	const session = {
 		sessionId: "old-session",
 		sdkHost: { readMessages: vi.fn(), pendingPrompts: vi.fn().mockResolvedValue([]) },
 		startResult: { sessionId: "old-session" },
+		unsubscribe: vi.fn(),
 		isRunning: overrides.isRunning ?? false,
-	} as {
-		sessionId: string
-		sdkHost: { readMessages: ReturnType<typeof vi.fn>; pendingPrompts: ReturnType<typeof vi.fn> }
-		startResult: { sessionId: string }
-		isRunning: boolean
 	}
+	return session as typeof session & ActiveSession
 }
 
 interface MakeCoordinatorInput {
