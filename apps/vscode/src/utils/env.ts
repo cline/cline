@@ -3,6 +3,31 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 
+const ALLOWED_EXTERNAL_URI_SCHEMES = new Set(["http", "https", "mailto"])
+
+function isAllowedExternalUrl(url: string): boolean {
+	try {
+		// Use WHATWG URL for strict parsing; vscode.Uri not available here
+		const parsed = new URL(url)
+		// URL.protocol includes trailing ":", strip it
+		const scheme = parsed.protocol.replace(/:$/, "").toLowerCase()
+		return ALLOWED_EXTERNAL_URI_SCHEMES.has(scheme)
+	} catch {
+		return false
+	}
+}
+
+function getUrlScheme(url: string): string {
+	try {
+		const parsed = new URL(url)
+		return parsed.protocol.replace(/:$/, "")
+	} catch {
+		// Fallback to simple split for error reporting
+		const colon = url.indexOf(":")
+		return colon > 0 ? url.slice(0, colon) : ""
+	}
+}
+
 /**
  * Writes text to the system clipboard
  * @param text The text to write to the clipboard
@@ -37,6 +62,7 @@ export async function readTextFromClipboard(): Promise<string> {
  * Opens an external URL in the default browser.
  * Uses the host bridge RPC first (VS Code's openExternal which handles remote environments).
  * Falls back to the `open` npm package if the host doesn't implement the RPC (e.g., JetBrains).
+ * Centralizes scheme validation so blocked schemes never reach either opener.
  *
  * When CLINE_CAPTURE_BROWSER is set (debug harness mode), the URL is captured
  * to a file and/or posted to the debug harness instead of opening a real browser.
@@ -53,9 +79,20 @@ export async function openExternal(url: string): Promise<void> {
 	}
 
 	Logger.log("Opening browser:", url)
+	// Central validation: reject before any launch attempt, including fallback
+	if (!isAllowedExternalUrl(url)) {
+		const scheme = getUrlScheme(url)
+		throw new Error(`Unsupported external URI scheme: ${scheme || "(missing)"}`)
+	}
 	try {
 		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
 	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
+		// Do NOT fallback on policy rejection — only on genuine RPC unavailability
+		if (message.includes("Unsupported external URI scheme")) {
+			Logger.error(`Blocked external URL with disallowed scheme: ${url}`)
+			throw error
+		}
 		// Fallback for hosts that don't implement openExternal (e.g., JetBrains plugin)
 		Logger.warn(`Host openExternal RPC failed, falling back to 'open' package: ${error}`)
 		try {
