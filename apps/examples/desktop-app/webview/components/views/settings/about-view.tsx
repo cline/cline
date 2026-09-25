@@ -25,9 +25,6 @@ import { PageFrame, PageHeader } from "../page-layout";
 
 const RECENT_RELEASE_COUNT = 5;
 
-const TAGLINE =
-	"The open source coding agent that helps you get real work done, in your IDE, terminal, and desktop.";
-
 function useAppVersion(): string | null {
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	useEffect(() => {
@@ -201,11 +198,6 @@ export function AboutContent() {
 	return (
 		<PageFrame>
 			<PageHeader
-				description={
-					isBetaVersion(appVersion)
-						? `${TAGLINE} Beta builds install side by side with the stable app and update from the beta channel.`
-						: TAGLINE
-				}
 				meta={
 					<span className="flex items-center gap-2">
 						{appVersion ? (
