@@ -457,6 +457,30 @@ Producer validator on. Trace generator derived from the tables;
 property-test: every generated legal v1-input sequence yields legal v2
 output.
 
+**Phase 1 status: implemented.** `@cline/shared` carries
+`stream-frames.ts` (the v2 frame schema and `validateFrameStream` with
+its own violation codes), `agent-event-framer.ts` (the pure v1→v2
+framer), and `v1-trace-generator.ts` (a seeded generator derived from
+the v1 tables). `@cline/core` carries `runtime-frame-adapter.ts`, a
+wrapper over `RuntimeEventAdapter` whose v1 output is asserted identical
+to the plain adapter's (test-locked, `durationMs` normalized — it is
+wall-clock per instance). The property loop — 200 seeds of legal v1
+traces framed and validated — is green, as are the per-wart pins
+(open+close for W2, force-close for W3, notices for recoverable errors,
+one outcome spelling for P6). Schema decisions settled at writing
+time: a v1 *run* is a v2 *turn*; v1 *iterations* become turn-scoped
+notices (`iteration_started`/`iteration_finished` carrying iteration,
+hadToolCalls, toolCallCount); finish reasons map
+completed/max_iterations/mistake_limit → `completed`, `aborted` →
+`interrupted`, `error` → the error outcome (synthesizing the StreamError
+the missing error event would have carried); `bumpEpoch()` is the host's
+conversation fence, called by the host (Phase 3 wiring), never by the
+run; a session-scoped close frame is not emitted by the framer — it is
+a host-level concern (also Phase 3). The first frame consumer (CLI
+port) lands in Phase 2; until then the framer/validator are exercised by
+tests, and the wrapper exists so the producer side of the contract is
+pinned before any consumer ports.
+
 **Phase 2 — assembler + first consumer.** Implement the assembler
 (`@cline/core`). Port the **CLI terminal renderer** first (smallest,
 lowest risk: `apps/cli/src/utils/events.ts`), then ACP. Differential
