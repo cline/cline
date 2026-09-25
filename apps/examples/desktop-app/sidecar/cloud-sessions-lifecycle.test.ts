@@ -138,6 +138,7 @@ describe("CloudSessionManager lifecycle", () => {
 			status: "running",
 			prompt: "Fix reconnect behavior\nwith a regression test",
 			repoUrl: "https://github.com/cline/test",
+			title: "Fix reconnect behavior",
 			metadata: {
 				title: "Fix reconnect behavior",
 				origin: "cloud",

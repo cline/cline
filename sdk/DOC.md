@@ -53,6 +53,11 @@ the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
 
+Local history and cloud discovery use 70-character display titles: existing title,
+prompt, user text, assistant text, then `Session <last6>`. Stored titles are unchanged.
+Root listings exclude `isSubagent: true` or nonblank `parentSessionId` markers,
+including metadata markers; history's `includeSubagents` opts them back in.
+
 ## Voice input models
 
 `getLocalTranscriptionModels(providerId, config?)` from `@cline/core` returns the

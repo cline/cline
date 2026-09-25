@@ -1,12 +1,13 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
-import { formatDisplayUserInput, normalizeUserInput } from "@cline/shared";
 import { resolveSessionDataDir } from "@cline/shared/storage";
 import { toSessionRecord } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionManifestSchema } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
+import { isRootSessionRecord } from "../../session/root-session";
+import { resolveSessionListTitle } from "../../session/session-title";
 import type {
 	SessionHistoryMetadata,
 	SessionHistoryRecord,
@@ -31,11 +32,6 @@ type StoredSessionMessage = LlmsProviders.Message & {
 		id?: string;
 		provider?: string;
 	};
-};
-
-type TextBlock = {
-	type?: string;
-	text?: string;
 };
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -79,14 +75,6 @@ function normalizeHistoryScanLimit(limit: number): number {
 		return 0;
 	}
 	return Math.min(Math.max(limit * 2, 20), MAX_HISTORY_SCAN_LIMIT);
-}
-
-function isRootSessionRecord(
-	row: Pick<SessionRecord, "isSubagent"> & {
-		parentSessionId?: string;
-	},
-): boolean {
-	return row.isSubagent !== true && !asTrimmedString(row.parentSessionId);
 }
 
 function extractSessionRecencyToken(sessionId: string): number {
@@ -134,6 +122,7 @@ export function manifestToSessionRecord(
 
 async function listManifestHistoryRows(
 	limit: number,
+	includeSubagents: boolean,
 ): Promise<SessionRecord[]> {
 	const requestedLimit = normalizeHistoryLimit(limit);
 	if (requestedLimit === 0) {
@@ -181,6 +170,7 @@ async function listManifestHistoryRows(
 
 	return rows
 		.filter((row): row is SessionRecord => Boolean(row))
+		.filter((row) => includeSubagents || isRootSessionRecord(row))
 		.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
 		.slice(0, requestedLimit);
 }
@@ -216,63 +206,6 @@ async function listHostSessionRows(
 		}
 		scanLimit = Math.min(scanLimit * 2, MAX_HISTORY_SCAN_LIMIT);
 	}
-}
-
-function extractTextFromContent(
-	content: LlmsProviders.Message["content"],
-): string {
-	if (typeof content === "string") {
-		return content.trim();
-	}
-	const segments: string[] = [];
-	for (const block of content) {
-		if (!block || typeof block !== "object") {
-			continue;
-		}
-		const maybeText = block as TextBlock;
-		if (maybeText.type !== "text") {
-			continue;
-		}
-		const text = maybeText.text?.trim();
-		if (text) {
-			segments.push(text);
-		}
-	}
-	return segments.join("\n").trim();
-}
-
-function toSingleLine(text: string): string {
-	return text.replace(/\s+/g, " ").trim();
-}
-
-function truncateText(text: string, limit: number): string {
-	if (text.length <= limit) {
-		return text;
-	}
-	return `${text.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
-}
-
-function inferTitleFromMessages(
-	messages: LlmsProviders.Message[],
-): string | undefined {
-	for (const role of ["user", "assistant"] as const) {
-		for (const raw of messages) {
-			if (raw.role !== role) {
-				continue;
-			}
-			const text = toSingleLine(extractTextFromContent(raw.content));
-			if (!text) {
-				continue;
-			}
-			const formatted =
-				role === "user" ? toSingleLine(formatDisplayUserInput(text)) : text;
-			const normalized = normalizeUserInput(
-				formatted.split("\n")[0] ?? formatted,
-			);
-			return truncateText(normalized, 50);
-		}
-	}
-	return undefined;
 }
 
 function summarizeCostFromMessages(messages: LlmsProviders.Message[]): number {
@@ -337,25 +270,26 @@ function getMetadataModel(
 function normalizeHistoryRow(
 	row: SessionRecord,
 	overrides?: {
-		title?: string;
+		messages?: LlmsProviders.Message[];
 		provider?: string;
 		model?: string;
 		totalCost?: number;
 	},
 ): SessionHistoryRecord {
 	const metadata = asHistoryMetadata(row.metadata);
-	const title =
-		asTrimmedString(overrides?.title) ?? asTrimmedString(metadata?.title);
+	const title = resolveSessionListTitle({
+		sessionId: row.sessionId,
+		metadata,
+		prompt: row.prompt,
+		messages: overrides?.messages,
+	});
 	const totalCost =
 		asFiniteNumber(overrides?.totalCost) ?? asFiniteNumber(metadata?.totalCost);
-	const nextMetadata =
-		metadata || title !== undefined || totalCost !== undefined
-			? {
-					...(metadata ?? {}),
-					...(title !== undefined ? { title } : {}),
-					...(totalCost !== undefined ? { totalCost } : {}),
-				}
-			: undefined;
+	const nextMetadata = {
+		...metadata,
+		title,
+		...(totalCost !== undefined ? { totalCost } : {}),
+	};
 	return {
 		...row,
 		provider:
@@ -422,7 +356,10 @@ export async function hydrateSessionHistory(
 	return await Promise.all(
 		rows.map(async (row) => {
 			const initial = normalizeHistoryRow(row);
-			const hasTitle = Boolean(asTrimmedString(initial.metadata?.title));
+			const hasTitle = Boolean(
+				asTrimmedString(asHistoryMetadata(row.metadata)?.title) ??
+					asTrimmedString(row.prompt),
+			);
 			const hasProvider = Boolean(asKnownString(initial.provider));
 			const hasModel = Boolean(asKnownString(initial.model));
 			const knownCost = asFiniteNumber(initial.metadata?.totalCost);
@@ -437,7 +374,7 @@ export async function hydrateSessionHistory(
 			const inferredProviderModel = inferProviderAndModelFromMessages(messages);
 			const inferredCost = summarizeCostFromMessages(messages);
 			return normalizeHistoryRow(row, {
-				title: hasTitle ? undefined : inferTitleFromMessages(messages),
+				messages,
 				provider: hasProvider ? undefined : inferredProviderModel.provider,
 				model: hasModel ? undefined : inferredProviderModel.model,
 				totalCost: hasCost || inferredCost <= 0 ? undefined : inferredCost,
@@ -457,7 +394,10 @@ export async function listSessionHistory(
 	});
 	const manifestRows =
 		options.includeManifestFallback === true && backendRows.length < limit
-			? await listManifestHistoryRows(Math.min(Math.max(limit * 2, 100), 500))
+			? await listManifestHistoryRows(
+					Math.min(Math.max(limit * 2, 100), 500),
+					includeSubagents,
+				)
 			: [];
 	const merged = new Map<string, SessionRecord>();
 	for (const row of [...backendRows, ...manifestRows]) {

@@ -251,6 +251,10 @@ function attachResultPayload(
 export function cloudSessionToDiscoveryRecord(
 	record: CloudSessionRecord,
 ): JsonRecord {
+	const title = resolveSessionListTitle({
+		sessionId: record.id,
+		metadata: { title: record.title },
+	});
 	return {
 		sessionId: record.id,
 		origin: "cloud",
@@ -271,9 +275,9 @@ export function cloudSessionToDiscoveryRecord(
 				? (record.lastActivityAt ?? record.createdAt)
 				: undefined,
 		updatedAt: record.updatedAt,
-		...(record.title?.trim() ? { title: record.title.trim() } : {}),
+		title,
 		metadata: {
-			...(record.title?.trim() ? { title: record.title.trim() } : {}),
+			title,
 			origin: "cloud",
 			...(record.metadata.provisioningPhase
 				? { provisioningPhase: record.metadata.provisioningPhase }
@@ -776,9 +780,15 @@ export class CloudSessionController {
 			if (!live) {
 				return projected;
 			}
-			const title = live.title?.trim() || record.title?.trim();
+			const title = resolveSessionListTitle({
+				sessionId: record.id,
+				metadata: { title: live.title?.trim() || record.title?.trim() },
+				prompt: live.prompt,
+				messages: live.messages,
+			});
 			return {
 				...projected,
+				title,
 				status: live.status,
 				prompt: live.prompt,
 				endedAt:
@@ -787,12 +797,7 @@ export class CloudSessionController {
 						: projected.endedAt,
 				metadata: {
 					...((projected.metadata ?? {}) as JsonRecord),
-					title: resolveSessionListTitle({
-						sessionId: record.id,
-						metadata: title ? { title } : undefined,
-						prompt: live.prompt,
-						messages: live.messages,
-					}),
+					title,
 				},
 			};
 		});

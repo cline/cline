@@ -9,6 +9,7 @@ import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
 	type CloudSessionControllerOptions,
+	cloudSessionToDiscoveryRecord,
 } from "./controller";
 import type { CloudCreationOptions, CloudSessionEvent } from "./types";
 
@@ -184,6 +185,52 @@ async function attached() {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("resolves matching cold discovery titles without connecting or reading history", async () => {
+		const f = fixture();
+		try {
+			const [cold] = await f.controller.listForDiscovery();
+			expect(cold).toMatchObject({
+				title: "Session -outer",
+				metadata: { title: "Session -outer" },
+			});
+			expect(f.commands).toEqual([]);
+			expect(f.api.history).not.toHaveBeenCalled();
+			const title = "Title\n" + "x".repeat(90);
+			expect(cloudSessionToDiscoveryRecord({ ...record, title })).toMatchObject(
+				{
+					title: title.slice(0, 70),
+					metadata: { title: title.slice(0, 70) },
+				},
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
+	it("resolves both live discovery title fields from available messages without extra reads", async () => {
+		const f = fixture();
+		try {
+			f.setMessages([
+				{
+					role: "user",
+					content: [{ type: "text", text: "Fix discovery\nDetails" }],
+				},
+			]);
+			await f.controller.attach(record.id);
+			await f.controller.readMessages(record.id);
+			const commandCount = f.commands.length;
+			const [live] = await f.controller.listForDiscovery();
+			expect(live).toMatchObject({
+				title: "Fix discovery",
+				metadata: { title: "Fix discovery" },
+			});
+			expect(f.commands).toHaveLength(commandCount);
+			expect(f.api.history).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
 	it("attaches a provisioning receipt without connecting or waiting for readiness", async () => {
 		const f = fixture();
 		f.api.list.mockResolvedValue([{ ...record, status: "provisioning" }]);

@@ -189,6 +189,18 @@ describe("buildStartSessionInput", () => {
 		expect(result.interactive).toBe(true)
 		expect(result.userImages).toBeUndefined()
 		expect(result.userFiles).toBeUndefined()
+		expect(result.sessionMetadata).toEqual({ title: "Hello, world!" })
+	})
+
+	it("preserves an existing task title when starting with a different prompt", () => {
+		const result = buildStartSessionInput(makeBaseConfig(), {
+			prompt: "Continue working",
+			historyItem: createHistoryItemFromSession("task-1", "User-chosen title"),
+			cwd: "/tmp/workspace",
+		})
+
+		expect(result.sessionMetadata).toEqual({ title: "User-chosen title" })
+		expect(result.prompt).toBeUndefined()
 	})
 
 	it("includes images and files when provided", () => {
@@ -222,6 +234,18 @@ describe("buildStartSessionInput", () => {
 		const result = buildStartSessionInput(config, input)
 
 		expect(result.prompt).toBeUndefined()
+		expect(result.sessionMetadata).toBeUndefined()
+	})
+
+	it("does not seed a blank title for an attachment-only task", () => {
+		const result = buildStartSessionInput(makeBaseConfig(), {
+			prompt: "   ",
+			images: ["image.png"],
+			cwd: "/tmp/workspace",
+		})
+
+		expect(result.sessionMetadata).toBeUndefined()
+		expect(result.userImages).toEqual(["image.png"])
 	})
 })
 

@@ -1,8 +1,10 @@
-import {
-	formatDisplayUserInput,
-	type HubEventEnvelope,
-	type MessageWithMetadata,
-} from "@cline/shared";
+import type { HubEventEnvelope, MessageWithMetadata } from "@cline/shared";
+
+export {
+	normalizeSessionTitle,
+	resolveSessionListTitle,
+} from "../session/session-title";
+
 import type { CloudSessionState, JsonRecord } from "./types";
 
 export function immutableCopy<T>(value: T): T {
@@ -14,13 +16,6 @@ export function immutableCopy<T>(value: T): T {
 	};
 	freeze(copy);
 	return copy;
-}
-
-export function normalizeSessionTitle(
-	title?: string | null,
-): string | undefined {
-	const trimmed = title?.trim();
-	return trimmed ? formatDisplayUserInput(trimmed).slice(0, 120) : undefined;
 }
 
 export function stringifyMessageContent(value: unknown): string {
@@ -70,64 +65,6 @@ export function stringifyMessageContent(value: unknown): string {
 		}
 	}
 	return "";
-}
-
-function titleFromPrompt(prompt?: string | null): string | undefined {
-	const normalized = normalizeSessionTitle(prompt ?? undefined);
-	if (!normalized) {
-		return undefined;
-	}
-	return normalized.split("\n")[0]?.trim().slice(0, 70) || undefined;
-}
-
-function titleFromMessages(messages: unknown[]): string | undefined {
-	for (const role of ["user", "assistant"] as const) {
-		for (const rawMessage of messages) {
-			if (!rawMessage || typeof rawMessage !== "object") {
-				continue;
-			}
-			const message = rawMessage as JsonRecord;
-			if (message.role !== role) {
-				continue;
-			}
-			const text = normalizeSessionTitle(
-				stringifyMessageContent(message.content),
-			);
-			if (!text) {
-				continue;
-			}
-			return text.split("\n")[0]?.trim().slice(0, 70) || undefined;
-		}
-	}
-	return undefined;
-}
-
-export function resolveSessionListTitle(options: {
-	sessionId: string;
-	metadata?: unknown;
-	prompt?: string | null;
-	messages?: unknown[];
-}): string {
-	const metadataTitle =
-		options.metadata && typeof options.metadata === "object"
-			? normalizeSessionTitle(
-					(options.metadata as JsonRecord).title as string | undefined,
-				)
-			: undefined;
-	if (metadataTitle) {
-		return metadataTitle.slice(0, 70);
-	}
-	const promptTitle = titleFromPrompt(options.prompt);
-	if (promptTitle) {
-		return promptTitle;
-	}
-	const messageTitle = options.messages
-		? titleFromMessages(options.messages)
-		: undefined;
-	if (messageTitle) {
-		return messageTitle;
-	}
-	return `Session ${options.sessionId.slice(-6)}`;
 }
 
 /** Mutates only controller-owned state. Hosts receive frozen copies afterwards. */
