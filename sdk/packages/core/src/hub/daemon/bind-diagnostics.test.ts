@@ -29,9 +29,10 @@ describe("describeAddressInUse", () => {
 	it("reports the port owner, lock state, and whether the occupant is a Hub", async () => {
 		mockSpawnSync.mockReturnValue({
 			status: 0,
+			stderr: "",
 			stdout:
 				process.platform === "win32"
-					? "4242\tcline.exe C:\\Users\\alice\\cline.exe --cline-hub-daemon\r\n"
+					? "4242\tcline.exe C:\\Users\\alice\\cline.exe\r\n"
 					: "p4242\nc/Users/alice/cline\n",
 		});
 		mockProbeHubServer.mockResolvedValueOnce({
@@ -77,5 +78,21 @@ describe("describeAddressInUse", () => {
 			occupant_is_hub: false,
 		});
 		expect(context).not.toHaveProperty("occupant_hub_build_id");
+	});
+
+	it("tells a lookup that failed apart from one that found no listener", async () => {
+		mockSpawnSync.mockReturnValueOnce({
+			status: 1,
+			stdout: "",
+			stderr: "Get-NetTCPConnection : The term is not recognized",
+		});
+		expect(
+			(await describeAddressInUse(new Error("busy"), endpoint)).port_owners,
+		).toBe("unavailable");
+
+		mockSpawnSync.mockReturnValueOnce({ status: 1, stdout: "", stderr: "" });
+		expect(
+			(await describeAddressInUse(new Error("busy"), endpoint)).port_owners,
+		).toBe("");
 	});
 });

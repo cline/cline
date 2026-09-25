@@ -26,7 +26,11 @@ export function parseLsofOwners(output: string): string[] {
 	return owners;
 }
 
-/** One `pid<TAB>command` line per listener, or undefined when no tool answered. */
+/**
+ * One `pid<TAB>process` line per listener, or undefined when no tool answered.
+ * Only the process name and executable path are collected, never its
+ * arguments: an unrelated program's command line may carry credentials.
+ */
 function listPortOwners(port: number): string[] | undefined {
 	const [command, args] =
 		process.platform === "win32"
@@ -36,7 +40,7 @@ function listPortOwners(port: number): string[] | undefined {
 						"-NoProfile",
 						"-NonInteractive",
 						"-Command",
-						`Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { $p = Get-CimInstance Win32_Process -Filter "ProcessId=$_"; "$_\`t$($p.Name) $($p.CommandLine)" }`,
+						`Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { $p = Get-CimInstance Win32_Process -Filter "ProcessId=$_"; "$_\`t$($p.Name) $($p.ExecutablePath)" }`,
 					],
 				]
 			: ["lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpc"]];
@@ -45,8 +49,10 @@ function listPortOwners(port: number): string[] | undefined {
 		timeout: LOOKUP_TIMEOUT_MS,
 		windowsHide: true,
 	});
-	// lsof exits 1 when nothing listens; only a missing tool is "unavailable".
-	if (result.error) {
+	// lsof exits 1 when nothing listens, so exit status alone cannot tell a
+	// failed lookup from an empty one; a tool that complained instead of
+	// answering is treated as unavailable.
+	if (result.error || (!result.stdout.trim() && result.stderr.trim())) {
 		return undefined;
 	}
 	const lines = result.stdout.split(/\r?\n/).filter((line) => line.trim());
