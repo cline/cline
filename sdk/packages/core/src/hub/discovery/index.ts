@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+	ensureLoopbackProxyBypass,
 	type HubCompatibilityResult,
 	type HubProtocolMetadata,
 	isHubProtocolCompatible,
@@ -543,6 +544,8 @@ export async function probeHubServer(
 	url: string,
 	options?: { authToken?: string },
 ): Promise<HubServerProbeRecord | undefined> {
+	// Idempotent; repeated here so every embedder of the hub client is covered.
+	ensureLoopbackProxyBypass();
 	try {
 		const response = await fetch(
 			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),

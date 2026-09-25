@@ -1,6 +1,6 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
 import { Switch } from "@cline/ui";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,7 @@ import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { ExportDiagnosticsDialog } from "./export-diagnostics-dialog";
 import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
@@ -146,7 +147,7 @@ export function SettingsView({
 	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
-		if (section !== "API Providers") {
+		if (section !== "Providers") {
 			setSelectedProviderId(null);
 			setAddingProvider(false);
 		}
@@ -212,7 +213,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "API Providers") {
+		if (activeNav !== "Providers") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -480,7 +481,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		onNavigateSection("API Providers");
+		onNavigateSection("Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -495,7 +496,7 @@ export function SettingsView({
 	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection("API Providers");
+		onNavigateSection("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -523,7 +524,7 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection("API Providers");
+		onNavigateSection("Providers");
 		setAddingProvider(true);
 	};
 
@@ -564,7 +565,7 @@ export function SettingsView({
 			</p>
 		</div>
 	) : selectedProvider ? (
-		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
+		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(0,0.9fr)_minmax(0,1fr)]">
 			{/* min-h-0/min-w-0: grid items default to min-size auto, which lets
 			    the pane grow past its track and leaves the inner ScrollArea with
 			    nothing to scroll. */}
@@ -577,7 +578,7 @@ export function SettingsView({
 					variant="panel"
 				/>
 			</div>
-			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
+			<aside className="min-h-0 min-w-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
 					key={`${selectedProvider.id}:${detailResetToken}`}
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
@@ -610,14 +611,14 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "API Providers" ? (
+		activeNav === "Providers" ? (
 			<>
 				{providerContent}
 				{addProviderDialog}
 			</>
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
-				onOpenModelProviders={() => onNavigateSection("API Providers")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
@@ -637,7 +638,7 @@ export function SettingsView({
 			<AccountView />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent
-				onOpenModelProviders={() => onNavigateSection("API Providers")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
 		) : (
 			<div className="flex h-full items-center justify-center">
@@ -693,6 +694,7 @@ function GeneralSettingsContent({
 		"Dock" | "Taskbar" | "desktop"
 	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
@@ -1268,6 +1270,25 @@ function GeneralSettingsContent({
 						Replay
 					</Button>
 				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Diagnostics
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Export app info, recent logs, and the metadata of sessions you
+							choose as a file you can attach when reporting a problem.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={() => setExportDiagnosticsOpen(true)}
+						variant="outline"
+					>
+						<Download className="size-3" />
+						Export…
+					</Button>
+				</div>
 				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">About</p>
@@ -1289,6 +1310,10 @@ function GeneralSettingsContent({
 					) : null}
 				</div>
 			</section>
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
 		</PageFrame>
 	);
 }

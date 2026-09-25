@@ -130,10 +130,13 @@ Owns stateful orchestration:
 - hub server and scheduled-runtime services under `src/hub/`
 - hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
 - host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- the experimental cloud-session client exported from `@cline/core/cloud`: cloud API access, remote session lifecycle, and transcript reconciliation
 
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent. It does not implement local-to-cloud handoff.
+- Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
@@ -195,6 +198,10 @@ Provider-field edits have two coordinated paths in the VS Code host:
    an interactive tool is suspended between requests or synchronously inside
    the root pre-request callback; it is rejected during request preparation,
    while a provider request is streaming, or when no run is active.
+   Refresh runs before preparation (which may compact through a provider) and
+   before every stream attempt, including retries of an already compacted request.
+   Those retries reuse preparation and hooks, but rebase options from current
+   connection defaults while retaining request metadata and explicit hook overrides.
 5. The shared VS Code lifecycle brackets first startup, full-session
    replacement, and checkpoint restore. A first start has no source session;
    restore keeps its source reference installed while awaiting the host. The
@@ -240,7 +247,7 @@ field.
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.

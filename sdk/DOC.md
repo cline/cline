@@ -1,4 +1,80 @@
 
+## Shared agent review UI
+
+`@cline/ui` exports presentation-only components for showing a session's changed
+files and pull-request status. Configure Tailwind v4 and a token entry point before
+importing `@cline/ui/components.css`, following the
+[complete styling setup](./packages/ui/ADOPTION.md#option-2-tailwind-mappings-without-base-styles).
+Then import the components from the package root:
+
+```tsx
+import {
+  AgentChangedFile,
+  AgentChangesPanel,
+  AgentPullRequestBar,
+} from "@cline/ui";
+```
+
+`AgentChangesPanel` owns the Changes header, count, close action, empty state,
+and scroll region. Compose `AgentChangedFile` children to show collapsible paths,
+copy feedback, additions/deletions, host-provided actions, and rendered diff
+content. The host retains change collection, clipboard and editor integration,
+and conversation focus.
+
+`AgentPullRequestBar` accepts normalized `AgentPullRequestData` plus loading and
+error state. The host owns refresh, polling, navigation, and telemetry, and
+provides its accessible checks popover through `renderChecks`. Native hosts can
+intercept links with `onNavigate`; web hosts can omit it to render external
+anchors. `getAgentPullRequestMergeStatus` and
+`summarizeAgentPullRequestChecks` expose the same status normalization for other
+host presentation.
+
+## Cloud sessions (experimental)
+
+`CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
+The API handles REST requests; the controller handles remote Hub connections,
+session lifecycle, transcript reconciliation, and approvals. Hosts provide API
+URLs and a fresh-token callback; feature gating and account selection stay in the
+host. Importing this subpath does not start a local agent.
+
+Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
+to open a session, and `send` for a follow-up. Attaching a provisioning or failed
+session returns its receipt without connecting. `detach` closes this viewer, not
+the remote task. Call `dispose` when the host shuts down. This foundation does
+not include local-to-cloud handoff.
+Viewers hydrating active runs with `readMessages` reconcile canonical history at
+completion even when they missed the run-start event and earlier content deltas.
+
+Hosts replacing controllers during credential refresh can share the
+`pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.
+It retains first-task approval/thinking/reasoning preferences, including updates
+through `restoreCreationOptions`, until the inner task is found or created (or
+the outer session is deleted). `dispose` preserves an injected map; without one,
+the controller owns and clears its pending state. Restoring options alone never
+authorizes recreation of a missing established task.
+
+## Voice input models
+
+`getLocalTranscriptionModels(providerId, config?)` from `@cline/core` returns the
+voice models supported by a provider's transcription transport. Use it to build
+voice pickers rather than filtering the bundled chat catalog. Vercel uses its live
+model list and advertised streaming tags; unavailable or malformed responses fail
+discovery rather than restoring stale bundled models. Voice selection saves and
+both batch and streaming execution revalidate through the same service.
+
+`isTranscriptionModel` from `@cline/shared` (also exported for browsers) accepts
+exact audio-only input and text-only output modalities. An explicit transcription
+label does not override additional input or output modalities. Multimodal live
+models are classified as `realtime`, which currently has no built-in transport
+support and is excluded from voice and chat pickers. Dedicated transcription can
+still use either batch or streaming mode. Classification alone does not prove
+that a provider implements the required transport.
+
+`createStreamingAudioTranscriptionSession` mints short-lived Vercel or single-use
+ElevenLabs credentials. Its shared response includes `transport` and `sampleRate`;
+browser clients must capture PCM at that rate (Google live routes require 16 kHz).
+ElevenLabs exposes batch `scribe_v2` and live `scribe_v2_realtime` separately.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH
@@ -95,3 +171,72 @@ Configured agents do not expose a tool approval policy setting. The parent’s
 executes its available tools without inheriting that policy or approval callback.
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
+
+
+## Shared UI session rows
+
+`@cline/ui` exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`, together with their public props types. These are
+presentation primitives for session navigation, rename, and metadata content;
+the host retains session data, routing, menus, permissions, formatting, and
+interaction policy. Import the shared component stylesheet with the host theme.
+
+`AgentSessionRow` owns the row geometry, selected/hover appearance, timestamp
+placement, and pending/provisioning/running/unread status-dot precedence. Hosts
+provide the already-formatted `label` and `timestamp`, optional `leading` and
+`pinnedIndicator` content, and a sibling `action`. Root DOM props and refs pass
+through to the row wrapper for host-owned context-menu or hover-card triggers.
+
+The default control is the desktop native `button`; its `disabled` and
+`onSelect` props apply only in that mode. URL or router navigation uses the
+mutually exclusive `renderControl` mode, which receives the shared navigation
+`className` and row `children` for the host's link or router control. The host
+control owns its href, accessibility, disabled behavior, and event handling.
+The control union prevents combining `renderControl` with `disabled` or
+`onSelect`, and keeps optional actions as siblings so interactive elements are
+not nested.
+
+`AgentSessionRowEditor` supplies the matching edit frame while the host owns
+the rename input, focus, Enter/Escape/blur handling, and saving state.
+`AgentSessionOverview` renders a title and `[label, value, fullValue?]`
+metadata rows; the host owns the hover-card lifecycle, positioning, and
+metadata formatting. See the [session-row adoption guide](./packages/ui/ADOPTION.md#session-rows)
+for the import, slot, and trigger/ref examples.
+
+## Shared context usage presentation (`@cline/ui`)
+
+`AgentContextUsage` exposes desktop's context ring and token breakdown through
+its `children` render callback. It adds no wrapper: the host receives
+`AgentContextUsagePresentation` (`triggerLabel`, `ring`, and `details`) and keeps
+its own accessible trigger, popover, positioning, focus, and keyboard behavior.
+
+`AgentContextUsageProps` accepts `usage: AgentContextUsageData`, optional
+`costLabel: ReactNode`, and the required render callback. Usage contains
+`tokensIn`, `tokensOut`, `cacheReadTokens`, and optional `contextWindow`.
+Supply current-request metrics and the model's authoritative context capacity,
+not accumulated session token traffic. The component renders nothing when
+usage is empty or context capacity is unavailable or nonpositive. Cached tokens
+are part of input usage, not additional context consumption.
+
+`costLabel` is a separate host-formatted cost. Numeric zero is displayed;
+previously hidden falsy values remain omitted. Desktop retains its existing
+cost formatter and usage source. Import the component and all three public
+types from `@cline/ui`; see [UI adoption guidance](packages/ui/ADOPTION.md) for
+theme setup, styling, and composition examples.
+
+## Shared command output and image presentation (`@cline/ui`)
+
+`AgentCommandOutput` renders `output` with a running cursor controlled by
+`isRunning`. Optional `children` let the host retain ANSI rendering or normalize
+control characters. It follows new output initially, pauses when the user
+scrolls away, and resumes within 24px of the bottom. Hosts own output collection,
+limits, and session identity; remount it when switching commands. `tabIndex` and
+`classNames.viewport` / `classNames.cursor` allow host-specific accessibility styling.
+
+`AgentImageLightboxContent` renders an image and two close controls calling
+`onClose`. The host owns the dialog, positioning, Escape handling, focus management,
+and image navigation. `backdropTabIndex` can exclude the backdrop from a managed
+dialog's tab order. Image source validation and resolution remain host-owned;
+provider-generated URLs must go through an explicit host trust policy before
+rendering. This presentation primitive does not replace `GeneratedMediaContent`
+or its inline-byte validation.

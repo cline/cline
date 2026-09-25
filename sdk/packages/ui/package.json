@@ -47,6 +47,12 @@
 	},
 	"files": [
 		"components.css",
+		"components/agent-changes.tsx",
+		"components/agent-changes.css",
+		"components/agent-pull-request-bar.tsx",
+		"components/agent-pull-request-bar.css",
+		"components/agent-command-output.tsx",
+		"components/agent-image-lightbox.tsx",
 		"components/attachment-drop-zone.tsx",
 		"components/badge.tsx",
 		"components/button.tsx",
@@ -59,6 +65,7 @@
 		"components/agent-approval-card.tsx",
 		"components/agent-ask-question.css",
 		"components/agent-ask-question.tsx",
+		"components/agent-context-usage.tsx",
 		"components/agent-aurora.css",
 		"components/agent-aurora.tsx",
 		"components/agent-hero-heading.css",
@@ -70,6 +77,7 @@
 		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",
 		"components/agent-quick-actions.tsx",
+		"components/agent-session-row.tsx",
 		"components/github-icon.tsx",
 		"components/markdown.css",
 		"components/markdown.ts",
@@ -172,6 +180,7 @@
 		"@cline/shared": "workspace:*",
 		"@radix-ui/react-slot": "1.2.4",
 		"class-variance-authority": "^0.7.1",
-		"clsx": "^2.1.1"
+		"clsx": "^2.1.1",
+		"lucide-react": "^0.564.0"
 	}
 }
