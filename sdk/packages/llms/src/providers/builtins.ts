@@ -1117,6 +1117,37 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsFactory: () => ({}),
 		defaults: { baseUrl: "https://api.asksage.ai/server" },
 	},
+	// Free model providers
+	{
+		id: "freetheai",
+		name: "FreeTheAi",
+		description: "Free OpenAI-compatible API with 60+ models, no billing required",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "gpt-4o",
+		apiKeyEnv: ["FREETHEAI_API_KEY"],
+		defaults: { baseUrl: "https://api.freetheai.xyz/v1" },
+	},
+	{
+		id: "bazaarlink",
+		name: "BazaarLink",
+		description: "Free LLM API with rate limits, no credit card required",
+		family: "openai-compatible",
+		capabilities: ["tools"],
+		defaultModelId: "auto:free",
+		apiKeyEnv: ["BAZAARLINK_API_KEY"],
+		defaults: { baseUrl: "https://api.bazaarlink.ai/v1" },
+	},
+	{
+		id: "completions-me",
+		name: "Completions.me",
+		description: "Free unlimited AI API access to premium models",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "claude-3-opus",
+		apiKeyEnv: ["COMPLETIONS_ME_API_KEY"],
+		defaults: { baseUrl: "https://api.completions.me/v1" },
+	},
 ];
 
 /**
