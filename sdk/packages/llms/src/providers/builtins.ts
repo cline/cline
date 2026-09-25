@@ -857,6 +857,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "api-route",
+		name: "API Route",
+		description: "Aggregating gateway for Claude, OpenAI, DeepSeek, and Gemini models",
+		family: "openai-compatible",
+		defaultModelId: "claude-sonnet-4-5",
+		apiKeyEnv: ["API_ROUTE_API_KEY"],
+		defaults: { baseUrl: "https://global.api-route.com/v1" },
+	},
+	{
 		id: "crusoe",
 		name: "Crusoe",
 		description: "Managed inference on renewable-powered GPU infrastructure",
