@@ -4,6 +4,8 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./LoadingScreen";
 
+import { StartupDiagnostics } from "./StartupDiagnostics";
+
 export function SiteLoader({
 	children,
 	readiness,
@@ -36,6 +38,11 @@ export function SiteLoader({
 				<div className="h-screen" hidden={!showApp} inert={!showApp}>
 					{children}
 				</div>
+			)}
+			{showApp && readiness.diagnosticReport && (
+				<aside className="fixed bottom-4 right-4 z-50 max-w-lg">
+					<StartupDiagnostics report={readiness.diagnosticReport} />
+				</aside>
 			)}
 			{!showApp && (
 				<LoadingScreen

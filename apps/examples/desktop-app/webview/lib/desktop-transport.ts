@@ -1,3 +1,4 @@
+import type { StartupFailure } from "./startup-diagnostics";
 export type DesktopTransportRequest = {
 	type: "command";
 	id: string;
@@ -49,6 +50,7 @@ export type DesktopBackendReadyPayload = {
 };
 
 export type DesktopBackendReadiness = {
+	lastFailure?: StartupFailure;
 	state: "starting" | "ready" | "failed";
 	message?: string;
 	attempt: number;

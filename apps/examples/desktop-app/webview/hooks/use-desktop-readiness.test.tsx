@@ -98,3 +98,71 @@ it("forgets ready hub state on disconnect until the new sidecar reports readines
 	await act(async () => transport("connected"));
 	expect(container.textContent).toBe("starting");
 });
+
+it("retains failure reports after ready and a subsequent disconnect", async () => {
+	let event!: (value: unknown) => void;
+	let transport!: (value: string) => void;
+	mocks.subscribeTransportState.mockImplementation((handler) => {
+		transport = handler;
+		return () => {};
+	});
+	mocks.invoke.mockResolvedValue({ state: "starting", attempt: 1 });
+	mocks.subscribe.mockImplementation((_name, handler) => {
+		event = handler;
+		return () => {};
+	});
+	await act(async () => root.render(<Probe />));
+	await act(async () =>
+		event({
+			state: "failed",
+			attempt: 1,
+			automaticRetry: true,
+			lastFailure: {
+				at: "2026-01-01T00:00:00Z",
+				stage: "discovery",
+				attempt: 1,
+				elapsedMs: 30000,
+				code: "STARTUP_TIMEOUT",
+			},
+		}),
+	);
+	expect(latest.diagnosticReport).toContain("STARTUP_TIMEOUT");
+	const report = latest.diagnosticReport;
+	await act(async () => event({ state: "ready", attempt: 2 }));
+	expect(latest.diagnosticReport).toBe(report);
+	await act(async () => transport("reconnecting"));
+	expect(latest.diagnosticReport).toBe(report);
+});
+
+it("captures native timeout diagnostics without a live sidecar and keeps them through retry", async () => {
+	let transport!: (value: string) => void;
+	mocks.native = true;
+	mocks.subscribeTransportState.mockImplementation((handler) => {
+		transport = handler;
+		return () => {};
+	});
+	mocks.subscribe.mockImplementation(() => () => {});
+	mocks.invoke.mockImplementation(async (command) =>
+		command === "get_desktop_backend_status"
+			? {
+					state: "failed",
+					error: "Endpoint timed out",
+					exitStatus: "exit code 7",
+					diagnostics: ["token=private-value", "Missing /Users/alice/app/file"],
+				}
+			: { state: "starting", attempt: 0 },
+	);
+	try {
+		await act(async () => root.render(<Probe />));
+		await act(async () => transport("connecting"));
+		expect(latest.diagnosticReport).toContain("desktop_endpoint");
+		expect(latest.diagnosticReport).toContain("exit code 7");
+		expect(latest.diagnosticReport).not.toContain("private-value");
+		expect(latest.diagnosticReport).not.toContain("alice");
+		const report = latest.diagnosticReport;
+		await act(async () => latest.retry());
+		expect(latest.diagnosticReport).toBe(report);
+	} finally {
+		mocks.native = false;
+	}
+});

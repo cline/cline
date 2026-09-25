@@ -343,6 +343,7 @@ const MAX_DIAGNOSTIC_LINE: usize = 1024;
 
 #[derive(Default)]
 struct BackendDiagnostics {
+    attempt: u32,
     started_at: Option<Instant>,
     lines: VecDeque<String>,
     exit_status: Option<String>,
@@ -352,6 +353,8 @@ struct BackendDiagnostics {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopBackendStatus {
+    attempt: u32,
+    elapsed_ms: u64,
     state: &'static str,
     diagnostics: Vec<String>,
     exit_status: Option<String>,
@@ -749,6 +752,7 @@ fn ensure_desktop_backend_started_locked(
         }
         diagnostics.error = None;
         diagnostics.started_at = Some(Instant::now());
+        diagnostics.attempt = diagnostics.attempt.saturating_add(1);
     }
     let mut child = spawn_backend().map_err(|error| {
         let error = sanitize_startup_diagnostic(&error);
@@ -1012,6 +1016,11 @@ fn desktop_backend_status(backend_state: &DesktopBackendState) -> DesktopBackend
         "starting"
     };
     DesktopBackendStatus {
+        attempt: diagnostics.attempt,
+        elapsed_ms: diagnostics
+            .started_at
+            .map(|start| start.elapsed().as_millis() as u64)
+            .unwrap_or(0),
         state,
         diagnostics: diagnostics.lines.iter().cloned().collect(),
         exit_status: diagnostics.exit_status.clone(),
@@ -1060,7 +1069,11 @@ fn retry_desktop_backend_with(
     }
     *process = None;
     if let Ok(mut diagnostics) = state.diagnostics.lock() {
-        *diagnostics = BackendDiagnostics::default();
+        let attempt = diagnostics.attempt;
+        *diagnostics = BackendDiagnostics {
+            attempt,
+            ..BackendDiagnostics::default()
+        };
     }
     ensure_desktop_backend_started_locked(state, process, spawn_backend)
 }
@@ -1101,6 +1114,47 @@ async fn get_desktop_backend_endpoint(
     })
     .await
     .map_err(|error| format!("desktop backend startup task failed: {error}"))?
+}
+
+// Available even when the sidecar never publishes an endpoint.
+#[tauri::command]
+async fn save_startup_diagnostics(app: tauri::AppHandle, report: String) -> Result<bool, String> {
+    if report.len() > 512 * 1024 {
+        return Err("Startup report exceeds size limit".to_string());
+    }
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "linux")]
+        {
+            let picked = rfd::AsyncFileDialog::new()
+                .set_file_name("cline-startup-diagnostics.txt")
+                .save_file();
+            std::thread::spawn(move || {
+                let picked = tauri::async_runtime::block_on(picked);
+                let _ = tx.send(picked.map(|handle| handle.path().to_path_buf()));
+            });
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = tx.send(
+                rfd::FileDialog::new()
+                    .set_file_name("cline-startup-diagnostics.txt")
+                    .save_file(),
+            );
+        }
+    })
+    .map_err(|_| "Unable to open save dialog".to_string())?;
+    let path = rx
+        .await
+        .map_err(|_| "Save dialog closed unexpectedly".to_string())?;
+    let Some(path) = path else {
+        return Ok(false);
+    };
+    tauri::async_runtime::spawn_blocking(move || std::fs::write(path, report))
+        .await
+        .map_err(|_| "Unable to save startup report".to_string())?
+        .map_err(|_| "Unable to save startup report".to_string())?;
+    Ok(true)
 }
 
 #[tauri::command]
@@ -1821,6 +1875,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
             get_desktop_backend_status,
+            save_startup_diagnostics,
             retry_desktop_backend,
             pick_workspace_directory,
             open_mcp_settings_file,
@@ -2139,14 +2194,17 @@ mod tests {
         let state = Arc::new(DesktopBackendState::default());
         ensure_desktop_backend_started_with(&state, spawn_pending_sidecar).unwrap();
         assert_eq!(desktop_backend_status(&state).state, "starting");
+        assert_eq!(desktop_backend_status(&state).attempt, 1);
         state.diagnostics.lock().unwrap().started_at = Some(Instant::now() - ENDPOINT_WAIT_TIMEOUT);
         let status = desktop_backend_status(&state);
         assert_eq!(status.state, "failed");
         assert!(status.error.unwrap().contains("Retry startup"));
+        assert!(status.elapsed_ms >= ENDPOINT_WAIT_TIMEOUT.as_millis() as u64);
         retry_desktop_backend_with(&state, spawn_pending_sidecar).unwrap();
         let status = desktop_backend_status(&state);
         assert_eq!(status.state, "starting");
         assert!(status.error.is_none());
+        assert_eq!(status.attempt, 2);
         assert!(
             state
                 .diagnostics

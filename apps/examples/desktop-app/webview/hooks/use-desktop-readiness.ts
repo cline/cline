@@ -7,7 +7,15 @@ import type {
 	DesktopTransportState,
 } from "@/lib/desktop-transport";
 
+import {
+	buildStartupReport,
+	type StartupFailureSnapshot,
+	sanitizeStartupLine,
+} from "@/lib/startup-diagnostics";
+
 export type DesktopStartupStatus = {
+	attempt: number;
+	elapsedMs: number;
 	state: "starting" | "ready" | "failed";
 	diagnostics: string[];
 	exitStatus: string | null;
@@ -26,6 +34,60 @@ export function useDesktopReadiness() {
 	const [retryError, setRetryError] = useState<string | null>(null);
 	const [retrying, setRetrying] = useState(false);
 	const hubEventRevision = useRef(0);
+	const startedAt = useRef(Date.now());
+	const [failures, setFailures] = useState<StartupFailureSnapshot[]>([]);
+	const lastSnapshot = useRef("");
+	useEffect(() => {
+		const failure = hub.lastFailure;
+		let snapshot: StartupFailureSnapshot | undefined;
+		if (transport === "connected" && (failure || hub.state === "failed")) {
+			snapshot = {
+				at: failure?.at ?? new Date().toISOString(),
+				stage: "hub",
+				elapsedMs: failure?.elapsedMs ?? Date.now() - startedAt.current,
+				attempt: failure?.attempt ?? hub.attempt,
+				step: failure?.stage ?? hub.step,
+				code: failure?.code ?? "INITIALIZATION_FAILED",
+				diagnostics: [],
+			};
+		} else if (
+			transport !== "connected" &&
+			(startup?.state === "failed" || transport === "unavailable")
+		) {
+			snapshot = {
+				at: new Date().toISOString(),
+				stage: "desktop_endpoint",
+				elapsedMs: startup?.elapsedMs ?? Date.now() - startedAt.current,
+				attempt: startup?.attempt,
+				code: "DESKTOP_ENDPOINT_UNAVAILABLE",
+				exitStatus: startup?.exitStatus
+					? sanitizeStartupLine(startup.exitStatus)
+					: null,
+				diagnostics: [startup?.error, ...(startup?.diagnostics ?? [])]
+					.filter((line): line is string => !!line)
+					.slice(-32)
+					.map(sanitizeStartupLine),
+			};
+		}
+		if (!snapshot) return;
+		// Polling an unchanged failure must not evict earlier attempts. A changed
+		// diagnostic tail is retained, while retry/ready transitions never clear it.
+		const key = JSON.stringify({
+			...snapshot,
+			at: failure?.at,
+			elapsedMs: undefined,
+		});
+		if (key === lastSnapshot.current) return;
+		lastSnapshot.current = key;
+		const captured = snapshot;
+		setFailures((previous) => [...previous, captured].slice(-8));
+	}, [transport, startup, hub]);
+	const diagnosticReport = failures.length
+		? buildStartupReport(
+				failures,
+				typeof navigator === "undefined" ? "unknown" : navigator.platform,
+			)
+		: null;
 	useEffect(
 		() =>
 			desktopClient.subscribeTransportState((next) => {
@@ -51,6 +113,8 @@ export function useDesktopReadiness() {
 				if (!cancelled)
 					setStartup({
 						state: "failed",
+						attempt: 0,
+						elapsedMs: Date.now() - startedAt.current,
 						diagnostics: [],
 						exitStatus: null,
 						error: String(error),
@@ -110,5 +174,13 @@ export function useDesktopReadiness() {
 			setRetrying(false);
 		}
 	}, [transport]);
-	return { transport, startup, hub, retry, retryError, retrying };
+	return {
+		transport,
+		startup,
+		hub,
+		retry,
+		retryError,
+		retrying,
+		diagnosticReport,
+	};
 }
