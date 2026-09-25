@@ -9,7 +9,6 @@ import {
 } from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
-import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	emptyStoredProviderSettings,
@@ -29,6 +28,10 @@ import {
 	ensureCustomProvidersLoadedSync,
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
+import {
+	normalizeLastUsedProvider,
+	resolveStoredProviderSettings,
+} from "./provider-settings-last-used";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {
@@ -169,12 +172,20 @@ export class ProviderSettingsManager {
 			const parsed = JSON.parse(raw) as unknown;
 			const result = StoredProviderSettingsSchema.safeParse(parsed);
 			if (result.success) {
-				registerConfiguredProvidersFromSettings(result.data);
-				const clineAuth = result.data.providers["cline"]?.settings?.auth;
+				// Repair the pointer in memory only; disk is healed by the next
+				// write, since reads must not race other processes for the file.
+				const data = normalizeLastUsedProvider(result.data);
+				if (data.lastUsedProvider !== result.data.lastUsedProvider) {
+					sdkDebug(
+						`providers.read lastUsedProvider=${result.data.lastUsedProvider} has no settings; using ${data.lastUsedProvider ?? "none"}`,
+					);
+				}
+				registerConfiguredProvidersFromSettings(data);
+				const clineAuth = data.providers["cline"]?.settings?.auth;
 				sdkDebug(
-					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
+					`providers.read providers=[${Object.keys(data.providers).join(",")}] lastUsed=${data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
 				);
-				return result.data;
+				return data;
 			}
 		} catch {
 			// Invalid content falls back to a clean state.
@@ -184,7 +195,9 @@ export class ProviderSettingsManager {
 	}
 
 	write(state: StoredProviderSettings): void {
-		const normalized = StoredProviderSettingsSchema.parse(state);
+		const normalized = StoredProviderSettingsSchema.parse(
+			normalizeLastUsedProvider(state),
+		);
 		const dir = dirname(this.filePath);
 		if (!existsSync(dir)) {
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -258,25 +271,7 @@ export class ProviderSettingsManager {
 		state: StoredProviderSettings,
 		providerId: string,
 	): ProviderSettings | undefined {
-		const directSettings = state.providers[providerId]?.settings;
-		const authHandler = getProviderAuthHandler(providerId);
-		const storageProviderId = authHandler?.storageProviderId;
-		if (!storageProviderId || storageProviderId === providerId) {
-			return directSettings;
-		}
-
-		const authSettings = state.providers[storageProviderId]?.settings;
-		if (!authSettings) {
-			return directSettings;
-		}
-
-		return ProviderSettingsSchema.parse({
-			...(authSettings.auth ? { auth: authSettings.auth } : {}),
-			...(authSettings.apiKey ? { apiKey: authSettings.apiKey } : {}),
-			...(authSettings.baseUrl ? { baseUrl: authSettings.baseUrl } : {}),
-			...(directSettings ?? {}),
-			provider: providerId,
-		});
+		return resolveStoredProviderSettings(state, providerId);
 	}
 
 	getProviderSettings(providerId: string): ProviderSettings | undefined {

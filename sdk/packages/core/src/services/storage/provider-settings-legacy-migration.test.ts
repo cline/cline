@@ -1153,6 +1153,110 @@ describe("migrateLegacyProviderSettings", () => {
 			},
 		});
 	});
+
+	it("replaces a stale last-used provider instead of carrying it forward", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		writeFileSync(
+			providersPath,
+			JSON.stringify({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {},
+			}),
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "openai",
+				openAiBaseUrl: "http://127.0.0.1:8080/v1",
+				actModeOpenAiModelId: "qwen3-coder",
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.lastUsedProvider).toBe("openai-compatible");
+		expect(
+			JSON.parse(readFileSync(providersPath, "utf8")).lastUsedProvider,
+		).toBe("openai-compatible");
+		expect(manager.getLastUsedProviderSettings()).toMatchObject({
+			provider: "openai-compatible",
+			baseUrl: "http://127.0.0.1:8080/v1",
+			model: "qwen3-coder",
+		});
+	});
+
+	it("keeps an existing last-used provider that still resolves", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		manager.saveProviderSettings(
+			{ provider: "anthropic", apiKey: "existing-key" },
+			{ setLastUsed: true },
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "openai",
+				openAiBaseUrl: "http://127.0.0.1:8080/v1",
+				actModeOpenAiModelId: "qwen3-coder",
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(true);
+		expect(result.lastUsedProvider).toBe("anthropic");
+	});
+
+	it("does not fabricate a SAP AI Core provider from the default orchestration flag alone", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "openai",
+				openAiBaseUrl: "http://127.0.0.1:8080/v1",
+				actModeOpenAiModelId: "qwen3-coder",
+				// Written as a default for every user, regardless of SAP usage.
+				sapAiCoreUseOrchestrationMode: true,
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(Object.keys(manager.read().providers)).toEqual([
+			"openai-compatible",
+		]);
+	});
 });
 
 // =============================================================================

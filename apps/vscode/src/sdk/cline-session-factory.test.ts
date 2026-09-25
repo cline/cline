@@ -1614,3 +1614,104 @@ describe("updateHistoryItem", () => {
 		expect(result[1].id).toBe("task-old")
 	})
 })
+
+// ---------------------------------------------------------------------------
+// SDK provider fallback
+// ---------------------------------------------------------------------------
+
+describe("buildSessionConfig SDK provider fallback", () => {
+	it("uses a keyless local provider from providers.json when state names no provider", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+		const keylessLocal = {
+			provider: "openai-compatible",
+			model: "qwen3-coder",
+			baseUrl: "http://127.0.0.1:8080/v1",
+		}
+		mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(keylessLocal as any)
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) =>
+			providerId === "openai-compatible" ? (keylessLocal as any) : undefined,
+		)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("qwen3-coder")
+		expect(config.baseUrl).toBe("http://127.0.0.1:8080/v1")
+		expect(config.apiKey).toBe("")
+	})
+})
+
+describe("buildSessionConfig SDK provider fallback carries structured cloud settings", () => {
+	function useKeylessFallback(settings: Record<string, unknown>): void {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+		mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(settings as any)
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) =>
+			providerId === settings.provider ? (settings as any) : undefined,
+		)
+	}
+
+	it("keeps Bedrock region and authentication from providers.json", async () => {
+		useKeylessFallback({
+			provider: "bedrock",
+			model: "anthropic.claude-sonnet-4-6-v1:0",
+			aws: {
+				region: "eu-central-1",
+				authentication: "profile",
+				profile: "dev",
+				useCrossRegionInference: true,
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("bedrock")
+		expect(config.apiKey).toBe("")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "bedrock",
+			region: "eu-central-1",
+			aws: { authentication: "profile", profile: "dev" },
+			useCrossRegionInference: true,
+		})
+	})
+
+	it("keeps Vertex project and region from providers.json", async () => {
+		useKeylessFallback({
+			provider: "vertex",
+			model: "claude-sonnet-4-6",
+			gcp: { projectId: "my-project", region: "us-east5" },
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("vertex")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "vertex",
+			region: "us-east5",
+			gcp: { projectId: "my-project", region: "us-east5" },
+		})
+	})
+
+	it("keeps SAP AI Core OAuth settings and base URL from providers.json", async () => {
+		useKeylessFallback({
+			provider: "sapaicore",
+			model: "anthropic--claude-3.5-sonnet",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.example.authentication.eu10.hana.ondemand.com/oauth/token",
+				resourceGroup: "default",
+				useOrchestrationMode: true,
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("sapaicore")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sap: { clientId: "sap-client", tokenUrl: "https://auth.example.authentication.eu10.hana.ondemand.com/oauth/token" },
+		})
+	})
+})
