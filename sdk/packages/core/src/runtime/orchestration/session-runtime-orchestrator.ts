@@ -65,6 +65,7 @@ import {
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
+import { ToolResultStore } from "../../session/services/tool-result-store";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -421,7 +422,15 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
+		const toolResultStore = config.sessionId
+			? new ToolResultStore(config.sessionId)
+			: undefined;
+		this.messageBuilder = new MessageBuilder({
+			...getMessageBuilderOptionsFromEnv(),
+			storeToolResult: toolResultStore
+				? (result) => toolResultStore.save(result)
+				: undefined,
+		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,

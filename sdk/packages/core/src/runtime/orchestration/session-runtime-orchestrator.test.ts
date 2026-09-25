@@ -14,6 +14,9 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	type AgentRuntime,
 	type AgentRuntimeConfig,
@@ -34,6 +37,7 @@ import {
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
+import { messagesToAgentMessages } from "../config/agent-message-codec";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -546,6 +550,59 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 });
 
 describe("SessionRuntime message preparation", () => {
+	it("writes external results under the session history directory before model calls", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cline-runtime-results-"));
+		vi.stubEnv("CLINE_SESSION_DATA_DIR", directory);
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({ sessionId: "session_1" }),
+			deps,
+		);
+		try {
+			await session.run("go");
+			const full = "important records".repeat(2000);
+			const prepared = await configs[0]?.hooks?.beforeModel?.({
+				snapshot: makeSnapshot(),
+				request: {
+					systemPrompt: "system",
+					tools: [],
+					messages: messagesToAgentMessages([
+						{
+							role: "assistant",
+							content: [
+								{
+									type: "tool_use",
+									id: "call_1",
+									name: "connector_search",
+									input: {},
+								},
+							],
+						},
+						{
+							role: "user",
+							content: [
+								{
+									type: "tool_result",
+									tool_use_id: "call_1",
+									name: "connector_search",
+									content: full,
+								},
+							],
+						},
+					]),
+				},
+			});
+			const path = join(directory, "session_1", "tools", "call_1.result.txt");
+			expect(JSON.stringify(prepared?.messages)).toContain(path);
+			expect(JSON.stringify(prepared?.messages)).toContain("truncated");
+			expect(await readFile(path, "utf8")).toBe(full);
+		} finally {
+			await session.shutdown();
+			vi.unstubAllEnvs();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	it("runs registered message builders and API-safe normalization before model calls", async () => {
 		const build = vi.fn(async (messages) => [
 			...messages,

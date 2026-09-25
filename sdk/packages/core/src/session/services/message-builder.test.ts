@@ -18,7 +18,7 @@ import {
 } from "./message-builder";
 
 describe("MessageBuilder", () => {
-	it("inserts an error tool result before a follow-up prompt when a prior tool call is missing a result", () => {
+	it("inserts an error tool result before a follow-up prompt when a prior tool call is missing a result", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			{
@@ -46,7 +46,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		expect(result).toHaveLength(3);
 		expect(result[2]).toEqual({
@@ -70,7 +70,7 @@ describe("MessageBuilder", () => {
 		expect(messages).toHaveLength(3);
 	});
 
-	it("fills only missing tool results after existing results for the same assistant turn", () => {
+	it("fills only missing tool results after existing results for the same assistant turn", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			{
@@ -107,7 +107,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		expect(result).toHaveLength(2);
 		const toolResultMessage = result[1];
@@ -138,7 +138,7 @@ describe("MessageBuilder", () => {
 		]);
 	});
 
-	it("does not rewrite synthetic read-tool error results as outdated file content", () => {
+	it("does not rewrite synthetic read-tool error results as outdated file content", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			{
@@ -154,7 +154,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const content = result[1]?.content;
 		expect(Array.isArray(content)).toBe(true);
 		const block = Array.isArray(content) ? content[0] : undefined;
@@ -171,7 +171,7 @@ describe("MessageBuilder", () => {
 		expect(block.is_error).toBe(true);
 	});
 
-	it("truncates search_codebase tool results before provider requests", () => {
+	it("truncates search_codebase tool results before provider requests", async () => {
 		const builder = new MessageBuilder({ maxToolResultChars: 100 });
 		const messages: Message[] = [
 			{
@@ -198,7 +198,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const content = result[1].content;
 		expect(Array.isArray(content)).toBe(true);
 		const block = Array.isArray(content) ? content[0] : undefined;
@@ -210,7 +210,7 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("...[truncated");
 	});
 
-	it("uses an aggressive per-result cap and a loose aggregate budget", () => {
+	it("uses an aggressive per-result cap and a loose aggregate budget", async () => {
 		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBe(8_000);
 		expect(DEFAULT_MAX_FILE_CONTENT_CHARS).toBe(50_000);
 		// The aggregate budget stays loose on purpose: budget truncation
@@ -220,7 +220,7 @@ describe("MessageBuilder", () => {
 		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(6_000_000);
 	});
 
-	it("accepts named limit options for targeted provider payload tests", () => {
+	it("accepts named limit options for targeted provider payload tests", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 120,
 			maxTotalTextBytes: 10_000,
@@ -250,7 +250,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -267,7 +267,7 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("...[truncated");
 	});
 
-	it("parses message-builder limit environment overrides", () => {
+	it("parses message-builder limit environment overrides", async () => {
 		const builder = new MessageBuilder(
 			getMessageBuilderOptionsFromEnv({
 				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "96",
@@ -300,7 +300,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -321,7 +321,7 @@ describe("MessageBuilder", () => {
 				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
 			}),
 		);
-		const eager = eagerBuilder.buildForApi([
+		const eager = await eagerBuilder.buildForApi([
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
 			readToolResult("t1", SMALL_CONTENT(1)),
@@ -331,13 +331,13 @@ describe("MessageBuilder", () => {
 		expect(JSON.stringify(eager[2])).toContain("outdated");
 	});
 
-	it("parses an env disable value for outdated-read rewrites", () => {
+	it("parses an env disable value for outdated-read rewrites", async () => {
 		const builder = new MessageBuilder(
 			getMessageBuilderOptionsFromEnv({
 				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "disable",
 			}),
 		);
-		const result = builder.buildForApi([
+		const result = await builder.buildForApi([
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
 			readToolResult("t1", LARGE_CONTENT(1)),
@@ -349,7 +349,7 @@ describe("MessageBuilder", () => {
 		expect(JSON.stringify(result[2])).toContain("export const x = 1;");
 	});
 
-	it("ignores zero env overrides instead of disabling the limits", () => {
+	it("ignores zero env overrides instead of disabling the limits", async () => {
 		const options = getMessageBuilderOptionsFromEnv({
 			CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "0",
 			CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "0",
@@ -358,7 +358,7 @@ describe("MessageBuilder", () => {
 		expect(options.maxTotalTextBytes).toBeUndefined();
 	});
 
-	it("applies an aggregate text budget across targeted tool results", () => {
+	it("applies an aggregate text budget across targeted tool results", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 20_000,
@@ -400,7 +400,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const totalBytes = result.reduce((sum, message) => {
 			if (typeof message.content === "string") {
 				return sum + Buffer.byteLength(message.content, "utf8");
@@ -425,7 +425,7 @@ describe("MessageBuilder", () => {
 		expect(JSON.stringify(result)).toContain("provider request budget");
 	});
 
-	it("applies the aggregate budget using UTF-8 byte size", () => {
+	it("applies the aggregate budget using UTF-8 byte size", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 12_000,
@@ -455,7 +455,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -474,7 +474,7 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("provider request budget");
 	});
 
-	it("does not mutate original nested tool result content when applying aggregate budget", () => {
+	it("does not mutate original nested tool result content when applying aggregate budget", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 10_000,
@@ -505,7 +505,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const originalBlock = Array.isArray(messages[1].content)
 			? messages[1].content[0]
 			: undefined;
@@ -533,7 +533,7 @@ describe("MessageBuilder", () => {
 		]);
 	});
 
-	it("caps assistant text with repeated DSML tool-call fragments before provider requests", () => {
+	it("caps assistant text with repeated DSML tool-call fragments before provider requests", async () => {
 		const builder = new MessageBuilder();
 		const dsmlFragment = [
 			"<\uFF5CDSML\uFF5Ctool_calls>",
@@ -556,7 +556,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[0].content)
 			? result[0].content[0]
 			: undefined;
@@ -575,7 +575,7 @@ describe("MessageBuilder", () => {
 		]);
 	});
 
-	it("keeps repeated assistant tool-call markup out of provider-formatted AI SDK payloads", () => {
+	it("keeps repeated assistant tool-call markup out of provider-formatted AI SDK payloads", async () => {
 		const builder = new MessageBuilder();
 		const dsmlFragment = [
 			"<\uFF5CDSML\uFF5Ctool_calls>",
@@ -595,7 +595,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const built = builder.buildForApi(messages);
+		const built = await builder.buildForApi(messages);
 		const agentMessages = messagesToAgentMessages(built);
 		const aiSdkMessages = formatMessagesForAiSdk(
 			undefined,
@@ -612,7 +612,7 @@ describe("MessageBuilder", () => {
 		expect(serialized.match(/DSML/g)?.length ?? 0).toBeLessThan(40);
 	});
 
-	it("caps oversized top-level assistant string content with an omitted-char marker", () => {
+	it("caps oversized top-level assistant string content with an omitted-char marker", async () => {
 		const builder = new MessageBuilder({ maxAssistantTextChars: 1_000 });
 		const assistantText = `Lead\n${"normal assistant answer ".repeat(200)}\nTail`;
 		const messages: Message[] = [
@@ -622,7 +622,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		expect(typeof result[0].content).toBe("string");
 		expect(result[0].content.length).toBeLessThanOrEqual(1_000);
@@ -630,7 +630,7 @@ describe("MessageBuilder", () => {
 		expect(messages[0].content).toBe(assistantText);
 	});
 
-	it("preserves normal long assistant answers below the assistant text cap", () => {
+	it("preserves normal long assistant answers below the assistant text cap", async () => {
 		const builder = new MessageBuilder();
 		const answer = [
 			"Summary:",
@@ -646,7 +646,7 @@ describe("MessageBuilder", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		expect(result).toEqual(messages);
 	});
@@ -766,7 +766,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		return operation as ToolOperationResultLike;
 	}
 
-	it("reduces a real-shaped multi-MB run_commands result to the default cap", () => {
+	it("reduces a real-shaped multi-MB run_commands result to the default cap", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			toolUseMessage("call_1", "run_commands", {
@@ -783,7 +783,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		];
 
 		const rawSerializedLength = JSON.stringify(messages).length;
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const operation = firstToolOperationResult(result);
 		const output = operation.result;
 
@@ -802,7 +802,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		);
 	});
 
-	it("materially shrinks provider-formatted payloads compared with previous defaults", () => {
+	it("materially shrinks provider-formatted payloads compared with previous defaults", async () => {
 		const messages: Message[] = [];
 		for (let i = 0; i < 20; i++) {
 			messages.push(
@@ -826,10 +826,10 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		const currentDefaults = new MessageBuilder();
 
 		const previousPayload = serializeForAiSdk(
-			previousDefaults.buildForApi(messages),
+			await previousDefaults.buildForApi(messages),
 		);
 		const currentPayload = serializeForAiSdk(
-			currentDefaults.buildForApi(messages),
+			await currentDefaults.buildForApi(messages),
 		);
 
 		expect(previousPayload.length).toBeGreaterThan(900_000);
@@ -838,7 +838,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(currentPayload).not.toContain(MIDDLE_SENTINEL);
 	});
 
-	it("truncates a huge nested `result` string in run_commands structured output", () => {
+	it("truncates a huge nested `result` string in run_commands structured output", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			toolUseMessage("call_1", "run_commands", {
@@ -855,7 +855,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		];
 
 		const rawSerializedLength = JSON.stringify(messages).length;
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(rawSerializedLength).toBeGreaterThan(390_000);
@@ -866,7 +866,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).toContain(TAIL_MARKER);
 	});
 
-	it("truncates a huge nested `query` string in run_commands structured output", () => {
+	it("truncates a huge nested `query` string in run_commands structured output", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			toolUseMessage("call_1", "run_commands", {
@@ -881,7 +881,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized.length).toBeLessThan(120_000);
@@ -890,7 +890,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).toContain(TAIL_MARKER);
 	});
 
-	it("truncates a huge file payload in read_files structured output", () => {
+	it("truncates a huge file payload in read_files structured output", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			toolUseMessage("call_1", "read_files", {
@@ -905,7 +905,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized.length).toBeLessThan(120_000);
@@ -916,7 +916,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain("[outdated");
 	});
 
-	it("omits an oversized read_files image result without corrupting base64", () => {
+	it("omits an oversized read_files image result without corrupting base64", async () => {
 		const oversizedImage = imageData(96);
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
@@ -947,7 +947,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized).toContain(
@@ -974,7 +974,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		]);
 	});
 
-	it("omits oversized custom structured image results regardless of tool name", () => {
+	it("omits oversized custom structured image results regardless of tool name", async () => {
 		const oversizedImage = imageData(96);
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
@@ -1002,7 +1002,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized).toContain(
@@ -1012,7 +1012,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain("...[truncated");
 	});
 
-	it("omits malformed image-shaped objects instead of counting them as free text", () => {
+	it("omits malformed image-shaped objects instead of counting them as free text", async () => {
 		const hiddenPayload = imageData(4096);
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
@@ -1039,7 +1039,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized).toContain(
@@ -1049,7 +1049,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain("...[truncated");
 	});
 
-	it("keeps valid small read_files images as native provider media", () => {
+	it("keeps valid small read_files images as native provider media", async () => {
 		const smallImage = imageData(16);
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
@@ -1080,7 +1080,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const built = builder.buildForApi(messages);
+		const built = await builder.buildForApi(messages);
 		const agentMessages = messagesToAgentMessages(built);
 		const aiSdkMessages = formatMessagesForAiSdk(
 			undefined,
@@ -1098,7 +1098,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		);
 	});
 
-	it("applies the total media budget across otherwise valid images", () => {
+	it("applies the total media budget across otherwise valid images", async () => {
 		const firstImage = imageData(16);
 		const secondImage = imageData(16, 2);
 		const builder = new MessageBuilder({
@@ -1142,7 +1142,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized).toContain(firstImage);
@@ -1152,7 +1152,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		);
 	});
 
-	it("truncates a huge fetch_web_content structured result", () => {
+	it("truncates a huge fetch_web_content structured result", async () => {
 		// The web-fetch executor allows responses up to 5MB, so this tool must
 		// be covered by the truncation targets like the other bulk-output tools.
 		const builder = new MessageBuilder();
@@ -1169,7 +1169,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const serialized = JSON.stringify(result);
 
 		expect(serialized.length).toBeLessThan(120_000);
@@ -1178,7 +1178,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).toContain(TAIL_MARKER);
 	});
 
-	it("applies the aggregate text budget to nested structured strings", () => {
+	it("applies the aggregate text budget to nested structured strings", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 100_000,
@@ -1200,7 +1200,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			);
 		}
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		let toolResultStringBytes = 0;
 		for (const message of result) {
@@ -1218,7 +1218,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(JSON.stringify(result)).toContain("provider request budget");
 	});
 
-	it("does not mutate the original structured tool results", () => {
+	it("does not mutate the original structured tool results", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 10_000,
 			maxTotalTextBytes: 20_000,
@@ -1243,13 +1243,13 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		];
 		const snapshot = structuredClone(messages);
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		expect(messages).toEqual(snapshot);
 		expect(JSON.stringify(result)).not.toContain(MIDDLE_SENTINEL);
 	});
 
-	it("keeps huge nested strings out of provider-formatted AI SDK messages", () => {
+	it("keeps huge nested strings out of provider-formatted AI SDK messages", async () => {
 		const builder = new MessageBuilder();
 		const messages: Message[] = [
 			toolUseMessage("call_1", "run_commands", {
@@ -1264,7 +1264,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 			]),
 		];
 
-		const built = builder.buildForApi(messages);
+		const built = await builder.buildForApi(messages);
 		const agentMessages = messagesToAgentMessages(built);
 		const aiSdkMessages = formatMessagesForAiSdk(
 			undefined,
@@ -1286,8 +1286,8 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
  * Coverage for default-on truncation (no tool allowlist), tool_use input
  * budget accounting, tool_result.name fallback, and binary block protection.
  */
-describe("MessageBuilder default-on truncation", () => {
-	it("truncates huge results from MCP/custom tools that were never on the old allowlist", () => {
+describe("MessageBuilder tool result truncation", () => {
+	it("keeps external results intact without result storage", async () => {
 		const builder = new MessageBuilder({ maxToolResultChars: 100 });
 		const messages: Message[] = [
 			{
@@ -1314,18 +1314,17 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
 		if (block?.type !== "tool_result" || typeof block.content !== "string") {
 			throw new Error("expected tool_result with string content");
 		}
-		expect(block.content.length).toBeLessThanOrEqual(100);
-		expect(block.content).toContain("...[truncated");
+		expect(block.content).toBe("d".repeat(5_000));
 	});
 
-	it("collects non-builtin tool results as aggregate budget candidates", () => {
+	it("excludes non-builtin tool results as aggregate budget candidates", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 20_000,
@@ -1355,7 +1354,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -1366,11 +1365,10 @@ describe("MessageBuilder default-on truncation", () => {
 		if (entry.type !== "text") {
 			throw new Error("expected text entry");
 		}
-		expect(Buffer.byteLength(entry.text, "utf8")).toBeLessThanOrEqual(20_000);
-		expect(entry.text).toContain("provider request budget");
+		expect(entry.text).toBe("e".repeat(30_000));
 	});
 
-	it("counts tool_use input strings toward the aggregate budget", () => {
+	it("counts tool_use input strings toward the aggregate budget", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 20_000,
@@ -1401,7 +1399,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		// Result alone (10k) is under the 20k budget; only counting the 15k
 		// tool_use input pushes the total over and forces budget truncation.
 		const resultBlock = Array.isArray(result[1].content)
@@ -1426,7 +1424,7 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(useBlock.input).toEqual({ commands: [hugeInput] });
 	});
 
-	it("truncates oversized tool_use inputs as a last resort when results cannot absorb the overflow", () => {
+	it("truncates oversized tool_use inputs as a last resort when results cannot absorb the overflow", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 20_000,
@@ -1457,7 +1455,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		// The result shrinks to the floor first, but that alone cannot bring
 		// 50k total under the 20k budget, so the input is truncated too.
@@ -1486,7 +1484,7 @@ describe("MessageBuilder default-on truncation", () => {
 		);
 	});
 
-	it("rewrites outdated reads on orphaned tool results via the name fallback", () => {
+	it("rewrites outdated reads on orphaned tool results via the name fallback", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 0 });
 		const oldRead = JSON.stringify([
 			{ path: "/tmp/a.txt", result: "OLD CONTENT" },
@@ -1531,7 +1529,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const orphan = Array.isArray(result[0].content)
 			? result[0].content[0]
 			: undefined;
@@ -1545,7 +1543,7 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(JSON.stringify(result[2].content)).toContain("NEW CONTENT");
 	});
 
-	it("truncates unsupported document data blocks nested in structured results", () => {
+	it("truncates unsupported document data blocks nested in structured results", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 100,
 			maxTotalTextBytes: 1_000,
@@ -1589,7 +1587,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -1619,7 +1617,7 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(formattedPayload.length).toBeLessThan(1_000);
 	});
 
-	it("preserves nested image data that the formatter hoists natively", () => {
+	it("preserves nested image data that the formatter hoists natively", async () => {
 		const builder = new MessageBuilder({ maxToolResultChars: 100 });
 		const imageData = "i".repeat(5_000);
 		const messages: Message[] = [
@@ -1661,7 +1659,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -1691,7 +1689,7 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(formattedPayload).toContain(imageData);
 	});
 
-	it("truncates textual {type, data} payloads that are not known binary blocks", () => {
+	it("truncates textual {type, data} payloads that are not known binary blocks", async () => {
 		const builder = new MessageBuilder({ maxToolResultChars: 100 });
 		const messages: Message[] = [
 			{
@@ -1700,7 +1698,7 @@ describe("MessageBuilder default-on truncation", () => {
 					{
 						type: "tool_use",
 						id: "tool_1",
-						name: "dump_server_logs",
+						name: "run_commands",
 						input: {},
 					},
 				],
@@ -1711,7 +1709,7 @@ describe("MessageBuilder default-on truncation", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
-						name: "dump_server_logs",
+						name: "run_commands",
 						content: [
 							{
 								query: "logs",
@@ -1724,7 +1722,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = Array.isArray(result[1].content)
 			? result[1].content[0]
 			: undefined;
@@ -1742,7 +1740,7 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(log.data).toContain("...[truncated");
 	});
 
-	it("caps user file attachments separately from tool results", () => {
+	it("caps user file attachments separately from tool results", async () => {
 		const builder = new MessageBuilder();
 		const underFileCap = "a".repeat(20_000);
 		const overFileCap = "b".repeat(60_000);
@@ -1757,7 +1755,7 @@ describe("MessageBuilder default-on truncation", () => {
 			},
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const content = result[0].content;
 		if (!Array.isArray(content)) {
 			throw new Error("expected array content");
@@ -1850,14 +1848,14 @@ function serializedBlockAt(result: Message[], index: number): string {
 }
 
 describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)", () => {
-	it("defers small outdated rewrites so request N stays a byte-stable prefix of request N+1", () => {
+	it("defers small outdated rewrites so request N stays a byte-stable prefix of request N+1", async () => {
 		const builder = new MessageBuilder();
 		const base: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
 			readToolResult("t1", SMALL_CONTENT(1)),
 		];
-		const reqA = builder.buildForApi(base);
+		const reqA = await builder.buildForApi(base);
 		const firstResultA = serializedBlockAt(reqA, 2);
 		expect(firstResultA).toContain("export const x = 1;");
 
@@ -1867,7 +1865,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", SMALL_CONTENT(2)),
 		];
-		const reqB = builder.buildForApi(withReread);
+		const reqB = await builder.buildForApi(withReread);
 
 		// The earlier read result must be byte-identical: no mid-transcript
 		// mutation, so the provider prefix cache stays valid.
@@ -1875,7 +1873,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(serializedBlockAt(reqB, 2)).not.toContain("outdated");
 	});
 
-	it("commits batched rewrites once reclaimable bytes cross the threshold", () => {
+	it("commits batched rewrites once reclaimable bytes cross the threshold", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const base: Message[] = [
 			{ role: "user", content: "task" },
@@ -1886,7 +1884,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		];
 		// First build: t1 is outdated (~8KB provider-bound reclaimable),
 		// so the rewrite commits immediately.
-		const reqA = builder.buildForApi(base);
+		const reqA = await builder.buildForApi(base);
 		expect(serializedBlockAt(reqA, 2)).toContain(
 			"outdated - see the latest file content",
 		);
@@ -1895,7 +1893,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(serializedBlockAt(reqA, 4)).toContain("export const x = 2;");
 	});
 
-	it("keeps committed rewrites sticky across subsequent builds", () => {
+	it("keeps committed rewrites sticky across subsequent builds", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const base: Message[] = [
 			{ role: "user", content: "task" },
@@ -1904,7 +1902,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		const reqA = builder.buildForApi(base);
+		const reqA = await builder.buildForApi(base);
 		const rewrittenA = serializedBlockAt(reqA, 2);
 		expect(rewrittenA).toContain("outdated");
 
@@ -1936,11 +1934,11 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 				],
 			},
 		];
-		const reqB = builder.buildForApi(extended);
+		const reqB = await builder.buildForApi(extended);
 		expect(serializedBlockAt(reqB, 2)).toEqual(rewrittenA);
 	});
 
-	it("counts multi-file read results per outdated locator, not per whole block", () => {
+	it("counts multi-file read results per outdated locator, not per whole block", async () => {
 		// One read_files call returns files A, B, C (~850 bytes each entry).
 		// Only A is later re-read, so the reclaimable amount is ~850 bytes —
 		// NOT the ~2.5KB whole-block size. With a 2KB threshold, a whole-block
@@ -1987,7 +1985,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2", "src/a.ts"),
 			readToolResult("t2", SMALL_CONTENT(4), "src/a.ts"),
 		];
-		const deferred = builder.buildForApi(messages);
+		const deferred = await builder.buildForApi(messages);
 		// Only ~850 bytes (entry A) is reclaimable: must stay below the 2KB
 		// threshold and remain pending. Whole-block counting (~2.5KB) would
 		// wrongly commit here.
@@ -1999,7 +1997,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t3", "src/b.ts"),
 			readToolResult("t3", SMALL_CONTENT(5), "src/b.ts"),
 		];
-		expect(JSON.stringify(builder.buildForApi(withB))).not.toContain(
+		expect(JSON.stringify(await builder.buildForApi(withB))).not.toContain(
 			"outdated",
 		);
 
@@ -2010,7 +2008,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t4", "src/c.ts"),
 			readToolResult("t4", SMALL_CONTENT(6), "src/c.ts"),
 		];
-		const committed = builder.buildForApi(withC);
+		const committed = await builder.buildForApi(withC);
 		const multiBlock = JSON.stringify(committed[2]);
 		expect(multiBlock).toContain("outdated - see the latest file content");
 		expect(multiBlock).not.toContain("export const x = 1;");
@@ -2018,7 +2016,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(multiBlock).not.toContain("export const x = 3;");
 	});
 
-	it("uses provider-bound stale bytes after per-result truncation", () => {
+	it("uses provider-bound stale bytes after per-result truncation", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 20_000 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
@@ -2028,7 +2026,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 
 		// Raw t1 history is ~140KB, but the provider-bound stale entry is capped
 		// near 8KB before threshold accounting. A 20KB threshold must defer.
@@ -2036,7 +2034,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(JSON.stringify(result[2])).toContain("...[truncated");
 	});
 
-	it("clears committed rewrite state on explicit conversation reset", () => {
+	it("clears committed rewrite state on explicit conversation reset", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 0 });
 		const firstConversation: Message[] = [
 			{ role: "user", content: "task one" },
@@ -2045,9 +2043,9 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", SMALL_CONTENT(2)),
 		];
-		expect(JSON.stringify(builder.buildForApi(firstConversation)[2])).toContain(
-			"outdated",
-		);
+		expect(
+			JSON.stringify((await builder.buildForApi(firstConversation))[2]),
+		).toContain("outdated");
 
 		builder.resetConversationState();
 		const restoredConversationWithReusedId: Message[] = [
@@ -2055,13 +2053,15 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t1"),
 			readToolResult("t1", SMALL_CONTENT(3)),
 		];
-		const restored = builder.buildForApi(restoredConversationWithReusedId);
+		const restored = await builder.buildForApi(
+			restoredConversationWithReusedId,
+		);
 
 		expect(JSON.stringify(restored[2])).not.toContain("outdated");
 		expect(JSON.stringify(restored[2])).toContain("export const x = 3;");
 	});
 
-	it("keeps batching state when the runtime rebuilds fresh message objects per request", () => {
+	it("keeps batching state when the runtime rebuilds fresh message objects per request", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const history: Message[] = [
 			{ role: "user", content: "task" },
@@ -2071,7 +2071,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
 		];
 		// Request A: t1 (~8KB provider-bound stale) crosses the test threshold and commits.
-		const reqA = builder.buildForApi(codecRoundTrip(history));
+		const reqA = await builder.buildForApi(codecRoundTrip(history));
 		expect(JSON.stringify(reqA[2])).toContain("outdated");
 
 		// Request B: a ~1KB re-read makes t3 newly stale. The committed big read
@@ -2082,13 +2082,13 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t4", "src/small.ts"),
 			readToolResult("t4", SMALL_CONTENT(2), "src/small.ts"),
 		);
-		const reqB = builder.buildForApi(codecRoundTrip(history));
+		const reqB = await builder.buildForApi(codecRoundTrip(history));
 		expect(JSON.stringify(reqB[2])).toContain("outdated"); // t1 sticky
 		expect(JSON.stringify(reqB[6])).not.toContain("outdated"); // t3 deferred
 		expect(JSON.stringify(reqB[6])).toContain("export const x = 1;");
 	});
 
-	it("restores full content after rollback even with fresh message objects", () => {
+	it("restores full content after rollback even with fresh message objects", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const t1Only: Message[] = [
 			{ role: "user", content: "task" },
@@ -2100,15 +2100,15 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		const reqA = builder.buildForApi(codecRoundTrip(withReread));
+		const reqA = await builder.buildForApi(codecRoundTrip(withReread));
 		expect(JSON.stringify(reqA[2])).toContain("outdated");
 
-		const reqB = builder.buildForApi(codecRoundTrip(t1Only));
+		const reqB = await builder.buildForApi(codecRoundTrip(t1Only));
 		expect(JSON.stringify(reqB[2])).not.toContain("outdated");
 		expect(JSON.stringify(reqB[2])).toContain("export const x = 1;");
 	});
 
-	it("keeps committed rewrites applied when compaction drops the paired tool_use", () => {
+	it("keeps committed rewrites applied when compaction drops the paired tool_use", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const withReread: Message[] = [
 			{ role: "user", content: "task" },
@@ -2117,7 +2117,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		const reqA = builder.buildForApi(codecRoundTrip(withReread));
+		const reqA = await builder.buildForApi(codecRoundTrip(withReread));
 		const rewrittenA = JSON.stringify(reqA[2]);
 		expect(rewrittenA).toContain("outdated");
 
@@ -2133,12 +2133,12 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			},
 			...withReread.slice(2),
 		];
-		const reqB = builder.buildForApi(codecRoundTrip(compacted));
+		const reqB = await builder.buildForApi(codecRoundTrip(compacted));
 		expect(JSON.stringify(reqB[2])).toContain("outdated");
 		expect(JSON.stringify(reqB[2])).not.toContain("export const x = 1;");
 	});
 
-	it("counts stale image payload bytes toward the batch threshold", () => {
+	it("counts stale image payload bytes toward the batch threshold", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 2_000 });
 		const imageReadResult: Message = {
 			role: "user",
@@ -2168,13 +2168,13 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		];
 		// Text marker alone is ~70 bytes — below the 2KB threshold. The 4KB
 		// base64 payload must count, committing the batch.
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const block = JSON.stringify(result[2]);
 		expect(block).toContain("outdated");
 		expect(block).not.toContain("AAAA");
 	});
 
-	it("batches and rewrites structured ToolOperationResult read_files entries", () => {
+	it("batches and rewrites structured ToolOperationResult read_files entries", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
@@ -2184,7 +2184,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			structuredReadToolResult("t2", LARGE_CONTENT(2)),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		const firstRead = JSON.stringify(result[2]);
 		const latestRead = JSON.stringify(result[4]);
 
@@ -2195,7 +2195,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(latestRead).toContain("export const x = 2;");
 	});
 
-	it("keeps structured ToolOperationResult batching stable across codec round-trips", () => {
+	it("keeps structured ToolOperationResult batching stable across codec round-trips", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const history: Message[] = [
 			{ role: "user", content: "task" },
@@ -2205,7 +2205,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			structuredReadToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
 		];
 
-		const reqA = builder.buildForApi(codecRoundTrip(history));
+		const reqA = await builder.buildForApi(codecRoundTrip(history));
 		expect(JSON.stringify(reqA[2])).toContain("outdated");
 
 		history.push(
@@ -2214,14 +2214,14 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t4", "src/small.ts"),
 			structuredReadToolResult("t4", SMALL_CONTENT(2), "src/small.ts"),
 		);
-		const reqB = builder.buildForApi(codecRoundTrip(history));
+		const reqB = await builder.buildForApi(codecRoundTrip(history));
 
 		expect(JSON.stringify(reqB[2])).toContain("outdated");
 		expect(JSON.stringify(reqB[6])).not.toContain("outdated");
 		expect(JSON.stringify(reqB[6])).toContain("export const x = 1;");
 	});
 
-	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {
+	it("rewrites eagerly when threshold is 0 (legacy behavior)", async () => {
 		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 0 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
@@ -2230,11 +2230,11 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", SMALL_CONTENT(2)),
 		];
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		expect(serializedBlockAt(result, 2)).toContain("outdated");
 	});
 
-	it("does not rewrite outdated reads when threshold is Infinity", () => {
+	it("does not rewrite outdated reads when threshold is Infinity", async () => {
 		const builder = new MessageBuilder({
 			minOutdatedRewriteBytes: Number.POSITIVE_INFINITY,
 		});
@@ -2246,7 +2246,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
 
-		const result = builder.buildForApi(messages);
+		const result = await builder.buildForApi(messages);
 		expect(serializedBlockAt(result, 2)).not.toContain("outdated");
 		expect(serializedBlockAt(result, 2)).toContain("export const x = 1;");
 	});

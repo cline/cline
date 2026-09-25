@@ -25,6 +25,10 @@ import {
 	validateAndReserveImageMedia,
 } from "@cline/shared";
 
+import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
+
+const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
+
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
 // The aggregate budget intentionally stays far above what the per-result cap
@@ -75,6 +79,8 @@ interface TruncationCandidate {
 }
 
 export interface MessageBuilderOptions {
+	/** Persist complete external results before returning a shortened provider copy. */
+	storeToolResult?: (result: ToolResultContent) => Promise<string>;
 	maxToolResultChars?: number;
 	maxFileContentChars?: number;
 	maxTotalTextBytes?: number;
@@ -130,7 +136,7 @@ export class MessageBuilder {
 	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
-	constructor(options: MessageBuilderOptions = {}) {
+	constructor(private readonly options: MessageBuilderOptions = {}) {
 		this.maxToolResultChars = normalizePositiveLimit(
 			options.maxToolResultChars,
 			DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -163,7 +169,7 @@ export class MessageBuilder {
 		this.committedOutdatedRewrites.clear();
 	}
 
-	buildForApi(messages: Message[]): Message[] {
+	async buildForApi(messages: Message[]): Promise<Message[]> {
 		this.reindex(messages);
 		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
@@ -201,7 +207,70 @@ export class MessageBuilder {
 		});
 
 		const mediaLimited = this.applyMediaBudget(prepared);
-		return this.truncateToTotalTextBudget(mediaLimited);
+		const limited = this.truncateToTotalTextBudget(mediaLimited);
+		return this.preserveExternalResults(repairedMessages, limited);
+	}
+
+	private canTruncateToolResult(block: ToolResultContent): boolean {
+		return (
+			DEFAULT_TOOL_NAMES.has(this.resolveToolName(block) ?? "") ||
+			!!this.options.storeToolResult
+		);
+	}
+
+	private async preserveExternalResults(
+		original: Message[],
+		prepared: Message[],
+	): Promise<Message[]> {
+		const storeToolResult = this.options.storeToolResult;
+		if (!storeToolResult) return prepared;
+		const originals = new Map<string, ToolResultContent>();
+		for (const message of original) {
+			if (!Array.isArray(message.content)) continue;
+			for (const block of message.content) {
+				if (
+					block.type === "tool_result" &&
+					!DEFAULT_TOOL_NAMES.has(this.resolveToolName(block) ?? "")
+				) {
+					originals.set(block.tool_use_id, block);
+				}
+			}
+		}
+		return Promise.all(
+			prepared.map(async (message) => {
+				if (!Array.isArray(message.content)) return message;
+				const content = await Promise.all(
+					message.content.map(async (block) => {
+						if (block.type !== "tool_result") return block;
+						const full = originals.get(block.tool_use_id);
+						if (
+							!full ||
+							JSON.stringify(full.content) === JSON.stringify(block.content)
+						)
+							return block;
+						try {
+							const path = await storeToolResult(full);
+							// Append after every budget pass so the recovery path cannot be truncated.
+							const notice = `\n\nFull tool result saved to: ${path}\nRead this file to retrieve the omitted content.`;
+							return {
+								...block,
+								content:
+									typeof block.content === "string"
+										? block.content + notice
+										: [
+												...block.content,
+												{ type: "text" as const, text: notice },
+											],
+							};
+						} catch {
+							// A failed write must never turn a one-shot external response into data loss.
+							return full;
+						}
+					}),
+				);
+				return { ...message, content };
+			}),
+		);
 	}
 
 	private transformBlock(
@@ -265,10 +334,10 @@ export class MessageBuilder {
 			}
 		}
 
-		// Truncation is default-on for every tool result: MCP and custom SDK
-		// tools produce payloads just as large as the built-in ones, and any
-		// allowlist gate silently exempts them.
-		nextContent = this.truncateToolResultContent(nextContent);
+		// External results are only eligible when their complete content can be saved.
+		if (this.canTruncateToolResult(block)) {
+			nextContent = this.truncateToolResultContent(nextContent);
+		}
 
 		return nextContent === block.content
 			? block
@@ -1279,6 +1348,9 @@ export class MessageBuilder {
 					continue;
 				}
 				if (block.type !== "tool_result") {
+					continue;
+				}
+				if (!this.canTruncateToolResult(block)) {
 					continue;
 				}
 				if (typeof block.content === "string") {
