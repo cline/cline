@@ -370,6 +370,7 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	nebius: "nebiusApiKey",
 	sambanova: "sambanovaApiKey",
 	cerebras: "cerebrasApiKey",
+	"yolo-auto": "yoloAutoApiKey",
 	groq: "groqApiKey",
 	baseten: "basetenApiKey",
 	"huawei-cloud-maas": "huaweiCloudMaasApiKey",
