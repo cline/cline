@@ -92,6 +92,12 @@ function typeOf(schema: JsonSchema): string | undefined {
 	return typeof type === "string" ? type : undefined;
 }
 
+function types(schema: JsonSchema): Set<string> | undefined {
+	const type = schema.type;
+	if (Array.isArray(type)) return new Set(type as string[]);
+	return typeof type === "string" ? new Set([type]) : undefined;
+}
+
 function variants(schema: JsonSchema): JsonSchema[] | undefined {
 	const options = schema.anyOf ?? schema.oneOf;
 	return Array.isArray(options)
@@ -102,6 +108,155 @@ function variants(schema: JsonSchema): JsonSchema[] | undefined {
 /** Pairs union members across versions: by JSON type, else by exact shape. */
 function variantKey(schema: JsonSchema): string {
 	return typeOf(schema) ?? JSON.stringify(schema);
+}
+
+function values(schema: JsonSchema): unknown[] | undefined {
+	if (Array.isArray(schema.enum)) return schema.enum;
+	if (schema.const !== undefined) return [schema.const];
+	return undefined;
+}
+
+function compareAllowedValues(
+	path: string,
+	before: JsonSchema,
+	after: JsonSchema,
+	direction: Direction,
+	out: string[],
+): void {
+	const beforeValues = values(before);
+	const afterValues = values(after);
+	if (direction === "accepts") {
+		// An omitted enum/const means any value of the schema's type is accepted.
+		if (!afterValues) return;
+		if (!beforeValues) {
+			out.push(`${path}: now restricted to ${JSON.stringify(afterValues)}`);
+			return;
+		}
+		const afterSet = new Set(afterValues.map((value) => JSON.stringify(value)));
+		for (const value of beforeValues) {
+			if (!afterSet.has(JSON.stringify(value)))
+				out.push(`${path}: no longer accepts ${JSON.stringify(value)}`);
+		}
+		return;
+	}
+
+	// Removing an output restriction may let the Hub emit values old clients
+	// never handled. Tightening it remains safe for old readers.
+	if (!beforeValues) return;
+	if (!afterValues) {
+		out.push(
+			`${path}: may now produce values outside ${JSON.stringify(beforeValues)}`,
+		);
+		return;
+	}
+	const beforeSet = new Set(beforeValues.map((value) => JSON.stringify(value)));
+	for (const value of afterValues) {
+		if (!beforeSet.has(JSON.stringify(value)))
+			out.push(`${path}: may now produce ${JSON.stringify(value)}`);
+	}
+}
+
+function compareNumericBounds(
+	path: string,
+	before: JsonSchema,
+	after: JsonSchema,
+	direction: Direction,
+	out: string[],
+): void {
+	const bounds = [
+		"minimum",
+		"maximum",
+		"exclusiveMinimum",
+		"exclusiveMaximum",
+	] as const;
+	for (const bound of bounds) {
+		const oldValue = before[bound];
+		const newValue = after[bound];
+		if (oldValue === newValue) continue;
+		const isLowerBound = bound === "minimum" || bound === "exclusiveMinimum";
+		const tighter =
+			newValue !== undefined &&
+			(oldValue === undefined ||
+				(isLowerBound
+					? Number(newValue) > Number(oldValue)
+					: Number(newValue) < Number(oldValue)));
+		const looser =
+			oldValue !== undefined &&
+			(newValue === undefined ||
+				(isLowerBound
+					? Number(newValue) < Number(oldValue)
+					: Number(newValue) > Number(oldValue)));
+		if (
+			(direction === "accepts" && tighter) ||
+			(direction === "emits" && looser)
+		) {
+			out.push(
+				`${path}: ${bound} ${String(oldValue)} changed to ${String(newValue)}`,
+			);
+		}
+	}
+}
+
+function compareLimit(
+	path: string,
+	before: JsonSchema,
+	after: JsonSchema,
+	key: string,
+	tighterWhen: "greater" | "less",
+	direction: Direction,
+	out: string[],
+): void {
+	const oldValue = before[key];
+	const newValue = after[key];
+	if (oldValue === newValue) return;
+	const tighter =
+		newValue !== undefined &&
+		(oldValue === undefined ||
+			(tighterWhen === "greater"
+				? Number(newValue) > Number(oldValue)
+				: Number(newValue) < Number(oldValue)));
+	const looser =
+		oldValue !== undefined &&
+		(newValue === undefined ||
+			(tighterWhen === "greater"
+				? Number(newValue) < Number(oldValue)
+				: Number(newValue) > Number(oldValue)));
+	if (
+		(direction === "accepts" && tighter) ||
+		(direction === "emits" && looser)
+	) {
+		out.push(
+			`${path}: ${key} ${String(oldValue)} changed to ${String(newValue)}`,
+		);
+	}
+}
+
+function compareOtherConstraints(
+	path: string,
+	before: JsonSchema,
+	after: JsonSchema,
+	direction: Direction,
+	out: string[],
+): void {
+	// Patterns are opaque to JSON Schema; any change to an input pattern may
+	// reject values sent by old clients, while any output pattern widening can
+	// emit values an old reader did not expect.
+	if (before.pattern !== after.pattern) {
+		const isBreaking =
+			direction === "accepts"
+				? after.pattern !== undefined
+				: before.pattern !== undefined;
+		if (isBreaking)
+			out.push(
+				`${path}: pattern ${String(before.pattern)} changed to ${String(after.pattern)}`,
+			);
+	}
+	compareLimit(path, before, after, "minLength", "greater", direction, out);
+	compareLimit(path, before, after, "maxLength", "less", direction, out);
+	compareLimit(path, before, after, "minItems", "greater", direction, out);
+	compareLimit(path, before, after, "maxItems", "less", direction, out);
+	compareLimit(path, before, after, "minProperties", "greater", direction, out);
+	compareLimit(path, before, after, "maxProperties", "less", direction, out);
 }
 
 function diffSchema(
@@ -138,42 +293,29 @@ function diffSchema(
 		return;
 	}
 
-	const beforeType = typeOf(before);
-	const afterType = typeOf(after);
-	if (beforeType && afterType && beforeType !== afterType) {
-		out.push(`${path}: type changed from ${beforeType} to ${afterType}`);
-		return;
-	}
-	if (beforeType && !afterType && direction === "emits") {
-		out.push(`${path}: type ${beforeType} is no longer guaranteed`);
-	}
-	if (!beforeType && afterType && direction === "accepts") {
-		out.push(`${path}: now restricted to ${afterType}`);
+	const beforeTypes = types(before);
+	const afterTypes = types(after);
+	const incompatibleTypes =
+		direction === "accepts"
+			? beforeTypes &&
+				afterTypes &&
+				[...beforeTypes].filter((type) => !afterTypes.has(type))
+			: afterTypes &&
+				beforeTypes &&
+				[...afterTypes].filter((type) => !beforeTypes.has(type));
+	if (
+		(direction === "accepts" && !beforeTypes && afterTypes) ||
+		(direction === "emits" && beforeTypes && !afterTypes) ||
+		(Array.isArray(incompatibleTypes) && incompatibleTypes.length > 0)
+	) {
+		const previous = beforeTypes ? typeOf(before) : "any";
+		const next = afterTypes ? typeOf(after) : "any";
+		out.push(`${path}: type changed from ${previous} to ${next}`);
 	}
 
-	if (Array.isArray(before.enum) && Array.isArray(after.enum)) {
-		const afterEnum = new Set(after.enum.map((value) => JSON.stringify(value)));
-		const beforeEnum = new Set(
-			before.enum.map((value) => JSON.stringify(value)),
-		);
-		if (direction === "accepts") {
-			for (const value of beforeEnum) {
-				if (!afterEnum.has(value))
-					out.push(`${path}: no longer accepts ${value}`);
-			}
-		} else {
-			for (const value of afterEnum) {
-				if (!beforeEnum.has(value))
-					out.push(`${path}: may now produce ${value}`);
-			}
-		}
-	}
-	if (
-		before.const !== undefined &&
-		JSON.stringify(before.const) !== JSON.stringify(after.const)
-	) {
-		out.push(`${path}: constant changed`);
-	}
+	compareAllowedValues(path, before, after, direction, out);
+	compareNumericBounds(path, before, after, direction, out);
+	compareOtherConstraints(path, before, after, direction, out);
 
 	const beforeProperties = asSchema(before.properties) ?? {};
 	const afterProperties = asSchema(after.properties) ?? {};

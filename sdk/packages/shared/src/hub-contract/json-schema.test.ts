@@ -45,6 +45,87 @@ describe("findBreakingHubProtocolChanges", () => {
 		]);
 	});
 
+	it("flags narrowed input and widened output numeric ranges", () => {
+		expect(
+			findBreakingHubProtocolChanges(
+				document(hubObject({ priority: z.number().min(0) })),
+				document(hubObject({ priority: z.number().min(1) })),
+			),
+		).toEqual(["command demo.run input.priority: minimum 0 changed to 1"]);
+
+		expect(
+			findBreakingHubProtocolChanges(
+				document(base, hubObject({ priority: z.number().max(10) })),
+				document(base, hubObject({ priority: z.number().max(11) })),
+			),
+		).toEqual(["command demo.run output.priority: maximum 10 changed to 11"]);
+	});
+
+	it("flags enum and constant restrictions in both wire directions", () => {
+		expect(
+			findBreakingHubProtocolChanges(
+				document(hubObject({ mode: z.string() })),
+				document(hubObject({ mode: z.enum(["fast", "safe"]) })),
+			),
+		).toEqual([
+			'command demo.run input.mode: now restricted to ["fast","safe"]',
+		]);
+
+		expect(
+			findBreakingHubProtocolChanges(
+				document(base, hubObject({ mode: z.enum(["fast", "safe"]) })),
+				document(base, hubObject({ mode: z.string() })),
+			),
+		).toEqual([
+			'command demo.run output.mode: may now produce values outside ["fast","safe"]',
+		]);
+
+		expect(
+			findBreakingHubProtocolChanges(
+				document(hubObject({ action: z.literal("run") })),
+				document(hubObject({ action: z.string() })),
+			),
+		).toEqual([]);
+	});
+
+	it("checks type changes by wire direction", () => {
+		expect(
+			findBreakingHubProtocolChanges(
+				document(hubObject({ value: z.string() })),
+				document(hubObject({ value: z.union([z.string(), z.number()]) })),
+			),
+		).toEqual([]);
+
+		expect(
+			findBreakingHubProtocolChanges(
+				document(base, hubObject({ value: z.union([z.string(), z.number()]) })),
+				document(base, hubObject({ value: z.string() })),
+			),
+		).toEqual([]);
+	});
+
+	it("flags narrowed string and array input limits", () => {
+		expect(
+			findBreakingHubProtocolChanges(
+				document(
+					hubObject({
+						name: z.string().min(1),
+						values: z.array(z.string()).max(5),
+					}),
+				),
+				document(
+					hubObject({
+						name: z.string().min(2),
+						values: z.array(z.string()).max(4),
+					}),
+				),
+			),
+		).toEqual([
+			"command demo.run input.name: minLength 1 changed to 2",
+			"command demo.run input.values: maxItems 5 changed to 4",
+		]);
+	});
+
 	it("flags outputs and events that stop providing what old clients read", () => {
 		const before = document(
 			base,
