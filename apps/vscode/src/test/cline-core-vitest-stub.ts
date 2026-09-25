@@ -114,34 +114,11 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
-
-export class CommandSpawnError extends Error {
-	readonly code: string | undefined
-	readonly missing: "executable" | "cwd" | undefined
-
-	constructor(cause: Error, options: { cwd?: string } = {}) {
-		super(`Failed to execute command: ${cause.message}`)
-		this.name = "CommandSpawnError"
-		const code = (cause as NodeJS.ErrnoException).code
-		this.code = typeof code === "string" ? code : undefined
-		if (this.code !== "ENOENT") {
-			this.missing = undefined
-		} else if (options.cwd !== undefined && !existsSync(options.cwd)) {
-			this.missing = "cwd"
-		} else {
-			this.missing = "executable"
-		}
-	}
-}
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""

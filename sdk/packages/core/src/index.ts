@@ -957,6 +957,7 @@ export {
 	type BuiltinToolAvailabilityContext,
 	CommandExitError,
 	CommandSpawnError,
+	CommandTerminationError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	computePatchChanges,

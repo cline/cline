@@ -1,10 +1,19 @@
-import { CommandExitError, CommandSpawnError } from "@cline/core"
+import { CommandExitError, CommandSpawnError, CommandTerminationError } from "@cline/core"
 import { describe, expect, it } from "vitest"
 import { describeBackgroundFailure } from "./background-failure"
 
 describe("describeBackgroundFailure", () => {
 	it("reports the exit code when the process ran and failed", () => {
 		expect(describeBackgroundFailure(new CommandExitError(2, "boom"))).toEqual({ exitCode: 2 })
+	})
+
+	it("labels signal and no-code termination without inventing an exit code", () => {
+		expect(describeBackgroundFailure(new CommandTerminationError("SIGTERM", "partial output"))).toEqual({
+			errorCode: "signal",
+		})
+		expect(describeBackgroundFailure(new CommandTerminationError(null, "partial output"))).toEqual({
+			errorCode: "no_exit_code",
+		})
 	})
 
 	it("reports the operating system code when the shell could not be started", () => {
