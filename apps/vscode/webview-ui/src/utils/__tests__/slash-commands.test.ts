@@ -1,6 +1,13 @@
 import type { McpServer } from "@shared/mcp"
+import { SkillInfo } from "@shared/proto/cline/file"
 import { describe, expect, it } from "vitest"
-import { getMatchingSlashCommands, getMcpPromptCommands, slashCommandRegex, validateSlashCommand } from "../slash-commands"
+import {
+	getMatchingSlashCommands,
+	getMcpPromptCommands,
+	getSkillCommands,
+	slashCommandRegex,
+	validateSlashCommand,
+} from "../slash-commands"
 
 // Helper to create a mock MCP server
 function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -213,6 +220,43 @@ describe("slash-commands", () => {
 		it("should return null for non-matching MCP command", () => {
 			const result = validateSlashCommand("mcp:unknown:cmd", {}, {}, undefined, undefined, mcpServers)
 			expect(result).toBe(null)
+		})
+	})
+
+	describe("skills", () => {
+		const skills = [
+			SkillInfo.create({
+				name: "aws-deploy",
+				description: "Deploy to AWS",
+				path: "/skills/aws-deploy/SKILL.md",
+				enabled: true,
+			}),
+			SkillInfo.create({ name: "disabled-skill", description: "Off", path: "/skills/disabled/SKILL.md", enabled: false }),
+			SkillInfo.create({
+				name: "aws-deploy",
+				description: "Global copy",
+				path: "/global/aws-deploy/SKILL.md",
+				enabled: true,
+			}),
+		]
+
+		it("lists enabled skills once under the skill section", () => {
+			const result = getSkillCommands(skills)
+			expect(result).toEqual([{ name: "aws-deploy", description: "Deploy to AWS", section: "skill" }])
+		})
+
+		it("includes skills in matching commands and filters by prefix", () => {
+			const all = getMatchingSlashCommands("", {}, {}, undefined, undefined, [], skills)
+			expect(all.filter((cmd) => cmd.section === "skill").map((cmd) => cmd.name)).toEqual(["aws-deploy"])
+
+			const filtered = getMatchingSlashCommands("aws", {}, {}, undefined, undefined, [], skills)
+			expect(filtered.map((cmd) => cmd.name)).toEqual(["aws-deploy"])
+		})
+
+		it("validates skill commands", () => {
+			expect(validateSlashCommand("aws-deploy", {}, {}, undefined, undefined, [], skills)).toBe("full")
+			expect(validateSlashCommand("aws", {}, {}, undefined, undefined, [], skills)).toBe("partial")
+			expect(validateSlashCommand("disabled-skill", {}, {}, undefined, undefined, [], skills)).toBe(null)
 		})
 	})
 
