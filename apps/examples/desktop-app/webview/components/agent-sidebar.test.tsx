@@ -1224,22 +1224,48 @@ describe("AgentSidebar session organization", () => {
 					resolve = done;
 				}),
 		);
-		await act(async () => listener?.({ state: "failed", message: "offline" }));
-		expect(
-			container.querySelector('[aria-label="Cline Hub connection error"]'),
-		).not.toBeNull();
-		await act(async () =>
-			listener?.({ state: "failed", automaticRetry: true }),
-		);
-		expect(
-			container.querySelector('[aria-label="Cline Hub connection error"]'),
-		).toBeNull();
+		await act(async () => listener?.({ state: "starting" }));
+		const staleResponse = resolve;
+		invoke.mockResolvedValue({
+			environmentId: "local",
+			hub: { status: "connected" },
+		});
 		await act(async () => listener?.({ state: "ready" }));
 		expect(
 			container.querySelector('[aria-label="Cline Hub connection error"]'),
 		).toBeNull();
 		await act(async () =>
-			resolve({ hub: { status: "disconnected", error: "stale failure" } }),
+			staleResponse({
+				hub: { status: "disconnected", error: "stale failure" },
+			}),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+
+		// A local failure must not replace the active SSH hub's connected state.
+		invoke.mockImplementation(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		await act(async () => listener?.({ state: "starting" }));
+		const pendingRemoteResponse = resolve;
+		await act(async () =>
+			listener?.({ state: "failed", message: "local hub offline" }),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		await act(async () =>
+			pendingRemoteResponse({
+				environmentId: "ssh:remote",
+				hub: { status: "connected" },
+			}),
+		);
+		await act(async () =>
+			resolve({ environmentId: "ssh:remote", hub: { status: "connected" } }),
 		);
 		expect(
 			container.querySelector('[aria-label="Cline Hub connection error"]'),

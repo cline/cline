@@ -358,10 +358,10 @@ export function AgentSidebar({
 	const processContextPending = useRef(false);
 	const processContextRevision = useRef(0);
 
-	const loadProcessContext = useCallback(async () => {
-		if (processContextPending.current) return;
+	const loadProcessContext = useCallback(async (refresh = false) => {
+		if (processContextPending.current && !refresh) return;
 		processContextPending.current = true;
-		const revision = processContextRevision.current;
+		const revision = ++processContextRevision.current;
 		try {
 			const context = await desktopClient.invoke<DesktopProcessContext>(
 				"get_process_context",
@@ -397,31 +397,19 @@ export function AgentSidebar({
 				url: null,
 			});
 		} finally {
-			processContextPending.current = false;
+			if (revision === processContextRevision.current)
+				processContextPending.current = false;
 		}
 	}, []);
 
 	useEffect(() => {
 		void loadProcessContext();
 		const timer = setInterval(() => void loadProcessContext(), 5_000);
-		const unsubscribe = desktopClient.subscribe(
-			"backend_readiness",
-			(payload) => {
-				const state = payload as {
-					state: "starting" | "ready" | "failed";
-					automaticRetry?: boolean;
-					message?: string;
-				};
-				processContextRevision.current += 1;
-				setHubStatus((previous) => ({
-					connected: state.state === "ready",
-					starting: state.state === "starting" || state.automaticRetry === true,
-					error: state.message ?? null,
-					url: previous?.url ?? null,
-				}));
-				void loadProcessContext();
-			},
-		);
+		const unsubscribe = desktopClient.subscribe("backend_readiness", () => {
+			// This event describes only the local service. Read the active
+			// environment instead, even if an older status request is pending.
+			void loadProcessContext(true);
+		});
 		return () => {
 			clearInterval(timer);
 			unsubscribe();
