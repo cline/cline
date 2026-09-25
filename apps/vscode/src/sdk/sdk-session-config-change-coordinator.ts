@@ -43,7 +43,6 @@ interface DeferredCheckpointFollowUp {
 }
 
 interface CheckpointTransition {
-	session: ActiveSession
 	followUps: DeferredCheckpointFollowUp[]
 }
 
@@ -69,8 +68,8 @@ export class SdkSessionConfigChangeCoordinator {
 			return
 		}
 		const activeSession = this.options.sessions.getActiveSession()
-		if (activeSession && this.checkpointTransition?.session !== activeSession) {
-			this.checkpointTransition = { session: activeSession, followUps: [] }
+		if (activeSession && !this.checkpointTransition) {
+			this.checkpointTransition = { followUps: [] }
 		}
 		this.requestRebuild({
 			reason: "checkpoints",
@@ -91,7 +90,7 @@ export class SdkSessionConfigChangeCoordinator {
 		userFiles?: string[],
 	): boolean {
 		const transition = this.checkpointTransition
-		if (!transition || transition.session !== session) {
+		if (!transition || this.options.sessions.getActiveSession() !== session) {
 			return false
 		}
 		transition.followUps.push({ prompt, userImages, userFiles, delivery: "queue" })
@@ -171,7 +170,7 @@ export class SdkSessionConfigChangeCoordinator {
 
 			const { startResult, sdkHost } = restartResult
 			if (!context.isCurrent()) {
-				if (details.reason === "checkpoints" && this.checkpointTransition?.session === activeSession) {
+				if (details.reason === "checkpoints") {
 					this.checkpointTransition = undefined
 				}
 				await this.stopReplacementIfCurrent(sdkHost, startResult)
@@ -183,11 +182,8 @@ export class SdkSessionConfigChangeCoordinator {
 				)
 			}
 
-			const deferredFollowUps =
-				details.reason === "checkpoints" && this.checkpointTransition?.session === activeSession
-					? this.checkpointTransition.followUps
-					: []
-			if (details.reason === "checkpoints" && this.checkpointTransition?.session === activeSession) {
+			const deferredFollowUps = details.reason === "checkpoints" ? (this.checkpointTransition?.followUps ?? []) : []
+			if (details.reason === "checkpoints") {
 				this.checkpointTransition = undefined
 			}
 			const replayPrompts = [...pendingPrompts, ...deferredFollowUps]
@@ -257,7 +253,7 @@ export class SdkSessionConfigChangeCoordinator {
 	private releaseDeferredFollowUpsToCurrentSession(expectedSession: ActiveSession): void {
 		const transition = this.checkpointTransition
 		const currentSession = this.options.sessions.getActiveSession()
-		if (!transition || transition.session !== expectedSession || currentSession !== expectedSession) {
+		if (!transition || currentSession !== expectedSession) {
 			return
 		}
 		this.checkpointTransition = undefined

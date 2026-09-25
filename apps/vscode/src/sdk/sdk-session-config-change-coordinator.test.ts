@@ -180,6 +180,25 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		)
 	})
 
+	it("preserves held follow-ups when another rebuild replaces the session first", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const providerReplacement = makeActiveSession()
+		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "after both rebuilds")).toBe(true)
+		options.sessions.getActiveSession.mockReturnValue(providerReplacement)
+		await runScheduledRebuild()
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementHost,
+			"new-session",
+			"after both rebuilds",
+			undefined,
+			undefined,
+		)
+	})
+
 	it("releases held follow-ups to the old session when the checkpoint rebuild fails", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
