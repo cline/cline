@@ -929,9 +929,32 @@ describe("seeded cloud provisioning recovery", () => {
 		handoff: {
 			sourceSessionId: "source",
 			resolveMessages: async () => messages,
+			onCreating: async () => {},
 			onOuterSessionCreated: async () => {},
 			...hooks,
 		},
+	});
+
+	it.each([
+		undefined,
+		null,
+	])("rejects a missing creation-intent callback (%s) before any request", async (onCreating) => {
+		const fetch = vi.fn<NonNullable<CloudSessionApiOptions["fetch"]>>(
+			async (_url, init) =>
+				response(
+					init?.method === "POST"
+						? { sessionId: record.id, status: "ready" }
+						: [],
+				),
+		);
+		const invalid = input();
+		Reflect.set(invalid.handoff!, "onCreating", onCreating);
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await expect(createApi(fetch).create(invalid)).rejects.toThrow(
+				"onCreating",
+			);
+		}
+		expect(fetch).not.toHaveBeenCalled();
 	});
 
 	it("awaits durable create intent after lookup and before any POST", async () => {
@@ -1181,17 +1204,33 @@ describe("seeded cloud provisioning recovery", () => {
 		});
 		expect(posts).toBe(2);
 	});
-	it("fences an invisible accepted POST instead of issuing another create", async () => {
+	it.each([
+		false,
+		true,
+	])("fences an invisible accepted POST (restart=%s)", async (restart) => {
 		let posts = 0;
-		const api = createApi(async (_url, init) => {
+		let intentSaved = false;
+		const onCreating = async () => {
+			if (intentSaved) throw new Error("creation unconfirmed");
+			intentSaved = true;
+		};
+		const fetch: NonNullable<CloudSessionApiOptions["fetch"]> = async (
+			_url,
+			init,
+		) => {
 			if (init?.method === "POST") {
 				posts++;
 				throw new Error("lost response");
 			}
 			return response([]);
-		});
-		await expect(api.create(input())).rejects.toThrow("lost response");
-		await expect(api.create(input())).rejects.toThrow("unconfirmed");
+		};
+		const api = createApi(fetch);
+		await expect(api.create(input({ onCreating }))).rejects.toThrow(
+			"lost response",
+		);
+		await expect(
+			(restart ? createApi(fetch) : api).create(input({ onCreating })),
+		).rejects.toThrow("unconfirmed");
 		expect(posts).toBe(1);
 	});
 	it.each([

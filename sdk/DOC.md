@@ -64,6 +64,7 @@ models. Handoff requires the selected model; it never substitutes another.
 Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
 an existing target. Persist target IDs and dispatch markers through the callbacks;
 use `recoverOnly` after uncertain dispatch to avoid duplicate conversations.
+Handoff creation requires `onCreating`: durably save intent before returning, and reject a previously unconfirmed intent after restart.
 `CloudHandoffSeedRejectedError` means no seed was dispatched; clear only the seed marker before retrying the saved target.
 `verifyHandoffTranscript` checks the seeded history; `waitUntilReady(id)` waits for provisioning.
 
