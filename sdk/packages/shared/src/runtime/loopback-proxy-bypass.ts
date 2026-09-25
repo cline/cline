@@ -39,13 +39,13 @@ function splitNoProxyEntries(value: string | undefined): string[] {
 
 /**
  * The union of both casings' exemptions plus the loopback hosts; first
- * spelling wins on duplicates. Undefined when either casing opts out of
- * proxying entirely with `*`.
+ * spelling wins on duplicates. A `*` entry is dropped here and handled by the
+ * caller, since it already exempts everything for whichever casing holds it.
  */
 function mergeNoProxyValue(
 	upper: string | undefined,
 	lower: string | undefined,
-): string | undefined {
+): string {
 	const merged: string[] = [];
 	const seen = new Set<string>();
 	for (const entry of [
@@ -53,16 +53,17 @@ function mergeNoProxyValue(
 		...splitNoProxyEntries(lower),
 		...LOOPBACK_NO_PROXY_HOSTS,
 	]) {
-		if (entry === "*") {
-			return undefined;
-		}
 		const key = entry.toLowerCase();
-		if (!seen.has(key)) {
+		if (key !== "*" && !seen.has(key)) {
 			seen.add(key);
 			merged.push(entry);
 		}
 	}
 	return merged.join(",");
+}
+
+function hasWildcard(value: string | undefined): boolean {
+	return splitNoProxyEntries(value).includes("*");
 }
 
 /**
@@ -81,11 +82,18 @@ export function ensureLoopbackProxyBypass(
 	if (!readProxyValue(env)) {
 		return;
 	}
-	const merged = mergeNoProxyValue(env.NO_PROXY, env.no_proxy);
-	if (merged === undefined) {
+	const upperAll = hasWildcard(env.NO_PROXY);
+	const lowerAll = hasWildcard(env.no_proxy);
+	if (upperAll && lowerAll) {
 		return;
 	}
+	const merged = mergeNoProxyValue(env.NO_PROXY, env.no_proxy);
 	// Both casings: Bun and curl read either, spawned tools may read only one.
-	env.NO_PROXY = merged;
-	env.no_proxy = merged;
+	// A casing that already says `*` is left alone.
+	if (!upperAll) {
+		env.NO_PROXY = merged;
+	}
+	if (!lowerAll) {
+		env.no_proxy = merged;
+	}
 }

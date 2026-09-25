@@ -83,15 +83,28 @@ describe("ensureLoopbackProxyBypass", () => {
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
 
-	it("leaves both casings alone when either contains a wildcard", () => {
+	it("keeps a wildcard casing and still exempts loopback in the other", () => {
 		const env: Record<string, string | undefined> = {
 			HTTP_PROXY: "http://proxy.corp:8080",
 			NO_PROXY: ".corp.example.com",
 			no_proxy: "*",
 		};
 		ensureLoopbackProxyBypass(env);
-		expect(env.NO_PROXY).toBe(".corp.example.com");
+		expect(env.NO_PROXY).toBe(
+			".corp.example.com,localhost,127.0.0.1,::1,[::1]",
+		);
 		expect(env.no_proxy).toBe("*");
+	});
+
+	it("leaves both casings alone when both contain a wildcard", () => {
+		const env: Record<string, string | undefined> = {
+			HTTP_PROXY: "http://proxy.corp:8080",
+			NO_PROXY: "*",
+			no_proxy: "*,.corp.example.com",
+		};
+		ensureLoopbackProxyBypass(env);
+		expect(env.NO_PROXY).toBe("*");
+		expect(env.no_proxy).toBe("*,.corp.example.com");
 	});
 
 	it("is idempotent", () => {
@@ -113,13 +126,13 @@ describe("ensureLoopbackProxyBypass", () => {
 		expect(env.NO_PROXY).toBe("LOCALHOST,127.0.0.1,::1,[::1]");
 	});
 
-	it("leaves a wildcard NO_PROXY alone", () => {
+	it("leaves a wildcard NO_PROXY alone and fills in the unset casing", () => {
 		const env: Record<string, string | undefined> = {
 			HTTP_PROXY: "http://127.0.0.1:7890",
 			NO_PROXY: "*",
 		};
 		ensureLoopbackProxyBypass(env);
 		expect(env.NO_PROXY).toBe("*");
-		expect(env.no_proxy).toBeUndefined();
+		expect(env.no_proxy).toBe("localhost,127.0.0.1,::1,[::1]");
 	});
 });
