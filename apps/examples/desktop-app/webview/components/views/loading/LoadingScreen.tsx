@@ -1,9 +1,7 @@
 "use client";
 
-import { AgentWelcomeHero } from "@cline/ui";
+import { Loader2 } from "lucide-react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
-
-const STEP_COUNT = 5;
 
 export function LoadingScreen({
 	readiness,
@@ -21,16 +19,6 @@ export function LoadingScreen({
 			: startup?.state === "failed" ||
 				(startup?.state !== "starting" &&
 					readiness.transport === "unavailable"));
-	// Webview mounted → backend connected → hub discovered → hub connected → sessions ready.
-	const completed = !connected
-		? 1
-		: hub.state === "ready"
-			? 5
-			: hub.step === "sessions"
-				? 4
-				: hub.step === "connecting"
-					? 3
-					: 2;
 	const status = readiness.retrying
 		? "Retrying startup…"
 		: failed
@@ -51,17 +39,20 @@ export function LoadingScreen({
 
 	return (
 		<main
-			className="fixed inset-0 z-100 flex flex-col items-center justify-center gap-8 overflow-auto bg-background p-6 font-sans text-foreground"
+			className="fixed inset-0 z-100 flex flex-col items-center justify-center gap-6 overflow-auto bg-background p-6 font-sans text-foreground"
 			aria-label="Starting Cline"
 		>
-			<div className="w-full">
-				<AgentWelcomeHero variant="bot-only" interactive={false} />
-			</div>
 			<h1 className="sr-only">
 				{failed ? "Unable to start Cline" : "Starting Cline"}
 			</h1>
 
-			<div className="flex w-full max-w-sm flex-col items-center gap-3">
+			<div className="flex flex-col items-center gap-4">
+				{!failed && (
+					<Loader2
+						aria-hidden="true"
+						className="size-6 animate-spin text-muted-foreground"
+					/>
+				)}
 				<span
 					role={failed ? "alert" : "status"}
 					aria-live="polite"
@@ -69,26 +60,11 @@ export function LoadingScreen({
 				>
 					{status}
 				</span>
-				<progress
-					className="sr-only"
-					aria-label="Startup progress"
-					value={completed}
-					max={STEP_COUNT}
-				/>
-				<div
-					aria-hidden="true"
-					className="h-1 w-full overflow-hidden rounded-full bg-muted"
-				>
-					<div
-						className="h-full rounded-full bg-primary motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out"
-						style={{ width: `${(completed / STEP_COUNT) * 100}%` }}
-					/>
-				</div>
 				{onContinue && hub.state !== "ready" && (
 					<button
 						type="button"
 						onClick={onContinue}
-						className="text-sm text-primary underline underline-offset-4"
+						className="text-sm text-primary hover:opacity-80"
 					>
 						Continue to sign-in, settings, or remote environments
 					</button>

@@ -84,27 +84,24 @@ it("keeps automatic recovery in the loader without a Retry button or sidebar", (
 	expect(container.textContent).toBe("Sidebar");
 });
 
-it("fills the bar from completed steps and uses the shared Cline head", () => {
+it("shows a spinner with the current step and hides it on failure", () => {
 	const state = readiness();
 	act(() => root.render(<LoadingScreen readiness={state} />));
-	expect(
-		container.querySelector("[data-welcome-hero-variant='bot-only']"),
-	).not.toBeNull();
-	expect(container.querySelector("progress")?.value).toBe(1);
-	for (const [step, count] of [
-		["environment", 2],
-		["connecting", 3],
-		["sessions", 4],
+	expect(container.querySelector(".animate-spin")).not.toBeNull();
+	for (const [step, label] of [
+		["discovery", "Discovering or starting Cline Hub"],
+		["connecting", "Connecting to Cline Hub"],
+		["sessions", "Preparing session service"],
 	] as const) {
 		state.transport = "connected";
 		state.hub = { state: "starting", attempt: 1, step };
 		act(() => root.render(<LoadingScreen readiness={state} />));
-		expect(container.querySelector("progress")?.value).toBe(count);
-		expect(container.querySelector("progress")?.max).toBe(5);
-		expect(
-			container.querySelector(".bg-primary")?.getAttribute("style"),
-		).toContain(`width: ${count * 20}%`);
+		expect(container.textContent).toContain(label);
+		expect(container.querySelector(".animate-spin")).not.toBeNull();
 	}
+	state.hub = { state: "failed", attempt: 4 };
+	act(() => root.render(<LoadingScreen readiness={state} />));
+	expect(container.querySelector(".animate-spin")).toBeNull();
 });
 
 it("reveals the app as soon as the hub is ready and never before", () => {
