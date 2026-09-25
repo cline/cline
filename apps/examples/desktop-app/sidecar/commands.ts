@@ -3054,11 +3054,31 @@ export async function handleCommand(
 			storageProviderId === "cline"
 				? manager.getProviderSettings(storageProviderId)
 				: undefined;
+		const update = readProviderSettingsUpdate(args);
+		const apiKey = typeof args?.api_key === "string" ? args.api_key : undefined;
+		// A pasted key must replace a browser sign-in: credential resolution
+		// prefers OAuth tokens when both are stored, so leftover tokens would
+		// silently win over the new key and the panel would keep reporting
+		// "Signed in via browser" (mirrors the CLI's saveManualProviderApiKey).
+		if (
+			apiKey?.trim() &&
+			getProviderAuthHandler(providerId) &&
+			update.auth === undefined
+		) {
+			update.auth = { accessToken: "", refreshToken: "" };
+			if (storageProviderId !== providerId) {
+				saveLocalProviderSettings(manager, {
+					providerId: storageProviderId,
+					apiKey,
+					auth: update.auth,
+				});
+			}
+		}
 		const saved = saveLocalProviderSettings(manager, {
-			...readProviderSettingsUpdate(args),
+			...update,
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
-			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
+			apiKey,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
 		if (!saved.enabled) {

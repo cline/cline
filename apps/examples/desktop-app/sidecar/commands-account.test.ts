@@ -191,6 +191,54 @@ describe("provider settings cloud session lifecycle", () => {
 		expect(ctx.cloudSessionManager).toBeNull();
 		expect(dispose).toHaveBeenCalledOnce();
 	});
+
+	it.each([
+		["cline", ["cline"]],
+		["cline-pass", ["cline", "cline-pass"]],
+	] as const)("clears stored OAuth tokens when a %s API key is pasted", async (provider, savedProviderIds) => {
+		const { ctx } = createContext();
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "token", refreshToken: "refresh" },
+		});
+		saveProviderSettingsMock.mockReturnValue({
+			providerId: provider,
+			enabled: true,
+		});
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider,
+			api_key: "manual-key",
+		});
+		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual(
+			savedProviderIds.map((providerId) =>
+				expect.objectContaining({
+					providerId,
+					apiKey: "manual-key",
+					auth: { accessToken: "", refreshToken: "" },
+				}),
+			),
+		);
+	});
+
+	it("leaves auth alone for API-key-only providers and empty keys", async () => {
+		const { ctx } = createContext();
+		saveProviderSettingsMock.mockReturnValue({
+			providerId: "anthropic",
+			enabled: true,
+		});
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "anthropic",
+			api_key: "sk-test",
+		});
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "",
+		});
+		for (const [, request] of saveProviderSettingsMock.mock.calls) {
+			expect(request).not.toHaveProperty("auth");
+		}
+	});
 });
 
 afterEach(() => {
