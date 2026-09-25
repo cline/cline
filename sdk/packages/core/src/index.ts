@@ -534,6 +534,7 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
 	disableConnectorAutostart,
@@ -861,6 +862,7 @@ export {
 	projectSessionMessagesForDisplay,
 	type SessionDisplayMessage,
 } from "./session/display-messages";
+export { createForkSessionMetadata } from "./session/fork-metadata";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,

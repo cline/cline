@@ -162,7 +162,7 @@ async function runProviderChange(
 	dialog: DialogActions,
 	config: Config,
 	termHeight: number,
-	onModelChange: () => Promise<void>,
+	onModelChange: (nextConfig?: Config) => Promise<void>,
 ): Promise<boolean> {
 	const newProviderId = await dialog.choice<string>({
 		style: { maxHeight: termHeight - 2 },
@@ -324,7 +324,7 @@ async function runProviderChange(
 				config.modelId = modelIds[0];
 			}
 
-			await onModelChange();
+			await onModelChange(config);
 		},
 	);
 	return true;
@@ -334,13 +334,21 @@ export function useModelSelector(opts: {
 	dialog: DialogActions;
 	config: Config;
 	termHeight: number;
-	onModelChange: () => Promise<void>;
+	onModelChange: (nextConfig?: Config) => Promise<void>;
 	refocusTextarea: () => void;
 }) {
-	const { dialog, config, termHeight, onModelChange, refocusTextarea } = opts;
+	const {
+		dialog,
+		config: currentConfig,
+		termHeight,
+		onModelChange,
+		refocusTextarea,
+	} = opts;
 
 	const openModelSelector = useCallback(
 		async (options?: OpenModelSelectorOptions) => {
+			// Keep selections private until the runtime accepts the source mutation.
+			const config = { ...currentConfig };
 			const handleCancel = async () => {
 				if (options?.onCancel) {
 					await options.onCancel();
@@ -626,11 +634,11 @@ export function useModelSelector(opts: {
 			}
 
 			await withLoadingDialog(dialog, "Applying model...", async () => {
-				await onModelChange();
+				await onModelChange(config);
 			});
 			refocusTextarea();
 		},
-		[dialog, config, termHeight, onModelChange, refocusTextarea],
+		[dialog, currentConfig, termHeight, onModelChange, refocusTextarea],
 	);
 
 	return openModelSelector;

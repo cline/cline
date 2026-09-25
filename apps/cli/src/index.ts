@@ -13,7 +13,9 @@ import { logCliProcessError } from "./logging/errors";
 import {
 	abortActiveRuntime,
 	cleanupActiveRuntime,
+	dispatchActiveRuntimeSignal,
 	isAbortInProgress,
+	type RuntimeSignal,
 } from "./runtime/active-runtime";
 import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
@@ -52,15 +54,17 @@ if (!isMainThread) {
 
 	let shuttingDown = false;
 	let handlingFatalProcessError = false;
-	const forwardSignalToRuntime = () => {
+	const forwardSignalToRuntime = (signal: RuntimeSignal) => {
+		if (dispatchActiveRuntimeSignal(signal)) return;
 		if (shuttingDown) {
 			process.exit(1);
 		}
 		shuttingDown = true;
 		abortActiveRuntime();
 	};
-	process.on("SIGINT", forwardSignalToRuntime);
-	process.on("SIGTERM", forwardSignalToRuntime);
+	process.on("SIGINT", () => forwardSignalToRuntime("SIGINT"));
+	process.on("SIGTERM", () => forwardSignalToRuntime("SIGTERM"));
+	process.on("SIGHUP", () => forwardSignalToRuntime("SIGHUP"));
 	const handleFatalProcessError = (kind: string, error: unknown) => {
 		if (handlingFatalProcessError) {
 			process.exit(1);

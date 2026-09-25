@@ -1,4 +1,5 @@
 export type CommandPaletteAction =
+	| "cloud"
 	| "settings"
 	| "change-model"
 	| "change-provider"
@@ -37,6 +38,13 @@ const ACTION_ITEMS: Array<{
 	keywords: string[];
 	requiresFork?: boolean;
 }> = [
+	{
+		action: "cloud",
+		label: "Cloud Agents",
+		shortcut: "Opt+B",
+		description: "Create or reopen a hosted task",
+		keywords: ["cloud", "remote", "hosted"],
+	},
 	{
 		action: "settings",
 		label: "Open Settings",
@@ -181,9 +189,12 @@ function scoreItem(item: CommandPaletteItem, query: string): number {
 
 export function buildCommandPaletteItems(input: {
 	canForkSession: boolean;
+	cloudEnabled?: boolean;
 }): CommandPaletteItem[] {
 	return ACTION_ITEMS.filter(
-		(item) => !item.requiresFork || input.canForkSession,
+		(item) =>
+			(!item.requiresFork || input.canForkSession) &&
+			(item.action !== "cloud" || input.cloudEnabled === true),
 	).map((item) => ({
 		id: `action:${item.action}`,
 		label: item.label,
