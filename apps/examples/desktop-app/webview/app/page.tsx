@@ -46,6 +46,7 @@ import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
+import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import {
 	WindowTitleBar,
@@ -343,6 +344,7 @@ export default function Home() {
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -964,6 +966,9 @@ export default function Home() {
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
 						break;
+					case "export-diagnostics":
+						setExportDiagnosticsOpen(true);
+						break;
 					case "check-for-updates":
 						void checkForUpdateAndNotify();
 						break;
@@ -1125,7 +1130,7 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("API Providers")
+												handleSettingsSectionChange("Providers")
 											}
 											onOpenAccountSettings={() =>
 												handleSettingsSectionChange("Account")
@@ -1138,6 +1143,7 @@ export default function Home() {
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
+											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
 											onOpenSession={handleOpenSessionById}
 											section={settingsSection}
@@ -1163,6 +1169,10 @@ export default function Home() {
 					) : null}
 				</WindowTitleBarProvider>
 			</SidebarProvider>
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
 			<HubUpdateRequiredDialog />
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
@@ -1900,6 +1910,22 @@ function ChatThreadPane({
 		},
 		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
+
+	// Let the sidecar load the workspace's plugin sandbox now so the slash
+	// menu lists plugin commands without paying the cold spawn on first open.
+	useEffect(() => {
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+		void desktopClient
+			.invoke("warm_plugin_commands", {
+				workspacePath: activeWorkspaceCwd,
+				environmentId,
+			})
+			.catch(() => {
+				// Best effort; the menu falls back to loading on open.
+			});
+	}, [activeWorkspaceCwd, environmentId]);
 
 	useEffect(() => {
 		void refreshGitBranch();
