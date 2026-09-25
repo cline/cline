@@ -48,6 +48,9 @@ export function shouldApplyBedrockCachePoint(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): boolean {
+	if (context.config.options?.usePromptCache === false) {
+		return false;
+	}
 	return resolveBedrockCachePointRoute(request, context) !== undefined;
 }
 
@@ -58,22 +61,52 @@ export function createBedrockCachePointProviderOptions() {
 }
 
 /**
- * Attach a message-level cache-point marker to the last user message. The
- * Bedrock message converter appends the `cachePoint` block after that
- * message's content, caching the whole prefix (tools, system, and history)
- * up to it — mirroring the Anthropic writer's checkpoint placement.
+ * Attach a message-level cache-point marker to the last user message, or to
+ * the last tool-result message during a tool continuation. The Bedrock
+ * message converter appends the `cachePoint` block after that message's
+ * content, so the cached prefix advances with the tool loop. When no tools
+ * are available, Bedrock drops tool history, so the marker stays on the last
+ * user message instead.
  */
-export function applyBedrockCachePointToLastUserMessage(
+export function applyBedrockCachePointToLastCacheableMessage(
 	messages: Array<Record<string, unknown>>,
+	options?: { includeToolMessages?: boolean },
 ): void {
+	const includeToolMessages = options?.includeToolMessages ?? true;
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
-		if (message?.role !== "user") {
+		const hasToolResult =
+			includeToolMessages &&
+			message?.role === "tool" &&
+			Array.isArray(message.content) &&
+			message.content.some(
+				(part) =>
+					part !== null &&
+					typeof part === "object" &&
+					(part as Record<string, unknown>).type === "tool-result",
+			);
+		if (message?.role !== "user" && !hasToolResult) {
 			continue;
 		}
+		const providerOptions =
+			message.providerOptions !== null &&
+			typeof message.providerOptions === "object" &&
+			!Array.isArray(message.providerOptions)
+				? (message.providerOptions as Record<string, unknown>)
+				: {};
+		const existingBedrock = providerOptions.bedrock;
+		const bedrockOptions =
+			existingBedrock !== null &&
+			typeof existingBedrock === "object" &&
+			!Array.isArray(existingBedrock)
+				? (existingBedrock as Record<string, unknown>)
+				: {};
 		message.providerOptions = {
-			...(message.providerOptions as Record<string, unknown> | undefined),
-			...createBedrockCachePointProviderOptions(),
+			...providerOptions,
+			bedrock: {
+				...bedrockOptions,
+				...createBedrockCachePointProviderOptions().bedrock,
+			},
 		};
 		return;
 	}
