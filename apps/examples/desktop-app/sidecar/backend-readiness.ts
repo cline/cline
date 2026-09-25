@@ -1,7 +1,13 @@
+import {
+	type StartupFailure,
+	startupErrorCode,
+} from "../webview/lib/startup-diagnostics";
+
 const MAX_AUTOMATIC_ATTEMPTS = 4;
 
 /** The desktop transport is independent of this local session-service lifecycle. */
 export type BackendReadiness = {
+	lastFailure?: StartupFailure;
 	state: "starting" | "ready" | "failed";
 	attempt: number;
 	automaticRetry?: boolean;
@@ -32,13 +38,31 @@ export class BackendInitialization {
 	) {}
 
 	private update(state: BackendReadiness): void {
-		this.state = state;
-		this.publish(state);
+		this.state = {
+			...state,
+			...(this.state.lastFailure
+				? { lastFailure: this.state.lastFailure }
+				: {}),
+		};
+		this.publish(this.state);
 	}
 
 	reportStep(step: NonNullable<BackendReadiness["step"]>): void {
 		if (!this.stopped && this.state.state === "starting")
 			this.update({ ...this.state, step });
+	}
+
+	private recordFailure(error: unknown, startedAt: number): void {
+		this.state = {
+			...this.state,
+			lastFailure: {
+				at: new Date().toISOString(),
+				stage: this.state.step ?? "environment",
+				attempt: this.state.attempt,
+				elapsedMs: Math.max(0, Date.now() - startedAt),
+				code: startupErrorCode(error),
+			},
+		};
 	}
 
 	start(): Promise<void> {
@@ -62,6 +86,7 @@ export class BackendInitialization {
 		this.update({ state: "starting", attempt, step: "environment" });
 		this.pending = (async () => {
 			let timer: ReturnType<typeof setTimeout> | undefined;
+			let startedAt = Date.now();
 			try {
 				const delay = Math.max(0, this.retryAt - Date.now());
 				if (delay)
@@ -77,7 +102,10 @@ export class BackendInitialization {
 						controller.signal.addEventListener("abort", abort, { once: true });
 					});
 				controller.signal.throwIfAborted();
+				startedAt = Date.now();
 				timer = setTimeout(() => {
+					if (!this.stopped)
+						this.recordFailure(new Error("Startup timeout"), startedAt);
 					controller.abort(
 						new Error("Session service startup timed out. Retry to reconnect."),
 					);
@@ -95,7 +123,9 @@ export class BackendInitialization {
 				await this.initialize(controller.signal);
 				controller.signal.throwIfAborted();
 				if (!this.stopped) this.update({ state: "ready", attempt });
-			} catch {
+			} catch (error) {
+				if (!this.stopped && this.state.state !== "failed")
+					this.recordFailure(error, startedAt);
 				// Bootstrap errors can contain authenticated URLs or provider secrets.
 				// Publish a fixed actionable message rather than arbitrary error text.
 				if (!this.stopped && this.state.state !== "failed")

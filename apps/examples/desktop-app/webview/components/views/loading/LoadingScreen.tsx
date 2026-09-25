@@ -4,6 +4,8 @@ import { AgentWelcomeHero } from "@cline/ui";
 import { useEffect, useRef, useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 
+import { StartupDiagnostics } from "./StartupDiagnostics";
+
 export function LoadingScreen({
 	readiness,
 	finishing = false,
@@ -151,6 +153,7 @@ export function LoadingScreen({
 						style={{ width: `${progress}%` }}
 					/>
 				</div>
+				<StartupDiagnostics report={readiness.diagnosticReport} />
 				{onContinue && hub.state !== "ready" && (
 					<button
 						type="button"

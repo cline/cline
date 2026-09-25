@@ -29,7 +29,11 @@ describe("session service initialization", () => {
 		expect(initialize).toHaveBeenCalledTimes(1);
 		await vi.advanceTimersByTimeAsync(1_000);
 		await retry;
-		expect(lifecycle.state).toEqual({ state: "ready", attempt: 2 });
+		expect(lifecycle.state).toMatchObject({
+			state: "ready",
+			attempt: 2,
+			lastFailure: { code: "STARTUP_TIMEOUT", elapsedMs: 100, attempt: 1 },
+		});
 		expect(initialize).toHaveBeenCalledTimes(2);
 	});
 
@@ -66,7 +70,11 @@ describe("session service initialization", () => {
 		await vi.advanceTimersByTimeAsync(1);
 		await retry;
 		expect(initialize).toHaveBeenCalledTimes(2);
-		expect(lifecycle.state).toEqual({ state: "ready", attempt: 2 });
+		expect(lifecycle.state).toMatchObject({
+			state: "ready",
+			attempt: 2,
+			lastFailure: { code: "STARTUP_TIMEOUT", elapsedMs: 100, attempt: 1 },
+		});
 	});
 
 	it("discards a queued retry when shutdown starts during cleanup", async () => {
@@ -201,4 +209,27 @@ describe("session service initialization", () => {
 		expect(JSON.stringify(lifecycle.state)).not.toMatch(/secret|hunter2/);
 		lifecycle.stop();
 	});
+});
+
+it("retains sanitized failure details after automatic recovery", async () => {
+	vi.useFakeTimers();
+	const initialize = vi
+		.fn()
+		.mockRejectedValueOnce(
+			Object.assign(new Error("token=private-value"), { code: "EADDRINUSE" }),
+		)
+		.mockResolvedValue(undefined);
+	const lifecycle = new BackendInitialization(initialize, vi.fn(), 100);
+	await lifecycle.start();
+	expect(lifecycle.state.lastFailure).toMatchObject({
+		code: "EADDRINUSE",
+		attempt: 1,
+		stage: "environment",
+	});
+	const failure = lifecycle.state.lastFailure;
+	await vi.advanceTimersByTimeAsync(1000);
+	expect(lifecycle.state.state).toBe("ready");
+	expect(lifecycle.state.lastFailure).toEqual(failure);
+	expect(JSON.stringify(lifecycle.state)).not.toContain("private-value");
+	lifecycle.stop();
 });

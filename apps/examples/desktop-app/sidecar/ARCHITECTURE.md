@@ -308,3 +308,23 @@ bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
 bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```
+
+
+### Shareable startup diagnostics
+
+The loading screen retains up to eight failure snapshots for the current webview
+run, including failures followed by automatic recovery. Desktop endpoint failures
+come from Tauri's status command and bounded startup diagnostics, independently of
+the sidecar transport. Hub initialization replays its latest failure with the
+attempt, bootstrap step, elapsed time, timestamp, and an allowlisted error code.
+Raw Hub exception messages, stacks, session logs, and provider settings are not
+included.
+
+Reports contain the app version, browser-reported OS platform, failure snapshots,
+and sanitized native startup diagnostic lines. Sensitive records are omitted and
+file paths are redacted before copy/export. Copy diagnostics uses the clipboard;
+Save report uses a native save dialog (or a browser download in web development).
+No report is uploaded automatically. The diagnostics control stays accessible
+after recovery, and retrying does not clear the captured report.
+
+Native startup failure history survives automatic respawns and manual retries. Reports retain the latest eight distinct failed attempts; updated diagnostic tails replace the same attempt instead of consuming another history slot. The webview also reads retained native failures after reconnecting, so failures between status polls remain available.
