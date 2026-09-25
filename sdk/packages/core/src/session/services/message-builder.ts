@@ -25,7 +25,10 @@ import {
 	validateAndReserveImageMedia,
 } from "@cline/shared";
 import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
-import { serializeToolResultContent } from "./tool-result-recovery";
+import {
+	isToolResultRecoveryNotice,
+	serializeToolResultContent,
+} from "./tool-result-recovery";
 
 const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
 
@@ -237,6 +240,7 @@ export class MessageBuilder {
 			content.push({
 				type: "text",
 				text: `Full result saved to ${path} for search.`,
+				toolResultFile: path,
 			});
 		} catch {
 			// Saving is best-effort: keep the bounded preview, never restore the
@@ -976,6 +980,7 @@ export class MessageBuilder {
 		}
 
 		return content.map((entry) => {
+			if (isToolResultRecoveryNotice(entry)) return entry;
 			if (entry.type === "file") {
 				if (!outdatedPaths.has(entry.path)) {
 					return entry;
@@ -1109,6 +1114,7 @@ export class MessageBuilder {
 			return this.truncateMiddle(content);
 		}
 		return content.map((entry) => {
+			if (isToolResultRecoveryNotice(entry)) return entry;
 			if (entry.type === "file") {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
@@ -1219,6 +1225,12 @@ export class MessageBuilder {
 		});
 
 		const candidates = this.collectTruncationCandidates(next);
+		// Reserve non-truncatable text (including recovery notices) before
+		// distributing retention floors among mutable candidates.
+		const fixedBytes =
+			totalBytes -
+			candidates.reduce((sum, candidate) => sum + candidate.byteLength, 0);
+		const availableBytes = Math.max(0, this.maxTotalTextBytes - fixedBytes);
 		for (const candidate of candidates) {
 			if (totalBytes <= this.maxTotalTextBytes) {
 				break;
@@ -1228,7 +1240,7 @@ export class MessageBuilder {
 			// allowing a single 2KB floor to defeat a 1KB request budget.
 			const minimumBytes = Math.min(
 				candidate.minBytes,
-				Math.floor(this.maxTotalTextBytes / candidates.length),
+				Math.floor(availableBytes / candidates.length),
 			);
 			if (currentBytes <= minimumBytes) {
 				continue;
@@ -1343,6 +1355,7 @@ export class MessageBuilder {
 					continue;
 				}
 				for (const entry of block.content) {
+					if (isToolResultRecoveryNotice(entry)) continue;
 					if (entry.type === "text") {
 						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),

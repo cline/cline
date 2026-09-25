@@ -205,6 +205,37 @@ describe("recorded external tool results", () => {
 			process.chdir(originalCwd);
 		}
 	});
+	it("preserves recovery paths through small caps, aggregate pressure, and history round trips", async () => {
+		const store = new ToolResultStore(
+			join(directory, "long-directory-name-".repeat(6)),
+		);
+		const builder = new MessageBuilder({
+			maxToolResultChars: 96,
+			maxTotalTextBytes: 128,
+		});
+		const recorded = await builder.prepareExternalToolResult(
+			result("x".repeat(5000)),
+			(value) => store.save(value),
+		);
+		const path = recoveryPath(history(recorded));
+		expect(path.length).toBeGreaterThan(96);
+		const restored = agentMessagesToMessages(
+			messagesToAgentMessages(JSON.parse(JSON.stringify(history(recorded)))),
+		);
+		const prepared = await builder.buildForApi(restored);
+		expect(recoveryPath(prepared)).toBe(path);
+		expect(await readFile(recoveryPath(prepared), "utf8")).toBe(
+			"x".repeat(5000),
+		);
+	});
+	it("does not exempt ordinary tool text that resembles a recovery notice", async () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 96 });
+		const text = `Full result saved to /${"x".repeat(500)} for search.`;
+		const prepared = output(
+			await builder.buildForApi(history(result([{ type: "text", text }]))),
+		);
+		expect(JSON.stringify(prepared.content)).not.toContain(text);
+	});
 	it("isolates runtimes and keeps repeated tool executions separate", async () => {
 		const first = new ToolResultStore(directory);
 		const second = new ToolResultStore(directory);

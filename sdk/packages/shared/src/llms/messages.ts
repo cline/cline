@@ -19,6 +19,8 @@ export type MessageRole = "user" | "assistant";
 export interface TextContent {
 	type: "text";
 	text: string;
+	/** Absolute recovery file referenced by this tool-result notice. Retained in history. */
+	toolResultFile?: string;
 	/** Thought signature for this text part (Gemini) */
 	signature?: string;
 }
