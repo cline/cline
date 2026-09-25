@@ -73,7 +73,7 @@ export function WhatsNewDialog({
 							<span />
 						)}
 						<Button onClick={() => onOpenChange(false)} type="button">
-							Continue
+							Get Started
 						</Button>
 					</div>
 				</div>

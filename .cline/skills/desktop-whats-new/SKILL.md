@@ -17,7 +17,7 @@ The desktop app ships every couple of days, so individual releases are never ann
 - `webview/lib/whats-new.ts` stores the last seen `id` in localStorage (`cline.code.whats-new.v1`). The app shell (`webview/app/page.tsx`) shows `WhatsNewDialog` when the newest id differs from the stored one; closing it, or clicking "See all changes", stores the id.
 - Fresh installs never see a catch-up: completing onboarding marks the newest entry seen.
 - Settings → About has a "Show what's new" button that replays the newest entry without marking it seen. That is the preview path.
-- The dialog (`webview/components/whats-new-dialog.tsx`) is fixed: violet hero with an eyebrow and headline, a 2×2 grid of highlights, footer with "See all changes" and "Continue". Do not add per-entry layout options, images, or extra buttons; keep it a content change.
+- The dialog (`webview/components/whats-new-dialog.tsx`) is fixed: violet hero with an eyebrow and headline, a 2×2 grid of highlights, footer with "See all changes" and "Get Started". Do not add per-entry layout options, images, or extra buttons; keep it a content change.
 
 ## Workflow
 
