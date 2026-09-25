@@ -487,6 +487,7 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
+export { isBunEmbeddedModulePath } from "./runtime/bun-embedded-path";
 export type { ClineClientIdentity } from "./runtime/cline-client-identity";
 export {
 	getClineClientIdentity,
@@ -523,6 +524,10 @@ export {
 	setConnectorCliLaunchSpec,
 	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
+export {
+	ensureLoopbackProxyBypass,
+	LOOPBACK_NO_PROXY_HOSTS,
+} from "./runtime/loopback-proxy-bypass";
 export {
 	disableCurrentDirectoryExecutableSearch,
 	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,

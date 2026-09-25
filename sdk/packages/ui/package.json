@@ -93,7 +93,8 @@
 		"theme",
 		"ADOPTION.md",
 		"README.md",
-		"RADIX-COLORS-LICENSE"
+		"RADIX-COLORS-LICENSE",
+		"components/agent-composer.tsx"
 	],
 	"sideEffects": [
 		"./components.css",

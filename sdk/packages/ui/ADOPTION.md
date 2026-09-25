@@ -654,6 +654,30 @@ switching layouts can remount the composer. Keep drafts in host state.
 `bodyClassName` accepts host animation classes. Hosts retain scrolling, title
 editing, menus, native title-bar behavior, and all event handlers.
 
+## Composer presentation
+
+`AgentComposer` and its body, field, textarea, action, attachment-list, and
+settings primitives preserve the desktop composer's welcome/conversation
+presentation. They render the original native elements without extra wrappers;
+refs and native event/ARIA props forward to those elements. Import
+`@cline/ui/components.css` and the shared tokens as described above.
+
+Compose the host's PR bar before `AgentComposerBody`. Inside the body, render
+`AgentPromptQueue`, the host's suggestion positioning wrapper and
+`AgentComposerField` (textarea and actions), feedback, and optional
+`AgentComposerAttachments`, in that order. Nested variant-aware primitives
+inherit the `AgentComposer` variant unless they set an explicit override. Pass
+`hasQueue` to the body. Render model/settings controls in
+`AgentComposerSettingsGroup`, with workspace/usage controls in
+`AgentComposerSettingsEnd`, both inside `AgentComposerSettings`.
+
+The host owns draft state, textarea sizing, IME/keyboard/paste behavior, focus
+forwarding, suggestion menus, attachment chips and uploads, queue operations,
+model/settings popovers, voice controls, and send/stop callbacks and visibility.
+The shared send/stop buttons style host-provided children; supply their accessible
+labels, titles, `type="button"`, disabled state, and handlers. This is an additive
+presentation API, not a runtime composer or a form with implicit submission.
+
 ## Session rows
 
 `AgentSessionRow`, `AgentSessionRowEditor`, and `AgentSessionOverview` are
