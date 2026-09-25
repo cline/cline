@@ -21,12 +21,7 @@ import {
  *    the one the user last saw to decide whether to show the dialog.
  * 2. Write 3 or 4 highlights. Lead with the user-facing capability, keep the
  *    description to one sentence, and pick a lucide icon.
- * 3. Optional visual: drop a WebP or PNG into `webview/public/whats-new/`.
- *    It renders edge to edge at the top of the dialog at a 2:1 ratio, so
- *    export at 1280x640 (2x for a 640px-wide dialog). Provide a `dark` variant
- *    when the light one would clash with the dark theme; screenshots of the
- *    app itself should have both.
- * 4. Preview it from Settings → About → "Show what's new", which replays the
+ * 3. Preview it from Settings → About → "Show what's new", which replays the
  *    latest entry without marking it seen.
  *
  * New installs never see a catch-up: onboarding marks the current entry as
@@ -39,18 +34,10 @@ export type WhatsNewHighlight = {
 	icon: LucideIcon;
 };
 
-export type WhatsNewImage = {
-	/** Path under `webview/public`, e.g. `/whats-new/composer.webp`. */
-	light: string;
-	dark?: string;
-	alt: string;
-};
-
 export type WhatsNewRelease = {
 	id: string;
 	title: string;
 	description: string;
-	image?: WhatsNewImage;
 	highlights: WhatsNewHighlight[];
 };
 
@@ -60,11 +47,6 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
 		title: "Work anywhere, on more than one thing at a time",
 		description:
 			"Recent updates moved a lot into the composer: pick where Cline runs, keep tasks on their own branches, and watch your PR from the same place you write prompts.",
-		image: {
-			light: "/whats-new/2026-09-composer-light.webp",
-			dark: "/whats-new/2026-09-composer-dark.webp",
-			alt: "The composer with the environment picker, worktree switch, and pull request status highlighted",
-		},
 		highlights: [
 			{
 				title: "SSH remotes",
