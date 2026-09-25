@@ -2,7 +2,6 @@ import { providerOffersModelTool } from "@cline/llms/browser";
 import { Switch } from "@cline/ui";
 import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -12,7 +11,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -63,6 +61,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MarketplaceExplorerView } from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
+import { AboutContent } from "./about-view";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
@@ -636,6 +635,8 @@ export function SettingsView({
 			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
+		) : activeNav === "About" ? (
+			<AboutContent />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}
@@ -740,7 +741,6 @@ function GeneralSettingsContent({
 	const [webSearchReadyProviders, setWebSearchReadyProviders] = useState<
 		string[] | null
 	>(null);
-	const [appVersion, setAppVersion] = useState<string | null>(null);
 
 	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
@@ -774,28 +774,6 @@ function GeneralSettingsContent({
 		return () => {
 			cancelled = true;
 			unsubscribe();
-		};
-	}, []);
-
-	useEffect(() => {
-		let cancelled = false;
-		void desktopClient
-			.invoke<{ appVersion?: unknown }>("get_process_context")
-			.then((context) => {
-				if (cancelled) {
-					return;
-				}
-				const version =
-					typeof context?.appVersion === "string"
-						? context.appVersion.trim()
-						: "";
-				setAppVersion(version || null);
-			})
-			.catch(() => {
-				// Leave the About row versionless if the sidecar is unreachable.
-			});
-		return () => {
-			cancelled = true;
 		};
 	}, []);
 
@@ -1270,7 +1248,7 @@ function GeneralSettingsContent({
 						Replay
 					</Button>
 				</div>
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
 							Diagnostics
@@ -1288,26 +1266,6 @@ function GeneralSettingsContent({
 						<Download className="size-3" />
 						Export…
 					</Button>
-				</div>
-				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">About</p>
-						<p className="text-sm text-muted-foreground">
-							{productNameForVersion(appVersion)}
-							{appVersion ? ` v${appVersion}` : ""}
-							{isBetaVersion(appVersion)
-								? " — beta builds install side by side with the stable app and update from the beta channel."
-								: ""}
-						</p>
-					</div>
-					{isBetaVersion(appVersion) ? (
-						<Badge
-							className="shrink-0 uppercase tracking-wide"
-							variant="secondary"
-						>
-							Beta
-						</Badge>
-					) : null}
 				</div>
 			</section>
 			<ExportDiagnosticsDialog

@@ -18,6 +18,7 @@ import {
 	FolderTree,
 	GitFork,
 	Import,
+	Info,
 	Loader2,
 	Mic,
 	Network,
@@ -152,13 +153,14 @@ function hubPort(url: string | null): string | null {
 
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
-	"Providers": Plug,
+	Providers: Plug,
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
 	Remote: Network,
 	Account: CircleUserRound,
+	About: Info,
 	Customize: Blocks,
 	Marketplace: Store,
 } satisfies Record<SettingsSection, typeof Settings>;
