@@ -532,7 +532,6 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
-			waitForModeRebuild: () => this.mode.waitForPendingRebuild(),
 			rebuilds: this.sessionRebuilds,
 		})
 		this.sessionConfigChanges = new SdkSessionConfigChangeCoordinator({
@@ -545,6 +544,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			waitForModeRebuild: () => this.mode.waitForPendingRebuild(),
 			rebuilds: this.sessionRebuilds,
 		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
