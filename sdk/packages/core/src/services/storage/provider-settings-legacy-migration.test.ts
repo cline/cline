@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
+import { saveLocalProviderSettings } from "../providers/local-provider-service";
 import {
 	type LegacyClineUserInfo,
 	migrateLegacyProviderSettings,
@@ -391,6 +392,135 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 		expect(manager.read().providers.openai?.tokenSource).toBe("manual");
 		expect(manager.read().providers.anthropic?.tokenSource).toBe("migration");
+	});
+
+	it("does not re-import a legacy provider the user removed", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({ mode: "act", actModeApiProvider: "zai" }, null, 2),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ zaiApiKey: "legacy-zai-key" }, null, 2),
+		);
+
+		// Every host runs the import when it constructs the manager.
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		expect(manager.getProviderSettings("zai")?.apiKey).toBe("legacy-zai-key");
+		expect(manager.read().migratedLegacyProviders).toEqual(["zai"]);
+
+		// The user removes the provider in Settings -> Providers.
+		saveLocalProviderSettings(manager, { providerId: "zai", enabled: false });
+
+		// Next window reload, with the legacy secrets still on disk.
+		const reloaded = new ProviderSettingsManager({ filePath: providersPath });
+		expect(reloaded.getProviderSettings("zai")).toBeUndefined();
+		expect(
+			migrateLegacyProviderSettings({
+				providerSettingsManager: reloaded,
+				dataDir: tempDir,
+			}),
+		).toMatchObject({ migrated: false, providerCount: 0 });
+		expect(reloaded.getProviderSettings("zai")).toBeUndefined();
+	});
+
+	it("does not resurrect a provider that already had an entry when it is removed", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		manager.saveProviderSettings({ provider: "zai", apiKey: "current-key" });
+		writeFileSync(path.join(tempDir, "globalState.json"), JSON.stringify({}));
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ zaiApiKey: "legacy-zai-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(manager.getProviderSettings("zai")?.apiKey).toBe("current-key");
+		expect(manager.read().providers.zai?.tokenSource).toBe("manual");
+
+		saveLocalProviderSettings(manager, { providerId: "zai", enabled: false });
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(manager.getProviderSettings("zai")).toBeUndefined();
+	});
+
+	it("still imports a legacy provider configured after an earlier import", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		writeFileSync(path.join(tempDir, "globalState.json"), JSON.stringify({}));
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ apiKey: "legacy-anthropic-key" }, null, 2),
+		);
+
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		expect(Object.keys(manager.read().providers)).toEqual(["anthropic"]);
+
+		// The classic extension is still installed, and the user adds a key there
+		// after the first import already ran.
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					apiKey: "legacy-anthropic-key",
+					zaiApiKey: "legacy-zai-key",
+				},
+				null,
+				2,
+			),
+		);
+
+		const reloaded = new ProviderSettingsManager({ filePath: providersPath });
+		expect(reloaded.getProviderSettings("zai")?.apiKey).toBe("legacy-zai-key");
+		expect(reloaded.read().migratedLegacyProviders).toEqual([
+			"anthropic",
+			"zai",
+		]);
+	});
+
+	it("keeps unrelated stored settings when it imports a provider", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		manager.setVoiceInputSettings({
+			providerId: "openai-native",
+			modelId: "whisper-1",
+		});
+		writeFileSync(path.join(tempDir, "globalState.json"), JSON.stringify({}));
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ apiKey: "legacy-anthropic-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getVoiceInputSettings()).toEqual({
+			providerId: "openai-native",
+			modelId: "whisper-1",
+		});
 	});
 
 	it("migrates legacy OpenAI Codex OAuth credentials", () => {
