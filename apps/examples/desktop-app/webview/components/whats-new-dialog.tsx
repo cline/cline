@@ -1,18 +1,14 @@
 "use client";
 
-import { ArrowRight, Bug, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { ISSUES_URL } from "@/lib/changelog";
-import { openExternalUrl } from "@/lib/desktop-client";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { WhatsNewRelease } from "@/lib/whats-new-content";
+
+// A fixed deep-violet hero in both themes: the brand glow reads the same on a
+// light or dark dialog and keeps the white title at full contrast.
+const HERO_BACKGROUND =
+	"radial-gradient(120% 140% at 15% 0%, oklch(0.55 0.22 293) 0%, transparent 55%), radial-gradient(90% 120% at 100% 100%, oklch(0.45 0.16 275) 0%, transparent 60%), oklch(0.27 0.1 293)";
 
 /**
  * Catch-up dialog for a `WhatsNewRelease`. Shown once by the app shell after
@@ -32,75 +28,54 @@ export function WhatsNewDialog({
 }) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
-				<DialogHeader
-					className="gap-1.5 px-6 pt-14 pb-6 text-left"
-					style={{
-						// The brand surface is tuned to carry near-white text in both
-						// themes; the radials only add depth on top of it.
-						background:
-							"radial-gradient(120% 140% at 15% 0%, var(--brand-periwinkle) 0%, transparent 55%), radial-gradient(90% 120% at 100% 100%, color-mix(in oklab, var(--brand-violet-surface) 65%, black) 0%, transparent 60%), var(--brand-violet-surface)",
-						color: "var(--brand-violet-surface-foreground)",
-					}}
+			<DialogContent
+				aria-describedby={undefined}
+				className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[560px] [&_[data-slot=dialog-close]]:text-white"
+			>
+				<div
+					className="flex min-h-42 flex-col justify-end px-6 pt-10 pb-5.5"
+					style={{ background: HERO_BACKGROUND }}
 				>
-					<p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider opacity-80">
-						<Sparkles className="size-3.5" />
+					<p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[oklch(0.88_0.09_315)]">
 						What's new in Cline
 					</p>
-					<DialogTitle className="text-2xl leading-tight text-inherit">
+					<DialogTitle className="mt-1.5 text-2xl font-semibold tracking-tight text-white">
 						{release.title}
 					</DialogTitle>
-					<DialogDescription className="text-sm text-inherit opacity-80">
-						{release.description}
-					</DialogDescription>
-				</DialogHeader>
-				<div className="flex flex-col gap-5 p-6">
-					<ul className="grid gap-4 sm:grid-cols-2">
+				</div>
+				<div className="px-6 pt-5 pb-5">
+					<ul className="grid grid-cols-2 gap-x-6 gap-y-5">
 						{release.highlights.map((highlight) => (
-							<li className="flex gap-3" key={highlight.title}>
-								<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-									<highlight.icon className="size-4" />
-								</span>
-								<div className="min-w-0">
-									<p className="text-sm font-semibold text-foreground">
-										{highlight.title}
-									</p>
-									<p className="mt-0.5 text-sm text-muted-foreground">
-										{highlight.description}
-									</p>
-								</div>
+							<li key={highlight.title}>
+								<highlight.icon className="size-4.5 text-primary" />
+								<p className="mt-2 text-sm font-semibold text-foreground">
+									{highlight.title}
+								</p>
+								<p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+									{highlight.description}
+								</p>
 							</li>
 						))}
 					</ul>
-					<DialogFooter className="sm:justify-between">
-						<div className="flex flex-wrap gap-1">
-							{onShowAllChanges ? (
-								<Button
-									className="text-muted-foreground"
-									onClick={onShowAllChanges}
-									size="sm"
-									type="button"
-									variant="ghost"
-								>
-									See all changes
-									<ArrowRight className="size-3.5" />
-								</Button>
-							) : null}
+					<div className="mt-5 flex items-center justify-between border-t pt-3.5">
+						{onShowAllChanges ? (
 							<Button
-								className="text-muted-foreground"
-								onClick={() => void openExternalUrl(ISSUES_URL)}
+								className="-ml-2 text-muted-foreground"
+								onClick={onShowAllChanges}
 								size="sm"
 								type="button"
 								variant="ghost"
 							>
-								<Bug className="size-3.5" />
-								Report an issue
+								See all changes
+								<ArrowRight className="size-3.5" />
 							</Button>
-						</div>
-						<Button onClick={() => onOpenChange(false)} size="sm" type="button">
+						) : (
+							<span />
+						)}
+						<Button onClick={() => onOpenChange(false)} type="button">
 							Continue
 						</Button>
-					</DialogFooter>
+					</div>
 				</div>
 			</DialogContent>
 		</Dialog>

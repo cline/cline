@@ -19,8 +19,9 @@ import {
  * 1. Add an entry to the TOP of `WHATS_NEW_RELEASES`. Give it a new, stable
  *    `id` (date-prefixed, never reused): the app compares the latest id with
  *    the one the user last saw to decide whether to show the dialog.
- * 2. Write 3 or 4 highlights. Lead with the user-facing capability, keep the
- *    description to one sentence, and pick a lucide icon.
+ * 2. Give it a short title (a headline, not a sentence) and 3 or 4
+ *    highlights. Lead with the user-facing capability, keep each description
+ *    to one short sentence, and pick a lucide icon.
  * 3. Preview it from Settings → About → "Show what's new", which replays the
  *    latest entry without marking it seen.
  *
@@ -37,39 +38,36 @@ export type WhatsNewHighlight = {
 export type WhatsNewRelease = {
 	id: string;
 	title: string;
-	description: string;
 	highlights: WhatsNewHighlight[];
 };
 
 export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
 	{
 		id: "2026-09-remote-and-parallel",
-		title: "Work anywhere, on more than one thing at a time",
-		description:
-			"Recent updates moved a lot into the composer: pick where Cline runs, keep tasks on their own branches, and watch your PR from the same place you write prompts.",
+		title: "Work anywhere, in parallel",
 		highlights: [
 			{
 				title: "SSH remotes",
 				description:
-					"The app stays on your laptop while Cline works on a dev server, Raspberry Pi, container, or anything you can SSH into. Add hosts in Settings → Remote.",
+					"The app stays on your laptop while Cline works on any machine you can SSH into.",
 				icon: Network,
 			},
 			{
 				title: "Worktrees",
 				description:
-					"Flip the Worktree switch and each task gets its own branch in ~/.cline/worktrees/<id>, so parallel tasks never touch your working tree.",
+					"Each task gets its own branch under ~/.cline/worktrees, so parallel work never collides.",
 				icon: GitBranchPlus,
 			},
 			{
 				title: "Pull request status",
 				description:
-					"See the branch's PR, merge status, and CI checks in the composer, and click through to GitHub. Needs the gh CLI signed in.",
+					"Your branch's PR, merge state, and CI checks, right in the composer.",
 				icon: GitPullRequest,
 			},
 			{
 				title: "Parallel sub-agents",
 				description:
-					"Delegate several pieces of work at once in a session; independent sub-agents run in parallel instead of one after another.",
+					"Delegate several tasks in one session and they run at the same time.",
 				icon: Users,
 			},
 		],

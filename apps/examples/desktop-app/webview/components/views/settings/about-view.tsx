@@ -198,28 +198,6 @@ export function AboutContent() {
 	return (
 		<PageFrame>
 			<PageHeader
-				actions={
-					<>
-						<Button
-							onClick={() => void openExternalUrl(ISSUES_URL)}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<Bug className="size-3" />
-							Report an issue
-						</Button>
-						<Button
-							onClick={() => void openExternalUrl(CHANGELOG_URL_ON_GITHUB)}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							<ExternalLink className="size-3" />
-							Full changelog
-						</Button>
-					</>
-				}
 				description={
 					isBetaVersion(appVersion)
 						? "Beta builds install side by side with the stable app and update from the beta channel."
@@ -270,10 +248,42 @@ export function AboutContent() {
 						/>
 					</div>
 				) : null}
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Report an issue
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Found a bug or have a request? Open an issue on GitHub.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={() => void openExternalUrl(ISSUES_URL)}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<Bug className="size-3" />
+						Open GitHub issues
+					</Button>
+				</div>
 				<div className="pt-6">
-					<h2 className="text-lg font-semibold text-foreground">
-						Release notes
-					</h2>
+					<div className="flex items-center justify-between gap-4">
+						<h2 className="text-lg font-semibold text-foreground">
+							Release notes
+						</h2>
+						<Button
+							className="text-muted-foreground"
+							onClick={() => void openExternalUrl(CHANGELOG_URL_ON_GITHUB)}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							Full changelog
+							<ExternalLink className="size-3" />
+						</Button>
+					</div>
 					<ReleaseNotes
 						appVersion={appVersion}
 						error={changelogError}
