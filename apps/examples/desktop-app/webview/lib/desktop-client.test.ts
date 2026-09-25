@@ -572,37 +572,6 @@ describe("DesktopClient endpoint resolution", () => {
 			"ws://127.0.0.1:3126/transport?approval_token=new",
 		);
 	});
-
-	it("reports how long the transport was down once it reconnects", async () => {
-		tauriInvoke.mockResolvedValue(
-			"ws://127.0.0.1:3126/transport?approval_token=token",
-		);
-		const { desktopClient } = await import("./desktop-client");
-		desktopClient.subscribeTransportState(() => undefined);
-		await vi.waitFor(() => expect(sockets).toHaveLength(1));
-		sockets[0]?.open();
-
-		sockets[0]?.close();
-		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
-		await vi.waitFor(() => expect(sockets).toHaveLength(2));
-		sockets[1]?.open();
-
-		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-		const bodies = fetchMock.mock.calls.map((call) =>
-			JSON.parse(String(call[1]?.body)),
-		);
-		expect(bodies[0]?.errorMessage).toMatch(
-			/^Desktop backend transport closed \(code 1006, unclean, idle <30s, /,
-		);
-		expect(bodies[1]).toMatchObject({
-			operation: "webview.transport_reconnected",
-			severity: "info",
-			errorMessage: "Desktop backend transport reconnected after <2s",
-			transportState: "connected",
-		});
-		// The endpoint URL (and its approval token) never enters a report.
-		expect(JSON.stringify(bodies)).not.toContain("approval_token");
-	});
 });
 
 describe("writeDesktopDebugLog", () => {

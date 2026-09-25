@@ -3,13 +3,13 @@ import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
-import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
+import { abandonComposioConnectsForOwner } from "./composio";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -135,7 +135,6 @@ type DesktopClientErrorReport = {
 	errorMessage?: unknown;
 	errorType?: unknown;
 	handled?: unknown;
-	severity?: unknown;
 	command?: unknown;
 	timeoutMs?: unknown;
 	transportState?: unknown;
@@ -155,14 +154,12 @@ function captureDesktopError(
 	error: unknown,
 	context?: Record<string, string | number | boolean>,
 	handled = true,
-	severity?: "info",
 ): void {
 	captureSdkError(ctx.telemetry, {
 		component: "desktop",
 		operation,
 		error,
 		handled,
-		severity,
 		context,
 	});
 }
@@ -325,9 +322,6 @@ export function createFetchHandler(
 					error,
 					context,
 					typeof report.handled === "boolean" ? report.handled : true,
-					// Only lifecycle reports may lower the severity; anything else
-					// stays an error.
-					report.severity === "info" ? "info" : undefined,
 				);
 				return createJsonResponse(req, { ok: true }, 202);
 			} catch (error) {

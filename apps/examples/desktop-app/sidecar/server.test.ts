@@ -195,43 +195,6 @@ describe("desktop error telemetry", () => {
 		});
 	});
 
-	it("lowers the severity only for info lifecycle reports", async () => {
-		const server = createTestServer();
-		const { handler, capture } = createTelemetryHandler();
-		const post = (body: Record<string, unknown>) =>
-			handler(
-				new Request("http://127.0.0.1:3126/telemetry/error", {
-					method: "POST",
-					headers: {
-						origin: "tauri://localhost",
-						"content-type": "application/json",
-					},
-					body: JSON.stringify(body),
-				}),
-				server,
-			);
-
-		await post({
-			operation: "webview.transport_reconnected",
-			errorMessage: "Desktop backend transport reconnected after <2s",
-			severity: "info",
-		});
-		await post({
-			operation: "webview.uncaught_error",
-			errorMessage: "boom",
-			severity: "debug",
-		});
-
-		expect(capture.mock.calls[0]?.[0]?.properties).toMatchObject({
-			operation: "webview.transport_reconnected",
-			severity: "info",
-		});
-		expect(capture.mock.calls[1]?.[0]?.properties).toMatchObject({
-			operation: "webview.uncaught_error",
-			severity: "error",
-		});
-	});
-
 	it("forwards bounded source attribution for uncaught webview errors", async () => {
 		const server = createTestServer();
 		const { handler, capture } = createTelemetryHandler();
