@@ -107,6 +107,7 @@ export type CloudHandoffUiAction =
 			dashboardUrl: string;
 	  }
 	| { type: "retry_restored"; sourceSessionId: string }
+	| { type: "local_prompt_delivered"; sourceSessionId: string }
 	| { type: "retry_delivered"; sourceSessionId: string };
 
 function completeHandoff(
@@ -338,6 +339,16 @@ export function cloudHandoffUiReducer(
 				};
 			}
 			return state;
+		case "local_prompt_delivered": {
+			if (
+				current?.status !== "failed" &&
+				!(current?.status === "retry_restored" && !current.dashboardUrl)
+			)
+				return state;
+			const next = { ...state };
+			delete next[action.sourceSessionId];
+			return next;
+		}
 		case "retry_delivered": {
 			if (!current) return state;
 			if (current.status !== "complete") {

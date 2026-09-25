@@ -2352,6 +2352,9 @@ function ChatThreadPane({
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 			});
+			if (promptTaken && !isCloudSession && sourceSessionId) {
+				onHandoffUiAction({ type: "local_prompt_delivered", sourceSessionId });
+			}
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping. Leave anything they typed meanwhile alone.
@@ -2365,6 +2368,7 @@ function ChatThreadPane({
 			handleAttachFiles,
 			isCloudSession,
 			isNewThread,
+			onHandoffUiAction,
 			onThreadStarted,
 			pendingAttachments,
 			prepareHandoff,
@@ -2372,6 +2376,7 @@ function ChatThreadPane({
 			sessionId,
 			setPendingAttachments,
 			setPromptInput,
+			sourceSessionId,
 			threadId,
 			cloudHandoffAvailable,
 			handoffRetryEligible,
