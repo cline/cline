@@ -225,6 +225,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Cloud sandboxes cannot read local files; only images (sent inline) can be attached.
 	const imagesOnly =
 		!!currentCloudTask || (messages.length === 0 && cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
+	const cloudAutoApprove =
+		!!currentCloudTask || (messages.length === 0 && cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
@@ -424,7 +426,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
-				{!currentCloudTask && <AutoApproveBar />}
+				<AutoApproveBar cloudAutoApprove={cloudAutoApprove} />
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}
