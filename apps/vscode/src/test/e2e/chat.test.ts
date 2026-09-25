@@ -104,9 +104,29 @@ e2e.describe("Checkpoint settings", () => {
 		await expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await resetCode.focus()
 		await resetCode.press("Enter")
+		const popover = sidebar.locator('[data-slot="popover-content"]')
+		await expect(popover).toBeVisible()
+		const popoverColors = await popover.evaluate((element) => {
+			const themeProbe = document.createElement("div")
+			themeProbe.style.backgroundColor = "var(--vscode-menu-background)"
+			themeProbe.style.color = "var(--vscode-menu-foreground)"
+			document.body.append(themeProbe)
+			const popoverStyle = getComputedStyle(element)
+			const themeStyle = getComputedStyle(themeProbe)
+			const colors = {
+				background: popoverStyle.backgroundColor,
+				foreground: popoverStyle.color,
+				themeBackground: themeStyle.backgroundColor,
+				themeForeground: themeStyle.color,
+			}
+			themeProbe.remove()
+			return colors
+		})
+		expect(popoverColors.background).toBe(popoverColors.themeBackground)
+		expect(popoverColors.foreground).toBe(popoverColors.themeForeground)
 		await sidebar.getByText("Settings", { exact: true }).click()
 		await expect(sidebar.getByText("Feature Settings", { exact: true })).toBeVisible()
-		await expect(sidebar.locator('[data-slot="popover-content"]')).not.toBeVisible()
+		await expect(popover).not.toBeVisible()
 		await expect(checkpoints).not.toBeChecked()
 		await expect(checkpoints).toBeFocused()
 		await expect(checkpointSetting).toHaveClass(/settings-target-highlight/)
