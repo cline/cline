@@ -640,6 +640,20 @@ current product contracts should be compared before standardizing them.
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
 
+## Conversation layout and header
+
+`AgentConversationLayout` takes host-rendered `welcomeHeader`, `body`, `composer`,
+`notice`, `welcomeSetup`, and `welcomeFooter` slots. `AgentSessionContent`
+provides the shared content width; `AgentConversationHeader` groups title/status
+children with optional `actions`. Import `components.css` and theme tokens as
+described above.
+
+`welcome` selects the layout; the body remains mounted when hidden.
+`hideWelcomeComposer` hides the welcome composer without unmounting it, but
+switching layouts can remount the composer. Keep drafts in host state.
+`bodyClassName` accepts host animation classes. Hosts retain scrolling, title
+editing, menus, native title-bar behavior, and all event handlers.
+
 ## Composer presentation
 
 `AgentComposer` and its body, field, textarea, action, attachment-list, and
