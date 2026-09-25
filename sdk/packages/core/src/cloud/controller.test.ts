@@ -1069,6 +1069,7 @@ describe("seeded cloud handoff controller", () => {
 			workspaceRelativePath: seed.workspaceRelativePath,
 			handoff: {
 				sourceSessionId: seed.sourceSessionId,
+				onCreating: async () => {},
 				onOuterSessionCreated: async () => {
 					order.push("persist");
 				},

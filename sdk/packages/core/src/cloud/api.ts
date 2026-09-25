@@ -70,7 +70,7 @@ export type CreateCloudSessionInput = {
 		sourceSessionId: string;
 		resolveMessages: () => Promise<MessageWithMetadata[]>;
 		/** Persist dispatch intent after successful recovery lookup, before POST. */
-		onCreating?: () => void | Promise<void>;
+		onCreating: () => void | Promise<void>;
 		onOuterSessionCreated: (
 			sessionId: string,
 			context?: { created: boolean },
@@ -542,6 +542,11 @@ export class CloudSessionApi {
 		sandboxUrl: string;
 		cleanupAuthToken: string;
 	}> {
+		if (input.handoff && typeof input.handoff.onCreating !== "function")
+			throw new CloudSessionError(
+				"request_failed",
+				"Cloud handoff requires an onCreating callback to persist creation intent before dispatch.",
+			);
 		const initialAuthToken = (await this.options.getAuthToken())?.trim();
 		if (!initialAuthToken) {
 			throw new CloudSessionError(
@@ -671,7 +676,7 @@ export class CloudSessionApi {
 		let createdSessionId: string | undefined;
 		let postDispatched = false;
 		try {
-			await input.handoff?.onCreating?.();
+			await input.handoff?.onCreating();
 			const created = await this.request<{
 				sessionId: string;
 				sandboxUrl?: string;
