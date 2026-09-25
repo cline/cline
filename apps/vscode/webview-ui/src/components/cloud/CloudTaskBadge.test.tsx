@@ -4,11 +4,13 @@ import { CloudTaskBadge } from "./CloudTaskBadge"
 
 const mocks = vi.hoisted(() => ({
 	openCloudSessionDashboard: vi.fn(),
+	resolveCloudSessionStatuses: vi.fn(),
 }))
 
 vi.mock("@/services/grpc-client", () => ({
 	CloudServiceClient: {
 		openCloudSessionDashboard: mocks.openCloudSessionDashboard,
+		resolveCloudSessionStatuses: mocks.resolveCloudSessionStatuses,
 	},
 }))
 
@@ -22,6 +24,7 @@ describe("CloudTaskBadge", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mocks.openCloudSessionDashboard.mockResolvedValue({})
+		mocks.resolveCloudSessionStatuses.mockResolvedValue({ statuses: [] })
 	})
 
 	it("does not open a client-only provisioning id in the dashboard", () => {
@@ -56,5 +59,15 @@ describe("CloudTaskBadge", () => {
 		expect(badge).toBeEnabled()
 		fireEvent.click(badge)
 		expect(mocks.openCloudSessionDashboard).toHaveBeenCalledWith(expect.objectContaining({ value: "ses-ready" }))
+	})
+
+	it("shows a spinner while a persisted cloud session status is resolving", () => {
+		mocks.resolveCloudSessionStatuses.mockReturnValue(new Promise(() => {}))
+		const { container } = render(
+			<CloudTaskBadge cloudTask={{ sessionId: "ses-checking", status: "unknown", dashboardUrl: "" }} />,
+		)
+
+		expect(container.querySelector(".animate-spin")).toBeInTheDocument()
+		expect(screen.getByText(/Checking Cline Cloud status/)).toBeInTheDocument()
 	})
 })

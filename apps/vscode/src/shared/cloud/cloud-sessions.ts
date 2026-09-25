@@ -7,7 +7,7 @@ export type CloudExecutionTarget = "local" | "cloud"
  * - idle: the sandbox is up but the agent is not running a turn
  * - completed / failed: the last turn ended that way (known from a live hub connection)
  * - cancelled: the last turn was aborted, not successfully completed
- * - unknown: the connection could not confirm whether the agent is still running
+ * - unknown: live agent status is being resolved or could not be confirmed
  * - expired: the sandbox is gone; only the archived transcript remains
  */
 export type CloudSessionStatus =

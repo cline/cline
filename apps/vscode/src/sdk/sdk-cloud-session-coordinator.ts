@@ -23,6 +23,7 @@ import {
 	type CloudSessionStatus,
 	type CurrentCloudTaskInfo,
 	isCloudSessionId,
+	isPersistedCloudSessionId,
 } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -52,6 +53,8 @@ const LIST_CACHE_TTL_MS = 10_000
 const ACTIVE_POLL_INTERVAL_MS = 15_000
 const IDLE_CONNECTION_TTL_MS = 5 * 60_000
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
+const STATUS_RESOLUTION_RETRY_MS = 30_000
+const STATUS_RESOLUTION_CONCURRENCY = 4
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
 	return new Promise((resolve, reject) => {
@@ -138,6 +141,7 @@ export class SdkCloudSessionCoordinator {
 	private pendingStartGeneration: number | undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
+	private readonly statusResolutionAttempts = new Map<string, number>()
 
 	constructor(private readonly options: SdkCloudSessionCoordinatorOptions) {}
 
@@ -261,6 +265,53 @@ export class SdkCloudSessionCoordinator {
 		return this.toHistoryRecord(entry)
 	}
 
+	/** Resolves live status only for cloud rows a caller is about to display. */
+	async resolveStatuses(sessionIds: Iterable<string>): Promise<Array<{ sessionId: string; status: CloudSessionStatus }>> {
+		await this.scopeTransition
+		const generation = this.scopeGeneration
+		const now = Date.now()
+		const visibleIds = [...new Set(sessionIds)].filter(isPersistedCloudSessionId).slice(0, 100)
+		let changed = false
+		const pendingIds = [...visibleIds]
+		const resolveNext = async (): Promise<void> => {
+			for (let sessionId = pendingIds.shift(); sessionId; sessionId = pendingIds.shift()) {
+				const entry = this.entries.get(sessionId)
+				if (!entry || this.statusOf(entry) !== "unknown" || entry.host) continue
+				try {
+					if (entry.connection) {
+						await entry.connection
+						changed = true
+						continue
+					}
+					const lastAttempt = this.statusResolutionAttempts.get(sessionId)
+					if (lastAttempt !== undefined && now - lastAttempt < STATUS_RESOLUTION_RETRY_MS) continue
+					this.statusResolutionAttempts.set(sessionId, now)
+					const host = await this.connect(entry)
+					this.statusResolutionAttempts.delete(sessionId)
+					changed = true
+					if (!ACTIVE_CLOUD_STATUSES.has(this.statusOf(entry))) {
+						await host.dispose("statusResolved").catch(() => undefined)
+						if (entry.host === host) entry.host = undefined
+					}
+				} catch (error) {
+					Logger.warn(`[CloudSessions] Failed to resolve status for ${sessionId}:`, error)
+				}
+			}
+		}
+		await Promise.allSettled(
+			Array.from({ length: Math.min(STATUS_RESOLUTION_CONCURRENCY, pendingIds.length) }, () => resolveNext()),
+		)
+		if (changed && !this.disposed && generation === this.scopeGeneration) {
+			this.options.invalidateHistoryCache()
+			void this.options.postStateToWebview().catch(() => undefined)
+		}
+		if (this.disposed || generation !== this.scopeGeneration) return []
+		return visibleIds.flatMap((sessionId) => {
+			const entry = this.entries.get(sessionId)
+			return entry ? [{ sessionId, status: this.statusOf(entry) }] : []
+		})
+	}
+
 	private async refreshUsage(entries: CloudSessionEntry[]): Promise<void> {
 		await Promise.all(
 			entries.map(async (entry) => {
@@ -305,6 +356,7 @@ export class SdkCloudSessionCoordinator {
 				for (const [id, entry] of this.entries) {
 					if (!seen.has(id) && !entry.host) {
 						this.entries.delete(id)
+						this.statusResolutionAttempts.delete(id)
 					}
 				}
 				this.listFetchedAt = Date.now()
@@ -341,6 +393,7 @@ export class SdkCloudSessionCoordinator {
 	/** Changes account scope as one boundary: invalidate, detach, dispose, mutate scope, then reopen reads. */
 	async reset(changeScope?: () => Promise<void>): Promise<void> {
 		this.scopeGeneration++
+		this.statusResolutionAttempts.clear()
 		const previousTransition = this.scopeTransition
 		const transition = (async () => {
 			await previousTransition

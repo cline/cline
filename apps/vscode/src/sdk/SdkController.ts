@@ -2192,6 +2192,10 @@ export class Controller {
 		return TaskHistoryArray.create({ tasks: tasks.slice(0, limit), hasMore })
 	}
 
+	resolveCloudSessionStatuses(sessionIds: Iterable<string>) {
+		return this.cloud.resolveStatuses(sessionIds)
+	}
+
 	async exportTaskWithId(id: string): Promise<void> {
 		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {

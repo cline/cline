@@ -8,6 +8,7 @@ import { GroupedVirtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useResolvedCloudStatuses } from "@/hooks/useResolvedCloudStatuses"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatSize } from "@/utils/format"
 import ViewHeader from "../common/ViewHeader"
@@ -55,6 +56,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	// Load filtered task history with gRPC
 	const [tasks, setTasks] = useState<TaskItem[]>([])
+	const resolvedCloudStatuses = useResolvedCloudStatuses(tasks)
+	const tasksWithResolvedCloudStatuses = useMemo(
+		() =>
+			tasks.map((task) => {
+				const cloudStatus = resolvedCloudStatuses.get(task.id)
+				return cloudStatus ? { ...task, cloudStatus } : task
+			}),
+		[resolvedCloudStatuses, tasks],
+	)
 	const [hasMoreTasks, setHasMoreTasks] = useState(false)
 	const [nextHistoryOffset, setNextHistoryOffset] = useState(0)
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false)
@@ -272,7 +282,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [fetchTotalTasksSize, loadTaskHistory])
 
 	const fuse = useMemo(() => {
-		return new Fuse(tasks, {
+		return new Fuse(tasksWithResolvedCloudStatuses, {
 			keys: ["task"],
 			threshold: 0.6,
 			shouldSort: true,
@@ -286,7 +296,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})
-	}, [tasks])
+	}, [tasksWithResolvedCloudStatuses])
 
 	const taskHistorySearchResults = useMemo(() => {
 		const results = searchQuery
@@ -294,7 +304,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.search(searchQuery)
 					?.filter(({ matches }) => matches && matches.length)
 					.map(({ item }) => item)
-			: tasks
+			: tasksWithResolvedCloudStatuses
 
 		results.sort((a, b) => {
 			switch (sortOption) {

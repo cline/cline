@@ -3,6 +3,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { CloudIcon, LoaderCircleIcon } from "lucide-react"
 import { memo, useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useResolvedCloudStatuses } from "@/hooks/useResolvedCloudStatuses"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { isCloudStatusActive } from "./CloudStatusPill"
 
@@ -12,9 +13,21 @@ import { isCloudStatusActive } from "./CloudStatusPill"
  */
 const RunningCloudTasks = () => {
 	const { taskHistory } = useExtensionState()
-	const running = useMemo(
-		() => taskHistory.filter((item) => item.executionTarget === "cloud" && isCloudStatusActive(item.cloudStatus)),
+	const unknown = useMemo(
+		() => taskHistory.filter((item) => item.executionTarget === "cloud" && item.cloudStatus === "unknown").slice(0, 10),
 		[taskHistory],
+	)
+	const resolvedCloudStatuses = useResolvedCloudStatuses(unknown)
+	const running = useMemo(
+		() =>
+			taskHistory
+				.filter((item) => {
+					if (item.executionTarget !== "cloud") return false
+					const status = resolvedCloudStatuses.get(item.id) ?? item.cloudStatus
+					return isCloudStatusActive(status) || unknown.some((candidate) => candidate.id === item.id)
+				})
+				.map((item) => ({ ...item, cloudStatus: resolvedCloudStatuses.get(item.id) ?? item.cloudStatus })),
+		[resolvedCloudStatuses, taskHistory, unknown],
 	)
 	if (running.length === 0) {
 		return null
@@ -43,7 +56,11 @@ const RunningCloudTasks = () => {
 						<div className="flex min-w-0 flex-1 flex-col gap-0.5">
 							<span className="ph-no-capture line-clamp-1 text-foreground">{item.task}</span>
 							<span className="truncate text-xs text-description">
-								{item.cloudStatus === "provisioning" ? "Starting sandbox" : "Working"}
+								{item.cloudStatus === "unknown"
+									? "Checking status"
+									: item.cloudStatus === "provisioning"
+										? "Starting sandbox"
+										: "Working"}
 								{item.cloudRepoUrl ? ` · ${formatRepoLabel(item.cloudRepoUrl)}` : ""}
 								{item.cloudBranch ? ` · ${item.cloudBranch}` : ""}
 							</span>
