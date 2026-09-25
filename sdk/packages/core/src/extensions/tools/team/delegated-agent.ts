@@ -56,7 +56,6 @@ export interface DelegatedAgentRuntimeConfig
 	 * delegated-agent telemetry (Langfuse `sessionId`) groups with it.
 	 */
 	sessionId?: string;
-	sessionsDirectory?: string;
 }
 
 export interface DelegatedAgentConfigProvider {
@@ -131,7 +130,6 @@ export function buildDelegatedAgentConfig(
 		...options.configProvider.getConnectionConfig(),
 		distinctId: runtimeConfig.distinctId,
 		sessionId: runtimeConfig.sessionId,
-		sessionsDirectory: runtimeConfig.sessionsDirectory,
 		systemPrompt,
 		tools: options.tools,
 		maxIterations: options.maxIterations ?? runtimeConfig.maxIterations,

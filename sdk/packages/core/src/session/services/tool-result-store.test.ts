@@ -1,6 +1,13 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Message, ToolResultContent } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -49,13 +56,31 @@ function output(messages: Message[]): ToolResultContent {
 	return content[0];
 }
 
+function recoveryPath(messages: Message[]): string {
+	for (const message of messages) {
+		if (!Array.isArray(message.content)) continue;
+		for (const block of message.content) {
+			if (block.type !== "tool_result" || !Array.isArray(block.content))
+				continue;
+			const notice = block.content.at(-1);
+			if (notice?.type === "text") {
+				const match = /^Full result saved to (.*) for search\.$/.exec(
+					notice.text,
+				);
+				if (match) return match[1];
+			}
+		}
+	}
+	throw new Error("Missing recovery notice");
+}
+
 describe("recoverable external tool results", () => {
 	it.each([
 		"mcp__github__get_diff",
 		"connector_search",
 		"custom_tool",
 	])("saves the full %s response and exposes a readable path", async (name) => {
-		const store = new ToolResultStore("session_1", directory);
+		const store = new ToolResultStore(directory);
 		const block = result(`begin\n${"重要な情報".repeat(2000)}\nend`, name);
 		const messages = history(block);
 		const builder = new MessageBuilder({
@@ -63,7 +88,7 @@ describe("recoverable external tool results", () => {
 			storeToolResult: (value) => store.save(value),
 		});
 		const prepared = await builder.buildForApi(messages);
-		const path = join(directory, "session_1", "tools", "call_1.result.txt");
+		const path = recoveryPath(prepared);
 		expect(output(prepared).content).toContainEqual({
 			type: "text",
 			text: `Full result saved to ${path} for search.`,
@@ -76,17 +101,19 @@ describe("recoverable external tool results", () => {
 		);
 		expect(JSON.stringify(roundTrip)).toContain(path);
 		expect(await builder.buildForApi(messages)).toEqual(prepared);
-		// Resuming with a new builder retains the same file and provider prefix.
+		// A resumed runtime uses a new temp namespace and regenerates the file.
+		const resumedStore = new ToolResultStore(directory);
 		const resumed = new MessageBuilder({
 			maxToolResultChars: 500,
-			storeToolResult: (value) =>
-				new ToolResultStore("session_1", directory).save(value),
+			storeToolResult: (value) => resumedStore.save(value),
 		});
-		expect(await resumed.buildForApi(messages)).toEqual(prepared);
+		const resumedPath = recoveryPath(await resumed.buildForApi(messages));
+		expect(resumedPath).not.toBe(path);
+		expect(await readFile(resumedPath, "utf8")).toBe(block.content);
 	});
 
 	it("preserves structured results and native media while recovering aggregate truncation", async () => {
-		const store = new ToolResultStore("session_1", directory);
+		const store = new ToolResultStore(directory);
 		const image = { type: "image", mediaType: "image/png", data: "aGVsbG8=" };
 		const block = result([
 			{
@@ -102,7 +129,7 @@ describe("recoverable external tool results", () => {
 			storeToolResult: (value) => store.save(value),
 		});
 		const prepared = await builder.buildForApi(history(block));
-		const path = join(directory, "session_1", "tools", "call_1.result.txt");
+		const path = recoveryPath(prepared);
 		expect(JSON.parse(await readFile(path, "utf8"))).toEqual(block.content);
 		expect(JSON.stringify(output(prepared).content)).toContain(
 			"provider request budget",
@@ -132,7 +159,7 @@ describe("recoverable external tool results", () => {
 
 	it("returns the complete result if storage fails, including under aggregate pressure", async () => {
 		await writeFile(join(directory, "session_1"), "not a directory");
-		const store = new ToolResultStore("session_1", directory);
+		const store = new ToolResultStore(join(directory, "session_1"));
 		const builder = new MessageBuilder({
 			maxToolResultChars: 5000,
 			maxTotalTextBytes: 2000,
@@ -143,7 +170,7 @@ describe("recoverable external tool results", () => {
 	});
 
 	it("handles unnamed imported results and error responses", async () => {
-		const store = new ToolResultStore("session_1", directory);
+		const store = new ToolResultStore(directory);
 		const block = {
 			...result("error details".repeat(1000)),
 			name: "",
@@ -158,50 +185,50 @@ describe("recoverable external tool results", () => {
 		]);
 		expect(JSON.stringify(prepared)).toContain("call_1.result.txt");
 		expect(JSON.stringify(prepared)).toContain('"is_error":true');
-		expect(
-			await readFile(
-				join(directory, "session_1", "tools", "call_1.result.txt"),
-				"utf8",
-			),
-		).toBe(block.content);
+		expect(await readFile(recoveryPath(prepared), "utf8")).toBe(block.content);
 	});
 
-	it.each([
-		"user@example.com",
-		"session+resume",
-		"session name",
-	])("accepts persistence-compatible session ID %s", async (sessionId) => {
-		const path = await new ToolResultStore(sessionId, directory).save(
-			result("full"),
-		);
-		expect(path).toBe(join(directory, sessionId, "tools", "call_1.result.txt"));
-		expect(await readFile(path, "utf8")).toBe("full");
+	it("recreates files removed by temp cleanup and reuses the path for the same call", async () => {
+		const store = new ToolResultStore(directory);
+		const block = result("original".repeat(1000));
+		const builder = new MessageBuilder({
+			maxToolResultChars: 100,
+			storeToolResult: (value) => store.save(value),
+		});
+		const first = await builder.buildForApi(history(block));
+		const path = recoveryPath(first);
+		await rm(dirname(path), { recursive: true, force: true });
+		expect(await builder.buildForApi(history(block))).toEqual(first);
+		expect(await readFile(path, "utf8")).toBe(block.content);
 	});
 
-	it("isolates root, child, and team-task results sharing a tool-call ID", async () => {
-		const ids = ["root", "root__agent", "root__teamtask__agent__task1"];
-		const paths = await Promise.all(
-			ids.map((id) => new ToolResultStore(id, directory).save(result(id))),
-		);
+	it("isolates runtimes and keeps repeated tool executions separate", async () => {
+		const first = new ToolResultStore(directory);
+		const second = new ToolResultStore(directory);
+		const paths = await Promise.all([
+			first.save(result("first", "external", "call_1")),
+			first.save(result("second", "external", "call_2")),
+			second.save(result("other runtime", "external", "call_1")),
+		]);
 		expect(new Set(paths).size).toBe(3);
-		for (let index = 0; index < ids.length; index++) {
-			expect(paths[index].startsWith(join(directory, "root", "tools"))).toBe(
-				true,
-			);
-			expect(await readFile(paths[index], "utf8")).toBe(ids[index]);
-		}
+		expect(dirname(paths[0])).toBe(dirname(paths[1]));
+		expect(dirname(paths[0])).not.toBe(dirname(paths[2]));
 	});
 
-	it("uses the configured session history directory", async () => {
-		vi.stubEnv("CLINE_SESSION_DATA_DIR", directory);
-		const path = await new ToolResultStore("session_1").save(result("full"));
-		expect(path).toBe(
-			join(directory, "session_1", "tools", "call_1.result.txt"),
+	it("retries a failed lazy directory allocation", async () => {
+		const root = join(directory, "blocked");
+		await writeFile(root, "not a directory");
+		const store = new ToolResultStore(root);
+		await expect(store.save(result("full"))).rejects.toThrow();
+		await rm(root);
+		await mkdir(root);
+		expect(await readFile(await store.save(result("full")), "utf8")).toBe(
+			"full",
 		);
 	});
 
 	it("encodes unsafe call IDs without collisions or leftover temporary files", async () => {
-		const store = new ToolResultStore("session_1", directory);
+		const store = new ToolResultStore(directory);
 		const ids = ["../../outside", "a/b", "a%2Fb", "a\\b"];
 		const paths = await Promise.all(
 			ids.map((id) => store.save(result(id, "external", id))),
@@ -209,20 +236,10 @@ describe("recoverable external tool results", () => {
 		expect(new Set(paths).size).toBe(ids.length);
 		for (let i = 0; i < paths.length; i++) {
 			expect(paths[i]).toBe(
-				join(
-					directory,
-					"session_1",
-					"tools",
-					`${encodeURIComponent(ids[i])}.result.txt`,
-				),
+				join(dirname(paths[0]), `${encodeURIComponent(ids[i])}.result.txt`),
 			);
 			expect(await readFile(paths[i], "utf8")).toBe(ids[i]);
 		}
-		expect(await readdir(join(directory, "session_1", "tools"))).toHaveLength(
-			ids.length,
-		);
-		await expect(
-			new ToolResultStore("../outside", directory).save(result("full")),
-		).rejects.toThrow("inside the session history directory");
+		expect(await readdir(dirname(paths[0]))).toHaveLength(ids.length);
 	});
 });

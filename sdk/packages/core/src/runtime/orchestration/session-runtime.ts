@@ -59,8 +59,6 @@ export interface BuiltRuntime {
 }
 
 export interface RuntimeBuilderInput {
-	/** Session history root resolved by the owning persistence backend. */
-	sessionsDirectory?: string;
 	config: CoreSessionConfig;
 	/**
 	 * Host-resolved stable end-user identity, forwarded so delegated agents

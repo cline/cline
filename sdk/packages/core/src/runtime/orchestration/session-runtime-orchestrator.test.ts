@@ -14,7 +14,7 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -550,15 +550,13 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 });
 
 describe("SessionRuntime message preparation", () => {
-	it("writes external results under the session history directory before model calls", async () => {
+	it("writes external results to runtime-scoped temporary files before model calls", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cline-runtime-results-"));
-		vi.stubEnv(
-			"CLINE_SESSION_DATA_DIR",
-			join(directory, "wrong-global-directory"),
-		);
+		for (const variable of ["TMPDIR", "TMP", "TEMP"])
+			vi.stubEnv(variable, directory);
 		const { deps, configs } = makeRecordingRuntimeFactory();
 		const session = new SessionRuntime(
-			makeAgentConfig({ sessionId: "session_1", sessionsDirectory: directory }),
+			makeAgentConfig({ sessionId: "user@example.com+resume" }),
 			deps,
 		);
 		try {
@@ -595,7 +593,9 @@ describe("SessionRuntime message preparation", () => {
 					]),
 				},
 			});
-			const path = join(directory, "session_1", "tools", "call_1.result.txt");
+			const [runtimeDir] = await readdir(directory);
+			expect(runtimeDir).toMatch(/^cline-tool-results-/);
+			const path = join(directory, runtimeDir, "call_1.result.txt");
 			expect(JSON.stringify(prepared?.messages)).toContain(path);
 			expect(JSON.stringify(prepared?.messages)).toContain("truncated");
 			expect(await readFile(path, "utf8")).toBe(full);

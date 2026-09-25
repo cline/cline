@@ -702,8 +702,6 @@ export interface AgentConfig {
 	 * model transcript managed by the agent runtime.
 	 */
 	sessionId?: string;
-	/** Host-resolved session history root, inherited by delegated runtimes. */
-	sessionsDirectory?: string;
 	// -------------------------------------------------------------------------
 	// Provider Settings
 	// -------------------------------------------------------------------------
@@ -924,7 +922,6 @@ export interface AgentConfig {
 export const AgentConfigSchema = z.object({
 	distinctId: z.string().optional(),
 	sessionId: z.string().optional(),
-	sessionsDirectory: z.string().optional(),
 	// Provider Settings
 	providerId: z.string(),
 	modelId: z.string(),

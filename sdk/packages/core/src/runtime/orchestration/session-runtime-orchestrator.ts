@@ -422,14 +422,10 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		const toolResultStore = config.sessionId
-			? new ToolResultStore(config.sessionId, config.sessionsDirectory)
-			: undefined;
+		const toolResultStore = new ToolResultStore();
 		this.messageBuilder = new MessageBuilder({
 			...getMessageBuilderOptionsFromEnv(),
-			storeToolResult: toolResultStore
-				? (result) => toolResultStore.save(result)
-				: undefined,
+			storeToolResult: (result) => toolResultStore.save(result),
 		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,

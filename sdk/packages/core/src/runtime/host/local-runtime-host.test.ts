@@ -258,12 +258,11 @@ describe("LocalRuntimeHost", () => {
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		};
 		const sessionsDir = join(isolatedHomeDir, "sessions");
-		const createAgent = vi.fn(() => agent as never);
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
 			sessionService: new FileSessionService(sessionsDir),
 			runtimeBuilder: runtimeBuilder as never,
-			createAgent,
+			createAgent: () => agent as never,
 		});
 		let chatWorkspace = "";
 
@@ -288,12 +287,8 @@ describe("LocalRuntimeHost", () => {
 			expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
 			expect(result.manifest.workspace_root).toBe(chatWorkspace);
 			expect(existsSync(join(sessionsDir, result.sessionId))).toBe(false);
-			expect(createAgent).toHaveBeenCalledWith(
-				expect.objectContaining({ sessionsDirectory: sessionsDir }),
-			);
 			expect(runtimeBuilder.build).toHaveBeenCalledWith(
 				expect.objectContaining({
-					sessionsDirectory: sessionsDir,
 					config: expect.objectContaining({
 						cwd: chatWorkspace,
 						workspaceRoot: chatWorkspace,

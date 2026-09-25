@@ -6,7 +6,7 @@ import {
 	rmSync,
 	unlinkSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	parseSubSessionId,
 	parseTeamTaskSubSessionId,
@@ -62,31 +62,6 @@ export class SessionArtifacts {
 
 	public sessionArtifactsDir(sessionId: string): string {
 		return join(this.ensureSessionsDir(), sessionId);
-	}
-
-	/** Child results share the root artifact tree but have their own namespace. */
-	public sessionToolResultsDir(sessionId: string): string {
-		const { rootSessionId } = childArtifactFileStem(sessionId);
-		const sessionsDir = resolve(this.ensureSessionsDir());
-		const rootDir = resolve(sessionsDir, rootSessionId);
-		const within = relative(sessionsDir, rootDir);
-		if (
-			!within ||
-			within === ".." ||
-			within.startsWith(`..${sep}`) ||
-			isAbsolute(within)
-		) {
-			throw new Error(
-				"Session tool results must remain inside the session history directory",
-			);
-		}
-		return rootSessionId === sessionId
-			? join(rootDir, "tools")
-			: join(rootDir, "tools", "sessions", encodeURIComponent(sessionId));
-	}
-
-	public removeSessionToolResults(sessionId: string): void {
-		this.removeDir(this.sessionToolResultsDir(sessionId));
 	}
 
 	public ensureSessionArtifactsDir(sessionId: string): string {
