@@ -257,6 +257,16 @@ export interface ResolveAndLoadAgentPluginsOptions
 
 export async function resolveAndLoadAgentPlugins(
 	options: ResolveAndLoadAgentPluginsOptions = {},
+) {
+	return loadResolvedAgentPlugins({
+		...options,
+		pluginPaths: resolveAgentPluginPaths(options),
+	});
+}
+
+/** Load only the supplied resolved paths, without rediscovering other plugins. */
+export async function loadResolvedAgentPlugins(
+	options: ResolveAndLoadAgentPluginsOptions & { pluginPaths: string[] },
 ): Promise<
 	{
 		extensions: AgentPlugin[];
@@ -264,7 +274,7 @@ export async function resolveAndLoadAgentPlugins(
 		shutdown?: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
-	const paths = resolveAgentPluginPaths(options);
+	const paths = options.pluginPaths;
 	if (paths.length === 0) {
 		return { extensions: [], failures: [], warnings: [], pluginPaths: [] };
 	}

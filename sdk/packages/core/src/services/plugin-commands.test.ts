@@ -2,14 +2,24 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentExtensionApi, AgentTool, Message } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executePluginCommand, parsePluginCommand } from "./plugin-command-api";
 import { PluginCommandManager } from "./plugin-commands";
 
+const originalHome = process.env.HOME;
+const originalClineDir = process.env.CLINE_DIR;
 const roots: string[] = [];
+beforeEach(async () => {
+	const home = await workspace();
+	setHomeDir(home);
+	setClineDir(join(home, ".cline"));
+});
 const managers: PluginCommandManager[] = [];
 afterEach(async () => {
 	await Promise.all(managers.splice(0).map((m) => m.dispose()));
+	setHomeDir(originalHome ?? "~");
+	setClineDir(originalClineDir ?? join(originalHome ?? "~", ".cline"));
 	await Promise.all(
 		roots.splice(0).map((r) => rm(r, { recursive: true, force: true })),
 	);
@@ -61,6 +71,56 @@ describe("runtime plugin catalogs", () => {
 		await expect(
 			manager.run({ workspacePath, prompt: "/unknown" }),
 		).resolves.toBeUndefined();
+	});
+	it("retries only failed paths while retaining healthy command state", async () => {
+		const workspacePath = await workspace();
+		const brokenPath = join(workspacePath, "broken.js");
+		const failures = [
+			{ pluginPath: brokenPath, phase: "setup" as const, message: "broken" },
+		];
+		let counter = 0;
+		let recover = false;
+		const healthy = loaded(async () => String(++counter));
+		const recovered = loaded();
+		recovered.extensions[0].setup = (api) =>
+			api.registerCommand({ name: "fixed", handler: () => "recovered" });
+		const load = vi.fn(async (_options: { pluginPaths: string[] }) => {
+			if (load.mock.calls.length === 1) return { ...healthy, failures };
+			return recover ? recovered : { ...loaded(), extensions: [], failures };
+		});
+		const manager = new PluginCommandManager({ load, retryDelayMs: 10 });
+		managers.push(manager);
+		const updates = vi.fn();
+		manager.subscribe(updates);
+		await manager.list({ workspacePath });
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "1" },
+		);
+		await vi.waitFor(
+			() => expect(load.mock.calls.length).toBeGreaterThanOrEqual(3),
+			{ timeout: 5000 },
+		);
+		expect(healthy.shutdown).not.toHaveBeenCalled();
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "2" },
+		);
+		for (const [options] of load.mock.calls.slice(1))
+			expect(options.pluginPaths).toEqual([brokenPath]);
+		recover = true;
+		await vi.waitFor(
+			() =>
+				expect(updates).toHaveBeenLastCalledWith(
+					expect.objectContaining({ status: "ready" }),
+				),
+			{ timeout: 5000 },
+		);
+		expect(
+			await manager.run({ workspacePath, prompt: "/fixed" }),
+		).toMatchObject({ reply: "recovered" });
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "3" },
+		);
+		expect(healthy.shutdown).not.toHaveBeenCalled();
 	});
 	it("recovers from initialization timeout without another client request", async () => {
 		const workspacePath = await workspace();

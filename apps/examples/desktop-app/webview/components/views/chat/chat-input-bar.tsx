@@ -625,11 +625,31 @@ function ChatInputBarImpl({
 		executionTarget === "local" &&
 		slashKey !== null &&
 		dismissedSlashKey !== slashKey;
-	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		() => BUILTIN_SLASH_COMMANDS,
+	const [instructionResponse, setInstructionResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		response: UserInstructionConfigResponse;
+	}>();
+	const [pluginCommands, setPluginCommands] = useState<SlashCommand[]>([]);
+	const slashCommands = useMemo(
+		() => [
+			...BUILTIN_SLASH_COMMANDS,
+			...buildUserInstructionSlashCommands(
+				instructionResponse?.workspaceRoot === workspaceRoot &&
+					instructionResponse.environmentId === environmentId
+					? instructionResponse.response
+					: {},
+				pluginCommands,
+			),
+		],
+		[instructionResponse, pluginCommands, workspaceRoot, environmentId],
 	);
-	const [slashLoading, setSlashLoading] = useState(false);
-	const [slashError, setSlashError] = useState<string>();
+	const [pluginLoading, setPluginLoading] = useState(false);
+	const [instructionLoading, setInstructionLoading] = useState(false);
+	const [pluginError, setPluginError] = useState<string>();
+	const [instructionError, setInstructionError] = useState<string>();
+	const slashLoading = pluginLoading || instructionLoading;
+	const slashError = pluginError ?? instructionError;
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 
 	useEffect(() => {
@@ -983,48 +1003,37 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Observe the runtime catalog for this composer; no plugin loading happens in the UI.
+	// Runtime-owned plugin catalogs stay loaded across menu toggles.
 	useEffect(() => {
+		setPluginCommands([]);
+		setPluginError(undefined);
 		if (executionTarget !== "local") return;
 		let cancelled = false;
 		let requestId = 0;
-		setSlashCommands(BUILTIN_SLASH_COMMANDS);
-		setSlashLoading(true);
-		setSlashError(undefined);
+		setPluginLoading(true);
 		const refresh = async () => {
 			const id = ++requestId;
 			try {
-				const [instructions, plugins] = await Promise.allSettled([
-					desktopClient.invoke<UserInstructionConfigResponse>(
-						"list_user_instruction_configs",
-						{ workspacePath: workspaceRoot, environmentId },
-					),
-					desktopClient.invoke<PluginCommandCatalog>("list_plugin_commands", {
+				const catalog = await desktopClient.invoke<PluginCommandCatalog>(
+					"list_plugin_commands",
+					{
 						workspacePath: workspaceRoot,
 						environmentId,
 						sessionId: sessionId ?? undefined,
-					}),
-				]);
+					},
+				);
 				if (cancelled || id !== requestId) return;
-				setSlashCommands([
-					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(
-						instructions.status === "fulfilled" ? instructions.value : {},
-						plugins.status === "fulfilled" ? plugins.value.commands : [],
-					),
-				]);
-				setSlashError(
-					plugins.status === "rejected" || plugins.value.status === "error"
+				setPluginCommands(catalog.commands);
+				setPluginError(
+					catalog.status === "error"
 						? "Plugin commands unavailable"
-						: instructions.status === "rejected"
-							? "Instruction commands unavailable"
-							: undefined,
+						: undefined,
 				);
 			} catch {
 				if (!cancelled && id === requestId)
-					setSlashError("Could not load commands");
+					setPluginError("Plugin commands unavailable");
 			} finally {
-				if (!cancelled && id === requestId) setSlashLoading(false);
+				if (!cancelled && id === requestId) setPluginLoading(false);
 			}
 		};
 		const unsubscribe = desktopClient.subscribe(
@@ -1054,10 +1063,58 @@ function ChatInputBarImpl({
 		void refresh();
 		return () => {
 			cancelled = true;
-			unsubscribeSettings();
 			unsubscribe();
+			unsubscribeSettings();
 		};
 	}, [workspaceRoot, environmentId, sessionId, executionTarget]);
+
+	// Instruction files have no catalog-change event. Refresh them on open,
+	// retaining the last response while fetching so suggestions do not flash away.
+	useEffect(() => {
+		if (!slashOpen) {
+			setInstructionLoading(false);
+			return;
+		}
+		let cancelled = false;
+		let requestId = 0;
+		const refresh = async () => {
+			const id = ++requestId;
+			setInstructionLoading(true);
+			try {
+				const response =
+					await desktopClient.invoke<UserInstructionConfigResponse>(
+						"list_user_instruction_configs",
+						{
+							workspacePath: workspaceRoot,
+							environmentId,
+						},
+					);
+				if (cancelled || id !== requestId) return;
+				setInstructionResponse({ workspaceRoot, environmentId, response });
+				setInstructionError(undefined);
+			} catch {
+				if (!cancelled && id === requestId)
+					setInstructionError("Instruction commands unavailable");
+			} finally {
+				if (!cancelled && id === requestId) setInstructionLoading(false);
+			}
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"settings.changed",
+			(payload) => {
+				if (
+					(payload as { environmentId?: string }).environmentId ===
+					environmentId
+				)
+					void refresh();
+			},
+		);
+		void refresh();
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, [slashOpen, workspaceRoot, environmentId]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {

@@ -64,6 +64,55 @@ function command(
 	});
 }
 describe("hub-owned plugin commands", () => {
+	it("recovers a failed sandbox plugin without restarting its healthy sibling", async () => {
+		const readyPath = join(root, "allow-recovery");
+		await writeFile(
+			join(root, ".cline", "plugins", "retry.js"),
+			`import {existsSync} from 'node:fs';
+export default {name:'retry',manifest:{capabilities:['commands']},setup(api){
+if (!existsSync(${JSON.stringify(readyPath)})) throw new Error('not ready');
+api.registerCommand({name:'recovered',handler:()=> 'ready'});
+}};`,
+		);
+		const target = { workspacePath: root };
+		await runtime.pluginCommands.list(target);
+		expect(
+			await runtime.pluginCommands.run({ ...target, prompt: "/counter first" }),
+		).toMatchObject({ reply: "workspace:1:first" });
+		const updates = vi.fn();
+		const stop = runtime.pluginCommands.subscribe(updates);
+		await vi.waitFor(
+			() =>
+				expect(updates).toHaveBeenCalledWith(
+					expect.objectContaining({ status: "error" }),
+				),
+			{ timeout: 5000 },
+		);
+		expect(
+			await runtime.pluginCommands.run({
+				...target,
+				prompt: "/counter second",
+			}),
+		).toMatchObject({ reply: "workspace:2:second" });
+		await writeFile(readyPath, "ready");
+		await vi.waitFor(
+			() =>
+				expect(updates).toHaveBeenLastCalledWith(
+					expect.objectContaining({ status: "ready" }),
+				),
+			{ timeout: 7000 },
+		);
+		expect(
+			await runtime.pluginCommands.run({ ...target, prompt: "/recovered" }),
+		).toMatchObject({ reply: "ready" });
+		expect(
+			await runtime.pluginCommands.run({ ...target, prompt: "/counter third" }),
+		).toMatchObject({ reply: "workspace:3:third" });
+		expect((await readFile(join(root, "setups.txt"), "utf8")).trim()).toBe(
+			"workspace",
+		);
+		stop();
+	});
 	it("keeps healthy commands available while a sibling plugin fails", async () => {
 		const broken = join(root, ".cline", "plugins", "broken.js");
 		await writeFile(

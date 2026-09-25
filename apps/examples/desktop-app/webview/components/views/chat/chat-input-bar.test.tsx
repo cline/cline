@@ -280,7 +280,15 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).toContain("Publish workflow");
 	});
 
-	it("keeps the catalog loaded across slash menu toggles", async () => {
+	it("refreshes instruction files on reopen without resetting plugin or cached suggestions", async () => {
+		const updated = deferred<{
+			runtimeCommands: Array<{
+				name: string;
+				kind: "workflow";
+				description: string;
+			}>;
+		}>();
+		let instructionRequests = 0;
 		const invoke = vi
 			.spyOn(desktopClient, "invoke")
 			.mockImplementation(async (name) => {
@@ -288,40 +296,61 @@ describe("ChatInputBar", () => {
 					return {
 						status: "ready",
 						commands: [
-							{ name: "upload-history", description: "Upload history" },
+							{ name: "publish-plugin", description: "Plugin suggestion" },
 						],
 					};
-				return { runtimeCommands: [] };
+				if (name === "list_user_instruction_configs") {
+					instructionRequests++;
+					return instructionRequests === 1
+						? {
+								runtimeCommands: [
+									{
+										name: "publish-old",
+										kind: "skill",
+										description: "Old skill",
+									},
+								],
+							}
+						: updated.promise;
+				}
+				return {};
 			});
 		await renderVoiceComposer({
-			prompt: "/upload",
+			prompt: "/publish",
 			promptVersion: 1,
 			executionTarget: "local",
 		});
-		expect(container.textContent).toContain("Upload history");
-		const initialRequests = invoke.mock.calls.filter(
-			([name]) =>
-				name === "list_plugin_commands" ||
-				name === "list_user_instruction_configs",
-		).length;
+		expect(container.textContent).toContain("Old skill");
 		await renderVoiceComposer({
 			prompt: "ordinary text",
 			promptVersion: 2,
 			executionTarget: "local",
 		});
 		await renderVoiceComposer({
-			prompt: "/upload",
+			prompt: "/publish",
 			promptVersion: 3,
 			executionTarget: "local",
 		});
-		expect(container.textContent).toContain("Upload history");
+		expect(container.textContent).toContain("Old skill");
+		expect(container.textContent).toContain("Plugin suggestion");
+		expect(instructionRequests).toBe(2);
 		expect(
-			invoke.mock.calls.filter(
-				([name]) =>
-					name === "list_plugin_commands" ||
-					name === "list_user_instruction_configs",
-			),
-		).toHaveLength(initialRequests);
+			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+		).toHaveLength(1);
+		await act(async () =>
+			updated.resolve({
+				runtimeCommands: [
+					{
+						name: "publish-new",
+						kind: "workflow",
+						description: "New workflow",
+					},
+				],
+			}),
+		);
+		expect(container.textContent).not.toContain("Old skill");
+		expect(container.textContent).toContain("New workflow");
+		expect(container.textContent).toContain("Plugin suggestion");
 	});
 
 	it("refreshes the open slash menu when the hub catalog recovers", async () => {

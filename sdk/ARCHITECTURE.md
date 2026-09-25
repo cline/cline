@@ -599,7 +599,9 @@ sidecar, CLI, and connectors reuse their existing hub connections. Workspace
 catalogs are initialized when a composer first requests them and refreshed by
 runtime-owned plugin/settings watchers, including for non-Git folders. Failed
 initialization retries in the background and publishes explicit error/recovery
-state. Git queries and individual UI mounts do not own plugin lifetimes.
+state. Partial retries load only failed plugin paths in a new sandbox and retain
+healthy instances; source/settings changes reload the workspace catalog. Git
+queries and individual UI mounts do not own plugin lifetimes.
 
 A workspace catalog owns a discovery sandbox; a resident session instead lists
 and executes its own contribution registry, retaining the same plugin instance

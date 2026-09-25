@@ -22,7 +22,9 @@ Omit `sessionId` for workspace discovery before a session exists. The runtime
 initializes that workspace catalog on its first request, watches plugin sources
 and settings, and publishes changes. A failed load produces `status: "error"`
 with diagnostics and retries in the background with bounded backoff. When only
-some plugins fail, the catalog still lists and executes healthy commands. It never
+some plugins fail, the catalog still lists and executes healthy commands.
+Background retries load only the failed paths, preserving healthy plugin
+instances and command state. Source/settings changes still reload the workspace catalog. It never
 requires a Git query or a running agent turn. Dispose the owning runtime to
 release catalog watchers and sandboxes; unsubscribe when a view closes.
 

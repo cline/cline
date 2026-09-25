@@ -9,7 +9,8 @@ import {
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import {
-	resolveAndLoadAgentPlugins,
+	loadResolvedAgentPlugins,
+	resolveAgentPluginPaths,
 	resolvePluginConfigSearchPaths,
 } from "../extensions/plugin/plugin-config-loader";
 import {
@@ -20,17 +21,21 @@ import {
 	type PluginCommandTarget,
 } from "./plugin-command-api";
 
-type LoadedPlugins = Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>;
+type LoadedPlugins = Awaited<ReturnType<typeof loadResolvedAgentPlugins>>;
 type Entry = {
 	workspacePath: string;
 	catalog: PluginCommandCatalog;
 	commands: AgentExtensionCommand[];
-	loaded?: LoadedPlugins;
+	loaded: LoadedPlugins[];
+	pluginPaths: string[];
+	failedPaths?: string[];
+	retryDue: boolean;
 	pending?: Promise<void>;
 	dirty: boolean;
 	retryCount: number;
 	timer?: ReturnType<typeof setTimeout>;
 	watchers: FSWatcher[];
+	watchRetry?: ReturnType<typeof setTimeout>;
 	/** Serializes execution with reload/disposal so a handler cannot lose its sandbox. */
 	tail: Promise<unknown>;
 };
@@ -45,7 +50,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 	constructor(
 		private readonly options: {
 			logger?: BasicLogger;
-			load?: typeof resolveAndLoadAgentPlugins;
+			load?: typeof loadResolvedAgentPlugins;
 			retryDelayMs?: number;
 		} = {},
 	) {}
@@ -68,6 +73,9 @@ export class PluginCommandManager implements PluginCommandsApi {
 				workspacePath,
 				catalog: { workspacePath, status: "ready", commands: [] },
 				commands: [],
+				loaded: [],
+				pluginPaths: [],
+				retryDue: false,
 				dirty: true,
 				retryCount: 0,
 				watchers: [],
@@ -77,22 +85,25 @@ export class PluginCommandManager implements PluginCommandsApi {
 		}
 		return entry;
 	}
-	private schedule(entry: Entry, delay: number): void {
+	private schedule(entry: Entry, delay: number, retryOnly = false): void {
 		if (this.disposed) return;
 		clearTimeout(entry.timer);
 		entry.timer = setTimeout(() => {
-			entry.dirty = true;
+			if (retryOnly) entry.retryDue = true;
+			else entry.dirty = true;
 			void this.refresh(entry);
 		}, delay);
 		entry.timer.unref?.();
 	}
 	private watch(entry: Entry): void {
+		clearTimeout(entry.watchRetry);
+		if (this.disposed) return;
 		for (const watcher of entry.watchers) watcher.close();
 		entry.watchers = [];
 		const settings = resolveGlobalSettingsPath();
 		const roots = new Set([
 			...resolvePluginConfigSearchPaths(entry.workspacePath),
-			...(entry.loaded?.pluginPaths ?? []).map(dirname),
+			...entry.pluginPaths.map(dirname),
 			settings,
 		]);
 		for (const root of roots) {
@@ -118,7 +129,15 @@ export class PluginCommandManager implements PluginCommandsApi {
 						this.schedule(entry, 100);
 					},
 				);
-				watcher.on("error", () => this.schedule(entry, 1000));
+				watcher.on("error", (error) => {
+					this.options.logger?.debug?.(
+						"Plugin command watcher failed; reconnecting",
+						{ directory, error },
+					);
+					clearTimeout(entry.watchRetry);
+					entry.watchRetry = setTimeout(() => this.watch(entry), 1000);
+					entry.watchRetry.unref?.();
+				});
 				entry.watchers.push(watcher);
 			} catch (error) {
 				this.options.logger?.debug?.("Plugin command watcher unavailable", {
@@ -130,58 +149,77 @@ export class PluginCommandManager implements PluginCommandsApi {
 	}
 	private refresh(entry: Entry): Promise<void> {
 		if (entry.pending) return entry.pending;
-		if (!entry.dirty || this.disposed) return Promise.resolve();
+		if ((!entry.dirty && !entry.retryDue) || this.disposed)
+			return Promise.resolve();
+		const retryOnly = !entry.dirty;
 		entry.dirty = false;
+		entry.retryDue = false;
+		clearTimeout(entry.timer);
 		entry.pending = entry.tail
 			.then(async () => {
 				if (this.disposed) return;
-				await entry.loaded?.shutdown?.().catch(() => {});
-				entry.loaded = undefined;
-				entry.commands = [];
+				if (!retryOnly) {
+					await Promise.all(
+						entry.loaded.map((loaded) => loaded.shutdown?.().catch(() => {})),
+					);
+					entry.loaded = [];
+					entry.commands = [];
+					entry.failedPaths = undefined;
+				}
+				let loaded: LoadedPlugins | undefined;
+				let error: string | undefined;
 				try {
-					const loaded = await (
-						this.options.load ?? resolveAndLoadAgentPlugins
-					)({ cwd: entry.workspacePath, workspacePath: entry.workspacePath });
-					entry.loaded = loaded;
-					const error =
-						loaded.failures.map((f) => f.message).join("; ") || undefined;
+					if (!entry.failedPaths) {
+						entry.pluginPaths = resolveAgentPluginPaths({
+							cwd: entry.workspacePath,
+							workspacePath: entry.workspacePath,
+						});
+						entry.failedPaths = entry.pluginPaths;
+					}
+					loaded = await (this.options.load ?? loadResolvedAgentPlugins)({
+						cwd: entry.workspacePath,
+						workspacePath: entry.workspacePath,
+						pluginPaths: entry.failedPaths,
+					});
 					const registry = createContributionRegistry<
 						(typeof loaded.extensions)[number],
 						AgentTool,
 						Message[]
 					>({ extensions: loaded.extensions });
 					await registry.initialize();
-					entry.commands = registry.getRegistrySnapshot().commands;
-					entry.catalog = {
-						workspacePath: entry.workspacePath,
-						status: error ? "error" : "ready",
-						error,
-						commands: listPluginCommands(entry.commands),
-					};
+					entry.commands.push(...registry.getRegistrySnapshot().commands);
+					entry.failedPaths = [
+						...new Set(loaded.failures.map((failure) => failure.pluginPath)),
+					];
+					error =
+						loaded.failures.map((failure) => failure.message).join("; ") ||
+						undefined;
+					if (loaded.extensions.length) entry.loaded.push(loaded);
+					else await loaded.shutdown?.();
 					if (!error) entry.retryCount = 0;
-				} catch (error) {
-					await entry.loaded?.shutdown?.().catch(() => {});
-					entry.loaded = undefined;
-					entry.catalog = {
-						workspacePath: entry.workspacePath,
-						status: "error",
-						commands: [],
-						error: error instanceof Error ? error.message : String(error),
-					};
+				} catch (cause) {
+					await loaded?.shutdown?.().catch(() => {});
+					error = cause instanceof Error ? cause.message : String(cause);
 					this.options.logger?.error?.(
 						"Plugin command discovery failed; retrying",
-						{ error },
+						{ error: cause },
 					);
 				}
-				if (entry.catalog.status === "error") {
+				entry.catalog = {
+					workspacePath: entry.workspacePath,
+					status: error ? "error" : "ready",
+					error,
+					commands: listPluginCommands(entry.commands),
+				};
+				if (error)
 					this.schedule(
 						entry,
 						Math.min(
 							(this.options.retryDelayMs ?? 1000) * 2 ** entry.retryCount++,
 							30_000,
 						),
+						true,
 					);
-				}
 				if (!this.disposed) {
 					this.watch(entry);
 					for (const listener of this.listeners) {
@@ -197,7 +235,8 @@ export class PluginCommandManager implements PluginCommandsApi {
 			})
 			.finally(() => {
 				entry.pending = undefined;
-				if (entry.dirty) this.schedule(entry, 0);
+				if (entry.dirty || entry.retryDue)
+					this.schedule(entry, 0, !entry.dirty);
 			});
 		entry.tail = entry.pending.catch(() => {});
 		return entry.pending;
@@ -223,9 +262,10 @@ export class PluginCommandManager implements PluginCommandsApi {
 		await Promise.all(
 			[...this.entries.values()].map(async (entry) => {
 				clearTimeout(entry.timer);
+				clearTimeout(entry.watchRetry);
 				for (const watcher of entry.watchers) watcher.close();
 				await entry.tail;
-				await entry.loaded?.shutdown?.();
+				await Promise.all(entry.loaded.map((loaded) => loaded.shutdown?.()));
 			}),
 		);
 		this.entries.clear();
