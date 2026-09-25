@@ -82,19 +82,15 @@ function isSkillAllowed(
 	if (!allowedSkills) {
 		return true;
 	}
-	const normalizedId = normalizeSkillToken(skillId);
-	const normalizedName = normalizeSkillToken(skillName);
-	const bareId = normalizedId.includes(":")
-		? (normalizedId.split(":").at(-1) ?? normalizedId)
-		: normalizedId;
-	const bareName = normalizedName.includes(":")
-		? (normalizedName.split(":").at(-1) ?? normalizedName)
-		: normalizedName;
+	// Match the fully-qualified id/name only. Also matching the trailing
+	// segment after ":" let any skill satisfy an allow-entry it merely shared
+	// that segment with: under `allowedSkillNames: ["search"]`, a skill named
+	// `anything:search` was allowed, surfaced to the model and executed. A
+	// skill's id is just its lowercased name, so a workspace-supplied
+	// SKILL.md can pick such a name freely.
 	return (
-		allowedSkills.has(normalizedId) ||
-		allowedSkills.has(normalizedName) ||
-		allowedSkills.has(bareId) ||
-		allowedSkills.has(bareName)
+		allowedSkills.has(normalizeSkillToken(skillId)) ||
+		allowedSkills.has(normalizeSkillToken(skillName))
 	);
 }
 
