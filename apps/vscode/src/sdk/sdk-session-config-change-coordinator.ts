@@ -141,6 +141,20 @@ export class SdkSessionConfigChangeCoordinator {
 
 			const nextPrompt = pendingPrompts[0]
 			const remainingPrompts = pendingPrompts.slice(1)
+			if (nextPrompt) {
+				if (!context.isCurrent()) {
+					await this.stopReplacementIfCurrent(sdkHost, startResult)
+					return
+				}
+				this.options.sessions.setRunning(true)
+				this.options.sessions.fireAndForgetSend(
+					sdkHost,
+					startResult.sessionId,
+					nextPrompt.prompt,
+					nextPrompt.userImages,
+					nextPrompt.userFiles,
+				)
+			}
 			const replayOrder = [
 				...remainingPrompts.filter((prompt) => prompt.delivery === "queue"),
 				...remainingPrompts.filter((prompt) => prompt.delivery === "steer").reverse(),
@@ -158,21 +172,6 @@ export class SdkSessionConfigChangeCoordinator {
 					delivery: pendingPrompt.delivery,
 				})
 			}
-			if (nextPrompt) {
-				if (!context.isCurrent()) {
-					await this.stopReplacementIfCurrent(sdkHost, startResult)
-					return
-				}
-				this.options.sessions.setRunning(true)
-				this.options.sessions.fireAndForgetSend(
-					sdkHost,
-					startResult.sessionId,
-					nextPrompt.prompt,
-					nextPrompt.userImages,
-					nextPrompt.userFiles,
-				)
-			}
-
 			this.options.messages.emitSessionEvents([], {
 				type: "status",
 				payload: { sessionId: startResult.sessionId, status: nextPrompt ? "running" : "idle" },

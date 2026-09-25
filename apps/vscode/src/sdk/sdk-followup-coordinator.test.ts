@@ -231,49 +231,25 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("holds a running-turn follow-up until a pending checkpoint rebuild replaces the session", async () => {
-		const oldSession = makeActiveSession({ isRunning: true })
-		const rebuiltSession = makeActiveSession({ isRunning: false })
-		let resolveRebuild: () => void = () => {}
-		const waitForPendingCheckpointRebuild = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
+	it("queues a chat-field message while tool approval and a checkpoint rebuild are pending", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
 		const { coordinator, options } = makeCoordinator({
-			activeSession: oldSession,
+			activeSession,
 			hasPendingCheckpointRebuild: () => true,
-			waitForPendingCheckpointRebuild,
 		})
-		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(rebuiltSession)
+		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
 
-		const sendPromise = coordinator.askResponse(
-			"after checkpoint toggle",
-			undefined,
-			undefined,
-			"messageResponse",
-			"streaming",
-		)
-		await Promise.resolve()
+		await coordinator.askResponse("queue after approval", undefined, undefined, "messageResponse", "awaiting_approval")
 
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(waitForPendingCheckpointRebuild).toHaveBeenCalledOnce()
-
-		resolveRebuild()
-		await sendPromise
-
+		expect(options.waitForPendingCheckpointRebuild).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			rebuiltSession.sdkHost,
+			activeSession.sdkHost,
 			"session-123",
-			"resolved: after checkpoint toggle",
+			"resolved: queue after approval",
 			undefined,
 			undefined,
-		)
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ text: "after checkpoint toggle", say: "user_feedback" })],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+			"queue",
 		)
 	})
 

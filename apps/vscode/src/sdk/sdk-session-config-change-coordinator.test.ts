@@ -139,6 +139,7 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		const replacementHost = options.sessions.replaceActiveSession.mock.results[0].value
 		await expect(replacementHost).resolves.toBeDefined()
 		const send = (await replacementHost).sdkHost.send
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledBefore(send)
 		expect(send).toHaveBeenCalledOnce()
 		expect(send).toHaveBeenCalledWith({
 			sessionId: "new-session",

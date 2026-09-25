@@ -87,7 +87,7 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		const waitingForCheckpointRebuild = this.options.hasPendingCheckpointRebuild()
-		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn) && !waitingForCheckpointRebuild) {
+		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
 			await this.queueToActiveSession(activeSession, prompt, images, files)
 			return
 		}
@@ -113,7 +113,7 @@ export class SdkFollowupCoordinator {
 			}
 
 			const currentSession = this.options.sessions.getActiveSession()
-			if (currentSession && (currentSession.isRunning || (submittedDuringActiveTurn && !waitingForCheckpointRebuild))) {
+			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
 				await this.queueToActiveSession(currentSession, prompt, images, files)
 				return
 			}
