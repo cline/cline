@@ -8,13 +8,22 @@ describe("SdkSessionRebuildScheduler", () => {
 		const rebuild = vi.fn().mockResolvedValue(undefined)
 
 		scheduler.request("terminalExecutionMode", rebuild)
+		expect(scheduler.hasPendingRebuild()).toBe(true)
 		expect(rebuild).not.toHaveBeenCalled()
+		let settled = false
+		const wait = scheduler.waitUntilSettled().then(() => {
+			settled = true
+		})
+		await Promise.resolve()
+		expect(settled).toBe(false)
 
 		activeSession.isRunning = false
 		scheduler.sessionBecameIdle()
 		await scheduler.waitUntilSettled()
+		await wait
 
 		expect(rebuild).toHaveBeenCalledOnce()
+		expect(scheduler.hasPendingRebuild()).toBe(false)
 	})
 
 	it("coalesces repeated requests for the same reason", async () => {
@@ -41,6 +50,38 @@ describe("SdkSessionRebuildScheduler", () => {
 		await Promise.resolve()
 
 		expect(rebuild).not.toHaveBeenCalled()
+	})
+
+	it("releases waiters when pending rebuilds are cancelled", async () => {
+		const activeSession = { isRunning: true }
+		const scheduler = makeScheduler(activeSession)
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+		scheduler.request("checkpoints", rebuild)
+		const settled = scheduler.waitUntilSettled()
+
+		scheduler.cancel("checkpoints")
+		await settled
+
+		expect(rebuild).not.toHaveBeenCalled()
+		expect(scheduler.hasPendingRebuild()).toBe(false)
+	})
+
+	it("releases waiters after an exclusive operation settles", async () => {
+		const scheduler = makeScheduler({ isRunning: false })
+		let resolveExclusive: () => void = () => {}
+		const exclusive = scheduler.runExclusive(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveExclusive = resolve
+				}),
+		)
+		const settled = scheduler.waitUntilSettled()
+
+		resolveExclusive()
+		await exclusive
+		await settled
+
+		expect(scheduler.hasPendingRebuild()).toBe(false)
 	})
 
 	it("serializes rebuilds for different reasons", async () => {

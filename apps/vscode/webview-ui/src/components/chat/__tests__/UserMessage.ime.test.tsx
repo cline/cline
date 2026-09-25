@@ -9,11 +9,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+const navigateToSettings = vi.fn()
+
 vi.mock("@/context/ExtensionStateContext", () => ({
 	__esModule: true,
 	useExtensionState: () => ({
 		state: {},
 		dispatch: vi.fn(),
+		navigateToSettings,
 	}),
 }))
 
@@ -143,11 +146,9 @@ describe("UserMessage – IME composition handling", () => {
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
 		expect(resetCode).toBeDisabled()
 		await user.hover(resetCode.parentElement as HTMLElement)
-		expect(
-			await screen.findByText(
-				"No checkpoint is available for this message. Enable Checkpoints in Settings to create checkpoints for future tasks.",
-			),
-		).toBeInTheDocument()
+		expect(await screen.findByText(/No checkpoint is available for this message/)).toBeInTheDocument()
+		await user.click(screen.getByText("Settings"))
+		expect(navigateToSettings).toHaveBeenCalledWith("features")
 	})
 
 	it("explains when checkpoint creation was enabled but no checkpoint exists", async () => {

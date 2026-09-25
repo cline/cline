@@ -231,6 +231,52 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("holds a running-turn follow-up until a pending checkpoint rebuild replaces the session", async () => {
+		const oldSession = makeActiveSession({ isRunning: true })
+		const rebuiltSession = makeActiveSession({ isRunning: false })
+		let resolveRebuild: () => void = () => {}
+		const waitForPendingCheckpointRebuild = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveRebuild = resolve
+				}),
+		)
+		const { coordinator, options } = makeCoordinator({
+			activeSession: oldSession,
+			hasPendingCheckpointRebuild: () => true,
+			waitForPendingCheckpointRebuild,
+		})
+		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(rebuiltSession)
+
+		const sendPromise = coordinator.askResponse(
+			"after checkpoint toggle",
+			undefined,
+			undefined,
+			"messageResponse",
+			"streaming",
+		)
+		await Promise.resolve()
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(waitForPendingCheckpointRebuild).toHaveBeenCalledOnce()
+
+		resolveRebuild()
+		await sendPromise
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			rebuiltSession.sdkHost,
+			"session-123",
+			"resolved: after checkpoint toggle",
+			undefined,
+			undefined,
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ text: "after checkpoint toggle", say: "user_feedback" })],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+	})
+
 	it("queues a message response after a pending tool approval is not resolved by chat text", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -635,6 +681,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
+		hasPendingCheckpointRebuild: input.hasPendingCheckpointRebuild ?? (() => false),
+		waitForPendingCheckpointRebuild: input.waitForPendingCheckpointRebuild ?? vi.fn().mockResolvedValue(undefined),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
 		onFollowUpAbandoned: vi.fn(),
@@ -698,6 +746,8 @@ interface MakeCoordinatorInput {
 	mode: "act" | "plan"
 	isLegacyTask: boolean
 	waitForPendingRebuilds: () => Promise<void>
+	hasPendingCheckpointRebuild: () => boolean
+	waitForPendingCheckpointRebuild: () => Promise<void>
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 

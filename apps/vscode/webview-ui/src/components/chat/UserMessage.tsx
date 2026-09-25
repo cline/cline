@@ -1,9 +1,11 @@
 import type { WorkspaceRestoreAvailability } from "@shared/ExtensionMessage"
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { highlightText } from "./task-header/Highlights"
 
@@ -17,6 +19,7 @@ interface UserMessageProps {
 }
 
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, workspaceRestoreAvailability }) => {
+	const { navigateToSettings } = useExtensionState()
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
@@ -24,12 +27,9 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>()
 	const highlightedText = useMemo(() => highlightText(text), [text])
-	const workspaceRestoreTooltip =
-		workspaceRestoreAvailability?.available === true
-			? "Rewind conversation, reset code edits"
-			: workspaceRestoreAvailability?.reason === "checkpoints_disabled"
-				? "No checkpoint is available for this message. Enable Checkpoints in Settings to create checkpoints for future tasks."
-				: "No workspace checkpoint was created for this message."
+	const workspaceRestoreTooltip = workspaceRestoreAvailability?.available
+		? "Rewind conversation, reset code edits"
+		: "No workspace checkpoint was created for this message."
 
 	const startEditing = () => {
 		setEditedText(text ?? "")
@@ -166,7 +166,16 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 							{workspaceRestoreAvailability && (
 								<Tooltip>
 									<TooltipContent className="max-w-xs" side="top">
-										{workspaceRestoreTooltip}
+										{!workspaceRestoreAvailability.available &&
+										workspaceRestoreAvailability.reason === "checkpoints_disabled" ? (
+											<>
+												No checkpoint is available for this message. Enable Checkpoints in{" "}
+												<VSCodeLink onClick={() => navigateToSettings("features")}>Settings</VSCodeLink>{" "}
+												to create checkpoints for future messages.
+											</>
+										) : (
+											workspaceRestoreTooltip
+										)}
 									</TooltipContent>
 									<TooltipTrigger asChild>
 										<span className="inline-flex shrink-0">

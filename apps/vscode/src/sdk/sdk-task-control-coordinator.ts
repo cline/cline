@@ -17,6 +17,7 @@ export interface SdkTaskControlCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
+	cancelAndWaitForCheckpointRebuild: () => Promise<void>
 	/**
 	 * Drops the StateManager's task-scoped settings overlay (persisting pending
 	 * writes first). Task settings — e.g. autoApprovalSettings written by
@@ -110,8 +111,12 @@ export class SdkTaskControlCoordinator {
 	async clearTask(): Promise<void> {
 		// Supersede any in-flight showTaskWithId so it cannot re-install a task
 		// after the user cleared the view (e.g. clicked New Task).
-		this.taskViewGeneration++
+		const generation = ++this.taskViewGeneration
 		this.options.interactions.clearPending("Task cleared")
+		await this.options.cancelAndWaitForCheckpointRebuild()
+		if (generation !== this.taskViewGeneration) {
+			return
+		}
 
 		await this.options.sessions.endActiveSession("clearTask")
 
@@ -176,6 +181,10 @@ export class SdkTaskControlCoordinator {
 			// alone does not discard them; if one leaks across this task switch, the first
 			// message sent in the newly selected task is consumed as the old task's response.
 			this.options.interactions.clearPending("Task switched")
+			await this.options.cancelAndWaitForCheckpointRebuild()
+			if (isSuperseded()) {
+				return historyItem
+			}
 
 			// When reopening the task that is currently active, wait for its stop to
 			// land so the persisted session status read below reflects how the last

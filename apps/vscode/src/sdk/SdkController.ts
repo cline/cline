@@ -83,6 +83,7 @@ import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
+import { SdkSessionConfigChangeCoordinator } from "./sdk-session-config-change-coordinator"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -91,7 +92,6 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
-import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
@@ -178,7 +178,7 @@ export class Controller {
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
-	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
+	private sessionConfigChanges: SdkSessionConfigChangeCoordinator
 	private providerChanges: SdkProviderChangeCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
@@ -405,7 +405,7 @@ export class Controller {
 			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
 				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
-				// (vscode-session-host.ts, sdk-terminal-execution-mode-coordinator.ts):
+				// (vscode-session-host.ts, sdk-session-config-change-coordinator.ts):
 				// this factory itself is only invoked when a caller has already
 				// resolved to "vscodeTerminal" mode on a real VS Code host, but
 				// VscodeTerminalManager's constructor still assumes
@@ -534,7 +534,7 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			rebuilds: this.sessionRebuilds,
 		})
-		this.terminalExecutionMode = new SdkTerminalExecutionModeCoordinator({
+		this.sessionConfigChanges = new SdkSessionConfigChangeCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
 			messages: this.messages,
@@ -570,6 +570,8 @@ export class Controller {
 				await this.mode.waitForPendingRebuild()
 				await this.sessionRebuilds.waitUntilSettled()
 			},
+			hasPendingCheckpointRebuild: () => this.sessionRebuilds.hasPendingRebuild("checkpoints"),
+			waitForPendingCheckpointRebuild: () => this.sessionRebuilds.waitUntilSettled("checkpoints"),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
@@ -612,6 +614,10 @@ export class Controller {
 			},
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			postStateToWebview: () => this.postStateToWebview(),
+			cancelAndWaitForCheckpointRebuild: async () => {
+				this.sessionRebuilds.cancel("checkpoints")
+				await this.sessionRebuilds.waitUntilSettled("checkpoints")
+			},
 			clearTaskSettings: () => this.stateManager.clearTaskSettings(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
@@ -732,7 +738,11 @@ export class Controller {
 	}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
-		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
+		this.sessionConfigChanges.handleTerminalExecutionModeChanged(previous, next)
+	}
+
+	handleCheckpointsSettingChanged(previous: boolean, next: boolean): void {
+		this.sessionConfigChanges.handleCheckpointsSettingChanged(previous, next)
 	}
 
 	private handleSessionBecameIdle(): void {

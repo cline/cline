@@ -45,6 +45,10 @@ export interface SdkFollowupCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Resolves once no session rebuild is in flight. */
 	waitForPendingRebuilds: () => Promise<void>
+	/** True when a checkpoint rebuild must replace the current session before another turn starts. */
+	hasPendingCheckpointRebuild: () => boolean
+	/** Resolves after the pending checkpoint rebuild completes or is cancelled. */
+	waitForPendingCheckpointRebuild: () => Promise<void>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -82,14 +86,19 @@ export class SdkFollowupCoordinator {
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
-		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
+		const waitingForCheckpointRebuild = this.options.hasPendingCheckpointRebuild()
+		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn) && !waitingForCheckpointRebuild) {
 			await this.queueToActiveSession(activeSession, prompt, images, files)
 			return
 		}
 
 		// Rebuilds replace idle sessions. Wait before acquiring the shared
 		// prepare/start boundary so this follow-up cannot target a replaced host.
-		await this.options.waitForPendingRebuilds()
+		if (waitingForCheckpointRebuild) {
+			await this.options.waitForPendingCheckpointRebuild()
+		} else {
+			await this.options.waitForPendingRebuilds()
+		}
 
 		await this.options.runExclusive(async () => {
 			// Task navigation does not use the rebuild scheduler. Do not deliver a
@@ -104,7 +113,7 @@ export class SdkFollowupCoordinator {
 			}
 
 			const currentSession = this.options.sessions.getActiveSession()
-			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
+			if (currentSession && (currentSession.isRunning || (submittedDuringActiveTurn && !waitingForCheckpointRebuild))) {
 				await this.queueToActiveSession(currentSession, prompt, images, files)
 				return
 			}
