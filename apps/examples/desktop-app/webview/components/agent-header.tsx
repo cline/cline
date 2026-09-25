@@ -10,6 +10,7 @@ import {
 	CornerUpLeft,
 	Loader2,
 	MoreHorizontal,
+	PanelRight,
 	Plus,
 	Trash2,
 } from "lucide-react";
@@ -44,7 +45,9 @@ type AgentHeaderProps = {
 	onDeleteSession?: () => void;
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
+	/** Toggles the changes rail; `diffOpen` reflects its current state. */
 	onOpenDiff?: () => void;
+	diffOpen?: boolean;
 	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
 	diff?: {
@@ -72,6 +75,7 @@ function AgentHeaderImpl({
 	canDeleteSession,
 	deletingSession,
 	onOpenDiff,
+	diffOpen = false,
 	showSessionActions = true,
 	status,
 	diff,
@@ -234,16 +238,14 @@ function AgentHeaderImpl({
 						onOpenAgentSession={onOpenAgentSession}
 						onOpenChange={onAgentsOpenChange}
 					/>
-					{additions !== 0 && (
+					{hasChanges && (
 						<Button
-							aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
+							aria-label={`Toggle changes: ${additions} additions, ${deletions} deletions`}
+							aria-pressed={diffOpen}
 							className={cn(
-								"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
-								hasChanges
-									? "hover:bg-secondary/80"
-									: "cursor-default opacity-60",
+								"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors hover:bg-secondary/80",
+								diffOpen && "ring-1 ring-primary/40",
 							)}
-							disabled={!hasChanges}
 							id="diff-stats"
 							onClick={() => onOpenDiff?.()}
 							size="sm"
@@ -252,6 +254,24 @@ function AgentHeaderImpl({
 						>
 							<span className="text-chart-2">+{additions}</span>
 							<span className="text-destructive">-{deletions}</span>
+						</Button>
+					)}
+					{diff && onOpenDiff && (
+						<Button
+							aria-label={
+								diffOpen ? "Hide changes panel" : "Show changes panel"
+							}
+							aria-pressed={diffOpen}
+							className={cn(
+								"flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors",
+								diffOpen && "bg-surface-hover text-foreground",
+							)}
+							onClick={() => onOpenDiff()}
+							size="icon-sm"
+							title={diffOpen ? "Hide changes" : "Show changes"}
+							variant="ghost"
+						>
+							<PanelRight className="size-4" />
 						</Button>
 					)}
 					{/* A child agent run leads back to its parent instead of starting a

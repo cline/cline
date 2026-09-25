@@ -54,6 +54,7 @@ import {
 	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
+	readSessionCheckpointHistory,
 	resolveClineAccountTelemetryIdentity,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
@@ -197,6 +198,13 @@ import type {
 	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
+import {
+	listWorkspaceDirectory,
+	readWorkspaceChanges,
+	readWorkspaceFile,
+	revertWorkspaceChange,
+	type WorkspaceChangesScope,
+} from "./workspace-changes";
 import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
@@ -387,6 +395,36 @@ async function getCommandSessionBinding(
 	return environmentId
 		? getRuntimeBinding(ctx, environmentId)
 		: await findSessionRuntimeBinding(ctx, sessionId);
+}
+
+/**
+ * Checkpoint history for the session named in `args.sessionId`, read from
+ * the hub-owned record first and the local store as a fallback. Sessions
+ * without checkpoints (or no session at all) yield an empty list, which the
+ * changes rail reports as "no checkpoint yet" rather than an error.
+ */
+async function readCommandSessionCheckpoints(
+	ctx: SidecarContext,
+	args: Record<string, unknown> | undefined,
+) {
+	const sessionId =
+		typeof args?.sessionId === "string" ? args.sessionId.trim() : "";
+	if (!sessionId) return [];
+	let record: { metadata?: Record<string, unknown> } | undefined;
+	try {
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		record = (await binding?.sessionManager.get(sessionId)) ?? undefined;
+	} catch {
+		// Fall through to the local store.
+	}
+	if (!readSessionCheckpointHistory(record).length) {
+		try {
+			record = new SqliteSessionStore().get(sessionId) ?? undefined;
+		} catch {
+			record = undefined;
+		}
+	}
+	return readSessionCheckpointHistory(record);
 }
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
@@ -3513,6 +3551,73 @@ export async function handleCommand(
 		const cwd = typeof args?.cwd === "string" ? args.cwd.trim() : "";
 		if (!cwd) throw new Error("cwd is required");
 		return await createGitWorktree(cwd);
+	}
+
+	// ── Workspace changes rail ────────────────────────────────────────
+	if (
+		command === "get_workspace_changes" ||
+		command === "revert_workspace_change"
+	) {
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		const scope = args?.scope as WorkspaceChangesScope;
+		if (scope !== "turn" && scope !== "session" && scope !== "uncommitted") {
+			throw new Error("scope must be turn, session, or uncommitted");
+		}
+		if (binding.kind !== "local") {
+			if (command === "revert_workspace_change") {
+				throw new Error(
+					"Reverting files in remote environments is not supported yet.",
+				);
+			}
+			return {
+				scope,
+				files: [],
+				unavailableReason:
+					"Change tracking for remote environments is not supported yet.",
+			};
+		}
+		const checkpoints = await readCommandSessionCheckpoints(ctx, args);
+		if (command === "revert_workspace_change") {
+			const path = String(args?.path ?? "").trim();
+			if (!path) throw new Error("path is required");
+			return await revertWorkspaceChange({ cwd, scope, path, checkpoints });
+		}
+		return await readWorkspaceChanges({ cwd, scope, checkpoints });
+	}
+	if (command === "list_workspace_directory") {
+		const binding = getCommandRuntimeBinding(ctx, args);
+		if (binding.kind !== "local") {
+			throw new Error(
+				"Browsing files in remote environments is not supported yet.",
+			);
+		}
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		return await listWorkspaceDirectory(
+			cwd,
+			typeof args?.path === "string" ? args.path : "",
+		);
+	}
+	if (command === "read_workspace_file") {
+		const binding = getCommandRuntimeBinding(ctx, args);
+		if (binding.kind !== "local") {
+			throw new Error(
+				"Reading files in remote environments is not supported yet.",
+			);
+		}
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		const path = String(args?.path ?? "").trim();
+		if (!path) throw new Error("path is required");
+		return await readWorkspaceFile(cwd, path);
 	}
 
 	// Rolls back a worktree from `create_git_worktree` whose session never

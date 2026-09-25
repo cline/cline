@@ -216,6 +216,10 @@ Supported commands:
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
+| `get_workspace_changes` | `workspace-changes.ts`: turn/session scopes diff the session's git checkpoint (`buildCheckpointWorkspaceDiff`) against the working tree; `uncommitted` diffs HEAD via `git status` |
+| `revert_workspace_change` | `workspace-changes.ts`: restores one file to the scope's base (checkpoint tree or HEAD), deleting files that did not exist there |
+| `list_workspace_directory` | `workspace-changes.ts`: one directory level via `readdir`, `.git` hidden, folders first |
+| `read_workspace_file` | `workspace-changes.ts`: UTF-8 contents capped at 1 MiB, binary detected by NUL bytes |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |

@@ -27,6 +27,11 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import {
 	Sidebar,
 	SidebarInset,
 	SidebarProvider,
@@ -182,10 +187,10 @@ const OnboardingView = dynamic(
 	},
 );
 
-const DiffView = dynamic(
+const ChangesRail = dynamic(
 	() =>
-		import("@/components/views/chat/diff-view").then(
-			(module) => module.DiffView,
+		import("@/components/views/chat/changes-rail").then(
+			(module) => module.ChangesRail,
 		),
 	{ loading: viewLoading, ssr: false },
 );
@@ -1170,7 +1175,7 @@ function ChatThreadPane({
 		setWorkInSelection(next);
 		writeWorkInToWindow(next);
 	}, []);
-	const [showDiffView, setShowDiffView] = useState(false);
+	const [changesRailOpen, setChangesRailOpen] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2049,7 +2054,7 @@ function ChatThreadPane({
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
-			setShowDiffView(false);
+			setChangesRailOpen(false);
 			void reset();
 		} catch (error) {
 			const description =
@@ -2112,7 +2117,7 @@ function ChatThreadPane({
 			});
 			if (target === "cloud") {
 				setPendingAttachments([]);
-				setShowDiffView(false);
+				setChangesRailOpen(false);
 			}
 		},
 		[
@@ -2229,7 +2234,6 @@ function ChatThreadPane({
 			? undefined
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
-	const hasDiffChanges = summary.additions + summary.deletions > 0;
 	const headerDiff = useMemo(
 		() => ({
 			additions: summary.additions,
@@ -2237,11 +2241,12 @@ function ChatThreadPane({
 		}),
 		[summary.additions, summary.deletions],
 	);
-	const handleOpenDiff = useCallback(() => {
-		if (summary.additions + summary.deletions > 0) {
-			setShowDiffView(true);
-		}
-	}, [summary.additions, summary.deletions]);
+	const handleToggleChangesRail = useCallback(() => {
+		setChangesRailOpen((open) => !open);
+	}, []);
+	// Tool edits and turn boundaries both move the working tree; the rail
+	// refetches whenever this key changes.
+	const changesRefreshKey = `${status}:${fileDiffs.length}:${summary.additions}:${summary.deletions}`;
 
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
@@ -2356,12 +2361,6 @@ function ChatThreadPane({
 		],
 	);
 
-	useEffect(() => {
-		if (!hasDiffChanges) {
-			setShowDiffView(false);
-		}
-	}, [hasDiffChanges]);
-
 	const resolvedWorkspaceRoot = config.workspaceRoot || config.cwd || "";
 	const workspaceContextValue = useMemo(
 		() => ({
@@ -2451,16 +2450,13 @@ function ChatThreadPane({
 		cloudSessionError?.code === "github_not_connected"
 			? cloudSessionError.connectUrl
 			: undefined;
+	const showChangesRail = changesRailOpen && !isWelcomeState && !isCloudSession;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
 			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
 			<AttachmentDropZone
-				className={
-					isWelcomeState
-						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
-				}
+				className="flex h-full min-h-0 flex-1 overflow-hidden"
 				disabled={isCloudSessionExpired}
 				description={
 					isCloudSession
@@ -2469,130 +2465,167 @@ function ChatThreadPane({
 				}
 				onAttachFiles={handleAttachFiles}
 			>
-				{!isWelcomeState ? (
-					<WindowTitleBarContent>
-						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-							<AgentHeader
-								agentActivity={isCloudSession ? undefined : agentActivity}
-								agents={isCloudSession ? undefined : agents}
-								agentsError={agentsError}
-								agentsLoading={agentsLoading}
-								onAgentsOpenChange={setAgentPanelOpen}
-								onOpenAgentSession={onOpenAgentSession}
-								onOpenParentSession={onOpenAgentSession}
-								parentSession={hideDeletedSessionUi ? undefined : parentSession}
-								canEditTitle={Boolean(activeSessionForTitle)}
-								canDeleteSession={Boolean(activeSessionToDelete)}
-								deletingSession={deletingSession}
-								diff={isCloudSession ? undefined : headerDiff}
-								onDeleteSession={requestDeleteSession}
-								onNewThread={onNewThread}
-								onOpenDiff={handleOpenDiff}
-								onRenameTitle={handleRenameTitle}
-								renamingTitle={renamingSession}
-								status={headerStatus}
-								title={threadTitle}
-							/>
-						</div>
-					</WindowTitleBarContent>
-				) : null}
-				<WelcomeScreen
-					active={isWelcomeState}
-					body={
-						isCloudSession &&
-						displayedIsSwitching &&
-						displayedMessages.length === 0 ? (
-							// Keep opening an existing cloud session visually continuous.
-							<CloudProvisioningPane phase="Opening session..." />
-						) : showDiffView && !isCloudSession ? (
-							<DiffView
-								cwd={config.cwd || config.workspaceRoot}
-								environmentId={environmentId}
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
-						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								activityLabel={activityLabel}
-								error={cloudSessionError?.message ?? displayedError}
-								errorAction={
-									cloudConnectUrl
-										? {
-												label: "Connect GitHub",
-												onClick: () => openGitHubConnect(cloudConnectUrl),
-											}
-										: undefined
-								}
-								importedFromTool={importedFromTool}
-								messages={displayedMessages}
-								onEditMessage={isCloudSession ? undefined : handleEditMessage}
-								onRestoreCheckpoint={
-									isCloudSession ? undefined : handleRestoreCheckpoint
-								}
-								onForkSession={isCloudSession ? undefined : handleForkSession}
-								onProceedWhileRunning={
-									isCloudSession ? undefined : proceedWhileRunning
-								}
-								startingLabel={
-									isProvisioningCloudSession
-										? provisioningPhase
-										: isCloudSession && !displayedSessionId
-											? provisioningPhase
-											: undefined
-								}
-								onFixCredentials={handleFixCredentials}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={
-									isProvisioningCloudSession ? "starting" : displayedStatus
-								}
-							/>
-						)
-					}
-					composer={composer}
-					environmentSelector={
-						<EnvironmentSelector
-							activeEnvironmentId={environmentId}
-							cloudEnabled={cloudAgentsEnabled}
+				<ResizablePanelGroup
+					autoSaveId="cline-chat-changes-rail"
+					className="h-full min-h-0"
+					direction="horizontal"
+				>
+					<ResizablePanel
+						className={
+							isWelcomeState
+								? "grid h-full min-h-0 grid-rows-[minmax(0,1fr)]"
+								: "grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]"
+						}
+						id="chat"
+						minSize={45}
+						order={1}
+					>
+						{!isWelcomeState ? (
+							<WindowTitleBarContent>
+								<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+									<AgentHeader
+										agentActivity={isCloudSession ? undefined : agentActivity}
+										agents={isCloudSession ? undefined : agents}
+										agentsError={agentsError}
+										agentsLoading={agentsLoading}
+										onAgentsOpenChange={setAgentPanelOpen}
+										onOpenAgentSession={onOpenAgentSession}
+										onOpenParentSession={onOpenAgentSession}
+										parentSession={
+											hideDeletedSessionUi ? undefined : parentSession
+										}
+										canEditTitle={Boolean(activeSessionForTitle)}
+										canDeleteSession={Boolean(activeSessionToDelete)}
+										deletingSession={deletingSession}
+										diff={isCloudSession ? undefined : headerDiff}
+										diffOpen={changesRailOpen}
+										onDeleteSession={requestDeleteSession}
+										onNewThread={onNewThread}
+										onOpenDiff={handleToggleChangesRail}
+										onRenameTitle={handleRenameTitle}
+										renamingTitle={renamingSession}
+										status={headerStatus}
+										title={threadTitle}
+									/>
+								</div>
+							</WindowTitleBarContent>
+						) : null}
+						<WelcomeScreen
+							active={isWelcomeState}
+							body={
+								isCloudSession &&
+								displayedIsSwitching &&
+								displayedMessages.length === 0 ? (
+									// Keep opening an existing cloud session visually continuous.
+									<CloudProvisioningPane phase="Opening session..." />
+								) : (
+									<ChatMessages
+										onAnswerAskQuestion={handleAnswerAskQuestion}
+										onApproveToolApproval={handleApproveToolApproval}
+										onRejectToolApproval={handleRejectToolApproval}
+										chatTransportState={chatTransportState}
+										activityLabel={activityLabel}
+										error={cloudSessionError?.message ?? displayedError}
+										errorAction={
+											cloudConnectUrl
+												? {
+														label: "Connect GitHub",
+														onClick: () => openGitHubConnect(cloudConnectUrl),
+													}
+												: undefined
+										}
+										importedFromTool={importedFromTool}
+										messages={displayedMessages}
+										onEditMessage={
+											isCloudSession ? undefined : handleEditMessage
+										}
+										onRestoreCheckpoint={
+											isCloudSession ? undefined : handleRestoreCheckpoint
+										}
+										onForkSession={
+											isCloudSession ? undefined : handleForkSession
+										}
+										onProceedWhileRunning={
+											isCloudSession ? undefined : proceedWhileRunning
+										}
+										startingLabel={
+											isProvisioningCloudSession
+												? provisioningPhase
+												: isCloudSession && !displayedSessionId
+													? provisioningPhase
+													: undefined
+										}
+										onFixCredentials={handleFixCredentials}
+										pendingToolApprovals={pendingToolApprovals}
+										pendingAskQuestions={pendingAskQuestions}
+										sessionId={displayedSessionId}
+										streamingMessageId={activeAssistantMessageId}
+										isSessionSwitching={displayedIsSwitching}
+										status={
+											isProvisioningCloudSession ? "starting" : displayedStatus
+										}
+									/>
+								)
+							}
+							composer={composer}
+							environmentSelector={
+								<EnvironmentSelector
+									activeEnvironmentId={environmentId}
+									cloudEnabled={cloudAgentsEnabled}
+									executionTarget={isCloudSession ? "cloud" : "local"}
+									onSelectExecutionTarget={handleExecutionTargetChange}
+									loading={environmentProfilesLoading}
+									onAddSshHost={onAddSshHost}
+									onSelectEnvironment={onSelectEnvironment}
+									profiles={environmentProfiles}
+								/>
+							}
+							gitBranch={gitBranch}
+							notice={
+								providersLoaded &&
+								hasConnectedProvider === false &&
+								onOpenSetup &&
+								onOpenModelSettings ? (
+									<WelcomeSetupNotice
+										onOpenModelSettings={onOpenModelSettings}
+										onOpenSetup={onOpenSetup}
+									/>
+								) : undefined
+							}
+							onListGitBranches={listGitBranches}
+							onOpenSession={onOpenSessionById}
+							onSwitchGitBranch={switchGitBranch}
 							executionTarget={isCloudSession ? "cloud" : "local"}
-							onSelectExecutionTarget={handleExecutionTargetChange}
-							loading={environmentProfilesLoading}
-							onAddSshHost={onAddSshHost}
-							onSelectEnvironment={onSelectEnvironment}
-							profiles={environmentProfiles}
+							repoUrl={config.repoUrl ?? ""}
+							cloudBranch={config.branch ?? ""}
+							onRepoUrlChange={handleCloudRepoUrlChange}
+							onCloudBranchChange={handleCloudBranchChange}
+							cloudAgentsEnabled={cloudAgentsEnabled}
+							onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+							workIn={workIn}
 						/>
-					}
-					gitBranch={gitBranch}
-					notice={
-						providersLoaded &&
-						hasConnectedProvider === false &&
-						onOpenSetup &&
-						onOpenModelSettings ? (
-							<WelcomeSetupNotice
-								onOpenModelSettings={onOpenModelSettings}
-								onOpenSetup={onOpenSetup}
-							/>
-						) : undefined
-					}
-					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
-					onSwitchGitBranch={switchGitBranch}
-					executionTarget={isCloudSession ? "cloud" : "local"}
-					repoUrl={config.repoUrl ?? ""}
-					cloudBranch={config.branch ?? ""}
-					onRepoUrlChange={handleCloudRepoUrlChange}
-					onCloudBranchChange={handleCloudBranchChange}
-					cloudAgentsEnabled={cloudAgentsEnabled}
-					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
-					workIn={workIn}
-				/>
+					</ResizablePanel>
+					{showChangesRail ? (
+						<>
+							<ResizableHandle />
+							<ResizablePanel
+								defaultSize={38}
+								id="changes"
+								minSize={22}
+								order={2}
+							>
+								<ChangesRail
+									cwd={config.cwd || config.workspaceRoot}
+									environmentId={environmentId}
+									fallbackFileDiffs={fileDiffs}
+									onClose={() => setChangesRailOpen(false)}
+									refreshKey={changesRefreshKey}
+									sessionId={displayedSessionId}
+								/>
+							</ResizablePanel>
+						</>
+					) : null}
+				</ResizablePanelGroup>
 			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
