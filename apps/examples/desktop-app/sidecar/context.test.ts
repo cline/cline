@@ -263,7 +263,7 @@ describe("Code sidecar runtime capabilities", () => {
 			expect.objectContaining({
 				event: expect.objectContaining({
 					name: "backend_readiness",
-					payload: { state: "starting", attempt: 1 },
+					payload: { state: "starting", attempt: 1, step: "discovery" },
 				}),
 			}),
 		);

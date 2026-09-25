@@ -12,6 +12,7 @@ import {
 	captureSdkError,
 	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
+	ensureLoopbackProxyBypass,
 	setClineClientIdentity,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
@@ -231,6 +232,8 @@ async function runEntrypoint(): Promise<void> {
 	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 
 	disableCurrentDirectoryExecutableSearch();
+	// Before the Hub daemon and agent-spawned processes inherit this env.
+	ensureLoopbackProxyBypass();
 	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
 	// daemon import resolves to the dist build of @cline/core while this bundle
 	// resolves the source build, and a daemon from the other copy publishes a

@@ -1,5 +1,6 @@
 import {
 	createSessionId,
+	ensureLoopbackProxyBypass,
 	type HubClientRegistration,
 	type HubCommandEnvelope,
 	type HubEventEnvelope,
@@ -1389,6 +1390,7 @@ export async function requestHubDrain(
 	reason?: string,
 	options?: { off?: boolean },
 ): Promise<boolean> {
+	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =
 		authToken?.trim() || resolveLocalHubAuthToken(parsed);
@@ -1418,6 +1420,7 @@ export async function requestHubShutdown(
 	url: string,
 	authToken?: string,
 ): Promise<boolean> {
+	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =
 		authToken?.trim() || resolveLocalHubAuthToken(parsed);

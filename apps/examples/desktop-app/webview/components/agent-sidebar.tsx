@@ -153,7 +153,7 @@ function hubPort(url: string | null): string | null {
 
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
-	"API Providers": Plug,
+	"Providers": Plug,
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,

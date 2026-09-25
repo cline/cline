@@ -1,11 +1,22 @@
 import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	open,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	rmdir,
+	writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import {
+	ensureLoopbackProxyBypass,
 	type HubCompatibilityResult,
 	type HubProtocolMetadata,
 	isHubProtocolCompatible,
@@ -450,6 +461,25 @@ async function processStartedAt(pid: number): Promise<number | undefined> {
 	}
 }
 
+// Remove only the observed generation's entry, then remove the directory ONLY
+// if empty. A delayed reclaimer can never remove a replacement owner's entry.
+async function removeLockOwner(
+	lockDir: string,
+	ownerName?: string,
+): Promise<void> {
+	if (ownerName) await rm(join(lockDir, ownerName), { force: true });
+	try {
+		await rmdir(lockDir);
+	} catch (error) {
+		if (
+			!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
+				(error as NodeJS.ErrnoException).code ?? "",
+			)
+		)
+			throw error;
+	}
+}
+
 async function withHubLock<T>(
 	lockBasis: string,
 	label: string,
@@ -458,60 +488,79 @@ async function withHubLock<T>(
 ): Promise<T> {
 	signal?.throwIfAborted();
 	const lockDir = `${lockBasis}.lock`;
-	const ownerFile = join(lockDir, "owner.json");
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
 	await mkdir(dirname(lockDir), { recursive: true });
-	while (true) {
-		signal?.throwIfAborted();
-		try {
-			await mkdir(lockDir);
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-			let abandoned = false;
+	// Assemble ownership off-path. Rename publishes a nonempty directory atomically;
+	// a crash before publication cannot leave a partially initialized shared lock.
+	const candidate = await mkdtemp(`${lockBasis}.candidate-`);
+	const ownerName = `${process.pid}-${Date.now()}-${randomBytes(16).toString("hex")}.owner`;
+	try {
+		await writeFile(join(candidate, ownerName), "");
+		while (true) {
+			signal?.throwIfAborted();
+			if (Date.now() >= deadline)
+				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
 			try {
-				const owner = JSON.parse(await readFile(ownerFile, "utf8")) as {
-					pid: number;
-					acquiredAt: string;
-				};
-				if (Number.isSafeInteger(owner.pid) && owner.pid > 0) {
+				await rename(candidate, lockDir);
+				break;
+			} catch (error) {
+				if (
+					!["EEXIST", "ENOTEMPTY", "EPERM", "EACCES"].includes(
+						(error as NodeJS.ErrnoException).code ?? "",
+					)
+				)
+					throw error;
+				let entries: string[];
+				try {
+					entries = await readdir(lockDir);
+				} catch (readError) {
+					if ((readError as NodeJS.ErrnoException).code === "ENOENT") {
+						if (
+							["EPERM", "EACCES"].includes(
+								(error as NodeJS.ErrnoException).code ?? "",
+							)
+						)
+							throw error;
+						continue;
+					}
+					throw readError;
+				}
+				if (!entries.length) {
+					await removeLockOwner(lockDir);
+					continue;
+				}
+				for (const entry of entries) {
+					const match = /^(\d+)-(\d+)-[a-f0-9]{32}\.owner$/.exec(entry);
+					if (!match) continue;
+					const pid = Number(match[1]);
+					const acquiredAt = Number(match[2]);
+					if (!Number.isSafeInteger(pid) || pid <= 0) continue;
+					let abandoned = false;
 					try {
-						process.kill(owner.pid, 0);
+						process.kill(pid, 0);
 					} catch (error) {
 						abandoned = (error as NodeJS.ErrnoException).code === "ESRCH";
 					}
 					if (!abandoned) {
-						const startedAt = await processStartedAt(owner.pid);
-						// ps has second precision; only a strictly newer process proves PID reuse.
-						abandoned =
-							startedAt !== undefined &&
-							startedAt > Date.parse(owner.acquiredAt);
+						const startedAt = await processStartedAt(pid);
+						abandoned = startedAt !== undefined && startedAt > acquiredAt;
 					}
+					if (abandoned) await removeLockOwner(lockDir, entry);
 				}
-			} catch {
-				/* An unpublished or unreadable owner is not proof of abandonment. */
+				if (Date.now() >= deadline)
+					throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
+				await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
 			}
-			if (abandoned) {
-				await rm(lockDir, { recursive: true, force: true });
-				continue;
-			}
-			if (Date.now() >= deadline)
-				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
-			await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
-			continue;
 		}
 		try {
-			await writeFile(
-				ownerFile,
-				JSON.stringify({
-					pid: process.pid,
-					acquiredAt: new Date().toISOString(),
-				}),
-			);
 			signal?.throwIfAborted();
 			return await callback();
 		} finally {
-			await rm(lockDir, { recursive: true, force: true });
+			await removeLockOwner(lockDir, ownerName);
 		}
+	} finally {
+		// This is our private unpublished candidate, never another owner's lock.
+		await rm(candidate, { recursive: true, force: true });
 	}
 }
 
@@ -548,6 +597,8 @@ export async function probeHubServer(
 	options?: { authToken?: string },
 ): Promise<HubServerProbeRecord | undefined> {
 	const signal = AbortSignal.timeout(3_000);
+	// Idempotent; repeated here so every embedder of the hub client is covered.
+	ensureLoopbackProxyBypass();
 	try {
 		const response = await fetch(
 			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),

@@ -166,7 +166,9 @@ Owns stateful orchestration:
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
-- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent. It does not implement local-to-cloud handoff.
+- `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
+- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -1076,12 +1078,19 @@ effect when constructing child tools. Inherited runtime hooks are unchanged.
 
 Cancellation interrupts waiting for the shared Hub startup lock. Startup and
 discovery mutation use filesystem locks, released in `finally`, without requiring
-SQLite support. Abandoned owners are detected by process liveness and OS process
-creation time to account for PID reuse. A live owner is never displaced solely
-because of lock age; unreadable ownership fails closed. Hub health probes have a three-second limit
+SQLite support. Each contender prepares a private nonempty directory, then atomically
+renames it into the shared lock path. Its unique owner filename contains the PID
+and acquisition time, so ownership cannot be partially published. Cleanup removes
+only that generation’s entry and uses nonrecursive directory removal; a delayed
+reclaimer cannot erase a replacement owner. Empty abandoned directories are safe
+to remove because active locks are always published nonempty. Abandoned owners
+are detected by process liveness and OS process creation time to account for PID reuse. A live owner is never displaced solely
+because of lock age; unreadable ownership fails closed.
+
+Hub health probes have a three-second limit
 covering both response headers and body, preventing an unresponsive endpoint from
 holding bootstrap open indefinitely. A probe timeout is an explicit retryable
 error, preserving discovery and preventing replacement of an unconfirmed Hub.
 After daemon spawn, probe timeouts are retried within the existing bounded
-discovery wait still completes before releasing the lock to prevent duplicate
-daemons. This cleanup does not terminate a shared Hub used by other clients.
+discovery wait. The lock remains held until that wait completes to prevent
+duplicate daemons. This cleanup does not terminate a shared Hub used by other clients.
