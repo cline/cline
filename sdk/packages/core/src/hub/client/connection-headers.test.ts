@@ -5,7 +5,6 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { type AddressInfo, connect as connectTcp, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import * as tls from "node:tls";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
@@ -111,7 +110,7 @@ beforeEach(() => {
 	proxyEnvironment = new Map(
 		proxyEnvironmentKeys.map((name) => [name, process.env[name]]),
 	);
-	for (const name of proxyEnvironmentKeys) delete process.env[name];
+	for (const name of proxyEnvironmentKeys) process.env[name] = "";
 });
 
 afterEach(async () => {
@@ -135,10 +134,12 @@ afterEach(async () => {
 
 describe("NodeHubClient connection headers", () => {
 	it("tunnels WSS through HTTPS_PROXY without leaking origin authorization to the proxy", async () => {
-		const certificate = readFileSync(
-			new URL("./__fixtures__/localhost-cert.pem", import.meta.url),
-			"utf8",
+		const certificateUrl = new URL(
+			"./__fixtures__/localhost-cert.pem",
+			import.meta.url,
 		);
+		const certificatePath = fileURLToPath(certificateUrl);
+		const certificate = readFileSync(certificateUrl, "utf8");
 		const key = createPrivateKey({
 			key: readFileSync(
 				new URL("./__fixtures__/localhost-key.der", import.meta.url),
@@ -146,23 +147,6 @@ describe("NodeHubClient connection headers", () => {
 			format: "der",
 			type: "pkcs8",
 		}).export({ format: "pem", type: "pkcs8" });
-		const defaultCaApi = tls as typeof tls & {
-			getCACertificates?: (type: "default") => string[];
-			setDefaultCACertificates?: (certificates: string[]) => void;
-		};
-		const defaultCertificates = defaultCaApi.getCACertificates?.("default");
-		const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-		if (defaultCertificates && defaultCaApi.setDefaultCACertificates) {
-			defaultCaApi.setDefaultCACertificates([
-				...defaultCertificates,
-				certificate,
-			]);
-		} else {
-			// Node releases before 22.19 cannot extend the default CA set at runtime.
-			// This affects only the self-signed destination inside this test worker.
-			process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-		}
-
 		const destinationUpgrades: IncomingMessage[] = [];
 		const destinationServer = createHttpsServer({ cert: certificate, key });
 		const hubServer = new WebSocketServer({ server: destinationServer });
@@ -194,73 +178,45 @@ describe("NodeHubClient connection headers", () => {
 		process.env.HTTPS_PROXY = `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`;
 
 		const url = `wss://127.0.0.1:${destinationPort}/hub`;
-		const client = new NodeHubClient({
-			url,
-			resolveConnectionHeaders: () => ({
-				Authorization: "Bearer workos:destination-token",
-			}),
+		const nodeFixture = fileURLToPath(
+			new URL("./__fixtures__/node-proxy-client.mjs", import.meta.url),
+		);
+		const node = spawn(process.execPath, [nodeFixture], {
+			env: {
+				...process.env,
+				CLINE_TEST_HUB_URL: url,
+				CLINE_TEST_HUB_AUTHORIZATION: "Bearer workos:destination-token",
+				NODE_EXTRA_CA_CERTS: certificatePath,
+			},
+			stdio: ["ignore", "pipe", "pipe"],
 		});
+		const stdout: Buffer[] = [];
+		const stderr: Buffer[] = [];
+		node.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+		node.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+		const exitCode = await new Promise<number | null>((resolve, reject) => {
+			node.once("error", reject);
+			node.once("exit", resolve);
+		});
+		expect(exitCode, Buffer.concat(stderr).toString()).toBe(0);
+		expect(Buffer.concat(stdout).toString()).toContain("connected");
 
-		try {
-			await client.connect();
-			const bunFixture = fileURLToPath(
-				new URL("./__fixtures__/bun-proxy-client.ts", import.meta.url),
+		expect(proxyConnects).toHaveLength(1);
+		expect(proxyConnects[0].url).toBe(`127.0.0.1:${destinationPort}`);
+		for (const request of proxyConnects) {
+			expect(request.headers.authorization).toBeUndefined();
+			expect(request.headers["proxy-authorization"]).toBe(
+				`Basic ${Buffer.from("proxy-user:proxy-pass").toString("base64")}`,
 			);
-			const bun = spawn(
-				process.env.BUN_EXEC_PATH?.trim() || "bun",
-				[bunFixture],
-				{
-					env: {
-						...process.env,
-						CLINE_TEST_HUB_URL: url,
-						CLINE_TEST_HUB_AUTHORIZATION: "Bearer workos:bun-destination-token",
-						NODE_TLS_REJECT_UNAUTHORIZED: "0",
-					},
-					stdio: ["ignore", "pipe", "pipe"],
-				},
-			);
-			const stdout: Buffer[] = [];
-			const stderr: Buffer[] = [];
-			bun.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-			bun.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-			const exitCode = await new Promise<number | null>((resolve, reject) => {
-				bun.once("error", reject);
-				bun.once("exit", resolve);
-			});
-			expect(Buffer.concat(stdout).toString()).toContain("connected");
-			expect(exitCode, Buffer.concat(stderr).toString()).toBe(0);
-
-			expect(proxyConnects).toHaveLength(2);
-			expect(proxyConnects[0].url).toBe(`127.0.0.1:${destinationPort}`);
-			for (const request of proxyConnects) {
-				expect(request.headers.authorization).toBeUndefined();
-				expect(request.headers["proxy-authorization"]).toBe(
-					`Basic ${Buffer.from("proxy-user:proxy-pass").toString("base64")}`,
-				);
-			}
-			expect(destinationUpgrades).toHaveLength(2);
-			expect(destinationUpgrades[0].url).toBe("/hub");
-			expect(destinationUpgrades[0].headers.authorization).toBe(
-				"Bearer workos:destination-token",
-			);
-			expect(destinationUpgrades[1].headers.authorization).toBe(
-				"Bearer workos:bun-destination-token",
-			);
-			for (const request of destinationUpgrades) {
-				expect(request.url).toBe("/hub");
-				expect(request.headers["proxy-authorization"]).toBeUndefined();
-			}
-		} finally {
-			client.close();
-			if (defaultCertificates && defaultCaApi.setDefaultCACertificates) {
-				defaultCaApi.setDefaultCACertificates(defaultCertificates);
-			}
-			if (rejectUnauthorized === undefined) {
-				delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-			} else {
-				process.env.NODE_TLS_REJECT_UNAUTHORIZED = rejectUnauthorized;
-			}
 		}
+		expect(destinationUpgrades).toHaveLength(1);
+		expect(destinationUpgrades[0].url).toBe("/hub");
+		expect(destinationUpgrades[0].headers.authorization).toBe(
+			"Bearer workos:destination-token",
+		);
+		expect(
+			destinationUpgrades[0].headers["proxy-authorization"],
+		).toBeUndefined();
 	});
 
 	it("keeps concurrent connects pending until registration finishes", async () => {

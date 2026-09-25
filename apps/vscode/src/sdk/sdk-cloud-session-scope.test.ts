@@ -34,10 +34,12 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		id: "ses-owned",
 		status: "active",
 		repoContext: {},
-		metadata: {},
+		metadata: { taskId: "tsk-owned" },
 		createdAt: new Date(0).toISOString(),
 		updatedAt: new Date(0).toISOString(),
 	}
+	const currentRecord = () =>
+		scope === origin ? record : { ...record, id: "ses-successor", metadata: { ...record.metadata, taskId: "tsk-successor" } }
 	const wait = async (point: WaitPoint) => {
 		if (waitPoint === point) {
 			entered.resolve()
@@ -64,7 +66,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				await wait("create")
 				return Response.json({
 					data: {
-						sessionId: record.id,
+						sessionId: currentRecord().id,
 						status: waitPoint === "readiness" ? "provisioning" : "active",
 						sandboxUrl: origin.endpoint,
 					},
@@ -81,7 +83,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				return Response.json({ data: { status: readinessStatus } })
 			}
 			if (method === "PATCH") return Response.json({ data: record })
-			return Response.json({ data: [{ ...record, id: scope === origin ? record.id : "ses-successor" }] })
+			return Response.json({ data: [currentRecord()] })
 		}) as typeof fetch,
 	})
 	const host = {
