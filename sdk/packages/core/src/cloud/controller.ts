@@ -1076,7 +1076,21 @@ export class CloudSessionController {
 			input.organizationId === undefined
 				? await this.resolveActiveOrganizationId({ fresh: true })
 				: (input.organizationId ?? undefined);
-		const created = await this.options.api.create({ ...input, organizationId });
+		const handoff = input.handoff;
+		let ownsCreatedSession = !handoff;
+		const created = await this.options.api.create({
+			...input,
+			organizationId,
+			...(handoff && {
+				handoff: {
+					...handoff,
+					onOuterSessionCreated: async (sessionId, context) => {
+						ownsCreatedSession = context?.created === true;
+						await handoff.onOuterSessionCreated(sessionId, context);
+					},
+				},
+			}),
+		});
 		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
@@ -1084,7 +1098,10 @@ export class CloudSessionController {
 			);
 		}
 		if (this.disposed) {
-			if (this.options.lateCreateDisposition === "delete") {
+			if (
+				ownsCreatedSession &&
+				this.options.lateCreateDisposition === "delete"
+			) {
 				await this.deleteProvisionedSessionAfterDispose(
 					created.sessionId,
 					created.cleanupAuthToken,
@@ -1140,7 +1157,11 @@ export class CloudSessionController {
 				innerSessionId = seeded.innerSessionId;
 			}
 		} catch (error) {
-			if (this.disposed && this.options.lateCreateDisposition === "delete")
+			if (
+				this.disposed &&
+				ownsCreatedSession &&
+				this.options.lateCreateDisposition === "delete"
+			)
 				await this.deleteProvisionedSessionAfterDispose(
 					record.id,
 					created.cleanupAuthToken,
