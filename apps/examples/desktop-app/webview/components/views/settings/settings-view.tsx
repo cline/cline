@@ -67,7 +67,6 @@ import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
-import { ExportDiagnosticsDialog } from "./export-diagnostics-dialog";
 import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
@@ -109,8 +108,10 @@ export function SettingsView({
 	section,
 	onNavigateSection,
 	onOpenSession,
+	onExportDiagnostics,
 }: {
 	section: SettingsSection;
+	onExportDiagnostics: () => void;
 	onNavigateSection: (section: SettingsSection) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
@@ -638,6 +639,7 @@ export function SettingsView({
 			<AccountView />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent
+				onExportDiagnostics={onExportDiagnostics}
 				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
 		) : (
@@ -670,9 +672,11 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 ];
 
 function GeneralSettingsContent({
+	onExportDiagnostics,
 	onOpenModelProviders,
 }: {
 	onOpenModelProviders: () => void;
+	onExportDiagnostics: () => void;
 }) {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
@@ -694,7 +698,6 @@ function GeneralSettingsContent({
 		"Dock" | "Taskbar" | "desktop"
 	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
-	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
@@ -1260,7 +1263,7 @@ function GeneralSettingsContent({
 						</p>
 					</div>
 					<Button
-						className="shrink-0"
+						className="w-24 shrink-0"
 						onClick={replayOnboarding}
 						size="sm"
 						type="button"
@@ -1281,8 +1284,10 @@ function GeneralSettingsContent({
 						</p>
 					</div>
 					<Button
-						className="shrink-0"
-						onClick={() => setExportDiagnosticsOpen(true)}
+						className="w-24 shrink-0"
+						onClick={onExportDiagnostics}
+						size="sm"
+						type="button"
 						variant="outline"
 					>
 						<Download className="size-3" />
@@ -1310,10 +1315,6 @@ function GeneralSettingsContent({
 					) : null}
 				</div>
 			</section>
-			<ExportDiagnosticsDialog
-				onOpenChange={setExportDiagnosticsOpen}
-				open={exportDiagnosticsOpen}
-			/>
 		</PageFrame>
 	);
 }
