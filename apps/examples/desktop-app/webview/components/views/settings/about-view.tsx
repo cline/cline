@@ -52,9 +52,9 @@ function useAppVersion(): string | null {
 function UpdateRow() {
 	const status = useAppUpdateStatus();
 	const [checking, setChecking] = useState(false);
-	const [checked, setChecked] = useState<"up-to-date" | "unavailable" | null>(
-		null,
-	);
+	const [checkResult, setCheckResult] = useState<
+		"up-to-date" | "unavailable" | null
+	>(null);
 	const [restarting, setRestarting] = useState(false);
 
 	const busy =
@@ -66,9 +66,9 @@ function UpdateRow() {
 				? `Downloading version ${status.version ?? ""}…`
 				: status.state === "error" && status.error
 					? `The last check failed: ${status.error}`
-					: checked === "up-to-date"
+					: checkResult === "up-to-date"
 						? "You're up to date. Cline also checks on its own shortly after launch and every two hours."
-						: checked === "unavailable"
+						: checkResult === "unavailable"
 							? "Update checks are only available in the desktop app."
 							: "Cline checks for updates shortly after launch and every two hours, and installs them when it restarts.";
 
@@ -102,7 +102,7 @@ function UpdateRow() {
 						setChecking(true);
 						void checkForUpdateNow().then((result) => {
 							setChecking(false);
-							setChecked(result ? "up-to-date" : "unavailable");
+							setCheckResult(result ? "up-to-date" : "unavailable");
 						});
 					}}
 					size="sm"
