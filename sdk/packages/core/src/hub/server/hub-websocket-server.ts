@@ -188,13 +188,6 @@ function formatHubStartupError(
 		(error as Error & { code?: string }).code = code;
 		(wrapped as Error & { code?: string }).code = code;
 	}
-	// Keep the raw bind failure details for startup diagnostics.
-	for (const key of ["errno", "syscall"] as const) {
-		const value = (error as Record<string, unknown> | null)?.[key];
-		if (value !== undefined) {
-			(wrapped as unknown as Record<string, unknown>)[key] = value;
-		}
-	}
 	if (error instanceof Error && error.stack) {
 		wrapped.stack = `${wrapped.name}: ${wrapped.message}\nCaused by: ${error.stack}`;
 	}

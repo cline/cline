@@ -112,11 +112,10 @@ vi.mock("./telemetry", () => ({
 }));
 
 const mockDescribeAddressInUse = vi.hoisted(() =>
-	vi.fn(async () => ({ port_owner_pids: "4242", occupant_is_hub: false })),
+	vi.fn(async () => ({ port_owners: "4242\tcline", occupant_is_hub: false })),
 );
 
-vi.mock("./bind-diagnostics", async (importOriginal) => ({
-	...(await importOriginal<typeof import("./bind-diagnostics")>()),
+vi.mock("./bind-diagnostics", () => ({
 	describeAddressInUse: mockDescribeAddressInUse,
 }));
 
@@ -561,7 +560,7 @@ describe("hub daemon entry", () => {
 			properties: expect.objectContaining({
 				operation: "hub.daemon.startup",
 				error_code: "EADDRINUSE",
-				port_owner_pids: "4242",
+				port_owners: "4242\tcline",
 				occupant_is_hub: false,
 			}),
 		});

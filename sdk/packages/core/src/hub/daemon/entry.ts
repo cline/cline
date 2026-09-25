@@ -22,7 +22,7 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
-import { describeAddressInUse, isAddressInUseError } from "./bind-diagnostics";
+import { describeAddressInUse } from "./bind-diagnostics";
 import {
 	createHubDaemonShutdownCoordinator,
 	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
@@ -49,6 +49,13 @@ void hubDaemonReady.catch(() => undefined);
 
 const HUB_STARTUP_BIND_RETRY_WINDOW_MS = 5_000;
 const HUB_STARTUP_BIND_RETRY_DELAY_MS = 250;
+
+function isAddressInUseError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error as Error & { code?: string }).code === "EADDRINUSE"
+	);
+}
 
 async function startHubWebSocketServerWithBindRetry(
 	bindDeadline: number,
