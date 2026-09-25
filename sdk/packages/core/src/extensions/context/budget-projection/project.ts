@@ -1,7 +1,8 @@
-import type {
-	ContentBlock,
-	MessageWithMetadata,
-	ToolResultContent,
+import {
+	type ContentBlock,
+	type MessageWithMetadata,
+	sliceHeadAtCodePointBoundary,
+	type ToolResultContent,
 } from "@cline/shared";
 import type {
 	BudgetAction,
@@ -338,12 +339,12 @@ function truncateText(text: string, maxChars: number): string {
 		return text;
 	}
 	if (maxChars <= 16) {
-		return text.slice(0, Math.max(1, maxChars));
+		return sliceHeadAtCodePointBoundary(text, Math.max(1, maxChars));
 	}
 	const estimateMarker = `\n...[truncated ${text.length - maxChars} chars]`;
 	const keep = Math.max(1, maxChars - estimateMarker.length);
 	const marker = `\n...[truncated ${text.length - keep} chars]`;
-	return `${text.slice(0, keep)}${marker}`;
+	return `${sliceHeadAtCodePointBoundary(text, keep)}${marker}`;
 }
 
 function truncateToolResultContent(

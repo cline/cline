@@ -20,6 +20,8 @@ import {
 	normalizeUserInput,
 	type ResolvedMediaBudget,
 	resolveMediaBudget,
+	sliceHeadAtCodePointBoundary,
+	sliceTailAtCodePointBoundary,
 	type TextContent,
 	type ToolResultContent,
 	validateAndReserveImageMedia,
@@ -1551,8 +1553,12 @@ function truncateMiddleByChars(
 	const removed = Math.max(0, text.length - tentativeKeep * 2);
 	const marker = makeMarker(removed);
 	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
-	const start = text.slice(0, keep);
-	const end = keep > 0 ? text.slice(-keep) : "";
+	// `keep` counts UTF-16 units, so an unconditional cut can land between the
+	// halves of a surrogate pair (emoji, most CJK extensions) and leave both
+	// halves unpaired; each half then serializes as U+FFFD, which is why
+	// truncated output used to arrive as `�`.
+	const start = sliceHeadAtCodePointBoundary(text, keep);
+	const end = keep > 0 ? sliceTailAtCodePointBoundary(text, keep) : "";
 	return `${start}${marker}${end}`;
 }
 
