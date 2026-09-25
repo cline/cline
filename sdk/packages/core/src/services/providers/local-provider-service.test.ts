@@ -77,7 +77,7 @@ afterEach(() => {
 describe("live provider model loading", () => {
 	it.each([
 		["baseten", "https://inference.baseten.co/v1/models"],
-		["hicap", "https://api.hicap.ai/v2/openai/models"],
+		["hicap", "https://private.example/v1/models"],
 		["poolside", "https://private.example/v1/models"],
 	])("uses only endpoint discovery for %s", async (providerId, endpoint) => {
 		const fetchMock = vi.fn(async () =>

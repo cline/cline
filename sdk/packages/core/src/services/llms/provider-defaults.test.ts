@@ -668,6 +668,66 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("loads Hicap models from a configured base URL", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(JSON.stringify({ data: [{ id: "hicap-pro" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"hicap",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "hicap",
+				modelId: "hicap-pro",
+				apiKey: "hicap-key",
+				baseUrl: "https://hicap.internal.example/v2/openai/",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://hicap.internal.example/v2/openai/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({ "api-key": "hicap-key" }),
+			}),
+		);
+		expect(resolved?.knownModels?.["hicap-pro"]).toEqual(
+			expect.objectContaining({ name: "hicap-pro" }),
+		);
+	});
+
+	it("defaults the Hicap models endpoint to the documented base URL when no base URL is set", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(JSON.stringify({ data: [{ id: "hicap-pro" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await resolveProviderConfig(
+			"hicap",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "hicap",
+				modelId: "hicap-pro",
+				apiKey: "hicap-key",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.hicap.ai/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({ "api-key": "hicap-key" }),
+			}),
+		);
+	});
+
 	it("falls back to /model/info for LiteLLM private models", async () => {
 		const fetchMock = vi
 			.fn()
