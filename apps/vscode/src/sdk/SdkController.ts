@@ -544,7 +544,6 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
-			waitForModeRebuild: () => this.mode.waitForPendingRebuild(),
 			rebuilds: this.sessionRebuilds,
 		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
@@ -610,7 +609,7 @@ export class Controller {
 			},
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			postStateToWebview: () => this.postStateToWebview(),
-			handlePendingRebuilds: (disposition) => this.sessionConfigChanges.handlePendingRebuilds(disposition),
+			rebuilds: this.sessionRebuilds,
 			clearTaskSettings: () => this.stateManager.clearTaskSettings(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({

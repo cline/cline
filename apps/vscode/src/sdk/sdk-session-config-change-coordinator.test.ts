@@ -37,17 +37,7 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		coordinator.handleCheckpointsSettingChanged(true, false)
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.rebuilds.request).toHaveBeenCalledWith("checkpoints", expect.any(Function))
-	})
-
-	it("waits for mode and session rebuilds before declaring the boundary ready", async () => {
-		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
-
-		await expect(coordinator.handlePendingRebuilds({ type: "wait" })).resolves.toBe("ready")
-
-		expect(options.waitForModeRebuild).toHaveBeenCalledOnce()
-		expect(options.rebuilds.waitUntilSettled).toHaveBeenCalledWith()
-		expect(options.waitForModeRebuild).toHaveBeenCalledBefore(options.rebuilds.waitUntilSettled)
+		expect(options.rebuilds.request).toHaveBeenCalledWith("checkpoints", expect.any(Function), expect.any(Function))
 	})
 
 	it("does not replace a newer session that reused the same session ID", async () => {
@@ -92,7 +82,7 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.rebuilds.request).toHaveBeenCalledTimes(2)
-		expect(options.rebuilds.request).toHaveBeenLastCalledWith("checkpoints", expect.any(Function))
+		expect(options.rebuilds.request).toHaveBeenLastCalledWith("checkpoints", expect.any(Function), expect.any(Function))
 	})
 
 	it.each([
@@ -118,7 +108,11 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		})
 
 		change(coordinator)
-		expect(options.rebuilds.request).toHaveBeenCalledWith(reason, expect.any(Function))
+		expect(options.rebuilds.request).toHaveBeenCalledWith(
+			reason,
+			expect.any(Function),
+			reason === "checkpoints" ? expect.any(Function) : undefined,
+		)
 		await runScheduledRebuild()
 
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "plan" })
@@ -244,7 +238,7 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		)
 	})
 
-	it("discards held follow-ups when the task cancels its checkpoint transition", async () => {
+	it("discards held follow-ups when the scheduler cancels their checkpoint transition", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
 
@@ -252,9 +246,8 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		await expect(
 			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "cancelled" }),
 		).resolves.toBe("deferred")
-		await coordinator.handlePendingRebuilds({ type: "cancel" })
-		expect(options.rebuilds.cancel).toHaveBeenCalledWith("checkpoints")
-		expect(options.rebuilds.waitUntilSettled).toHaveBeenCalledWith("checkpoints")
+		const onCancel = options.rebuilds.request.mock.calls[0][2]
+		onCancel?.()
 
 		await expect(
 			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "too late" }),
@@ -315,7 +308,8 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		coordinator.handleCheckpointsSettingChanged(true, false)
 		const olderRestart = runScheduledRebuild(() => olderRebuildIsCurrent)
 		await waitFor(() => resolveReplacement !== undefined)
-		await coordinator.handlePendingRebuilds({ type: "cancel" })
+		const cancelOlderTransition = options.rebuilds.request.mock.calls[0][2]
+		cancelOlderTransition?.()
 		coordinator.handleCheckpointsSettingChanged(false, true)
 		await expect(
 			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "newer follow-up" }),
@@ -368,13 +362,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
-		waitForModeRebuild: vi.fn().mockResolvedValue(undefined),
 		rebuilds: {
 			request: vi.fn((_reason: string, rebuild: (context: SessionRebuildContext) => Promise<void>) =>
 				scheduled.push(rebuild),
 			),
-			cancel: vi.fn(),
-			waitUntilSettled: vi.fn().mockResolvedValue(undefined),
 		},
 	} as unknown as TestOptions
 
@@ -417,11 +408,8 @@ type TestOptions = SdkSessionConfigChangeCoordinatorOptions & {
 	loadInitialMessages: ReturnType<typeof vi.fn>
 	buildStartSessionInput: ReturnType<typeof vi.fn>
 	postStateToWebview: ReturnType<typeof vi.fn>
-	waitForModeRebuild: ReturnType<typeof vi.fn>
 	rebuilds: {
 		request: ReturnType<typeof vi.fn>
-		cancel: ReturnType<typeof vi.fn>
-		waitUntilSettled: ReturnType<typeof vi.fn>
 	}
 }
 

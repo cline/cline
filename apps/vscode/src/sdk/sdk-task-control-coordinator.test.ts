@@ -79,7 +79,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.clearTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
-		expect(options.handlePendingRebuilds).toHaveBeenCalledWith({ type: "cancel" })
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
@@ -88,13 +88,15 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 	})
 
-	it("waits for a cancelled checkpoint rebuild before ending the active session", async () => {
+	it("waits for the task-transition boundary before ending the active session", async () => {
 		let releaseRebuild: () => void = () => {}
 		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
-		options.handlePendingRebuilds.mockImplementationOnce(
-			() =>
-				new Promise<"ready">((resolve) => {
-					releaseRebuild = () => resolve("ready")
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
 				}),
 		)
 
@@ -112,10 +114,12 @@ describe("SdkTaskControlCoordinator", () => {
 	it("does not end the session when a task selection supersedes clearTask during the rebuild wait", async () => {
 		let releaseRebuild: () => void = () => {}
 		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
-		options.handlePendingRebuilds.mockImplementationOnce(
-			() =>
-				new Promise<"ready">((resolve) => {
-					releaseRebuild = () => resolve("ready")
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
 				}),
 		)
 
@@ -154,7 +158,7 @@ describe("SdkTaskControlCoordinator", () => {
 
 		await coordinator.showTaskWithId("task-1")
 
-		expect(options.handlePendingRebuilds).toHaveBeenCalledWith({ type: "cancel" })
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
 		// The overlay must be gone before the new proxy is installed.
 		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(options.setTask.mock.invocationCallOrder[0])
@@ -535,7 +539,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		clearTaskSettings: vi.fn().mockResolvedValue(undefined),
-		handlePendingRebuilds: vi.fn().mockResolvedValue("ready"),
+		rebuilds: {
+			runTaskTransition: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+		},
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -560,7 +566,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		clearTaskSettings: ReturnType<typeof vi.fn>
-		handlePendingRebuilds: ReturnType<typeof vi.fn>
+		rebuilds: { runTaskTransition: ReturnType<typeof vi.fn> }
 	}
 
 	return {

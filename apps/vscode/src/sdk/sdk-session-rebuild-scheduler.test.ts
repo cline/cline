@@ -127,6 +127,55 @@ describe("SdkSessionRebuildScheduler", () => {
 		await scheduler.waitUntilSettled()
 		expect(passiveRebuild).toHaveBeenCalledOnce()
 	})
+
+	it("cancels dormant rebuilds before a task transition", async () => {
+		const activeSession = { isRunning: true }
+		const scheduler = makeScheduler(activeSession)
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+		const onCancel = vi.fn()
+		scheduler.request("provider", rebuild, onCancel)
+		const settled = scheduler.waitUntilSettled()
+
+		await scheduler.runTaskTransition(async () => {
+			activeSession.isRunning = false
+		})
+		await settled
+
+		expect(onCancel).toHaveBeenCalledOnce()
+		expect(rebuild).not.toHaveBeenCalled()
+		expect(scheduler.hasPendingRebuild()).toBe(false)
+	})
+
+	it("runs rebuilds requested during a task transition after it completes", async () => {
+		const scheduler = makeScheduler({ isRunning: false })
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+		let resolveTransition: () => void = () => {}
+		const transition = scheduler.runTaskTransition(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveTransition = resolve
+				}),
+		)
+
+		scheduler.request("mcpTools", rebuild)
+		await Promise.resolve()
+		expect(rebuild).not.toHaveBeenCalled()
+
+		resolveTransition()
+		await transition
+		await scheduler.waitUntilSettled()
+		expect(rebuild).toHaveBeenCalledOnce()
+	})
+
+	it("cleans up a coalesced request before storing its replacement", () => {
+		const scheduler = makeScheduler({ isRunning: true })
+		const firstCancel = vi.fn()
+
+		scheduler.request("checkpoints", vi.fn().mockResolvedValue(undefined), firstCancel)
+		scheduler.request("checkpoints", vi.fn().mockResolvedValue(undefined))
+
+		expect(firstCancel).toHaveBeenCalledOnce()
+	})
 })
 
 function makeScheduler(activeSession: { isRunning: boolean }) {

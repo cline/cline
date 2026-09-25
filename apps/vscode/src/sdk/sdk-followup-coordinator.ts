@@ -7,7 +7,7 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
-import type { PendingRebuildDisposition, PendingRebuildResult } from "./sdk-session-config-change-coordinator"
+import type { DeferredRebuildFollowUp, PendingRebuildResult } from "./sdk-session-config-change-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { prepareTaskResumeStartInput } from "./sdk-task-resume"
@@ -44,7 +44,7 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	handlePendingRebuilds: (disposition: PendingRebuildDisposition) => Promise<PendingRebuildResult>
+	handlePendingRebuilds: (disposition: DeferredRebuildFollowUp) => Promise<PendingRebuildResult>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -87,13 +87,10 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		// Rebuilds replace idle sessions. Wait before acquiring the shared
-		// prepare/start boundary so this follow-up cannot target a replaced host.
-		await this.options.handlePendingRebuilds({ type: "wait" })
-
 		await this.options.runExclusive(async () => {
-			// Task navigation does not use the rebuild scheduler. Do not deliver a
-			// prompt submitted from one task into a task selected while we waited.
+			// Task navigation and follow-up selection share this rebuild boundary.
+			// Still recheck logical identity because navigation may have completed
+			// before this operation acquired the boundary.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
 			// and the user's follow-up should survive that.
 			if (task && this.options.getTask()?.taskId !== task.taskId) {
@@ -161,9 +158,13 @@ export class SdkFollowupCoordinator {
 		if (rebuildResult === "deferred") {
 			return
 		}
+		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
+			await this.abandonFollowUp(`Task changed before queuing a follow-up for ${displayedTaskId}; cancelling follow-up`)
+			return
+		}
 
 		const currentSession = this.options.sessions.getActiveSession()
-		if (!currentSession) {
+		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
 			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
 			return
 		}

@@ -3,8 +3,8 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import type { PendingRebuildDisposition, PendingRebuildResult } from "./sdk-session-config-change-coordinator"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import type { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 
@@ -18,7 +18,7 @@ export interface SdkTaskControlCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	handlePendingRebuilds: (disposition: PendingRebuildDisposition) => Promise<PendingRebuildResult>
+	rebuilds: Pick<SdkSessionRebuildScheduler, "runTaskTransition">
 	/**
 	 * Drops the StateManager's task-scoped settings overlay (persisting pending
 	 * writes first). Task settings — e.g. autoApprovalSettings written by
@@ -114,25 +114,25 @@ export class SdkTaskControlCoordinator {
 		// after the user cleared the view (e.g. clicked New Task).
 		const generation = ++this.taskViewGeneration
 		this.options.interactions.clearPending("Task cleared")
-		await this.options.handlePendingRebuilds({ type: "cancel" })
-		if (generation !== this.taskViewGeneration) {
-			return
-		}
+		await this.options.rebuilds.runTaskTransition(async () => {
+			if (generation !== this.taskViewGeneration) {
+				return
+			}
 
-		await this.options.sessions.endActiveSession("clearTask")
+			await this.options.sessions.endActiveSession("clearTask")
 
-		const task = this.options.getTask()
-		if (task) {
-			// SDK session persistence owns conversation history. Do not write classic
-			// ui_messages.json here; history viewing reloads from SDK readMessages().
-			this.options.messages.cancelPendingSave()
-			task.messageStateHandler.clear()
-			this.options.setTask(undefined)
-		}
+			const task = this.options.getTask()
+			if (task) {
+				// SDK session persistence owns conversation history. Do not write classic
+				// ui_messages.json here; history viewing reloads from SDK readMessages().
+				this.options.messages.cancelPendingSave()
+				task.messageStateHandler.clear()
+				this.options.setTask(undefined)
+			}
 
-		await this.options.clearTaskSettings()
-
-		this.options.resetMessageTranslator()
+			await this.options.clearTaskSettings()
+			this.options.resetMessageTranslator()
+		})
 	}
 
 	/**
@@ -176,97 +176,99 @@ export class SdkTaskControlCoordinator {
 			return historyItem
 		}
 
-		try {
-			// Reject any outstanding approval before tearing down the old session. Approval
-			// resolvers live on the shared interaction coordinator, so ending the session
-			// alone does not discard them; if one leaks across this task switch, the first
-			// message sent in the newly selected task is consumed as the old task's response.
-			this.options.interactions.clearPending("Task switched")
-			await this.options.handlePendingRebuilds({ type: "cancel" })
-			if (isSuperseded()) {
-				return historyItem
+		await this.options.rebuilds.runTaskTransition(async () => {
+			try {
+				// Reject any outstanding approval before tearing down the old session. Approval
+				// resolvers live on the shared interaction coordinator, so ending the session
+				// alone does not discard them; if one leaks across this task switch, the first
+				// message sent in the newly selected task is consumed as the old task's response.
+				this.options.interactions.clearPending("Task switched")
+				if (isSuperseded()) {
+					return
+				}
+
+				// When reopening the task that is currently active, wait for its stop to
+				// land so the persisted session status read below reflects how the last
+				// turn actually ended (completed vs cancelled) instead of a transient
+				// non-terminal status.
+				const activeSession = this.options.sessions.getActiveSession()
+				await this.options.sessions.endActiveSession("showTaskWithId", {
+					awaitStop: activeSession?.sessionId === taskId,
+				})
+
+				// FENCE: everything below mutates the shared task view (clearing the
+				// current task, installing the new proxy, setting the turn phase). If a
+				// newer showTaskWithId/clearTask started while this call awaited I/O,
+				// bail out so the stale request cannot clobber the newer selection.
+				if (isSuperseded()) {
+					return historyItem
+				}
+
+				const currentTask = this.options.getTask()
+				if (currentTask) {
+					currentTask.messageStateHandler.clear()
+				}
+
+				// The outgoing task's settings overlay must not apply to the newly
+				// opened task (see clearTaskSettings option doc).
+				await this.options.clearTaskSettings()
+
+				this.options.resetMessageTranslator()
+
+				// Load messages before installing the new task proxy so any concurrent
+				// postStateToWebview() caller never sees the new id with empty messages.
+				const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
+				const sessionStatus = isLegacyTask ? undefined : await this.options.taskHistory.getSessionStatus(taskId)
+				const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
+				if (isSuperseded()) {
+					return historyItem
+				}
+				const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
+				const cleanedMessages = isLegacyTask
+					? this.appendLegacyTaskWarningAndResumeMessage(messages)
+					: messages.length > 0
+						? this.appendFreshResumeMessage(messages, sessionStatus)
+						: []
+
+				const task = createTaskProxy(
+					taskId,
+					(text?: string, images?: string[], files?: string[]) => this.options.onAskResponse(text, images, files),
+					() => this.cancelTask(),
+				)
+				if (cleanedMessages.length > 0) {
+					task.messageStateHandler.addMessages(cleanedMessages)
+				}
+				this.options.setTask(task)
+
+				// Derive the turn phase from the appended resume ask. The webview
+				// renders footer buttons from the authoritative TurnState, so without
+				// this the phase left over from the previous context (often "idle")
+				// hides the Resume button for interrupted/failed sessions.
+				const lastMessage = cleanedMessages.at(-1)
+				if (lastMessage?.type === "ask" && lastMessage.ask === "resume_completed_task") {
+					this.options.setTurnPhase("completed", lastMessage.ts)
+				} else if (lastMessage?.type === "ask" && lastMessage.ask === "resume_task") {
+					this.options.setTurnPhase("resumable", lastMessage.ts)
+				} else {
+					this.options.setTurnPhase("idle")
+				}
+
+				if (cleanedMessages.length > 0) {
+					Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
+				} else {
+					Logger.log(`[SdkController] No messages found for task: ${taskId}`)
+				}
+
+				// The final state update below includes the loaded clineMessages. Avoid pushing
+				// each historical message through the partial-message stream one-by-one; for
+				// long tasks that serial loop can dominate history-open latency.
+				await this.options.postStateToWebview()
+				Logger.log(`[SdkController] Showing task: ${taskId}`)
+			} catch (error) {
+				Logger.error("[SdkController] Failed to show task:", error)
 			}
-
-			// When reopening the task that is currently active, wait for its stop to
-			// land so the persisted session status read below reflects how the last
-			// turn actually ended (completed vs cancelled) instead of a transient
-			// non-terminal status.
-			const activeSession = this.options.sessions.getActiveSession()
-			await this.options.sessions.endActiveSession("showTaskWithId", {
-				awaitStop: activeSession?.sessionId === taskId,
-			})
-
-			// FENCE: everything below mutates the shared task view (clearing the
-			// current task, installing the new proxy, setting the turn phase). If a
-			// newer showTaskWithId/clearTask started while this call awaited I/O,
-			// bail out so the stale request cannot clobber the newer selection.
-			if (isSuperseded()) {
-				return historyItem
-			}
-
-			const currentTask = this.options.getTask()
-			if (currentTask) {
-				currentTask.messageStateHandler.clear()
-			}
-
-			// The outgoing task's settings overlay must not apply to the newly
-			// opened task (see clearTaskSettings option doc).
-			await this.options.clearTaskSettings()
-
-			this.options.resetMessageTranslator()
-
-			// Load messages before installing the new task proxy so any concurrent
-			// postStateToWebview() caller never sees the new id with empty messages.
-			const isLegacyTask = await this.options.taskHistory.isLegacyTask(taskId)
-			const sessionStatus = isLegacyTask ? undefined : await this.options.taskHistory.getSessionStatus(taskId)
-			const rawMessages = await this.options.taskHistory.getClineMessages(taskId)
-			if (isSuperseded()) {
-				return historyItem
-			}
-			const messages = this.options.messages.finalizeMessagesForSave(rawMessages)
-			const cleanedMessages = isLegacyTask
-				? this.appendLegacyTaskWarningAndResumeMessage(messages)
-				: messages.length > 0
-					? this.appendFreshResumeMessage(messages, sessionStatus)
-					: []
-
-			const task = createTaskProxy(
-				taskId,
-				(text?: string, images?: string[], files?: string[]) => this.options.onAskResponse(text, images, files),
-				() => this.cancelTask(),
-			)
-			if (cleanedMessages.length > 0) {
-				task.messageStateHandler.addMessages(cleanedMessages)
-			}
-			this.options.setTask(task)
-
-			// Derive the turn phase from the appended resume ask. The webview
-			// renders footer buttons from the authoritative TurnState, so without
-			// this the phase left over from the previous context (often "idle")
-			// hides the Resume button for interrupted/failed sessions.
-			const lastMessage = cleanedMessages.at(-1)
-			if (lastMessage?.type === "ask" && lastMessage.ask === "resume_completed_task") {
-				this.options.setTurnPhase("completed", lastMessage.ts)
-			} else if (lastMessage?.type === "ask" && lastMessage.ask === "resume_task") {
-				this.options.setTurnPhase("resumable", lastMessage.ts)
-			} else {
-				this.options.setTurnPhase("idle")
-			}
-
-			if (cleanedMessages.length > 0) {
-				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId}`)
-			} else {
-				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
-			}
-
-			// The final state update below includes the loaded clineMessages. Avoid pushing
-			// each historical message through the partial-message stream one-by-one; for
-			// long tasks that serial loop can dominate history-open latency.
-			await this.options.postStateToWebview()
-			Logger.log(`[SdkController] Showing task: ${taskId}`)
-		} catch (error) {
-			Logger.error("[SdkController] Failed to show task:", error)
-		}
+			return undefined
+		})
 		return historyItem
 	}
 

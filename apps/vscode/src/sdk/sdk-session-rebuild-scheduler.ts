@@ -11,24 +11,38 @@ export interface SessionRebuildContext {
 	isCurrent: () => boolean
 }
 
+interface ScheduledRebuild {
+	run: (context: SessionRebuildContext) => Promise<void>
+	onCancel?: () => void
+}
+
 /** Serializes passive session rebuilds and drains them only while the session is idle. */
 export class SdkSessionRebuildScheduler {
-	private readonly pending = new Map<SessionRebuildReason, (context: SessionRebuildContext) => Promise<void>>()
+	private readonly pending = new Map<SessionRebuildReason, ScheduledRebuild>()
 	private drainInFlight: Promise<void> | undefined
 	private activeReason: SessionRebuildReason | undefined
+	private activeRebuild: ScheduledRebuild | undefined
 	private settledWaiters: Array<{ reason?: SessionRebuildReason; resolve: () => void }> = []
 	private readonly cancellationGeneration = new Map<SessionRebuildReason, number>()
 
 	constructor(private readonly options: SdkSessionRebuildSchedulerOptions) {}
 
-	request(reason: SessionRebuildReason, rebuild: (context: SessionRebuildContext) => Promise<void>): void {
-		this.pending.set(reason, rebuild)
+	request(reason: SessionRebuildReason, run: (context: SessionRebuildContext) => Promise<void>, onCancel?: () => void): void {
+		const previous = this.pending.get(reason)
+		if (previous?.onCancel !== onCancel) {
+			previous?.onCancel?.()
+		}
+		this.pending.set(reason, { run, onCancel })
 		this.drainIfIdle()
 	}
 
 	cancel(reason: SessionRebuildReason): void {
 		this.cancellationGeneration.set(reason, (this.cancellationGeneration.get(reason) ?? 0) + 1)
+		this.pending.get(reason)?.onCancel?.()
 		this.pending.delete(reason)
+		if (this.activeReason === reason) {
+			this.activeRebuild?.onCancel?.()
+		}
 		this.resolveSettledWaitersIfSettled()
 	}
 
@@ -57,6 +71,19 @@ export class SdkSessionRebuildScheduler {
 			this.drainIfIdle()
 			this.resolveSettledWaitersIfSettled()
 		}
+	}
+
+	/**
+	 * Moves the displayed task at the session-rebuild consistency boundary.
+	 * Queued rebuilds belong to the outgoing session, so the transition drops
+	 * them before ending that session. Rebuilds requested during the transition
+	 * remain queued until the new task view is complete.
+	 */
+	async runTaskTransition<T>(operation: () => Promise<T>): Promise<T> {
+		return this.runExclusive(async () => {
+			this.cancelPending()
+			return operation()
+		})
 	}
 
 	sessionBecameIdle(): void {
@@ -95,13 +122,15 @@ export class SdkSessionRebuildScheduler {
 				this.pending.delete(reason)
 				const generation = this.cancellationGeneration.get(reason) ?? 0
 				this.activeReason = reason
+				this.activeRebuild = rebuild
 
 				try {
-					await rebuild({ isCurrent: () => generation === (this.cancellationGeneration.get(reason) ?? 0) })
+					await rebuild.run({ isCurrent: () => generation === (this.cancellationGeneration.get(reason) ?? 0) })
 				} catch (error) {
 					Logger.error(`[SdkController] Failed scheduled ${reason} session rebuild:`, error)
 				} finally {
 					this.activeReason = undefined
+					this.activeRebuild = undefined
 					this.resolveSettledWaitersIfSettled()
 				}
 			}
@@ -112,6 +141,12 @@ export class SdkSessionRebuildScheduler {
 			this.drainIfIdle()
 			this.resolveSettledWaitersIfSettled()
 		})
+	}
+
+	private cancelPending(): void {
+		for (const reason of [...this.pending.keys()]) {
+			this.cancel(reason)
+		}
 	}
 
 	private resolveSettledWaitersIfSettled(): void {

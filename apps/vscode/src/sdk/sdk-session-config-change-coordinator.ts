@@ -25,20 +25,16 @@ export interface SdkSessionConfigChangeCoordinatorOptions {
 	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
-	waitForModeRebuild: () => Promise<void>
-	rebuilds: Pick<SdkSessionRebuildScheduler, "cancel" | "request" | "waitUntilSettled">
+	rebuilds: Pick<SdkSessionRebuildScheduler, "request">
 }
 
-export type PendingRebuildDisposition =
-	| { type: "wait" }
-	| {
-			type: "defer"
-			session: ActiveSession
-			prompt: string
-			userImages?: string[]
-			userFiles?: string[]
-	  }
-	| { type: "cancel" }
+export interface DeferredRebuildFollowUp {
+	type: "defer"
+	session: ActiveSession
+	prompt: string
+	userImages?: string[]
+	userFiles?: string[]
+}
 
 export type PendingRebuildResult = "ready" | "deferred"
 
@@ -58,6 +54,7 @@ interface DeferredCheckpointFollowUp {
 
 interface CheckpointTransition {
 	followUps: DeferredCheckpointFollowUp[]
+	onCancel: () => void
 }
 
 export class SdkSessionConfigChangeCoordinator {
@@ -83,7 +80,11 @@ export class SdkSessionConfigChangeCoordinator {
 		}
 		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession && !this.checkpointTransition) {
-			this.checkpointTransition = { followUps: [] }
+			const transition: CheckpointTransition = {
+				followUps: [],
+				onCancel: () => this.cancelCheckpointTransition(transition),
+			}
+			this.checkpointTransition = transition
 		}
 		this.requestRebuild(
 			{
@@ -96,32 +97,19 @@ export class SdkSessionConfigChangeCoordinator {
 		)
 	}
 
-	/** Applies the caller's disposition at the complete session-rebuild boundary. */
-	async handlePendingRebuilds(disposition: PendingRebuildDisposition): Promise<PendingRebuildResult> {
-		switch (disposition.type) {
-			case "wait":
-				await this.options.waitForModeRebuild()
-				await this.options.rebuilds.waitUntilSettled()
-				return "ready"
-			case "defer": {
-				const transition = this.checkpointTransition
-				if (!transition || this.options.sessions.getActiveSession() !== disposition.session) {
-					return "ready"
-				}
-				transition.followUps.push({
-					prompt: disposition.prompt,
-					userImages: disposition.userImages,
-					userFiles: disposition.userFiles,
-					delivery: "queue",
-				})
-				return "deferred"
-			}
-			case "cancel":
-				this.checkpointTransition = undefined
-				this.options.rebuilds.cancel("checkpoints")
-				await this.options.rebuilds.waitUntilSettled("checkpoints")
-				return "ready"
+	/** Transfers a running turn's follow-up to its pending checkpoint replacement. */
+	async handlePendingRebuilds(disposition: DeferredRebuildFollowUp): Promise<PendingRebuildResult> {
+		const transition = this.checkpointTransition
+		if (!transition || this.options.sessions.getActiveSession() !== disposition.session) {
+			return "ready"
 		}
+		transition.followUps.push({
+			prompt: disposition.prompt,
+			userImages: disposition.userImages,
+			userFiles: disposition.userFiles,
+			delivery: "queue",
+		})
+		return "deferred"
 	}
 
 	private requestRebuild(details: RebuildDetails, checkpointTransition?: CheckpointTransition): void {
@@ -133,7 +121,11 @@ export class SdkSessionConfigChangeCoordinator {
 			return
 		}
 
-		this.options.rebuilds.request(details.reason, (context) => this.restartSession(details, context, checkpointTransition))
+		this.options.rebuilds.request(
+			details.reason,
+			(context) => this.restartSession(details, context, checkpointTransition),
+			checkpointTransition?.onCancel,
+		)
 	}
 
 	private async restartSession(
@@ -179,8 +171,10 @@ export class SdkSessionConfigChangeCoordinator {
 				Logger.log(
 					`[SdkController] Active session changed or started running during configuration restart (was ${oldSessionId}); deferring`,
 				)
-				this.options.rebuilds.request(details.reason, (nextContext) =>
-					this.restartSession(details, nextContext, checkpointTransition),
+				this.options.rebuilds.request(
+					details.reason,
+					(nextContext) => this.restartSession(details, nextContext, checkpointTransition),
+					checkpointTransition?.onCancel,
 				)
 				return
 			}
@@ -279,6 +273,12 @@ export class SdkSessionConfigChangeCoordinator {
 				this.releaseDeferredFollowUpsToCurrentSession(activeSession, checkpointTransition)
 			}
 			await this.options.postStateToWebview()
+		}
+	}
+
+	private cancelCheckpointTransition(checkpointTransition: CheckpointTransition): void {
+		if (this.checkpointTransition === checkpointTransition) {
+			this.checkpointTransition = undefined
 		}
 	}
 
