@@ -8,6 +8,7 @@
 import {
 	generateLegalV1Trace,
 	AgentEventFramer,
+	SessionFramer,
 	validateFrameStream,
 	type StreamFrame,
 } from "@cline/shared";
@@ -15,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import {
 	DIAG_ORPHAN_BLOCK_FRAME,
 	DIAG_STALE_EPOCH,
+	DIAG_SUBAGENT_WITHOUT_TURN,
 	DIAG_TURN_CLOSE_WITHOUT_OPEN,
 	StreamAssembler,
 	type ReasoningSink,
@@ -131,7 +133,7 @@ describe("assembler — property loop over legal traces", () => {
 			);
 			expect(consumer.idleCount, `seed ${seed}`).toBe(turnCloses.length);
 			expect(assembler.openScopes().blocks).toEqual([]);
-			expect(assembler.openScopes().turnId).toBeUndefined();
+			expect(assembler.openScopes().turnPaths).toEqual([]);
 		}
 	});
 
@@ -222,5 +224,178 @@ describe("assembler — repairs and diagnostics", () => {
 			outcome: { kind: "completed" },
 		});
 		expect(consumer.diagnostics).toContain(DIAG_TURN_CLOSE_WITHOUT_OPEN);
+	});
+});
+
+describe("assembler — sub-agent routing (Phase 3a)", () => {
+	/** Consumer with per-path event logs and a prunable sub-agent. */
+	class SubAgentConsumer implements SessionConsumer {
+		events: string[] = [];
+		idleCount = 0;
+		diagnostics: string[] = [];
+		pruneChildren = false;
+		subAgentConsumed = false;
+
+		onTurn(): TurnConsumer {
+			this.events.push("turn:open");
+			return this.makeConsumer("root");
+		}
+
+		private makeConsumer(path: string): TurnConsumer {
+			const self = this;
+			return {
+				onText: (): TextSink => {
+					self.events.push(`${path}:text:open`);
+					return {
+						onDelta: (text: string): void => {
+							self.events.push(`${path}:text:delta`);
+							void text;
+						},
+						onAnnotation: (): void => {},
+						onClose: (): void => {
+							self.events.push(`${path}:text:close`);
+						},
+					};
+				},
+				onReasoning: (): ReasoningSink => {
+					return {
+						onDelta: (): void => {},
+						onAnnotation: (): void => {},
+						onClose: (): void => {},
+					};
+				},
+				onTool: (): ToolSink => {
+					self.events.push(`${path}:tool:open`);
+					return {
+						onProgress: (): void => {},
+						onAnnotation: (): void => {},
+						onClose: (outcome: { kind: string }): void => {
+							self.events.push(`${path}:tool:close:${outcome.kind}`);
+						},
+					};
+				},
+				onMedia: (): void => {},
+				onSubAgent: (): TurnConsumer | null => {
+					if (self.pruneChildren) {
+						return null;
+					}
+					self.subAgentConsumed = true;
+					return self.makeConsumer("child");
+				},
+				onNotice: (): void => {},
+				onUsage: (): void => {},
+				onClose: (outcome: { kind: string }): void => {
+					self.events.push(`${path}:turn:close:${outcome.kind}`);
+				},
+			};
+		}
+
+		onSessionNotice(): void {}
+		onIdle(): void {
+			this.idleCount += 1;
+		}
+		onDiagnostic(diagnostic: { code: string }): void {
+			this.diagnostics.push(diagnostic.code);
+		}
+	}
+
+	const push = (
+		assembler: StreamAssembler,
+		frames: readonly StreamFrame[],
+	): void => {
+		assembler.pushAll(frames);
+	};
+
+	it("routes child frames to onSubAgent's consumer; pruning drops them silently", () => {
+		// Routed: the child stream renders via its own consumer.
+		const consumer = new SubAgentConsumer();
+		const assembler = new StreamAssembler(consumer);
+		const framer = new SessionFramer();
+		push(assembler, framer.frameEvent({ type: "iteration_start", iteration: 1 }));
+		push(
+			assembler,
+			framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "content_start",
+				contentType: "text",
+				text: "child text",
+			}),
+		);
+		expect(consumer.subAgentConsumed).toBe(true);
+		expect(consumer.events).toContain("child:text:delta");
+		expect(consumer.diagnostics).toEqual([]);
+
+		// Pruned: same input, consumer says null — nothing reaches it and
+		// nothing is diagnosed (P5: pruning is deliberate, not a fault).
+		const pruner = new SubAgentConsumer();
+		pruner.pruneChildren = true;
+		const prunerAssembler = new StreamAssembler(pruner);
+		const framer2 = new SessionFramer();
+		push(
+			prunerAssembler,
+			framer2.frameEvent({ type: "iteration_start", iteration: 1 }),
+		);
+		push(
+			prunerAssembler,
+			framer2.frameRoutedEvent(["root", "agent-a"], {
+				type: "content_start",
+				contentType: "text",
+				text: "child text",
+			}),
+		);
+		expect(pruner.subAgentConsumed).toBe(false);
+		expect(pruner.diagnostics).toEqual([]);
+		expect(pruner.events).not.toContain("child:text:delta");
+	});
+
+	it("closing the parent turn force-closes the child stream first (rule 3)", () => {
+		const consumer = new SubAgentConsumer();
+		const assembler = new StreamAssembler(consumer);
+		const framer = new SessionFramer();
+		const frames = [
+			...framer.frameEvent({ type: "iteration_start", iteration: 1 }),
+			...framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "iteration_start",
+				iteration: 1,
+			}),
+			...framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "content_start",
+				contentType: "text",
+				text: "working",
+			}),
+		];
+		assembler.pushAll(frames);
+		// Parent completes while the child is mid-flight.
+		assembler.pushAll(
+			framer.frameEvent({
+				type: "done",
+				reason: "completed",
+				text: "ok",
+				iterations: 1,
+			}),
+		);
+		expect(consumer.diagnostics).toEqual([]);
+		const childClose = consumer.events.indexOf("child:turn:close:interrupted");
+		const parentClose = consumer.events.indexOf("root:turn:close:completed");
+		expect(childClose).toBeGreaterThanOrEqual(0);
+		expect(parentClose).toBeGreaterThan(childClose);
+		// The child's open text block closed before its turn.
+		const childTextClose = consumer.events.indexOf("child:text:close");
+		expect(childTextClose).toBeGreaterThan(-1);
+		expect(childTextClose).toBeLessThan(childClose);
+	});
+
+	it("child frames with no parent turn open are diagnosed, not guessed", () => {
+		const consumer = new SubAgentConsumer();
+		const assembler = new StreamAssembler(consumer);
+		const framer = new SessionFramer();
+		assembler.pushAll(
+			framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "content_start",
+				contentType: "text",
+				text: "orphan child",
+			}),
+		);
+		expect(consumer.diagnostics).toContain(DIAG_SUBAGENT_WITHOUT_TURN);
+		expect(consumer.subAgentConsumed).toBe(false);
 	});
 });
