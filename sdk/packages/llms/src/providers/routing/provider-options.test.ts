@@ -158,15 +158,13 @@ type Case = {
 function runCases(cases: ReadonlyArray<Case>) {
 	it.each(cases)("$name", ({ request, context, expect: expectations }) => {
 		const gatewayRequest = makeRequest(request);
-		const result = composeAiSdkProviderOptions(
-			gatewayRequest,
-			makeContext({
-				providerId: request.providerId,
-				modelId: request.modelId,
-				...context,
-			}),
-		);
-		if (resolvePortableReasoning(gatewayRequest)) {
+		const gatewayContext = makeContext({
+			providerId: request.providerId,
+			modelId: request.modelId,
+			...context,
+		});
+		const result = composeAiSdkProviderOptions(gatewayRequest, gatewayContext);
+		if (resolvePortableReasoning(gatewayRequest, gatewayContext)) {
 			for (const bucket of Object.values(result)) {
 				for (const key of [
 					"effort",
@@ -339,6 +337,86 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.bedrock ?? {}).not.toHaveProperty("cache_control");
 		expect(result.anthropic ?? {}).not.toHaveProperty("cache_control");
 		expect(result.openaiCompatible ?? {}).not.toHaveProperty("cache_control");
+	});
+
+	describe("Bedrock reasoning routing (cline/cline#14095)", () => {
+		it("leaves OpenAI catalog models on the portable path with no Cline-authored fields", () => {
+			// The adapter (5.0.65+) writes `reasoning.effort` for prefixed OpenAI
+			// ids itself; Cline must not add a competing wire shape.
+			for (const modelId of [
+				"us.openai.gpt-6-astra",
+				"global.openai.gpt-5.6-luna",
+			]) {
+				const result = composeAiSdkProviderOptions(
+					makeRequest({
+						providerId: "bedrock",
+						modelId,
+						reasoning: { effort: "high" },
+					}),
+					makeContext({
+						providerId: "bedrock",
+						modelId,
+						reasoningOptions: [
+							{
+								type: "effort",
+								values: ["low", "medium", "high", "xhigh", "max"],
+							},
+						],
+						metadata: BEDROCK_ROUTING_METADATA,
+					}),
+				);
+				expect(result.bedrock ?? {}).not.toHaveProperty(
+					"additionalModelRequestFields",
+				);
+				expect(result.bedrock ?? {}).not.toHaveProperty("reasoning");
+			}
+		});
+
+		it("sends no reasoning fields for an unlisted inference-profile ARN", () => {
+			const modelId =
+				"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123";
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { effort: "medium" },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock ?? {}).not.toHaveProperty(
+				"additionalModelRequestFields",
+			);
+			expect(result.bedrock ?? {}).not.toHaveProperty("reasoning");
+			expect(result.bedrock ?? {}).not.toHaveProperty("thinking");
+		});
+
+		it("leaves Anthropic catalog models on the portable path", () => {
+			const modelId = "us.anthropic.claude-sonnet-4-6";
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { effort: "high" },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					reasoningOptions: [
+						{ type: "effort", values: ["low", "medium", "high", "max"] },
+					],
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock ?? {}).not.toHaveProperty(
+				"additionalModelRequestFields",
+			);
+		});
 	});
 
 	it("does not emit a separate alias bucket when the alias equals the provider id", () => {
@@ -2109,15 +2187,13 @@ describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
 			modelId: "accounts/fireworks/models/kimi-k3",
 			reasoning,
 		});
-		const result = composeAiSdkProviderOptions(
-			gatewayRequest,
-			makeContext({
-				providerId: "fireworks",
-				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoningOptions,
-			}),
-		);
-		if (resolvePortableReasoning(gatewayRequest)) {
+		const gatewayContext = makeContext({
+			providerId: "fireworks",
+			modelId: "accounts/fireworks/models/kimi-k3",
+			reasoningOptions,
+		});
+		const result = composeAiSdkProviderOptions(gatewayRequest, gatewayContext);
+		if (resolvePortableReasoning(gatewayRequest, gatewayContext)) {
 			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
 			expect(result.fireworks).not.toHaveProperty("thinking");
 			return;

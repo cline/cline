@@ -191,6 +191,25 @@ describe("normalizeReasoningRequest", () => {
 		).toEqual({ enabled: false });
 	});
 
+	it("sends no reasoning to unlisted Bedrock models", () => {
+		// Bedrock rejects reasoning fields for models without reasoning support,
+		// so an ARN or custom id with no catalog metadata gets none rather than
+		// the conservative-effort fallback (cline/cline#14095).
+		expect(
+			normalizeReasoningRequest(
+				makeRequest(
+					{ effort: "high" },
+					{
+						providerId: "bedrock",
+						modelId:
+							"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
+					},
+				),
+				makeContext(undefined),
+			).reasoning,
+		).toBeUndefined();
+	});
+
 	it("uses conservative effort values for custom models without metadata", () => {
 		expect(
 			normalizeReasoningRequest(
