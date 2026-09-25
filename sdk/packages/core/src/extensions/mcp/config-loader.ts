@@ -19,6 +19,7 @@ import {
 } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import { expandMcpEnvRecord } from "./env-expansion";
 import { resolveNativeMcpTransport } from "./remote-proxy";
 import type {
 	McpManager,
@@ -29,6 +30,9 @@ import type {
 } from "./types";
 
 const stringRecordSchema = z.record(z.string(), z.string());
+// Only stdio `env` expands ${env:VAR}; `headers` shares the base schema and is
+// deliberately left literal.
+const envRecordSchema = stringRecordSchema.transform(expandMcpEnvRecord);
 const metadataSchema = z.record(z.string(), z.unknown());
 
 // Preserve omission and malformed values for the stdio initialize budget.
@@ -65,7 +69,7 @@ const stdioTransportSchema = z.object({
 	command: z.string().min(1),
 	args: z.array(z.string()).optional(),
 	cwd: z.string().min(1).optional(),
-	env: stringRecordSchema.optional(),
+	env: envRecordSchema.optional(),
 });
 
 const sseTransportSchema = z.object({
@@ -135,7 +139,7 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 		command: z.string().min(1),
 		args: z.array(z.string()).optional(),
 		cwd: z.string().min(1).optional(),
-		env: stringRecordSchema.optional(),
+		env: envRecordSchema.optional(),
 	})
 	.superRefine((value, ctx) => {
 		const resolvedType =
