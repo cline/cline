@@ -475,7 +475,7 @@ function ConfigFieldRow({
 	const isSecret = field.type === "password" || field.secret;
 	const providerKeyUrl = getProviderApiKeyUrl(provider);
 	return (
-		<div className="grid min-h-18 grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] items-center gap-6 border-b py-4 max-[900px]:grid-cols-1 max-[900px]:gap-3">
+		<div className="grid min-h-18 grid-cols-1 items-center gap-3 border-b py-4 @xl:grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] @xl:gap-6">
 			<header>
 				<h3 className="text-lg font-semibold text-foreground">{field.label}</h3>
 				{field.description ? (
@@ -950,7 +950,7 @@ export function ProviderDetailContent({
 	return (
 		<div
 			className={cn(
-				"flex h-full min-h-0 min-w-0 flex-col overflow-y-auto py-10 max-[720px]:px-4 max-[720px]:py-5",
+				"@container flex h-full min-h-0 min-w-0 flex-col overflow-y-auto py-10 max-[720px]:px-4 max-[720px]:py-5",
 				isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
 			)}
 		>
