@@ -90,6 +90,8 @@ export const ChatMessageList = forwardRef<
 		<scrollbox
 			ref={scrollboxRef}
 			flexGrow={1}
+			scrollY
+			scrollX={false}
 			stickyScroll
 			stickyStart="bottom"
 		>
