@@ -691,6 +691,8 @@ export const AgentResultSchema = z.object({
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
+	/** Directory for durable full external tool results referenced by history. */
+	toolResultsDirectory?: string;
 	/** Stable end-user identity used for provider and observability metadata. */
 	distinctId?: string;
 	/**

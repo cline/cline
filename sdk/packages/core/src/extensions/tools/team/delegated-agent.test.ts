@@ -11,6 +11,7 @@ describe("buildDelegatedAgentConfig", () => {
 			modelId: "claude-sonnet-4-5",
 			distinctId: "user-123",
 			sessionId: "sess-parent",
+			toolResultsDirectory: "/sessions/sess-parent/tool-results",
 		});
 
 		const config = buildDelegatedAgentConfig({
@@ -23,6 +24,9 @@ describe("buildDelegatedAgentConfig", () => {
 
 		expect(config.distinctId).toBe("user-123");
 		expect(config.sessionId).toBe("sess-parent");
+		expect(config.toolResultsDirectory).toBe(
+			"/sessions/sess-parent/tool-results",
+		);
 		expect(config.parentAgentId).toBe("agent-lead");
 	});
 

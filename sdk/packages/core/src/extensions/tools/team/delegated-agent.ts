@@ -36,6 +36,7 @@ export type DelegatedAgentConnectionConfig = Pick<
 
 export interface DelegatedAgentRuntimeConfig
 	extends DelegatedAgentConnectionConfig {
+	toolResultsDirectory?: string;
 	cwd?: string;
 	providerId: string;
 	clinePlatform?: string;
@@ -130,6 +131,7 @@ export function buildDelegatedAgentConfig(
 		...options.configProvider.getConnectionConfig(),
 		distinctId: runtimeConfig.distinctId,
 		sessionId: runtimeConfig.sessionId,
+		toolResultsDirectory: runtimeConfig.toolResultsDirectory,
 		systemPrompt,
 		tools: options.tools,
 		maxIterations: options.maxIterations ?? runtimeConfig.maxIterations,

@@ -24,6 +24,15 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
+import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
+import {
+	formatToolResultRecoveryNotice,
+	isToolResultRecoveryNotice,
+	serializeToolResultContent,
+	type ToolResultRecordLookup,
+} from "./tool-result-recovery";
+
+const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
@@ -82,6 +91,8 @@ export interface MessageBuilderOptions {
 	maxAssistantTextChars?: number;
 	maxAssistantToolMarkupChars?: number;
 	minOutdatedRewriteBytes?: number;
+	/** Core-owned save records; only matching notices are protected from truncation. */
+	isToolResultRecorded?: ToolResultRecordLookup;
 }
 
 export function getMessageBuilderOptionsFromEnv(
@@ -126,6 +137,7 @@ export class MessageBuilder {
 	private readonly maxAssistantTextChars: number;
 	private readonly maxAssistantToolMarkupChars: number;
 	private readonly minOutdatedRewriteBytes: number;
+	private readonly isToolResultRecorded?: ToolResultRecordLookup;
 	// Sticky rewrite decisions. Kept across resetIndexes because production
 	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
@@ -156,6 +168,15 @@ export class MessageBuilder {
 			options.minOutdatedRewriteBytes,
 			DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
 		);
+		this.isToolResultRecorded = options.isToolResultRecorded;
+	}
+
+	private isRecoveryNotice(entry: unknown, toolUseId: string): boolean {
+		return isToolResultRecoveryNotice(
+			entry,
+			toolUseId,
+			this.isToolResultRecorded,
+		);
 	}
 
 	resetConversationState(): void {
@@ -163,7 +184,7 @@ export class MessageBuilder {
 		this.committedOutdatedRewrites.clear();
 	}
 
-	buildForApi(messages: Message[]): Message[] {
+	async buildForApi(messages: Message[]): Promise<Message[]> {
 		this.reindex(messages);
 		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
@@ -201,7 +222,46 @@ export class MessageBuilder {
 		});
 
 		const mediaLimited = this.applyMediaBudget(prepared);
-		return this.truncateToTotalTextBudget(mediaLimited);
+		const limited = this.truncateToTotalTextBudget(mediaLimited);
+		return limited;
+	}
+
+	/** Normalize a newly executed external result once, before recording history. */
+	async prepareExternalToolResult(
+		result: ToolResultContent,
+		save: (result: ToolResultContent) => Promise<string>,
+		onSaveFailure?: () => void,
+	): Promise<ToolResultContent> {
+		if (DEFAULT_TOOL_NAMES.has(result.name?.toLowerCase() ?? "")) return result;
+		// Bound the whole textual response, including many small structured fields.
+		// Keep native media blocks intact instead of truncating base64 data.
+		const media = Array.isArray(result.content)
+			? result.content.filter(isBinaryContentLike)
+			: [];
+		const textual = Array.isArray(result.content)
+			? result.content.filter((entry) => !isBinaryContentLike(entry))
+			: result.content;
+		const fullText = serializeToolResultContent(textual);
+		if (typeof fullText !== "string") return result;
+		const preview = this.truncateMiddle(fullText);
+		if (preview === fullText) return result;
+		const content: ToolResultContent["content"] = [
+			{ type: "text", text: preview },
+			...media,
+		];
+		try {
+			const path = await save(result);
+			content.push({
+				type: "text",
+				text: formatToolResultRecoveryNotice(path),
+				toolResultFile: path,
+			});
+		} catch {
+			// Saving is best-effort: keep the bounded preview, never restore the
+			// full response or advertise a file that was not written.
+			onSaveFailure?.();
+		}
+		return { ...result, content };
 	}
 
 	private transformBlock(
@@ -260,15 +320,21 @@ export class MessageBuilder {
 						this.isOutdatedReadLocator(locator, block.tool_use_id),
 				);
 				if (outdated.length > 0) {
-					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
+					nextContent = this.replaceOutdatedReadContent(
+						nextContent,
+						outdated,
+						block.tool_use_id,
+					);
 				}
 			}
 		}
 
-		// Truncation is default-on for every tool result: MCP and custom SDK
-		// tools produce payloads just as large as the built-in ones, and any
-		// allowlist gate silently exempts them.
-		nextContent = this.truncateToolResultContent(nextContent);
+		// Imported history and injected messages may bypass tool completion.
+		// Enforce the provider cap without storing or mutating recorded results.
+		nextContent = this.truncateToolResultContent(
+			nextContent,
+			block.tool_use_id,
+		);
 
 		return nextContent === block.content
 			? block
@@ -912,6 +978,7 @@ export class MessageBuilder {
 	private replaceOutdatedReadContent(
 		content: ToolResultContent["content"],
 		outdated: ReadLocator[],
+		toolUseId: string,
 	): ToolResultContent["content"] {
 		const outdatedKeys = new Set(outdated.map((l) => this.toReadLocatorKey(l)));
 		const outdatedPaths = new Set(outdated.map((l) => l.path));
@@ -935,6 +1002,7 @@ export class MessageBuilder {
 		}
 
 		return content.map((entry) => {
+			if (this.isRecoveryNotice(entry, toolUseId)) return entry;
 			if (entry.type === "file") {
 				if (!outdatedPaths.has(entry.path)) {
 					return entry;
@@ -1063,11 +1131,13 @@ export class MessageBuilder {
 
 	private truncateToolResultContent(
 		content: ToolResultContent["content"],
+		toolUseId: string,
 	): ToolResultContent["content"] {
 		if (typeof content === "string") {
 			return this.truncateMiddle(content);
 		}
 		return content.map((entry) => {
+			if (this.isRecoveryNotice(entry, toolUseId)) return entry;
 			if (entry.type === "file") {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
@@ -1178,23 +1248,40 @@ export class MessageBuilder {
 		});
 
 		const candidates = this.collectTruncationCandidates(next);
+		// Reserve non-truncatable text (including recovery notices) before
+		// distributing retention floors among mutable candidates.
+		const fixedBytes =
+			totalBytes -
+			candidates.reduce((sum, candidate) => sum + candidate.byteLength, 0);
+		const availableBytes = Math.max(0, this.maxTotalTextBytes - fixedBytes);
 		for (const candidate of candidates) {
 			if (totalBytes <= this.maxTotalTextBytes) {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
-			if (currentBytes <= candidate.minBytes) {
+			// Scale retention floors to small configured budgets instead of
+			// allowing a single 2KB floor to defeat a 1KB request budget.
+			const minimumBytes = Math.min(
+				candidate.minBytes,
+				Math.floor(availableBytes / candidates.length),
+			);
+			if (currentBytes <= minimumBytes) {
 				continue;
 			}
 			const overflow = totalBytes - this.maxTotalTextBytes;
-			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
+			const targetBytes = Math.max(minimumBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
 				targetBytes,
 				candidate.makeMarker,
 			);
+			const truncatedBytes = utf8ByteLength(truncated);
+			// Never let a marker grow a candidate past its original size.
+			if (truncatedBytes >= currentBytes) {
+				continue;
+			}
 			candidate.set(truncated);
-			totalBytes -= currentBytes - utf8ByteLength(truncated);
+			totalBytes -= currentBytes - truncatedBytes;
 		}
 
 		return next;
@@ -1281,6 +1368,8 @@ export class MessageBuilder {
 				if (block.type !== "tool_result") {
 					continue;
 				}
+				// Per-result normalization happens at ingestion for external tools,
+				// but all results remain eligible for aggregate overflow relief.
 				if (typeof block.content === "string") {
 					resultCandidates.push({
 						byteLength: utf8ByteLength(block.content),
@@ -1294,6 +1383,7 @@ export class MessageBuilder {
 					continue;
 				}
 				for (const entry of block.content) {
+					if (this.isRecoveryNotice(entry, block.tool_use_id)) continue;
 					if (entry.type === "text") {
 						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),
@@ -1556,6 +1646,8 @@ function truncateMiddleByChars(
 	return `${start}${marker}${end}`;
 }
 
+const MINIMAL_TRUNCATION_MARKER = "…";
+
 function truncateMiddleToBytes(
 	text: string,
 	maxBytes: number,
@@ -1568,6 +1660,13 @@ function truncateMiddleToBytes(
 	let low = 0;
 	let high = text.length;
 	let best = truncateMiddleByChars(text, 0, makeMarker);
+	if (utf8ByteLength(best) > maxBytes) {
+		// The marker alone exceeds the target; fall back to a minimal marker so
+		// the result stays within the byte budget.
+		return utf8ByteLength(MINIMAL_TRUNCATION_MARKER) <= maxBytes
+			? MINIMAL_TRUNCATION_MARKER
+			: "";
+	}
 	while (low <= high) {
 		const mid = (low + high) >>> 1;
 		const candidate = truncateMiddleByChars(text, mid, makeMarker);
