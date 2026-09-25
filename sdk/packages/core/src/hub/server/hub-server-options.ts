@@ -74,7 +74,16 @@ export interface HubWebSocketServerOptions {
 	eventLog?: HubEventLogOptions | false;
 	/** Durable run queue configuration (`run.enqueue`). */
 	runQueue?: HubRunQueueOptions | false;
+	/**
+	 * How command payloads are checked against the Hub contract
+	 * (`@cline/shared` hub-contract): `enforce` rejects invalid payloads with
+	 * `invalid_payload`, `warn` logs and dispatches them, `off` skips the check.
+	 * Defaults to `CLINE_HUB_PAYLOAD_VALIDATION`, then `enforce`.
+	 */
+	payloadValidation?: HubPayloadValidationMode;
 }
+
+export type HubPayloadValidationMode = "enforce" | "warn" | "off";
 
 export interface HubWebSocketServer {
 	host: string;

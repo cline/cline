@@ -115,6 +115,7 @@ export {
 	parseHookEventPayload,
 } from "./hooks/events";
 export * from "./hub";
+export * from "./hub-contract";
 export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
