@@ -1,4 +1,4 @@
-import { NodeHubClient } from "..";
+import { NodeHubClient } from "../../../../dist/hub/index.js";
 
 const url = process.env.CLINE_TEST_HUB_URL;
 const authorization = process.env.CLINE_TEST_HUB_AUTHORIZATION;
