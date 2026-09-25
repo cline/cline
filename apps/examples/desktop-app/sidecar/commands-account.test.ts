@@ -229,7 +229,7 @@ describe("provider settings cloud session lifecycle", () => {
 		);
 	});
 
-	it("leaves auth alone for API-key-only providers and empty keys", async () => {
+	it("leaves auth alone for API-key-only providers, empty keys, and keys saved without a sign-in", async () => {
 		const { ctx } = createContext();
 		saveProviderSettingsMock.mockReturnValue({
 			providerId: "anthropic",
@@ -243,6 +243,16 @@ describe("provider settings cloud session lifecycle", () => {
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline",
 			api_key: "",
+		});
+		// Re-committing an unchanged key (e.g. blurring the field) must keep
+		// the account identity that fetchMe stored for a key-only user.
+		getProviderSettingsMock.mockReturnValue({
+			apiKey: "manual-key",
+			auth: { accountId: "acct-1" },
+		});
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "manual-key",
 		});
 		for (const [, request] of saveProviderSettingsMock.mock.calls) {
 			expect(request).not.toHaveProperty("auth");

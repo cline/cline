@@ -3050,10 +3050,8 @@ export async function handleCommand(
 		const providerId = String(args?.provider ?? "").trim();
 		const storageProviderId =
 			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
-		const previous =
-			storageProviderId === "cline"
-				? manager.getProviderSettings(storageProviderId)
-				: undefined;
+		const stored = manager.getProviderSettings(storageProviderId);
+		const previous = storageProviderId === "cline" ? stored : undefined;
 		const update = readProviderSettingsUpdate(args);
 		const apiKey = typeof args?.api_key === "string" ? args.api_key : undefined;
 		// A pasted key must replace a browser sign-in: credential resolution
@@ -3061,11 +3059,13 @@ export async function handleCommand(
 		// silently win over the new key and the panel would keep reporting
 		// "Signed in via browser" (mirrors the CLI's saveManualProviderApiKey).
 		// The account identity goes too; the key may belong to a different
-		// account, and the follow-up fetchMe re-establishes it.
+		// account, and the follow-up fetchMe re-establishes it. Re-saving a
+		// key with no sign-in to replace leaves the stored identity alone.
 		if (
 			apiKey?.trim() &&
 			getProviderAuthHandler(providerId) &&
-			update.auth === undefined
+			update.auth === undefined &&
+			stored?.auth?.accessToken
 		) {
 			update.auth = {
 				accessToken: "",
