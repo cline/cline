@@ -993,7 +993,7 @@ describe("seeded cloud provisioning recovery", () => {
 					},
 				}),
 			),
-		).rejects.toBeInstanceOf(CloudHandoffCreationRejectedError);
+		).rejects.not.toBeInstanceOf(CloudHandoffCreationRejectedError);
 		expect(methods).toEqual(["GET"]);
 	});
 	it.each([
@@ -1231,6 +1231,9 @@ describe("seeded cloud provisioning recovery", () => {
 		await expect(
 			(restart ? createApi(fetch) : api).create(input({ onCreating })),
 		).rejects.toThrow("unconfirmed");
+		await expect(
+			createApi(fetch).create(input({ onCreating })),
+		).rejects.not.toBeInstanceOf(CloudHandoffCreationRejectedError);
 		expect(posts).toBe(1);
 	});
 	it.each([

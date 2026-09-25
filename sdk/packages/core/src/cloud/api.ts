@@ -671,12 +671,17 @@ export class CloudSessionApi {
 				);
 			this.unconfirmedHandoffCreates.add(handoffKey);
 		}
+		try {
+			await input.handoff?.onCreating();
+		} catch (error) {
+			if (handoffKey) this.unconfirmedHandoffCreates.delete(handoffKey);
+			throw error;
+		}
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		let createdSessionId: string | undefined;
 		let postDispatched = false;
 		try {
-			await input.handoff?.onCreating();
 			const created = await this.request<{
 				sessionId: string;
 				sandboxUrl?: string;
