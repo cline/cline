@@ -240,3 +240,41 @@ dialog's tab order. Image source validation and resolution remain host-owned;
 provider-generated URLs must go through an explicit host trust policy before
 rendering. This presentation primitive does not replace `GeneratedMediaContent`
 or its inline-byte validation.
+
+## Shell executor errors
+
+The executor returned by `createShellExecutor` rejects on execution failure.
+The following error classes are exported from `@cline/core` so hosts can
+distinguish process outcomes without parsing messages. They are not an exhaustive
+list of rejections: cancellation, timeout, and stdin-write failures can reject
+with other errors.
+
+- `CommandExitError` — the shell started and exited non-zero. `exitCode` is the
+  numeric process exit code and `output` contains a completion notice and the
+  captured output (subject to the configured truncation limit).
+- `CommandTerminationError` — the process terminated without a numeric exit
+  code. `signal` is the terminating signal, or `null` if none was reported;
+  `output` contains a termination notice and the captured output. This error
+  has no `exitCode` field.
+- `CommandSpawnError` — the shell process could not be started, so there is no
+  exit code. The message keeps the pre-existing `Failed to execute command: …`
+  form. `code` is the operating system error libuv reported (`ENOENT`,
+  `EACCES`, `EFTYPE` for a file that is not a valid executable). Because spawn
+  reports `ENOENT` with the same message when the executable is not found and
+  when the working directory no longer exists, `missing` records which path was
+  absent at failure time: `"executable"` or `"cwd"`. It is `undefined` for every
+  other code. `code` itself is `undefined` if the underlying error has no code.
+
+The public `run_commands` tool catches executor failures and resolves with
+per-command results containing `success: false`, rather than propagating these
+errors as rejected tool calls. For `CommandExitError` and
+`CommandTerminationError`, the failed result retains `output` in its `result`
+field. For `CommandSpawnError`, `result` is empty and `error` includes the spawn
+failure message. Hosts that need the structured error fields must observe the
+executor rejection before this conversion.
+
+Hosts that record command telemetry should label a `CommandSpawnError` by its
+`code` (and `missing`) rather than inventing an exit code. The VS Code and
+standalone adapters do this in the `errorCode` dimension, and use the bounded
+labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
+numeric exit is reported as `exitCode`.

@@ -114,15 +114,11 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""
