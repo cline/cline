@@ -1,6 +1,21 @@
 name: cli-publish
 
 on:
+  workflow_call:
+    inputs:
+      publish_target:
+        type: string
+        required: true
+      git_tag:
+        type: string
+        required: true
+      confirm_publish:
+        type: string
+        required: true
+      release_sha:
+        description: Exact merged commit supplied by publish-new-version
+        type: string
+        required: true
   schedule:
     - cron: "0 12 * * *"
   workflow_dispatch:
@@ -44,17 +59,23 @@ jobs:
     if: |
       github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.publish_target == 'main' &&
-      github.event.inputs.confirm_publish == 'publish' &&
-      !endsWith(github.actor, '[bot]')
+      (
+        (github.event_name == 'workflow_dispatch' && !endsWith(github.actor, '[bot]')) ||
+        (
+          github.event_name == 'push' &&
+          inputs.release_sha != '' &&
+          inputs.release_sha == github.sha
+        )
+      ) &&
+      inputs.publish_target == 'main' &&
+      inputs.confirm_publish == 'publish'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.git_tag }}
+          ref: ${{ inputs.git_tag }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -89,7 +110,8 @@ jobs:
       - name: Validate release tag
         id: version
         env:
-          TAG: ${{ github.event.inputs.git_tag }}
+          TAG: ${{ inputs.git_tag }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
           if [ -z "$TAG" ]; then
             echo "git_tag is required when publish_target=main"
@@ -111,6 +133,11 @@ jobs:
 
           if ! printf "%s\n" "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
             echo "apps/cli/package.json has invalid version: ${VERSION}"
+            exit 1
+          fi
+
+          if [ -n "$RELEASE_SHA" ] && [ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]; then
+            echo "Release tag does not match the coordinated release commit"
             exit 1
           fi
 
@@ -257,7 +284,7 @@ jobs:
           echo "SLACK_EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "CLI v${{ steps.version.outputs.version }}"
@@ -309,7 +336,7 @@ jobs:
         github.event_name == 'schedule' ||
         (
           github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.publish_target == 'nightly'
+          inputs.publish_target == 'nightly'
         )
       )
     runs-on: ubuntu-latest
@@ -323,7 +350,7 @@ jobs:
       - name: Check for recent commits
         id: check_commits
         env:
-          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}
+          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.force_nightly_publish }}
         run: |
           if [ "$FORCE_PUBLISH" = "true" ]; then
             echo "force_nightly_publish enabled, proceeding with publish"
