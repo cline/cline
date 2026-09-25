@@ -1,10 +1,19 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { probeHubServer, withHubStartupLock } from ".";
-import { HubInstanceLock } from "./instance-lock";
+
+// Startup must also work on Node runtimes without a SQLite implementation.
+vi.mock("./instance-lock", () => ({
+	HubInstanceLock: {
+		acquire: () => {
+			throw new Error("SQLite unavailable");
+		},
+	},
+	isHubLockHeldError: () => false,
+}));
 
 it("cancels a lock waiter without removing the active owner's lock", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "hub-cleanup-"));
@@ -35,7 +44,10 @@ it("cancels a lock waiter without removing the active owner's lock", async () =>
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		controller.abort();
 		await rejected;
-		expect(() => HubInstanceLock.acquire(`${path}.mutex.sqlite`)).toThrow();
+		expect(
+			JSON.parse(await readFile(join(`${path}.lock`, "owner.json"), "utf8"))
+				.pid,
+		).toBe(process.pid);
 	} finally {
 		release();
 		await owner;

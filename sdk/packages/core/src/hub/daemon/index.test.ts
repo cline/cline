@@ -197,6 +197,61 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("holds a spawned Hub startup attempt through its deadline after timeouts", async () => {
+		readHubDiscovery
+			.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			})
+			.mockResolvedValueOnce(undefined);
+		const now = Date.now();
+		const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+		const timeout = new Error("Hub probe timed out");
+		timeout.name = "HubProbeTimeoutError";
+		let probes = 0;
+		probeHubServer
+			.mockResolvedValueOnce(undefined)
+			.mockImplementation(async () => {
+				probes++;
+				clock.mockReturnValue(now + probes * 4000);
+				throw timeout;
+			});
+		try {
+			const { ensureDetachedHubServer } = await import(".");
+			await expect(ensureDetachedHubServer("/workspace")).rejects.toThrow();
+			expect(probes).toBe(4);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			clock.mockRestore();
+		}
+	});
+
+	it("keeps polling a spawned Hub after a probe timeout", async () => {
+		readHubDiscovery
+			.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			})
+			.mockResolvedValueOnce(undefined);
+		const timeout = new Error("Hub probe timed out");
+		timeout.name = "HubProbeTimeoutError";
+		probeHubServer
+			.mockResolvedValueOnce(undefined)
+			.mockRejectedValueOnce(timeout)
+			.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValue(true);
+		const { ensureDetachedHubServer } = await import(".");
+		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		expect(spawn).toHaveBeenCalledOnce();
+	});
+
 	it.each([
 		true,
 		false,

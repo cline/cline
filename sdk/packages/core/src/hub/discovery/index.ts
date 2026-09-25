@@ -1,8 +1,10 @@
+import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import {
 	type HubCompatibilityResult,
 	type HubProtocolMetadata,
@@ -10,7 +12,6 @@ import {
 } from "@cline/shared";
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
-import { HubInstanceLock, isHubLockHeldError } from "./instance-lock";
 
 declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
 declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
@@ -420,6 +421,35 @@ export async function clearHubDiscoveryIfOwned(
 	});
 }
 
+// Process creation time distinguishes an abandoned lock from a reused PID.
+// If the OS cannot supply it, retain the lock rather than displacing a live owner.
+async function processStartedAt(pid: number): Promise<number | undefined> {
+	if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
+	try {
+		const windows = process.platform === "win32";
+		const { stdout } = await promisify(execFile)(
+			windows ? "powershell.exe" : "ps",
+			windows
+				? [
+						"-NoProfile",
+						"-NonInteractive",
+						"-Command",
+						`(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString("o")`,
+					]
+				: ["-p", String(pid), "-o", "lstart="],
+			{
+				timeout: 2000,
+				windowsHide: true,
+				env: { ...process.env, LC_ALL: "C" },
+			},
+		);
+		const timestamp = Date.parse(stdout.trim());
+		return Number.isFinite(timestamp) ? timestamp : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 async function withHubLock<T>(
 	lockBasis: string,
 	label: string,
@@ -427,28 +457,60 @@ async function withHubLock<T>(
 	signal?: AbortSignal,
 ): Promise<T> {
 	signal?.throwIfAborted();
-	const lockFile = `${lockBasis}.mutex.sqlite`;
+	const lockDir = `${lockBasis}.lock`;
+	const ownerFile = join(lockDir, "owner.json");
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
+	await mkdir(dirname(lockDir), { recursive: true });
 	while (true) {
 		signal?.throwIfAborted();
-		let lock: HubInstanceLock;
 		try {
-			lock = HubInstanceLock.acquire(lockFile);
+			await mkdir(lockDir);
 		} catch (error) {
-			if (!isHubLockHeldError(error)) throw error;
+			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+			let abandoned = false;
+			try {
+				const owner = JSON.parse(await readFile(ownerFile, "utf8")) as {
+					pid: number;
+					acquiredAt: string;
+				};
+				if (Number.isSafeInteger(owner.pid) && owner.pid > 0) {
+					try {
+						process.kill(owner.pid, 0);
+					} catch (error) {
+						abandoned = (error as NodeJS.ErrnoException).code === "ESRCH";
+					}
+					if (!abandoned) {
+						const startedAt = await processStartedAt(owner.pid);
+						// ps has second precision; only a strictly newer process proves PID reuse.
+						abandoned =
+							startedAt !== undefined &&
+							startedAt > Date.parse(owner.acquiredAt);
+					}
+				}
+			} catch {
+				/* An unpublished or unreadable owner is not proof of abandonment. */
+			}
+			if (abandoned) {
+				await rm(lockDir, { recursive: true, force: true });
+				continue;
+			}
 			if (Date.now() >= deadline)
-				throw new Error(`Timed out waiting for hub ${label} lock ${lockFile}`);
+				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
 			await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
 			continue;
 		}
-		// Startup serialization must never silently degrade to no lock.
-		if (!lock.held)
-			throw new Error(`Unable to acquire hub ${label} lock ${lockFile}`);
 		try {
+			await writeFile(
+				ownerFile,
+				JSON.stringify({
+					pid: process.pid,
+					acquiredAt: new Date().toISOString(),
+				}),
+			);
 			signal?.throwIfAborted();
 			return await callback();
 		} finally {
-			lock.release();
+			await rm(lockDir, { recursive: true, force: true });
 		}
 	}
 }

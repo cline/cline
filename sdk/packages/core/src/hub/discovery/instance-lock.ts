@@ -16,8 +16,8 @@
  * Hub can exist per owner context, enforced by the OS before either process
  * gets a chance to disagree.
  *
- * Startup and discovery mutation use separate short-lived OS-backed locks
- * (`<lockBasis>.mutex.sqlite`, see `withHubLock`); this instance lock is a
+ * Startup and discovery mutation use separate short-lived filesystem locks
+ * (`<lockBasis>.lock`, see `withHubLock`); this instance lock is a
  * different thing — it is held for the entire lifetime of the serving Hub.
  */
 

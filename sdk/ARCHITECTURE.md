@@ -1075,13 +1075,13 @@ effect when constructing child tools. Inherited runtime hooks are unchanged.
 ### Desktop bootstrap cleanup
 
 Cancellation interrupts waiting for the shared Hub startup lock. Startup and
-discovery mutation use SQLite OS-backed exclusive locks, released in `finally`
-or by the OS when the owner exits. PID reuse cannot retain ownership, and the
-lock database is never deleted to displace a live owner. Failure to obtain OS
-locking fails startup rather than proceeding without serialization. Hub health probes have a three-second limit
+discovery mutation use filesystem locks, released in `finally`, without requiring
+SQLite support. Abandoned owners are detected by process liveness and OS process
+creation time to account for PID reuse. A live owner is never displaced solely
+because of lock age; unreadable ownership fails closed. Hub health probes have a three-second limit
 covering both response headers and body, preventing an unresponsive endpoint from
 holding bootstrap open indefinitely. A probe timeout is an explicit retryable
 error, preserving discovery and preventing replacement of an unconfirmed Hub.
-After daemon spawn, the existing bounded
+After daemon spawn, probe timeouts are retried within the existing bounded
 discovery wait still completes before releasing the lock to prevent duplicate
 daemons. This cleanup does not terminate a shared Hub used by other clients.
