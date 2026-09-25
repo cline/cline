@@ -1,0 +1,42 @@
+{
+	"name": "@cline/server",
+	"version": "0.0.86",
+	"description": "Headless Cline host for remote development over SSH",
+	"type": "module",
+	"license": "Apache-2.0",
+	"bin": {
+		"cline-server": "dist/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"ARCHITECTURE.md"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/server"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"build": "bun build src/index.ts src/commands.ts --target=node --packages=external --outdir=dist && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc --noEmit -p tsconfig.json",
+		"test": "bun run build && vitest run",
+		"test:e2e": "bun run build && vitest run --config vitest.e2e.config.ts"
+	},
+	"dependencies": {
+		"@cline/core": "workspace:*",
+		"@cline/shared": "workspace:*"
+	},
+	"exports": {
+		"./commands": {
+			"types": "./dist/commands.d.ts",
+			"import": "./dist/commands.js"
+		}
+	}
+}

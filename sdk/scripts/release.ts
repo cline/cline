@@ -47,7 +47,9 @@ if (!target || !["sdk", "cli"].includes(target)) {
 	console.error("Usage: bun release <sdk|cli> [version] [options]");
 	console.error("");
 	console.error("Targets:");
-	console.error("  sdk   Publish @cline/{shared,llms,agents,core,sdk} to npm");
+	console.error(
+		"  sdk   Publish @cline/{shared,llms,agents,core,server,sdk} to npm",
+	);
 	console.error("  cli   Publish cline from an existing cli-vX.Y.Z git tag");
 	console.error("");
 	console.error("Options:");
@@ -74,7 +76,14 @@ if (explicitVersion && !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(explicitVersion)) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SDK_PUBLISH_ORDER = ["shared", "llms", "agents", "core", "sdk"] as const;
+const SDK_PUBLISH_ORDER = [
+	"shared",
+	"llms",
+	"agents",
+	"core",
+	"server",
+	"sdk",
+] as const;
 const MAIN_BRANCH = "main";
 const root = join(import.meta.dir, "..", "..");
 const sdkRoot = join(import.meta.dir, "..");

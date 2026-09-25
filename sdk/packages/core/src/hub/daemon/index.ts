@@ -374,6 +374,14 @@ async function retireLegacySharedHub(owner: HubOwnerContext): Promise<void> {
 }
 
 function resolveDaemonEntryPath(): string {
+	// Published core entrypoints bundle this module at different directory depths.
+	// Resolve the exported daemon rather than a path relative to that bundle.
+	if (
+		!import.meta.url.endsWith(".ts") &&
+		!import.meta.url.includes("/$bunfs/")
+	) {
+		return fileURLToPath(import.meta.resolve("@cline/core/hub/daemon-entry"));
+	}
 	const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
 	return fileURLToPath(new URL(`./entry.${extension}`, import.meta.url));
 }

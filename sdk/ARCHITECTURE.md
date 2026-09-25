@@ -1044,3 +1044,7 @@ effect when constructing child tools. Inherited runtime hooks are unchanged.
 ## Hub wire contract
 
 `@cline/shared/src/hub-contract` defines command and event names and payload schemas. Hub command dispatch validates payloads before invoking handlers, with enforce (default), warn, and off modes. The released JSON Schema baseline detects breaking protocol changes during tests and SDK release preparation. See [the contract reference](packages/shared/src/hub-contract/README.md) for compatibility rules and remaining schema coverage.
+
+## Headless server package
+
+`@cline/server` (`packages/server`) provides the Node.js 22+ `cline-server` executable, depending on core and shared without the interactive CLI/TUI. It is built, versioned, and published with the SDK after core. The CLI bundles its command API and exposes the same `--remote-hub-info`, `--remote-hub-ensure`, and `--remote-hub-stop` commands. Ensure and stop require an explicit discovery path and do not take over the default CLI Hub. Desktop discovery of installed server/CLI executables is a separate integration; the existing bundled helper remains in use. See [server architecture and roadmap](packages/server/ARCHITECTURE.md).

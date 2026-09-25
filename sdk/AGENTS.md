@@ -108,3 +108,7 @@ If you touch hub/bootstrap/session flows, please update `ARCHITECTURE.md`.
 - `AGENTS.md` (this file): development reference. Update when package boundaries, dependency rules, or change routing changes.
 - `ARCHITECTURE.md`: design, boundaries, runtime flows. Update when system design or architectural constraints change.
 - `DOC.md`: API and behavior reference. Update when exported surfaces, lifecycle semantics, or runtime behavior changes.
+
+## Headless server package
+
+`@cline/server` (`packages/server`) provides the Node.js 22+ `cline-server` executable, depending on core and shared without the interactive CLI/TUI. It is built, versioned, and published with the SDK after core. The CLI bundles its command API and exposes the same `--remote-hub-info`, `--remote-hub-ensure`, and `--remote-hub-stop` commands. Ensure and stop require an explicit discovery path and do not take over the default CLI Hub. Desktop discovery of installed server/CLI executables is a separate integration; the existing bundled helper remains in use. See [server architecture and roadmap](packages/server/ARCHITECTURE.md).

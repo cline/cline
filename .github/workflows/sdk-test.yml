@@ -98,6 +98,10 @@ jobs:
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'windows-latest' }}
               run: bun -F './sdk/packages/**' test
 
+            - name: Run Server Lifecycle Test
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+              run: bun -F @cline/server test:e2e
+
             - name: Run Desktop Sidecar Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
               run: |
