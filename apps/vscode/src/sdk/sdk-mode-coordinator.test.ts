@@ -677,6 +677,29 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
+	it("settles an approval that was pending while the session sat idle, which is the real shape of one", async () => {
+		// A turn awaiting approval is NOT running: the session is parked on the user. The settle
+		// path was reached only through `wasRunning`, so the case its own comment named, "dead
+		// approval buttons (aborted while awaiting approval)", was the one case it could not reach.
+		// The rebuild then replaced the session underneath a still-pending ask, and the footer fell
+		// back to a generic Approve that answered nothing (#13814).
+		//
+		// The existing test above pairs `awaiting_approval` with `isRunning: true`, a combination
+		// the product does not produce, which is how the gap survived having a test.
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({ activeSession, task, turnPhase: "awaiting_approval" })
+
+		await coordinator.rebuildSessionForMode("plan")
+
+		expect(options.interactions.clearPending).toHaveBeenCalledWith("Mode changed")
+		const resumeAppend = (options.messages.appendAndEmit as ReturnType<typeof vi.fn>).mock.calls.find(
+			([messages]) => messages[0]?.ask === "resume_task",
+		)
+		expect(resumeAppend).toBeDefined()
+		expect(options.setTurnPhase).toHaveBeenCalledWith("resumable", resumeAppend?.[0][0].ts)
+	})
+
 	it("does not touch the turn phase when rebuilding an idle session", async () => {
 		const activeSession = makeActiveSession({ isRunning: false })
 		const task = makeTask("old-session")
