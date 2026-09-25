@@ -332,10 +332,13 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 	}
 	const { createCliRenderer, createRoot, OnboardingView } =
 		await loadAuthTuiRuntime();
+	const useMouse =
+		process.env.CLINE_NO_MOUSE !== "1" && process.env.CLINE_MOUSE !== "0";
 	const renderer = await createCliRenderer({
 		exitOnCtrlC: false,
 		autoFocus: false,
-		enableMouseMovement: true,
+		useMouse,
+		enableMouseMovement: useMouse,
 	});
 
 	return await new Promise<number>((resolve, reject) => {

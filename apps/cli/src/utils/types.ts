@@ -30,6 +30,7 @@ export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	mode: CliAgentMode;
 	defaultToolAutoApprove: boolean;
 	toolPolicies: Record<string, ToolPolicy>;
+	mouse?: boolean;
 }
 
 export interface ActiveCliSession {
@@ -98,4 +99,5 @@ export interface ParsedArgs {
 	teamName?: string;
 	defaultToolAutoApprove: boolean;
 	autoApproveOverride?: boolean;
+	mouse?: boolean;
 }

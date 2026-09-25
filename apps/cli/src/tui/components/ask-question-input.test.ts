@@ -1,6 +1,10 @@
 import { type ParsedKey, parseKeypress } from "@opentui/core";
 import { describe, expect, it } from "vitest";
-import { getPrintableKeyText, removeLastGrapheme } from "./ask-question-input";
+import {
+	getPrintableKeyText,
+	normalizePastedAnswer,
+	removeLastGrapheme,
+} from "./ask-question-input";
 
 function parse(input: string): ParsedKey {
 	const key = parseKeypress(input);
@@ -59,3 +63,19 @@ describe("removeLastGrapheme", () => {
 		expect(removeLastGrapheme(input)).toBe(expected);
 	});
 });
+
+describe("normalizePastedAnswer", () => {
+	it.each([
+		["", ""],
+		["hello", "hello"],
+		["  hello world  ", "hello world"],
+		["first line\nsecond line", "first line second line"],
+		["first line\r\nsecond line\r\n", "first line second line"],
+		["\n\n\r\n", ""],
+		["foo   \n   bar", "foo bar"],
+		["\x1b[31mred\x1b[0m text", "red text"],
+	])("normalizes %j to %j", (input, expected) => {
+		expect(normalizePastedAnswer(input)).toBe(expected);
+	});
+});
+

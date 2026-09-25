@@ -1086,6 +1086,7 @@ export async function runCli(): Promise<void> {
 			telemetry: getCliTelemetryService(loggerAdapter.core),
 			defaultToolAutoApprove,
 			toolPolicies,
+			mouse: args.mouse,
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,

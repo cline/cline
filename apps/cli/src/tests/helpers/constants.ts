@@ -9,6 +9,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 function resolveClineBin(): string {
+	const distBin = new URL("../../../dist/index.js", import.meta.url).pathname;
+	if (fs.existsSync(distBin)) {
+		return distBin;
+	}
+
 	const localBin = path.resolve(process.cwd(), "..", "..", "dist", "index.js");
 	if (fs.existsSync(localBin)) {
 		return localBin;
