@@ -226,6 +226,7 @@ Supported commands:
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
 | `open_mcp_settings_file` | OS `open` command |
+| `terminal_open` / `terminal_list` / `terminal_attach` / `terminal_write` / `terminal_resize` / `terminal_close` / `terminal_rescope` | `TerminalSessionManager` (`terminal-sessions.ts`): PTY shells via `Bun.spawn({ terminal })`, grouped per task scope; output streams as `terminal_data` events, exits as `terminal_exit` |
 
 ## Dev Workflow
 

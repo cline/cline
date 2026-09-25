@@ -31,6 +31,7 @@ import {
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
+import { disposeTerminalSessions } from "./terminal-sessions";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -705,6 +706,7 @@ export async function disposeSidecarContext(
 		scoped.pendingApprovals.clear();
 		clearEnvironmentSessions(scoped, reason);
 	}
+	disposeTerminalSessions();
 
 	for (const client of ctx.wsClients) {
 		try {

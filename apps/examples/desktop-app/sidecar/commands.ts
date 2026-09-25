@@ -190,6 +190,10 @@ import {
 	readSessionMessages,
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
+import {
+	getTerminalSessionManager,
+	isTerminalSupported,
+} from "./terminal-sessions";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -3461,6 +3465,47 @@ export async function handleCommand(
 				? args.cwd.trim()
 				: ctx.localWorkspaceRoot,
 		);
+	}
+	// ── Integrated terminal ─────────────────────────────────────────────
+	if (command.startsWith("terminal_")) {
+		if (!isTerminalSupported()) {
+			throw new Error(
+				"The integrated terminal is not available on this platform.",
+			);
+		}
+		const terminals = getTerminalSessionManager((name, payload) =>
+			broadcastEvent(ctx, name, payload),
+		);
+		const id = typeof args?.id === "string" ? args.id : "";
+		switch (command) {
+			case "terminal_open":
+				return terminals.open({
+					scopeId: String(args?.scopeId ?? ""),
+					cwd: String(args?.cwd ?? ""),
+					cols: typeof args?.cols === "number" ? args.cols : undefined,
+					rows: typeof args?.rows === "number" ? args.rows : undefined,
+				});
+			case "terminal_list":
+				return { terminals: terminals.list(String(args?.scopeId ?? "")) };
+			case "terminal_attach":
+				return terminals.attach(id);
+			case "terminal_write":
+				terminals.write(id, typeof args?.data === "string" ? args.data : "");
+				return true;
+			case "terminal_resize":
+				terminals.resize(id, Number(args?.cols), Number(args?.rows));
+				return true;
+			case "terminal_close":
+				terminals.close(id);
+				return true;
+			case "terminal_rescope":
+				return {
+					moved: terminals.rescope(
+						String(args?.fromScopeId ?? ""),
+						String(args?.toScopeId ?? ""),
+					),
+				};
+		}
 	}
 	if (command === "get_git_branch") {
 		const binding = getCommandRuntimeBinding(ctx, args);
