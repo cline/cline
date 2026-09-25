@@ -42,7 +42,9 @@ import {
 } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
+	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
+	writeReasoningSelectionToWindow,
 } from "@/lib/model-selection";
 import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -107,12 +109,15 @@ let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
+	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
+	// command service, so the menu matches what `/name` can actually run.
+	pluginCommands: SlashCommand[] = [],
 ): SlashCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
+	const result = commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
 			return [];
@@ -127,6 +132,15 @@ export function buildUserInstructionSlashCommands(
 			},
 		];
 	});
+	for (const command of pluginCommands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	return result;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
@@ -781,20 +795,53 @@ function ChatInputBarImpl({
 			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
 			if (nextOption) {
 				onReasoningChange(buildReasoningConfig(nextOption));
+				try {
+					writeReasoningSelectionToWindow(
+						normalizeProviderId(provider),
+						nextOption.value,
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 			}
 		},
-		[modelSupportsReasoning, onReasoningChange],
+		[modelSupportsReasoning, onReasoningChange, provider],
 	);
 
+	const seededReasoningProviderRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (
-			modelSupportsReasoning === true &&
-			thinking === undefined &&
-			reasoningEffort === undefined
-		) {
-			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
+		if (modelSupportsReasoning !== true) {
+			return;
 		}
-	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
+		const normalizedId = normalizeProviderId(provider);
+		const unset = thinking === undefined && reasoningEffort === undefined;
+		if (!unset && seededReasoningProviderRef.current === normalizedId) {
+			return;
+		}
+		seededReasoningProviderRef.current = normalizedId;
+		// The thread's config is rebuilt on every mount (and session hydration
+		// only restores provider/model), so seed the effort from the last value
+		// the user picked for this provider before falling back to the default.
+		// A provider switch re-seeds too, but only when that provider has a
+		// remembered value; otherwise the current choice carries over.
+		const remembered = EFFORT_LEVELS.find(
+			(option) =>
+				option.value ===
+				readReasoningSelectionStorageFromWindow()[normalizedId],
+		);
+		if (!unset && !remembered) {
+			return;
+		}
+		onReasoningChange(
+			buildReasoningConfig(remembered ?? DEFAULT_REASONING_EFFORT),
+		);
+	}, [
+		modelSupportsReasoning,
+		onReasoningChange,
+		provider,
+		reasoningEffort,
+		thinking,
+	]);
 
 	// Focus the composer on mount/variant change and when text is injected
 	// from outside (quick actions, queue undo). Deliberately NOT on every
@@ -924,6 +971,22 @@ function ChatInputBarImpl({
 		}
 	}, [slashOpen]);
 
+	// The menus scroll (max-h + overflow-y-auto), so keep the keyboard-selected
+	// option visible as arrow keys move the highlight past the visible rows.
+	useEffect(() => {
+		if (!slashOpen) return;
+		document
+			.getElementById(`slash-command-option-${slashSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [slashOpen, slashSelectedIndex]);
+
+	useEffect(() => {
+		if (!mentionOpen) return;
+		document
+			.getElementById(`mention-file-option-${mentionSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [mentionOpen, mentionSelectedIndex]);
+
 	// Reload user commands whenever the slash menu opens so newly installed or
 	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {
@@ -933,13 +996,22 @@ function ChatInputBarImpl({
 		let cancelled = false;
 		// Only show the loading row when there is nothing cached to show.
 		setSlashLoading(cachedSlashCommands === null);
-		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+		Promise.all([
+			desktopClient.invoke<UserInstructionConfigResponse>(
+				"list_user_instruction_configs",
+				{ workspacePath: workspaceRoot },
+			),
+			desktopClient
+				.invoke<SlashCommand[]>("list_plugin_commands", {
+					workspacePath: workspaceRoot,
+				})
+				.catch((): SlashCommand[] => []),
+		])
+			.then(([response, pluginCommands]) => {
 				if (cancelled) return;
 				const next = [
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
+					...buildUserInstructionSlashCommands(response, pluginCommands),
 				];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
@@ -953,7 +1025,7 @@ function ChatInputBarImpl({
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen]);
+	}, [slashOpen, workspaceRoot]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
@@ -1583,7 +1655,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
-/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
+/** Sentinel provider-picker row that opens Settings → Providers instead of selecting. */
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
 const ModelSelector = memo(function ModelSelector({
@@ -1611,7 +1683,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
-	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
+	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);

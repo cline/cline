@@ -663,6 +663,15 @@ export {
 	syncPluginMcpServersToSettings,
 } from "./services/plugin-mcp-settings";
 export type {
+	PluginCommandResult,
+	PluginCommandService,
+	PluginSlashCommand,
+} from "./services/plugin-commands";
+export {
+	createPluginCommandService,
+	normalizePluginCommandName,
+} from "./services/plugin-commands";
+export type {
 	ListPluginToolsResult,
 	PluginContributionSummary,
 	PluginToolSummary,
