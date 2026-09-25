@@ -1287,6 +1287,30 @@ describe("HubServerTransport boundaries", () => {
 		});
 	});
 
+	it("forwards explicit session title and prompt updates to the session host", async () => {
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const transport = createTransport({
+			sessionHost: {
+				updateSession,
+			},
+		});
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-rename",
+			command: "session.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { title: "Renamed session", prompt: null },
+		});
+
+		expect(updateSession).toHaveBeenCalledWith("session-1", {
+			metadata: undefined,
+			title: "Renamed session",
+			prompt: null,
+		});
+	});
+
 	it("authorizes compaction sidecar access from server session state, not mutable metadata", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({

@@ -56,6 +56,8 @@ import {
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { runPluginSlashCommand } from "./plugin-commands";
+import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -358,19 +360,6 @@ function readSessionMetadata(sessionId: string): JsonRecord | undefined {
 	return manifest?.metadata && typeof manifest.metadata === "object"
 		? (manifest.metadata as JsonRecord)
 		: undefined;
-}
-
-function derivePromptFromMessages(messages: unknown[]): string {
-	for (const msg of messages) {
-		if (!msg || typeof msg !== "object") continue;
-		const m = msg as JsonRecord;
-		if (m.role !== "user") continue;
-		if (typeof m.content === "string") {
-			const line = m.content.trim().split("\n")[0]?.trim();
-			if (line) return line.slice(0, 200);
-		}
-	}
-	return "";
 }
 
 // ---------------------------------------------------------------------------
@@ -1324,18 +1313,43 @@ async function handleSend(
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
+	const workspacePath =
+		readWorkspacePath(session?.config ?? request.config) ??
+		ctx.localWorkspaceRoot;
+	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
+	// as in the CLI: the handler's reply goes to the webview as a toast and
+	// only its `submitPrompt` (if any) reaches the model.
+	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	const pluginCommand =
+		commandName &&
+		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
+		binding.kind !== "ssh"
+			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
+			: undefined;
+	if (pluginCommand) {
+		if (pluginCommand.reply) {
+			sendEvent(ctx, "chat_command_output", {
+				sessionId,
+				command: commandName,
+				text: pluginCommand.reply,
+			});
+		}
+		if (!pluginCommand.submitPrompt) {
+			return { sessionId, ok: true, commandHandled: true };
+		}
+	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
 		binding.kind === "ssh"
 			? prompt
-			: await resolveDesktopRuntimePrompt(
+			: (pluginCommand?.submitPrompt ??
+				(await resolveDesktopRuntimePrompt(
 					ctx,
-					readWorkspacePath(session?.config ?? request.config) ??
-						ctx.localWorkspaceRoot,
+					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				);
+				)));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

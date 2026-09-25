@@ -49,6 +49,7 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+import { AudioModelBadges } from "./audio-model-badges";
 
 // Inputs nested inside a composed bordered box (icon + input + buttons in
 // one rounded frame) must strip the Input component's own chrome — border,
@@ -1060,7 +1061,9 @@ export function ProviderDetailContent({
 							<p className="text-sm text-destructive">{modelsError}</p>
 						</div>
 					) : null}
-					{modelList.length > 0 ? (
+					{/* A failed refresh means the endpoint's list is unknown; the
+					    bundled placeholder models would only read as a fallback. */}
+					{modelList.length > 0 && !modelsError ? (
 						<div className="space-y-3">
 							<div className="mx-4 mt-4 flex h-9 items-center gap-2 rounded border bg-background px-3">
 								<Search className="size-4 shrink-0 text-muted-foreground" />
@@ -1121,18 +1124,21 @@ export function ProviderDetailContent({
 															/>
 														</span>
 													)}
-													{supportsAudio(model) && (
-														<span
-															aria-label="Audio support"
-															role="img"
-															title="Audio support"
-														>
-															<Mic
-																aria-hidden="true"
-																className="h-3.5 w-3.5 text-muted-foreground"
-															/>
-														</span>
-													)}
+													<AudioModelBadges model={model} />
+													{supportsAudio(model) &&
+														model.operation !== "transcription" &&
+														model.operation !== "realtime" && (
+															<span
+																aria-label="Audio support"
+																role="img"
+																title="Audio support"
+															>
+																<Mic
+																	aria-hidden="true"
+																	className="h-3.5 w-3.5 text-muted-foreground"
+																/>
+															</span>
+														)}
 													{model.supportsReasoning && (
 														<span
 															aria-label="Reasoning support"

@@ -37,6 +37,7 @@ function resolveSidecarBinary(): string {
 			"--compile",
 			"--no-compile-autoload-dotenv",
 			"--no-compile-autoload-bunfig",
+			"--compile-exec-argv=--use-system-ca",
 			"--outfile",
 			binary,
 		],

@@ -130,10 +130,13 @@ Owns stateful orchestration:
 - hub server and scheduled-runtime services under `src/hub/`
 - hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
 - host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- the experimental cloud-session client exported from `@cline/core/cloud`: cloud API access, remote session lifecycle, and transcript reconciliation
 
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent. It does not implement local-to-cloud handoff.
+- Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
@@ -172,7 +175,7 @@ field.
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
@@ -939,6 +942,21 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
 
+### Display-only session errors
+
+Terminal run errors are persisted in session message history with
+`metadata.displayOnly: true` and `metadata.displayRole: "error"`. Desktop and CLI
+render these entries on history reload. The core message codec excludes them
+from agent state (including model requests and compaction); the conversation
+store retains their transcript positions when replacing agent snapshots.
+
+Display-only failures are recorded once after automatic authentication retries
+settle; recovered attempts do not emit a terminal error. The
+`session.error_recorded` telemetry event reports session ID, provider, model, and
+whether the terminal failure returned or threw, without error/transcript text.
+Desktop reconciliation retains the full live failed turn until a saved terminal
+error reaches its user-run count and is not a previously displayed error ID.
+
 ### Composio beta access
 
 Composio management in the desktop sidecar and tool registration/execution in
@@ -954,12 +972,16 @@ API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and
-tool pages additionally carry `total`. The sidecar fetches every catalog and
-connection page, including empty pages with continuation tokens, and rejects
-failed, malformed, or cyclic pagination before caching or reconciliation.
-Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
-per toolkit and persists `input_parameters` and the pinned version for the core
-extension. Tool execution sends arguments and the optional version to
+tool pages additionally carry `total`. The sidecar fetches every catalog,
+connection, and tool page, including empty pages with continuation tokens, and
+rejects failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It persists every tool's
+`input_parameters` and pinned version for the core extension. A status refresh
+re-fetches schemas for active connections, including existing nonempty caches;
+ordinary status polling reads local state. New sessions pick up the refreshed
+schemas, while running sessions retain their tool set. The connector dialog
+shows the loaded count and includes a catalog total only when it is known.
+Tool execution sends arguments and the optional version to
 `/tools/{slug}/execute` and retains the provider response body.
 
 Customize > Connectors displays the usage-ranked catalog, with search across

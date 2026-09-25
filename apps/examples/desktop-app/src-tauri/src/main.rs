@@ -118,11 +118,13 @@ struct UpdateState {
     // concurrently and the later one can overwrite a freshly staged "ready"
     // with "idle"/"error" decided from its stale pre-await snapshot.
     cycle: tokio::sync::Mutex<()>,
-    // Windows only: the downloaded-but-not-installed update. On Windows,
+    // Windows and Linux: the downloaded-but-not-installed update. On Windows,
     // Update::install launches the NSIS installer and std::process::exit(0)s
-    // immediately, so installation must wait for the user-initiated restart
-    // instead of running inside the background cycle like it does on macOS.
-    #[cfg(windows)]
+    // immediately; on Linux (deb/rpm) it runs `pkexec dpkg -i` / `rpm -U`,
+    // which pops a root password prompt. Either way installation must wait
+    // for the user-initiated restart instead of running inside the
+    // background cycle like it does on macOS.
+    #[cfg(not(target_os = "macos"))]
     pending_install: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
 }
 
@@ -278,18 +280,19 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
             }
             set_update_status(app, state, "downloading", Some(version.clone()), None);
             // macOS: install right away — it only swaps the .app on disk and
-            // the running app keeps going until the user restarts. Windows:
-            // download only, because install() launches the NSIS installer
-            // and exits the process on the spot; the staged bytes are
-            // installed by restart_to_apply_update instead.
-            #[cfg(not(windows))]
+            // the running app keeps going until the user restarts. Windows
+            // and Linux: download only, because install() launches the NSIS
+            // installer and exits the process on the spot (Windows) or asks
+            // for the root password via pkexec (Linux deb/rpm); the staged
+            // bytes are installed by restart_to_apply_update instead.
+            #[cfg(target_os = "macos")]
             match update.download_and_install(|_, _| {}, || {}).await {
                 Ok(()) => set_update_status(app, state, "ready", Some(version), None),
                 Err(error) => {
                     set_update_status(app, state, "error", Some(version), Some(error.to_string()))
                 }
             }
-            #[cfg(windows)]
+            #[cfg(not(target_os = "macos"))]
             match update.download(|_, _| {}, || {}).await {
                 Ok(bytes) => {
                     if let Ok(mut pending) = state.pending_install.lock() {
@@ -819,17 +822,49 @@ async fn get_desktop_backend_endpoint(
 }
 
 #[tauri::command]
-fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
-    let mut dialog = rfd::FileDialog::new();
-    if let Some(path) = initial_path
+async fn pick_workspace_directory(
+    app: tauri::AppHandle,
+    initial_path: Option<String>,
+) -> Option<String> {
+    let initial_path = initial_path
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
-        dialog = dialog.set_directory(path);
-    }
-    dialog
-        .pick_folder()
-        .map(|path| path.to_string_lossy().to_string())
+        .filter(|value| !value.is_empty());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    // Same shape as tauri-plugin-dialog: the dialog is created on the main
+    // thread (native dialogs must be) and this async command awaits the
+    // result off it.
+    let _ = app.run_on_main_thread(move || {
+        // GTK: rfd drives the dialog through the GLib main loop that Tauri
+        // already owns, so it must be created here and awaited on another
+        // thread; a blocking pick_folder() on the main thread deadlocks.
+        #[cfg(target_os = "linux")]
+        {
+            let mut dialog = rfd::AsyncFileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let picked = dialog.pick_folder();
+            std::thread::spawn(move || {
+                let picked = tauri::async_runtime::block_on(picked);
+                let _ = tx.send(picked.map(|handle| handle.path().to_string_lossy().to_string()));
+            });
+        }
+        // macOS and Windows: the blocking dialog runs its own nested event
+        // loop on the main thread, as before.
+        #[cfg(not(target_os = "linux"))]
+        {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let _ = tx.send(
+                dialog
+                    .pick_folder()
+                    .map(|path| path.to_string_lossy().to_string()),
+            );
+        }
+    });
+    rx.await.ok().flatten()
 }
 
 #[tauri::command]
@@ -850,11 +885,14 @@ fn apply_staged_update(app: &tauri::AppHandle) {
     // first. On Windows this also releases the sidecar exe's file lock,
     // which the NSIS installer needs in order to replace it.
     backend_state.stop();
-    // Windows: install the bytes staged by the background cycle. install()
-    // launches the NSIS installer (which relaunches the app when done) and
-    // exits this process, so it only returns on failure — fall through to a
-    // plain restart of the current version in that case.
-    #[cfg(windows)]
+    // Windows and Linux: install the bytes staged by the background cycle.
+    // On Windows install() launches the NSIS installer (which relaunches the
+    // app when done) and exits this process, so it only returns on failure.
+    // On Linux it installs the deb/rpm through pkexec and returns, and the
+    // restart below launches the new version. Either way a failure (or a
+    // dismissed password prompt) falls through to a plain restart of the
+    // current version.
+    #[cfg(not(target_os = "macos"))]
     if let Some((update, bytes)) = update_state
         .pending_install
         .lock()
@@ -862,10 +900,10 @@ fn apply_staged_update(app: &tauri::AppHandle) {
         .and_then(|mut pending| pending.take())
     {
         if let Err(error) = update.install(bytes) {
-            eprintln!("[updater] failed to launch the update installer: {error}");
+            eprintln!("[updater] failed to install the update: {error}");
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     let _ = update_state;
     app.restart();
 }

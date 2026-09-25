@@ -5,7 +5,6 @@
  */
 
 export * as Llms from "@cline/llms";
-export { toClineCoreStartInput } from "./cline-core/start-input";
 export {
 	buildClineClientHeaders,
 	ClineFreeModelLimitError,
@@ -205,6 +204,7 @@ export type {
 	OcaTokenResolution,
 } from "./auth/types";
 export { ClineCore } from "./ClineCore";
+export { toClineCoreStartInput } from "./cline-core/start-input";
 export type {
 	ClineAutomationEventIngressResult,
 	ClineAutomationEventLog,
@@ -663,6 +663,15 @@ export {
 	syncPluginMcpServersToSettings,
 } from "./services/plugin-mcp-settings";
 export type {
+	PluginCommandResult,
+	PluginCommandService,
+	PluginSlashCommand,
+} from "./services/plugin-commands";
+export {
+	createPluginCommandService,
+	normalizePluginCommandName,
+} from "./services/plugin-commands";
+export type {
 	ListPluginToolsResult,
 	PluginContributionSummary,
 	PluginToolSummary,
@@ -693,6 +702,7 @@ export {
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,

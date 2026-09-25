@@ -8,6 +8,7 @@ import {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -50,6 +51,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	SESSION: {
 		STARTED: "session.started",
 		ENDED: "session.ended",
+		ERROR_RECORDED: "session.error_recorded",
 	},
 	AGENT: {
 		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
@@ -81,6 +83,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
 		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
 		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
+		MAX_TOKENS_RECOVERY: TASK_MAX_TOKENS_RECOVERY_EVENT,
 		CANCELLED: TASK_CANCELLED_EVENT,
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
@@ -956,6 +959,19 @@ export function captureCompactionBudgetEmergency(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/** A terminal failure was recorded as a display-only transcript entry. */
+export function captureSessionErrorRecorded(
+	telemetry: ITelemetryService | undefined,
+	details: {
+		sessionId?: string;
+		provider: string;
+		model: string;
+		source: "result" | "thrown";
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.SESSION.ERROR_RECORDED, details);
 }
 
 /** Bounded scheduler diagnostics; never include prompts, paths, or raw errors. */

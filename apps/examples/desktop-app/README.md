@@ -155,9 +155,10 @@ content-addressed, branch-matched, self-contained Hub helper under
 `~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
 random local loopback port. Linux x64 and arm64 helpers are bundled by
 `bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
-supported. macOS SSH targets need a locally built helper passed through
-`CLINE_REMOTE_HELPER_BINARY` until the bundled helpers are codesigned for
-notarization. The helper includes its own runtime and is UPX-compressed at
+supported. A macOS desktop reaches macOS SSH hosts with its own signed
+universal sidecar, which runs the same helper entrypoint; Windows and Linux
+desktops need a locally built darwin helper passed through
+`CLINE_REMOTE_HELPER_BINARY`. The helper includes its own runtime and is UPX-compressed at
 build time (about 27 MB instead of 115 MB per helper; install `upx` locally to
 match the packaged size). It is copied once per matching desktop build and cached, with no
 `apt`, `npm`, root access,
@@ -199,16 +200,42 @@ desktop integration notes.
 Releases are built, signed, notarized, and published by the `desktop-publish`
 GitHub workflow as a single universal macOS DMG — one download that runs
 natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture). The step-by-step flow (version
-bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
-(`.cline/skills/publish-desktop/SKILL.md`).
+launch, so users never choose an architecture) — plus a Windows x64 NSIS
+installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
+(version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
+skill (`.cline/skills/publish-desktop/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling
-`desktop-latest` release's `latest.json` on launch and every 2 hours, install
-updates in the background, and prompt for a restart. Two things must never be
-lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
-apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
-shipped apps can't verify new updates).
+`desktop-latest` release's `latest.json` on launch and every 2 hours, download
+updates in the background, and prompt for a restart. macOS installs the update
+in the background too; Windows and Linux install it when the user restarts
+(the NSIS installer on Windows, `pkexec dpkg -i` / `rpm -U` on Linux, which
+asks for the user's password). Two things must never be lost: the
+`desktop-latest` release/tag (its feed URL is baked into shipped apps) and the
+updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it, shipped apps
+can't verify new updates).
+
+### Linux
+
+Linux ships as `.deb` (Debian, Ubuntu and derivatives) and `.rpm` (Fedora,
+RHEL, openSUSE) packages for x86_64, built on Ubuntu 22.04 so they run on
+distros with at least that era's glibc and WebKitGTK 4.1. Install from the
+release page with the system package manager so the runtime dependencies
+(`libwebkit2gtk-4.1-0`, `libgtk-3-0`, `libayatana-appindicator3-1`) resolve:
+
+```bash
+sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu
+sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL
+```
+
+The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
+sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
+`/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
+GNOME with the AppIndicator extension); without one the app still runs but the
+tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
+Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
+AppImage target is excluded from `tauri build` on Linux. A Linux desktop
+cannot use a Mac as an SSH remote host (see the changelog).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -334,19 +361,22 @@ credentials, request headers, recorded audio, or transcript contents.
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
-- Speech input requires an enabled provider whose models.dev metadata identifies
-  a dedicated `audio`-to-`text` model, or the built-in ElevenLabs provider with
-  its Scribe v2 model. Choose the voice input provider and model explicitly under
-  **Settings → Models → Voice input**. That selection is stored separately from
-  the chat model as `modes.voiceInput` in
-  `~/.cline/data/settings/providers.json`; provider credentials remain in their
-  existing provider entry and never enter the webview. ElevenLabs uses its native
-  `/v1/speech-to-text` API. Text-to-speech models with `output: ["audio"]` are
-  not used for microphone transcription.
-- Streaming transcription models, such as Vercel AI Gateway's
-  `openai/gpt-realtime-whisper`, update the composer while the user speaks.
-  The sidecar mints a short-lived transcription token; the long-lived gateway
-  credential is never sent to the webview. Batch models such as
-  `openai/whisper-1` continue to transcribe after recording stops.
+- Voice input requires a configured streaming transcription model. Choose one
+  under **Settings → Models → Voice input**, such as Vercel AI Gateway's
+  `openai/gpt-realtime-whisper`, native OpenAI `gpt-realtime-whisper`, or
+  ElevenLabs `scribe_v2_realtime`.
+  Gateway and native OpenAI audio flow through the AI SDK’s `experimental_streamTranscribe`
+  with continuous PCM input and partial transcript updates. Text updates while
+  you speak; Stop closes the audio stream and waits for final text. Batch-only models are
+  excluded from Voice settings and rejected when saving a voice selection.
+- The voice selection is stored separately from the chat model as
+  `modes.voiceInput` in `~/.cline/data/settings/providers.json`. The sidecar
+  mints a short-lived token, keeping long-lived provider credentials out of the
+  webview.
+- If a recognized network failure interrupts transcription, the mic switches
+  to browser speech recognition when available. Click it again and repeat any
+  missing speech. Browser recognition may also need internet access. An online
+  event restores the configured provider after the current recording ends;
+  authentication, model, and microphone-permission errors remain visible.
 
 SSH requires an already-trusted host key. Before first connection, verify the server fingerprint through a trusted channel and enroll it with your SSH client. Unknown or changed keys are rejected.

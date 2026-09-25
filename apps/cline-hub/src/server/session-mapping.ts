@@ -1,4 +1,7 @@
-import { projectSessionMessagesForDisplay } from "@cline/core";
+import {
+	projectSessionMessagesForDisplay,
+	resolveMessageDisplayRole,
+} from "@cline/core";
 import {
 	formatDisplayUserInput,
 	isGeneratedMedia,
@@ -210,7 +213,7 @@ export function mapHistoryToWebviewMessages(
 				? (message as unknown as Record<string, unknown>)
 				: { content: message };
 		const messageKey = asString(record.id) ?? `history-${sourceIndex}`;
-		const rawRole = asString(record.role)?.toLowerCase();
+		const rawRole = resolveMessageDisplayRole(record);
 		let role: WebviewChatMessage["role"] =
 			rawRole === "user" || rawRole === "assistant" || rawRole === "error"
 				? rawRole
