@@ -140,7 +140,7 @@
 			{
 				"command": "cline.marketplaceButtonClicked",
 				"title": "Customize",
-				"icon": "$(wrench)"
+				"icon": "$(extensions)"
 			},
 			{
 				"command": "cline.historyButtonClicked",
