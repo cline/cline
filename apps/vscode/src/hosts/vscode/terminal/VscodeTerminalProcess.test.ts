@@ -228,6 +228,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		// Stub the sendText method to verify it's called
 		const sendTextStub = sandbox.stub(terminal, "sendText")
+		const showStub = sandbox.stub(terminal, "show")
 
 		// Spy on the emit function to verify events
 		const emitSpy = sandbox.spy(process, "emit")
@@ -243,6 +244,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		// Check that the correct methods were called and events emitted
 		sendTextStub.calledWith("test-command", true).should.be.true()
+		showStub.calledOnce.should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 
@@ -272,6 +274,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			// Stub terminal.shellIntegration to return our mock
 			sandbox.stub(terminal, "shellIntegration").get(() => mockShellIntegration)
+			const showStub = sandbox.stub(terminal, "show")
 
 			// Spy on emit to verify behavior
 			const emitSpy = sandbox.spy(process, "emit")
@@ -283,6 +286,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			// Verify the executeCommand was called with the right command
 			mockExecuteCommand.calledWith("echo test").should.be.true()
+			showStub.called.should.be.false()
 
 			// Check that the events were emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
