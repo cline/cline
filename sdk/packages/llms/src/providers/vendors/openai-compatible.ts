@@ -10,7 +10,10 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
-import { isOpenAIReasoningEraModelId } from "../model-facts";
+import {
+	isCerebrasProvider,
+	isOpenAIReasoningEraModelId,
+} from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -149,12 +152,13 @@ function createResponseErrorFetch(input: {
  */
 export function withMaxCompletionTokensForReasoningModels(
 	body: Record<string, unknown>,
+	useCanonicalOutputLimit = false,
 ): Record<string, unknown> {
 	const { max_tokens: maxTokens, ...rest } = body;
 	if (
 		maxTokens == null ||
 		typeof body.model !== "string" ||
-		!isOpenAIReasoningEraModelId(body.model)
+		(!useCanonicalOutputLimit && !isOpenAIReasoningEraModelId(body.model))
 	) {
 		return body;
 	}
@@ -240,6 +244,10 @@ export async function createOpenAICompatibleProviderModule(
 				onResponseError,
 			})
 		: fetch;
+	const useCanonicalOutputLimit = isCerebrasProvider(
+		{ providerId: context.provider.id },
+		context,
+	);
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,
@@ -247,7 +255,8 @@ export async function createOpenAICompatibleProviderModule(
 		...(config.headers ? { headers: config.headers } : {}),
 		...(providerFetch ? { fetch: providerFetch } : {}),
 		includeUsage: true,
-		transformRequestBody: withMaxCompletionTokensForReasoningModels,
+		transformRequestBody: (body: Record<string, unknown>) =>
+			withMaxCompletionTokensForReasoningModels(body, useCanonicalOutputLimit),
 	} as never);
 	const useOpenRouterImageTransport =
 		context.provider.metadata?.imageTransport === "openrouter" &&
