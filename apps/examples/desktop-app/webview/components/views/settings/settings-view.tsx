@@ -11,6 +11,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
@@ -53,12 +60,11 @@ import type {
 } from "@/lib/provider-schema";
 import {
 	type HubAccent,
-	type HubTheme,
+	type HubThemePreference,
+	readHubThemePreference,
 	readStoredHubAccent,
-	readStoredHubTheme,
-	readSystemHubTheme,
+	setHubThemePreference,
 	setStoredHubAccent,
-	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { MarketplaceExplorerView } from "../marketplace-explorer-view";
@@ -655,6 +661,12 @@ export function SettingsView({
 	);
 }
 
+const THEME_OPTIONS: { id: HubThemePreference; label: string }[] = [
+	{ id: "system", label: "System default" },
+	{ id: "light", label: "Light" },
+	{ id: "dark", label: "Dark" },
+];
+
 /**
  * Swatches shown in the accent picker. The swatch color is the accent's
  * light-mode primary (see the [data-cline-accent] blocks in globals.css);
@@ -674,9 +686,9 @@ function GeneralSettingsContent({
 }: {
 	onOpenModelProviders: () => void;
 }) {
-	const [theme, setTheme] = useState<HubTheme>(() => {
-		if (typeof window === "undefined") return "light";
-		return readStoredHubTheme() ?? readSystemHubTheme();
+	const [theme, setTheme] = useState<HubThemePreference>(() => {
+		if (typeof window === "undefined") return "system";
+		return readHubThemePreference();
 	});
 	const [accent, setAccent] = useState<HubAccent>(() => {
 		if (typeof window === "undefined") return "violet";
@@ -936,9 +948,13 @@ function GeneralSettingsContent({
 		}
 	};
 
-	const updateTheme = (darkModeEnabled: boolean) => {
-		const nextTheme = darkModeEnabled ? "dark" : "light";
-		setTheme(setStoredHubTheme(nextTheme));
+	const updateTheme = (nextTheme: string) => {
+		const option = THEME_OPTIONS.find(
+			(candidate) => candidate.id === nextTheme,
+		);
+		if (option) {
+			setTheme(setHubThemePreference(option.id));
+		}
 	};
 
 	const updateAccent = (nextAccent: HubAccent) => {
@@ -989,16 +1005,23 @@ function GeneralSettingsContent({
 				<NotificationSettings />
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Dark mode</p>
+						<p className="text-base font-semibold text-foreground">Theme</p>
 						<p className="text-sm text-muted-foreground">
-							Keep the desktop interface in dark mode on this browser.
+							Match your system appearance, or keep the interface light or dark.
 						</p>
 					</div>
-					<Switch
-						aria-label="Dark mode"
-						checked={theme === "dark"}
-						onCheckedChange={updateTheme}
-					/>
+					<Select onValueChange={updateTheme} value={theme}>
+						<SelectTrigger aria-label="Theme" className="w-40">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{THEME_OPTIONS.map((option) => (
+								<SelectItem key={option.id} value={option.id}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 				</div>
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
