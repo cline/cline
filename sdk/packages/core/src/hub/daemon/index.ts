@@ -751,13 +751,16 @@ export async function ensureDetachedHubServer(
 ): Promise<DetachedHubResolution> {
 	signal?.throwIfAborted();
 	const owner = resolveDefaultHubOwnerContext();
-	return await withHubStartupLock(owner.discoveryPath, async () =>
-		ensureDetachedHubServerLocked(
-			owner,
-			workspaceRoot,
-			endpointOverrides,
-			signal,
-		),
+	return await withHubStartupLock(
+		owner.discoveryPath,
+		async () =>
+			ensureDetachedHubServerLocked(
+				owner,
+				workspaceRoot,
+				endpointOverrides,
+				signal,
+			),
+		signal,
 	);
 }
 

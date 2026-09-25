@@ -237,6 +237,7 @@ describe("ensureDetachedHubServer", () => {
 		expect(withHubStartupLock).toHaveBeenCalledWith(
 			"/tmp/hub-discovery.json",
 			expect.any(Function),
+			undefined,
 		);
 		expect(spawn).toHaveBeenCalledOnce();
 		expect(spawnArgs).toContain("--port");
@@ -338,6 +339,7 @@ describe("ensureDetachedHubServer", () => {
 		expect(withHubStartupLock).toHaveBeenCalledWith(
 			"/tmp/hub-discovery.json",
 			expect.any(Function),
+			undefined,
 		);
 		expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
 			probeHubServer.mock.invocationCallOrder[0],

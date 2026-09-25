@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import {
 	type HubCompatibilityResult,
 	type HubProtocolMetadata,
@@ -16,7 +17,6 @@ declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
 const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
 const HUB_BUILD_ID_ENV = "CLINE_HUB_BUILD_ID";
 const HUB_BUILD_EPOCH_ENV = "CLINE_HUB_BUILD_EPOCH_MS";
-const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const HUB_STARTUP_LOCK_WAIT_MS = 15_000;
 const HUB_STARTUP_LOCK_POLL_MS = 100;
 
@@ -87,8 +87,8 @@ export function createHubAuthToken(): string {
 	return randomBytes(32).toString("hex");
 }
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+	return delay(ms, undefined, { signal });
 }
 
 function getHubLockDir(lockBasis: string): string {
@@ -464,12 +464,15 @@ async function withHubLock<T>(
 	lockBasis: string,
 	label: string,
 	callback: () => Promise<T>,
+	signal?: AbortSignal,
 ): Promise<T> {
+	signal?.throwIfAborted();
 	const lockDir = getHubLockDir(lockBasis);
 	await mkdir(dirname(lockDir), { recursive: true });
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
 
 	while (true) {
+		signal?.throwIfAborted();
 		try {
 			await mkdir(lockDir, { recursive: false });
 		} catch (error) {
@@ -489,18 +492,19 @@ async function withHubLock<T>(
 					await removeHubLock(lockDir);
 					continue;
 				}
-				await sleep(HUB_STARTUP_LOCK_POLL_MS);
+				await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
 				continue;
 			}
-			const lockAge = Date.now() - Date.parse(record.acquiredAt);
-			if (!isPidAlive(record.pid) || lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS) {
+			// A slow live owner may still be publishing its shared daemon.
+			// Age alone does not authorize stealing its lock.
+			if (!isPidAlive(record.pid)) {
 				await removeHubLock(lockDir);
 				continue;
 			}
 			if (Date.now() >= deadline) {
 				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
 			}
-			await sleep(HUB_STARTUP_LOCK_POLL_MS);
+			await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
 			continue;
 		}
 
@@ -514,6 +518,7 @@ async function withHubLock<T>(
 				)}\n`,
 				"utf8",
 			);
+			signal?.throwIfAborted();
 			return await callback();
 		} finally {
 			await removeHubLock(lockDir);
@@ -535,8 +540,9 @@ function withHubDiscoveryMutationLock<T>(
 export function withHubStartupLock<T>(
 	discoveryPath: string,
 	callback: () => Promise<T>,
+	signal?: AbortSignal,
 ): Promise<T> {
-	return withHubLock(discoveryPath, "startup", callback);
+	return withHubLock(discoveryPath, "startup", callback, signal);
 }
 
 export async function probeHubServer(
@@ -547,6 +553,9 @@ export async function probeHubServer(
 		const response = await fetch(
 			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),
 			{
+				// Covers response headers and body consumption, so a hung probe
+				// cannot indefinitely retain the startup lock.
+				signal: AbortSignal.timeout(3_000),
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
 					: undefined,

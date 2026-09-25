@@ -1071,3 +1071,14 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Desktop bootstrap cleanup
+
+Cancellation interrupts waiting for the shared Hub startup lock without removing
+another process's lock. A live owner is never displaced solely because its lock
+is old; dead-owner locks retain stale-lock recovery. The owner releases its lock
+in `finally` after bootstrap settles. Hub health probes have a three-second limit
+covering both response headers and body, preventing an unresponsive endpoint from
+holding bootstrap open indefinitely. After daemon spawn, the existing bounded
+discovery wait still completes before releasing the lock to prevent duplicate
+daemons. This cleanup does not terminate a shared Hub used by other clients.
