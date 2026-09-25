@@ -475,7 +475,7 @@ function ConfigFieldRow({
 	const isSecret = field.type === "password" || field.secret;
 	const providerKeyUrl = getProviderApiKeyUrl(provider);
 	return (
-		<div className="grid min-h-18 grid-cols-1 items-center gap-3 border-b py-4 @xl:grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] @xl:gap-6">
+		<div className="grid min-h-18 grid-cols-1 items-center gap-3 border-b py-4 @2xl:grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] @2xl:gap-6">
 			<header>
 				<h3 className="text-lg font-semibold text-foreground">{field.label}</h3>
 				{field.description ? (
