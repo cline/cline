@@ -461,6 +461,31 @@ async function processStartedAt(pid: number): Promise<number | undefined> {
 	}
 }
 
+async function readLockOwner(
+	lockDir: string,
+	entry: string,
+): Promise<{ pid: number; acquiredAt: number } | undefined> {
+	const match = /^(\d+)-(\d+)-[a-f0-9]{32}\.owner$/.exec(entry);
+	if (match) return { pid: Number(match[1]), acquiredAt: Number(match[2]) };
+	if (entry !== "owner.json") return undefined;
+	// An upgrade can leave the previous implementation's owner record behind.
+	// Read it only for abandonment detection; new owners always use unique names.
+	try {
+		const owner = JSON.parse(await readFile(join(lockDir, entry), "utf8"));
+		if (!owner || typeof owner.pid !== "number") return undefined;
+		return {
+			pid: owner.pid,
+			acquiredAt:
+				typeof owner.acquiredAt === "string"
+					? Date.parse(owner.acquiredAt)
+					: Number.NaN,
+		};
+	} catch {
+		// Missing/partially written metadata is not proof that an older owner died.
+		return undefined;
+	}
+}
+
 // Remove only the observed generation's entry, then remove the directory ONLY
 // if empty. A delayed reclaimer can never remove a replacement owner's entry.
 async function removeLockOwner(
@@ -530,10 +555,9 @@ async function withHubLock<T>(
 					continue;
 				}
 				for (const entry of entries) {
-					const match = /^(\d+)-(\d+)-[a-f0-9]{32}\.owner$/.exec(entry);
-					if (!match) continue;
-					const pid = Number(match[1]);
-					const acquiredAt = Number(match[2]);
+					const owner = await readLockOwner(lockDir, entry);
+					if (!owner) continue;
+					const { pid, acquiredAt } = owner;
 					if (!Number.isSafeInteger(pid) || pid <= 0) continue;
 					let abandoned = false;
 					try {

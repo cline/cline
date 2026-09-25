@@ -123,14 +123,25 @@ it.each([
 	}
 }, 10_000);
 
-it("does not strand startup on an abandoned PID record reused by a live process", async () => {
+it.each([
+	false,
+	true,
+])("recovers a reused PID (previous owner format: %s)", async (previousFormat) => {
 	const dir = await mkdtemp(join(tmpdir(), "hub-reused-pid-"));
 	const path = join(dir, "discovery.json");
 	try {
 		await mkdir(`${path}.lock`);
 		await writeFile(
-			join(`${path}.lock`, `${process.pid}-0-${"a".repeat(32)}.owner`),
-			"",
+			join(
+				`${path}.lock`,
+				previousFormat
+					? "owner.json"
+					: `${process.pid}-0-${"a".repeat(32)}.owner`,
+			),
+			JSON.stringify({
+				pid: process.pid,
+				acquiredAt: new Date(0).toISOString(),
+			}),
 		);
 
 		await expect(
@@ -155,10 +166,15 @@ it("recovers an empty unpublished directory without depending on SQLite", async 
 	}
 });
 
-it("a delayed reclaimer cannot delete the new owner's lock", async () => {
+it.each([
+	false,
+	true,
+])("a delayed reclaimer cannot delete the new owner (previous format: %s)", async (previousFormat) => {
 	const dir = await mkdtemp(join(tmpdir(), "hub-reclaimer-"));
 	const path = join(dir, "discovery.json");
-	const staleName = `${process.pid}-0-${"b".repeat(32)}.owner`;
+	const staleName = previousFormat
+		? "owner.json"
+		: `${process.pid}-0-${"b".repeat(32)}.owner`;
 	let resume!: () => void;
 	let reached!: () => void;
 	let release!: () => void;
@@ -171,7 +187,10 @@ it("a delayed reclaimer cannot delete the new owner's lock", async () => {
 	});
 	let removes = 0;
 	await mkdir(`${path}.lock`);
-	await writeFile(join(`${path}.lock`, staleName), "");
+	await writeFile(
+		join(`${path}.lock`, staleName),
+		JSON.stringify({ pid: process.pid, acquiredAt: new Date(0).toISOString() }),
+	);
 	hooks.beforeRemove = async (p) => {
 		if (p === join(`${path}.lock`, staleName) && ++removes === 1) {
 			reached();
@@ -284,7 +303,10 @@ it("never publishes incomplete ownership if preparing the lock fails", async () 
 	}
 });
 
-it("recovers the lock after its owning process is killed", async () => {
+it.each([
+	false,
+	true,
+])("recovers a killed owner (previous format: %s)", async (previousFormat) => {
 	const { spawn } = await import("node:child_process");
 	const dir = await mkdtemp(join(tmpdir(), "hub-crashed-owner-"));
 	const path = join(dir, "discovery.json");
@@ -317,6 +339,18 @@ it("recovers the lock after its owning process is killed", async () => {
 		});
 		child.kill("SIGKILL");
 		await exited;
+		if (previousFormat) {
+			const [entry] = await readdir(`${path}.lock`);
+			await rm(join(`${path}.lock`, entry));
+			await writeFile(
+				join(`${path}.lock`, "owner.json"),
+				JSON.stringify({
+					pid: child.pid,
+					acquiredAt: new Date().toISOString(),
+				}),
+			);
+		}
+
 		await expect(
 			withHubStartupLock(path, async () => "recovered"),
 		).resolves.toBe("recovered");
@@ -343,6 +377,29 @@ it("surfaces publication permission errors without spinning on a missing lock", 
 		expect(await readdir(dir)).toEqual([]);
 	} finally {
 		hooks.beforePublish = undefined;
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+it.each([
+	JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }),
+	'{"pid":',
+])("does not displace a live or unidentifiable previous owner: %s", async (record) => {
+	const dir = await mkdtemp(join(tmpdir(), "hub-previous-owner-"));
+	const path = join(dir, "hub.json");
+	const controller = new AbortController();
+	const callback = vi.fn();
+	try {
+		await mkdir(`${path}.lock`);
+		await writeFile(join(`${path}.lock`, "owner.json"), record);
+		const pending = withHubStartupLock(path, callback, controller.signal);
+		const rejected = expect(pending).rejects.toThrow();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		controller.abort();
+		await rejected;
+		expect(callback).not.toHaveBeenCalled();
+		expect(await readdir(`${path}.lock`)).toEqual(["owner.json"]);
+	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}
 });

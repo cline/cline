@@ -1085,7 +1085,10 @@ only that generation’s entry and uses nonrecursive directory removal; a delaye
 reclaimer cannot erase a replacement owner. Empty abandoned directories are safe
 to remove because active locks are always published nonempty. Abandoned owners
 are detected by process liveness and OS process creation time to account for PID reuse. A live owner is never displaced solely
-because of lock age; unreadable ownership fails closed.
+because of lock age; unreadable ownership fails closed. Previous `owner.json`
+records are also checked for dead or reused PIDs during upgrade recovery. Their
+cleanup removes only `owner.json`, which no new owner writes, preserving the
+same protection against deleting a replacement lock.
 
 Hub health probes have a three-second limit
 covering both response headers and body, preventing an unresponsive endpoint from
