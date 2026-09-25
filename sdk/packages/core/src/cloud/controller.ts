@@ -232,6 +232,7 @@ export type CloudSessionControllerOptions = {
 	api: Pick<
 		CloudSessionApi,
 		| "create"
+		| "resume"
 		| "delete"
 		| "list"
 		| "status"
@@ -735,10 +736,14 @@ export class CloudSessionController {
 				connection.remote = session;
 			}
 			const expired = isExpiredRecord(session);
-			if (expired || session.status === "failed") {
+			if (
+				expired ||
+				session.status === "failed" ||
+				session.status === "suspended"
+			) {
 				if (live) {
 					live.busy = false;
-					live.status = expired ? "expired" : "failed";
+					live.status = expired ? "expired" : session.status;
 					live.endedAt = expired
 						? Date.parse(session.expiredAt ?? "") || Date.now()
 						: Math.max(
@@ -1114,6 +1119,7 @@ export class CloudSessionController {
 		}
 		const record: CloudSessionRecord = {
 			id: created.sessionId,
+			sandboxType: input.sandboxType,
 			status: created.status,
 			sandboxUrl: created.sandboxUrl,
 			repoContext: {
@@ -2147,6 +2153,11 @@ export class CloudSessionController {
 		const existing = pending
 			? await pending
 			: this.connections.get(outerSessionId);
+		if (existing?.remote.status === "suspended") {
+			await this.disposeConnection(outerSessionId);
+			assertCurrent();
+			return await this.ensureConnection(outerSessionId, options);
+		}
 		if (existing) {
 			this.assertSessionActive(outerSessionId, existing);
 			// Reconnect clears the id while looking up the existing root session.
@@ -2178,6 +2189,85 @@ export class CloudSessionController {
 		const connecting = (async () => {
 			let remote = await this.ensureKnownSession(outerSessionId);
 			assertCurrent();
+			if (
+				!this.pendingInitialTasks.has(outerSessionId) &&
+				(remote.sandboxType === "resumable" ||
+					remote.metadata.sandboxType === "resumable" ||
+					remote.status === "suspended")
+			) {
+				const status = await this.options.api
+					.status(outerSessionId)
+					.catch(async (error) => {
+						const transient =
+							error instanceof CloudSessionError
+								? error.code === "request_failed" &&
+									(error.status === undefined ||
+										error.status === 408 ||
+										error.status === 429 ||
+										error.status >= 500)
+								: error instanceof TypeError ||
+									(error instanceof Error && error.name === "TimeoutError");
+						if (!transient) throw error;
+						assertCurrent();
+						return await this.refreshKnownSession(outerSessionId).catch(
+							() => undefined,
+						);
+					});
+				assertCurrent();
+				if (status?.status) remote.status = status.status;
+				const live = this.sessions.get(outerSessionId);
+				if (
+					live?.status === "suspended" &&
+					["provisioning", "ready", "active"].includes(remote.status)
+				) {
+					live.status = remote.status;
+					live.busy = false;
+					live.endedAt = undefined;
+				}
+			}
+			if (remote.status === "suspended") {
+				const controller = new AbortController();
+				const releaseController = this.trackProvisioningController(
+					outerSessionId,
+					controller,
+				);
+				try {
+					try {
+						remote = await this.options.api.resume(
+							outerSessionId,
+							controller.signal,
+						);
+					} catch (error) {
+						// Another viewer may have resumed the session since our status read.
+						if (!(error instanceof CloudSessionError) || error.status !== 409)
+							throw error;
+						assertCurrent();
+						controller.signal.throwIfAborted();
+						const current = await this.options.api.status(outerSessionId, {
+							signal: controller.signal,
+						});
+						if (
+							current.status !== "provisioning" &&
+							current.status !== "ready" &&
+							current.status !== "active"
+						)
+							throw error;
+						remote = { ...remote, status: current.status };
+					}
+					assertCurrent();
+					controller.signal.throwIfAborted();
+					this.knownSessions.set(outerSessionId, remote);
+					const live = this.sessions.get(outerSessionId);
+					if (live) {
+						live.status = remote.status;
+						live.busy = false;
+						live.endedAt = undefined;
+					}
+					this.publishSnapshot(outerSessionId, false, "status");
+				} finally {
+					releaseController();
+				}
+			}
 			if (remote.status === "provisioning") {
 				const controller = new AbortController();
 				const releaseController = this.trackProvisioningController(
@@ -2203,7 +2293,11 @@ export class CloudSessionController {
 					controller.signal.throwIfAborted();
 					if (remote.status === "provisioning") remote.status = "ready";
 					const live = this.sessions.get(outerSessionId);
-					if (live?.status === "provisioning") live.status = "idle";
+					if (live?.status === "provisioning") {
+						live.status = "idle";
+						live.busy = false;
+						live.endedAt = undefined;
+					}
 				} catch (error) {
 					if (
 						error instanceof CloudSessionError &&
@@ -2413,7 +2507,7 @@ export class CloudSessionController {
 				.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
 		}
 		const innerSessionId = String(session?.sessionId ?? "").trim();
-		if (!innerSessionId) {
+		if (!innerSessionId || !session) {
 			if (!allowMissing && !this.pendingInitialTasks.has(outerSessionId)) {
 				throw new Error(
 					"This cloud session's task is unavailable. Start a new cloud session to continue.",
@@ -2421,12 +2515,110 @@ export class CloudSessionController {
 			}
 			return;
 		}
+		if (
+			connection.remote.sandboxType === "resumable" ||
+			connection.remote.metadata.sandboxType === "resumable"
+		) {
+			await this.restoreSavedInnerSession(connection, innerSessionId, session);
+			this.assertSessionActive(outerSessionId, connection);
+		}
 		this.pendingInitialTasks.delete(outerSessionId);
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(outerSessionId, connection);
 		const modelId = sessionRowModelId(session);
 		if (modelId) this.applyModel(connection, modelId);
 		await this.ensureAttached(connection);
+	}
+
+	private async restoreSavedInnerSession(
+		connection: CloudConnection,
+		sessionId: string,
+		saved: JsonRecord,
+	): Promise<void> {
+		// session.get/attach can return saved records without a live runtime.
+		const probe = () =>
+			connection.client.command(
+				"session.update_connection",
+				{ sessionId, updates: {} },
+				sessionId,
+			);
+		try {
+			await probe();
+			return;
+		} catch (error) {
+			const missing =
+				isSessionNotFoundError(error) ||
+				(error instanceof Error &&
+					(error as Error & { code?: string }).code === "command_failed" &&
+					error.message === `session not found: ${sessionId}`);
+			if (!missing) throw error;
+		}
+		this.assertSessionActive(connection.remote.id, connection);
+		const history = await connection.client.command(
+			"session.messages",
+			{},
+			sessionId,
+		);
+		this.assertSessionActive(connection.remote.id, connection);
+		const initialMessages = history.payload?.messages;
+		if (!Array.isArray(initialMessages) || initialMessages.length === 0) {
+			throw new Error("The saved conversation is empty or unavailable.");
+		}
+		const metadata = (saved.metadata ?? {}) as JsonRecord;
+		const runtimeOptions = (saved.runtimeOptions ?? {}) as JsonRecord;
+		const config = this.sessions.get(connection.remote.id)?.config;
+		const thinking = Object.hasOwn(metadata, "thinking")
+			? metadata.thinking
+			: config?.thinking;
+		const reasoningEffort = Object.hasOwn(metadata, "reasoningEffort")
+			? metadata.reasoningEffort
+			: config?.reasoningEffort;
+		const autoApproveTools =
+			typeof metadata.autoApproveTools === "boolean"
+				? metadata.autoApproveTools
+				: config?.autoApproveTools;
+		const cwd = saved.cwd ?? saved.workspaceRoot ?? CLOUD_WORKSPACE_ROOT;
+		const workspaceRoot = saved.workspaceRoot ?? CLOUD_WORKSPACE_ROOT;
+		try {
+			const reply = await connection.client.command("session.create", {
+				workspaceRoot,
+				cwd,
+				initialMessages,
+				metadata: { ...metadata, interactive: true },
+				sessionConfig: {
+					sessionId,
+					providerId: metadata.provider ?? "cline",
+					modelId:
+						metadata.model ??
+						metadata.modelId ??
+						connection.remote.metadata.modelId,
+					workspaceRoot,
+					cwd,
+					systemPrompt:
+						runtimeOptions.systemPrompt ?? metadata.systemPrompt ?? "",
+					mode: runtimeOptions.mode ?? metadata.mode ?? "act",
+					...(typeof thinking === "boolean" ? { thinking } : {}),
+					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
+					...(metadata.checkpointEnabled === true
+						? { checkpoint: { enabled: true } }
+						: {}),
+				},
+				runtimeOptions,
+				...(typeof autoApproveTools === "boolean"
+					? { toolPolicies: { "*": { autoApprove: autoApproveTools } } }
+					: {}),
+			});
+			this.assertSessionActive(connection.remote.id, connection);
+			const restored = reply.payload?.session as JsonRecord | undefined;
+			if ((restored?.sessionId ?? reply.payload?.sessionId) !== sessionId) {
+				throw new Error("Cloud Hub did not restore the requested session.");
+			}
+		} catch (error) {
+			if ((error as { code?: string })?.code !== "session_already_exists")
+				throw error;
+			this.assertSessionActive(connection.remote.id, connection);
+			await probe();
+		}
 	}
 
 	private async assertHandoffConnectionReusable(
@@ -2540,14 +2732,19 @@ export class CloudSessionController {
 			throw error;
 		}
 		const branch = `cline/${(connection.remote.metadata.taskId?.trim() || connection.remote.id).slice(-8).toLowerCase()}`;
+		const resumable =
+			connection.remote.sandboxType === "resumable" ||
+			connection.remote.metadata.sandboxType === "resumable";
 		const systemPrompt =
 			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
-			"SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
-			`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
-			"Do all work for this task on that branch: create it from the current checkout before your first change " +
+			`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
 			"(or check it out if it already exists), and never commit directly to the default branch. " +
-			"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
-			`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. ` +
+			(resumable
+				? "Commit and push only when the user asks. "
+				: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
+					`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
+					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
+					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
 			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
 		let dispatched = false;
 		const pendingReply = connection.client.command(
@@ -2969,7 +3166,7 @@ export class CloudSessionController {
 		await connection.client.dispose();
 	}
 
-	/** Stop reconnecting only when the session is gone, not when lookup fails. */
+	/** Stop reconnecting when the sandbox is unavailable, not when lookup fails. */
 	private async disposeConnectionIfSessionGone(
 		outerSessionId: string,
 		connection: CloudConnection,
@@ -2998,11 +3195,11 @@ export class CloudSessionController {
 		}
 		this.knownSessions.set(outerSessionId, listed);
 		connection.remote = listed;
-		if (listed.status === "failed") {
+		if (listed.status === "failed" || listed.status === "suspended") {
 			const live = this.sessions.get(outerSessionId);
 			if (live) {
 				live.busy = false;
-				live.status = "failed";
+				live.status = listed.status;
 				live.endedAt = Date.parse(listed.updatedAt) || Date.now();
 			}
 			await this.disposeConnection(outerSessionId).catch(() => undefined);

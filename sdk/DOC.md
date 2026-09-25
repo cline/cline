@@ -48,6 +48,9 @@ the remote task. Call `dispose` when the host shuts down.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
+`create` accepts `sandboxType: "standard" | "resumable"` (default: `"standard"`).
+The controller resumes suspended sessions when opened and restores their saved tasks.
+
 Hosts replacing controllers during credential refresh can share the
 `pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.
 It retains first-task approval/thinking/reasoning preferences, including updates

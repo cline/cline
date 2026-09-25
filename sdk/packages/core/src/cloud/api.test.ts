@@ -40,6 +40,66 @@ function jwtFor(subject: string, nonce: string): string {
 
 describe("CloudSessionApi", () => {
 	it.each([
+		undefined,
+		"standard",
+		"resumable",
+	] as const)("sends the requested sandbox type (%s) without changing other hosts' default", async (sandboxType) => {
+		const fetch = vi.fn(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				jsonResponse({ data: { sessionId: "ses-new" } }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch,
+		});
+		await api.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			sandboxType,
+		});
+		const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+		if (sandboxType) expect(body.sandboxType).toBe(sandboxType);
+		else expect(body).not.toHaveProperty("sandboxType");
+	});
+
+	it("resumes through authenticated REST and preserves quota errors", async () => {
+		const resumed = {
+			...REMOTE_SESSION,
+			status: "provisioning",
+			sandboxType: "resumable",
+		};
+		const fetch = vi.fn(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				jsonResponse({ data: resumed }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "fresh-token",
+			fetch,
+		});
+		expect(await api.resume("ses/outer")).toEqual(resumed);
+		expect(fetch).toHaveBeenCalledWith(
+			"https://api.example/api/v1/session/ses%2Fouter/resume",
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					Authorization: "Bearer fresh-token",
+				}),
+			}),
+		);
+		fetch.mockResolvedValueOnce(
+			jsonResponse({ error: "Active instance limit reached" }, 429),
+		);
+		await expect(api.resume("ses-outer")).rejects.toMatchObject({
+			status: 429,
+			detail: "Active instance limit reached",
+		});
+	});
+
+	it.each([
 		"rotated",
 		"changed",
 		"revoked",

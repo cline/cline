@@ -5,6 +5,7 @@ import {
 	CloudSessionController,
 	type CloudSessionControllerOptions,
 	type CloudSessionEvent,
+	type CreateCloudSessionInput,
 } from "@cline/core/cloud";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { resolveFreshClineAuthToken } from "./cline-auth";
@@ -55,6 +56,12 @@ export class CloudSessionManager extends CloudSessionController {
 			if (state.config.executionTarget === "cloud")
 				this.seedSessionState(id, state);
 		this.subscribe((event) => this.project(event));
+	}
+	override async create(input: CreateCloudSessionInput) {
+		return await super.create({
+			...input,
+			sandboxType: input.sandboxType ?? "resumable",
+		});
 	}
 	override async listForDiscovery(
 		options: { timeoutMs?: number } = {},
