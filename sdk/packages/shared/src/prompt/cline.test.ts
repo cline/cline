@@ -80,15 +80,25 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("Plan/Act toggle");
 	});
 
-	it("emits mode instructions for both mode: undefined and yolo", () => {
-		// After a switch the transcript still contains messages tagged with the
-		// other mode, so the explanation is unconditional.
+	it("explains mode tags when the mode defaults to act", () => {
 		expect(buildClineSystemPrompt({ ...BASE_OPTIONS })).toContain(
 			MODE_TAG_INSTRUCTIONS,
 		);
-		expect(buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "yolo" })).toContain(
-			MODE_TAG_INSTRUCTIONS,
-		);
+	});
+
+	it("omits plan/act instructions in YOLO while preserving caller rules", () => {
+		const rules = "# Custom Rules\n\nAlways speak like a pirate.";
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			mode: "yolo",
+			rules,
+		});
+		expect(prompt).toContain(rules);
+		expect(prompt).not.toContain(MODE_TAG_INSTRUCTIONS);
+		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS);
+		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH);
+		expect(prompt).not.toContain("# Plan / Act Modes");
+		expect(prompt).not.toContain("switch_to_act_mode");
 	});
 
 	it("places caller rules before the mode instructions", () => {

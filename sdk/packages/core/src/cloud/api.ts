@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { decodeJwtPayload } from "@cline/shared";
+import {
+	type AgentMode,
+	decodeJwtPayload,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -30,6 +34,7 @@ export type CloudSessionRecord = {
 		statusReason?: string;
 		provisioningPhase?: CloudProvisioningPhase;
 		createRequestTitle?: string;
+		cwd?: string;
 	};
 	expiredAt?: string | null;
 	lastActivityAt?: string;
@@ -59,8 +64,23 @@ export type CreateCloudSessionInput = {
 	autoApproveTools?: boolean;
 	thinking?: boolean;
 	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
-	/** Omit for a personal session; otherwise scopes billing to this org. */
-	organizationId?: string;
+	mode?: AgentMode;
+	workspaceRelativePath?: string;
+	/** Null explicitly selects Personal; controllers resolve an omitted scope. */
+	organizationId?: string | null;
+	/** Host persistence hooks; never serialized into the provisioning request. */
+	handoff?: {
+		sourceSessionId: string;
+		resolveMessages: () => Promise<MessageWithMetadata[]>;
+		/** Persist dispatch intent after successful recovery lookup, before POST. */
+		onCreating: () => void | Promise<void>;
+		onOuterSessionCreated: (
+			sessionId: string,
+			context?: { created: boolean },
+		) => Promise<void>;
+		onOuterSessionRemoved?: (sessionId: string) => Promise<void>;
+		onSeeding?: () => void | Promise<void>;
+	};
 };
 
 export type {
@@ -70,7 +90,7 @@ export type {
 	CloudRepositoryOption,
 } from "./repositories";
 
-type CloudSessionApiOptions = {
+export type CloudSessionApiOptions = {
 	apiBaseUrl: string;
 	appBaseUrl: string;
 	getAuthToken: () => Promise<string | undefined>;
@@ -78,7 +98,7 @@ type CloudSessionApiOptions = {
 	createTimeoutMs?: number;
 };
 
-type CloudErrorCode =
+export type CloudErrorCode =
 	| "authentication_required"
 	| "github_not_connected"
 	| "session_not_found"
@@ -98,6 +118,20 @@ export class CloudSessionError extends Error {
 			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message: detail, connectUrl })}`,
 		);
 		this.name = "CloudSessionError";
+	}
+}
+
+/** The fresh handoff POST definitely did not create a workspace. Marker/list
+ * failures and ambiguous transport outcomes deliberately never use this type. */
+export class CloudHandoffCreationRejectedError extends Error {
+	constructor(cause: unknown) {
+		super(
+			cause instanceof Error
+				? cause.message
+				: "Cloud handoff creation was rejected.",
+			{ cause },
+		);
+		this.name = "CloudHandoffCreationRejectedError";
 	}
 }
 
@@ -221,6 +255,16 @@ export class CloudSessionApi {
 	private readonly appBaseUrl: string;
 	private readonly fetchImpl: FetchLike;
 	private readonly createTimeoutMs: number;
+	private readonly unconfirmedHandoffCreates = new Set<string>();
+	private readonly completedHandoffCreates = new Map<
+		string,
+		{
+			sessionId: string;
+			status: string;
+			sandboxUrl: string;
+			cleanupAuthToken: string;
+		}
+	>();
 	constructor(private readonly options: CloudSessionApiOptions) {
 		this.apiBaseUrl = trimTrailingSlash(options.apiBaseUrl);
 		this.appBaseUrl = trimTrailingSlash(options.appBaseUrl);
@@ -233,19 +277,52 @@ export class CloudSessionApi {
 		init: RequestInit = {},
 		githubConnectUrl?: string,
 		auth?: RequestAuth,
+		onDispatch?: () => void,
 	): Promise<T> {
 		let refreshed = false;
+		let rejectedToken: string | undefined;
 		while (true) {
-			const token =
-				typeof auth === "string"
-					? auth
-					: (auth?.token ?? (await this.options.getAuthToken()));
+			let token: string | undefined;
+			try {
+				token =
+					typeof auth === "string" ? auth : await this.options.getAuthToken();
+			} catch (error) {
+				if (rejectedToken)
+					throw cloudErrorForResponse(
+						401,
+						undefined,
+						this.appBaseUrl,
+						githubConnectUrl,
+					);
+				throw error;
+			}
 			if (!token?.trim()) {
 				throw new CloudSessionError(
 					"authentication_required",
 					"Sign in to Cline before starting a cloud session.",
 				);
 			}
+			if (token.trim() === rejectedToken)
+				throw new CloudSessionError(
+					"authentication_required",
+					"The cloud session credential was rejected. Sign in again.",
+				);
+			if (typeof auth === "object") {
+				// Creation and recovery stay bound to the original account, while
+				// consulting the host's current eligibility gate on every attempt.
+				if (
+					auth.subject
+						? authSubject(token.trim()) !== auth.subject
+						: token.trim() !== auth.token
+				) {
+					throw new CloudSessionError(
+						"authentication_required",
+						"The signed-in account changed during cloud session creation.",
+					);
+				}
+				auth.token = token.trim();
+			}
+			onDispatch?.();
 			const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
 				...init,
 				signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -265,9 +342,10 @@ export class CloudSessionApi {
 					response.status === 401 &&
 					typeof auth === "object" &&
 					!refreshed &&
-					(await this.refreshCreationAuth(auth))
+					auth.subject
 				) {
 					refreshed = true;
+					rejectedToken = token.trim();
 					continue;
 				}
 				throw cloudErrorForResponse(
@@ -279,20 +357,6 @@ export class CloudSessionApi {
 			}
 			return (payload as ApiResponse<T> | undefined)?.data as T;
 		}
-	}
-
-	private async refreshCreationAuth(auth: CreationAuth): Promise<boolean> {
-		if (!auth.subject) return false;
-		const freshToken = (await this.options.getAuthToken())?.trim();
-		if (
-			!freshToken ||
-			freshToken === auth.token ||
-			authSubject(freshToken) !== auth.subject
-		) {
-			return false;
-		}
-		auth.token = freshToken;
-		return true;
 	}
 
 	async list(organizationId?: string): Promise<CloudSessionRecord[]> {
@@ -488,6 +552,11 @@ export class CloudSessionApi {
 		sandboxUrl: string;
 		cleanupAuthToken: string;
 	}> {
+		if (input.handoff && typeof input.handoff.onCreating !== "function")
+			throw new CloudSessionError(
+				"request_failed",
+				"Cloud handoff requires an onCreating callback to persist creation intent before dispatch.",
+			);
 		const initialAuthToken = (await this.options.getAuthToken())?.trim();
 		if (!initialAuthToken) {
 			throw new CloudSessionError(
@@ -499,11 +568,130 @@ export class CloudSessionApi {
 			token: initialAuthToken,
 			subject: authSubject(initialAuthToken),
 		};
+		// The title carries the request identity because the API lacks idempotency.
 		const recoveryTitle = createRequestTitle(
 			input.requestId?.trim() || randomUUID(),
 		);
+		const handoffKey = input.handoff
+			? `${creationAuth.subject ?? initialAuthToken}/${input.organizationId ?? ""}/${input.requestId?.trim() ?? ""}`
+			: undefined;
+		if (input.handoff && !input.requestId?.trim())
+			throw new CloudSessionError(
+				"request_failed",
+				"A stable request id is required for cloud handoff creation.",
+			);
+		const listMatches = async () =>
+			(
+				await this.listWithToken(
+					input.organizationId ?? undefined,
+					creationAuth,
+					true,
+				)
+			).filter(
+				(session) =>
+					session.title === recoveryTitle &&
+					session.repoContext.repoUrl === input.repoUrl &&
+					session.metadata.modelId === input.modelId &&
+					(!input.branch?.trim() ||
+						session.repoContext.branch === input.branch.trim()),
+			);
+		const adopt = async (record: CloudSessionRecord) => {
+			if (
+				record.status === "failed" ||
+				(record.expiredAt && Date.parse(record.expiredAt) <= Date.now())
+			) {
+				const terminalError = new CloudSessionError(
+					record.status === "failed" ? "session_failed" : "session_expired",
+					"The recovered cloud handoff workspace is no longer usable.",
+				);
+				try {
+					await this.deleteWithAuth(record.id, creationAuth);
+				} catch (cleanupError) {
+					if (
+						!(
+							cleanupError instanceof CloudSessionError &&
+							(cleanupError.code === "session_not_found" ||
+								cleanupError.code === "session_expired")
+						)
+					) {
+						throw new AggregateError(
+							[terminalError, cleanupError],
+							"The unusable recovered cloud handoff workspace could not be removed.",
+						);
+					}
+				}
+				if (handoffKey) {
+					this.unconfirmedHandoffCreates.delete(handoffKey);
+					this.completedHandoffCreates.delete(handoffKey);
+				}
+				await input.handoff?.onOuterSessionRemoved?.(record.id);
+				throw terminalError;
+			}
+			await input.handoff?.onOuterSessionCreated(record.id, { created: false });
+			const result = {
+				sessionId: record.id,
+				status: record.status,
+				sandboxUrl: record.sandboxUrl,
+				cleanupAuthToken: creationAuth.token,
+			};
+			if (handoffKey) {
+				this.unconfirmedHandoffCreates.delete(handoffKey);
+				this.completedHandoffCreates.set(handoffKey, result);
+			}
+			return result;
+		};
+		if (handoffKey) {
+			// Always consult fresh scoped auth before using a remembered create result.
+			const matches = await listMatches();
+			if (matches.length > 1)
+				throw new CloudSessionError(
+					"request_failed",
+					"Cloud handoff creation is ambiguous; inspect your cloud session list before continuing.",
+				);
+			if (matches[0]) return await adopt(matches[0]);
+			const completed = this.completedHandoffCreates.get(handoffKey);
+			if (completed) {
+				try {
+					await this.request(
+						`/api/v1/session/${encodeURIComponent(completed.sessionId)}/status`,
+						{},
+						undefined,
+						creationAuth,
+					);
+				} catch (error) {
+					if (
+						error instanceof CloudSessionError &&
+						(error.code === "session_not_found" ||
+							error.code === "session_expired")
+					) {
+						await input.handoff?.onOuterSessionRemoved?.(completed.sessionId);
+						this.completedHandoffCreates.delete(handoffKey);
+						this.unconfirmedHandoffCreates.delete(handoffKey);
+					}
+					throw error;
+				}
+				await input.handoff?.onOuterSessionCreated(completed.sessionId, {
+					created: false,
+				});
+				return { ...completed, cleanupAuthToken: creationAuth.token };
+			}
+			if (this.unconfirmedHandoffCreates.has(handoffKey))
+				throw new CloudSessionError(
+					"request_failed",
+					"Cloud handoff creation is still unconfirmed. Recover the original request before creating another workspace.",
+				);
+			this.unconfirmedHandoffCreates.add(handoffKey);
+		}
+		try {
+			await input.handoff?.onCreating();
+		} catch (error) {
+			if (handoffKey) this.unconfirmedHandoffCreates.delete(handoffKey);
+			throw error;
+		}
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
+		let createdSessionId: string | undefined;
+		let postDispatched = false;
 		try {
 			const created = await this.request<{
 				sessionId: string;
@@ -529,6 +717,9 @@ export class CloudSessionApi {
 					? `${this.appBaseUrl}/dashboard/organization/integrations`
 					: undefined,
 				creationAuth,
+				() => {
+					postDispatched = true;
+				},
 			);
 			const sessionId = created?.sessionId?.trim();
 			if (!sessionId) {
@@ -537,37 +728,66 @@ export class CloudSessionApi {
 					"The cloud session service returned no session id.",
 				);
 			}
-			return {
+			createdSessionId = sessionId;
+			await this.persistHandoffOuterSession(
+				input,
+				sessionId,
+				creationAuth,
+				handoffKey,
+			);
+			const result = {
 				sessionId,
 				status: created.status?.trim() || "provisioning",
 				sandboxUrl: created.sandboxUrl?.trim() ?? "",
 				cleanupAuthToken: creationAuth.token,
 			};
+			if (handoffKey) {
+				this.unconfirmedHandoffCreates.delete(handoffKey);
+				this.completedHandoffCreates.set(handoffKey, result);
+			}
+			return result;
 		} catch (error) {
+			if (createdSessionId) throw error;
+			const definitelyRejected =
+				!postDispatched ||
+				(error instanceof CloudSessionError &&
+					((error.status !== undefined &&
+						error.status >= 400 &&
+						error.status < 500 &&
+						error.status !== 408 &&
+						error.status !== 409) ||
+						[
+							"authentication_required",
+							"github_not_connected",
+							"session_not_found",
+							"session_expired",
+						].includes(error.code)));
+			if (handoffKey && definitelyRejected) {
+				this.unconfirmedHandoffCreates.delete(handoffKey);
+				throw new CloudHandoffCreationRejectedError(error);
+			}
 			// Recover only failures that may have followed an accepted POST.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
 				!(error instanceof CloudSessionError) ||
 				(error instanceof CloudSessionError &&
 					error.code === "request_failed" &&
-					(error.status === undefined || error.status >= 500));
+					(error.status === undefined ||
+						error.status >= 500 ||
+						error.status === 408 ||
+						error.status === 409));
 			if (mayStillBeProvisioning) {
-				const requestedBranch = input.branch?.trim();
-				// The title carries the request identity because the API lacks idempotency.
-				const candidates = (
-					await this.listWithToken(
-						input.organizationId,
-						creationAuth,
-						true,
-					).catch(() => [])
-				).filter(
-					(session) =>
-						session.title === recoveryTitle &&
-						session.repoContext.repoUrl === input.repoUrl &&
-						session.metadata.modelId === input.modelId &&
-						(!requestedBranch ||
-							session.repoContext.branch === requestedBranch),
-				);
+				let candidates: CloudSessionRecord[] = [];
+				try {
+					candidates = await listMatches();
+				} catch (recoveryError) {
+					if (input.handoff)
+						throw new AggregateError(
+							[error, recoveryError],
+							"Cloud handoff creation is unconfirmed and its session list could not be checked.",
+						);
+				}
+
 				if (candidates.length > 1) {
 					throw new CloudSessionError(
 						"request_failed",
@@ -576,6 +796,7 @@ export class CloudSessionApi {
 				}
 				const recovered = candidates[0];
 				if (recovered) {
+					if (input.handoff) return await adopt(recovered);
 					return {
 						sessionId: recovered.id,
 						status: recovered.status,
@@ -583,10 +804,44 @@ export class CloudSessionApi {
 						cleanupAuthToken: creationAuth.token,
 					};
 				}
+			} else if (handoffKey) {
+				this.unconfirmedHandoffCreates.delete(handoffKey);
 			}
 			throw error;
 		} finally {
 			clearTimeout(timeout);
+		}
+	}
+
+	private async persistHandoffOuterSession(
+		input: CreateCloudSessionInput,
+		sessionId: string,
+		auth: CreationAuth,
+		handoffKey?: string,
+	): Promise<void> {
+		if (!input.handoff) return;
+		try {
+			await input.handoff.onOuterSessionCreated(sessionId, { created: true });
+		} catch (persistenceError) {
+			try {
+				await this.deleteWithAuth(sessionId, auth.token);
+			} catch (cleanupError) {
+				if (
+					!(
+						cleanupError instanceof CloudSessionError &&
+						(cleanupError.code === "session_not_found" ||
+							cleanupError.code === "session_expired")
+					)
+				) {
+					throw new AggregateError(
+						[persistenceError, cleanupError],
+						`Cloud session ${sessionId} was created but its recovery record could not be saved or its sandbox removed.`,
+					);
+				}
+			}
+			if (handoffKey) this.unconfirmedHandoffCreates.delete(handoffKey);
+			await input.handoff.onOuterSessionRemoved?.(sessionId);
+			throw persistenceError;
 		}
 	}
 
@@ -679,12 +934,28 @@ export class CloudSessionApi {
 		sessionId: string,
 		auth?: RequestAuth,
 	): Promise<void> {
-		await this.request(
-			`/api/v1/session/${encodeURIComponent(sessionId)}`,
-			{ method: "DELETE" },
-			undefined,
-			auth,
-		);
+		let goneError: CloudSessionError | undefined;
+		try {
+			await this.request(
+				`/api/v1/session/${encodeURIComponent(sessionId)}`,
+				{ method: "DELETE" },
+				undefined,
+				auth,
+			);
+		} catch (error) {
+			if (
+				!(error instanceof CloudSessionError) ||
+				(error.code !== "session_not_found" && error.code !== "session_expired")
+			)
+				throw error;
+			goneError = error;
+		}
+		for (const [key, result] of this.completedHandoffCreates)
+			if (result.sessionId === sessionId) {
+				this.completedHandoffCreates.delete(key);
+				this.unconfirmedHandoffCreates.delete(key);
+			}
+		if (goneError) throw goneError;
 	}
 
 	async updateTitle(

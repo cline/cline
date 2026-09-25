@@ -1,5 +1,10 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { captureSdkError, initVcr, resolveClineBuildEnv } from "@cline/shared";
+import {
+	captureSdkError,
+	ensureLoopbackProxyBypass,
+	initVcr,
+	resolveClineBuildEnv,
+} from "@cline/shared";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -150,6 +155,7 @@ export function isAbortRejection(reason: unknown): boolean {
 }
 
 async function main(): Promise<void> {
+	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
 
