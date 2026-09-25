@@ -1,6 +1,8 @@
 import type { ModelInfo, ToolResultContent } from "@cline/llms";
 import {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateTokens,
 	type MessageWithMetadata,
 } from "@cline/shared";
@@ -201,13 +203,16 @@ export function createTokenEstimator(): EstimateMessageTokens {
 		if (typeof cached === "number") {
 			return cached;
 		}
+		const { replacer, imageCount } = createImageAwareReplacer();
 		let serialized: string;
 		try {
-			serialized = JSON.stringify(message);
+			serialized = JSON.stringify(message, replacer);
 		} catch {
 			serialized = serializeMessage(message);
 		}
-		const value = estimateTokens(serialized.length);
+		const value =
+			estimateTokens(serialized.length) +
+			imageCount() * ESTIMATED_TOKENS_PER_IMAGE;
 		cache.set(ref, value);
 		return value;
 	};

@@ -141,6 +141,20 @@ describe("createTokenEstimator", () => {
 			Math.ceil(JSON.stringify(message).length / 3),
 		);
 	});
+
+	it("does not bill an image block's base64 payload at CHARS_PER_TOKEN", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const base64Data = "A".repeat(90_000);
+		const message: MessageWithMetadata = {
+			role: "user",
+			content: [{ type: "image", data: base64Data, mediaType: "image/png" }],
+		};
+
+		const naiveCharBasedEstimate = Math.ceil(base64Data.length / 3);
+		expect(estimateMessageTokens(message)).toBeLessThan(
+			naiveCharBasedEstimate / 10,
+		);
+	});
 });
 
 describe("resolveEffectiveMaxInputTokens", () => {
