@@ -3470,12 +3470,8 @@ export async function handleCommand(
 				: binding.workspaceRoot;
 		const branches = await listGitBranches(ctx, binding, cwd);
 		if (binding.kind === "local") {
-			// The webview asks for the branch of whichever workspace it has
-			// adopted (remembered, launch fallback, or a reopened session), so
-			// this is the one hook that sees every active local workspace.
 			const { prewarmWorkspaceMetadata } = await import("./chat-session");
 			prewarmWorkspaceMetadata(cwd);
-			warmPluginCommandService(ctx, cwd);
 		}
 		return { environmentId: binding.environmentId, branch: branches.current };
 	}
@@ -3563,6 +3559,16 @@ export async function handleCommand(
 			undefined,
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
+	}
+	if (command === "warm_plugin_commands") {
+		// The webview reports whichever local workspace it has adopted so the
+		// plugin sandbox is loaded before the slash menu first needs it.
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const workspacePath = String(args?.workspacePath ?? "").trim();
+		if (binding.kind === "local" && workspacePath) {
+			warmPluginCommandService(ctx, workspacePath);
+		}
+		return { environmentId: binding.environmentId };
 	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu
