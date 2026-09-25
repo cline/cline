@@ -195,10 +195,14 @@ describe("provider settings cloud session lifecycle", () => {
 	it.each([
 		["cline", ["cline"]],
 		["cline-pass", ["cline", "cline-pass"]],
-	] as const)("clears stored OAuth tokens when a %s API key is pasted", async (provider, savedProviderIds) => {
+	] as const)("clears stored OAuth tokens and identity when a %s API key is pasted", async (provider, savedProviderIds) => {
 		const { ctx } = createContext();
 		getProviderSettingsMock.mockReturnValue({
-			auth: { accessToken: "token", refreshToken: "refresh" },
+			auth: {
+				accessToken: "token",
+				refreshToken: "refresh",
+				accountId: "acct-1",
+			},
 		});
 		saveProviderSettingsMock.mockReturnValue({
 			providerId: provider,
@@ -214,7 +218,12 @@ describe("provider settings cloud session lifecycle", () => {
 				expect.objectContaining({
 					providerId,
 					apiKey: "manual-key",
-					auth: { accessToken: "", refreshToken: "" },
+					auth: {
+						accessToken: "",
+						refreshToken: "",
+						apiKey: "",
+						accountId: "",
+					},
 				}),
 			),
 		);

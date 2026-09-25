@@ -3060,12 +3060,19 @@ export async function handleCommand(
 		// prefers OAuth tokens when both are stored, so leftover tokens would
 		// silently win over the new key and the panel would keep reporting
 		// "Signed in via browser" (mirrors the CLI's saveManualProviderApiKey).
+		// The account identity goes too; the key may belong to a different
+		// account, and the follow-up fetchMe re-establishes it.
 		if (
 			apiKey?.trim() &&
 			getProviderAuthHandler(providerId) &&
 			update.auth === undefined
 		) {
-			update.auth = { accessToken: "", refreshToken: "" };
+			update.auth = {
+				accessToken: "",
+				refreshToken: "",
+				apiKey: "",
+				accountId: "",
+			};
 			if (storageProviderId !== providerId) {
 				saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
