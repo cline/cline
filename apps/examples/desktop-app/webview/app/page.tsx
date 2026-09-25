@@ -56,7 +56,11 @@ import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
-import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
+import {
+	applyAppZoomAction,
+	appZoomActionForKey,
+	syncAppFontSize,
+} from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
@@ -695,13 +699,25 @@ export default function Home() {
 		[navigateWith],
 	);
 	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
-	// new session, and Cmd/Ctrl+, for settings.
+	// new session, Cmd/Ctrl+, for settings, and Cmd/Ctrl +/-/0 for zoom.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding) {
 				return;
 			}
-			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+			if (!(event.metaKey || event.ctrlKey) || event.altKey) {
+				return;
+			}
+			// Zoom runs ahead of the Shift guard below because "+" is typed as
+			// Shift+"=". On macOS the View menu's key equivalents claim these
+			// first, so the webview only sees them where no menu exists.
+			const zoomAction = appZoomActionForKey(event.key);
+			if (zoomAction) {
+				event.preventDefault();
+				applyAppZoomAction(zoomAction);
+				return;
+			}
+			if (event.shiftKey) {
 				return;
 			}
 			if (event.key === "n" || event.key === "N") {
