@@ -428,6 +428,8 @@ export class SessionRuntime {
 		this.conversation = new ConversationStore(config.initialMessages);
 		this.messageBuilder = new MessageBuilder({
 			...getMessageBuilderOptionsFromEnv(),
+			isToolResultRecorded: (toolCallId, path) =>
+				this.toolResultStore.isRecorded(toolCallId, path),
 		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
@@ -1251,6 +1253,7 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
+		await this.toolResultStore.loadRecords();
 		return this.messageBuilder.buildForApi(providerMessages);
 	}
 

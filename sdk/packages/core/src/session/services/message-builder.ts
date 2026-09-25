@@ -26,8 +26,10 @@ import {
 } from "@cline/shared";
 import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
 import {
+	formatToolResultRecoveryNotice,
 	isToolResultRecoveryNotice,
 	serializeToolResultContent,
+	type ToolResultRecordLookup,
 } from "./tool-result-recovery";
 
 const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
@@ -89,6 +91,8 @@ export interface MessageBuilderOptions {
 	maxAssistantTextChars?: number;
 	maxAssistantToolMarkupChars?: number;
 	minOutdatedRewriteBytes?: number;
+	/** Core-owned save records; only matching notices are protected from truncation. */
+	isToolResultRecorded?: ToolResultRecordLookup;
 }
 
 export function getMessageBuilderOptionsFromEnv(
@@ -133,6 +137,7 @@ export class MessageBuilder {
 	private readonly maxAssistantTextChars: number;
 	private readonly maxAssistantToolMarkupChars: number;
 	private readonly minOutdatedRewriteBytes: number;
+	private readonly isToolResultRecorded?: ToolResultRecordLookup;
 	// Sticky rewrite decisions. Kept across resetIndexes because production
 	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
@@ -162,6 +167,15 @@ export class MessageBuilder {
 		this.minOutdatedRewriteBytes = normalizeNonNegativeLimit(
 			options.minOutdatedRewriteBytes,
 			DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
+		);
+		this.isToolResultRecorded = options.isToolResultRecorded;
+	}
+
+	private isRecoveryNotice(entry: unknown, toolUseId: string): boolean {
+		return isToolResultRecoveryNotice(
+			entry,
+			toolUseId,
+			this.isToolResultRecorded,
 		);
 	}
 
@@ -239,7 +253,7 @@ export class MessageBuilder {
 			const path = await save(result);
 			content.push({
 				type: "text",
-				text: `Full result saved to ${path} for search.`,
+				text: formatToolResultRecoveryNotice(path),
 				toolResultFile: path,
 			});
 		} catch {
@@ -306,14 +320,21 @@ export class MessageBuilder {
 						this.isOutdatedReadLocator(locator, block.tool_use_id),
 				);
 				if (outdated.length > 0) {
-					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
+					nextContent = this.replaceOutdatedReadContent(
+						nextContent,
+						outdated,
+						block.tool_use_id,
+					);
 				}
 			}
 		}
 
 		// Imported history and injected messages may bypass tool completion.
 		// Enforce the provider cap without storing or mutating recorded results.
-		nextContent = this.truncateToolResultContent(nextContent);
+		nextContent = this.truncateToolResultContent(
+			nextContent,
+			block.tool_use_id,
+		);
 
 		return nextContent === block.content
 			? block
@@ -957,6 +978,7 @@ export class MessageBuilder {
 	private replaceOutdatedReadContent(
 		content: ToolResultContent["content"],
 		outdated: ReadLocator[],
+		toolUseId: string,
 	): ToolResultContent["content"] {
 		const outdatedKeys = new Set(outdated.map((l) => this.toReadLocatorKey(l)));
 		const outdatedPaths = new Set(outdated.map((l) => l.path));
@@ -980,7 +1002,7 @@ export class MessageBuilder {
 		}
 
 		return content.map((entry) => {
-			if (isToolResultRecoveryNotice(entry)) return entry;
+			if (this.isRecoveryNotice(entry, toolUseId)) return entry;
 			if (entry.type === "file") {
 				if (!outdatedPaths.has(entry.path)) {
 					return entry;
@@ -1109,12 +1131,13 @@ export class MessageBuilder {
 
 	private truncateToolResultContent(
 		content: ToolResultContent["content"],
+		toolUseId: string,
 	): ToolResultContent["content"] {
 		if (typeof content === "string") {
 			return this.truncateMiddle(content);
 		}
 		return content.map((entry) => {
-			if (isToolResultRecoveryNotice(entry)) return entry;
+			if (this.isRecoveryNotice(entry, toolUseId)) return entry;
 			if (entry.type === "file") {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
@@ -1252,8 +1275,13 @@ export class MessageBuilder {
 				targetBytes,
 				candidate.makeMarker,
 			);
+			const truncatedBytes = utf8ByteLength(truncated);
+			// Never let a marker grow a candidate past its original size.
+			if (truncatedBytes >= currentBytes) {
+				continue;
+			}
 			candidate.set(truncated);
-			totalBytes -= currentBytes - utf8ByteLength(truncated);
+			totalBytes -= currentBytes - truncatedBytes;
 		}
 
 		return next;
@@ -1355,7 +1383,7 @@ export class MessageBuilder {
 					continue;
 				}
 				for (const entry of block.content) {
-					if (isToolResultRecoveryNotice(entry)) continue;
+					if (this.isRecoveryNotice(entry, block.tool_use_id)) continue;
 					if (entry.type === "text") {
 						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),
@@ -1618,6 +1646,8 @@ function truncateMiddleByChars(
 	return `${start}${marker}${end}`;
 }
 
+const MINIMAL_TRUNCATION_MARKER = "…";
+
 function truncateMiddleToBytes(
 	text: string,
 	maxBytes: number,
@@ -1630,6 +1660,13 @@ function truncateMiddleToBytes(
 	let low = 0;
 	let high = text.length;
 	let best = truncateMiddleByChars(text, 0, makeMarker);
+	if (utf8ByteLength(best) > maxBytes) {
+		// The marker alone exceeds the target; fall back to a minimal marker so
+		// the result stays within the byte budget.
+		return utf8ByteLength(MINIMAL_TRUNCATION_MARKER) <= maxBytes
+			? MINIMAL_TRUNCATION_MARKER
+			: "";
+	}
 	while (low <= high) {
 		const mid = (low + high) >>> 1;
 		const candidate = truncateMiddleByChars(text, mid, makeMarker);
