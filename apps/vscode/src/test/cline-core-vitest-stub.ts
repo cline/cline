@@ -59,6 +59,9 @@ export function ensureCustomProvidersLoadedSync(): void {}
 
 export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
+// Real implementation re-exported from the sdk source (same pattern as above) so
+// SdkTaskHistorySearch tests exercise the real FTS5 index, not a stub.
+export { SessionHistorySearchService } from "../../../../sdk/packages/core/src/session/search/session-history-search"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
 // @cline/llms registry exactly as in production. Tests that touch it must
