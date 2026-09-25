@@ -1841,8 +1841,14 @@ export class Controller {
 		}
 		const generation = ++this.workspaceRestoreAvailabilityGeneration
 		let tempHost: VscodeSessionHost | undefined
-		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
+			if (!activeSession) {
+				tempHost = await this.createRemoteConfigAwareSessionHost()
+			}
+			const sessionHost = activeSession?.sdkHost ?? tempHost
+			if (!sessionHost) {
+				throw new Error("No session host available for workspace restore availability")
+			}
 			const [sessionRecord, sdkMessages] = await Promise.all([
 				sessionHost.get(sessionId),
 				sessionHost.readMessages(sessionId) as Promise<SdkUserMessage[]>,
@@ -1875,7 +1881,11 @@ export class Controller {
 				this.workspaceRestoreAvailabilityByMessageTs = {}
 			}
 		} finally {
-			await tempHost?.dispose("workspaceRestoreAvailability")
+			try {
+				await tempHost?.dispose("workspaceRestoreAvailability")
+			} catch (error) {
+				Logger.debug(`[SdkController] Failed to dispose workspace restore availability host: ${error}`)
+			}
 		}
 	}
 

@@ -264,6 +264,72 @@ describe("SDK remote-config coordination", () => {
 })
 
 describe("workspace restore availability cache", () => {
+	it("builds history-task state when temporary host creation fails", async () => {
+		const task = {
+			taskId: "task-a",
+			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+		}
+		const controller = {
+			task,
+			sessions: { getActiveSession: () => undefined },
+			createRemoteConfigAwareSessionHost: vi.fn().mockRejectedValue(new Error("host unavailable")),
+			refreshWorkspaceRestoreAvailability: (SdkController.prototype as any).refreshWorkspaceRestoreAvailability,
+			workspaceRestoreAvailabilityGeneration: 0,
+			workspaceRestoreAvailabilitySessionId: undefined,
+			workspaceRestoreAvailabilityByMessageTs: { 1: { available: true } },
+			stateManager: {
+				getGlobalSettingsKey: () => undefined,
+				getRemoteConfigSettings: () => ({}),
+				setGlobalState: vi.fn(),
+			},
+			backgroundCommandRunning: false,
+			backgroundCommandTaskId: undefined,
+			foregroundCommands: { isRunning: false },
+			isRemoteConfigAvailable: true,
+			currentRemoteConfigRevision: 7,
+			ensureWorkspaceManager: async () => undefined,
+			taskHistory: { listHistory: async () => [] },
+			getWorkspaceRoot: async () => "/workspace",
+			turnStateTracker: { get: () => undefined },
+			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
+		}
+
+		const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+
+		expect(state.workspaceRestoreAvailabilityByMessageTs).toEqual({})
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBeUndefined()
+		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({})
+	})
+
+	it("does not block history-task state when temporary host cleanup fails", async () => {
+		const task = {
+			taskId: "task-a",
+			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+		}
+		const tempHost = {
+			get: vi.fn().mockResolvedValue({
+				metadata: { checkpoint: { history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] } },
+			}),
+			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "A" }]),
+			dispose: vi.fn().mockRejectedValue(new Error("cleanup failed")),
+		}
+		const controller = {
+			task,
+			sessions: { getActiveSession: () => undefined },
+			createRemoteConfigAwareSessionHost: vi.fn().mockResolvedValue(tempHost),
+			workspaceRestoreAvailabilityGeneration: 0,
+			workspaceRestoreAvailabilitySessionId: undefined,
+			workspaceRestoreAvailabilityByMessageTs: {},
+		}
+
+		await expect(
+			(SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true),
+		).resolves.toBeUndefined()
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-a")
+		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 1: { available: true } })
+		expect(tempHost.dispose).toHaveBeenCalledWith("workspaceRestoreAvailability")
+	})
+
 	it("does not publish a suspended refresh after switching tasks", async () => {
 		let resolveTaskA: ((value: unknown) => void) | undefined
 		const taskARecord = new Promise((resolve) => {
