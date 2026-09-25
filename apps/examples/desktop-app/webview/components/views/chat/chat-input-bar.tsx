@@ -989,12 +989,12 @@ function ChatInputBarImpl({
 		let cancelled = false;
 		let requestId = 0;
 		setSlashCommands(BUILTIN_SLASH_COMMANDS);
-		setSlashLoading(slashOpen);
+		setSlashLoading(true);
 		setSlashError(undefined);
 		const refresh = async () => {
 			const id = ++requestId;
 			try {
-				const [response, catalog] = await Promise.all([
+				const [instructions, plugins] = await Promise.allSettled([
 					desktopClient.invoke<UserInstructionConfigResponse>(
 						"list_user_instruction_configs",
 						{ workspacePath: workspaceRoot, environmentId },
@@ -1008,12 +1008,17 @@ function ChatInputBarImpl({
 				if (cancelled || id !== requestId) return;
 				setSlashCommands([
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response, catalog.commands),
+					...buildUserInstructionSlashCommands(
+						instructions.status === "fulfilled" ? instructions.value : {},
+						plugins.status === "fulfilled" ? plugins.value.commands : [],
+					),
 				]);
 				setSlashError(
-					catalog.status === "error"
+					plugins.status === "rejected" || plugins.value.status === "error"
 						? "Plugin commands unavailable"
-						: undefined,
+						: instructions.status === "rejected"
+							? "Instruction commands unavailable"
+							: undefined,
 				);
 			} catch {
 				if (!cancelled && id === requestId)
@@ -1036,12 +1041,23 @@ function ChatInputBarImpl({
 					void refresh();
 			},
 		);
+		const unsubscribeSettings = desktopClient.subscribe(
+			"settings.changed",
+			(payload) => {
+				if (
+					(payload as { environmentId?: string }).environmentId ===
+					environmentId
+				)
+					void refresh();
+			},
+		);
 		void refresh();
 		return () => {
 			cancelled = true;
+			unsubscribeSettings();
 			unsubscribe();
 		};
-	}, [workspaceRoot, environmentId, sessionId, executionTarget, slashOpen]);
+	}, [workspaceRoot, environmentId, sessionId, executionTarget]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {

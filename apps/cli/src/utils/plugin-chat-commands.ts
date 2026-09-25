@@ -15,7 +15,8 @@ export async function createWorkspaceChatCommandHost(input: {
 	});
 	const host = chatCommandHost.clone().setFallback(async (parsed, context) => {
 		const result = await commands.run({
-			...target(),
+			workspacePath: parsed.state.workspaceRoot || parsed.state.cwd,
+			sessionId: parsed.state.sessionId ?? input.getSessionId?.(),
 			prompt: `${parsed.command}${parsed.argumentsText}`,
 		});
 		if (!result) return false;

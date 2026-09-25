@@ -257,6 +257,73 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("retains skills and workflows when plugin discovery rejects", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands") throw new Error("hub unavailable");
+			return {
+				runtimeCommands: [
+					{
+						name: "publish-skill",
+						kind: "skill",
+						description: "Publish skill",
+					},
+					{
+						name: "publish-workflow",
+						kind: "workflow",
+						description: "Publish workflow",
+					},
+				],
+			};
+		});
+		await renderVoiceComposer({ prompt: "/publish", executionTarget: "local" });
+		expect(container.textContent).toContain("Publish skill");
+		expect(container.textContent).toContain("Publish workflow");
+	});
+
+	it("keeps the catalog loaded across slash menu toggles", async () => {
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name === "list_plugin_commands")
+					return {
+						status: "ready",
+						commands: [
+							{ name: "upload-history", description: "Upload history" },
+						],
+					};
+				return { runtimeCommands: [] };
+			});
+		await renderVoiceComposer({
+			prompt: "/upload",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Upload history");
+		const initialRequests = invoke.mock.calls.filter(
+			([name]) =>
+				name === "list_plugin_commands" ||
+				name === "list_user_instruction_configs",
+		).length;
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/upload",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Upload history");
+		expect(
+			invoke.mock.calls.filter(
+				([name]) =>
+					name === "list_plugin_commands" ||
+					name === "list_user_instruction_configs",
+			),
+		).toHaveLength(initialRequests);
+	});
+
 	it("refreshes the open slash menu when the hub catalog recovers", async () => {
 		let available = false;
 		let changed: ((payload: unknown) => void) | undefined;

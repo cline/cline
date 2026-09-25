@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { resolveWorkspaceRoot } from "./helpers";
 
 export type ChatCommandState = {
+	sessionId?: string;
 	enableTools: boolean;
 	autoApproveTools: boolean;
 	cwd: string;

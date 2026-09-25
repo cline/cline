@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { enqueueThreadTurn } from "./chat-runtime";
 import { handleConnectorUserTurn } from "./connector-host";
 
@@ -178,6 +179,59 @@ describe("handleConnectorUserTurn", () => {
 		}
 	});
 
+	it.each([
+		"discord",
+		"gchat",
+		"linear",
+		"slack",
+		"telegram",
+		"whatsapp",
+	])("routes %s plugin commands with each thread's current session and workspace", async (transport) => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-command-context-"));
+		tempDirs.push(dir);
+		const run = vi.fn(async () => ({ reply: "handled" }));
+		const { host } = await createWorkspaceChatCommandHost({
+			cwd: dir,
+			commands: { run, list: vi.fn(), subscribe: vi.fn() },
+		});
+		await Promise.all(
+			["one", "two"].map(async (id) => {
+				const workspace = join(dir, id);
+				const { thread, posts } = createThread({
+					sessionId: id,
+					cwd: workspace,
+					workspaceRoot: workspace,
+				});
+				await handleConnectorUserTurn({
+					thread: thread as never,
+					client: {} as never,
+					pendingApprovals: new Map(),
+					baseStartRequest: baseStartRequest() as never,
+					clientId: "client",
+					explicitSystemPrompt: undefined,
+					logger: {
+						core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+					} as never,
+					transport,
+					botUserName: "cline",
+					requestStop: vi.fn(),
+					bindingsPath: join(dir, `${id}.json`),
+					systemRules: "rules",
+					errorLabel: transport,
+					getSessionMetadata: () => ({}),
+					reusedLogMessage: "reused",
+					text: "/echo hello",
+					chatCommandHost: host,
+				});
+				expect(run).toHaveBeenCalledWith({
+					sessionId: id,
+					workspacePath: workspace,
+					prompt: "/echo hello",
+				});
+				expect(messageText(posts.at(-1))).toContain("handled");
+			}),
+		);
+	});
 	it("posts no greeting when the adapter configures none", async () => {
 		// Slack deliberately configures no first-contact message: the greeting is
 		// gated on per-thread state, so a restart or a cleared history replayed it

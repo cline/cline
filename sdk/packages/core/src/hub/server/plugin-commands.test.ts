@@ -64,6 +64,39 @@ function command(
 	});
 }
 describe("hub-owned plugin commands", () => {
+	it("keeps healthy commands available while a sibling plugin fails", async () => {
+		const broken = join(root, ".cline", "plugins", "broken.js");
+		await writeFile(
+			broken,
+			`export default {name:'broken',manifest:{capabilities:['commands']},setup(){throw new Error('broken setup');}};`,
+		);
+		const catalog = await runtime.pluginCommands.list({ workspacePath: root });
+		expect(catalog).toMatchObject({
+			status: "error",
+			commands: [{ name: "counter" }],
+			error: expect.stringContaining("broken setup"),
+		});
+		expect(
+			await runtime.pluginCommands.run({
+				workspacePath: root,
+				prompt: "/counter healthy",
+			}),
+		).toMatchObject({ reply: "workspace:1:healthy" });
+		const updates = vi.fn();
+		const stop = runtime.pluginCommands.subscribe(updates);
+		await rm(broken);
+		await vi.waitFor(
+			() =>
+				expect(updates).toHaveBeenLastCalledWith(
+					expect.objectContaining({
+						status: "ready",
+						commands: [{ name: "counter" }],
+					}),
+				),
+			{ timeout: 5000 },
+		);
+		stop();
+	});
 	it("delivers invalidations and current commands through the shared client API", async () => {
 		const api = createHubPluginCommandsApi({
 			command: (name, payload, sessionId) =>

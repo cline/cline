@@ -143,8 +143,8 @@ export class PluginCommandManager implements PluginCommandsApi {
 						this.options.load ?? resolveAndLoadAgentPlugins
 					)({ cwd: entry.workspacePath, workspacePath: entry.workspacePath });
 					entry.loaded = loaded;
-					if (loaded.failures.length)
-						throw new Error(loaded.failures.map((f) => f.message).join("; "));
+					const error =
+						loaded.failures.map((f) => f.message).join("; ") || undefined;
 					const registry = createContributionRegistry<
 						(typeof loaded.extensions)[number],
 						AgentTool,
@@ -154,10 +154,11 @@ export class PluginCommandManager implements PluginCommandsApi {
 					entry.commands = registry.getRegistrySnapshot().commands;
 					entry.catalog = {
 						workspacePath: entry.workspacePath,
-						status: "ready",
+						status: error ? "error" : "ready",
+						error,
 						commands: listPluginCommands(entry.commands),
 					};
-					entry.retryCount = 0;
+					if (!error) entry.retryCount = 0;
 				} catch (error) {
 					await entry.loaded?.shutdown?.().catch(() => {});
 					entry.loaded = undefined;
@@ -171,6 +172,8 @@ export class PluginCommandManager implements PluginCommandsApi {
 						"Plugin command discovery failed; retrying",
 						{ error },
 					);
+				}
+				if (entry.catalog.status === "error") {
 					this.schedule(
 						entry,
 						Math.min(
