@@ -1900,9 +1900,32 @@ export class CloudSessionController {
 					remote.metadata.sandboxType === "resumable" ||
 					remote.status === "suspended")
 			) {
-				const status = await this.options.api.status(outerSessionId);
+				const status = await this.options.api
+					.status(outerSessionId)
+					.catch((error) => {
+						const transient =
+							error instanceof CloudSessionError
+								? error.code === "request_failed" &&
+									(error.status === undefined ||
+										error.status === 408 ||
+										error.status === 429 ||
+										error.status >= 500)
+								: error instanceof TypeError ||
+									(error instanceof Error && error.name === "TimeoutError");
+						if (!transient) throw error;
+						return undefined;
+					});
 				assertCurrent();
-				if (status.status) remote.status = status.status;
+				if (status?.status) remote.status = status.status;
+				const live = this.sessions.get(outerSessionId);
+				if (
+					live?.status === "suspended" &&
+					["provisioning", "ready", "active"].includes(remote.status)
+				) {
+					live.status = remote.status;
+					live.busy = false;
+					live.endedAt = undefined;
+				}
 			}
 			if (remote.status === "suspended") {
 				const controller = new AbortController();
@@ -1937,7 +1960,11 @@ export class CloudSessionController {
 					controller.signal.throwIfAborted();
 					this.knownSessions.set(outerSessionId, remote);
 					const live = this.sessions.get(outerSessionId);
-					if (live) live.status = remote.status;
+					if (live) {
+						live.status = remote.status;
+						live.busy = false;
+						live.endedAt = undefined;
+					}
 					this.publishSnapshot(outerSessionId, false, "status");
 				} finally {
 					releaseController();
@@ -1968,7 +1995,11 @@ export class CloudSessionController {
 					controller.signal.throwIfAborted();
 					if (remote.status === "provisioning") remote.status = "ready";
 					const live = this.sessions.get(outerSessionId);
-					if (live?.status === "provisioning") live.status = "idle";
+					if (live?.status === "provisioning") {
+						live.status = "idle";
+						live.busy = false;
+						live.endedAt = undefined;
+					}
 				} catch (error) {
 					if (
 						error instanceof CloudSessionError &&

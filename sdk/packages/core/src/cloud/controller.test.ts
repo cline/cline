@@ -220,7 +220,10 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("keeps suspended workspaces asleep during discovery and closes stale connections", async () => {
+	it.each([
+		"suspended",
+		"ready",
+	])("keeps discovery asleep and clears suspended state when reopening with status %s", async (status) => {
 		const f = await attached();
 		f.api.list.mockResolvedValue([
 			{ ...record, sandboxType: "resumable", status: "suspended" },
@@ -229,6 +232,16 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(f.api.resume).not.toHaveBeenCalled();
 		expect(f.dispose).toHaveBeenCalledTimes(1);
 		expect(f.controller.getSnapshot(record.id)?.status).toBe("suspended");
+		expect(f.controller.getSnapshot(record.id)?.endedAt).toBeDefined();
+		f.api.status.mockResolvedValue({ status });
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		await f.controller.attach(record.id);
+		await f.controller.readMessages(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(status === "suspended" ? 1 : 0);
+		expect(f.controller.getSnapshot(record.id)?.endedAt).toBeUndefined();
+		expect((await f.controller.listForDiscovery())[0]?.endedAt).toBeUndefined();
+		f.emit("session.updated", { session: { status: "running" } });
+		expect(f.controller.getSnapshot(record.id)?.status).toBe("running");
 		await f.controller.dispose();
 	});
 
@@ -252,6 +265,41 @@ describe("CloudSessionController neutral host contract", () => {
 		f.api.status.mockResolvedValue({ status: "suspended" });
 		await f.controller.attach(record.id);
 		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		expect(f.controller.getSnapshot(record.id)?.endedAt).toBeUndefined();
+		await f.controller.dispose();
+	});
+
+	it.each([
+		[new CloudSessionError("request_failed", "Network unavailable"), true],
+		[
+			new CloudSessionError("request_failed", "Unavailable", undefined, 503),
+			true,
+		],
+		[new DOMException("Timed out", "TimeoutError"), true],
+		[new TypeError("fetch failed"), true],
+		[new CloudSessionError("authentication_required", "Sign in"), false],
+		[new CloudSessionError("session_not_found", "Gone"), false],
+		[new CloudSessionError("session_expired", "Expired"), false],
+		[
+			new CloudSessionError("request_failed", "Forbidden", undefined, 403),
+			false,
+		],
+		[
+			new CloudSessionError("request_failed", "Conflict", undefined, 409),
+			false,
+		],
+		[new DOMException("Cancelled", "AbortError"), false],
+	] as const)("falls back to listed status only for transient probes: %s", async (error, transient) => {
+		const f = resumableFixture();
+		f.api.status.mockRejectedValue(error);
+		if (transient) {
+			await f.controller.attach(record.id);
+			expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		} else {
+			await expect(f.controller.attach(record.id)).rejects.toBe(error);
+			expect(f.commands).toEqual([]);
+		}
+		expect(f.api.resume).not.toHaveBeenCalled();
 		await f.controller.dispose();
 	});
 
@@ -298,22 +346,33 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("cancels a pending resume when the viewer detaches", async () => {
+	it.each([
+		"resume",
+		"status",
+	] as const)("cancels a pending %s when the viewer detaches", async (stage) => {
 		const f = resumableFixture("suspended");
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
-		f.api.resume.mockImplementation(async () => {
-			await gate;
-			return { ...record, sandboxType: "resumable", status: "provisioning" };
-		});
+		if (stage === "resume") {
+			f.api.resume.mockImplementation(async () => {
+				await gate;
+				return { ...record, sandboxType: "resumable", status: "provisioning" };
+			});
+		} else {
+			f.api.status.mockImplementation(async () => {
+				await gate;
+				throw new DOMException("Timed out", "TimeoutError");
+			});
+		}
 		const attaching = f.controller.attach(record.id);
 		const rejected = expect(attaching).rejects.toThrow();
-		await vi.waitFor(() => expect(f.api.resume).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(f.api[stage]).toHaveBeenCalledTimes(1));
 		await f.controller.detach(record.id);
 		release();
 		await rejected;
+		expect(f.api.resume).toHaveBeenCalledTimes(stage === "resume" ? 1 : 0);
 		expect(f.api.waitUntilReady).not.toHaveBeenCalled();
 		expect(f.commands).toEqual([]);
 		await f.controller.dispose();
