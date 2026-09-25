@@ -2,11 +2,17 @@ import { type CurrentCloudTaskInfo, formatRepoLabel, isPersistedCloudSessionId }
 import { StringRequest } from "@shared/proto/cline/common"
 import { CloudIcon, ExternalLinkIcon, LoaderCircleIcon } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useResolvedCloudStatuses } from "@/hooks/useResolvedCloudStatuses"
 import { CloudServiceClient } from "@/services/grpc-client"
 
 /** Task-header marker for a task running in Cline Cloud; click opens the session in the dashboard. */
 export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo }) {
-	const active = cloudTask.status === "running" || cloudTask.status === "provisioning"
+	const resolvedStatuses = useResolvedCloudStatuses([
+		{ id: cloudTask.sessionId, executionTarget: "cloud", cloudStatus: cloudTask.status },
+	])
+	const status = resolvedStatuses.get(cloudTask.sessionId) ?? cloudTask.status
+	const active = status === "running" || status === "provisioning"
+	const pending = status === "unknown"
 	const canOpenDashboard = isPersistedCloudSessionId(cloudTask.sessionId)
 	const repo = formatRepoLabel(cloudTask.repoUrl)
 	return (
@@ -22,7 +28,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 						)
 					}}
 					type="button">
-					{active ? (
+					{active || pending ? (
 						<LoaderCircleIcon className="size-3 shrink-0 animate-spin" />
 					) : (
 						<CloudIcon className="size-3 shrink-0" />
@@ -32,8 +38,8 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 				</button>
 			</TooltipTrigger>
 			<TooltipContent className="text-xs" side="bottom">
-				Running in Cline Cloud{repo ? ` on ${repo}` : ""}
-				{cloudTask.branch ? ` (${cloudTask.branch})` : ""}.
+				{pending ? "Checking Cline Cloud status" : "Running in Cline Cloud"}
+				{repo ? ` on ${repo}` : ""}.{cloudTask.branch ? ` (${cloudTask.branch})` : ""}.
 				{canOpenDashboard
 					? " Click to open in the dashboard."
 					: " The dashboard link will be available when provisioning finishes."}

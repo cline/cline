@@ -452,6 +452,81 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(history.metadata).not.toHaveProperty("tokensIn")
 	})
 
+	it("resolves only requested visible statuses with bounded concurrency", async () => {
+		const records = Array.from({ length: 7 }, (_, index) => ({
+			...record,
+			id: `ses-${index}`,
+			metadata: { ...record.metadata, taskId: `tsk-${index}` },
+		}))
+		const entered = deferred<void>()
+		const release = deferred<void>()
+		let active = 0
+		let maxActive = 0
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockImplementation(async (options) => {
+			active++
+			maxActive = Math.max(maxActive, active)
+			if (active === 4) entered.resolve()
+			await release.promise
+			active--
+			return {
+				status:
+					options.outerSessionId === records[0].id
+						? "completed"
+						: options.outerSessionId === records[1].id
+							? "running"
+							: "idle",
+				dispose: vi.fn(async () => undefined),
+			} as unknown as CloudSessionHost
+		})
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue(records)
+		await coordinator.listHistoryRecords()
+
+		const pending = coordinator.resolveStatuses([
+			records[0].id,
+			records[0].id,
+			records[1].id,
+			records[2].id,
+			records[3].id,
+			records[4].id,
+			records[5].id,
+			"local-task",
+		])
+		await entered.promise
+		expect(connect).toHaveBeenCalledTimes(4)
+		expect(maxActive).toBe(4)
+		release.resolve()
+		const statuses = await pending
+
+		expect(connect).toHaveBeenCalledTimes(6)
+		expect(connect).not.toHaveBeenCalledWith(expect.objectContaining({ outerSessionId: records[6].id }))
+		expect(statuses).toContainEqual({ sessionId: records[0].id, status: "completed" })
+		expect(statuses).toHaveLength(6)
+		for (const [index, result] of connect.mock.results.entries()) {
+			expect(result.type).toBe("return")
+			if (index === 1) {
+				expect((await result.value).dispose).not.toHaveBeenCalled()
+			} else {
+				expect((await result.value).dispose).toHaveBeenCalledWith("statusResolved")
+			}
+		}
+	})
+
+	it("drops resolved statuses when the account changes during connection", async () => {
+		const connected = deferred<CloudSessionHost>()
+		vi.spyOn(CloudSessionHost, "connect").mockReturnValue(connected.promise)
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.listHistoryRecords()
+
+		const resolving = coordinator.resolveStatuses([record.id])
+		const resetting = coordinator.reset()
+		connected.resolve({ status: "completed", dispose: vi.fn(async () => undefined) } as unknown as CloudSessionHost)
+
+		expect(await resolving).toEqual([])
+		await resetting
+	})
+
 	it("restarts History in the new account scope when old usage resolves late", async () => {
 		const usage = deferred<undefined>()
 		const entered = deferred<void>()

@@ -22,6 +22,8 @@ service CloudService {
   rpc setCloudTaskTarget(CloudTaskTarget) returns (Empty);
   // Opens the Cline Cloud dashboard page for a cloud session
   rpc openCloudSessionDashboard(StringRequest) returns (Empty);
+  // Resolves live agent status for only the cloud sessions currently displayed
+  rpc resolveCloudSessionStatuses(CloudSessionStatusRequest) returns (CloudSessionStatusList);
 }
 
 message GitHubRepository {
@@ -64,4 +66,18 @@ message CloudTaskTarget {
   optional string repo_url = 3;
   optional int64 repository_id = 4;
   optional string branch = 5;
+}
+
+message CloudSessionStatusRequest {
+  Metadata metadata = 1;
+  repeated string session_ids = 2;
+}
+
+message CloudSessionStatusItem {
+  string session_id = 1;
+  string status = 2;
+}
+
+message CloudSessionStatusList {
+  repeated CloudSessionStatusItem statuses = 1;
 }
