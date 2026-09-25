@@ -604,6 +604,78 @@ describe("resolveProviderConfig", () => {
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
 
+	it("marks Ollama models as image-capable from /api/show capabilities", async () => {
+		// `/api/tags` lists installed models but carries no capability data;
+		// `/api/show` reports it per model. Without this lookup every local model
+		// was text-only, so vision models could not take image attachments.
+		const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+			if (url.endsWith("/api/tags")) {
+				return Response.json({
+					models: [{ name: "vision-model" }, { name: "text-model" }],
+				});
+			}
+			const { model } = JSON.parse(String(init?.body)) as { model: string };
+			return Response.json({
+				capabilities:
+					model === "vision-model"
+						? ["completion", "vision", "tools"]
+						: ["completion", "tools"],
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"ollama",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{ providerId: "ollama", modelId: "", baseUrl: "http://localhost:11434" },
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://localhost:11434/api/show",
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({ model: "vision-model" }),
+			}),
+		);
+		expect(resolved?.knownModels?.["vision-model"]?.capabilities).toContain(
+			"images",
+		);
+		expect(resolved?.knownModels?.["text-model"]?.capabilities).not.toContain(
+			"images",
+		);
+	});
+
+	it("keeps Ollama models text-only when /api/show cannot answer", async () => {
+		// Older servers omit `capabilities`, and a failed probe must not break the
+		// model list: the previous default (no image capability) applies.
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url.endsWith("/api/tags")) {
+				return Response.json({
+					models: [{ name: "old-server-model" }, { name: "broken-model" }],
+				});
+			}
+			if (url.endsWith("/api/show")) {
+				return new Response("{}", { status: 500 });
+			}
+			throw new Error(`unexpected request: ${url}`);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"ollama",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{ providerId: "ollama", modelId: "", baseUrl: "http://localhost:11434" },
+		);
+
+		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"broken-model",
+			"old-server-model",
+		]);
+		expect(
+			resolved?.knownModels?.["old-server-model"]?.capabilities,
+		).not.toContain("images");
+	});
+
 	it("loads Poolside models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
