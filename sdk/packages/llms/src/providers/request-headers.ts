@@ -133,6 +133,15 @@ function buildOpenAICodexRequestHeaders(
 	};
 }
 
+function buildOpenAICompatibleRequestHeaders(
+	input: ResolveProviderRequestHeadersInput,
+): Record<string, string> | undefined {
+	if (input.providerId !== "openai-compatible") {
+		return undefined;
+	}
+	return { "x-litellm-trace-id": input.sessionId };
+}
+
 function resolveRequiredProviderHeaders(
 	input: ResolveProviderRequestHeadersInput,
 ): Record<string, string> | undefined {
@@ -143,7 +152,9 @@ function resolveRequiredProviderHeaders(
 		};
 	}
 	return (
-		buildClineRequestHeaders(input) ?? buildOpenAICodexRequestHeaders(input)
+		buildClineRequestHeaders(input) ??
+		buildOpenAICodexRequestHeaders(input) ??
+		buildOpenAICompatibleRequestHeaders(input)
 	);
 }
 
