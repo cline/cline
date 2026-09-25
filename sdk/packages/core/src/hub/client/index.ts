@@ -1355,8 +1355,6 @@ export async function requestHubDrain(
 	reason?: string,
 	options?: { off?: boolean },
 ): Promise<boolean> {
-	// See probeHubServer: proxy environments must not swallow loopback control
-	// requests to a local hub.
 	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =

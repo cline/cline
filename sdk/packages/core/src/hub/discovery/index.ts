@@ -544,11 +544,7 @@ export async function probeHubServer(
 	url: string,
 	options?: { authToken?: string },
 ): Promise<HubServerProbeRecord | undefined> {
-	// A proxy environment without a localhost exemption makes Bun's fetch send
-	// this loopback probe to the proxy, which cannot reach the client's own
-	// 127.0.0.1 — the hub then looks unreachable while it is healthy
-	// (cline/cline#14265, #14292). Entrypoints call this too; repeating it here
-	// keeps every embedder of the hub client safe, and it is idempotent.
+	// Idempotent; repeated here so every embedder of the hub client is covered.
 	ensureLoopbackProxyBypass();
 	try {
 		const response = await fetch(

@@ -379,13 +379,9 @@ function resolveDaemonEntryPath(): string {
 }
 
 /**
- * How a spawned daemon reaches the daemon entrypoint. Compiled Bun binaries
- * mount bundled modules at `/$bunfs/` (POSIX) or `B:\~BUN\` (Windows); those
- * virtual paths cannot be handed to a child as a script argument, so the
- * child boots its embedded entrypoint and switches personality on the marker
- * flag. Missing the Windows spelling used to spawn daemons with a dead
- * `B:\~BUN\root\entry.js` argument (cline/cline#14292) that also hid them
- * from `cline doctor`'s marker-based process scan.
+ * Compiled Bun binaries mount bundled modules on a virtual filesystem that a
+ * child cannot be handed as a script argument, so the child boots its embedded
+ * entrypoint and switches personality on the marker flag.
  */
 function resolveDaemonEntryArgs(
 	daemonEntryPath: string,

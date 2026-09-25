@@ -186,13 +186,8 @@ test("compiled desktop backend publishes its endpoint with its own Hub", async (
 	await runStartupScenario({});
 }, 100_000);
 
-// System proxies that export HTTP(S)_PROXY (Clash, v2ray, corporate setups)
-// used to capture Bun's loopback fetches — hub discovery probes went to the
-// proxy instead of 127.0.0.1, the healthy Hub looked unreachable, and the
-// backend died with "No compatible hub runtime is available" while respawned
-// daemons exited with "Hub instance lock is held by a live Hub"
-// (cline/cline#14265, #14292). The backend must come up even when every
-// proxy variable points at a dead proxy.
+// Bun's fetch has no localhost proxy bypass, so a system proxy used to swallow
+// the hub discovery probes (cline/cline#14265, #14292).
 test("compiled desktop backend starts behind a dead HTTP(S) proxy", async () => {
 	await runStartupScenario({
 		HTTP_PROXY: "http://127.0.0.1:9",

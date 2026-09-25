@@ -27,9 +27,7 @@ initVcr(process.env.CLINE_VCR);
 // Before any personality below can spawn a child with the workspace as cwd.
 disableCurrentDirectoryExecutableSearch();
 
-// Before any personality can probe the local hub over 127.0.0.1: proxy
-// environments without a localhost exemption would send those probes to the
-// proxy and make a healthy hub look unreachable (cline/cline#14265).
+// Before any personality probes the local hub over 127.0.0.1.
 ensureLoopbackProxyBypass();
 
 if (!isMainThread) {

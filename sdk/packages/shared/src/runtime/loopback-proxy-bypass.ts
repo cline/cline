@@ -8,10 +8,8 @@ const PROXY_ENV_KEYS = [
 ] as const;
 
 /**
- * Hosts a proxy can never dial on the client's behalf: "127.0.0.1" on the
- * proxy machine is the proxy's own loopback, not the client's. `NO_PROXY`
- * matching in Bun (and curl) is literal per host, so "localhost" does not
- * cover "127.0.0.1" — every loopback spelling must be listed.
+ * `NO_PROXY` matching in Bun (and curl) is literal per host, so every loopback
+ * spelling must be listed.
  */
 export const LOOPBACK_NO_PROXY_HOSTS = [
 	"localhost",
@@ -40,13 +38,9 @@ function splitNoProxyEntries(value: string | undefined): string[] {
 }
 
 /**
- * The union of both casings' exemptions plus the loopback hosts, first
- * spelling wins on duplicates. `NO_PROXY` and `no_proxy` can be populated
- * independently (by a launcher and a shell profile, say) and different tools
- * read different casings, so synchronizing both to one casing's value would
- * silently drop the other's exemptions and route previously exempt traffic
- * through the proxy. Undefined when either casing opts out of proxying
- * entirely with `*`.
+ * The union of both casings' exemptions plus the loopback hosts; first
+ * spelling wins on duplicates. Undefined when either casing opts out of
+ * proxying entirely with `*`.
  */
 function mergeNoProxyValue(
 	upper: string | undefined,
@@ -74,23 +68,12 @@ function mergeNoProxyValue(
 /**
  * Exempt loopback traffic from proxy environment variables.
  *
- * Bun's `fetch` honors `HTTP_PROXY`/`HTTPS_PROXY` (either case) with **no
- * built-in localhost bypass**: `fetch("http://127.0.0.1:<port>/health")` is
- * sent to the configured proxy, which cannot connect back into the client's
- * loopback. On machines where a system proxy exports those variables (Clash,
- * v2ray, corporate setups — especially common on Windows), every local hub
- * probe then fails while the hub itself is healthy: the desktop sidecar dies
- * with "No compatible hub runtime is available", respawned daemons exit with
- * "Hub instance lock is held by a live Hub", and local provider servers
- * (e.g. OpenCode on 127.0.0.1:4096) report `ConnectionRefused` although
- * netstat shows them LISTENING (cline/cline#14265, #14292, #14394).
- *
- * The only lever Bun exposes is `NO_PROXY` (a per-request `proxy` option does
- * not override the environment), so this appends the loopback spellings to
- * `NO_PROXY`/`no_proxy` whenever a proxy variable is set. Non-loopback
- * traffic keeps using the proxy, and an explicit `NO_PROXY=*` is left alone.
- * Idempotent; call at process startup. Spawned children inherit the bypass
- * through their environment.
+ * Bun's `fetch` honors `HTTP_PROXY`/`HTTPS_PROXY` with no built-in localhost
+ * bypass, and a per-request `proxy` option does not override the environment,
+ * so a system proxy (Clash, v2ray, corporate setups) swallows every local hub
+ * probe and a healthy hub looks unreachable (cline/cline#14265, #14292).
+ * `NO_PROXY` is the only lever: append the loopback spellings whenever a proxy
+ * variable is set. Idempotent; spawned children inherit it.
  */
 export function ensureLoopbackProxyBypass(
 	env: Record<string, string | undefined> = process.env,
@@ -102,10 +85,7 @@ export function ensureLoopbackProxyBypass(
 	if (merged === undefined) {
 		return;
 	}
-	// Set both casings to the merged union: Bun and curl read either, and
-	// consumers the agent spawns may only read one. Merging (rather than
-	// copying one casing over the other) means no pre-existing exemption is
-	// ever dropped — entries are only added.
+	// Both casings: Bun and curl read either, spawned tools may read only one.
 	env.NO_PROXY = merged;
 	env.no_proxy = merged;
 }

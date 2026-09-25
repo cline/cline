@@ -243,12 +243,7 @@ async function runEntrypoint(): Promise<void> {
 	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 
 	disableCurrentDirectoryExecutableSearch();
-	// Machines whose system proxy exports HTTP(S)_PROXY (Clash, v2ray,
-	// corporate setups) would otherwise have Bun's fetch send every loopback
-	// request — hub discovery probes, local provider servers like OpenCode on
-	// 127.0.0.1 — to the proxy, which cannot dial back into this machine's
-	// loopback. The Hub daemon and every agent-spawned process inherit the
-	// exemption through the environment. (cline/cline#14265, #14292, #14394)
+	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
 	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
 	// daemon import resolves to the dist build of @cline/core while this bundle
