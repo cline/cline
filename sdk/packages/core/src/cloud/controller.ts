@@ -1428,7 +1428,8 @@ export class CloudSessionController {
 				}
 				throwIfCancelled();
 				// Matching queue/steer text cannot identify which concurrent input was accepted.
-				if (delivery === "queue" || delivery === "steer") {
+				if (delivery === "queue") throw new CloudQueueUnconfirmedError();
+				if (delivery === "steer") {
 					throw new CloudSessionError(
 						"request_failed",
 						"Cline could not confirm whether this message was accepted. Check the cloud session before resending it.",
