@@ -35,6 +35,7 @@
 		"test:sidecar": "vitest run sidecar scripts/telemetry-define-args.test.ts webview/hooks/chat-session/helpers.test.ts webview/hooks/use-chat-session.test.tsx webview/hooks/use-session-history.test.tsx webview/lib/cloud-repositories.test.ts webview/lib/cloud-session-error.test.ts webview/lib/image-attachments.test.ts webview/lib/session-status.test.ts webview/lib/workspace-paths.test.ts webview/components/agent-sidebar.test.tsx webview/components/views/chat/chat-input-bar.test.tsx webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/environment-selector.test.tsx webview/components/views/chat/welcome-chat.test.tsx webview/components/views/chat/welcome-workspace-controls.test.tsx webview/components/views/sessions/sessions-view.test.tsx webview/components/views/settings/settings-view.test.tsx --config vitest.config.ts",
 		"test:sidecar-startup": "bun test scripts/desktop-startup.test.ts",
 		"test:desktop-client": "vitest run webview/lib/desktop-client.test.ts --config vitest.config.ts",
+		"test:e2e": "playwright test",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
@@ -109,6 +110,7 @@
 	"devDependencies": {
 		"@tailwindcss/postcss": "^4.2.0",
 		"@tauri-apps/cli": "^2.0.0",
+		"@playwright/test": "^1.55.1",
 		"@types/bun": "^1.3.14",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",

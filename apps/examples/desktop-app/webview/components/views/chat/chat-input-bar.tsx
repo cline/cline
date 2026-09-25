@@ -852,10 +852,7 @@ function ChatInputBarImpl({
 		if (!input || document.activeElement === input) return;
 		// The textarea is controlled, so its live value mirrors promptInput;
 		// reading it here keeps keystrokes out of this effect's dependencies.
-		if (
-			variant === "conversation" ||
-			(variant === "welcome" && input.value.trim().length > 0)
-		) {
+		if (variant === "conversation" || variant === "welcome") {
 			input.focus();
 		}
 	}, [variant]);

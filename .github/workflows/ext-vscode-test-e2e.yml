@@ -21,7 +21,8 @@ jobs:
         runs-on: ubuntu-latest
         name: Detect Changes
         outputs:
-            e2e: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.e2e == 'true' }}
+            vscode: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.vscode == 'true' || steps.filter.outputs.shared == 'true' }}
+            desktop: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.desktop == 'true' || steps.filter.outputs.shared == 'true' }}
         steps:
             - id: force
               if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -35,7 +36,7 @@ jobs:
               id: filter
               with:
                   filters: |
-                      e2e:
+                      vscode:
                           - 'apps/vscode/src/**'
                           - 'apps/vscode/webview-ui/**'
                           - 'apps/vscode/proto/**'
@@ -46,10 +47,6 @@ jobs:
                           - 'apps/vscode/walkthrough/**'
                           - 'apps/vscode/package.json'
                           - 'apps/vscode/webview-ui/package.json'
-                          # Root bun lockfile is authoritative for the whole workspace (incl. apps/vscode).
-                          - 'bun.lock'
-                          # SDK source packages are local workspace symlinks (@cline/*), so SDK changes affect the build.
-                          - 'sdk/packages/**'
                           - 'apps/vscode/buf.yaml'
                           - 'apps/vscode/tsconfig*.json'
                           - 'apps/vscode/biome.jsonc'
@@ -59,10 +56,16 @@ jobs:
                           - 'apps/vscode/.vscodeignore'
                           - 'apps/vscode/playwright*.ts'
                           - '.github/workflows/ext-vscode-test-e2e.yml'
+                      desktop:
+                          - 'apps/examples/desktop-app/**'
+                          - '.github/workflows/ext-vscode-test-e2e.yml'
+                      shared:
+                          - 'sdk/packages/**'
+                          - 'bun.lock'
 
     matrix_prep:
         needs: detect-changes
-        if: needs.detect-changes.outputs.e2e == 'true'
+        if: needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.desktop == 'true'
         runs-on: ubuntu-latest
         outputs:
             matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -73,7 +76,7 @@ jobs:
 
     e2e:
         needs: [detect-changes, matrix_prep]
-        if: needs.detect-changes.outputs.e2e == 'true'
+        if: needs.detect-changes.outputs.vscode == 'true'
         strategy:
             fail-fast: false
             matrix:
@@ -178,3 +181,61 @@ jobs:
                   name: playwright-recordings-${{ matrix.runner }}
                   path: |
                       apps/vscode/test-results/
+
+    desktop-e2e:
+        needs: [detect-changes, matrix_prep]
+        if: needs.detect-changes.outputs.desktop == 'true'
+        strategy:
+            fail-fast: false
+            matrix:
+                include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
+        runs-on: ${{ matrix.runner }}-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.3.14
+
+            - name: Cache Bun install cache
+              uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cache/ms-playwright
+                      ~/Library/Caches/ms-playwright
+                      ~/AppData/Local/ms-playwright
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+
+            - name: Install workspace dependencies
+              run: bun install --frozen-lockfile
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            - name: Install Playwright Chromium on Linux
+              if: matrix.runner == 'ubuntu'
+              run: bunx playwright install --with-deps chromium chromium-headless-shell
+
+            - name: Install Playwright Chromium
+              if: matrix.runner != 'ubuntu'
+              run: bunx playwright install chromium chromium-headless-shell
+
+            - name: Run desktop E2E
+              run: bun -F @cline/code test:e2e
+
+            - uses: actions/upload-artifact@v4
+              if: ${{ failure() }}
+              with:
+                  name: desktop-playwright-recordings-${{ matrix.runner }}
+                  path: apps/examples/desktop-app/test-results/
