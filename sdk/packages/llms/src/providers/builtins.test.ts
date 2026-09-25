@@ -12,6 +12,7 @@ import {
 	resolveProviderApiLineBaseUrl,
 } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
+import { resolveProviderModelCatalogKeys } from "./provider-keys";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
 
@@ -483,6 +484,14 @@ describe("built-in provider metadata", () => {
 		expect(chatGptModelIds).toContain("gpt-5.5");
 		expect(chatGptModelIds).not.toContain("gpt-4o");
 		expect(chatGptModelIds).not.toContain("o3");
+	});
+
+	it("does not attribute the Vercel AI Gateway catalog to the Dify runtime provider", () => {
+		// Dify is a self-hosted workflow provider whose builtin spec declares no
+		// catalog models (modelsFactory: () => ({})); it shares no vendor catalog
+		// with Vercel.
+		expect(resolveProviderModelCatalogKeys("dify")).toEqual(["dify"]);
+		expect(getGeneratedModelsForRuntimeProvider("dify")).toEqual({});
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {
