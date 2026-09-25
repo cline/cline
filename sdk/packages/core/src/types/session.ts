@@ -35,6 +35,9 @@ export type ActiveSession = {
 	pendingPrompts: PendingPrompt[];
 	drainingPendingPrompts: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
+	pluginCommandError?: string;
+	pluginCommandTail?: Promise<unknown>;
+	pluginCommandsClosing?: boolean;
 	turnUsageBaseline?: SessionAccumulatedUsage;
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;

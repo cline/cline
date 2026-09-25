@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -215,6 +216,8 @@ async function renderVoiceComposer({
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					environmentId="local"
+					workspaceRoot="/workspace/cline"
 					readOnly={readOnly}
 					executionTarget={executionTarget}
 					attachments={attachments}
@@ -254,6 +257,45 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("refreshes the open slash menu when the hub catalog recovers", async () => {
+		let available = false;
+		let changed: ((payload: unknown) => void) | undefined;
+		vi.spyOn(desktopClient, "subscribe").mockImplementation(
+			(name, listener) => {
+				if (name === "plugins.commands.changed") changed = listener;
+				return vi.fn();
+			},
+		);
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands")
+				return {
+					workspacePath: "/workspace/cline",
+					status: available ? "ready" : "error",
+					commands: available
+						? [{ name: "upload-history", description: "Upload history" }]
+						: [],
+				};
+			return { runtimeCommands: [] };
+		});
+		await renderVoiceComposer({ prompt: "/upload-", executionTarget: "local" });
+		expect(container.textContent).toContain("Plugin commands unavailable");
+		available = true;
+		await act(async () => {
+			changed?.({
+				environmentId: "other-host",
+				catalog: { workspacePath: "/workspace/cline" },
+			});
+		});
+		expect(container.textContent).not.toContain("Upload history");
+		await act(async () => {
+			changed?.({
+				environmentId: "local",
+				catalog: { workspacePath: "/workspace/cline" },
+			});
+		});
+		expect(container.textContent).toContain("Upload history");
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
@@ -503,7 +545,7 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("appends plugin commands after skills and workflows", () => {
+	it("gives plugin commands the same precedence as execution", () => {
 		expect(
 			buildUserInstructionSlashCommands(
 				{
@@ -516,7 +558,7 @@ describe("ChatInputBar", () => {
 				],
 			),
 		).toEqual([
-			{ name: "goal", description: "Skill command" },
+			{ name: "goal", description: "Set or clear a goal" },
 			{ name: "goal-status", description: "Plugin command" },
 		]);
 	});

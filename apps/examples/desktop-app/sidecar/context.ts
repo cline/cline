@@ -936,7 +936,10 @@ export function handleHubLiveEvent(
 		});
 		return;
 	}
-	if (event.event === "settings.changed") {
+	if (
+		event.event === "settings.changed" ||
+		event.event === "plugins.commands.changed"
+	) {
 		sendEvent(ctx, event.event, event.payload ?? {});
 		return;
 	}

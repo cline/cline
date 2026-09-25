@@ -167,10 +167,7 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import {
-	getPluginCommandService,
-	warmPluginCommandService,
-} from "./plugin-commands";
+import { listPluginCommands } from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -3560,22 +3557,17 @@ export async function handleCommand(
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
 	}
-	if (command === "warm_plugin_commands") {
-		// The webview reports whichever local workspace it has adopted so the
-		// plugin sandbox is loaded before the slash menu first needs it.
-		const binding = getCommandRuntimeBinding(ctx, args);
-		const workspacePath = String(args?.workspacePath ?? "").trim();
-		if (binding.kind === "local" && workspacePath) {
-			warmPluginCommandService(ctx, workspacePath);
-		}
-		return { environmentId: binding.environmentId };
-	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu
 		// only offers commands that can actually run there.
 		const workspacePath =
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
-		return await getPluginCommandService(ctx, workspacePath).listCommands();
+		return await listPluginCommands(
+			ctx,
+			workspacePath,
+			typeof args?.sessionId === "string" ? args.sessionId : undefined,
+			requestedEnvironmentId(args),
+		);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

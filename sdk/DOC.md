@@ -1,3 +1,38 @@
+## Plugin slash commands
+
+Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
+`client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
+`NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
+These APIs reuse the runtime and connection; clients do not load plugins or
+own a separate command sandbox.
+
+```ts
+const target = { workspacePath: workspaceRoot, sessionId };
+const stop = core.pluginCommands.subscribe((catalog) => {
+  if (catalog.workspacePath === workspaceRoot) refreshCommandMenu();
+});
+const catalog = await core.pluginCommands.list(target);
+const result = await core.pluginCommands.run({ ...target, prompt: "/upload-history" });
+// Display result?.reply; submit only result?.submitPrompt to the agent.
+// undefined means no registered command handled the input.
+stop();
+```
+
+Omit `sessionId` for workspace discovery before a session exists. The runtime
+initializes that workspace catalog on its first request, watches plugin sources
+and settings, and publishes changes. A failed load produces `status: "error"`
+with diagnostics and retries in the background with bounded backoff. It never
+requires a Git query or a running agent turn. Dispose the owning runtime to
+release catalog watchers and sandboxes; unsubscribe when a view closes.
+
+For a resident session, both listing and execution use its initialized
+contribution registry and existing plugin sandbox, including session context.
+Session plugin registrations retain their existing session lifetime: workspace
+file changes refresh discovery for new sessions, not an active session's hooks
+or commands. A non-resident session can preview workspace commands; execution
+requires restoring the session first. Built-in command precedence and rendering
+remain host responsibilities. Preserve the original arguments when dispatching.
+
 
 ## Shared agent review UI
 

@@ -46,6 +46,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
@@ -81,6 +82,7 @@ import {
 	NodeHubClient,
 	restartLocalHubIfIdleAfterStartupTimeout,
 } from "../client";
+import { createHubPluginCommandsApi } from "../client/plugin-commands";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -761,7 +763,11 @@ function buildManifestFromSnapshot(
 export class HubRuntimeHost implements RuntimeHost {
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginCommands: PluginCommandsApi;
 	private client: NodeHubClient;
+	private readonly pluginCommandListeners = new Set<
+		(event: HubEventEnvelope) => void
+	>();
 	private readonly clientOptions: Omit<HubClientOptions, "url">;
 	private readonly clientContext?: { workspaceRoot?: string; cwd?: string };
 	private readonly events = new RuntimeHostEventBus();
@@ -803,10 +809,24 @@ export class HubRuntimeHost implements RuntimeHost {
 			delete: (input) => this.requestPendingPromptDelete(input),
 		};
 		this.client = this.createClient(options.url);
+		this.pluginCommands = createHubPluginCommandsApi({
+			command: (...args) => this.client.command(...args),
+			subscribe: (listener) => {
+				this.pluginCommandListeners.add(listener);
+				return () => {
+					this.pluginCommandListeners.delete(listener);
+				};
+			},
+		});
 	}
 
 	private createClient(url: string): NodeHubClient {
-		return new NodeHubClient({ ...this.clientOptions, url });
+		const client = new NodeHubClient({ ...this.clientOptions, url });
+		client.subscribe((event) => {
+			if (event.event === "plugins.commands.changed")
+				for (const listener of this.pluginCommandListeners) listener(event);
+		});
+		return client;
 	}
 
 	private async replaceClient(url: string): Promise<void> {
@@ -1316,6 +1336,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				// Best-effort detach during shutdown.
 			}
 		}
+		this.pluginCommandListeners.clear();
 		this.sessionSubscriptions.clear();
 		this.sessionCapabilities.clear();
 		this.agentDoneEmittedForCurrentRunBySession.clear();

@@ -1,5 +1,7 @@
 "use client";
 
+import type { PluginCommandCatalog } from "@cline/core";
+
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
@@ -102,11 +104,6 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{ name: "team", description: "Start the task with an agent team" },
 ];
 
-// Last known user commands, kept across composer instances so reopening the
-// slash menu paints instantly (stale-while-revalidate); the fetch that
-// follows still picks up newly installed skills and workflows.
-let cachedSlashCommands: SlashCommand[] | null = null;
-
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
 	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
@@ -117,27 +114,23 @@ export function buildUserInstructionSlashCommands(
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	const result = commands.flatMap((command) => {
-		const name = command.name;
-		if (!name || seen.has(name)) {
-			return [];
-		}
-		seen.add(name);
-		return [
-			{
-				name,
-				description:
-					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
-			},
-		];
-	});
+	const result: SlashCommand[] = [];
 	for (const command of pluginCommands) {
 		if (!command.name || seen.has(command.name)) continue;
 		seen.add(command.name);
 		result.push({
 			name: command.name,
 			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	for (const command of commands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description:
+				command.description?.trim() ||
+				`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
 		});
 	}
 	return result;
@@ -288,6 +281,7 @@ export function buildWorkspaceFileSearchKey(
 }
 
 type ChatInputBarProps = {
+	sessionId?: string | null;
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
@@ -338,6 +332,7 @@ type ChatInputBarProps = {
 };
 
 function ChatInputBarImpl({
+	sessionId,
 	environmentId,
 	variant = "conversation",
 	readOnly = false,
@@ -631,9 +626,10 @@ function ChatInputBarImpl({
 		slashKey !== null &&
 		dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
+		() => BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
+	const [slashError, setSlashError] = useState<string>();
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 
 	useEffect(() => {
@@ -987,45 +983,65 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Reload user commands whenever the slash menu opens so newly installed or
-	// edited skills and workflows are reflected without remounting the chat UI.
+	// Observe the runtime catalog for this composer; no plugin loading happens in the UI.
 	useEffect(() => {
-		if (!slashOpen) {
-			return;
-		}
+		if (executionTarget !== "local") return;
 		let cancelled = false;
-		// Only show the loading row when there is nothing cached to show.
-		setSlashLoading(cachedSlashCommands === null);
-		Promise.all([
-			desktopClient.invoke<UserInstructionConfigResponse>(
-				"list_user_instruction_configs",
-				{ workspacePath: workspaceRoot },
-			),
-			desktopClient
-				.invoke<SlashCommand[]>("list_plugin_commands", {
-					workspacePath: workspaceRoot,
-				})
-				.catch((): SlashCommand[] => []),
-		])
-			.then(([response, pluginCommands]) => {
-				if (cancelled) return;
-				const next = [
+		let requestId = 0;
+		setSlashCommands(BUILTIN_SLASH_COMMANDS);
+		setSlashLoading(slashOpen);
+		setSlashError(undefined);
+		const refresh = async () => {
+			const id = ++requestId;
+			try {
+				const [response, catalog] = await Promise.all([
+					desktopClient.invoke<UserInstructionConfigResponse>(
+						"list_user_instruction_configs",
+						{ workspacePath: workspaceRoot, environmentId },
+					),
+					desktopClient.invoke<PluginCommandCatalog>("list_plugin_commands", {
+						workspacePath: workspaceRoot,
+						environmentId,
+						sessionId: sessionId ?? undefined,
+					}),
+				]);
+				if (cancelled || id !== requestId) return;
+				setSlashCommands([
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response, pluginCommands),
-				];
-				cachedSlashCommands = next;
-				setSlashCommands(next);
-			})
-			.catch(() => {
-				// Keep built-in commands on error.
-			})
-			.finally(() => {
-				if (!cancelled) setSlashLoading(false);
-			});
+					...buildUserInstructionSlashCommands(response, catalog.commands),
+				]);
+				setSlashError(
+					catalog.status === "error"
+						? "Plugin commands unavailable"
+						: undefined,
+				);
+			} catch {
+				if (!cancelled && id === requestId)
+					setSlashError("Could not load commands");
+			} finally {
+				if (!cancelled && id === requestId) setSlashLoading(false);
+			}
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"plugins.commands.changed",
+			(payload) => {
+				const event = payload as {
+					environmentId?: string;
+					catalog?: PluginCommandCatalog;
+				};
+				if (
+					event.environmentId === environmentId &&
+					event.catalog?.workspacePath === workspaceRoot
+				)
+					void refresh();
+			},
+		);
+		void refresh();
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
-	}, [slashOpen, workspaceRoot]);
+	}, [workspaceRoot, environmentId, sessionId, executionTarget, slashOpen]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
@@ -1115,7 +1131,7 @@ function ChatInputBarImpl({
 								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
-										: "No matching commands"}
+										: (slashError ?? "No matching commands")}
 								</div>
 							) : (
 								<>

@@ -31,6 +31,12 @@ import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import {
+	executePluginCommand,
+	listPluginCommands,
+	type PluginCommandsApi,
+} from "../../services/plugin-command-api";
+import { PluginCommandManager } from "../../services/plugin-commands";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -261,6 +267,8 @@ export interface LocalRuntimeHostOptions {
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginCommands: PluginCommandsApi;
+	private readonly pluginCommandManager: PluginCommandManager;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
@@ -313,6 +321,52 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
+		this.pluginCommandManager = new PluginCommandManager({
+			logger: options.logger,
+		});
+		this.pluginCommands = {
+			list: async (target) => {
+				if (!target.sessionId) return this.pluginCommandManager.list(target);
+				const session = this.sessions.get(target.sessionId);
+				if (!session) return this.pluginCommandManager.list(target);
+				if (
+					resolve(target.workspacePath) !==
+					resolve(resolveWorkspacePath(session.config))
+				)
+					throw new Error(
+						"Plugin command workspace does not match the session",
+					);
+				return this.withSessionPluginCommands(session, () => ({
+					workspacePath: resolveWorkspacePath(session.config),
+					sessionId: target.sessionId,
+					status: session.pluginCommandError
+						? ("error" as const)
+						: ("ready" as const),
+					error: session.pluginCommandError,
+					commands: listPluginCommands(
+						session.agent.getExtensionRegistry().commands,
+					),
+				}));
+			},
+			run: async (input) => {
+				if (!input.sessionId) return this.pluginCommandManager.run(input);
+				const session = this.getSessionOrThrow(input.sessionId);
+				if (
+					resolve(input.workspacePath) !==
+					resolve(resolveWorkspacePath(session.config))
+				)
+					throw new Error(
+						"Plugin command workspace does not match the session",
+					);
+				return this.withSessionPluginCommands(session, () =>
+					executePluginCommand(
+						session.agent.getExtensionRegistry().commands,
+						input.prompt,
+					),
+				);
+			},
+			subscribe: this.pluginCommandManager.subscribe,
+		};
 		// A caller-owned telemetry service may already be identified to an
 		// authenticated account (the long-lived Hub daemon is one example).
 		// Only replace that identity when the caller explicitly supplied the
@@ -932,6 +986,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			pendingPrompts: [],
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
+			pluginCommandError: bootstrap.pluginCommandError,
 			submitAndExitObserved: false,
 			taskCompletedEmitted: false,
 			lastInteractiveTurnFinishReason: undefined,
@@ -1239,6 +1294,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
 		const sessions = [...this.sessions.values()];
+		await this.pluginCommandManager.dispose();
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
@@ -2313,6 +2369,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// not observe an explicit `submit_and_exit` tool call, routed through
 		// the shared teardown choke point so it can neither double-fire nor
 		// be skipped by teardown routing.
+		session.pluginCommandsClosing = true;
 		this.emitTaskCompletedOnTeardown(session, input.status);
 		notifyTeamRunWaiters(session);
 
@@ -2363,6 +2420,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		try {
+			await session.pluginCommandTail;
 			await session.agent.shutdown(input.shutdownReason);
 		} catch (error) {
 			recordCleanupError("agent_shutdown", error);
@@ -2400,6 +2458,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// this branch. The completion emission must happen here as well —
 		// this is the branch that silently dropped `task.completed` when
 		// truthful status reporting re-routed interactive stops onto it.
+		session.pluginCommandsClosing = true;
 		this.emitTaskCompletedOnTeardown(session);
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
@@ -2440,6 +2499,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.agent.abort(new Error(reason));
 		}
 		try {
+			await session.pluginCommandTail;
 			await session.agent.shutdown(reason);
 		} catch (error) {
 			recordCleanupError("agent_shutdown", error);
@@ -2546,6 +2606,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Utility methods ─────────────────────────────────────────────────
+
+	private withSessionPluginCommands<T>(
+		session: ActiveSession,
+		operation: () => T | Promise<T>,
+	): Promise<T> {
+		if (session.pluginCommandsClosing)
+			return Promise.reject(
+				new Error("Session plugin commands are shutting down"),
+			);
+		const execution = (session.pluginCommandTail ?? Promise.resolve()).then(
+			async () => {
+				await session.agent.initializeExtensions();
+				return operation();
+			},
+		);
+		session.pluginCommandTail = execution.catch(() => {});
+		return execution;
+	}
 
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);

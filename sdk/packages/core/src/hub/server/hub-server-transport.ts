@@ -26,6 +26,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import type { PluginCommandsRuntimeService } from "../../services/plugin-command-api";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
@@ -101,9 +102,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -270,6 +271,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private runQueue?: HubRunQueue;
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
+	private readonly unsubscribePluginCommands?: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
 		this.sessionHost =
@@ -442,6 +444,11 @@ export class HubServerTransport implements NativeHubTransport {
 			createTasksPromptExtension({ todoEnabled: AGENDA_TODO_TOOL_ENABLED }),
 		);
 		this.settings = options.settingsService ?? new CoreSettingsService();
+		this.unsubscribePluginCommands = (
+			this.sessionHost as RuntimeHost & Partial<PluginCommandsRuntimeService>
+		).pluginCommands?.subscribe((catalog) => {
+			this.publish(buildHubEvent("plugins.commands.changed", { catalog }));
+		});
 		if (options.cronOptions) {
 			this.cronService = new CronService({
 				runtimeHandlers: options.runtimeHandlers,
@@ -727,6 +734,7 @@ export class HubServerTransport implements NativeHubTransport {
 		);
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
+		this.unsubscribePluginCommands?.();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {
@@ -908,6 +916,54 @@ export class HubServerTransport implements NativeHubTransport {
 			case "ui.show_window":
 				this.publish(buildHubEvent("ui.show_window", envelope.payload ?? {}));
 				return okReply(envelope);
+			case "plugins.commands.list":
+			case "plugins.commands.run": {
+				const service = (
+					this.sessionHost as RuntimeHost &
+						Partial<PluginCommandsRuntimeService>
+				).pluginCommands;
+				if (!service)
+					return {
+						version: envelope.version,
+						requestId: envelope.requestId,
+						ok: false,
+						error: {
+							code: "plugin_commands_unavailable",
+							message: "This runtime does not support plugin commands",
+						},
+					};
+				const workspacePath =
+					typeof envelope.payload?.workspacePath === "string"
+						? envelope.payload.workspacePath
+						: authority?.workspaceContext?.workspaceRoot;
+				if (!workspacePath) throw new Error("workspacePath is required");
+				if (
+					authority &&
+					!authority.crossWorkspace &&
+					resolve(workspacePath) !==
+						resolve(authority.workspaceContext?.workspaceRoot ?? "")
+				)
+					throw new Error(
+						"Plugin workspace is outside the connection's authority",
+					);
+				const sessionId = envelope.sessionId;
+				const target = { workspacePath, ...(sessionId ? { sessionId } : {}) };
+				const payload =
+					envelope.command === "plugins.commands.list"
+						? { catalog: await service.list(target) }
+						: {
+								result: await service.run({
+									...target,
+									prompt: String(envelope.payload?.prompt ?? ""),
+								}),
+							};
+				return {
+					version: envelope.version,
+					requestId: envelope.requestId,
+					ok: true,
+					payload,
+				};
+			}
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":

@@ -146,6 +146,7 @@ function App(props: TuiProps) {
 	} = useSlashCommands({
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands: props.subscribeAdditionalSlashCommands,
 		canFork: canForkSession,
 	});
 
