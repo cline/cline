@@ -28,7 +28,7 @@ import {
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQueryPreview,
-	getEditorSizeError,
+	getEditorSizeAdvisory,
 	getReadFileRangeError,
 	normalizeRunCommandsInput,
 	TimeoutError,
@@ -44,6 +44,7 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -694,10 +695,14 @@ export function createApplyPatchTool(
  */
 export function createEditorTool(
 	executor: EditorExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "editorTimeoutMs"> = {},
+	config: Pick<
+		DefaultToolsConfig,
+		"cwd" | "editorTimeoutMs" | "editorInputCharLimit"
+	> = {},
 ): AgentTool<EditFileInput, ToolOperationResult> {
 	const timeoutMs = config.editorTimeoutMs ?? 30000;
 	const cwd = config.cwd ?? process.cwd();
+	const inputCharLimit = config.editorInputCharLimit ?? INPUT_ARG_CHAR_LIMIT;
 
 	return createTool<EditFileInput, ToolOperationResult>({
 		name: "editor",
@@ -705,7 +710,8 @@ export function createEditorTool(
 			"An editor for controlled filesystem edits on the text file at the provided path. " +
 			"Provide `insert_line` to insert `new_text` at a specific line number. " +
 			"Otherwise, the tool replaces `old_text` with `new_text`, or creates the file with `new_text` if file does not exist. " +
-			"Use this tool for making small, precise edits to existing files or creating new files over shell commands. If several edits to different files or non-overlapping regions are already known, emit multiple editor tool calls in the same response instead of serializing them across turns.",
+			"Use this tool for making small, precise edits to existing files or creating new files over shell commands. If several edits to different files or non-overlapping regions are already known, emit multiple editor tool calls in the same response instead of serializing them across turns. " +
+			`Keep a single old_text or new_text payload at or below ~${inputCharLimit} characters; split larger changes across several calls (or use insert_line) so a response cut off at the output-token limit cannot leave a half-written file. Oversized payloads that arrive intact are still applied, with a note.`,
 
 		inputSchema: zodToJsonSchema(EditFileInputSchema),
 		timeoutMs,
@@ -714,16 +720,14 @@ export function createEditorTool(
 		execute: async (input, context) => {
 			const validatedInput = validateWithZod(EditFileInputSchema, input);
 			const operation = validatedInput.insert_line == null ? "edit" : "insert";
-			const sizeError = getEditorSizeError(validatedInput);
-
-			if (sizeError) {
-				return {
-					query: `${operation}:${validatedInput.path}`,
-					result: "",
-					error: sizeError,
-					success: false,
-				};
-			}
+			// Oversized payloads are applied, not rejected: input that reached this
+			// point parsed as complete JSON, so it was not cut off by the output
+			// limit (a truncated call fails parsing before any tool runs). The
+			// advisory steers future edits smaller without discarding work.
+			const sizeAdvisory = getEditorSizeAdvisory(
+				validatedInput,
+				inputCharLimit,
+			);
 
 			try {
 				const result = await withTimeout(
@@ -734,7 +738,7 @@ export function createEditorTool(
 
 				return {
 					query: `${operation}:${validatedInput.path}`,
-					result,
+					result: sizeAdvisory ? `${result}\n\n${sizeAdvisory}` : result,
 					success: true,
 				};
 			} catch (error) {

@@ -10,7 +10,11 @@ import {
 	createSkillsTool,
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
-import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
+import {
+	RUN_COMMAND_QUERY_PREVIEW_LIMIT,
+	resolveEditorInputCharLimit,
+	TimeoutError,
+} from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
@@ -2061,7 +2065,7 @@ describe("default editor tool", () => {
 		);
 	});
 
-	it("returns a recoverable tool error when text exceeds the soft character limit", async () => {
+	it("applies an oversized edit and attaches a size advisory instead of rejecting it", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
 			executors: {
@@ -2095,18 +2099,51 @@ describe("default editor tool", () => {
 			},
 		);
 
+		expect(execute).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			query: "edit:/tmp/example.ts",
-			result: "",
-			error: expect.stringContaining("new_text was"),
-			success: false,
+			result: expect.stringContaining("patched"),
+			success: true,
 		});
-		if (typeof result !== "object" || result == null || !("error" in result)) {
-			throw new Error("Expected editor tool result to include an error.");
+		if (typeof result !== "object" || result == null || !("result" in result)) {
+			throw new Error("Expected editor tool result to include a result.");
 		}
-		expect(result.error).toContain(
-			`recommended limit of ${INPUT_ARG_CHAR_LIMIT}`,
+		expect(result.result).toContain(
+			`new_text was ${INPUT_ARG_CHAR_LIMIT + 1} characters`,
 		);
-		expect(execute).not.toHaveBeenCalled();
+		expect(result.result).toContain(
+			`~${INPUT_ARG_CHAR_LIMIT}-character guideline`,
+		);
+		expect(result.result).toContain("split");
+	});
+
+	it("advertises the editor payload guideline and honors editorInputCharLimit", async () => {
+		const defaultTool = createEditorTool(async () => "ok");
+		expect(defaultTool.description).toContain(
+			`~${INPUT_ARG_CHAR_LIMIT} characters`,
+		);
+
+		const roomier = createEditorTool(async () => "ok", {
+			editorInputCharLimit: 12_000,
+		});
+		expect(roomier.description).toContain("~12000 characters");
+		const result = await roomier.execute(
+			{ path: "/tmp/example.ts", new_text: "x".repeat(7_000) },
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+		expect(result).toEqual({
+			query: "edit:/tmp/example.ts",
+			result: "ok",
+			success: true,
+		});
+	});
+
+	it("derives the editor payload guideline from the model output budget", () => {
+		expect(resolveEditorInputCharLimit(undefined)).toBe(INPUT_ARG_CHAR_LIMIT);
+		expect(resolveEditorInputCharLimit(1_000)).toBe(INPUT_ARG_CHAR_LIMIT);
+		expect(resolveEditorInputCharLimit(4_096)).toBe(6_144);
+		expect(resolveEditorInputCharLimit(16_384)).toBe(24_576);
+		expect(resolveEditorInputCharLimit(32_000)).toBe(48_000);
+		expect(resolveEditorInputCharLimit(200_000)).toBe(48_000);
 	});
 });

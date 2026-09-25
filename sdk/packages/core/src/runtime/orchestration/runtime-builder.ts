@@ -30,6 +30,7 @@ import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	type RunCommandExecutionController,
+	resolveEditorInputCharLimit,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -148,6 +149,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
 	runCommandExecutionController?: RunCommandExecutionController,
+	editorInputCharLimit?: number,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -165,6 +167,8 @@ function createBuiltinToolsList(
 				bash: { executionController: runCommandExecutionController },
 			},
 			...preset,
+			// Editor payload guideline scaled to the model's output budget.
+			...(editorInputCharLimit !== undefined ? { editorInputCharLimit } : {}),
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
 			executors: {
@@ -577,6 +581,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					input.runCommandExecutionController,
+					resolveEditorInputCharLimit(
+						config.maxTokensPerTurn ??
+							config.knownModels?.[config.modelId]?.maxTokens,
+					),
 				),
 			);
 			const agentPluginMcpServers = pluginsEnabled
