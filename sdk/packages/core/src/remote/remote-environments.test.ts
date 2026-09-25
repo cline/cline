@@ -380,6 +380,34 @@ describe("RemoteEnvironmentService", () => {
 		expect(invocations[0]?.args.at(-2)).toBe("pi-from-ssh-config");
 	});
 
+	it("routes SSH through a configured ProxyCommand", async () => {
+		const invocations: Invocation[] = [];
+		const service = createService({
+			runProcess: async (executable, args, options) => {
+				invocations.push({ executable, args, options });
+				return inspection("Linux", "x86_64", "/home/alice");
+			},
+		});
+		const profile = await service.upsert({
+			name: "Behind proxy",
+			host: "builder.internal",
+			proxyCommand: "  nc -X connect -x proxy.corp:3128 %h %p  ",
+		});
+		expect(profile.proxyCommand).toBe("nc -X connect -x proxy.corp:3128 %h %p");
+
+		await service.test(profile.id);
+
+		expect(invocations[0]?.args).toEqual(
+			expect.arrayContaining([
+				"-o",
+				"ProxyCommand=nc -X connect -x proxy.corp:3128 %h %p",
+			]),
+		);
+		await expect(
+			service.upsert({ ...profile, proxyCommand: "nc %h %p\nrm -rf /" }),
+		).rejects.toThrow("SSH proxy command cannot contain newlines");
+	});
+
 	it("parses framed inspection data after noisy SSH startup output", async () => {
 		const service = createService({
 			runProcess: async () => ({
@@ -681,6 +709,9 @@ describe("RemoteEnvironmentService", () => {
 				...renamed,
 				identityFile: "/keys/replacement_ed25519",
 			}),
+		).rejects.toThrow("Disconnect the remote environment");
+		await expect(
+			service.upsert({ ...renamed, proxyCommand: "nc -x proxy:1080 %h %p" }),
 		).rejects.toThrow("Disconnect the remote environment");
 
 		expect(service.getConnection(created.id)).toMatchObject({

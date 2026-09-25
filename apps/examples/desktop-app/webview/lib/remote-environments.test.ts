@@ -15,6 +15,7 @@ describe("remote environment models", () => {
 			user: undefined,
 			port: undefined,
 			identityFile: undefined,
+			proxyCommand: undefined,
 		});
 	});
 
@@ -27,6 +28,7 @@ describe("remote environment models", () => {
 				user: " ubuntu ",
 				port: 2222,
 				identityFile: " ~/.ssh/build ",
+				proxyCommand: " nc -X connect -x proxy:3128 %h %p ",
 			}),
 		).toEqual({
 			id: "remote-1",
@@ -35,6 +37,7 @@ describe("remote environment models", () => {
 			user: "ubuntu",
 			port: 2222,
 			identityFile: "~/.ssh/build",
+			proxyCommand: "nc -X connect -x proxy:3128 %h %p",
 		});
 	});
 

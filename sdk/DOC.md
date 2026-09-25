@@ -98,7 +98,10 @@ profiles, connection testing, helper installation, authenticated loopback tunnel
 remote commands, status changes, and cleanup. It runs in the client's Node host;
 browser clients expose this API through their host transport. No desktop code is
 required. OpenSSH config aliases, identity files, and ssh-agent authentication are
-supported. Connections use batch mode and require an already-trusted host key in
+supported. A profile's optional `proxyCommand` is passed as the OpenSSH
+`ProxyCommand` for every connection, so hosts behind an HTTP/SOCKS proxy or a
+jump host are reachable; SSH does not read `HTTP(S)_PROXY` on its own.
+Connections use batch mode and require an already-trusted host key in
 OpenSSH known_hosts (or `knownHostsPath`). Before first use, verify the server
 fingerprint through a trusted channel and enroll it using your SSH client. Unknown
 or changed keys are rejected before inspection, upload, or execution.

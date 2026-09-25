@@ -99,6 +99,7 @@ export function createRemoteEnvironmentDraft(
 		user: profile?.user,
 		port: profile?.port,
 		identityFile: profile?.identityFile,
+		proxyCommand: profile?.proxyCommand,
 	};
 }
 
@@ -117,6 +118,7 @@ export function normalizeRemoteEnvironmentProfile(
 		user: trimmedOptional(profile.user),
 		port: profile.port,
 		identityFile: trimmedOptional(profile.identityFile),
+		proxyCommand: trimmedOptional(profile.proxyCommand),
 	};
 }
 

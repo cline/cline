@@ -25,6 +25,8 @@ export interface RemoteEnvironmentProfile {
 	user?: string;
 	port?: number;
 	identityFile?: string;
+	/** OpenSSH ProxyCommand; `%h` and `%p` expand to the host and port. */
+	proxyCommand?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -36,6 +38,7 @@ export interface RemoteEnvironmentInput {
 	user?: string;
 	port?: number;
 	identityFile?: string;
+	proxyCommand?: string;
 }
 
 export type RemoteEnvironmentState =
@@ -718,6 +721,9 @@ export class RemoteEnvironmentService {
 		if (profile.identityFile) {
 			args.push("-i", expandLocalHome(profile.identityFile));
 		}
+		if (profile.proxyCommand) {
+			args.push("-o", `ProxyCommand=${profile.proxyCommand}`);
+		}
 		return args;
 	}
 
@@ -1193,6 +1199,7 @@ function normalizeInput(input: RemoteEnvironmentInput): Omit<
 	const host = input.host.trim();
 	const user = input.user?.trim() || undefined;
 	const identityFile = input.identityFile?.trim() || undefined;
+	const proxyCommand = input.proxyCommand?.trim() || undefined;
 	if (!name) {
 		throw new Error("Remote environment name is required");
 	}
@@ -1213,6 +1220,9 @@ function normalizeInput(input: RemoteEnvironmentInput): Omit<
 	if (identityFile && /[\0\r\n]/.test(identityFile)) {
 		throw new Error("SSH identity file cannot contain newlines or NUL bytes");
 	}
+	if (proxyCommand && /[\0\r\n]/.test(proxyCommand)) {
+		throw new Error("SSH proxy command cannot contain newlines or NUL bytes");
+	}
 	if (input.id && /[\0\r\n]/.test(input.id)) {
 		throw new Error("Remote environment id is invalid");
 	}
@@ -1223,6 +1233,7 @@ function normalizeInput(input: RemoteEnvironmentInput): Omit<
 		...(user ? { user } : {}),
 		...(input.port ? { port: input.port } : {}),
 		...(identityFile ? { identityFile } : {}),
+		...(proxyCommand ? { proxyCommand } : {}),
 	};
 }
 
@@ -1234,7 +1245,8 @@ function profilesUseSameConnection(
 		left.host === right.host &&
 		left.user === right.user &&
 		left.port === right.port &&
-		left.identityFile === right.identityFile
+		left.identityFile === right.identityFile &&
+		left.proxyCommand === right.proxyCommand
 	);
 }
 
@@ -1242,7 +1254,7 @@ function assertProfileUpdateAllowed(
 	existing: RemoteEnvironmentProfile,
 	next: Pick<
 		RemoteEnvironmentProfile,
-		"host" | "user" | "port" | "identityFile"
+		"host" | "user" | "port" | "identityFile" | "proxyCommand"
 	>,
 	connected: boolean,
 ): void {
@@ -1255,9 +1267,13 @@ function assertProfileUpdateAllowed(
 			"SSH host, user, and port cannot be changed for an existing remote environment. Create a new remote environment instead.",
 		);
 	}
-	if (connected && existing.identityFile !== next.identityFile) {
+	if (
+		connected &&
+		(existing.identityFile !== next.identityFile ||
+			existing.proxyCommand !== next.proxyCommand)
+	) {
 		throw new Error(
-			"Disconnect the remote environment before changing its SSH identity file.",
+			"Disconnect the remote environment before changing its SSH identity file or proxy command.",
 		);
 	}
 }
@@ -1453,6 +1469,8 @@ function isProfile(value: unknown): value is RemoteEnvironmentProfile {
 		(profile.port === undefined || typeof profile.port === "number") &&
 		(profile.identityFile === undefined ||
 			typeof profile.identityFile === "string") &&
+		(profile.proxyCommand === undefined ||
+			typeof profile.proxyCommand === "string") &&
 		typeof profile.createdAt === "string" &&
 		typeof profile.updatedAt === "string"
 	);

@@ -575,6 +575,28 @@ export function RemoteEnvironmentsContent() {
 							</p>
 						</div>
 
+						<div className="space-y-2">
+							<Label htmlFor="remote-proxy-command">
+								Proxy command (optional)
+							</Label>
+							<Input
+								autoCapitalize="none"
+								disabled={isBusy}
+								id="remote-proxy-command"
+								onChange={(event) =>
+									updateDraft("proxyCommand", event.target.value)
+								}
+								placeholder="nc -X connect -x proxy.example.com:3128 %h %p"
+								spellCheck={false}
+								value={draft.proxyCommand ?? ""}
+							/>
+							<p className="text-xs text-muted-foreground">
+								SSH does not use the system proxy. To reach this host through an
+								HTTP or SOCKS proxy or a jump host, enter an OpenSSH
+								ProxyCommand; %h and %p expand to the host and port.
+							</p>
+						</div>
+
 						{formError ? (
 							<p className="text-sm text-destructive">{formError}</p>
 						) : null}

@@ -139,7 +139,10 @@ the local machine.
 
 SSH config aliases are supported. Leave **Port** blank to use the alias's SSH
 configuration (including its configured port), or enter a port to override it.
-The desktop keeps its webview and native integration local; only the
+SSH does not use the system proxy; to reach a host through an HTTP or SOCKS
+proxy or a jump host, set **Proxy command** to an OpenSSH `ProxyCommand` such
+as `nc -X connect -x proxy.example.com:3128 %h %p` (`%h` and `%p` expand to the
+host and port). The desktop keeps its webview and native integration local; only the
 authenticated Cline Hub protocol is forwarded through SSH. Agent tools,
 workspace discovery, Git metadata, and session persistence therefore run on the
 SSH host, while approvals and live session events return to the desktop.

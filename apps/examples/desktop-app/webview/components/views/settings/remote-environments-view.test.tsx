@@ -101,6 +101,7 @@ describe("RemoteEnvironmentsContent", () => {
 		expect(inputById("remote-port").disabled).toBe(true);
 		expect(inputById("remote-name").disabled).toBe(false);
 		expect(inputById("remote-identity").disabled).toBe(false);
+		expect(inputById("remote-proxy-command").disabled).toBe(false);
 		expect(container.textContent).toContain(
 			"Create a new host to change the SSH host, user, or port.",
 		);
@@ -177,13 +178,21 @@ describe("RemoteEnvironmentsContent", () => {
 		);
 
 		await type(inputById("remote-name"), "Build box 2");
+		await type(
+			inputById("remote-proxy-command"),
+			"nc -X connect -x proxy.corp:3128 %h %p",
+		);
 		await click(buttonWithText("Save"));
 
 		await vi.waitFor(() => {
 			expect(invokeMock).toHaveBeenCalledTimes(2);
 		});
 		expect(invokeMock).toHaveBeenNthCalledWith(2, "upsert_remote_environment", {
-			profile: { ...profile, name: "Build box 2" },
+			profile: {
+				...profile,
+				name: "Build box 2",
+				proxyCommand: "nc -X connect -x proxy.corp:3128 %h %p",
+			},
 		});
 		expect(container.textContent).toContain("Connected");
 		expect(container.textContent).toContain("Ready");
