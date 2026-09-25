@@ -4,7 +4,21 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import {
+	AgentComposer,
+	AgentComposerActions,
+	AgentComposerAttachments,
+	AgentComposerBody,
+	AgentComposerField,
+	AgentComposerSendButton,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	AgentComposerSettingsGroup,
+	AgentComposerStopButton,
+	AgentComposerTextarea,
+	AgentPromptQueue,
+	SearchCombobox,
+} from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
@@ -1078,26 +1092,10 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<div
-			className={cn(
-				"bg-card",
-				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-			)}
-		>
+		<AgentComposer variant={variant}>
 			{/* Input area */}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
-			<div
-				className={cn(
-					"px-4 py-3",
-					variant === "welcome"
-						? "pb-2 pt-4"
-						: promptsInQueue.length > 0
-							? "pb-4 pt-0"
-							: "py-4",
-				)}
-			>
+			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
@@ -1190,14 +1188,9 @@ function ChatInputBarImpl({
 							)}
 						</div>
 					)}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
-					<div
-						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
-								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
-						)}
+					{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
+					<AgentComposerField
+						variant={variant}
 						onMouseDown={(event) => {
 							const target = event.target;
 							if (
@@ -1219,7 +1212,7 @@ function ChatInputBarImpl({
 								<span className="sr-only">Transcribing voice input</span>
 							</output>
 						)}
-						<textarea
+						<AgentComposerTextarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
 									? `slash-command-option-${slashSelectedIndex}`
@@ -1237,10 +1230,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							className={cn(
-								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								variant === "welcome" && "self-start",
-							)}
+							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
 								setPromptInput(e.target.value);
@@ -1381,12 +1371,7 @@ function ChatInputBarImpl({
 							}}
 							value={promptInput}
 						/>
-						<div
-							className={cn(
-								"flex shrink-0 items-center gap-2",
-								variant === "conversation" && "self-end",
-							)}
-						>
+						<AgentComposerActions variant={variant}>
 							{needsCloudRepository ? (
 								<span
 									aria-live="polite"
@@ -1396,18 +1381,15 @@ function ChatInputBarImpl({
 								</span>
 							) : null}
 							{canAbort && (
-								<button
+								<AgentComposerStopButton
 									aria-label="Stop agent"
-									className={cn(
-										"bg-foreground p-1.5 text-background hover:bg-destructive",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
-									)}
+									variant={variant}
 									onClick={onAbort}
 									title="Stop the agent (Esc)"
 									type="button"
 								>
 									<CircleStop className="size-3" />
-								</button>
+								</AgentComposerStopButton>
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
@@ -1436,14 +1418,9 @@ function ChatInputBarImpl({
 								/>
 							) : null}
 							{(!isBusy || canSend) && (
-								<button
+								<AgentComposerSendButton
 									aria-label="Send message"
-									className={cn(
-										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
-									)}
+									variant={variant}
 									disabled={!canSend}
 									onClick={handleSend}
 									title={
@@ -1454,10 +1431,10 @@ function ChatInputBarImpl({
 									type="button"
 								>
 									<ArrowUp className="size-3" />
-								</button>
+								</AgentComposerSendButton>
 							)}
-						</div>
-					</div>
+						</AgentComposerActions>
+					</AgentComposerField>
 				</div>
 				{unsupportedDraftImageCount > 0 && (
 					<output className="block px-2 text-sm text-destructive">
@@ -1466,7 +1443,7 @@ function ChatInputBarImpl({
 					</output>
 				)}
 				{attachments.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1.5">
+					<AgentComposerAttachments>
 						{attachments.map((attachment) => (
 							<span
 								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
@@ -1483,13 +1460,13 @@ function ChatInputBarImpl({
 								</button>
 							</span>
 						))}
-					</div>
+					</AgentComposerAttachments>
 				)}
-			</div>
+			</AgentComposerBody>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
-				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
+			<AgentComposerSettings>
+				<AgentComposerSettingsGroup>
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1603,9 +1580,9 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+				</AgentComposerSettingsGroup>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				<AgentComposerSettingsEnd>
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -1642,9 +1619,9 @@ function ChatInputBarImpl({
 							/>
 						</div>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</AgentComposerSettingsEnd>
+			</AgentComposerSettings>
+		</AgentComposer>
 	);
 }
 
