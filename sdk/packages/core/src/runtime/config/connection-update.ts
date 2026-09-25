@@ -4,7 +4,8 @@ export interface ConnectionUpdate {
 	providerId?: string;
 	modelId?: string;
 	apiKey?: string;
-	baseUrl?: string;
+	/** `null` resets the live connection to the provider's configured default. */
+	baseUrl?: string | null;
 	headers?: Record<string, string>;
 	providerConfig?: CoreSessionConfig["providerConfig"];
 	reasoningEffort?: CoreSessionConfig["reasoningEffort"] | null;
@@ -16,7 +17,8 @@ export interface ConnectionUpdateInput {
 	providerId?: string;
 	modelId?: string;
 	apiKey?: string;
-	baseUrl?: string;
+	/** `null` resets the live connection to the provider's configured default. */
+	baseUrl?: string | null;
 	headers?: Record<string, string>;
 	providerConfig?: CoreSessionConfig["providerConfig"];
 	thinking?: boolean;
@@ -36,8 +38,9 @@ export interface ConnectionUpdateInput {
  *   only the provided field.
  * - `thinking: undefined` leaves the session's reasoning state untouched.
  * Connection fields are included only when defined; an empty string is passed
- * through (it means "clear"), so callers that want to skip blanks must drop
- * them before calling.
+ * through as a literal value. For `baseUrl`, `null` explicitly restores the
+ * provider-configured default without conflating that reset with an empty URL.
+ * Callers that want to skip blanks must drop them before calling.
  */
 export function buildConnectionUpdate(
 	input: ConnectionUpdateInput,

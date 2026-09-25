@@ -180,6 +180,22 @@ export function createSessionSpawnTool(
 					knownModels: config.knownModels,
 					thinking: config.thinking,
 				},
+			getConnectionSnapshot: () =>
+				deps
+					.getSession(rootSessionId)
+					?.runtime.delegatedAgentConfigProvider?.getConnectionSnapshot() ?? {
+					version: 0,
+					config: {
+						providerId: config.providerId,
+						modelId: config.modelId,
+						apiKey: config.apiKey,
+						baseUrl: config.baseUrl,
+						headers: config.headers,
+						providerConfig: config.providerConfig,
+						knownModels: config.knownModels,
+						thinking: config.thinking,
+					},
+				},
 			updateConnectionDefaults: () => {},
 		},
 		createSubAgentTools,

@@ -54,6 +54,11 @@ import { nanoid } from "nanoid";
 /** A model request after turn preparation, ready to be issued (possibly more than once). */
 interface PreparedModelRequest {
 	request: AgentModelRequest;
+	/** Defaults used during preparation, retained across retries for rebasing. */
+	model: AgentModel;
+	modelOptions: Record<string, unknown> | undefined;
+	requestMetadataOptions: Record<string, unknown>;
+	hookModelOptions: Record<string, unknown> | undefined;
 	/** When preparation began; anchors the provider-request lifecycle timings. */
 	startedAt: number;
 }
@@ -580,9 +585,10 @@ export class AgentRuntime {
 	private maxTokensRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	private connectionUpdateBoundaryActive = false;
 	private modelSteerController?: AbortController;
-	private readonly telemetryProviderId?: string;
-	private readonly telemetryModelId?: string;
+	private telemetryProviderId?: string;
+	private telemetryModelId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		this.telemetryProviderId =
@@ -631,6 +637,41 @@ export class AgentRuntime {
 			error: abortError,
 		});
 		this.abortController.abort(abortError);
+	}
+
+	/**
+	 * Replace the model connection used by subsequent requests in this run.
+	 * Tool approval and ask-question executors can suspend an active run between
+	 * model requests, while the host-owned pre-request callback runs in a shorter
+	 * boundary before request preparation. Session-level credential changes must reach the already
+	 * constructed runtime without discarding its conversation or tool state. The
+	 * host must invoke this only through one of those verified boundaries.
+	 */
+	replaceModelBetweenRequests(
+		model: AgentModel,
+		options?: {
+			modelOptions?: Record<string, unknown>;
+			messageModelInfo?: AgentMessage["modelInfo"];
+		},
+	): void {
+		if (
+			this.state.status !== "running" ||
+			!this.connectionUpdateBoundaryActive
+		) {
+			throw new Error(
+				"Agent model replacement is only allowed at a verified boundary between model requests",
+			);
+		}
+		this.config = {
+			...this.config,
+			model,
+			modelOptions: options?.modelOptions,
+			messageModelInfo: options?.messageModelInfo,
+		};
+		this.telemetryProviderId = trimNonEmpty(
+			options?.messageModelInfo?.provider,
+		);
+		this.telemetryModelId = trimNonEmpty(options?.messageModelInfo?.id);
 	}
 
 	subscribe(listener: AgentEventListener): () => void {
@@ -923,7 +964,13 @@ export class AgentRuntime {
 					return result;
 				}
 
-				const toolMessages = await this.executeToolCalls(toolCalls);
+				this.connectionUpdateBoundaryActive = true;
+				let toolMessages: AgentMessage[];
+				try {
+					toolMessages = await this.executeToolCalls(toolCalls);
+				} finally {
+					this.connectionUpdateBoundaryActive = false;
+				}
 				this.state.pendingToolCalls = [];
 				for (const toolMessage of toolMessages) {
 					this.state.messages.push(toolMessage);
@@ -1569,6 +1616,9 @@ export class AgentRuntime {
 	private async prepareModelRequest(options?: {
 		overflowRecovery?: boolean;
 	}): Promise<PreparedModelRequest> {
+		// Refresh before preparation, which may itself issue a compaction request.
+		await this.refreshConnectionBeforeModelRequest();
+
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
 			clientName: trimNonEmpty(this.config.clientName),
@@ -1580,6 +1630,8 @@ export class AgentRuntime {
 			runId: this.state.runId,
 			iteration: this.state.iteration,
 		});
+		const requestMetadataOptions = { metadata: modelRequestMetadata };
+		let hookModelOptions: Record<string, unknown> | undefined;
 		let request: AgentModelRequest = {
 			systemPrompt: this.config.systemPrompt,
 			messages: cloneMessages(this.state.messages),
@@ -1590,9 +1642,10 @@ export class AgentRuntime {
 			})),
 			modelTools: this.config.modelTools,
 			signal: this.abortController?.signal,
-			options: mergeModelOptions(this.config.modelOptions, {
-				metadata: modelRequestMetadata,
-			}),
+			options: mergeModelOptions(
+				this.config.modelOptions,
+				requestMetadataOptions,
+			),
 		};
 
 		const startedAt = Date.now();
@@ -1627,6 +1680,7 @@ export class AgentRuntime {
 				request = { ...request, tools: [...result.tools] };
 			}
 			if (result?.options) {
+				hookModelOptions = mergeModelOptions(hookModelOptions, result.options);
 				request = {
 					...request,
 					options: mergeModelOptions(request.options, result.options),
@@ -1648,7 +1702,14 @@ export class AgentRuntime {
 			...summarizeModelRequest(request),
 		});
 
-		return { request, startedAt };
+		return {
+			request,
+			startedAt,
+			model: this.config.model,
+			modelOptions: this.config.modelOptions,
+			requestMetadataOptions,
+			hookModelOptions,
+		};
 	}
 
 	private async generateAssistantMessageForRequest(
@@ -1681,6 +1742,27 @@ export class AgentRuntime {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const getTaskLifecycleDurationMs = () => Date.now() - prepared.startedAt;
 		let request = prepared.request;
+
+		// Preparation, hooks and retry backoff may await long-running work. Refresh
+		// before every stream, including retries that reuse a prepared request.
+		// Compare against its original defaults so later attempts cannot reuse stale
+		// options after an earlier attempt already consumed the connection edit.
+		await this.refreshConnectionBeforeModelRequest();
+		if (
+			this.config.model !== prepared.model ||
+			this.config.modelOptions !== prepared.modelOptions
+		) {
+			request = {
+				...request,
+				options: mergeModelOptions(
+					mergeModelOptions(
+						this.config.modelOptions,
+						prepared.requestMetadataOptions,
+					),
+					prepared.hookModelOptions,
+				),
+			};
+		}
 
 		this.throwIfAborted();
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
@@ -1996,6 +2078,16 @@ export class AgentRuntime {
 		}
 
 		return { message, finishReason, interrupted };
+	}
+
+	private async refreshConnectionBeforeModelRequest(): Promise<void> {
+		this.connectionUpdateBoundaryActive = true;
+		try {
+			await this.config.beforeModelRequest?.();
+			this.throwIfAborted();
+		} finally {
+			this.connectionUpdateBoundaryActive = false;
+		}
 	}
 
 	private async *openTaskLifecycleStream(

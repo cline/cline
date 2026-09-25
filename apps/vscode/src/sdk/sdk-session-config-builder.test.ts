@@ -52,6 +52,23 @@ describe("SdkSessionConfigBuilder", () => {
 		expect(config.hooks).toBe(hooks)
 	})
 
+	it("wires the root pre-request callback without wrapping agent hooks", async () => {
+		const existingBeforeModel = vi.fn()
+		const beforeModelRequest = vi.fn(async () => {})
+		mocks.buildAgentHooks.mockReturnValueOnce({ beforeModel: existingBeforeModel })
+		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: {} })
+		const builder = new SdkSessionConfigBuilder({
+			stateManager: {} as never,
+			emitHookMessage: vi.fn(),
+			beforeModelRequest,
+		})
+
+		const config = await builder.build({ cwd: "/workspace", mode: "act" })
+		expect(config.beforeModelRequest).toBe(beforeModelRequest)
+		expect(config.hooks?.beforeModel).toBe(existingBeforeModel)
+		expect(beforeModelRequest).not.toHaveBeenCalled()
+	})
+
 	it("passes the mistake-limit callback into the SDK config without overriding SDK execution defaults", async () => {
 		const onConsecutiveMistakeLimitReached = vi.fn()
 		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: {}, execution: { maxRetries: 1 } })
