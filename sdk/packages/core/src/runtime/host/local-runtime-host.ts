@@ -669,6 +669,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				{
 					...(resumedArtifacts?.manifest.metadata ?? {}),
 					...(startInput.sessionMetadata ?? {}),
+					// Null records an unset preference; missing keys belong to legacy sessions.
+					thinking: bootstrap.config.thinking ?? null,
+					reasoningEffort: bootstrap.config.reasoningEffort ?? null,
 				},
 				bootstrap.gitState,
 			),
@@ -1689,10 +1692,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
 		// Keep the persisted manifest in sync so session history reflects the
 		// connection the session is now using, not the one it started with.
-		if (updates.providerId || updates.modelId) {
-			await this.mutateSessionManifest(session, (manifest) => {
+		const reasoningMetadata =
+			Object.hasOwn(updates, "thinking") ||
+			Object.hasOwn(updates, "reasoningEffort")
+				? {
+						thinking: session.config.thinking ?? null,
+						reasoningEffort: session.config.reasoningEffort ?? null,
+					}
+				: undefined;
+		if (reasoningMetadata) {
+			// Empty sessions persist lazily, so retain updates before artifacts exist.
+			session.sessionMetadata = {
+				...session.sessionMetadata,
+				...reasoningMetadata,
+			};
+		}
+		if (updates.providerId || updates.modelId || reasoningMetadata) {
+			await this.mutateSessionManifest(session, async (manifest) => {
 				if (updates.providerId) manifest.provider = updates.providerId;
 				if (updates.modelId) manifest.model = updates.modelId;
+				if (reasoningMetadata) {
+					manifest.metadata = { ...manifest.metadata, ...reasoningMetadata };
+					await this.invokeOptionalValue("updateSession", {
+						sessionId,
+						metadata: manifest.metadata,
+					});
+					session.sessionMetadata = manifest.metadata;
+				}
 			});
 		}
 	}
@@ -1707,7 +1733,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
-		mutate: (manifest: SessionManifest) => void,
+		mutate: (manifest: SessionManifest) => void | Promise<void>,
 	): Promise<SessionManifest | undefined> {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
@@ -1720,7 +1746,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					"readSessionManifest",
 					sessionId,
 				)) ?? artifacts.manifest;
-			mutate(latest);
+			await mutate(latest);
 			artifacts.manifest = latest;
 			await this.invoke<void>(
 				"writeSessionManifest",

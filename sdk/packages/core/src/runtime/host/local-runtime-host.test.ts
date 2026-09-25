@@ -724,6 +724,7 @@ describe("LocalRuntimeHost", () => {
 			...manifest,
 			compaction_path: "/tmp/compaction.json",
 			title: "renamed session",
+			metadata: { savedPreference: "preserve" },
 		};
 		const readSessionManifest = vi.fn().mockResolvedValue(diskManifest);
 		(sessionService as Record<string, unknown>).readSessionManifest =
@@ -747,25 +748,27 @@ describe("LocalRuntimeHost", () => {
 
 		sessionService.writeSessionManifest.mockClear();
 		await manager.updateSessionConnection(sessionId, { thinking: true });
+		expect(sessionService.writeSessionManifest).toHaveBeenCalledWith(
+			"/tmp/manifest.json",
+			expect.objectContaining({
+				compaction_path: "/tmp/compaction.json",
+				title: "renamed session",
+				metadata: expect.objectContaining({
+					savedPreference: "preserve",
+					thinking: true,
+					reasoningEffort: null,
+				}),
+			}),
+		);
+		sessionService.writeSessionManifest.mockClear();
+		await manager.updateSessionConnection(sessionId, {});
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 
-	it("persists thinking budget token connection updates", async () => {
+	it("persists reasoning preferences for a fresh host and updates thinking budgets", async () => {
 		const sessionId = "sess-thinking-budget-update";
-		const manifest = createManifest(sessionId);
-		const sessionService = {
-			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
-			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
-				manifestPath: "/tmp/manifest.json",
-				messagesPath: "/tmp/messages.json",
-				manifest,
-			}),
-			persistSessionMessages: vi.fn(),
-			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
-			writeSessionManifest: vi.fn(),
-			listSessions: vi.fn().mockResolvedValue([]),
-			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
-		};
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const sessionService = new FileSessionService(sessionsDir);
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
 		};
@@ -793,6 +796,7 @@ describe("LocalRuntimeHost", () => {
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
+					cwd: isolatedHomeDir,
 					thinking: true,
 					reasoningEffort: "high",
 					thinkingBudgetTokens: 1024,
@@ -802,6 +806,26 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
+		const freshHost = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(sessionsDir),
+		});
+		const expectPersistedReasoning = async (
+			thinking: boolean | null,
+			reasoningEffort: string | null,
+		) => {
+			const metadata = { thinking, reasoningEffort };
+			expect((await manager.getSession(sessionId))?.metadata).toMatchObject(
+				metadata,
+			);
+			expect((await freshHost.getSession(sessionId))?.metadata).toMatchObject(
+				metadata,
+			);
+			expect(
+				sessionService.readSessionManifest(sessionId)?.metadata,
+			).toMatchObject(metadata);
+		};
+		await expectPersistedReasoning(true, "high");
 
 		expect(createAgent).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -829,6 +853,13 @@ describe("LocalRuntimeHost", () => {
 			thinking: true,
 			thinkingBudgetTokens: 2048,
 		});
+		await expectPersistedReasoning(true, "high");
+		await manager.updateSessionConnection(sessionId, {
+			reasoningEffort: "low",
+		});
+		await expectPersistedReasoning(true, "low");
+		await manager.updateSessionConnection(sessionId, { reasoningEffort: null });
+		await expectPersistedReasoning(true, null);
 
 		await manager.updateSessionConnection(sessionId, {
 			thinking: false,
@@ -844,6 +875,7 @@ describe("LocalRuntimeHost", () => {
 			reasoningEffort: undefined,
 			thinkingBudgetTokens: undefined,
 		});
+		await expectPersistedReasoning(false, null);
 
 		await manager.updateSessionConnection(sessionId, {
 			thinking: null,
@@ -854,6 +886,9 @@ describe("LocalRuntimeHost", () => {
 		expect(session.config.thinking).toBeUndefined();
 		expect(session.config.reasoningEffort).toBeUndefined();
 		expect(session.config.thinkingBudgetTokens).toBeUndefined();
+		await expectPersistedReasoning(null, null);
+		await manager.dispose();
+		await freshHost.dispose();
 	});
 
 	it("captures active session lookup misses as handled telemetry", async () => {

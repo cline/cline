@@ -205,10 +205,20 @@ describe("CloudSessionController neutral host contract", () => {
 	it.each([
 		"suspended",
 		"ready",
+		"unavailable",
 	])("resumes once for concurrent viewers with a cached %s status", async (cachedStatus) => {
-		const f = resumableFixture(cachedStatus);
+		const f = resumableFixture(
+			cachedStatus === "unavailable" ? "ready" : cachedStatus,
+		);
 		await f.controller.list();
-		f.api.status.mockResolvedValue({ status: "suspended" });
+		if (cachedStatus === "unavailable") {
+			f.api.status.mockRejectedValue(new TypeError("fetch failed"));
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "suspended" },
+			]);
+		} else {
+			f.api.status.mockResolvedValue({ status: "suspended" });
+		}
 		await Promise.all([
 			f.controller.attach(record.id),
 			f.controller.attach(record.id),
@@ -303,6 +313,25 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
+	it.each([
+		"list",
+		"organization",
+	])("connects with cached ready status when the fallback %s lookup fails", async (failure) => {
+		const getActiveOrganizationId = vi.fn(async () => undefined);
+		const f = fixture({ getActiveOrganizationId });
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		await f.controller.list();
+		f.api.status.mockRejectedValue(new TypeError("fetch failed"));
+		if (failure === "list")
+			f.api.list.mockRejectedValue(new TypeError("fetch failed"));
+		else
+			getActiveOrganizationId.mockRejectedValue(new TypeError("fetch failed"));
+		await f.controller.attach(record.id);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		expect(f.api.resume).not.toHaveBeenCalled();
+		await f.controller.dispose();
+	});
+
 	it("does not connect after a failed resume and permits a later retry", async () => {
 		const f = resumableFixture("suspended");
 		f.api.resume.mockRejectedValueOnce(new Error("Quota reached"));
@@ -379,24 +408,48 @@ describe("CloudSessionController neutral host contract", () => {
 	});
 
 	it.each([
-		{ savedApproval: true, localApproval: false, code: "command_failed" },
-		{ savedApproval: false, localApproval: true, code: "session_not_found" },
+		{
+			savedApproval: true,
+			localApproval: false,
+			code: "command_failed",
+			savedThinking: { thinking: true, reasoningEffort: "medium" },
+			cold: true,
+		},
+		{
+			savedApproval: false,
+			localApproval: true,
+			code: "session_not_found",
+			savedThinking: { thinking: false, reasoningEffort: null },
+			cold: false,
+		},
+		{
+			savedApproval: false,
+			localApproval: true,
+			code: "session_not_found",
+			savedThinking: { thinking: null, reasoningEffort: null },
+			cold: false,
+		},
 		{
 			savedApproval: undefined,
 			localApproval: true,
 			code: "session_not_found",
+			savedThinking: undefined,
+			cold: false,
 		},
-	])("restores history, saved policy, and host thinking settings: %j", async ({
+	])("restores history and saved preferences with legacy host fallback: %j", async ({
 		savedApproval,
 		localApproval,
 		code,
+		savedThinking,
+		cold,
 	}) => {
 		const f = resumableFixture();
-		f.controller.restoreCreationOptions(record.id, {
-			autoApproveTools: localApproval,
-			thinking: true,
-			reasoningEffort: "high",
-		});
+		if (!cold)
+			f.controller.restoreCreationOptions(record.id, {
+				autoApproveTools: localApproval,
+				thinking: true,
+				reasoningEffort: "high",
+			});
 		const messages: MessageWithMetadata[] = [
 			{ role: "user", content: "Saved work" },
 		];
@@ -418,6 +471,7 @@ describe("CloudSessionController neutral host contract", () => {
 			enableTeams: false,
 			metadata: {
 				autoApproveTools: savedApproval,
+				...savedThinking,
 				checkpointEnabled: true,
 				mode: "plan",
 				systemPrompt: "Saved instructions",
@@ -441,8 +495,6 @@ describe("CloudSessionController neutral host contract", () => {
 			sessionConfig: {
 				sessionId: "inner",
 				modelId: "model",
-				thinking: true,
-				reasoningEffort: "high",
 				checkpoint: { enabled: true },
 				mode: "plan",
 				systemPrompt: "Saved instructions",
@@ -450,6 +502,17 @@ describe("CloudSessionController neutral host contract", () => {
 			runtimeOptions: { enableSpawn: false, enableTeams: false },
 			toolPolicies: { "*": { autoApprove: savedApproval ?? localApproval } },
 		});
+		const restoredConfig = (
+			f.commands.find((c) => c.command === "session.create")?.payload as {
+				sessionConfig: Record<string, unknown>;
+			}
+		).sessionConfig;
+		expect(restoredConfig.thinking).toBe(
+			savedThinking ? (savedThinking.thinking ?? undefined) : true,
+		);
+		expect(restoredConfig.reasoningEffort).toBe(
+			savedThinking ? (savedThinking.reasoningEffort ?? undefined) : "high",
+		);
 		expect(await f.controller.readMessages(record.id)).toEqual(messages);
 		await f.controller.send(record.id, "Continue working");
 		expect(

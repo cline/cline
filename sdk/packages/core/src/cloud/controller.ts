@@ -1902,7 +1902,7 @@ export class CloudSessionController {
 			) {
 				const status = await this.options.api
 					.status(outerSessionId)
-					.catch((error) => {
+					.catch(async (error) => {
 						const transient =
 							error instanceof CloudSessionError
 								? error.code === "request_failed" &&
@@ -1913,7 +1913,10 @@ export class CloudSessionController {
 								: error instanceof TypeError ||
 									(error instanceof Error && error.name === "TimeoutError");
 						if (!transient) throw error;
-						return undefined;
+						assertCurrent();
+						return await this.refreshKnownSession(outerSessionId).catch(
+							() => undefined,
+						);
 					});
 				assertCurrent();
 				if (status?.status) remote.status = status.status;
@@ -2259,6 +2262,12 @@ export class CloudSessionController {
 		const metadata = (saved.metadata ?? {}) as JsonRecord;
 		const runtimeOptions = (saved.runtimeOptions ?? {}) as JsonRecord;
 		const config = this.sessions.get(connection.remote.id)?.config;
+		const thinking = Object.hasOwn(metadata, "thinking")
+			? metadata.thinking
+			: config?.thinking;
+		const reasoningEffort = Object.hasOwn(metadata, "reasoningEffort")
+			? metadata.reasoningEffort
+			: config?.reasoningEffort;
 		const autoApproveTools =
 			typeof metadata.autoApproveTools === "boolean"
 				? metadata.autoApproveTools
@@ -2283,12 +2292,8 @@ export class CloudSessionController {
 					systemPrompt:
 						runtimeOptions.systemPrompt ?? metadata.systemPrompt ?? "",
 					mode: runtimeOptions.mode ?? metadata.mode ?? "act",
-					...(typeof config?.thinking === "boolean"
-						? { thinking: config.thinking }
-						: {}),
-					...(typeof config?.reasoningEffort === "string"
-						? { reasoningEffort: config.reasoningEffort }
-						: {}),
+					...(typeof thinking === "boolean" ? { thinking } : {}),
+					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
 					...(metadata.checkpointEnabled === true
 						? { checkpoint: { enabled: true } }
 						: {}),
