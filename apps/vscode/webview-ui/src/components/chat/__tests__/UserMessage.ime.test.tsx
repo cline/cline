@@ -5,7 +5,7 @@
  * even if you confirm the IME conversion (Enter) in message re-edit mode.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -144,11 +144,33 @@ describe("UserMessage – IME composition handling", () => {
 
 		expect(screen.getByRole("button", { name: "Reset Chat" })).toBeEnabled()
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
-		expect(resetCode).toBeDisabled()
-		await user.hover(resetCode.parentElement as HTMLElement)
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.click(resetCode)
 		expect(await screen.findByText(/No checkpoint is available for this message/)).toBeInTheDocument()
 		await user.click(screen.getByText("Settings"))
-		expect(navigateToSettings).toHaveBeenCalledWith("features")
+		expect(navigateToSettings).toHaveBeenCalledWith("checkpoints")
+	})
+
+	it("opens the disabled Reset Code explanation from the keyboard", async () => {
+		const user = userEvent.setup()
+		render(
+			<UserMessage
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: false, reason: "checkpoints_disabled" }}
+			/>,
+		)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		act(() => resetCode.focus())
+		expect(resetCode).toHaveFocus()
+		await user.keyboard("{Enter}")
+		expect(await screen.findByText(/No checkpoint is available for this message/)).toBeInTheDocument()
+		const settingsLink = screen.getByText("Settings")
+		expect(settingsLink).toHaveFocus()
+		await user.keyboard("{Enter}")
+		expect(navigateToSettings).toHaveBeenCalledWith("checkpoints")
 	})
 
 	it("explains when checkpoint creation was enabled but no checkpoint exists", async () => {
@@ -163,8 +185,8 @@ describe("UserMessage – IME composition handling", () => {
 
 		await user.click(screen.getByText("Update this"))
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
-		expect(resetCode).toBeDisabled()
-		await user.hover(resetCode.parentElement as HTMLElement)
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.hover(resetCode)
 		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()
 	})
 

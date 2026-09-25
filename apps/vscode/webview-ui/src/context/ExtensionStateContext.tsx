@@ -26,6 +26,11 @@ import {
 	applyMessage as reducerApplyMessage,
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
+import {
+	createSettingsNavigationRequest,
+	type SettingsNavigationRequest,
+	type SettingsNavigationTarget,
+} from "../components/settings/settingsTargets"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export type ProviderId = string
@@ -70,7 +75,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showMcp: boolean
 	mcpTab?: McpViewTab
 	showSettings: boolean
-	settingsTargetSection?: string
+	settingsNavigationRequest?: SettingsNavigationRequest
 	settingsInitialModelTab?: "recommended" | "free"
 	showHistory: boolean
 	showAccount: boolean
@@ -119,8 +124,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Navigation functions
 	navigateToMarketplace: () => void
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: (targetSection?: string) => void
-	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
+	navigateToSettings: (targetSection?: SettingsNavigationTarget) => void
+	navigateToSettingsModelPicker: (opts: {
+		targetSection?: SettingsNavigationTarget
+		initialModelTab?: "recommended" | "free"
+	}) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
@@ -149,7 +157,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
-	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
+	const [settingsNavigationRequest, setSettingsNavigationRequest] = useState<SettingsNavigationRequest | undefined>(undefined)
 	const [settingsInitialModelTab, setSettingsInitialModelTab] = useState<"recommended" | "free" | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
@@ -168,7 +176,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Hide functions
 	const hideSettings = useCallback(() => {
 		setShowSettings(false)
-		setSettingsTargetSection(undefined)
+		setSettingsNavigationRequest(undefined)
 		setSettingsInitialModelTab(undefined)
 	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
@@ -202,13 +210,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [closeMcpView])
 
 	const navigateToSettings = useCallback(
-		(targetSection?: string) => {
+		(targetSection?: SettingsNavigationTarget) => {
 			closeMarketplaceView()
 			setShowHistory(false)
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setSettingsTargetSection(targetSection)
+			setSettingsNavigationRequest(targetSection ? createSettingsNavigationRequest(targetSection) : undefined)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
 		},
@@ -216,13 +224,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	)
 
 	const navigateToSettingsModelPicker = useCallback(
-		(opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => {
+		(opts: { targetSection?: SettingsNavigationTarget; initialModelTab?: "recommended" | "free" }) => {
 			closeMarketplaceView()
 			setShowHistory(false)
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setSettingsTargetSection(opts.targetSection)
+			setSettingsNavigationRequest(opts.targetSection ? createSettingsNavigationRequest(opts.targetSection) : undefined)
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
 		},
@@ -893,7 +901,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showMcp,
 		mcpTab,
 		showSettings,
-		settingsTargetSection,
+		settingsNavigationRequest,
 		settingsInitialModelTab,
 		showHistory,
 		showAccount,

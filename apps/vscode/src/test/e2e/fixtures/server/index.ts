@@ -488,7 +488,26 @@ export class ClineApiServerMock {
 							Array.isArray(messages) &&
 							messages.some((m: { role?: string }) => m?.role === "tool")
 
+						const serializedMessages = Array.isArray(messages)
+							? messages.map((message) => JSON.stringify(message))
+							: []
+						const lastIndexIncluding = (needle: string) => {
+							for (let i = serializedMessages.length - 1; i >= 0; i--) {
+								if (serializedMessages[i].includes(needle)) return i
+							}
+							return -1
+						}
+						const checkpointProbeIndex = lastIndexIncluding("checkpoint_rebuild_probe")
+						const checkpointFollowupIndex = lastIndexIncluding("follow-up after enabling checkpoints")
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
+						const chunkDelayMs =
+							checkpointProbeIndex >= 0 && checkpointFollowupIndex < checkpointProbeIndex ? 750 : 10
+						log("Checkpoint probe indices:", { checkpointFollowupIndex, checkpointProbeIndex })
+						if (checkpointFollowupIndex > checkpointProbeIndex) {
+							responseText = E2E_MOCK_API_RESPONSES.CHECKPOINT_FOLLOWUP
+						} else if (checkpointProbeIndex >= 0) {
+							responseText = E2E_MOCK_API_RESPONSES.CHECKPOINT_REBUILD_PROBE
+						}
 						// The hooks e2e sends "hook context probe" after its
 						// UserPromptSubmit hook returned a contextModification; answer
 						// according to whether the injected block made it into this
@@ -498,13 +517,6 @@ export class ClineApiServerMock {
 						// whole-body search would report a fresh injection that never
 						// happened on later turns.
 						if (body.includes("hook context probe")) {
-							const serializedMessages = Array.isArray(messages) ? messages.map((m) => JSON.stringify(m)) : []
-							const lastIndexIncluding = (needle: string) => {
-								for (let i = serializedMessages.length - 1; i >= 0; i--) {
-									if (serializedMessages[i].includes(needle)) return i
-								}
-								return -1
-							}
 							const lastPromptIndex = lastIndexIncluding("hook context probe")
 							const lastFactIndex = lastIndexIncluding("HOOK_INJECTED_FACT")
 							responseText =
@@ -600,7 +612,7 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
-									setTimeout(sendChunk, 10)
+									setTimeout(sendChunk, chunkDelayMs)
 								} else if (toolCallDeltaIndex < toolCallDeltas.length) {
 									const chunk = {
 										id: generationId,
@@ -619,7 +631,7 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									toolCallDeltaIndex++
-									setTimeout(sendChunk, 10)
+									setTimeout(sendChunk, chunkDelayMs)
 								} else {
 									const finalChunk = {
 										id: generationId,

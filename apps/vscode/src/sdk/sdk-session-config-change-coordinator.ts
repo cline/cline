@@ -116,6 +116,8 @@ export class SdkSessionConfigChangeCoordinator {
 				return
 			}
 
+			// replaceActiveSession detaches the old session synchronously before its
+			// first suspension, so no send can enter it after this final state check.
 			const restartResult = await this.options.sessions.replaceActiveSession({
 				expectedSession: activeSession,
 				startInput,
