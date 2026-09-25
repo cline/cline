@@ -12,6 +12,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { useAccount } from "@/contexts/account-context";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
@@ -115,6 +116,7 @@ export function SettingsView({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
+	const { refreshAccount } = useAccount();
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -342,6 +344,10 @@ export function SettingsView({
 
 	const updateProvider = useCallback(
 		(id: string, updates: ProviderSettingsUpdate) => {
+			const clineKeyChanged =
+				(id === "cline" || id === "cline-pass") &&
+				Boolean(updates.apiKey) &&
+				updates.apiKey !== providers.find((p) => p.id === id)?.apiKey;
 			// Saving settings creates the provider's persisted entry, which is
 			// what "connected" means for keyless providers — reflect it locally.
 			catalogGenerationRef.current++;
@@ -366,9 +372,16 @@ export function SettingsView({
 				apiKey: updates.apiKey,
 				baseUrl: updates.baseUrl,
 				configValues: updates.configValues,
+			}).then((saved) => {
+				// A new Cline key may belong to a different account than the
+				// stored identity; fetchMe writes the key's own account back
+				// (mirrors onboarding's save-then-verify).
+				if (saved && clineKeyChanged) {
+					void refreshAccount();
+				}
 			});
 		},
-		[persistProviderSettings, setProvidersWithCache],
+		[persistProviderSettings, providers, refreshAccount, setProvidersWithCache],
 	);
 
 	const loadProviderModels = useCallback(
