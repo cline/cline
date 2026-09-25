@@ -45,7 +45,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 	const api = {
 		list: vi.fn(async () => [structuredClone(record)]),
 		status: vi.fn(async () => ({ status: "ready" })),
-		create: vi.fn(async () => ({
+		create: vi.fn(async (_input: CreateCloudSessionInput) => ({
 			sessionId: record.id,
 			status: "ready",
 			sandboxUrl: "",
@@ -782,6 +782,50 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(await creating).toBeInstanceOf(Error);
 		expect(f.api.delete).toHaveBeenCalledTimes(policy === "delete" ? 1 : 0);
 		expect(f.controller.getSnapshot(record.id)).toBeUndefined();
+	});
+	it.each([
+		["persist", true],
+		["persist", false],
+		["transcript", true],
+		["transcript", false],
+	] as const)("limits disposal cleanup to owned handoff targets (%s, created: %s)", async (stage, created) => {
+		const f = fixture({ lateCreateDisposition: "delete" });
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const pause = vi.fn(() => gate);
+		const onRemoved = vi.fn(async () => {});
+		const create = f.api.create.getMockImplementation()!;
+		f.api.create.mockImplementationOnce(async (input) => {
+			await input.handoff?.onOuterSessionCreated(record.id, { created });
+			return create(input);
+		});
+		const creating = f.controller
+			.create({
+				requestId: "handoff:stable",
+				modelId: "model",
+				repoUrl: record.repoContext.repoUrl!,
+				handoff: {
+					sourceSessionId: "source",
+					onCreating: async () => {},
+					onOuterSessionCreated: async () => {
+						if (stage === "persist") await pause();
+					},
+					onOuterSessionRemoved: onRemoved,
+					resolveMessages: async () => {
+						if (stage === "transcript") await pause();
+						return [];
+					},
+				},
+			})
+			.catch((error) => error);
+		await vi.waitFor(() => expect(pause).toHaveBeenCalledOnce());
+		await f.controller.dispose();
+		release();
+		expect(await creating).toBeInstanceOf(Error);
+		expect(f.api.delete).toHaveBeenCalledTimes(created ? 1 : 0);
+		expect(onRemoved).toHaveBeenCalledTimes(created ? 1 : 0);
 	});
 	it("cancels an in-flight connection across detach and immediate reattach", async () => {
 		const f = fixture();
