@@ -1155,7 +1155,11 @@ describe("createShellExecutor with inherited stdio", () => {
 	// shell exits while the backgrounded sleep holds the pipes, so 'close'
 	// never arrives - the exit-grace path must write the exit record and
 	// complete the log instead of leaving it in the active state.
-	it.runIf(hasBashShell).each([false, true])(
+	// Git Bash emulates SIGTERM on Windows, where Node observes a numeric
+	// exit code rather than a POSIX signal. Keep the numeric-exit case there.
+	it
+		.runIf(hasBashShell)
+		.each(process.platform === "win32" ? [false] : [false, true])(
 		"finalizes a detached log when the shell exits while a background child holds the pipes (signal: %s)",
 		async (terminateBySignal) => {
 			const controller = new RunCommandExecutionController();
