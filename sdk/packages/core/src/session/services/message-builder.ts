@@ -26,6 +26,7 @@ import {
 } from "@cline/shared";
 
 import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
+import { formatToolResultRecoveryNotice } from "./tool-result-recovery";
 
 const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
 
@@ -251,7 +252,11 @@ export class MessageBuilder {
 						try {
 							const path = await storeToolResult(full);
 							// Append after every budget pass so the recovery path cannot be truncated.
-							const notice = `\n\nFull tool result saved to: ${path}\nRead this file to retrieve the omitted content.`;
+							const notice = formatToolResultRecoveryNotice(
+								path,
+								full.content,
+								block.content,
+							);
 							return {
 								...block,
 								content:

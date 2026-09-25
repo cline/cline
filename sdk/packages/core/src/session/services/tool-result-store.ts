@@ -3,6 +3,7 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ToolResultContent } from "@cline/shared";
 import { resolveSessionDataDir } from "@cline/shared/storage";
+import { serializeToolResultContent } from "./tool-result-recovery";
 
 /** Complete external tool output, owned by the same directory as session history. */
 export class ToolResultStore {
@@ -21,10 +22,7 @@ export class ToolResultStore {
 		const filename = `${encodeURIComponent(result.tool_use_id)}.result.txt`;
 		const path = join(this.directory, filename);
 		const temporaryPath = join(this.directory, `${randomUUID()}.tmp`);
-		const text =
-			typeof result.content === "string"
-				? result.content
-				: JSON.stringify(result.content, null, 2);
+		const text = serializeToolResultContent(result.content);
 		await mkdir(this.directory, { recursive: true, mode: 0o700 });
 		try {
 			await writeFile(temporaryPath, text, {
