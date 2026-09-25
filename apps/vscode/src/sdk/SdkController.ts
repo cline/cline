@@ -1458,6 +1458,62 @@ export class Controller {
 		}
 		await this.postStateToWebview()
 	}
+	async updateQueuedPrompt(input: {
+		promptId: string
+		prompt?: string
+		delivery?: string
+	}): Promise<void> {
+		const trimmedPromptId = input.promptId.trim()
+		if (!trimmedPromptId) {
+			Logger.warn("[SdkController] updateQueuedPrompt: Missing prompt id")
+			return
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] updateQueuedPrompt: No active session")
+			return
+		}
+
+		const delivery =
+			input.delivery === "queue" || input.delivery === "steer" ? input.delivery : undefined
+		const trimmedPrompt = input.prompt?.trim()
+		const result = await activeSession.sdkHost.pendingPrompts("update", {
+			sessionId: activeSession.sessionId,
+			promptId: trimmedPromptId,
+			...(trimmedPrompt !== undefined ? { prompt: trimmedPrompt } : {}),
+			...(delivery ? { delivery } : {}),
+		})
+		if (!result.updated) {
+			Logger.warn(`[SdkController] updateQueuedPrompt: Prompt not found: ${trimmedPromptId}`)
+		}
+		await this.postStateToWebview()
+	}
+
+	async reorderQueuedPrompt(promptId: string, position: number): Promise<void> {
+		const trimmedPromptId = promptId.trim()
+		if (!trimmedPromptId) {
+			Logger.warn("[SdkController] reorderQueuedPrompt: Missing prompt id")
+			return
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] reorderQueuedPrompt: No active session")
+			return
+		}
+
+		const normalizedPosition = Number.isFinite(position) ? Math.max(0, Math.floor(position)) : 0
+		const result = await activeSession.sdkHost.pendingPrompts("update", {
+			sessionId: activeSession.sessionId,
+			promptId: trimmedPromptId,
+			position: normalizedPosition,
+		})
+		if (!result.updated) {
+			Logger.warn(`[SdkController] reorderQueuedPrompt: Prompt not found: ${trimmedPromptId}`)
+		}
+		await this.postStateToWebview()
+	}
 
 	/**
 	 * Manually compact (condense) the active task's conversation. Triggered by
