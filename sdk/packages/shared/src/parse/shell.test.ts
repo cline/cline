@@ -223,6 +223,64 @@ describe("shell helpers", () => {
 		}
 	});
 
+	it.each([
+		"pwsh",
+		"pwsh.exe",
+		"powershell",
+		"powershell.exe",
+	])("unwraps &%s without whitespace after the call operator", (executable) => {
+		const configuredShell = `D:\\configured\\${executable}`;
+		const otherEdition = executable.startsWith("pwsh") ? "powershell" : "pwsh";
+		const command = `&${executable} -NoProfile -Command "Write-Output $_"`;
+		expect(getShellInvocation(configuredShell, command)).toMatchObject({
+			executable: configuredShell,
+			input: "Write-Output $_",
+		});
+		expect(getShellInvocation(otherEdition, command)).toMatchObject({
+			executable,
+			input: "Write-Output $_",
+		});
+	});
+
+	it.each([
+		"'",
+		'"',
+	])("unwraps a %s-quoted path without whitespace after the call operator", (quote) => {
+		const executable = "D:\\portable\\pwsh.exe";
+		const command = `&${quote}${executable}${quote} -NoProfile -Command "Write-Output $_"`;
+		for (const shell of ["D:\\configured\\pwsh.exe", "powershell.exe"]) {
+			expect(getShellInvocation(shell, command)).toMatchObject({
+				executable,
+				input: "Write-Output $_",
+			});
+		}
+	});
+
+	it.each([
+		"pwsh",
+		"pwsh.exe",
+		"'D:\\portable\\pwsh.exe'",
+		'"D:\\portable\\pwsh.exe"',
+	])("preserves call-operator boundaries for %s", (executable) => {
+		const commands = [
+			// The executable still needs a horizontal separator before its flags.
+			`&${executable}-NoProfile -Command "Write-Output $_"`,
+			// Do not join statements or accept a second call operator.
+			...["\n", "\r", "\r\n", "&"].map(
+				(separator) =>
+					`&${separator}${executable} -NoProfile -Command "Write-Output $_"`,
+			),
+		];
+		for (const command of commands) {
+			for (const shell of ["powershell.exe", "pwsh.exe"]) {
+				expect(getShellInvocation(shell, command)).toMatchObject({
+					executable: shell,
+					input: command,
+				});
+			}
+		}
+	});
+
 	it("unwraps recursive double-shells one layer per pass", () => {
 		expect(
 			getShellInvocation(

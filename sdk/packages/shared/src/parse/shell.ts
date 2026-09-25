@@ -269,8 +269,9 @@ function parseNestedPowerShellCommand(
 	// Only horizontal separators belong to this invocation. A bare newline
 	// ends the outer statement; do not consume it before the quoted body either.
 	// A quoted executable is a string expression unless & invokes it.
+	// Whitespace after & is optional, but the executable/flags separator is not.
 	const head =
-		/^[ \t]*(?:&[ \t]+(?:"([^"$`]*)"|'((?:[^']|'')*)')|(?:&[ \t]+)?([^\s$`"';&|<>(){}#@,]+))[ \t]+([\S\s]*)$/.exec(
+		/^[ \t]*(?:&[ \t]*(?:"([^"$`]*)"|'((?:[^']|'')*)')|(?:&[ \t]*)?([^\s$`"';&|<>(){}#@,]+))[ \t]+([\S\s]*)$/.exec(
 			command,
 		);
 	if (!head) return undefined;
