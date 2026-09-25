@@ -572,7 +572,7 @@ Context compaction is owned by `core`.
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
-- external tool-result truncation uses temporary recovery files, as described below
+- external tool-result truncation uses durable session recovery files, as described below
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
@@ -587,7 +587,7 @@ Core normalizes oversized MCP, connector, and custom tool results once, after to
 - Full results live under the host's configured session directory in `tool-results/`, with a private namespace per runtime to isolate call IDs across delegated agents and resumes. Delegated runtimes inherit the root session's result directory. Root-session deletion removes these artifacts; deleting only a child leaves its recovery files until root-session deletion.
 - Direct, unhosted orchestrators default to the Cline data directory's `tool-results/`; callers can supply `toolResultsDirectory` to own their retention policy. Files are not deleted on runtime shutdown because recorded messages still reference them.
 - Strings are stored verbatim and structured responses as JSON. Text is bounded across the entire result, including arrays of small fields; native media remains intact.
-- Model-request preparation never saves external results or reapplies their per-result cap. The aggregate overflow budget can further shorten the provider copy without changing canonical history. A resumed runtime uses recorded paths without rewriting old results. If a file is manually removed, the original response cannot be regenerated from the shortened transcript; the agent must request fresh data.
+- Model-request preparation never saves external results. It checks the per-result cap for every result, including imported history that bypassed tool completion; already-bounded previews remain unchanged. The aggregate overflow budget can further shorten the provider copy without changing canonical history. A resumed runtime uses recorded paths without rewriting old results. If a file is manually removed, the original response cannot be regenerated from the shortened transcript; the agent must request fresh data.
 - A failed save logs a warning and records the truncated preview without a file notice. It does not fail the successful tool execution, publish a nonexistent path, or restore the oversized response. The aggregate overflow budget still applies. Saving files does not cache or replay tool execution.
 
 ### 10. Extension Layering Inside Core

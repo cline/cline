@@ -7,7 +7,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import type { Message, ToolResultContent } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -93,7 +93,7 @@ describe("recorded external tool results", () => {
 			messagesToAgentMessages(JSON.parse(JSON.stringify(messages))),
 		);
 		const resumedBuilder = new MessageBuilder({
-			maxToolResultChars: 100,
+			maxToolResultChars: 500,
 			maxTotalTextBytes: 10_000,
 		});
 		for (let i = 0; i < 3; i++) {
@@ -191,6 +191,20 @@ describe("recorded external tool results", () => {
 		expect(JSON.stringify(recorded.content).length).toBeGreaterThan(1000);
 	});
 
+	it("resolves relative storage roots before publishing durable paths", async () => {
+		const store = new ToolResultStore(relative(process.cwd(), directory));
+		const originalCwd = process.cwd();
+		try {
+			process.chdir(directory);
+			const path = await store.save(result("full response"));
+			expect(isAbsolute(path)).toBe(true);
+			expect(path.startsWith(directory)).toBe(true);
+			process.chdir(originalCwd);
+			expect(await readFile(path, "utf8")).toBe("full response");
+		} finally {
+			process.chdir(originalCwd);
+		}
+	});
 	it("isolates runtimes and keeps repeated tool executions separate", async () => {
 		const first = new ToolResultStore(directory);
 		const second = new ToolResultStore(directory);

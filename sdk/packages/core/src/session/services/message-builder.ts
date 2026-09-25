@@ -209,10 +209,6 @@ export class MessageBuilder {
 		return limited;
 	}
 
-	private canTruncateToolResult(block: ToolResultContent): boolean {
-		return DEFAULT_TOOL_NAMES.has(this.resolveToolName(block) ?? "");
-	}
-
 	/** Normalize a newly executed external result once, before recording history. */
 	async prepareExternalToolResult(
 		result: ToolResultContent,
@@ -311,10 +307,9 @@ export class MessageBuilder {
 			}
 		}
 
-		// External results were already normalized before entering history.
-		if (this.canTruncateToolResult(block)) {
-			nextContent = this.truncateToolResultContent(nextContent);
-		}
+		// Imported history and injected messages may bypass tool completion.
+		// Enforce the provider cap without storing or mutating recorded results.
+		nextContent = this.truncateToolResultContent(nextContent);
 
 		return nextContent === block.content
 			? block

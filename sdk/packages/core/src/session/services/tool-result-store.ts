@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ToolResultContent } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { serializeToolResultContent } from "./tool-result-recovery";
@@ -9,9 +9,11 @@ import { serializeToolResultContent } from "./tool-result-recovery";
 export class ToolResultStore {
 	private directoryPromise?: Promise<string>;
 
-	constructor(
-		private readonly root = join(resolveClineDataDir(), "tool-results"),
-	) {}
+	private readonly root: string;
+	constructor(root = join(resolveClineDataDir(), "tool-results")) {
+		// Capture the base before lazy writes or a later working-directory change.
+		this.root = resolve(root);
+	}
 
 	async save(result: ToolResultContent): Promise<string> {
 		// Lazy allocation keeps storage failures out of session startup. Each

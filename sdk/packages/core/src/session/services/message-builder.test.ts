@@ -1287,8 +1287,8 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
  * budget accounting, tool_result.name fallback, and binary block protection.
  */
 describe("MessageBuilder tool result truncation", () => {
-	it("keeps external results intact without result storage", async () => {
-		const builder = new MessageBuilder({ maxToolResultChars: 100 });
+	it("caps imported external results below the aggregate limit without mutating history", async () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 8000 });
 		const messages: Message[] = [
 			{
 				role: "assistant",
@@ -1308,7 +1308,7 @@ describe("MessageBuilder tool result truncation", () => {
 						type: "tool_result",
 						tool_use_id: "tool_1",
 						name: "mcp__github__get_pull_request_diff",
-						content: "d".repeat(5_000),
+						content: "d".repeat(500_000),
 					},
 				],
 			},
@@ -1321,7 +1321,9 @@ describe("MessageBuilder tool result truncation", () => {
 		if (block?.type !== "tool_result" || typeof block.content !== "string") {
 			throw new Error("expected tool_result with string content");
 		}
-		expect(block.content).toBe("d".repeat(5_000));
+		expect(block.content.length).toBeLessThanOrEqual(8000);
+		expect(block.content).toContain("truncated");
+		expect(JSON.stringify(messages)).toContain("d".repeat(500_000));
 	});
 
 	it("applies aggregate overflow relief to non-builtin results without mutating history", async () => {
