@@ -27,11 +27,15 @@ export interface TokenEstimatedRequest {
 }
 
 /**
- * Build a JSON.stringify replacer that blanks the `data` field of any
- * `{ type: "image", data: string }` node, wherever it's nested in the
- * serialized value, so an image's base64 payload is never billed at
- * CHARS_PER_TOKEN. Returns the replacer alongside an `imageCount` accessor
- * so the caller can add a flat per-image token cost back in afterwards.
+ * Build a JSON.stringify replacer that blanks an image node's base64
+ * payload wherever it's nested in the serialized value, so it's never
+ * billed at CHARS_PER_TOKEN. Two image shapes reach this replacer:
+ * `ImageContent { type: "image", data: string }` (compaction's
+ * `MessageWithMetadata`) and `AgentImagePart { type: "image", image:
+ * string | Uint8Array | ArrayBuffer | URL }` (the gateway's
+ * `AgentMessage`). Returns the replacer alongside an `imageCount`
+ * accessor so the caller can add a flat per-image token cost back in
+ * afterwards.
  */
 export function createImageAwareReplacer(): {
 	replacer: (key: string, value: unknown) => unknown;
@@ -40,13 +44,20 @@ export function createImageAwareReplacer(): {
 	let count = 0;
 	const replacer = (_key: string, value: unknown): unknown => {
 		if (
-			value !== null &&
-			typeof value === "object" &&
-			(value as { type?: unknown }).type === "image" &&
-			typeof (value as { data?: unknown }).data === "string"
+			value === null ||
+			typeof value !== "object" ||
+			(value as { type?: unknown }).type !== "image"
 		) {
+			return value;
+		}
+		const record = value as Record<string, unknown>;
+		if (typeof record.data === "string") {
 			count += 1;
-			return { ...(value as Record<string, unknown>), data: "" };
+			return { ...record, data: "" };
+		}
+		if ("image" in record) {
+			count += 1;
+			return { ...record, image: "" };
 		}
 		return value;
 	};
@@ -85,6 +96,14 @@ export function estimateRequestInputTokens(
 ): number {
 	const { replacer, imageCount } = createImageAwareReplacer();
 	let serialized: string;
+	// Only trust imageCount() when the replacer-driven pass actually
+	// finished. A mid-serialization throw (e.g. a BigInt elsewhere in the
+	// payload) can leave it having already counted some images, and the
+	// fallback below then re-serializes everything in full, including
+	// their base64 payload. Capturing the count only on success avoids
+	// billing those images once for their raw bytes and again for the
+	// flat per-image estimate.
+	let images = 0;
 	try {
 		serialized = JSON.stringify(
 			{
@@ -94,6 +113,7 @@ export function estimateRequestInputTokens(
 			},
 			replacer,
 		);
+		images = imageCount();
 	} catch {
 		serialized = [
 			safeStringify(request.systemPrompt),
@@ -104,7 +124,6 @@ export function estimateRequestInputTokens(
 	// Deliberately over-estimate slightly to leave room for provider formatting,
 	// tool schema overhead, and tokenizer drift.
 	return (
-		estimateTokens(serialized.length) +
-		imageCount() * ESTIMATED_TOKENS_PER_IMAGE
+		estimateTokens(serialized.length) + images * ESTIMATED_TOKENS_PER_IMAGE
 	);
 }

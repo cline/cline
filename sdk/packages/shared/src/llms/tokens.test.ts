@@ -74,4 +74,63 @@ describe("estimateRequestInputTokens", () => {
 
 		expect(eightSmallPlusOneHuge).toBeLessThan(oneSmallImage * 20);
 	});
+
+	it("does not bill an AgentImagePart's base64 payload at CHARS_PER_TOKEN", () => {
+		// AgentMessage (sdk/packages/shared/src/agent.ts) carries its image
+		// payload under `image`, not `data` — this is the shape gateway.ts
+		// builds (agent-message-codec.ts) and passes to
+		// estimateRequestInputTokens on every streamed request, distinct
+		// from the ImageContent `{ data }` shape compaction uses.
+		const base64Data = "A".repeat(90_000);
+		const message = {
+			role: "user",
+			content: [{ type: "image", image: base64Data, mediaType: "image/png" }],
+		};
+
+		const tokens = estimateRequestInputTokens({ messages: [message] });
+
+		const naiveCharBasedEstimate = Math.ceil(
+			base64Data.length / CHARS_PER_TOKEN,
+		);
+		expect(tokens).toBeLessThan(naiveCharBasedEstimate / 10);
+		expect(tokens).toBeLessThan(2_000);
+	});
+
+	it("does not add a duplicate per-image bonus after JSON.stringify falls back", () => {
+		// A BigInt anywhere in the payload makes the primary,
+		// replacer-driven JSON.stringify throw, which is caught and
+		// re-serializes everything (including images' full base64) via
+		// safeStringify. The images seen by the replacer before the throw
+		// must not also add ESTIMATED_TOKENS_PER_IMAGE on top of that.
+		const base64Data = "A".repeat(90_000);
+		// A fresh object per image: safeStringify's circular-reference guard
+		// would otherwise collapse repeated references to the same object
+		// down to "[Circular]", masking the double count this test checks for.
+		const makeImageBlock = () => ({
+			type: "image",
+			data: base64Data,
+			mediaType: "image/png",
+		});
+		const buildMessages = (imageCount: number) => [
+			{
+				role: "user",
+				content: Array.from({ length: imageCount }, () => makeImageBlock()),
+			},
+			{ type: "text", broken: 1n },
+		];
+
+		const oneImage = estimateRequestInputTokens({
+			messages: buildMessages(1),
+		});
+		const twoImages = estimateRequestInputTokens({
+			messages: buildMessages(2),
+		});
+
+		// The fallback path serializes every image's full base64 payload, so
+		// the delta between one and two images should be roughly that raw
+		// char cost alone, not that cost plus another flat
+		// ESTIMATED_TOKENS_PER_IMAGE for the extra image.
+		const rawCharCostOfOneImage = estimateTokens(base64Data.length);
+		expect(twoImages - oneImage).toBeLessThan(rawCharCostOfOneImage + 50);
+	});
 });
