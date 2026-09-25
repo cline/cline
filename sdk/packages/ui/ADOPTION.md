@@ -61,7 +61,10 @@ are expected over time. Two exist today:
 - `@cline/ui/components/agent-chat/tool-diff` — `ToolFileDiff`, a thin
   wrapper over [`@pierre/diffs`](https://github.com/pierrecomputer/pierre)
   (optional peer dependency) that renders a tool-summary file item as a
-  syntax-highlighted, theme-aware diff with consistent defaults.
+  syntax-highlighted, theme-aware diff with consistent defaults. The same
+  module exports `ToolFileView` (a read-only whole-file rendering with the
+  same theme handling) and `countFileDiffChanges`, which reports the line
+  counts of exactly the diff `ToolFileDiff` will draw.
 
 Shared modules like these keep read/edit/command rows identical across
 products while consumers still own their message schemas, icon assets, and
@@ -72,6 +75,13 @@ whether it belongs here instead.
 scrolling, file disclosure, path, copy feedback, and diff counts. Pass rendered
 diff children and clipboard/native-editor callbacks; each host retains its
 change collector, workspace paths, and conversation focus restoration.
+
+`AgentChangedFileTree`, `AgentWorkspaceTree`, `AgentFilePanelHeader`, and
+`AgentSegmentedControl` compose a side-by-side changes rail: a scope switcher,
+changed files grouped by directory (or a lazily loaded workspace browser), and
+a sticky header for the selected file's diff or contents. Hosts own the
+selection, expansion state, data loading (git, checkpoints, tool events), and
+the actions rendered into the header.
 
 `AgentPullRequestBar` shares PR state, merge readiness, diff counts, and check
 presentation. Hosts provide normalized data, refresh/navigation callbacks,

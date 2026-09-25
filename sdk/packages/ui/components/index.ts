@@ -52,6 +52,19 @@ export {
 	type AgentContextUsagePresentation,
 	type AgentContextUsageProps,
 } from "./agent-context-usage.js";
+export {
+	type AgentChangedFileEntry,
+	type AgentChangedFileStatus,
+	AgentChangedFileTree,
+	type AgentChangedFileTreeProps,
+	AgentDiffStats,
+	AgentFilePanelHeader,
+	type AgentFilePanelHeaderProps,
+	AgentFileStatusBadge,
+	AgentWorkspaceTree,
+	type AgentWorkspaceTreeNode,
+	type AgentWorkspaceTreeProps,
+} from "./agent-file-tree.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentImageLightboxContent,
@@ -76,6 +89,11 @@ export {
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
+export {
+	AgentSegmentedControl,
+	type AgentSegmentedControlOption,
+	type AgentSegmentedControlProps,
+} from "./agent-segmented-control.js";
 export {
 	AgentSessionOverview,
 	type AgentSessionOverviewProps,

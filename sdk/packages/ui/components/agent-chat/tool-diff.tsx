@@ -11,7 +11,7 @@
  */
 
 import { parseDiffFromFile } from "@pierre/diffs";
-import { FileDiff } from "@pierre/diffs/react";
+import { FileDiff, File as PierreFile } from "@pierre/diffs/react";
 import {
 	type ComponentProps,
 	type CSSProperties,
@@ -67,6 +67,75 @@ const BASE_OPTIONS: DiffOptions = {
 function ensureTrailingNewline(text: string): string {
 	if (!text) return "";
 	return text.endsWith("\n") ? text : `${text}\n`;
+}
+
+/**
+ * Line counts for the same diff `ToolFileDiff` renders, so list rows and
+ * their detail view never disagree. Returns zeros for identical or
+ * unparsable contents.
+ */
+export function countFileDiffChanges(
+	oldText: string | undefined,
+	newText: string,
+	path: string,
+): { additions: number; deletions: number } {
+	try {
+		const fileDiff = parseDiffFromFile(
+			oldText !== undefined
+				? { contents: ensureTrailingNewline(oldText), name: path }
+				: null,
+			{ contents: ensureTrailingNewline(newText), name: path },
+		);
+		return fileDiff.hunks.reduce(
+			(totals, hunk) => {
+				totals.additions += hunk.additionLines;
+				totals.deletions += hunk.deletionLines;
+				return totals;
+			},
+			{ additions: 0, deletions: 0 },
+		);
+	} catch {
+		return { additions: 0, deletions: 0 };
+	}
+}
+
+export type ToolFileViewProps = {
+	/** File path; used for language inference. */
+	path: string;
+	text: string;
+	className?: string;
+	/** See {@link ToolFileDiffProps.background}. */
+	background?: string;
+};
+
+/**
+ * Read-only, syntax-highlighted rendering of a whole file with the same
+ * theme handling as {@link ToolFileDiff}.
+ */
+export function ToolFileView({
+	background = "var(--background, light-dark(#fff, #000))",
+	className,
+	path,
+	text,
+}: ToolFileViewProps) {
+	const file = useMemo(
+		() => ({ contents: ensureTrailingNewline(text), name: path }),
+		[text, path],
+	);
+	return (
+		<PierreFile
+			className={className}
+			file={file}
+			options={{ disableFileHeader: true, themeType: "system" }}
+			style={
+				{
+					"--diffs-light-bg": background,
+					"--diffs-dark-bg": background,
+					colorScheme: "inherit",
+				} as CSSProperties
+			}
+		/>
+	);
 }
 
 // A freshly mounted FileDiff can end up permanently blank: React StrictMode

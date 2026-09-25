@@ -3,7 +3,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ToolFileDiff } from "../components/agent-chat/tool-diff";
+import {
+	countFileDiffChanges,
+	ToolFileDiff,
+	ToolFileView,
+} from "../components/agent-chat/tool-diff";
 
 // @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
 // does not implement; without this the suite exits nonzero on an unhandled
@@ -82,5 +86,38 @@ describe("ToolFileDiff", () => {
 		);
 
 		expect(host().style.colorScheme).toBe("");
+	});
+});
+
+describe("countFileDiffChanges", () => {
+	it("counts added and removed lines", () => {
+		expect(
+			countFileDiffChanges("a\nb\nc\n", "a\nB\nc\nd\n", "src/app.ts"),
+		).toEqual({ additions: 2, deletions: 1 });
+	});
+
+	it("treats a missing old side as a created file", () => {
+		expect(countFileDiffChanges(undefined, "x\ny", "new.ts")).toEqual({
+			additions: 2,
+			deletions: 0,
+		});
+	});
+
+	it("returns zeros for identical contents", () => {
+		expect(countFileDiffChanges("same\n", "same\n", "a.ts")).toEqual({
+			additions: 0,
+			deletions: 0,
+		});
+	});
+});
+
+describe("ToolFileView", () => {
+	it("renders the @pierre/diffs host with the app background and color-scheme", async () => {
+		await render(<ToolFileView path="src/app.ts" text={"const a = 1;\n"} />);
+		const element = host();
+		expect(element.style.getPropertyValue("--diffs-light-bg")).toBe(
+			"var(--background, light-dark(#fff, #000))",
+		);
+		expect(element.style.colorScheme).toBe("inherit");
 	});
 });
