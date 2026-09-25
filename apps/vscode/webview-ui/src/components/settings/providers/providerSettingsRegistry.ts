@@ -82,6 +82,14 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",
 	},
 	nousResearch: {},
+	openllm: {
+		allowsCustomIds: true,
+		signupUrl: "https://www.openllm.sh/sign-in",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "Default: http://127.0.0.1:8787/v1",
+		},
+	},
 	sambanova: {
 		signupUrl: "https://docs.sambanova.ai/cloud/docs/get-started/overview",
 	},
@@ -162,6 +170,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	minimax: "MiniMax",
 	mistral: "Mistral",
 	nousResearch: "NousResearch",
+	openllm: "OpenLLM",
 	poolside: "Poolside",
 	together: "Together",
 	v0: "Vercel v0",

@@ -128,6 +128,16 @@ export {
 	providerOffersModelTool,
 	supportsModelTool,
 } from "./providers/model-tools";
+export {
+	buildOpenLlmFallbackModels,
+	OPENLLM_ALIAS_MODEL_IDS,
+	OPENLLM_DEFAULT_BASE_URL,
+	OPENLLM_PROVIDER_ID,
+	type OpenLlmModelCard,
+	parseOpenLlmModels,
+	resolveOpenLlmModelsUrl,
+	toOpenLlmModelInfo,
+} from "./providers/openllm";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
 export {
 	type OpenAICodexRequestHeaderContext,
