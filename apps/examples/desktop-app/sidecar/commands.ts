@@ -167,7 +167,10 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import { getPluginCommandService } from "./plugin-commands";
+import {
+	getPluginCommandService,
+	warmPluginCommandService,
+} from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -3467,8 +3470,12 @@ export async function handleCommand(
 				: binding.workspaceRoot;
 		const branches = await listGitBranches(ctx, binding, cwd);
 		if (binding.kind === "local") {
+			// The webview asks for the branch of whichever workspace it has
+			// adopted (remembered, launch fallback, or a reopened session), so
+			// this is the one hook that sees every active local workspace.
 			const { prewarmWorkspaceMetadata } = await import("./chat-session");
 			prewarmWorkspaceMetadata(cwd);
+			warmPluginCommandService(ctx, cwd);
 		}
 		return { environmentId: binding.environmentId, branch: branches.current };
 	}
