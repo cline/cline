@@ -539,19 +539,25 @@ describe("CloudSessionController neutral host contract", () => {
 		]);
 		await f.controller.dispose();
 	});
-	it("reports an uncertain queue outcome when both acknowledgement and recovery fail", async () => {
+	it.each([
+		"succeeds",
+		"fails",
+	])("reports an uncertain queue outcome when acknowledgement is lost and recovery %s", async (recovery) => {
 		const f = await attached();
 		const original = f.command.getMockImplementation()!;
 		let dispatched = false;
 		f.command.mockImplementation(async (...args) => {
 			if (args[0] === "session.send_input") {
+				args[3]?.beforeDispatch?.();
+				args[3]?.onDispatch?.("queued-request");
 				dispatched = true;
 				throw Object.assign(new Error("Connection closed"), {
 					name: "HubTransportError",
 					code: "hub_connection_closed",
 				});
 			}
-			if (dispatched) throw new Error("Recovery unavailable");
+			if (dispatched && recovery === "fails")
+				throw new Error("Recovery unavailable");
 			return original(...args);
 		});
 		try {
