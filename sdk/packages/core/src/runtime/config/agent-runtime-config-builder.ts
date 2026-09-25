@@ -175,9 +175,11 @@ export function buildModelOptions(
 export function buildMessageModelInfo(
 	config: AgentConfig,
 ): AgentMessage["modelInfo"] {
+	const modelInfo = config.knownModels?.[config.modelId];
 	const family = (config.providerConfig as { family?: string } | undefined)
 		?.family;
 	return {
+		...modelInfo,
 		id: config.modelId,
 		provider: config.providerId,
 		family,
