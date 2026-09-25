@@ -184,7 +184,7 @@ jobs:
 
       # Pack with Bun so workspace/catalog protocols are resolved in the tarball,
       # then publish that tarball with npm so npm trusted publishing can use GitHub OIDC.
-      # Publish sequentially in dependency order: shared → llms → agents → core → sdk
+      # Publish sequentially in dependency order: shared → llms → agents → core → server → sdk
       - name: Publish @cline/shared
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -233,6 +233,18 @@ jobs:
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
+      - name: Publish @cline/server
+        if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Publishing @cline/server@${VERSION} with tag '${CHANNEL}'..."
+          cd sdk/packages/server
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
+
       - name: Publish @cline/sdk
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -253,7 +265,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for PKG in shared llms agents core sdk; do
+          for PKG in shared llms agents core server sdk; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"
@@ -339,6 +351,7 @@ jobs:
           echo "  - @cline/llms@${VERSION}"
           echo "  - @cline/agents@${VERSION}"
           echo "  - @cline/core@${VERSION}"
+          echo "  - @cline/server@${VERSION}"
           echo "  - @cline/sdk@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
             echo "Created git tags:"
@@ -346,6 +359,7 @@ jobs:
             echo "  - sdk/llms/v${VERSION}"
             echo "  - sdk/agents/v${VERSION}"
             echo "  - sdk/core/v${VERSION}"
+            echo "  - sdk/server/v${VERSION}"
             echo "  - sdk/sdk/v${VERSION}"
           fi
 

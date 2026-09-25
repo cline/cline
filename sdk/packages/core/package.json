@@ -43,6 +43,10 @@
 			"types": "./dist/cloud/index.d.ts",
 			"import": "./dist/cloud/index.js"
 		},
+		"./remote/hub-command": {
+			"types": "./dist/remote/remote-hub-command.d.ts",
+			"import": "./dist/remote/remote-hub-command.js"
+		},
 		"./remote/helper": {
 			"types": "./dist/remote/remote-helper.d.ts",
 			"import": "./dist/remote/remote-helper.js"

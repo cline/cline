@@ -39,6 +39,21 @@ if (!isMainThread) {
 	// fatal rejection handler first would make expected abort rejections exit it.
 	registerClineClientIdentity("cline-cli");
 	void import("@cline/core/hub/daemon-entry");
+} else if (process.argv.some((arg) => arg.startsWith("--remote-hub-"))) {
+	void (async () => {
+		try {
+			const { runRemoteHubCommand } = await import("@cline/server/commands");
+			if (!(await runRemoteHubCommand(process.argv)))
+				throw new Error("Unknown remote command");
+		} catch (error) {
+			writeErr(error instanceof Error ? error.message : String(error));
+			process.exitCode = 1;
+		}
+		await new Promise<void>((resolve) =>
+			process.stdout.write("", () => resolve()),
+		);
+		process.exit();
+	})();
 } else {
 	// Same reasoning as the daemon sentinel above: consume the supervised-connector
 	// marker so the processes an agent session spawns cannot inherit it and mistake

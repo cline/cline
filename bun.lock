@@ -54,6 +54,7 @@
       },
       "devDependencies": {
         "@cline/core": "workspace:*",
+        "@cline/server": "workspace:*",
         "@cline/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
         "@types/bun": "^1.3.10",
@@ -743,6 +744,17 @@
         "@cline/core": "workspace:*",
       },
     },
+    "sdk/packages/server": {
+      "name": "@cline/server",
+      "version": "0.0.86",
+      "bin": {
+        "cline-server": "dist/index.js",
+      },
+      "dependencies": {
+        "@cline/core": "workspace:*",
+        "@cline/shared": "workspace:*",
+      },
+    },
     "sdk/packages/shared": {
       "name": "@cline/shared",
       "version": "0.0.86",
@@ -1111,6 +1123,8 @@
     "@cline/menubar": ["@cline/menubar@workspace:apps/examples/menubar"],
 
     "@cline/sdk": ["@cline/sdk@workspace:sdk/packages/sdk"],
+
+    "@cline/server": ["@cline/server@workspace:sdk/packages/server"],
 
     "@cline/shared": ["@cline/shared@workspace:sdk/packages/shared"],
 

@@ -194,3 +194,7 @@ Root scripts are intentionally narrower than the full workspace:
 - Root SDK build/test/version/publish flows target the publishable SDK packages only.
 - Internal packages can still be built/tested directly, but should not be swept into release automation by accident.
 - If you add a new internal package, keep it out of root publish/version/build sweeps unless you explicitly intend to publish it.
+
+## Headless server package
+
+`@cline/server` (`packages/server`) provides the Node.js 22+ `cline-server` executable, depending on core and shared without the interactive CLI/TUI. It is built, versioned, and published with the SDK after core. The CLI bundles its command API and exposes the same `--remote-hub-info`, `--remote-hub-ensure`, and `--remote-hub-stop` commands. Ensure and stop require an explicit discovery path and do not take over the default CLI Hub. Desktop discovery of installed server/CLI executables is a separate integration; the existing bundled helper remains in use. See [server architecture and roadmap](packages/server/ARCHITECTURE.md).
