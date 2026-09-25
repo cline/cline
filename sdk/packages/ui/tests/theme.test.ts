@@ -345,7 +345,7 @@ describe("@cline/ui theme contract", () => {
 		expect(base).not.toContain("#__next");
 		expect(base).not.toContain("@source");
 		expect(index).toBe(
-			'@import "@cline/ui/theme/tokens.css";\n@import "@cline/ui/theme/theme.css";\n@import "@cline/ui/theme/base.css";\n',
+			'@import "@cline/ui/theme/tokens.css";\n@import "@cline/ui/theme/theme.css";\n@import "@cline/ui/theme/base.css";\n@import "@cline/ui/theme/direction.css";\n',
 		);
 	});
 

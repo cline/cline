@@ -357,8 +357,11 @@
 	--brand-cyan: oklch(0.87 0.07 210);
 	--card-surface: color-mix(in srgb, var(--neutral-2) 50%, var(--neutral-3));
 
-	/* Standard Tailwind typography variables. Consumers provide the fonts. */
-	--font-sans: "Inter Variable", sans-serif;
+	/* Standard Tailwind typography variables. Consumers provide the fonts.
+	 * Vazirmatn sits after Inter on purpose: Inter's @font-face is limited to
+	 * Latin, so Persian/Arabic glyphs fall through to Vazirmatn in every
+	 * direction, while Latin keeps rendering in Inter. */
+	--font-sans: "Inter Variable", "Vazirmatn Variable", sans-serif;
 	--font-mono:
 		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
 		"Liberation Mono", monospace;
