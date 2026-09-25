@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./views/loading/LoadingScreen";
 import { SiteLoader } from "./views/loading/SiteLoader";
@@ -12,14 +12,8 @@ let root = createRoot(container);
 (
 	globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
-beforeEach(() => vi.useFakeTimers());
-function advance(ms: number) {
-	for (let elapsed = 0; elapsed < ms; elapsed += 1)
-		act(() => vi.advanceTimersByTime(1));
-}
 afterEach(() => {
 	act(() => root.unmount());
-	vi.useRealTimers();
 	root = createRoot(container);
 });
 const readiness = (): ReturnType<typeof useDesktopReadiness> => ({
@@ -33,6 +27,7 @@ const readiness = (): ReturnType<typeof useDesktopReadiness> => ({
 it("renders initial desktop loading immediately", () => {
 	act(() => root.render(<LoadingScreen readiness={readiness()} />));
 	expect(container.textContent).toContain("Starting Cline");
+	expect(container.textContent).toContain("Starting desktop backend");
 	expect(container.querySelector("button")).toBeNull();
 });
 it("distinguishes hub failure and allows retry", () => {
@@ -65,44 +60,27 @@ it("shows actionable native startup diagnostics independently of authentication"
 });
 
 it("keeps automatic recovery in the loader without a Retry button or sidebar", () => {
-	vi.useFakeTimers();
 	const state = readiness();
 	state.transport = "connected";
 	state.hub = { state: "failed", attempt: 1, automaticRetry: true };
-	act(() =>
+	const render = () =>
 		root.render(
 			<SiteLoader readiness={state}>
 				<nav>Sidebar</nav>
 			</SiteLoader>,
-		),
-	);
-	expect(container.textContent).toContain(
-		"Retrying session service automatically",
-	);
+		);
+	act(render);
+	expect(container.textContent).toContain("Retrying session service");
 	expect(container.querySelector("button")?.textContent).toContain(
 		"Continue to sign-in",
 	);
 	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "starting", attempt: 2, step: "connecting" };
-	act(() =>
-		root.render(
-			<SiteLoader readiness={state}>
-				<nav>Sidebar</nav>
-			</SiteLoader>,
-		),
-	);
-	expect(container.textContent).toContain("3 / 5");
+	act(render);
 	expect(container.textContent).toContain("Connecting to Cline Hub");
 	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "ready", attempt: 2 };
-	act(() =>
-		root.render(
-			<SiteLoader readiness={state}>
-				<nav>Sidebar</nav>
-			</SiteLoader>,
-		),
-	);
-	advance(12_000);
+	act(render);
 	expect(container.textContent).toBe("Sidebar");
 });
 
@@ -112,6 +90,7 @@ it("fills the bar from completed steps and uses the shared Cline head", () => {
 	expect(
 		container.querySelector("[data-welcome-hero-variant='bot-only']"),
 	).not.toBeNull();
+	expect(container.querySelector("progress")?.value).toBe(1);
 	for (const [step, count] of [
 		["environment", 2],
 		["connecting", 3],
@@ -120,73 +99,29 @@ it("fills the bar from completed steps and uses the shared Cline head", () => {
 		state.transport = "connected";
 		state.hub = { state: "starting", attempt: 1, step };
 		act(() => root.render(<LoadingScreen readiness={state} />));
-		advance(2_000);
 		expect(container.querySelector("progress")?.value).toBe(count);
 		expect(container.querySelector("progress")?.max).toBe(5);
-		expect(container.textContent).toContain(`${count * 18}%`);
 		expect(
 			container.querySelector(".bg-primary")?.getAttribute("style"),
-		).toContain(`width: ${count * 18}%`);
+		).toContain(`width: ${count * 20}%`);
 	}
 });
 
-it("advances slowly during the five-second minimum and announces ready only at 99%", () => {
-	vi.useFakeTimers();
+it("reveals the app as soon as the hub is ready and never before", () => {
 	const state = readiness();
-	state.transport = "connected";
-	state.hub = { state: "ready", attempt: 1 };
-	act(() =>
+	const render = () =>
 		root.render(
 			<SiteLoader readiness={state}>
 				<nav>Sidebar</nav>
 			</SiteLoader>,
-		),
-	);
-	advance(2_000);
-	expect(container.textContent).toContain("40%");
-	expect(container.textContent).toContain("Finishing up…");
-	expect(container.textContent).not.toContain("Cline is ready");
-	advance(500);
-	expect(container.textContent).toContain("50%");
-	advance(2_500);
+		);
+	act(render);
 	expect(container.querySelector("nav")).toBeNull();
-	expect(container.textContent).not.toContain("Cline is ready");
-	for (
-		let elapsed = 0;
-		elapsed < 1_000 && !container.textContent?.includes("99%");
-		elapsed++
-	)
-		advance(1);
-	expect(container.textContent).toContain("99%");
-	expect(container.textContent).toContain("Cline is ready");
-	// Allow the full finishing interval, independent of the percentage at entry.
-	advance(1_000);
-	expect(container.textContent).toBe("Sidebar");
-});
-
-it("never reveals an unready app after the minimum duration", () => {
-	vi.useFakeTimers();
-	const state = readiness();
-	act(() =>
-		root.render(
-			<SiteLoader readiness={state}>
-				<nav>Sidebar</nav>
-			</SiteLoader>,
-		),
-	);
-	advance(20_000);
-	expect(container.querySelector("nav")).toBeNull();
-	expect(container.textContent).toContain("18%");
 	state.transport = "connected";
+	act(render);
+	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "ready", attempt: 1 };
-	act(() =>
-		root.render(
-			<SiteLoader readiness={state}>
-				<nav>Sidebar</nav>
-			</SiteLoader>,
-		),
-	);
-	advance(5_000);
+	act(render);
 	expect(container.textContent).toBe("Sidebar");
 });
 
@@ -226,7 +161,6 @@ it("keeps the mounted composer and attachments across transport recovery", () =>
 			</SiteLoader>,
 		);
 	act(render);
-	advance(7_000);
 	const composer = container.querySelector("textarea");
 	const attachments = container.querySelector("input");
 	expect(composer).not.toBeNull();
@@ -238,7 +172,6 @@ it("keeps the mounted composer and attachments across transport recovery", () =>
 	state.transport = "connected";
 	state.hub = { state: "ready", attempt: 1 };
 	act(render);
-	advance(7_000);
 	expect(container.querySelector("textarea")).toBe(composer);
 	expect(composer?.value).toBe("Unsent draft");
 	expect(container.querySelector("input")).toBe(attachments);
