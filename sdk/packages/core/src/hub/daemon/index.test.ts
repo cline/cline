@@ -334,6 +334,41 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("honors an explicit allowBindFallback on an explicit port", async () => {
+		vi.useFakeTimers();
+		try {
+			const record = {
+				url: "ws://127.0.0.1:53121/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				authToken: "token",
+			};
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace", {
+				port: 25470,
+				allowBindFallback: true,
+			});
+			await vi.advanceTimersByTimeAsync(1_000);
+			readHubDiscovery.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue(record);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:53121/hub",
+				authToken: "token",
+			});
+			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0]?.[1] ?? []) as string[];
+			expect(spawnArgs).toContain("--allow-port-fallback");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("keeps an explicitly configured port fixed", async () => {
 		vi.useFakeTimers();
 		try {
