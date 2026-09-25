@@ -53,7 +53,7 @@ import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
-import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { buildStartSessionInput, createHistoryItemFromSession, resolveProviderReasoningConfig } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -716,10 +716,25 @@ export class Controller {
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
 		this.scheduleProviderConfigStatePost()
 
-		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
+		if (!this.isChangeForActiveModeProvider(event)) {
+			return
+		}
+		if (event.kind === "selection") {
 			this.sessions
 				?.updateActiveSessionModel(event.selection.modelId)
 				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
+			return
+		}
+		// Provider fields write (e.g. Reasoning Effort). Sessions capture
+		// thinking/reasoningEffort at build time, so push the re-resolved
+		// reasoning to the live session; otherwise an effort change made
+		// mid-task only takes effect on the next task (#13668).
+		const activeSession = this.sessions?.getActiveSession()
+		const reasoning = resolveProviderReasoningConfig(event.providerId.toString())
+		if (activeSession?.sdkHost.updateSessionConnection && (reasoning.thinking ?? reasoning.reasoningEffort) !== undefined) {
+			activeSession.sdkHost
+				.updateSessionConnection(activeSession.sessionId, reasoning)
+				.catch((error) => Logger.error("[SdkController] Failed to update active session reasoning:", error))
 		}
 	}
 
@@ -735,11 +750,11 @@ export class Controller {
 		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
-	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
+	private isChangeForActiveModeProvider(event: ProviderConfigChange): boolean {
 		try {
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode = modeValue === "plan" ? "plan" : "act"
-			if (event.mode !== mode) {
+			if (event.kind === "selection" && event.mode !== mode) {
 				return false
 			}
 
