@@ -592,6 +592,23 @@ Design implications:
 - avoid mixing config discovery code into runtime/plugin code
 - avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
 
+`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution.
+Hub RPC (`plugins.commands.list` / `plugins.commands.run`) and
+`plugins.commands.changed` expose the same service to every client. The desktop
+sidecar, CLI, and connectors reuse their existing hub connections. Workspace
+catalogs are initialized when a composer first requests them and refreshed by
+runtime-owned plugin/settings watchers, including for non-Git folders. Failed
+initialization retries in the background and publishes explicit error/recovery
+state. Partial retries load only failed plugin paths in a new sandbox and retain
+healthy instances; source/settings changes reload the workspace catalog. Git
+queries and individual UI mounts do not own plugin lifetimes.
+
+A workspace catalog owns a discovery sandbox; a resident session instead lists
+and executes its own contribution registry, retaining the same plugin instance
+and context as its hooks. Existing session registrations remain fixed for that
+session, while changed workspace catalogs apply to new sessions. Reload and
+disposal wait for command handlers before terminating their sandbox.
+
 Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
 through `PluginSandboxOptions.idleTimeoutMs` or

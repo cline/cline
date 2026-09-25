@@ -1316,15 +1316,18 @@ async function handleSend(
 	const workspacePath =
 		readWorkspacePath(session?.config ?? request.config) ??
 		ctx.localWorkspaceRoot;
-	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
-	// as in the CLI: the handler's reply goes to the webview as a toast and
+	// Plugin slash commands execute in the session runtime.
+	// The handler's reply goes to the webview as a toast and
 	// only its `submitPrompt` (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
 	const pluginCommand =
-		commandName &&
-		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
-		binding.kind !== "ssh"
-			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
+		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
+			? await runPluginSlashCommand(ctx, {
+					workspacePath,
+					prompt,
+					sessionId,
+					environmentId: binding.environmentId,
+				})
 			: undefined;
 	if (pluginCommand) {
 		if (pluginCommand.reply) {
@@ -1341,15 +1344,15 @@ async function handleSend(
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
-		binding.kind === "ssh"
+		pluginCommand?.submitPrompt ??
+		(binding.kind === "ssh"
 			? prompt
-			: (pluginCommand?.submitPrompt ??
-				(await resolveDesktopRuntimePrompt(
+			: await resolveDesktopRuntimePrompt(
 					ctx,
 					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				)));
+				));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

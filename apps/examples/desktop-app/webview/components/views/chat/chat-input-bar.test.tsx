@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -215,6 +216,8 @@ async function renderVoiceComposer({
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					environmentId="local"
+					workspaceRoot="/workspace/cline"
 					readOnly={readOnly}
 					executionTarget={executionTarget}
 					attachments={attachments}
@@ -254,6 +257,141 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("retains skills and workflows when plugin discovery rejects", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands") throw new Error("hub unavailable");
+			return {
+				runtimeCommands: [
+					{
+						name: "publish-skill",
+						kind: "skill",
+						description: "Publish skill",
+					},
+					{
+						name: "publish-workflow",
+						kind: "workflow",
+						description: "Publish workflow",
+					},
+				],
+			};
+		});
+		await renderVoiceComposer({ prompt: "/publish", executionTarget: "local" });
+		expect(container.textContent).toContain("Publish skill");
+		expect(container.textContent).toContain("Publish workflow");
+	});
+
+	it("refreshes instruction files on reopen without resetting plugin or cached suggestions", async () => {
+		const updated = deferred<{
+			runtimeCommands: Array<{
+				name: string;
+				kind: "workflow";
+				description: string;
+			}>;
+		}>();
+		let instructionRequests = 0;
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name === "list_plugin_commands")
+					return {
+						status: "ready",
+						commands: [
+							{ name: "publish-plugin", description: "Plugin suggestion" },
+						],
+					};
+				if (name === "list_user_instruction_configs") {
+					instructionRequests++;
+					return instructionRequests === 1
+						? {
+								runtimeCommands: [
+									{
+										name: "publish-old",
+										kind: "skill",
+										description: "Old skill",
+									},
+								],
+							}
+						: updated.promise;
+				}
+				return {};
+			});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		expect(container.textContent).toContain("Plugin suggestion");
+		expect(instructionRequests).toBe(2);
+		expect(
+			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+		).toHaveLength(1);
+		await act(async () =>
+			updated.resolve({
+				runtimeCommands: [
+					{
+						name: "publish-new",
+						kind: "workflow",
+						description: "New workflow",
+					},
+				],
+			}),
+		);
+		expect(container.textContent).not.toContain("Old skill");
+		expect(container.textContent).toContain("New workflow");
+		expect(container.textContent).toContain("Plugin suggestion");
+	});
+
+	it("refreshes the open slash menu when the hub catalog recovers", async () => {
+		let available = false;
+		let changed: ((payload: unknown) => void) | undefined;
+		vi.spyOn(desktopClient, "subscribe").mockImplementation(
+			(name, listener) => {
+				if (name === "plugins.commands.changed") changed = listener;
+				return vi.fn();
+			},
+		);
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands")
+				return {
+					workspacePath: "/workspace/cline",
+					status: available ? "ready" : "error",
+					commands: available
+						? [{ name: "upload-history", description: "Upload history" }]
+						: [],
+				};
+			return { runtimeCommands: [] };
+		});
+		await renderVoiceComposer({ prompt: "/upload-", executionTarget: "local" });
+		expect(container.textContent).toContain("Plugin commands unavailable");
+		available = true;
+		await act(async () => {
+			changed?.({
+				environmentId: "other-host",
+				catalog: { workspacePath: "/workspace/cline" },
+			});
+		});
+		expect(container.textContent).not.toContain("Upload history");
+		await act(async () => {
+			changed?.({
+				environmentId: "local",
+				catalog: { workspacePath: "/workspace/cline" },
+			});
+		});
+		expect(container.textContent).toContain("Upload history");
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
@@ -503,7 +641,7 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("appends plugin commands after skills and workflows", () => {
+	it("gives plugin commands the same precedence as execution", () => {
 		expect(
 			buildUserInstructionSlashCommands(
 				{
@@ -516,7 +654,7 @@ describe("ChatInputBar", () => {
 				],
 			),
 		).toEqual([
-			{ name: "goal", description: "Skill command" },
+			{ name: "goal", description: "Set or clear a goal" },
 			{ name: "goal-status", description: "Plugin command" },
 		]);
 	});

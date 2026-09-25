@@ -19,7 +19,9 @@ import type {
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { NodeHubClient } from "../client";
+import { createHubPluginCommandsApi } from "./plugin-commands";
 
 type ScheduleClientRecord = Record<string, unknown> & {
 	metadata?: Record<string, unknown>;
@@ -285,6 +287,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
+	readonly pluginCommands: PluginCommandsApi;
 	private metadataApplied = false;
 
 	constructor(private readonly options: HubSessionClientOptions) {
@@ -297,6 +300,7 @@ export class HubSessionClient {
 			workspaceRoot: options.workspaceRoot,
 			cwd: options.cwd,
 		});
+		this.pluginCommands = createHubPluginCommandsApi(this.client);
 	}
 
 	private async ensureMetadataApplied(): Promise<void> {
