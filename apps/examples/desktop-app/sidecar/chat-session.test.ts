@@ -26,12 +26,25 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
+	assertSessionDeleteAllowedDuringHandoff,
+	beginSessionMetadataUpdate,
+} from "./cloud-handoff";
+import {
 	getEnvironmentContext,
 	handleCoreSessionEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import * as pluginCommands from "./plugin-commands";
+import {
+	cleanupCloudHandoffGates,
+	enableCloudHandoffGates,
+	localRuntimeContext,
+	localSessionManager,
+} from "./session-test-helpers";
 import type { SidecarContext } from "./types";
+
+afterEach(cleanupCloudHandoffGates);
 
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
@@ -86,43 +99,6 @@ describe("rewriteDesktopTeamPrompt", () => {
 		}
 	});
 });
-function localRuntimeContext(
-	sessionManager: Record<string, unknown>,
-	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
-) {
-	const workspaceRoot = options.workspaceRoot ?? "/workspace";
-	return {
-		runtimeBindings: new Map([
-			[
-				"local",
-				{
-					environmentId: "local",
-					kind: "local" as const,
-					workspaceRoot,
-					sessionManager,
-					hubClient: {
-						command: vi.fn(async () => undefined),
-					},
-					unsubscribeSessionEvents: () => {},
-				},
-			],
-		]),
-		sessionEnvironmentIds: new Map(
-			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
-		),
-		activeEnvironmentId: "local",
-		remoteEnvironments: null,
-		localWorkspaceRoot: workspaceRoot,
-	};
-}
-
-function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
-	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
-		string,
-		unknown
-	>;
-}
-
 describe("starting SSH sessions", () => {
 	const sessionId = "session-new-ssh";
 	const environmentId = "ssh-test";
@@ -467,6 +443,305 @@ describe("environment-bound session attach", () => {
 });
 
 describe("session forks", () => {
+	it("blocks the delete command while a persisted cloud handoff is pending", async () => {
+		const remove = vi.fn();
+		const sessionId = "pending-handoff-source";
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId,
+						metadata: {
+							handoff: {
+								status: "pending",
+								toCloudSessionId: "cloud-pending",
+								handedOffAt: "2026-08-18T00:00:00.000Z",
+								dashboardUrl:
+									"https://app.cline.bot/agents?sessionId=cloud-pending",
+							},
+						},
+					})),
+					delete: remove,
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+		const { handleCommand } = await import("./commands");
+
+		await expect(
+			handleCommand(ctx, "delete_chat_session", {
+				sessionId,
+			}),
+		).rejects.toThrow("Cloud handoff is still pending");
+		expect(remove).not.toHaveBeenCalled();
+	});
+
+	it("blocks local mutations while the handoff request is starting", async () => {
+		enableCloudHandoffGates();
+		let releaseGet: ((value: undefined) => void) | undefined;
+		const sessionId = "starting-handoff-source";
+		const get = vi
+			.fn()
+			.mockImplementationOnce(
+				async () =>
+					await new Promise<undefined>((resolve) => {
+						releaseGet = resolve;
+					}),
+			)
+			.mockResolvedValue(undefined);
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext({ get }, { sessionIds: [sessionId] }),
+		} as unknown as SidecarContext;
+		const handoff = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			config: { environmentId: "local" },
+			handoffAttemptId: "attempt-a",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+		await vi.waitFor(() => expect(releaseGet).toBeTypeOf("function"));
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				config: { environmentId: "local" },
+				handoffAttemptId: "attempt-b",
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("A different cloud handoff is already in progress");
+
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(ctx, sessionId),
+		).rejects.toThrow("Wait for the cloud handoff to finish before deleting");
+		const { handleCommand } = await import("./commands");
+		await expect(
+			handleCommand(ctx, "update_chat_session_metadata", {
+				sessionId,
+				metadata: { pinned: true },
+			}),
+		).rejects.toThrow(
+			"Wait for the cloud handoff to finish before updating session metadata",
+		);
+		releaseGet?.(undefined);
+		await expect(handoff).rejects.toThrow("was not found");
+	});
+
+	it("blocks handoff while a session metadata update is active", async () => {
+		enableCloudHandoffGates();
+		const sessionId = "metadata-update-source";
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext(
+				{ get: vi.fn(async () => undefined) },
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+		const releaseMetadataUpdate = beginSessionMetadataUpdate(ctx, sessionId);
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				config: { environmentId: "local" },
+			}),
+		).rejects.toThrow(
+			"Wait for the session metadata update to finish before handing off",
+		);
+		releaseMetadataUpdate();
+	});
+
+	it("blocks handoff while session deletion is starting", async () => {
+		enableCloudHandoffGates();
+		let releaseGet: ((value: undefined) => void) | undefined;
+		const sessionId = "deleting-handoff-source";
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(
+						async () =>
+							await new Promise<undefined>((resolve) => {
+								releaseGet = resolve;
+							}),
+					),
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+		const deletion = assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
+		expect(releaseGet).toBeTypeOf("function");
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				config: { environmentId: "local" },
+				handoffAttemptId: "attempt-a",
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("Wait for session deletion to finish before handing off");
+		releaseGet?.(undefined);
+		const releaseDelete = await deletion;
+		releaseDelete();
+	});
+
+	it("allows deletion after a cloud handoff has completed", async () => {
+		const sessionId = "completed-handoff-source";
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId,
+						metadata: {
+							handoff: {
+								status: "complete",
+								toCloudSessionId: "cloud-complete",
+								handedOffAt: "2026-08-18T00:00:00.000Z",
+							},
+						},
+					})),
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+
+		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			sessionId,
+		);
+		releaseDelete();
+	});
+
+	it("keeps a persisted pending handoff read-only after restart", async () => {
+		const send = vi.fn();
+		const restore = vi.fn();
+		const sourceSessionId = "pending-handoff-source";
+		const pendingSession = {
+			sessionId: sourceSessionId,
+			status: "idle",
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "cloud-pending",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
+				},
+			},
+		};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: { cwd: "/workspace/project" },
+						messages: [{ role: "user", content: "continue" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => pendingSession),
+					send,
+					restore,
+				},
+				{ sessionIds: [sourceSessionId] },
+			),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+		const recovery = "Cloud handoff is still pending";
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: sourceSessionId,
+				prompt: "race",
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "reset",
+				sessionId: sourceSessionId,
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId: sourceSessionId,
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow(recovery);
+		expect(send).not.toHaveBeenCalled();
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("rejects checkpoint restore after the source completed a cloud handoff", async () => {
+		const restore = vi.fn();
+		const sessionId = "handed-off-source";
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId,
+						metadata: {
+							handoff: {
+								status: "complete",
+								toCloudSessionId: "cloud-target",
+								handedOffAt: "2026-08-18T00:00:00.000Z",
+							},
+						},
+					})),
+					restore,
+				},
+				{ sessionIds: [sessionId] },
+			),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId,
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow("Fork locally before restoring a checkpoint");
+		expect(restore).not.toHaveBeenCalled();
+	});
+
 	it("restores the selected workspace checkpoint before forking for message editing", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [
@@ -809,6 +1084,16 @@ describe("session forks", () => {
 						model: "anthropic/claude-sonnet-4.6",
 						cwd: "/workspace/project",
 						workspaceRoot: "/workspace/project",
+						metadata: {
+							handoff: {
+								toCloudSessionId: "ses-cloud-copy",
+								handedOffAt: "2026-08-18T00:00:00.000Z",
+								status: "complete",
+							},
+							cloudHandoffScope: "old-account",
+							cloudHandoffIntent: { fingerprint: {} },
+							cloudHandoffSeedDispatched: true,
+						},
 					})),
 					readMessages,
 					restore,
@@ -844,7 +1129,16 @@ describe("session forks", () => {
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
-			expect.objectContaining({ initialMessages: sourceMessages }),
+			expect.objectContaining({
+				initialMessages: sourceMessages,
+				sessionMetadata: {
+					fork: {
+						forkedFromSessionId: sourceSessionId,
+						forkedAt: expect.any(String),
+						source: "desktop",
+					},
+				},
+			}),
 		);
 	});
 
@@ -1005,7 +1299,10 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				...localRuntimeContext({ restore }),
+				...localRuntimeContext({
+					restore,
+					get: vi.fn(async () => undefined),
+				}),
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -1110,6 +1407,7 @@ describe("first-send connection updates", () => {
 		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
 		const start = vi.fn(async (_input?: unknown) => ({ sessionId }));
+		const get = vi.fn(async () => ({ sessionId, status: "idle" }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -1130,6 +1428,7 @@ describe("first-send connection updates", () => {
 			wsClients: new Set(),
 			...localRuntimeContext(
 				{
+					get,
 					readMessages,
 					readSessionCompactionState,
 					send,
@@ -1424,6 +1723,33 @@ describe("first-send connection updates", () => {
 			}
 			rmSync(testSessionDataDir, { recursive: true, force: true });
 		}
+	});
+
+	it("preserves an idle fork status when Core reports its resident process as running", async () => {
+		const { ctx, sessionId } = createContext();
+		const existing = ctx.liveSessions.get(sessionId);
+		if (!existing) throw new Error("missing session");
+		existing.status = "idle";
+		existing.busy = false;
+		(localSessionManager(ctx) as { get: unknown }).get = vi.fn(async () => ({
+			sessionId,
+			status: "running",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+		}));
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "attach",
+			sessionId,
+		})) as { status: string };
+
+		expect(result.status).toBe("idle");
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "idle",
+			busy: false,
+		});
 	});
 
 	it("updates a changed connection before sending", async () => {
@@ -1793,6 +2119,7 @@ describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -2003,6 +2330,48 @@ Follow the desktop send workflow instructions.`,
 			prompt:
 				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
+	});
+
+	it("expands a user /cloud workflow while the Cloud sessions gate is off", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		writeFileSync(
+			join(workflowsDir, "cloud.md"),
+			`---
+name: cloud
+---
+Follow the user cloud workflow instructions.`,
+		);
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		// Explicitly disable the gate so local rollout/settings cannot affect this test.
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		// Gate off: the user's workflow owns /cloud.
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/cloud please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the user cloud workflow instructions. please",
+			}),
+		);
+
+		// Gate on: /cloud is built-in again and passes through untouched.
+		const runPlugin = vi
+			.spyOn(pluginCommands, "runPluginSlashCommand")
+			.mockResolvedValue(undefined);
+		enableCloudHandoffGates();
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/cloud please",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/cloud please" }),
+		);
+		expect(runPlugin).not.toHaveBeenCalled();
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {

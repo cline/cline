@@ -484,6 +484,46 @@ describe("Cloud sessions sidecar wiring", () => {
 		).toBe(true);
 	});
 
+	it("preserves first-task creation across a manager reset without recreating established tasks", async () => {
+		const api = {
+			list: async () => [structuredClone(REMOTE_SESSION)],
+			create: async () => ({
+				sessionId: REMOTE_SESSION.id,
+				status: "ready",
+				sandboxUrl: "pod",
+			}),
+		} as unknown as CloudSessionApi;
+		const { ctx, manager } = createFixture({ api });
+		await manager.create({
+			repoUrl: "https://github.com/cline/test",
+			modelId: "anthropic/claude-sonnet-5",
+		});
+		await resetCloudSessionManager(ctx);
+		const hub = new FakeHubClient(false);
+		const options = {
+			api,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		};
+		const replacement = new CloudSessionManager(ctx, options);
+		ctx.cloudSessionManager = replacement;
+		await replacement.attach(REMOTE_SESSION.id);
+		await replacement.send(REMOTE_SESSION.id, "Start the recovered task");
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.create"),
+		).toHaveLength(1);
+		await resetCloudSessionManager(ctx);
+		const established = new CloudSessionManager(ctx, options);
+		await expect(established.attach(REMOTE_SESSION.id)).rejects.toThrow(
+			"task is unavailable",
+		);
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.create"),
+		).toHaveLength(1);
+		await established.dispose();
+	});
+
 	it("creates a canonical session with the requested branch and approval policy", async () => {
 		const create = vi.fn(async () => ({
 			sessionId: "ses-created",
@@ -497,6 +537,9 @@ describe("Cloud sessions sidecar wiring", () => {
 				create,
 			} as unknown as CloudSessionApi,
 		});
+		vi.spyOn(manager, "listModels").mockResolvedValue([
+			{ id: "anthropic/claude-sonnet-5", name: "Sonnet", catalogId: "cline" },
+		]);
 
 		const created = await handleChatSessionCommand(ctx, {
 			action: "start",
@@ -533,6 +576,36 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(innerCreate?.payload?.toolPolicies).toEqual({
 			"*": { autoApprove: false },
 		});
+	});
+
+	it.each([
+		{ models: [] },
+		{
+			models: [
+				{ id: "different-model", name: "Other", catalogId: "cline" as const },
+			],
+		},
+	])("rejects an unavailable selected model before provisioning with catalog $models", async ({
+		models,
+	}) => {
+		const create = vi.fn();
+		const { ctx, hub, manager } = createFixture({
+			api: { list: async () => [], create } as unknown as CloudSessionApi,
+		});
+		vi.spyOn(manager, "listModels").mockResolvedValue(models);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: {
+					executionTarget: "cloud",
+					repoUrl: "https://github.com/cline/test",
+					model: "selected-model",
+				},
+			}),
+		).rejects.toThrow("selected model selected-model is not available");
+		expect(create).not.toHaveBeenCalled();
+		expect(hub.commands).toEqual([]);
+		expect(ctx.liveSessions.size).toBe(0);
 	});
 
 	it.each([
@@ -728,12 +801,15 @@ describe("Cloud sessions sidecar wiring", () => {
 	] as const)("%s attaches an existing outer id with a cold registry", async (action) => {
 		const create = vi.fn();
 		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
-		const { ctx, hub } = createFixture({
+		const { ctx, hub, manager } = createFixture({
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
 				create,
 			} as unknown as CloudSessionApi,
 		});
+		const listModels = vi
+			.spyOn(manager, "listModels")
+			.mockRejectedValue(new Error("catalog unavailable"));
 
 		const attached = await handleChatSessionCommand(
 			ctx,
@@ -751,6 +827,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 
 		expect(attached).toMatchObject({ sessionId: outerId, origin: "cloud" });
+		expect(listModels).not.toHaveBeenCalled();
 		expect(create).not.toHaveBeenCalled();
 		expect(
 			hub.commands.some((entry) => entry.command === "session.attach"),
