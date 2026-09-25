@@ -1040,3 +1040,7 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+## Hub wire contract
+
+`@cline/shared/src/hub-contract` defines command and event names and payload schemas. Hub command dispatch validates payloads before invoking handlers, with enforce (default), warn, and off modes. The released JSON Schema baseline detects breaking protocol changes during tests and SDK release preparation. See [the contract reference](packages/shared/src/hub-contract/README.md) for compatibility rules and remaining schema coverage.

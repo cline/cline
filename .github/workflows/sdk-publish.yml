@@ -162,6 +162,12 @@ jobs:
           echo "Publish version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # The release commit must carry the Hub contract it ships as the
+      # baseline for later breaking-change checks (`bun run version` writes it).
+      - name: Verify the Hub protocol baseline
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
+        run: bun sdk/packages/shared/scripts/hub-protocol-baseline.ts --check
+
       - name: Update all package versions and lockfile
         if: steps.check_commits.outputs.skip != 'true'
         env:

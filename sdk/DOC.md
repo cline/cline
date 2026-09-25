@@ -143,6 +143,31 @@ and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
 
+## Hub wire contract
+
+Every Hub command and event is declared once as a zod schema in
+`@cline/shared` (`sdk/packages/shared/src/hub-contract/`). `HubCommandName`
+and `HubEventName` are derived from it, and `hubCommands` / `hubEvents` expose
+the schemas (`HubCommandPayload<"run.start">` gives a payload's type).
+
+- **Validation.** The Hub checks each command payload before dispatch and
+  replies `invalid_payload` (with `details.issues`) when it breaks the
+  contract. `HubWebSocketServerOptions.payloadValidation` or
+  `CLINE_HUB_PAYLOAD_VALIDATION` selects `enforce` (default), `warn` (log and
+  dispatch), or `off`. Objects are loose, so unknown fields pass: a newer
+  client can send fields an older Hub does not know.
+- **Compatibility.** `hub-protocol.released.json` is the contract as of the
+  latest SDK release, rendered as JSON Schema; `bun run version` refreshes it
+  and `sdk-publish.yml` checks it. `hub-protocol.test.ts` compares the current
+  contract against it and fails on breaking changes
+  (`findBreakingHubProtocolChanges`: removed commands, events, or fields;
+  newly required inputs; narrowed input types; output fields that are no
+  longer guaranteed) unless `CURRENT_HUB_PROTOCOL_VERSION` is bumped. Additive
+  changes need no regeneration; review protocol changes in the schema source.
+- **Not yet modelled.** Deep structures (session configs, messages, tool
+  inputs) are `hubRecord` placeholders, and event payloads are recorded but
+  not validated at runtime. Search for `TODO(contract)` for the open items.
+
 ## Concurrent subagent tool calls
 
 `spawn_agent` and configured `subagent_*` tools declare
