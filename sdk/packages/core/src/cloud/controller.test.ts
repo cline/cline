@@ -1110,6 +1110,40 @@ describe("CloudSessionController neutral host contract", () => {
 			await replacement.controller.dispose();
 		}
 	});
+	it.each([
+		["legacy", undefined, undefined, true],
+		["standard", "standard", undefined, true],
+		["resumable", "resumable", undefined, false],
+		["resumable metadata", undefined, "resumable", false],
+	] as const)("scopes automatic Git backups for %s sessions", async (_label, sandboxType, metadataType, autoPush) => {
+		const f = fixture({ pendingInitialTasks: new Map([[record.id, {}]]) });
+		f.api.list.mockResolvedValue([
+			{
+				...record,
+				sandboxType,
+				metadata: { ...record.metadata, sandboxType: metadataType },
+			},
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			const prompt = sessionConfig.systemPrompt;
+			expect(prompt).toContain("branch `cline/inner`");
+			expect(prompt).toContain("never commit directly to the default branch");
+			expect(prompt).toContain("Do not force-push or amend commits");
+			expect(prompt.includes("SAVE YOUR WORK")).toBe(autoPush);
+			expect(prompt.includes("Commit regularly")).toBe(autoPush);
+			expect(prompt.includes("git push -u origin")).toBe(autoPush);
+			expect(prompt.includes("Commit and push only when the user asks")).toBe(
+				!autoPush,
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("does not recreate a missing established session with manual creation options", async () => {
 		const f = fixture();
 		f.setHasInner(false);
