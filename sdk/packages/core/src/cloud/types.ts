@@ -1,4 +1,8 @@
-import type { HubEventEnvelope, MessageWithMetadata } from "@cline/shared";
+import type {
+	AgentMode,
+	HubEventEnvelope,
+	MessageWithMetadata,
+} from "@cline/shared";
 import type { CloudSessionRecord, CreateCloudSessionInput } from "./api";
 
 export type JsonRecord = Record<string, unknown>;
@@ -6,6 +10,16 @@ export type CloudCreationOptions = Pick<
 	CreateCloudSessionInput,
 	"autoApproveTools" | "thinking" | "reasoningEffort"
 >;
+export type CloudHandoffSeed = {
+	sourceSessionId: string;
+	messages: MessageWithMetadata[];
+	mode?: AgentMode;
+	workspaceRelativePath?: string;
+	config?: CloudCreationOptions;
+	/** An earlier dispatch may still complete: only adopt a matching existing seed. */
+	recoverOnly?: boolean;
+	onSeeding?: () => void | Promise<void>;
+};
 export type CloudQueuedPrompt = {
 	id: string;
 	prompt: string;
