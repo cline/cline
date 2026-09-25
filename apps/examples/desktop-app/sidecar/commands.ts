@@ -167,7 +167,10 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import { getPluginCommandService } from "./plugin-commands";
+import {
+	getPluginCommandService,
+	warmPluginCommandService,
+} from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -3556,6 +3559,16 @@ export async function handleCommand(
 			undefined,
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
+	}
+	if (command === "warm_plugin_commands") {
+		// The webview reports whichever local workspace it has adopted so the
+		// plugin sandbox is loaded before the slash menu first needs it.
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const workspacePath = String(args?.workspacePath ?? "").trim();
+		if (binding.kind === "local" && workspacePath) {
+			warmPluginCommandService(ctx, workspacePath);
+		}
+		return { environmentId: binding.environmentId };
 	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu
