@@ -572,13 +572,27 @@ Context compaction is owned by `core`.
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
-- Provider message preparation may shorten external tool results only after saving their full content to an OS temp directory allocated lazily per runtime (`cline-tool-results-*/<tool-call-id>.result.txt`). Recovery files are disposable, separate from permanent session history; delegated runtimes and resumed sessions get independent directories. Repeated preparation of the same call reuses its path and recreates files removed by temp cleanup. String results are stored verbatim; structured content is stored as JSON. A short recovery notice is appended as a separate text block only in the provider copy. Truncation markers identify saved-file line ranges; retrieval instructions remain in tool descriptions. Failed saves retain the complete external result. Default tools retain existing truncation behavior.
+- external tool-result truncation uses temporary recovery files, as described below
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
 - a session imported from another coding agent (`metadata.importedFrom`) that is resumed without compaction state summarizes its whole foreign transcript on the first turn, regardless of the auto-compaction setting; the summary persists as normal compaction state, so the model never replays the source agent's tool calls while the canonical transcript stays intact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
+
+#### Temporary recovery files for external tool results
+
+MCP, connector, and custom tools may return large responses without accepting pagination or size controls. Truncating those responses without a recovery copy can hide information the agent cannot otherwise retrieve. Core therefore saves the complete result before shortening its provider copy; if saving fails, it keeps the full response. Default tools retain their existing truncation behavior because their output is recoverable through their inputs.
+
+**Decision:** use disposable OS temp files rather than permanent session-history artifacts. These files support inspection during the current runtime; they are not a durable archive or a promise that an old response remains useful after a restart. Keeping them temporary avoids coupling recovery output to custom history-directory configuration, session-ID syntax, history migration, retention, or child-session deletion. The canonical transcript remains unchanged and retains the original result independently of these files.
+
+Lifetime and recovery semantics:
+
+- Each runtime lazily allocates a private `cline-tool-results-*` directory under the OS temp directory. Delegated runtimes and resumed sessions get independent directories. Cleanup follows OS temp policy; files are not guaranteed to survive a restart, nor guaranteed to disappear immediately when a session ends.
+- Preparing the same recorded tool call again reuses its `<encoded-tool-call-id>.result.txt` path within that runtime. A newly executed call has a different call ID and a separate file; identical arguments do not imply identical results. Temp storage does not deduplicate or cache tool execution.
+- Before emitting a recovery path, core writes the complete recorded result atomically, recreating files removed by temp cleanup. On resume, retained results can be materialized in the new runtime's temp directory. No stale temp path is persisted as a replacement for the original result.
+- If an old result is no longer in the active context and is needed again, the agent can make a fresh request through the original tool. Core does not automatically replay tool calls, and a fresh response need not match the earlier one. Accepting disposable recovery files does not make an unbounded external response safe to truncate without first saving it.
+- Strings are saved verbatim; structured results are saved as JSON. Truncation markers identify saved-file line ranges. The short `Full result saved to <path> for search.` notice is appended as a separate text block after all budget passes, only in the provider copy, so it does not appear in persisted history or the UI. Reading and searching instructions belong to the tools the agent chooses, not this notice.
 
 ### 10. Extension Layering Inside Core
 
