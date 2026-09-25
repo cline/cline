@@ -99,6 +99,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "crusoe",
 	},
 	{
+		modelsDevKey: "gptzzz",
+		generatedProviderId: "gptzzz",
+		runtimeProviderId: "gptzzz",
+	},
+	{
 		modelsDevKey: "huggingface",
 		generatedProviderId: "huggingface",
 		runtimeProviderId: "huggingface",
