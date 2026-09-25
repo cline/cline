@@ -12,6 +12,7 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import type { TaskProxy } from "./task-proxy"
+import type { UsageTracker } from "./usage-tracker"
 
 function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
@@ -24,6 +25,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
 	taskHistory: SdkTaskHistory
+	usageTracker?: UsageTracker
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
 	stateManager?: StateManager
@@ -136,6 +138,15 @@ export class SdkSessionEventCoordinator {
 					),
 				).catch((error) => {
 					Logger.error("[SdkController] Failed to persist task usage:", error)
+				})
+
+				this.options.usageTracker?.recordUsage({
+					tokensIn: result.usage.tokensIn,
+					tokensOut: result.usage.tokensOut,
+					cacheReads: result.usage.cacheReads,
+					cacheWrites: result.usage.cacheWrites,
+					totalCost: result.usage.totalCost,
+					modelId: activeSession.startConfig?.modelId,
 				})
 			}
 		}
