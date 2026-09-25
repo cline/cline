@@ -32,6 +32,8 @@ export class ClineApiServerMock {
 	private orgBalance = 500.0
 	private userHasOrganization = false
 	private spendLimitExceeded = false
+	private checkpointProbeRelease: Promise<void> | undefined
+	private releaseCheckpointProbeGate: (() => void) | undefined
 	public generationCounter = 0
 
 	public readonly API_USER = new ClineDataMock("personal")
@@ -65,6 +67,19 @@ export class ClineApiServerMock {
 	 */
 	public setSpendLimitExceeded(exceeded: boolean) {
 		this.spendLimitExceeded = exceeded
+	}
+
+	public holdCheckpointProbe(): void {
+		this.releaseCheckpointProbe()
+		this.checkpointProbeRelease = new Promise((resolve) => {
+			this.releaseCheckpointProbeGate = resolve
+		})
+	}
+
+	public releaseCheckpointProbe(): void {
+		this.releaseCheckpointProbeGate?.()
+		this.releaseCheckpointProbeGate = undefined
+		this.checkpointProbeRelease = undefined
 	}
 
 	public setCurrentUser(user: UserResponse | null) {
@@ -499,6 +514,7 @@ export class ClineApiServerMock {
 						}
 						const checkpointProbeIndex = lastIndexIncluding("checkpoint_rebuild_probe")
 						const checkpointFollowupIndex = lastIndexIncluding("follow-up after enabling checkpoints")
+						const checkpointProbeRelease = checkpointProbeIndex >= 0 ? controller.checkpointProbeRelease : undefined
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
 						const chunkDelayMs =
 							checkpointProbeIndex >= 0 && checkpointFollowupIndex < checkpointProbeIndex ? 750 : 10
@@ -612,7 +628,11 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
-									setTimeout(sendChunk, chunkDelayMs)
+									if (checkpointProbeRelease && chunkIndex === 3) {
+										void checkpointProbeRelease.then(sendChunk)
+									} else {
+										setTimeout(sendChunk, chunkDelayMs)
+									}
 								} else if (toolCallDeltaIndex < toolCallDeltas.length) {
 									const chunk = {
 										id: generationId,

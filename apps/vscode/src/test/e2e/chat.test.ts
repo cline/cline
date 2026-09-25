@@ -69,7 +69,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 e2e.describe("Checkpoint settings", () => {
 	e2e.describe.configure({ timeout: 180_000 })
 
-	e2e("enabling during a turn applies before the next message", async ({ helper, page, sidebar }) => {
+	e2e("enabling during a turn applies before the next message", async ({ helper, page, server, sidebar }) => {
 		await helper.signin(sidebar)
 
 		const openSettings = async () => {
@@ -115,21 +115,32 @@ e2e.describe("Checkpoint settings", () => {
 		await sidebar.getByRole("button", { name: "Done" }).click()
 		await sidebar.getByTestId("virtuoso-item-list").getByRole("button", { name: "Cancel" }).click()
 
-		await inputbox.fill("checkpoint_rebuild_probe")
-		await sidebar.getByTestId("send-button").click()
-		await expect(sidebar.getByText("Checkpoint rebuild probe", { exact: false })).toBeVisible({ timeout: 30_000 })
+		if (!server) {
+			throw new Error("Checkpoint settings test requires the mock API server")
+		}
+		server.holdCheckpointProbe()
+		try {
+			await inputbox.fill("checkpoint_rebuild_probe")
+			await sidebar.getByTestId("send-button").click()
+			await expect(sidebar.getByText("Checkpoint rebuild probe", { exact: false })).toBeVisible({ timeout: 30_000 })
 
-		await openSettings()
-		await checkpoints.click()
-		await expect(checkpoints).toBeChecked()
-		await sidebar.getByRole("button", { name: "Done" }).click()
+			await openSettings()
+			await checkpoints.click()
+			await expect(checkpoints).toBeChecked()
+			await sidebar.getByRole("button", { name: "Done" }).click()
 
-		await inputbox.fill("follow-up after enabling checkpoints")
-		await sidebar.getByTestId("send-button").click()
-		await expect(sidebar.getByText("follow-up after enabling checkpoints")).toBeVisible({ timeout: 30_000 })
-		await expect(sidebar.getByText("Checkpoint-enabled follow-up reached the rebuilt session.")).toBeVisible({
-			timeout: 30_000,
-		})
+			await inputbox.fill("follow-up after enabling checkpoints")
+			const sendButton = sidebar.getByTestId("send-button")
+			await expect(sendButton).not.toHaveClass(/disabled/)
+			await sendButton.click()
+			await expect(sidebar.getByText("follow-up after enabling checkpoints")).toBeVisible({ timeout: 30_000 })
+			server.releaseCheckpointProbe()
+			await expect(sidebar.getByText("Checkpoint-enabled follow-up reached the rebuilt session.")).toBeVisible({
+				timeout: 30_000,
+			})
+		} finally {
+			server.releaseCheckpointProbe()
+		}
 
 		await sidebar
 			.locator('[title="Edit and regenerate from here"]')
