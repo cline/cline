@@ -473,6 +473,7 @@ describe("RemoteEnvironmentService", () => {
 		const profile = await service.upsert({
 			name: "ARM builder",
 			host: "arm-builder",
+			proxyCommand: "nc -X 5 -x socks.corp:1080 %h %p",
 		});
 
 		const [connection, concurrentConnection] = await Promise.all([
@@ -505,6 +506,9 @@ describe("RemoteEnvironmentService", () => {
 			options: { inputFile: "/opt/cline/code-sidecar-linux-arm64" },
 		});
 		expect(upload?.args.at(-1)).toContain("umask 077; cat >");
+		expect(upload?.args).toContain(
+			"ProxyCommand=nc -X 5 -x socks.corp:1080 %h %p",
+		);
 		const ensure = invocations.find((invocation) =>
 			invocation.args.at(-1)?.includes("--remote-hub-ensure"),
 		);
@@ -517,6 +521,7 @@ describe("RemoteEnvironmentService", () => {
 			expect.arrayContaining([
 				"-N",
 				"ExitOnForwardFailure=yes",
+				"ProxyCommand=nc -X 5 -x socks.corp:1080 %h %p",
 				"-L",
 				"127.0.0.1:43117:127.0.0.1:25463",
 				"arm-builder",
