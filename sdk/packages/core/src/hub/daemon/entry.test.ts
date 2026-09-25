@@ -111,6 +111,15 @@ vi.mock("./telemetry", () => ({
 	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
 }));
 
+const mockDescribeAddressInUse = vi.hoisted(() =>
+	vi.fn(async () => ({ port_owner_pids: "4242", occupant_is_hub: false })),
+);
+
+vi.mock("./bind-diagnostics", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./bind-diagnostics")>()),
+	describeAddressInUse: mockDescribeAddressInUse,
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -518,5 +527,46 @@ describe("hub daemon entry", () => {
 		expect(
 			mockDaemonTelemetryService.capture.mock.invocationCallOrder[0],
 		).toBeLessThan(mockDaemonTelemetryDispose.mock.invocationCallOrder[0]);
+		expect(mockDescribeAddressInUse).not.toHaveBeenCalled();
 	});
+
+	it("attaches port-owner diagnostics when the bind fails with EADDRINUSE", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const stderrSpy = vi
+			.spyOn(process.stderr, "write")
+			.mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		mockStartHubWebSocketServer.mockRejectedValue(
+			Object.assign(new Error("listen EADDRINUSE"), { code: "EADDRINUSE" }),
+		);
+
+		await import("./entry");
+		await vi.waitFor(
+			() => {
+				expect(exitSpy).toHaveBeenCalledWith(1);
+			},
+			{ timeout: 10_000 },
+		);
+		expect(mockDescribeAddressInUse).toHaveBeenCalledWith(
+			expect.objectContaining({ code: "EADDRINUSE" }),
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
+		);
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "hub.daemon.startup",
+				error_code: "EADDRINUSE",
+				port_owner_pids: "4242",
+				occupant_is_hub: false,
+			}),
+		});
+		expect(stderrSpy).toHaveBeenCalledWith(
+			expect.stringContaining("[hub-daemon] port 25463 is in use: "),
+		);
+	}, 15_000);
 });
