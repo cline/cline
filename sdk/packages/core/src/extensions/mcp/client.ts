@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { StringDecoder } from "node:string_decoder";
 import {
@@ -406,11 +407,18 @@ class StdioMcpClient implements McpServerClient {
 		this.stderrBuffer = "";
 		this.protocolMode = protocolMode;
 
+		// Spawning through a shell concatenates the command and args without
+		// escaping (node DEP0190): a command path containing spaces, e.g.
+		// C:\Program Files\nodejs\node.exe, is split by cmd.exe and the child
+		// never starts. When the command already names a real executable on
+		// disk, spawn it directly so argv reaches the child losslessly; keep
+		// the shell for bare command names such as "npx", whose .cmd shims on
+		// Windows can only be resolved through it.
 		const platformOptions =
 			process.platform === "win32"
 				? {
 						windowsHide: true,
-						shell: true,
+						shell: !commandNamesExecutableFile(transport.command),
 					}
 				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
@@ -861,6 +869,22 @@ class SdkUrlMcpClient implements McpServerClient {
 		}
 		throw new Error(message);
 	}
+}
+
+/**
+ * Whether the command is a path to an executable that exists on disk. Such
+ * commands can be spawned directly on Windows; the shell is only needed to
+ * resolve bare command names through PATH and .cmd/.bat shims.
+ */
+function commandNamesExecutableFile(command: string): boolean {
+	if (command.length === 0) {
+		return false;
+	}
+	const lower = command.toLowerCase();
+	if (lower.endsWith(".cmd") || lower.endsWith(".bat")) {
+		return false;
+	}
+	return existsSync(command);
 }
 
 export function createDefaultMcpServerClientFactory(
