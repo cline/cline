@@ -1,8 +1,6 @@
 "use client";
 
 import {
-	ChevronDown,
-	Columns2,
 	Folder,
 	GitBranch,
 	Maximize2,
@@ -18,34 +16,28 @@ import { cn } from "@/lib/utils";
 export type TerminalTab = {
 	id: string;
 	title: string;
-	/** Shown as a small dot when a process is still running in the shell. */
-	busy?: boolean;
 };
 
 type TerminalPanelProps = {
 	tabs: TerminalTab[];
-	activeTabId: string;
-	onSelectTab?: (tabId: string) => void;
-	onNewTab?: () => void;
-	onCloseTab?: (tabId: string) => void;
-	/** Workspace folder the shells are started in (the task's cwd). */
+	activeTabId: string | null;
+	onSelectTab: (tabId: string) => void;
+	onNewTab: () => void;
+	onCloseTab: (tabId: string) => void;
+	/** Folder new shells start in (the task's working directory). */
 	cwdLabel: string;
 	branch?: string | null;
 	maximized?: boolean;
 	onToggleMaximize?: () => void;
-	onSplit?: () => void;
-	onClose?: () => void;
-	/** Slimmer chrome for the composer-attached placement. */
-	compact?: boolean;
+	onClose: () => void;
 	className?: string;
 	children: ReactNode;
 };
 
 /**
- * Chrome shared by every terminal placement: a tab strip for the shells that
- * belong to this task, the folder/branch they run in, and window actions. The
- * body (the actual terminal surface) is passed as children so the same header
- * works for a docked pane, a side column, or a floating sheet.
+ * Chrome for the integrated terminal: a tab strip for the shells that belong
+ * to this task, the folder/branch they run in, and window actions. The body
+ * (the xterm surface) is passed as children.
  */
 export function TerminalPanel({
 	tabs,
@@ -57,9 +49,7 @@ export function TerminalPanel({
 	branch,
 	maximized = false,
 	onToggleMaximize,
-	onSplit,
 	onClose,
-	compact = false,
 	className,
 	children,
 }: TerminalPanelProps) {
@@ -71,12 +61,7 @@ export function TerminalPanel({
 				className,
 			)}
 		>
-			<header
-				className={cn(
-					"@container flex shrink-0 items-center gap-1 border-b border-border/70 pl-1.5 pr-1",
-					compact ? "h-8" : "h-9",
-				)}
-			>
+			<header className="@container flex h-9 shrink-0 items-center gap-1 border-b border-border/70 pl-1.5 pr-1">
 				<div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
 					{tabs.map((tab) => {
 						const active = tab.id === activeTabId;
@@ -92,18 +77,11 @@ export function TerminalPanel({
 							>
 								<button
 									className="flex items-center gap-1.5"
-									onClick={() => onSelectTab?.(tab.id)}
+									onClick={() => onSelectTab(tab.id)}
 									type="button"
 								>
 									<SquareTerminal aria-hidden="true" className="size-3.5" />
 									<span className="font-mono">{tab.title}</span>
-									{tab.busy ? (
-										<span
-											className="size-1.5 rounded-full bg-primary"
-											role="img"
-											aria-label="Process running"
-										/>
-									) : null}
 								</button>
 								<button
 									aria-label={`Close ${tab.title}`}
@@ -111,7 +89,7 @@ export function TerminalPanel({
 										"flex size-4 items-center justify-center rounded text-muted-foreground/70 hover:bg-surface-hover-darker hover:text-foreground",
 										!active && "opacity-0 group-hover:opacity-100",
 									)}
-									onClick={() => onCloseTab?.(tab.id)}
+									onClick={() => onCloseTab(tab.id)}
 									type="button"
 								>
 									<X aria-hidden="true" className="size-3" />
@@ -151,19 +129,6 @@ export function TerminalPanel({
 							</>
 						) : null}
 					</span>
-					{onSplit ? (
-						<Button
-							aria-label="Split terminal"
-							className="size-7 text-muted-foreground hover:text-foreground"
-							onClick={onSplit}
-							size="icon-sm"
-							title="Split terminal"
-							type="button"
-							variant="ghost"
-						>
-							<Columns2 aria-hidden="true" className="size-3.5" />
-						</Button>
-					) : null}
 					{onToggleMaximize ? (
 						<Button
 							aria-label={maximized ? "Restore terminal" : "Maximize terminal"}
@@ -181,23 +146,17 @@ export function TerminalPanel({
 							)}
 						</Button>
 					) : null}
-					{onClose ? (
-						<Button
-							aria-label="Hide terminal"
-							className="size-7 text-muted-foreground hover:text-foreground"
-							onClick={onClose}
-							size="icon-sm"
-							title="Hide terminal (Ctrl+`)"
-							type="button"
-							variant="ghost"
-						>
-							{compact ? (
-								<ChevronDown aria-hidden="true" className="size-3.5" />
-							) : (
-								<X aria-hidden="true" className="size-3.5" />
-							)}
-						</Button>
-					) : null}
+					<Button
+						aria-label="Hide terminal"
+						className="size-7 text-muted-foreground hover:text-foreground"
+						onClick={onClose}
+						size="icon-sm"
+						title="Hide terminal (Ctrl+`)"
+						type="button"
+						variant="ghost"
+					>
+						<X aria-hidden="true" className="size-3.5" />
+					</Button>
 				</div>
 			</header>
 			<div className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</div>

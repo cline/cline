@@ -37,10 +37,7 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
-import {
-	TerminalMock,
-	useTerminalMockVariant,
-} from "@/components/views/chat/terminal/terminal-mockups";
+import { TerminalDock } from "@/components/views/chat/terminal/terminal-dock";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
@@ -2391,12 +2388,33 @@ function ChatThreadPane({
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
 
-	// Dev-only terminal placement mockups (`?terminalMock=`), see terminal-mockups.tsx.
-	const terminalMock = useTerminalMockVariant();
-	const [terminalMockOpen, setTerminalMockOpen] = useState(true);
-	const showTerminalMock =
-		terminalMock !== null && terminalMockOpen && !isWelcomeState;
-	const terminalMockCwd = config.cwd || config.workspaceRoot || "";
+	// Integrated terminal: shells run in the task's folder and are grouped by
+	// session id (or the thread id until the first prompt assigns one).
+	const [terminalOpen, setTerminalOpen] = useState(false);
+	const [terminalMaximized, setTerminalMaximized] = useState(false);
+	const terminalAvailable =
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID && !isCloudSession;
+	const showTerminal = terminalAvailable && terminalOpen && !isWelcomeState;
+	const terminalScopeId = displayedSessionId ?? threadId;
+	const toggleTerminal = useCallback(() => {
+		setTerminalOpen((open) => !open);
+	}, []);
+	useEffect(() => {
+		if (!terminalAvailable) return;
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (
+				event.ctrlKey &&
+				!event.metaKey &&
+				!event.altKey &&
+				(event.key === "`" || event.code === "Backquote")
+			) {
+				event.preventDefault();
+				toggleTerminal();
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [terminalAvailable, toggleTerminal]);
 
 	if (!isAppReady) {
 		return (
@@ -2463,158 +2481,17 @@ function ChatThreadPane({
 			? cloudSessionError.connectUrl
 			: undefined;
 
-	const terminalMockBranch = gitBranch;
-	const terminalViewSwitcher =
-		terminalMock === "view" && !isWelcomeState ? (
-			<div
-				className="flex h-7 items-center gap-0.5 rounded-md bg-secondary p-0.5 text-xs"
-				role="tablist"
-			>
-				{(["Chat", "Changes", "Terminal"] as const).map((label) => {
-					const selected =
-						label === "Terminal"
-							? terminalMockOpen
-							: !terminalMockOpen && label === "Chat";
-					return (
-						<button
-							aria-selected={selected}
-							className={
-								selected
-									? "rounded px-2 py-0.5 bg-background text-foreground shadow-sm"
-									: "rounded px-2 py-0.5 text-muted-foreground hover:text-foreground"
-							}
-							key={label}
-							onClick={() => setTerminalMockOpen(label === "Terminal")}
-							role="tab"
-							type="button"
-						>
-							{label}
-						</button>
-					);
-				})}
-			</div>
-		) : undefined;
-	const composerWithTerminalMock =
-		terminalMock === "composer" && showTerminalMock ? (
-			<div className="[&_.rounded-xl]:rounded-t-none [&_.rounded-xl]:border-t-0">
-				<TerminalMock
-					branch={terminalMockBranch}
-					anchor="bottom"
-					className="h-[220px] overflow-hidden rounded-t-xl border border-border bg-surface-2"
-					compact
-					cwd={terminalMockCwd}
-					onClose={() => setTerminalMockOpen(false)}
-				/>
-				{composer}
-			</div>
-		) : (
-			composer
-		);
-
-	const sessionScreen = (
-		<WelcomeScreen
-			active={isWelcomeState}
-			body={
-				isCloudSession &&
-				displayedIsSwitching &&
-				displayedMessages.length === 0 ? (
-					// Keep opening an existing cloud session visually continuous.
-					<CloudProvisioningPane phase="Opening session..." />
-				) : terminalMock === "view" && showTerminalMock ? (
-					<TerminalMock
-						branch={terminalMockBranch}
-						className="h-full"
-						cwd={terminalMockCwd}
-						onClose={() => setTerminalMockOpen(false)}
-					/>
-				) : showDiffView && !isCloudSession ? (
-					<DiffView
-						cwd={config.cwd || config.workspaceRoot}
-						environmentId={environmentId}
-						fileDiffs={fileDiffs}
-						onClose={() => setShowDiffView(false)}
-					/>
-				) : (
-					<ChatMessages
-						onAnswerAskQuestion={handleAnswerAskQuestion}
-						onApproveToolApproval={handleApproveToolApproval}
-						onRejectToolApproval={handleRejectToolApproval}
-						chatTransportState={chatTransportState}
-						activityLabel={activityLabel}
-						error={cloudSessionError?.message ?? displayedError}
-						errorAction={
-							cloudConnectUrl
-								? {
-										label: "Connect GitHub",
-										onClick: () => openGitHubConnect(cloudConnectUrl),
-									}
-								: undefined
-						}
-						importedFromTool={importedFromTool}
-						messages={displayedMessages}
-						onEditMessage={isCloudSession ? undefined : handleEditMessage}
-						onRestoreCheckpoint={
-							isCloudSession ? undefined : handleRestoreCheckpoint
-						}
-						onForkSession={isCloudSession ? undefined : handleForkSession}
-						onProceedWhileRunning={
-							isCloudSession ? undefined : proceedWhileRunning
-						}
-						startingLabel={
-							isProvisioningCloudSession
-								? provisioningPhase
-								: isCloudSession && !displayedSessionId
-									? provisioningPhase
-									: undefined
-						}
-						onFixCredentials={handleFixCredentials}
-						pendingToolApprovals={pendingToolApprovals}
-						pendingAskQuestions={pendingAskQuestions}
-						sessionId={displayedSessionId}
-						streamingMessageId={activeAssistantMessageId}
-						isSessionSwitching={displayedIsSwitching}
-						status={isProvisioningCloudSession ? "starting" : displayedStatus}
-					/>
-				)
-			}
-			composer={composerWithTerminalMock}
-			environmentSelector={
-				<EnvironmentSelector
-					activeEnvironmentId={environmentId}
-					cloudEnabled={cloudAgentsEnabled}
-					executionTarget={isCloudSession ? "cloud" : "local"}
-					onSelectExecutionTarget={handleExecutionTargetChange}
-					loading={environmentProfilesLoading}
-					onAddSshHost={onAddSshHost}
-					onSelectEnvironment={onSelectEnvironment}
-					profiles={environmentProfiles}
-				/>
-			}
-			gitBranch={gitBranch}
-			notice={
-				providersLoaded &&
-				hasConnectedProvider === false &&
-				onOpenSetup &&
-				onOpenModelSettings ? (
-					<WelcomeSetupNotice
-						onOpenModelSettings={onOpenModelSettings}
-						onOpenSetup={onOpenSetup}
-					/>
-				) : undefined
-			}
-			onListGitBranches={listGitBranches}
-			onOpenSession={onOpenSessionById}
-			onSwitchGitBranch={switchGitBranch}
-			executionTarget={isCloudSession ? "cloud" : "local"}
-			repoUrl={config.repoUrl ?? ""}
-			cloudBranch={config.branch ?? ""}
-			onRepoUrlChange={handleCloudRepoUrlChange}
-			onCloudBranchChange={handleCloudBranchChange}
-			cloudAgentsEnabled={cloudAgentsEnabled}
-			onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
-			workIn={workIn}
+	const terminalDock = terminalAvailable ? (
+		<TerminalDock
+			branch={gitBranch}
+			cwd={activeWorkspaceCwd}
+			maximized={terminalMaximized}
+			onOpenChange={setTerminalOpen}
+			onToggleMaximize={() => setTerminalMaximized((value) => !value)}
+			open={showTerminal}
+			scopeId={terminalScopeId}
 		/>
-	);
+	) : null;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -2623,9 +2500,9 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: terminalMock === "split" && showTerminalMock
-							? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-							: terminalMock === "dock" && showTerminalMock
+						: showTerminal && terminalMaximized
+							? "grid h-full min-h-0 flex-1 grid-rows-[0_auto_minmax(0,1fr)] overflow-hidden"
+							: showTerminal
 								? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto_auto] overflow-hidden"
 								: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
@@ -2660,52 +2537,113 @@ function ChatThreadPane({
 								renamingTitle={renamingSession}
 								status={headerStatus}
 								title={threadTitle}
-								terminalOpen={terminalMockOpen}
+								terminalOpen={showTerminal}
 								onToggleTerminal={
-									terminalMock && terminalMock !== "view"
-										? () => setTerminalMockOpen((open) => !open)
-										: undefined
+									terminalAvailable ? toggleTerminal : undefined
 								}
-								viewSwitcher={terminalViewSwitcher}
 							/>
 						</div>
 					</WindowTitleBarContent>
 				) : null}
-				{terminalMock === "split" && showTerminalMock ? (
-					<div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_minmax(360px,42%)] overflow-hidden">
-						<div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
-							{sessionScreen}
-						</div>
-						<TerminalMock
-							branch={terminalMockBranch}
-							className="border-l border-border/70"
-							cwd={terminalMockCwd}
-							onClose={() => setTerminalMockOpen(false)}
+				<WelcomeScreen
+					active={isWelcomeState}
+					body={
+						isCloudSession &&
+						displayedIsSwitching &&
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
+							<CloudProvisioningPane phase="Opening session..." />
+						) : showDiffView && !isCloudSession ? (
+							<DiffView
+								cwd={config.cwd || config.workspaceRoot}
+								environmentId={environmentId}
+								fileDiffs={fileDiffs}
+								onClose={() => setShowDiffView(false)}
+							/>
+						) : (
+							<ChatMessages
+								onAnswerAskQuestion={handleAnswerAskQuestion}
+								onApproveToolApproval={handleApproveToolApproval}
+								onRejectToolApproval={handleRejectToolApproval}
+								chatTransportState={chatTransportState}
+								activityLabel={activityLabel}
+								error={cloudSessionError?.message ?? displayedError}
+								errorAction={
+									cloudConnectUrl
+										? {
+												label: "Connect GitHub",
+												onClick: () => openGitHubConnect(cloudConnectUrl),
+											}
+										: undefined
+								}
+								importedFromTool={importedFromTool}
+								messages={displayedMessages}
+								onEditMessage={isCloudSession ? undefined : handleEditMessage}
+								onRestoreCheckpoint={
+									isCloudSession ? undefined : handleRestoreCheckpoint
+								}
+								onForkSession={isCloudSession ? undefined : handleForkSession}
+								onProceedWhileRunning={
+									isCloudSession ? undefined : proceedWhileRunning
+								}
+								startingLabel={
+									isProvisioningCloudSession
+										? provisioningPhase
+										: isCloudSession && !displayedSessionId
+											? provisioningPhase
+											: undefined
+								}
+								onFixCredentials={handleFixCredentials}
+								pendingToolApprovals={pendingToolApprovals}
+								pendingAskQuestions={pendingAskQuestions}
+								sessionId={displayedSessionId}
+								streamingMessageId={activeAssistantMessageId}
+								isSessionSwitching={displayedIsSwitching}
+								status={
+									isProvisioningCloudSession ? "starting" : displayedStatus
+								}
+							/>
+						)
+					}
+					composer={composer}
+					environmentSelector={
+						<EnvironmentSelector
+							activeEnvironmentId={environmentId}
+							cloudEnabled={cloudAgentsEnabled}
+							executionTarget={isCloudSession ? "cloud" : "local"}
+							onSelectExecutionTarget={handleExecutionTargetChange}
+							loading={environmentProfilesLoading}
+							onAddSshHost={onAddSshHost}
+							onSelectEnvironment={onSelectEnvironment}
+							profiles={environmentProfiles}
 						/>
-					</div>
-				) : (
-					sessionScreen
-				)}
-				{terminalMock === "dock" && showTerminalMock ? (
-					<TerminalMock
-						anchor="bottom"
-						branch={terminalMockBranch}
-						className="h-[300px] border-t border-border/70"
-						cwd={terminalMockCwd}
-						onClose={() => setTerminalMockOpen(false)}
-					/>
-				) : null}
-				{terminalMock === "overlay" && showTerminalMock ? (
-					<div className="absolute inset-x-6 bottom-36 top-[36%] z-30 overflow-hidden rounded-xl border border-border bg-surface-1/90 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md">
-						<TerminalMock
-							anchor="bottom"
-							branch={terminalMockBranch}
-							className="h-full bg-transparent"
-							cwd={terminalMockCwd}
-							onClose={() => setTerminalMockOpen(false)}
-						/>
-					</div>
-				) : null}
+					}
+					gitBranch={gitBranch}
+					notice={
+						providersLoaded &&
+						hasConnectedProvider === false &&
+						onOpenSetup &&
+						onOpenModelSettings ? (
+							<WelcomeSetupNotice
+								onOpenModelSettings={onOpenModelSettings}
+								onOpenSetup={onOpenSetup}
+							/>
+						) : undefined
+					}
+					onListGitBranches={listGitBranches}
+					onOpenSession={onOpenSessionById}
+					onSwitchGitBranch={switchGitBranch}
+					executionTarget={isCloudSession ? "cloud" : "local"}
+					repoUrl={config.repoUrl ?? ""}
+					cloudBranch={config.branch ?? ""}
+					onRepoUrlChange={handleCloudRepoUrlChange}
+					onCloudBranchChange={handleCloudBranchChange}
+					cloudAgentsEnabled={cloudAgentsEnabled}
+					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+					workIn={workIn}
+				/>
+				{/* Mounted even while hidden so a task with live shells reopens its dock. */}
+				{terminalDock}
 			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}

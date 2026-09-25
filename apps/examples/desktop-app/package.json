@@ -80,6 +80,8 @@
 		"@streamdown/cjk": "^1.0.3",
 		"@tauri-apps/api": "^2.0.0",
 		"@tauri-apps/plugin-notification": "^2.0.0",
+		"@xterm/addon-fit": "^0.11.0",
+		"@xterm/xterm": "^6.0.0",
 		"ai": "^7.0.79",
 		"ansi-to-react": "^6.2.6",
 		"autoprefixer": "^10.4.20",

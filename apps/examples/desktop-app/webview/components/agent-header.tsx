@@ -14,14 +14,7 @@ import {
 	SquareTerminal,
 	Trash2,
 } from "lucide-react";
-import {
-	type CSSProperties,
-	memo,
-	type ReactNode,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	agentEntryState,
@@ -71,8 +64,6 @@ type AgentHeaderProps = {
 	/** Toggles the task's integrated terminal; omitted when unavailable. */
 	terminalOpen?: boolean;
 	onToggleTerminal?: () => void;
-	/** Rendered before the session actions (e.g. a Chat / Terminal switcher). */
-	viewSwitcher?: ReactNode;
 };
 
 function AgentHeaderImpl({
@@ -98,7 +89,6 @@ function AgentHeaderImpl({
 	onOpenParentSession,
 	terminalOpen = false,
 	onToggleTerminal,
-	viewSwitcher,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -242,7 +232,6 @@ function AgentHeaderImpl({
 
 			{showSessionActions ? (
 				<div className="flex shrink-0 items-center gap-2">
-					{viewSwitcher}
 					<AgentActivityStatus
 						activity={agentActivity}
 						agents={agents}
