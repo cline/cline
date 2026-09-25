@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, unlinkSync } from "node:fs";
+import { appendFileSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { type HookEventPayload, parseHookEventPayload } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
 import { nanoid } from "nanoid";
@@ -41,6 +41,16 @@ export function randomSessionId(): string {
 }
 
 export function resolveWorkspaceRoot(cwd: string): string {
+	const envWorkspace = process.env.CLINE_WORKSPACE?.trim();
+	if (envWorkspace) {
+		return resolve(cwd, envWorkspace);
+	}
+
+	const clinerulesRoot = findClinerulesDirectoryRoot(cwd);
+	if (clinerulesRoot) {
+		return clinerulesRoot;
+	}
+
 	const result = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
 		encoding: "utf8",
 	});
@@ -51,6 +61,29 @@ export function resolveWorkspaceRoot(cwd: string): string {
 		}
 	}
 	return cwd;
+}
+
+/**
+ * Walks up from `cwd` to the nearest ancestor that contains a `.clinerules`
+ * directory. A `.clinerules` directory marks the project boundary even when the
+ * current directory is not inside a git worktree (or `git` is unavailable).
+ */
+function findClinerulesDirectoryRoot(cwd: string): string | undefined {
+	let current = resolve(cwd);
+	for (;;) {
+		try {
+			if (statSync(join(current, ".clinerules")).isDirectory()) {
+				return current;
+			}
+		} catch {
+			// `.clinerules` does not exist here; keep walking up.
+		}
+		const parent = dirname(current);
+		if (parent === current) {
+			return undefined;
+		}
+		current = parent;
+	}
 }
 
 function safeJsonStringify(value: unknown): string {
