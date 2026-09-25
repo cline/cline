@@ -69,37 +69,6 @@ Cline Telemetry **never** includes:
 - Personal information
 - API keys or credentials
 
-## Enterprise Configuration
-
-Administrators can set default telemetry state through remote configuration:
-
-```json
-{
-  "telemetryEnabled": true
-}
-```
-
-<Note>
-Even with enterprise configuration, individual users can still disable Cline Telemetry in their local settings.
-</Note>
-
-## Enterprise Monitoring Features
-
-For organizations with additional compliance or monitoring requirements, Cline provides:
-
-### Prompt Storage
-Automatically backup conversation history to AWS S3 or Cloudflare R2 for:
-- Compliance and audit trails
-- Usage analysis and reporting
-- Disaster recovery
-
-See [Prompt Storage](/enterprise-solutions/monitoring/prompt-storage) for configuration details.
-
-### OpenTelemetry Integration
-Export detailed metrics and logs to your own observability platforms like Datadog, New Relic, or Grafana Cloud.
-
-See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for setup instructions.
-
 ## Privacy
 
 Cline's telemetry is designed with privacy in mind:
@@ -130,15 +99,3 @@ Anonymous usage data helps:
 - **Prioritize features**: Focus on most-used capabilities
 - **Improve performance**: Find and fix slow operations
 - **Enhance reliability**: Track and reduce error rates
-
-## Related
-
-<CardGroup cols={2}>
-  <Card title="OpenTelemetry" icon="chart-line" href="/enterprise-solutions/monitoring/opentelemetry">
-    Enterprise monitoring and observability
-  </Card>
-  
-  <Card title="Event Details" icon="shield" href="/enterprise-solutions/monitoring/opentelemetry-events">
-    See what data is collected
-  </Card>
-</CardGroup>
