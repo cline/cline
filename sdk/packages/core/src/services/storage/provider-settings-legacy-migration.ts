@@ -872,6 +872,14 @@ export function migrateLegacyProviderSettings(
 	options: MigrateLegacyProviderSettingsOptions,
 ): MigrateLegacyProviderSettingsResult {
 	const existing = options.providerSettingsManager.read();
+	if (existing.legacyImportCompleted) {
+		return {
+			migrated: false,
+			providerCount: Object.keys(existing.providers).length,
+			lastUsedProvider: existing.lastUsedProvider,
+		};
+	}
+
 	const legacyStorage = resolveLegacyStorage(options);
 	if (!legacyStorage) {
 		return {
@@ -904,6 +912,7 @@ export function migrateLegacyProviderSettings(
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
 	next.lastUsedProvider = existing.lastUsedProvider;
+	next.legacyImportCompleted = true;
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
 	const modelsPath = join(
@@ -954,6 +963,10 @@ export function migrateLegacyProviderSettings(
 	}
 
 	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
+		// Nothing new to import, but persist the completion marker: the legacy
+		// files still list every candidate, so a later construction would
+		// otherwise re-import a provider the user has just removed.
+		options.providerSettingsManager.write(next);
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,

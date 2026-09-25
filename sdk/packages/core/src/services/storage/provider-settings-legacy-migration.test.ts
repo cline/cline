@@ -72,6 +72,73 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.anthropic?.tokenSource).toBe("migration");
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/14322: the
+	// legacy files are never rewritten, so an import that runs on every
+	// construction resurrects providers the user has removed.
+	it("does not re-import a provider removed after the legacy import completed", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({ mode: "act", actModeApiProvider: "anthropic" }, null, 2),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ apiKey: "legacy-anthropic-key" }, null, 2),
+		);
+
+		// Inferring dataDir from the filePath makes the constructor auto-migrate.
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		expect(manager.getProviderSettings("anthropic")).toBeDefined();
+		expect(manager.read().legacyImportCompleted).toBe(true);
+
+		const state = manager.read();
+		delete state.providers.anthropic;
+		manager.write(state);
+
+		const reloaded = new ProviderSettingsManager({ filePath: providersPath });
+		expect(reloaded.read().providers.anthropic).toBeUndefined();
+	});
+
+	it("skips the legacy import once it has completed", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({ mode: "act", actModeApiProvider: "anthropic" }, null, 2),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ apiKey: "legacy-anthropic-key" }, null, 2),
+		);
+
+		const first = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(first.migrated).toBe(true);
+
+		const state = manager.read();
+		delete state.providers.anthropic;
+		manager.write(state);
+
+		const second = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(second.migrated).toBe(false);
+		expect(manager.read().providers.anthropic).toBeUndefined();
+	});
+
 	it("migrates legacy OCA-specific reasoning effort into provider settings", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
