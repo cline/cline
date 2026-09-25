@@ -532,6 +532,7 @@ export class Controller {
 				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
+			waitForModeRebuild: () => this.mode.waitForPendingRebuild(),
 			rebuilds: this.sessionRebuilds,
 		})
 		this.sessionConfigChanges = new SdkSessionConfigChangeCoordinator({
@@ -566,14 +567,7 @@ export class Controller {
 			messages: this.messages,
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			waitForPendingRebuilds: async () => {
-				await this.mode.waitForPendingRebuild()
-				await this.sessionRebuilds.waitUntilSettled()
-			},
-			hasPendingCheckpointRebuild: () => this.sessionRebuilds.hasPendingRebuild("checkpoints"),
-			waitForPendingCheckpointRebuild: () => this.sessionRebuilds.waitUntilSettled("checkpoints"),
-			deferFollowUpForCheckpointRebuild: (session, prompt, images, files) =>
-				this.sessionConfigChanges.deferFollowUpForCheckpointRebuild(session, prompt, images, files),
+			handlePendingRebuilds: (disposition) => this.sessionConfigChanges.handlePendingRebuilds(disposition),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
@@ -616,11 +610,7 @@ export class Controller {
 			},
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			postStateToWebview: () => this.postStateToWebview(),
-			cancelAndWaitForCheckpointRebuild: async () => {
-				this.sessionConfigChanges.cancelPendingCheckpointFollowUps()
-				this.sessionRebuilds.cancel("checkpoints")
-				await this.sessionRebuilds.waitUntilSettled("checkpoints")
-			},
+			handlePendingRebuilds: (disposition) => this.sessionConfigChanges.handlePendingRebuilds(disposition),
 			clearTaskSettings: () => this.stateManager.clearTaskSettings(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({

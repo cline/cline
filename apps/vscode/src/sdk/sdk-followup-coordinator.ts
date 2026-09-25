@@ -7,6 +7,7 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
+import type { PendingRebuildDisposition, PendingRebuildResult } from "./sdk-session-config-change-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { prepareTaskResumeStartInput } from "./sdk-task-resume"
@@ -43,19 +44,7 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	/** Resolves once no session rebuild is in flight. */
-	waitForPendingRebuilds: () => Promise<void>
-	/** True when a checkpoint rebuild must replace the current session before another turn starts. */
-	hasPendingCheckpointRebuild: () => boolean
-	/** Resolves after the pending checkpoint rebuild completes or is cancelled. */
-	waitForPendingCheckpointRebuild: () => Promise<void>
-	/** Holds a follow-up for the replacement session at the checkpoint-setting boundary. */
-	deferFollowUpForCheckpointRebuild: (
-		session: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
-		prompt: string,
-		images?: string[],
-		files?: string[],
-	) => boolean
+	handlePendingRebuilds: (disposition: PendingRebuildDisposition) => Promise<PendingRebuildResult>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -93,7 +82,6 @@ export class SdkFollowupCoordinator {
 		const activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
-		const waitingForCheckpointRebuild = this.options.hasPendingCheckpointRebuild()
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
 			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
 			return
@@ -101,11 +89,7 @@ export class SdkFollowupCoordinator {
 
 		// Rebuilds replace idle sessions. Wait before acquiring the shared
 		// prepare/start boundary so this follow-up cannot target a replaced host.
-		if (waitingForCheckpointRebuild) {
-			await this.options.waitForPendingCheckpointRebuild()
-		} else {
-			await this.options.waitForPendingRebuilds()
-		}
+		await this.options.handlePendingRebuilds({ type: "wait" })
 
 		await this.options.runExclusive(async () => {
 			// Task navigation does not use the rebuild scheduler. Do not deliver a
@@ -167,7 +151,14 @@ export class SdkFollowupCoordinator {
 			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
 			return
 		}
-		if (this.options.deferFollowUpForCheckpointRebuild(activeSession, resolvedPrompt, images, files)) {
+		const rebuildResult = await this.options.handlePendingRebuilds({
+			type: "defer",
+			session: activeSession,
+			prompt: resolvedPrompt,
+			userImages: images,
+			userFiles: files,
+		})
+		if (rebuildResult === "deferred") {
 			return
 		}
 

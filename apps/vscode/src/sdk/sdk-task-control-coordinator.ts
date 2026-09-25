@@ -3,6 +3,7 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import type { PendingRebuildDisposition, PendingRebuildResult } from "./sdk-session-config-change-coordinator"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
@@ -17,7 +18,7 @@ export interface SdkTaskControlCoordinatorOptions {
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	cancelAndWaitForCheckpointRebuild: () => Promise<void>
+	handlePendingRebuilds: (disposition: PendingRebuildDisposition) => Promise<PendingRebuildResult>
 	/**
 	 * Drops the StateManager's task-scoped settings overlay (persisting pending
 	 * writes first). Task settings — e.g. autoApprovalSettings written by
@@ -113,7 +114,7 @@ export class SdkTaskControlCoordinator {
 		// after the user cleared the view (e.g. clicked New Task).
 		const generation = ++this.taskViewGeneration
 		this.options.interactions.clearPending("Task cleared")
-		await this.options.cancelAndWaitForCheckpointRebuild()
+		await this.options.handlePendingRebuilds({ type: "cancel" })
 		if (generation !== this.taskViewGeneration) {
 			return
 		}
@@ -181,7 +182,7 @@ export class SdkTaskControlCoordinator {
 			// alone does not discard them; if one leaks across this task switch, the first
 			// message sent in the newly selected task is consumed as the old task's response.
 			this.options.interactions.clearPending("Task switched")
-			await this.options.cancelAndWaitForCheckpointRebuild()
+			await this.options.handlePendingRebuilds({ type: "cancel" })
 			if (isSuperseded()) {
 				return historyItem
 			}

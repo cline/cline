@@ -95,7 +95,9 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
 
-		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
+		expect(options.handlePendingRebuilds).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "defer", session: activeSession, prompt: "resolved: queued while streaming" }),
+		)
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -129,7 +131,13 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 		)
-		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
+		expect(options.handlePendingRebuilds).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "defer",
+				session: activeSession,
+				prompt: "resolved: do the next thing after this",
+			}),
+		)
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
@@ -172,19 +180,21 @@ describe("SdkFollowupCoordinator", () => {
 		const task = makeTask("task-1")
 		const rebuiltSession = makeActiveSession({ isRunning: true })
 		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
-		const { coordinator, options } = makeCoordinator({ task, waitForPendingRebuilds })
+		const handlePendingRebuilds = vi.fn((disposition: { type: string }) => {
+			if (disposition.type !== "wait") {
+				return Promise.resolve<"ready">("ready")
+			}
+			return new Promise<"ready">((resolve) => {
+				resolveRebuild = () => resolve("ready")
+			})
+		})
+		const { coordinator, options } = makeCoordinator({ task, handlePendingRebuilds })
 		options.sessions.getActiveSession.mockReturnValueOnce(undefined).mockReturnValue(rebuiltSession)
 
 		const sendPromise = coordinator.askResponse("sent during rebuild")
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
-		expect(waitForPendingRebuilds).toHaveBeenCalledOnce()
+		expect(handlePendingRebuilds).toHaveBeenCalledWith({ type: "wait" })
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 
@@ -206,13 +216,13 @@ describe("SdkFollowupCoordinator", () => {
 		const oldSession = makeActiveSession()
 		const rebuiltSession = makeActiveSession()
 		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
+		const handlePendingRebuilds = vi.fn(
 			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
+				new Promise<"ready">((resolve) => {
+					resolveRebuild = () => resolve("ready")
 				}),
 		)
-		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, waitForPendingRebuilds })
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, handlePendingRebuilds })
 		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(rebuiltSession)
 
 		const sendPromise = coordinator.askResponse("after rebuild")
@@ -235,21 +245,21 @@ describe("SdkFollowupCoordinator", () => {
 		const activeSession = makeActiveSession({ isRunning: false })
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
-			hasPendingCheckpointRebuild: () => true,
 		})
 		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
-		options.deferFollowUpForCheckpointRebuild.mockReturnValue(true)
+		options.handlePendingRebuilds.mockResolvedValue("deferred")
 
 		await coordinator.askResponse("queue after approval", undefined, undefined, "messageResponse", "awaiting_approval")
 
-		expect(options.waitForPendingCheckpointRebuild).not.toHaveBeenCalled()
+		expect(options.handlePendingRebuilds).toHaveBeenCalledOnce()
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.deferFollowUpForCheckpointRebuild).toHaveBeenCalledWith(
-			activeSession,
-			"resolved: queue after approval",
-			undefined,
-			undefined,
-		)
+		expect(options.handlePendingRebuilds).toHaveBeenCalledWith({
+			type: "defer",
+			session: activeSession,
+			prompt: "resolved: queue after approval",
+			userImages: undefined,
+			userFiles: undefined,
+		})
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
@@ -261,7 +271,6 @@ describe("SdkFollowupCoordinator", () => {
 		const { coordinator, options } = makeCoordinator({
 			activeSession: oldSession,
 			task,
-			hasPendingCheckpointRebuild: () => true,
 		})
 		options.resolveContextMentions.mockImplementationOnce(
 			() =>
@@ -276,12 +285,13 @@ describe("SdkFollowupCoordinator", () => {
 		resolveMentions("resolved after rebuild")
 		await send
 
-		expect(options.deferFollowUpForCheckpointRebuild).toHaveBeenCalledWith(
-			oldSession,
-			"resolved after rebuild",
-			undefined,
-			undefined,
-		)
+		expect(options.handlePendingRebuilds).toHaveBeenCalledWith({
+			type: "defer",
+			session: oldSession,
+			prompt: "resolved after rebuild",
+			userImages: undefined,
+			userFiles: undefined,
+		})
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			replacementSession.sdkHost,
 			"session-123",
@@ -727,10 +737,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
-		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
-		hasPendingCheckpointRebuild: input.hasPendingCheckpointRebuild ?? (() => false),
-		waitForPendingCheckpointRebuild: input.waitForPendingCheckpointRebuild ?? vi.fn().mockResolvedValue(undefined),
-		deferFollowUpForCheckpointRebuild: vi.fn(() => false),
+		handlePendingRebuilds: input.handlePendingRebuilds ?? vi.fn().mockResolvedValue("ready"),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
 		onFollowUpAbandoned: vi.fn(),
@@ -767,7 +774,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
-		deferFollowUpForCheckpointRebuild: ReturnType<typeof vi.fn>
+		handlePendingRebuilds: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>
 		onFollowUpAbandoned: ReturnType<typeof vi.fn>
@@ -794,9 +801,7 @@ interface MakeCoordinatorInput {
 	}
 	mode: "act" | "plan"
 	isLegacyTask: boolean
-	waitForPendingRebuilds: () => Promise<void>
-	hasPendingCheckpointRebuild: () => boolean
-	waitForPendingCheckpointRebuild: () => Promise<void>
+	handlePendingRebuilds: SdkFollowupCoordinatorOptions["handlePendingRebuilds"]
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 

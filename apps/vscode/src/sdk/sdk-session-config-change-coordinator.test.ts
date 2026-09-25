@@ -40,6 +40,16 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		expect(options.rebuilds.request).toHaveBeenCalledWith("checkpoints", expect.any(Function))
 	})
 
+	it("waits for mode and session rebuilds before declaring the boundary ready", async () => {
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+
+		await expect(coordinator.handlePendingRebuilds({ type: "wait" })).resolves.toBe("ready")
+
+		expect(options.waitForModeRebuild).toHaveBeenCalledOnce()
+		expect(options.rebuilds.waitUntilSettled).toHaveBeenCalledWith()
+		expect(options.waitForModeRebuild).toHaveBeenCalledBefore(options.rebuilds.waitUntilSettled)
+	})
+
 	it("does not replace a newer session that reused the same session ID", async () => {
 		const activeSession = makeActiveSession()
 		const newerSession = makeActiveSession({ isRunning: true })
@@ -164,7 +174,15 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
 
 		coordinator.handleCheckpointsSettingChanged(false, true)
-		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "after toggle", ["image.png"], ["a.ts"])).toBe(true)
+		await expect(
+			coordinator.handlePendingRebuilds({
+				type: "defer",
+				session: activeSession,
+				prompt: "after toggle",
+				userImages: ["image.png"],
+				userFiles: ["a.ts"],
+			}),
+		).resolves.toBe("deferred")
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 
 		activeSession.isRunning = false
@@ -186,7 +204,9 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
 
 		coordinator.handleCheckpointsSettingChanged(false, true)
-		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "after both rebuilds")).toBe(true)
+		await expect(
+			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "after both rebuilds" }),
+		).resolves.toBe("deferred")
 		options.sessions.getActiveSession.mockReturnValue(providerReplacement)
 		await runScheduledRebuild()
 
@@ -205,7 +225,9 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		options.sessionConfigBuilder.build.mockRejectedValueOnce(new Error("config failed"))
 
 		coordinator.handleCheckpointsSettingChanged(false, true)
-		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "still deliver")).toBe(true)
+		await expect(
+			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "still deliver" }),
+		).resolves.toBe("deferred")
 		activeSession.isRunning = false
 		await runScheduledRebuild()
 
@@ -222,15 +244,21 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		)
 	})
 
-	it("discards held follow-ups when the task cancels its checkpoint transition", () => {
+	it("discards held follow-ups when the task cancels its checkpoint transition", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
-		const { coordinator } = makeCoordinator({ activeSession })
+		const { coordinator, options } = makeCoordinator({ activeSession })
 
 		coordinator.handleCheckpointsSettingChanged(false, true)
-		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "cancelled")).toBe(true)
-		coordinator.cancelPendingCheckpointFollowUps()
+		await expect(
+			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "cancelled" }),
+		).resolves.toBe("deferred")
+		await coordinator.handlePendingRebuilds({ type: "cancel" })
+		expect(options.rebuilds.cancel).toHaveBeenCalledWith("checkpoints")
+		expect(options.rebuilds.waitUntilSettled).toHaveBeenCalledWith("checkpoints")
 
-		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "too late")).toBe(false)
+		await expect(
+			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "too late" }),
+		).resolves.toBe("ready")
 	})
 
 	it("stops a replacement invalidated while it was starting", async () => {
@@ -262,7 +290,51 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 
 		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("cancelledSessionConfigChange")
 		expect(replacementHost.send).not.toHaveBeenCalled()
-		expect(coordinator.deferFollowUpForCheckpointRebuild(activeSession, "after cancellation")).toBe(false)
+		await expect(
+			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "after cancellation" }),
+		).resolves.toBe("ready")
+	})
+
+	it("does not clear a newer transition when an older replacement is invalidated", async () => {
+		const activeSession = makeActiveSession()
+		const replacementSession = makeActiveSession()
+		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
+		let olderRebuildIsCurrent = true
+		let resolveReplacement: (() => void) | undefined
+		options.sessions.replaceActiveSession.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveReplacement = () =>
+						resolve({
+							startResult: replacementStartResult,
+							sdkHost: replacementHost,
+						})
+				}),
+		)
+
+		coordinator.handleCheckpointsSettingChanged(true, false)
+		const olderRestart = runScheduledRebuild(() => olderRebuildIsCurrent)
+		await waitFor(() => resolveReplacement !== undefined)
+		await coordinator.handlePendingRebuilds({ type: "cancel" })
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		await expect(
+			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "newer follow-up" }),
+		).resolves.toBe("deferred")
+		olderRebuildIsCurrent = false
+		options.sessions.getActiveSession.mockReturnValue(replacementSession)
+		resolveReplacement?.()
+		await olderRestart
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
+
+		await runScheduledRebuild()
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementHost,
+			"new-session",
+			"newer follow-up",
+			undefined,
+			undefined,
+		)
 	})
 })
 
@@ -296,22 +368,25 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		waitForModeRebuild: vi.fn().mockResolvedValue(undefined),
 		rebuilds: {
 			request: vi.fn((_reason: string, rebuild: (context: SessionRebuildContext) => Promise<void>) =>
 				scheduled.push(rebuild),
 			),
+			cancel: vi.fn(),
+			waitUntilSettled: vi.fn().mockResolvedValue(undefined),
 		},
 	} as unknown as TestOptions
 
 	return {
 		coordinator: new SdkSessionConfigChangeCoordinator(options),
 		options,
-		runScheduledRebuild: () => {
+		runScheduledRebuild: (isCurrent: () => boolean = () => rebuildIsCurrent) => {
 			const rebuild = scheduled.shift()
 			if (!rebuild) {
 				throw new Error("No session rebuild was scheduled")
 			}
-			return rebuild({ isCurrent: () => rebuildIsCurrent })
+			return rebuild({ isCurrent })
 		},
 		invalidateRebuild: () => {
 			rebuildIsCurrent = false
@@ -342,7 +417,12 @@ type TestOptions = SdkSessionConfigChangeCoordinatorOptions & {
 	loadInitialMessages: ReturnType<typeof vi.fn>
 	buildStartSessionInput: ReturnType<typeof vi.fn>
 	postStateToWebview: ReturnType<typeof vi.fn>
-	rebuilds: { request: ReturnType<typeof vi.fn> }
+	waitForModeRebuild: ReturnType<typeof vi.fn>
+	rebuilds: {
+		request: ReturnType<typeof vi.fn>
+		cancel: ReturnType<typeof vi.fn>
+		waitUntilSettled: ReturnType<typeof vi.fn>
+	}
 }
 
 function makeActiveSession(overrides: Partial<{ isRunning: boolean }> = {}) {
