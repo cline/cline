@@ -68,7 +68,7 @@ describe("auto-approve settings after New Task (#13260)", () => {
 			resetMessageTranslator: () => {},
 			postStateToWebview,
 			clearTaskSettings: () => stateManager.clearTaskSettings(),
-			handlePendingRebuilds: async () => "ready",
+			rebuilds: { runTaskTransition: async <T>(operation: () => Promise<T>) => operation() },
 			setTurnPhase: () => {},
 		} as unknown as SdkTaskControlCoordinatorOptions)
 

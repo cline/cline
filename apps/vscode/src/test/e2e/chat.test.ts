@@ -94,7 +94,7 @@ e2e.describe("Checkpoint settings", () => {
 
 		await inputbox.fill("follow-up without checkpoints")
 		await sidebar.getByTestId("send-button").click()
-		await expect(sidebar.getByText("mock Cline API response").last()).toBeVisible({ timeout: 30_000 })
+		await expect(sidebar.getByText("mock Cline API response")).toHaveCount(2, { timeout: 30_000 })
 
 		await sidebar
 			.locator('[title="Edit and regenerate from here"]')
