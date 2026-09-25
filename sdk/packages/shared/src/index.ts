@@ -330,6 +330,7 @@ export {
 	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatMcpToolsUpdatedNotice,
 	formatModeSwitchNotice,
 	formatSessionSearchPreview,
 	formatSessionSearchTitle,
@@ -341,6 +342,7 @@ export {
 	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
 	SESSION_SEARCH_TITLE_MAX_LENGTH,
 	stripModeNotices,
+	summarizeConnectedMcpTools,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
