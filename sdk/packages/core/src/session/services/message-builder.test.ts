@@ -2251,3 +2251,203 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(serializedBlockAt(result, 2)).toContain("export const x = 1;");
 	});
 });
+
+describe("MessageBuilder read-result footer honesty", () => {
+	const FOOTER_GUIDANCE = "Use start_line/end_line to read other sections.";
+	const SPLIT_FOOTER_PATTERN =
+		/\[Showing lines (\d+)-(\d+) and (\d+)-(\d+) of ([^.\]]+); lines (\d+)-(\d+) were omitted to fit the request budget\. Use start_line\/end_line to read other sections\.\]$/;
+
+	/**
+	 * Mirrors what `createFileReadExecutor` returns for a windowed read: a
+	 * line-number-prefixed body plus a footer stating the captured range.
+	 */
+	function numberedReadResult(
+		capturedLines: number,
+		totalLines: number,
+	): string {
+		const width = String(capturedLines).length;
+		const body = Array.from({ length: capturedLines }, (_, index) => {
+			const lineNumber = index + 1;
+			return `${String(lineNumber).padStart(width, " ")} | ${"x".repeat(96)} ${lineNumber}`;
+		}).join("\n");
+		return `${body}\n\n[Showing lines 1-${capturedLines} of ${totalLines}. ${FOOTER_GUIDANCE}]`;
+	}
+
+	function unnumberedReadResult(
+		capturedLines: number,
+		totalLines: number,
+	): string {
+		const body = Array.from(
+			{ length: capturedLines },
+			(_, index) => `${"y".repeat(96)} ${index + 1}`,
+		).join("\n");
+		return `${body}\n\n[Showing lines 1-${capturedLines} of ${totalLines}. ${FOOTER_GUIDANCE}]`;
+	}
+
+	function readFilesMessages(content: string, path = "/repo/src/big.ts") {
+		return [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_read",
+						name: "read_files",
+						input: { files: [{ path }] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call_read",
+						name: "read_files",
+						content: [
+							{ query: path, result: content, success: true },
+						] as unknown as ToolResultContent["content"],
+					},
+				],
+			},
+		] satisfies Message[];
+	}
+
+	function readResultText(messages: Message[]): string {
+		const block = Array.isArray(messages[1]?.content)
+			? messages[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || typeof block.content === "string") {
+			throw new Error("expected structured tool_result");
+		}
+		const operation = block.content[0] as { result?: unknown };
+		if (typeof operation.result !== "string") {
+			throw new Error("expected string result");
+		}
+		return operation.result;
+	}
+
+	/** Line numbers the surviving excerpt still exposes via their `N | ` prefix. */
+	function survivingLineNumbers(text: string): number[] {
+		return text
+			.split("\n")
+			.map((line) => /^\s*(\d+) \| /.exec(line))
+			.filter((match): match is RegExpExecArray => match !== null)
+			.map((match) => Number(match[1]));
+	}
+
+	function range(from: number, to: number): number[] {
+		return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+	}
+
+	it("does not leave a read footer claiming a contiguous range it no longer covers", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
+		const original = numberedReadResult(424, 1_500);
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(original)),
+		);
+
+		expect(original.length).toBeGreaterThan(40_000);
+		expect(output).toContain("...[truncated");
+		// The pre-truncation footer asserted lines 1-424 were all present.
+		expect(output).not.toContain(
+			`[Showing lines 1-424 of 1500. ${FOOTER_GUIDANCE}]`,
+		);
+		expect(output).toMatch(SPLIT_FOOTER_PATTERN);
+	});
+
+	it("rewrites the read footer to the ranges that actually survived", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(numberedReadResult(424, 1_500))),
+		);
+
+		const match = SPLIT_FOOTER_PATTERN.exec(output);
+		if (!match) {
+			throw new Error(`footer was not rewritten: ${output.slice(-300)}`);
+		}
+		const [, headStart, headEnd, tailStart, tailEnd, total, omitFrom, omitTo] =
+			match.map(String);
+		expect(Number(headStart)).toBe(1);
+		expect(Number(tailEnd)).toBe(424);
+		expect(total).toBe("1500");
+		expect(Number(omitFrom)).toBe(Number(headEnd) + 1);
+		expect(Number(omitTo)).toBe(Number(tailStart) - 1);
+
+		const surviving = survivingLineNumbers(output);
+		expect(surviving).toEqual([
+			...range(Number(headStart), Number(headEnd)),
+			...range(Number(tailStart), Number(tailEnd)),
+		]);
+	});
+
+	it("cuts on line boundaries so every surviving read line keeps its number", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(numberedReadResult(424, 1_500))),
+		);
+
+		const [head, tail] = output.split("...\n\n");
+		const bodyLines = [
+			...head.split("\n\n...[truncated")[0].split("\n"),
+			...tail.split("\n\n[Showing lines")[0].split("\n"),
+		];
+		for (const line of bodyLines) {
+			expect(line).toMatch(/^\s*\d+ \| x{96} \d+$/);
+		}
+	});
+
+	it("keeps the rewritten footer inside the per-result character cap", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(numberedReadResult(424, 1_500))),
+		);
+
+		expect(output.length).toBeLessThanOrEqual(4_000);
+	});
+
+	it("repairs the read footer when the aggregate byte budget forces the cut", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 60_000,
+			maxTotalTextBytes: 6_000,
+		});
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(numberedReadResult(424, 1_500))),
+		);
+
+		expect(Buffer.byteLength(output, "utf8")).toBeLessThanOrEqual(6_000);
+		expect(output).toContain("provider request budget");
+		expect(output).not.toContain(
+			`[Showing lines 1-424 of 1500. ${FOOTER_GUIDANCE}]`,
+		);
+		expect(output).toMatch(SPLIT_FOOTER_PATTERN);
+	});
+
+	it("falls back to a non-contiguous notice when the read output has no line numbers", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(unnumberedReadResult(424, 1_500))),
+		);
+
+		expect(output).not.toContain(
+			`[Showing lines 1-424 of 1500. ${FOOTER_GUIDANCE}]`,
+		);
+		expect(output).toContain(
+			`[Showing a non-contiguous excerpt: an interior section was omitted to fit the request budget. ${FOOTER_GUIDANCE}]`,
+		);
+		expect(output.length).toBeLessThanOrEqual(4_000);
+	});
+
+	it("leaves the footer verbatim when the read result fits without truncation", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 60_000 });
+		const original = numberedReadResult(80, 1_500);
+		const output = readResultText(
+			builder.buildForApi(readFilesMessages(original)),
+		);
+
+		expect(output).toBe(original);
+		expect(output).toContain(
+			`[Showing lines 1-80 of 1500. ${FOOTER_GUIDANCE}]`,
+		);
+	});
+});
