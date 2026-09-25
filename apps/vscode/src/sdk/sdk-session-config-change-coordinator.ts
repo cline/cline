@@ -1,4 +1,3 @@
-import type { StartSessionResult } from "@cline/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -163,8 +162,14 @@ export class SdkSessionConfigChangeCoordinator {
 			// Rebuilds may preserve the session ID, so identity is the only reliable
 			// way to detect that another path replaced this session while we awaited.
 			const currentSession = this.options.sessions.getActiveSession()
-			if (!currentSession || !context.isCurrent()) {
-				Logger.log(`[SdkController] Active session changed during configuration restart (was ${oldSessionId}); aborting`)
+			if (!currentSession) {
+				Logger.log(`[SdkController] Active session ended during configuration restart (was ${oldSessionId}); aborting`)
+				return
+			}
+			// A newer change for the same reason runs next and shares any held
+			// follow-ups, so this stale configuration must not be installed.
+			if (!context.isCurrent()) {
+				Logger.log(`[SdkController] Configuration restart superseded before replacing ${oldSessionId}; aborting`)
 				return
 			}
 			if (currentSession !== activeSession || currentSession.isRunning) {
@@ -192,34 +197,26 @@ export class SdkSessionConfigChangeCoordinator {
 			}
 
 			const { startResult, sdkHost } = restartResult
-			if (!context.isCurrent()) {
-				if (details.reason === "checkpoints" && this.checkpointTransition === checkpointTransition) {
-					this.checkpointTransition = undefined
-				}
-				await this.stopReplacementIfCurrent(sdkHost, startResult, checkpointTransition)
-				return
-			}
 			if (startResult.sessionId !== oldSessionId) {
 				Logger.warn(
 					`[SdkController] Configuration restart returned a new session ID (${startResult.sessionId}); preserving task ID ${oldSessionId} for UI continuity`,
 				)
 			}
 
-			const deferredFollowUps =
-				details.reason === "checkpoints" && this.checkpointTransition === checkpointTransition
-					? (checkpointTransition?.followUps ?? [])
-					: []
-			if (details.reason === "checkpoints" && this.checkpointTransition === checkpointTransition) {
+			// The replacement is live from here on. Prompts Core had already
+			// queued belong to it and replay now. A change that arrived while the
+			// session was being replaced rebuilds again from this replacement, so
+			// held follow-ups stay with the transition until that newer rebuild.
+			const ownsFollowUps =
+				details.reason === "checkpoints" && this.checkpointTransition === checkpointTransition && context.isCurrent()
+			const deferredFollowUps = ownsFollowUps ? (checkpointTransition?.followUps ?? []) : []
+			if (ownsFollowUps) {
 				this.checkpointTransition = undefined
 			}
 			const replayPrompts = [...pendingPrompts, ...deferredFollowUps]
 			const nextPrompt = replayPrompts[0]
 			const remainingPrompts = replayPrompts.slice(1)
 			if (nextPrompt) {
-				if (!context.isCurrent()) {
-					await this.stopReplacementIfCurrent(sdkHost, startResult, checkpointTransition)
-					return
-				}
 				this.options.sessions.setRunning(true)
 				this.options.sessions.fireAndForgetSend(
 					sdkHost,
@@ -234,10 +231,6 @@ export class SdkSessionConfigChangeCoordinator {
 				...remainingPrompts.filter((prompt) => prompt.delivery === "steer").reverse(),
 			]
 			for (const pendingPrompt of replayOrder) {
-				if (!context.isCurrent()) {
-					await this.stopReplacementIfCurrent(sdkHost, startResult, checkpointTransition)
-					return
-				}
 				await sdkHost.send({
 					sessionId: startResult.sessionId,
 					prompt: pendingPrompt.prompt,
@@ -269,7 +262,8 @@ export class SdkSessionConfigChangeCoordinator {
 				type: "status",
 				payload: { sessionId: oldSessionId, status: "error" },
 			})
-			if (details.reason === "checkpoints") {
+			// A superseded rebuild leaves held follow-ups to the newer one.
+			if (details.reason === "checkpoints" && context.isCurrent()) {
 				this.releaseDeferredFollowUpsToCurrentSession(activeSession, checkpointTransition)
 			}
 			await this.options.postStateToWebview()
@@ -312,24 +306,6 @@ export class SdkSessionConfigChangeCoordinator {
 				pendingPrompt.userFiles,
 				pendingPrompt.delivery,
 			)
-		}
-	}
-
-	private async stopReplacementIfCurrent(
-		sdkHost: SdkSessionHost,
-		startResult: StartSessionResult,
-		checkpointTransition: CheckpointTransition | undefined,
-	): Promise<void> {
-		if (
-			checkpointTransition &&
-			this.checkpointTransition !== undefined &&
-			this.checkpointTransition !== checkpointTransition
-		) {
-			return
-		}
-		const replacement = this.options.sessions.getActiveSession()
-		if (replacement?.sdkHost === sdkHost && replacement.startResult === startResult) {
-			await this.options.sessions.endActiveSession("cancelledSessionConfigChange")
 		}
 	}
 }

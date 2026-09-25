@@ -254,7 +254,44 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		).resolves.toBe("ready")
 	})
 
-	it("stops a replacement invalidated while it was starting", async () => {
+	it("does not replace the session when superseded before replacement", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options, runScheduledRebuild, invalidateRebuild } = makeCoordinator({ activeSession })
+		let resolveBuild: (() => void) | undefined
+		options.sessionConfigBuilder.build.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveBuild = () => resolve({ providerId: "anthropic", modelId: "claude", apiKey: "key" })
+				}),
+		)
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		await expect(coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "held" })).resolves.toBe(
+			"deferred",
+		)
+		const olderRestart = runScheduledRebuild()
+		await waitFor(() => resolveBuild !== undefined)
+		coordinator.handleCheckpointsSettingChanged(true, false)
+		invalidateRebuild()
+		resolveBuild?.()
+		await olderRestart
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+
+		await runScheduledRebuild(() => true)
+
+		expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementHost,
+			"new-session",
+			"held",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("leaves held follow-ups to the newer rebuild when superseded after replacement", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, runScheduledRebuild, invalidateRebuild } = makeCoordinator({ activeSession })
 		let resolveReplacement: (() => void) | undefined
@@ -269,63 +306,67 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 				}),
 		)
 
-		coordinator.handleCheckpointsSettingChanged(true, false)
-		const restart = runScheduledRebuild()
-		await waitFor(() => resolveReplacement !== undefined)
-		invalidateRebuild()
-		options.sessions.getActiveSession.mockReturnValue({
-			...makeActiveSession(),
-			sdkHost: replacementHost,
-			startResult: replacementStartResult,
-		})
-		resolveReplacement?.()
-		await restart
-
-		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("cancelledSessionConfigChange")
-		expect(replacementHost.send).not.toHaveBeenCalled()
-		await expect(
-			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "after cancellation" }),
-		).resolves.toBe("ready")
-	})
-
-	it("does not clear a newer transition when an older replacement is invalidated", async () => {
-		const activeSession = makeActiveSession()
-		const replacementSession = makeActiveSession()
-		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
-		let olderRebuildIsCurrent = true
-		let resolveReplacement: (() => void) | undefined
-		options.sessions.replaceActiveSession.mockImplementationOnce(
-			() =>
-				new Promise((resolve) => {
-					resolveReplacement = () =>
-						resolve({
-							startResult: replacementStartResult,
-							sdkHost: replacementHost,
-						})
-				}),
-		)
-
-		coordinator.handleCheckpointsSettingChanged(true, false)
-		const olderRestart = runScheduledRebuild(() => olderRebuildIsCurrent)
-		await waitFor(() => resolveReplacement !== undefined)
-		const cancelOlderTransition = options.rebuilds.request.mock.calls[0][2]
-		cancelOlderTransition?.()
 		coordinator.handleCheckpointsSettingChanged(false, true)
-		await expect(
-			coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "newer follow-up" }),
-		).resolves.toBe("deferred")
-		olderRebuildIsCurrent = false
+		await expect(coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "held" })).resolves.toBe(
+			"deferred",
+		)
+		const olderRestart = runScheduledRebuild()
+		await waitFor(() => resolveReplacement !== undefined)
+		coordinator.handleCheckpointsSettingChanged(true, false)
+		invalidateRebuild()
+		const replacementSession = {
+			...makeActiveSession(),
+			sessionId: "new-session",
+			sdkHost: { ...replacementHost, readMessages: vi.fn(), pendingPrompts: vi.fn().mockResolvedValue([]) },
+			startResult: replacementStartResult,
+		}
 		options.sessions.getActiveSession.mockReturnValue(replacementSession)
 		resolveReplacement?.()
 		await olderRestart
-		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
 
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.messages.emitSessionEvents).toHaveBeenLastCalledWith([], {
+			type: "status",
+			payload: { sessionId: "new-session", status: "idle" },
+		})
+
+		await runScheduledRebuild(() => true)
+
+		expect(options.sessions.replaceActiveSession).toHaveBeenLastCalledWith(
+			expect.objectContaining({ expectedSession: replacementSession }),
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementHost,
+			"new-session",
+			"held",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("leaves held follow-ups to the newer rebuild when a superseded rebuild fails", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options, runScheduledRebuild, invalidateRebuild } = makeCoordinator({ activeSession })
+		options.sessionConfigBuilder.build.mockRejectedValueOnce(new Error("config failed"))
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		await expect(coordinator.handlePendingRebuilds({ type: "defer", session: activeSession, prompt: "held" })).resolves.toBe(
+			"deferred",
+		)
+		coordinator.handleCheckpointsSettingChanged(true, false)
+		invalidateRebuild()
 		await runScheduledRebuild()
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+
+		await runScheduledRebuild(() => true)
 
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			replacementHost,
 			"new-session",
-			"newer follow-up",
+			"held",
 			undefined,
 			undefined,
 		)

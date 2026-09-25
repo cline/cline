@@ -8,48 +8,42 @@ export interface SdkSessionRebuildSchedulerOptions {
 }
 
 export interface SessionRebuildContext {
+	/**
+	 * True until a newer request for the same reason arrives. A superseded
+	 * rebuild should stop before replacing the session, or leave work it has
+	 * not yet started to the newer rebuild, which runs next in the same drain.
+	 */
 	isCurrent: () => boolean
 }
 
 interface ScheduledRebuild {
 	run: (context: SessionRebuildContext) => Promise<void>
 	onCancel?: () => void
+	generation: number
 }
 
 /** Serializes passive session rebuilds and drains them only while the session is idle. */
 export class SdkSessionRebuildScheduler {
 	private readonly pending = new Map<SessionRebuildReason, ScheduledRebuild>()
 	private drainInFlight: Promise<void> | undefined
-	private activeReason: SessionRebuildReason | undefined
-	private activeRebuild: ScheduledRebuild | undefined
-	private settledWaiters: Array<{ reason?: SessionRebuildReason; resolve: () => void }> = []
-	private readonly cancellationGeneration = new Map<SessionRebuildReason, number>()
+	private readonly latestGeneration = new Map<SessionRebuildReason, number>()
 
 	constructor(private readonly options: SdkSessionRebuildSchedulerOptions) {}
 
+	/**
+	 * Queues a rebuild, replacing any queued rebuild for the same reason. A
+	 * rebuild for the same reason that is already running is superseded: its
+	 * context.isCurrent() turns false and this request runs after it.
+	 */
 	request(reason: SessionRebuildReason, run: (context: SessionRebuildContext) => Promise<void>, onCancel?: () => void): void {
 		const previous = this.pending.get(reason)
 		if (previous?.onCancel !== onCancel) {
 			previous?.onCancel?.()
 		}
-		this.pending.set(reason, { run, onCancel })
+		const generation = (this.latestGeneration.get(reason) ?? 0) + 1
+		this.latestGeneration.set(reason, generation)
+		this.pending.set(reason, { run, onCancel, generation })
 		this.drainIfIdle()
-	}
-
-	cancel(reason: SessionRebuildReason): void {
-		this.cancellationGeneration.set(reason, (this.cancellationGeneration.get(reason) ?? 0) + 1)
-		this.pending.get(reason)?.onCancel?.()
-		this.pending.delete(reason)
-		if (this.activeReason === reason) {
-			this.activeRebuild?.onCancel?.()
-		}
-		this.resolveSettledWaitersIfSettled()
-	}
-
-	hasPendingRebuild(reason?: SessionRebuildReason): boolean {
-		return reason
-			? this.pending.has(reason) || this.activeReason === reason
-			: this.pending.size > 0 || this.drainInFlight !== undefined
 	}
 
 	async runExclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -69,7 +63,6 @@ export class SdkSessionRebuildScheduler {
 				this.drainInFlight = undefined
 			}
 			this.drainIfIdle()
-			this.resolveSettledWaitersIfSettled()
 		}
 	}
 
@@ -88,13 +81,6 @@ export class SdkSessionRebuildScheduler {
 
 	sessionBecameIdle(): void {
 		this.drainIfIdle()
-	}
-
-	async waitUntilSettled(reason?: SessionRebuildReason): Promise<void> {
-		if (!this.hasPendingRebuild(reason)) {
-			return
-		}
-		await new Promise<void>((resolve) => this.settledWaiters.push({ reason, resolve }))
 	}
 
 	private drainIfIdle(): void {
@@ -120,18 +106,11 @@ export class SdkSessionRebuildScheduler {
 				}
 				const [reason, rebuild] = next
 				this.pending.delete(reason)
-				const generation = this.cancellationGeneration.get(reason) ?? 0
-				this.activeReason = reason
-				this.activeRebuild = rebuild
 
 				try {
-					await rebuild.run({ isCurrent: () => generation === (this.cancellationGeneration.get(reason) ?? 0) })
+					await rebuild.run({ isCurrent: () => rebuild.generation === this.latestGeneration.get(reason) })
 				} catch (error) {
 					Logger.error(`[SdkController] Failed scheduled ${reason} session rebuild:`, error)
-				} finally {
-					this.activeReason = undefined
-					this.activeRebuild = undefined
-					this.resolveSettledWaitersIfSettled()
 				}
 			}
 		}
@@ -139,25 +118,13 @@ export class SdkSessionRebuildScheduler {
 		this.drainInFlight = drain().finally(() => {
 			this.drainInFlight = undefined
 			this.drainIfIdle()
-			this.resolveSettledWaitersIfSettled()
 		})
 	}
 
 	private cancelPending(): void {
-		for (const reason of [...this.pending.keys()]) {
-			this.cancel(reason)
+		for (const rebuild of this.pending.values()) {
+			rebuild.onCancel?.()
 		}
-	}
-
-	private resolveSettledWaitersIfSettled(): void {
-		const remaining: typeof this.settledWaiters = []
-		for (const waiter of this.settledWaiters) {
-			if (this.hasPendingRebuild(waiter.reason)) {
-				remaining.push(waiter)
-			} else {
-				waiter.resolve()
-			}
-		}
-		this.settledWaiters = remaining
+		this.pending.clear()
 	}
 }
