@@ -1,66 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { formatToolResultRecoveryNotice } from "./tool-result-recovery";
+import { annotateToolResultTruncation } from "./tool-result-recovery";
 
-describe("tool result recovery guidance", () => {
-	it("identifies omitted lines and gives an inclusive, bounded read request", () => {
+describe("tool result truncation line markers", () => {
+	it("places file line coordinates inside the truncation marker", () => {
 		const middle = Array.from({ length: 50 }, (_, i) => `line ${i + 2}`).join(
 			"\n",
 		);
-		const notice = formatToolResultRecoveryNotice(
-			"/session/tools/call.result.txt",
+		const preview = annotateToolResultTruncation(
 			`first\n${middle}\nlast`,
-			"first\n[truncated]\nlast",
+			"first\n...[truncated 300 chars]...\nlast",
 		);
-		expect(notice).toContain("saved-file lines 2-51");
-		expect(notice).toContain('"start_line":2,"end_line":21');
-		expect(notice).toContain("Search this file");
-		expect(notice).toContain(
-			"Reading the whole file or very long lines may be truncated again",
+		expect(preview).toBe(
+			"first\n...[truncated 300 chars; omitted content within saved-file lines 2-51]...\nlast",
 		);
 	});
 
 	it("includes partially retained boundary lines", () => {
-		const notice = formatToolResultRecoveryNotice(
-			"/result.txt",
-			"first\nprefix OMITTED suffix\nlast",
-			"first\nprefix [truncated] suffix\nlast",
-		);
-		expect(notice).toContain("saved-file lines 2-2");
-		expect(notice).toContain('"start_line":2,"end_line":2');
+		expect(
+			annotateToolResultTruncation(
+				"first\nprefix OMITTED suffix\nlast",
+				"first\nprefix ...[truncated 7 chars]... suffix\nlast",
+			),
+		).toContain("saved-file lines 2-2");
 	});
 
-	it("uses saved JSON file lines rather than escaped embedded newlines", () => {
-		const notice = formatToolResultRecoveryNotice(
-			"/result.txt",
+	it("uses saved JSON lines instead of escaped embedded newlines", () => {
+		const preview = annotateToolResultTruncation(
 			[{ type: "text", text: "first\nmissing\nlast" }],
-			[{ type: "text", text: "first\n[truncated]\nlast" }],
+			[{ type: "text", text: "first\n...[truncated 7 chars]...\nlast" }],
 		);
-		expect(notice).toContain("saved-file lines 4-4");
-		expect(notice).toContain("selected JSON fields");
+		expect(JSON.stringify(preview)).toContain("saved-file lines 4-4");
 	});
 
-	it("encloses independent omissions without claiming every line was removed", () => {
-		const notice = formatToolResultRecoveryNotice(
-			"/result.txt",
-			"first\none\nretained\ntwo\nlast",
-			"first\n[truncated]\nretained\n[truncated]\nlast",
+	it("encloses multiple omissions after aggregate budgeting without mutating input", () => {
+		const original = "first\none\nretained\ntwo\nlast";
+		const preview =
+			"first\n...[truncated 3 chars]...\nretained\n...[truncated 3 chars to fit provider request budget]...\nlast";
+		const annotated = annotateToolResultTruncation(original, preview);
+		expect(annotated).toContain(
+			"truncated 3 chars; omitted content within saved-file lines 2-4",
 		);
-		expect(notice).toContain("saved-file lines 2-4");
-		expect(notice).toContain("this range may also include retained content");
-	});
-
-	it("handles a single long line and escapes paths in the read example", () => {
-		const notice = formatToolResultRecoveryNotice(
-			'/a"b.txt',
-			"a".repeat(10000),
-			"aaa[truncated]aaa",
+		expect(annotated).toContain(
+			"provider request budget; omitted content within saved-file lines 2-4",
 		);
-		expect(notice).toContain("saved-file lines 1-1");
-		expect(notice).toContain(
-			JSON.stringify({
-				files: [{ path: '/a"b.txt', start_line: 1, end_line: 1 }],
-			}),
-		);
-		expect(notice).toContain("extract bounded text");
+		expect(preview).not.toContain("saved-file");
 	});
 });

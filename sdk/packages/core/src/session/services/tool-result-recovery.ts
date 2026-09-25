@@ -9,11 +9,10 @@ export function serializeToolResultContent(
 		: JSON.stringify(content, null, 2);
 }
 
-export function formatToolResultRecoveryNotice(
-	path: string,
+export function annotateToolResultTruncation(
 	original: ToolResultContent["content"],
 	preview: ToolResultContent["content"],
-): string {
+): ToolResultContent["content"] {
 	const full = serializeToolResultContent(original);
 	const shortened = serializeToolResultContent(preview);
 	let start = 0;
@@ -43,14 +42,23 @@ export function formatToolResultRecoveryNotice(
 		if (index < start) startLine++;
 		if (index < end - 1) endLine++;
 	}
-	const readInput = JSON.stringify({
-		files: [
-			{
-				path,
-				start_line: startLine,
-				end_line: Math.min(startLine + 19, endLine),
-			},
-		],
-	});
-	return `\n\nFull tool result saved to: ${path}\nOmitted content is within saved-file lines ${startLine}-${endLine} (1-based, inclusive; this range may also include retained content).\nSearch this file for specific terms, or read small line ranges with read_files; start with ${readInput} and page through the range as needed.\nReading the whole file or very long lines may be truncated again. Narrow the range, or use run_commands to extract bounded text or selected JSON fields from long lines.`;
+	const annotate = (value: unknown): unknown => {
+		if (typeof value === "string") {
+			return value.replace(
+				/\.\.\.\[truncated (\d+ chars(?: to fit provider request budget)?)\]\.\.\./g,
+				(_marker, detail: string) =>
+					`...[truncated ${detail}; omitted content within saved-file lines ${startLine}-${endLine}]...`,
+			);
+		}
+		if (Array.isArray(value)) return value.map(annotate);
+		if (value !== null && typeof value === "object") {
+			// Do not rewrite binary image data.
+			if ((value as { type?: string }).type === "image") return value;
+			return Object.fromEntries(
+				Object.entries(value).map(([key, entry]) => [key, annotate(entry)]),
+			);
+		}
+		return value;
+	};
+	return annotate(preview) as ToolResultContent["content"];
 }

@@ -26,7 +26,7 @@ import {
 } from "@cline/shared";
 
 import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
-import { formatToolResultRecoveryNotice } from "./tool-result-recovery";
+import { annotateToolResultTruncation } from "./tool-result-recovery";
 
 const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
 
@@ -252,20 +252,20 @@ export class MessageBuilder {
 						try {
 							const path = await storeToolResult(full);
 							// Append after every budget pass so the recovery path cannot be truncated.
-							const notice = formatToolResultRecoveryNotice(
-								path,
+							const preview = annotateToolResultTruncation(
 								full.content,
 								block.content,
 							);
+							const notice = `Full result saved to ${path} for search.`;
+							// Provider-only metadata: never append to persisted history/UI events.
 							return {
 								...block,
-								content:
-									typeof block.content === "string"
-										? block.content + notice
-										: [
-												...block.content,
-												{ type: "text" as const, text: notice },
-											],
+								content: [
+									...(typeof preview === "string"
+										? [{ type: "text" as const, text: preview }]
+										: preview),
+									{ type: "text" as const, text: notice },
+								],
 							};
 						} catch {
 							// A failed write must never turn a one-shot external response into data loss.

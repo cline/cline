@@ -64,8 +64,11 @@ describe("recoverable external tool results", () => {
 		});
 		const prepared = await builder.buildForApi(messages);
 		const path = join(directory, "session_1", "tools", "call_1.result.txt");
-		expect(output(prepared).content).toContain(path);
-		expect(output(prepared).content).toContain("truncated");
+		expect(output(prepared).content).toContainEqual({
+			type: "text",
+			text: `Full result saved to ${path} for search.`,
+		});
+		expect(JSON.stringify(output(prepared).content)).toContain("truncated");
 		expect(await readFile(path, "utf8")).toBe(block.content);
 		expect(output(messages)).toEqual(block);
 		const roundTrip = agentMessagesToMessages(
