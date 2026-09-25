@@ -103,7 +103,7 @@ const originalProxyEnv = new Map(
 );
 
 function clearProxyEnv(): void {
-	for (const key of PROXY_ENV_KEYS) delete process.env[key];
+	for (const key of PROXY_ENV_KEYS) process.env[key] = "";
 }
 
 function agentProxyUrl(agent: SocketOptions["agent"]): string | undefined {
