@@ -195,6 +195,12 @@ export class HookProcess extends EventEmitter {
 						})
 
 						let didEmitEmptyLine = false
+						// Set when delivering the input failed (see the stdin "error"
+						// listener below); appended to failure messages so a hook that
+						// never read its input is diagnosable from the error alone.
+						let inputFailure: string | undefined
+						const withInputFailure = (message: string) =>
+							inputFailure ? `${message} The hook stopped reading its input before it was fully delivered (${inputFailure}).` : message
 
 						// Set up timeout
 						this.timeoutHandle = setTimeout(() => {
@@ -202,7 +208,9 @@ export class HookProcess extends EventEmitter {
 								this.childProcess.kill("SIGTERM")
 								reject(
 									new Error(
-										`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
+										withInputFailure(
+											`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
+										),
 									),
 								)
 							}
@@ -255,7 +263,7 @@ export class HookProcess extends EventEmitter {
 							if (code === 0) {
 								resolve()
 							} else {
-								reject(new Error(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`))
+								reject(new Error(withInputFailure(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`)))
 							}
 						})
 
@@ -281,6 +289,20 @@ export class HookProcess extends EventEmitter {
 								this.emit("error", spawnError)
 							}
 							reject(spawnError)
+						})
+
+						// A hook that exits (or closes stdin) before draining its input
+						// fails the still-pending write asynchronously with EPIPE (EOF on
+						// Windows). That surfaces on the stdin stream, not the child, so
+						// without a listener it escapes as an uncaught exception on the
+						// host process. It is deliberately not treated as a failure of the
+						// run: a hook is free to ignore its input, and a hook that exits 0
+						// without reading must still count as success. The "close" handler
+						// stays the single source of truth for the outcome; the failure is
+						// only recorded so timeout/exit errors can explain it.
+						this.childProcess.stdin?.on("error", (error) => {
+							inputFailure = error.message
+							Logger.debug(`Hook '${this.scriptPath}' stopped reading its input: ${error.message}`)
 						})
 
 						// Send input to the process
