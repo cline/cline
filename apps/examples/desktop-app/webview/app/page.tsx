@@ -945,7 +945,7 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("API Providers")
+												handleSettingsSectionChange("Providers")
 											}
 											onOpenAccountSettings={() =>
 												handleSettingsSectionChange("Account")
@@ -1654,6 +1654,22 @@ function ChatThreadPane({
 		},
 		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
+
+	// Let the sidecar load the workspace's plugin sandbox now so the slash
+	// menu lists plugin commands without paying the cold spawn on first open.
+	useEffect(() => {
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+		void desktopClient
+			.invoke("warm_plugin_commands", {
+				workspacePath: activeWorkspaceCwd,
+				environmentId,
+			})
+			.catch(() => {
+				// Best effort; the menu falls back to loading on open.
+			});
+	}, [activeWorkspaceCwd, environmentId]);
 
 	useEffect(() => {
 		void refreshGitBranch();
