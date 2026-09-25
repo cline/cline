@@ -12,6 +12,7 @@ const { invokeMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: invokeMock },
+	openExternalUrl: vi.fn(async () => {}),
 }));
 
 vi.mock("@/components/ui/scroll-area", () => ({
