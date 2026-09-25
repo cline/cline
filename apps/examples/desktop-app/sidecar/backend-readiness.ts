@@ -28,7 +28,11 @@ export class BackendInitialization {
 	constructor(
 		private readonly initialize: (signal: AbortSignal) => Promise<void>,
 		private readonly publish: (state: BackendReadiness) => void,
-		private readonly timeoutMs = 30_000,
+		private readonly options: {
+			timeoutMs?: number;
+			/** Receives the raw error; `publish` only ever sees a sanitized message. */
+			onFailure?: (error: unknown, state: BackendReadiness) => void;
+		} = {},
 	) {}
 
 	private update(state: BackendReadiness): void {
@@ -91,11 +95,11 @@ export class BackendInitialization {
 									? "Session service startup timed out. Retrying automatically..."
 									: "Session service startup timed out. Retry to reconnect.",
 						});
-				}, this.timeoutMs);
+				}, this.options.timeoutMs ?? 30_000);
 				await this.initialize(controller.signal);
 				controller.signal.throwIfAborted();
 				if (!this.stopped) this.update({ state: "ready", attempt });
-			} catch {
+			} catch (error) {
 				// Bootstrap errors can contain authenticated URLs or provider secrets.
 				// Publish a fixed actionable message rather than arbitrary error text.
 				if (!this.stopped && this.state.state !== "failed")
@@ -108,6 +112,7 @@ export class BackendInitialization {
 								? "Unable to start the session service. Retrying automatically..."
 								: "Unable to start the session service. Retry to reconnect; export diagnostics if the problem persists.",
 					});
+				if (!this.stopped) this.options.onFailure?.(error, this.state);
 				this.retryAt =
 					Date.now() + Math.min(1_000 * 2 ** Math.min(attempt - 1, 5), 30_000);
 			} finally {
