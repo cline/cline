@@ -166,3 +166,42 @@ it("captures native timeout diagnostics without a live sidecar and keeps them th
 		mocks.native = false;
 	}
 });
+
+it("collects a failure retained across an automatic restart even after transport reconnects", async () => {
+	mocks.native = true;
+	mocks.subscribe.mockImplementation(() => () => {});
+	mocks.invoke.mockImplementation(async (command) =>
+		command === "get_desktop_backend_status"
+			? {
+					state: "ready",
+					attempt: 2,
+					elapsedMs: 10,
+					diagnostics: [],
+					error: null,
+					exitStatus: null,
+					failures: [
+						{
+							attempt: 1,
+							timestampMs: 1000,
+							elapsedMs: 50,
+							error: null,
+							exitStatus: "exit status: 7",
+							diagnostics: ["Missing dependency"],
+						},
+					],
+				}
+			: { state: "ready", attempt: 1 },
+	);
+	try {
+		await act(async () => root.render(<Probe />));
+		const report = JSON.parse(latest.diagnosticReport!);
+		expect(report.failures).toHaveLength(1);
+		expect(report.failures[0]).toMatchObject({
+			stage: "desktop_endpoint",
+			attempt: 1,
+			exitStatus: "exit status: 7",
+		});
+	} finally {
+		mocks.native = false;
+	}
+});

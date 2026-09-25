@@ -326,3 +326,5 @@ file paths are redacted before copy/export. Copy diagnostics uses the clipboard;
 Save report uses a native save dialog (or a browser download in web development).
 No report is uploaded automatically. The diagnostics control stays accessible
 after recovery, and retrying does not clear the captured report.
+
+Native startup failure history survives automatic respawns and manual retries. Reports retain the latest eight distinct failed attempts; updated diagnostic tails replace the same attempt instead of consuming another history slot. The webview also reads retained native failures after reconnecting, so failures between status polls remain available.

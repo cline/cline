@@ -9,11 +9,21 @@ import type {
 
 import {
 	buildStartupReport,
+	mergeStartupFailures,
 	type StartupFailureSnapshot,
 	sanitizeStartupLine,
 } from "@/lib/startup-diagnostics";
 
+type NativeStartupFailure = {
+	attempt: number;
+	timestampMs: number;
+	elapsedMs: number;
+	exitStatus: string | null;
+	error: string | null;
+	diagnostics: string[];
+};
 export type DesktopStartupStatus = {
+	failures: NativeStartupFailure[];
 	attempt: number;
 	elapsedMs: number;
 	state: "starting" | "ready" | "failed";
@@ -36,25 +46,46 @@ export function useDesktopReadiness() {
 	const hubEventRevision = useRef(0);
 	const startedAt = useRef(Date.now());
 	const [failures, setFailures] = useState<StartupFailureSnapshot[]>([]);
-	const lastSnapshot = useRef("");
+
 	useEffect(() => {
+		const snapshots: StartupFailureSnapshot[] = (startup?.failures ?? []).map(
+			(failure) => ({
+				at: new Date(failure.timestampMs).toISOString(),
+				stage: "desktop_endpoint",
+				attempt: failure.attempt,
+				elapsedMs: failure.elapsedMs,
+				code: "DESKTOP_ENDPOINT_UNAVAILABLE",
+				exitStatus: failure.exitStatus
+					? sanitizeStartupLine(failure.exitStatus)
+					: null,
+				diagnostics: [failure.error, ...failure.diagnostics]
+					.filter((line): line is string => !!line)
+					.slice(-32)
+					.map(sanitizeStartupLine),
+			}),
+		);
 		const failure = hub.lastFailure;
-		let snapshot: StartupFailureSnapshot | undefined;
 		if (transport === "connected" && (failure || hub.state === "failed")) {
-			snapshot = {
-				at: failure?.at ?? new Date().toISOString(),
+			snapshots.push({
+				at: failure?.at ?? new Date(startedAt.current).toISOString(),
 				stage: "hub",
 				elapsedMs: failure?.elapsedMs ?? Date.now() - startedAt.current,
 				attempt: failure?.attempt ?? hub.attempt,
 				step: failure?.stage ?? hub.step,
 				code: failure?.code ?? "INITIALIZATION_FAILED",
 				diagnostics: [],
-			};
-		} else if (
+			});
+		}
+		if (
 			transport !== "connected" &&
-			(startup?.state === "failed" || transport === "unavailable")
+			(startup?.state === "failed" || transport === "unavailable") &&
+			!snapshots.some(
+				(item) =>
+					item.stage === "desktop_endpoint" &&
+					item.attempt === startup?.attempt,
+			)
 		) {
-			snapshot = {
+			snapshots.push({
 				at: new Date().toISOString(),
 				stage: "desktop_endpoint",
 				elapsedMs: startup?.elapsedMs ?? Date.now() - startedAt.current,
@@ -67,21 +98,12 @@ export function useDesktopReadiness() {
 					.filter((line): line is string => !!line)
 					.slice(-32)
 					.map(sanitizeStartupLine),
-			};
+			});
 		}
-		if (!snapshot) return;
-		// Polling an unchanged failure must not evict earlier attempts. A changed
-		// diagnostic tail is retained, while retry/ready transitions never clear it.
-		const key = JSON.stringify({
-			...snapshot,
-			at: failure?.at,
-			elapsedMs: undefined,
-		});
-		if (key === lastSnapshot.current) return;
-		lastSnapshot.current = key;
-		const captured = snapshot;
-		setFailures((previous) => [...previous, captured].slice(-8));
+		if (snapshots.length)
+			setFailures((previous) => mergeStartupFailures(previous, snapshots));
 	}, [transport, startup, hub]);
+
 	const diagnosticReport = failures.length
 		? buildStartupReport(
 				failures,
@@ -100,7 +122,7 @@ export function useDesktopReadiness() {
 		[],
 	);
 	useEffect(() => {
-		if (!isTauriAvailable() || transport === "connected") return;
+		if (!isTauriAvailable()) return;
 		let cancelled = false;
 		let timer: ReturnType<typeof setTimeout>;
 		const poll = async () => {
@@ -113,6 +135,7 @@ export function useDesktopReadiness() {
 				if (!cancelled)
 					setStartup({
 						state: "failed",
+						failures: [],
 						attempt: 0,
 						elapsedMs: Date.now() - startedAt.current,
 						diagnostics: [],
@@ -120,7 +143,8 @@ export function useDesktopReadiness() {
 						error: String(error),
 					});
 			}
-			if (!cancelled) timer = setTimeout(poll, 1000);
+			if (!cancelled && transport !== "connected")
+				timer = setTimeout(poll, 1000);
 		};
 		void poll();
 		return () => {

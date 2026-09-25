@@ -83,3 +83,22 @@ export function buildStartupReport(
 		2,
 	);
 }
+
+// One entry per failed attempt. Updating a diagnostic tail must not consume
+// another history slot or move an old attempt ahead of more recent failures.
+export function mergeStartupFailures(
+	previous: StartupFailureSnapshot[],
+	incoming: StartupFailureSnapshot[],
+): StartupFailureSnapshot[] {
+	const result = [...previous];
+	const key = (item: StartupFailureSnapshot) =>
+		item.stage === "desktop_endpoint"
+			? `desktop:${item.attempt ?? 0}`
+			: `hub:${item.attempt}:${item.at}`;
+	for (const snapshot of incoming) {
+		const index = result.findIndex((item) => key(item) === key(snapshot));
+		if (index === -1) result.push(snapshot);
+		else result[index] = { ...snapshot, at: result[index].at };
+	}
+	return result.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(-8);
+}

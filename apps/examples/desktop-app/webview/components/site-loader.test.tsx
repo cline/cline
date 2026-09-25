@@ -53,6 +53,7 @@ it("distinguishes hub failure and allows retry", () => {
 it("shows actionable native startup diagnostics independently of authentication", () => {
 	const state = readiness();
 	state.startup = {
+		failures: [],
 		attempt: 1,
 		elapsedMs: 30000,
 		state: "failed",
