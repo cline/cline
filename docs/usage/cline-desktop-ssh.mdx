@@ -92,6 +92,7 @@ Fill in the form:
 | **User (optional)** | Your account name on the remote machine. Leave blank to use your SSH config or your local username. |
 | **Port** | Leave blank unless the server listens on a port other than 22. Blank means "whatever my SSH config says". |
 | **Identity file (optional)** | The path to your private key, for example `~/.ssh/id_ed25519`. Leave blank if you have one key or your SSH config already picks one. |
+| **Proxy command (optional)** | Only if the host is behind a proxy or jump host. See [Behind a proxy or jump host](#behind-a-proxy-or-jump-host). |
 
 Click **Test Connection**. Cline logs in over SSH and reports the host's platform. A green **Passed** badge means your key and host trust are set up correctly. Testing also saves the host to the list on the left.
 
@@ -159,6 +160,36 @@ Everything that stays on your computer:
 
 To go back to your own machine, open the environment selector and choose **Local**. This disconnects, stops the helper on the host, and leaves it cached in `~/.cline/remote/` for a faster reconnect.
 
+## Behind a proxy or jump host
+
+SSH does not use your system's HTTP(S) proxy, even when the rest of Cline Desktop does. If the host is only reachable through a proxy or a bastion, tell your SSH client how to get there and Cline follows along, because it runs your own `ssh`.
+
+The most flexible way is `~/.ssh/config`. Define an alias with the route, then enter the alias in the **SSH host** field:
+
+```ssh-config
+# Through a bastion (jump host)
+Host build-box
+  HostName 10.0.4.12
+  User dev
+  ProxyJump me@bastion.example.com
+
+# Through an HTTP proxy (macOS / Linux, using netcat)
+Host build-box-via-proxy
+  HostName dev.example.com
+  User dev
+  ProxyCommand nc -X connect -x proxy.example.com:3128 %h %p
+
+# Through a local SOCKS proxy such as Clash or v2ray
+Host build-box-via-socks
+  HostName dev.example.com
+  User dev
+  ProxyCommand nc -X 5 -x 127.0.0.1:7890 %h %p
+```
+
+Test it from a terminal first: `ssh build-box` should log you in with no prompts. Then add `build-box` as the **SSH host** in Cline and leave **User** and **Port** blank.
+
+If you only need a `ProxyCommand` and would rather not edit SSH config, enter the same command in the **Proxy command** field when adding the host. `%h` and `%p` expand to the host and port. On Windows, `nc` is not included; use `connect.exe` from Git for Windows (`connect -H proxy.example.com:3128 %h %p`) or another helper that is on your `PATH`.
+
 ## Limitations
 
 - **Key-based login only.** Password prompts are never shown, so password-only accounts cannot connect.
@@ -185,7 +216,7 @@ Cline shows the SSH client's own error in the **Environment status** panel. The 
 
 For those who want the details:
 
-1. Cline runs your system `ssh` with `BatchMode=yes` and `StrictHostKeyChecking=yes`, plus `-i <identity file>` and `-p <port>` if you filled those in. It never stores passwords or private-key contents; host settings live in `~/.cline/data/settings/remote-environments.json` with owner-only permissions.
+1. Cline runs your system `ssh` with `BatchMode=yes` and `StrictHostKeyChecking=yes`, plus `-i <identity file>`, `-p <port>`, and `-o ProxyCommand=<command>` if you filled those in. It never stores passwords or private-key contents; host settings live in `~/.cline/data/settings/remote-environments.json` with owner-only permissions.
 2. On connect it checks the host's OS and architecture, then uploads a matching, self-contained Cline helper to `~/.cline/remote/` (about 30 MB for Linux, sent once per Cline version and cached).
 3. The helper starts a Cline Hub bound to the host's loopback interface. Cline forwards it to a random local port with `ssh -L`, so nothing on the host is exposed to the network.
 4. Only Cline's authenticated protocol crosses the tunnel. Tool execution and session storage happen on the host; the app is a client.
