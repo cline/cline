@@ -9,7 +9,7 @@ const LABELS: Record<CloudSessionStatus, string> = {
 	completed: "Done",
 	failed: "Failed",
 	cancelled: "Cancelled",
-	unknown: "Status unknown",
+	unknown: "Checking",
 	expired: "Expired",
 }
 
@@ -27,6 +27,7 @@ function labelFor(status: string | undefined): string {
  */
 export function CloudStatusPill({ status, className }: { status: string | undefined; className?: string }) {
 	const active = isCloudStatusActive(status)
+	const pending = status === "unknown"
 	const label = labelFor(status)
 	return (
 		<span
@@ -38,7 +39,7 @@ export function CloudStatusPill({ status, className }: { status: string | undefi
 				className,
 			)}
 			title={`Cloud session: ${label.toLowerCase()}`}>
-			{active ? <LoaderCircleIcon className="size-2.5 animate-spin" /> : <CloudIcon className="size-2.5" />}
+			{active || pending ? <LoaderCircleIcon className="size-2.5 animate-spin" /> : <CloudIcon className="size-2.5" />}
 			{label}
 		</span>
 	)
