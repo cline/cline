@@ -26,6 +26,8 @@ function createDependencies(
 				url: "ws://127.0.0.1:25463/hub",
 				authToken: "desktop-owner-token",
 			})),
+			resolveDefaultHubDiscoveryPath: () =>
+				"/home/pi/.cline/data/locks/hub/production.json",
 			ensureLoginShellPath: vi.fn(async () => ({
 				status: "skipped" as const,
 				reason: "test",
@@ -135,6 +137,27 @@ describe("remote Hub commands", () => {
 		await expect(
 			runRemoteHubCommand(["cline", "--remote-hub-ensure"], dependencies),
 		).rejects.toThrow("--discovery-path is required");
+	});
+
+	it("refuses the default CLI Hub owner path for ensure and stop", async () => {
+		const { dependencies } = createDependencies();
+		const defaultPath = dependencies.resolveDefaultHubDiscoveryPath();
+		const equivalentPath = defaultPath.replace(
+			"production.json",
+			"./production.json",
+		);
+		for (const path of [defaultPath, equivalentPath]) {
+			for (const command of ["--remote-hub-ensure", "--remote-hub-stop"]) {
+				await expect(
+					runRemoteHubCommand(
+						["cline", command, "--discovery-path", path],
+						dependencies,
+					),
+				).rejects.toThrow("cannot use the default CLI Hub discovery path");
+			}
+		}
+		expect(dependencies.ensureDetachedHubServer).not.toHaveBeenCalled();
+		expect(dependencies.readHubDiscovery).not.toHaveBeenCalled();
 	});
 
 	it("stops only the explicitly owned Hub using its authentication token", async () => {

@@ -263,6 +263,59 @@ async function main(): Promise<number> {
 							info.remoteHubCommandVersion !== 1
 						)
 							throw new Error("Host runtime does not match its SDK release");
+
+						const lifecycleDir = await mkdtemp(
+							join(tmpdir(), "cline-packed-server-lifecycle-"),
+						);
+						const discoveryPath = join(lifecycleDir, "remote-hub.json");
+						const lifecycleEnv = {
+							...process.env,
+							CLINE_DIR: join(lifecycleDir, "data"),
+							CLINE_TELEMETRY_DISABLED: "1",
+						};
+						try {
+							const started = JSON.parse(
+								await runCommandOrThrow(
+									[
+										"node",
+										executable,
+										"--remote-hub-ensure",
+										"--discovery-path",
+										discoveryPath,
+										"--cwd",
+										lifecycleDir,
+									],
+									{
+										cwd: lifecycleDir,
+										env: lifecycleEnv,
+										stdout: "pipe",
+										stderr: "pipe",
+									},
+								),
+							);
+							if (!started.url || !started.authToken)
+								throw new Error("Packed server failed to start its Hub");
+						} finally {
+							try {
+								await runCommandOrThrow(
+									[
+										"node",
+										executable,
+										"--remote-hub-stop",
+										"--discovery-path",
+										discoveryPath,
+									],
+									{
+										cwd: lifecycleDir,
+										env: lifecycleEnv,
+										stdout: "pipe",
+										stderr: "pipe",
+									},
+								);
+							} finally {
+								await rm(lifecycleDir, { recursive: true, force: true });
+							}
+						}
 					}
 					console.log(`  OK ${pkg.name} executable`);
 				} catch (error) {

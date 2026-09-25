@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { resolve } from "node:path";
 import {
 	CURRENT_HUB_PROTOCOL_VERSION,
 	MAX_CLIENT_HUB_PROTOCOL_VERSION,
@@ -6,7 +7,10 @@ import {
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
-import { ensureDetachedHubServer } from "../hub/daemon";
+import {
+	ensureDetachedHubServer,
+	resolveDefaultHubOwnerContext,
+} from "../hub/daemon";
 import {
 	clearHubDiscoveryIfOwned,
 	readHubDiscovery,
@@ -20,6 +24,7 @@ export type RemoteHubCommandDependencies = {
 	probeProcess: (pid: number) => void;
 	requestHubShutdown: typeof requestHubShutdown;
 	ensureDetachedHubServer: typeof ensureDetachedHubServer;
+	resolveDefaultHubDiscoveryPath: () => string;
 	ensureLoginShellPath: typeof ensureLoginShellPath;
 	resolveHubBuildIdentity: typeof resolveHubBuildIdentity;
 	setHomeDirIfUnset: typeof setHomeDirIfUnset;
@@ -37,6 +42,8 @@ const defaultDependencies: RemoteHubCommandDependencies = {
 	},
 	requestHubShutdown,
 	ensureDetachedHubServer,
+	resolveDefaultHubDiscoveryPath: () =>
+		resolveDefaultHubOwnerContext().discoveryPath,
 	ensureLoginShellPath,
 	resolveHubBuildIdentity,
 	setHomeDirIfUnset,
@@ -102,6 +109,19 @@ function configureDedicatedDiscovery(
 	const discoveryPath = readArgument(argv, "--discovery-path");
 	if (!discoveryPath) {
 		throw new Error("--discovery-path is required for remote Hub management");
+	}
+	const defaultDiscoveryPath = dependencies.resolveDefaultHubDiscoveryPath();
+	const normalizeDiscoveryPath = (path: string) => {
+		const resolved = resolve(path);
+		return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+	};
+	if (
+		normalizeDiscoveryPath(discoveryPath) ===
+		normalizeDiscoveryPath(defaultDiscoveryPath)
+	) {
+		throw new Error(
+			"Remote Hub management cannot use the default CLI Hub discovery path",
+		);
 	}
 	// This explicit owner record is the safety boundary: the remote command never
 	// reads or shuts down the user's default CLI-owned Hub discovery record.

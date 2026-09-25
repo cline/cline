@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,9 +8,22 @@ import { promisify } from "node:util";
 import { expect, it } from "vitest";
 
 const exec = promisify(execFile);
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const entry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+const cliPlatform = process.platform === "win32" ? "windows" : process.platform;
+const cliBinaryName = process.platform === "win32" ? "cline.exe" : "cline";
+const compiledCli = join(
+	root,
+	"apps/cli/dist",
+	`cli-${cliPlatform}-${process.arch}`,
+	"bin",
+	cliBinaryName,
+);
 
-it("starts, reuses, and stops only its owned Hub through the Node executable", async () => {
+async function verifyHubLifecycle(
+	command: string,
+	commandArgs: string[],
+): Promise<void> {
 	const directory = await mkdtemp(join(tmpdir(), "cline-server-e2e-"));
 	const discovery = join(directory, "hub.json");
 	const env = {
@@ -18,7 +32,8 @@ it("starts, reuses, and stops only its owned Hub through the Node executable", a
 		CLINE_TELEMETRY_DISABLED: "1",
 	};
 	const run = async (...args: string[]) =>
-		(await exec("node", [entry, ...args], { env, timeout: 30_000 })).stdout;
+		(await exec(command, [...commandArgs, ...args], { env, timeout: 30_000 }))
+			.stdout;
 	try {
 		const first = JSON.parse(
 			await run(
@@ -52,4 +67,16 @@ it("starts, reuses, and stops only its owned Hub through the Node executable", a
 		await run("--remote-hub-stop", "--discovery-path", discovery);
 		await rm(directory, { recursive: true, force: true });
 	}
+}
+
+it("starts, reuses, and stops its owned Hub through the Node server entrypoint", async () => {
+	await verifyHubLifecycle("node", [entry]);
 }, 60_000);
+
+it.runIf(existsSync(compiledCli))(
+	"starts, reuses, and stops its owned Hub through the compiled CLI entrypoint",
+	async () => {
+		await verifyHubLifecycle(compiledCli, []);
+	},
+	60_000,
+);

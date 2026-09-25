@@ -90,6 +90,11 @@ jobs:
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
               run: bun -F @cline/cli build
 
+            - name: Build compiled CLI for Hub lifecycle coverage
+              id: build_compiled_cli_step
+              if: ${{ !cancelled() && steps.build_cli_step.outcome == 'success' }}
+              run: bun apps/cli/script/build.ts --single --skip-sdk-build --skip-install
+
             - name: Run Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               run: bun run test
@@ -99,7 +104,7 @@ jobs:
               run: bun -F './sdk/packages/**' test
 
             - name: Run Server Lifecycle Test
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_compiled_cli_step.outcome == 'success' }}
               run: bun -F @cline/server test:e2e
 
             - name: Run Desktop Sidecar Tests

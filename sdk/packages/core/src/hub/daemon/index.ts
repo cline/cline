@@ -125,7 +125,7 @@ function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 	}
 }
 
-function resolveDefaultHubOwnerContext() {
+export function resolveDefaultHubOwnerContext() {
 	return resolveClineBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
