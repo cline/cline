@@ -485,6 +485,33 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
+	it("skips the approval ask when preflight detects an unapplicable editor edit", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const onToolApprovalAsk = vi.fn().mockResolvedValue("skip")
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			onToolApprovalAsk,
+		})
+
+		await expect(
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId: "tool-call",
+				toolName: "editor",
+				input: { path: "a.ts", old_text: "stale", new_text: "replacement" },
+				policy: { autoApprove: false },
+			}),
+		).resolves.toEqual({ approved: true })
+		expect(onToolApprovalAsk).toHaveBeenCalledOnce()
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
+		expect(postStateToWebview).not.toHaveBeenCalled()
+	})
+
 	it("does not invoke onToolApprovalAsk for auto-approved tools", async () => {
 		const onToolApprovalAsk = vi.fn().mockResolvedValue(undefined)
 		const coordinator = new SdkInteractionCoordinator({
