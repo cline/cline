@@ -21,7 +21,7 @@ class FakeWebSocket {
 	onopen: (() => void) | null = null;
 	onmessage: ((event: { data: string }) => void) | null = null;
 	onerror: (() => void) | null = null;
-	onclose: (() => void) | null = null;
+	onclose: ((event: { code: number; wasClean: boolean }) => void) | null = null;
 
 	constructor(readonly url: string) {
 		sockets.push(this);
@@ -39,9 +39,11 @@ class FakeWebSocket {
 		this.sent.push(data);
 	}
 
-	close(): void {
+	// Browsers report 1006 (no close frame) for a dropped connection, which
+	// is also what close() on a CONNECTING socket produces.
+	close(code = 1006, wasClean = false): void {
 		this.readyState = FakeWebSocket.CLOSED;
-		this.onclose?.();
+		this.onclose?.({ code, wasClean });
 	}
 
 	respond(result: unknown): void {
@@ -275,7 +277,7 @@ describe("DesktopClient command deadlines", () => {
 		});
 	});
 
-	it("does not report a transport closure with no pending requests", async () => {
+	it("reports every transport closure with its code, clean flag, and idle gap", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const invocation = desktopClient.invoke<{ ok: boolean }>(
 			"get_process_context",
@@ -284,9 +286,16 @@ describe("DesktopClient command deadlines", () => {
 		socket.respond({ ok: true });
 		await expect(invocation).resolves.toEqual({ ok: true });
 
-		socket.close();
-		await Promise.resolve();
-		expect(fetchMock).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(5 * 60_000);
+		socket.close(1000, true);
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		expect(
+			JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)),
+		).toMatchObject({
+			operation: "webview.transport_closed",
+			errorMessage: `Desktop backend transport closed (code 1000, clean, idle 2-10min, ${document.visibilityState})`,
+			transportState: "reconnecting",
+		});
 	});
 
 	it("forwards bounded source attribution for uncaught errors", async () => {
@@ -533,8 +542,8 @@ describe("DesktopClient endpoint resolution", () => {
 		await vi.advanceTimersByTimeAsync(15_000);
 		expect(sockets[0]?.readyState).toBe(FakeWebSocket.CLOSED);
 		expect(states).toContain("unavailable");
-		expect(desktopClient.getTransportError()).toContain(
-			"transport unavailable",
+		expect(desktopClient.getTransportError()).toBe(
+			"Desktop backend transport unavailable (handshake closed, code 1006)",
 		);
 
 		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
@@ -562,6 +571,37 @@ describe("DesktopClient endpoint resolution", () => {
 		expect(sockets[1]?.url).toBe(
 			"ws://127.0.0.1:3126/transport?approval_token=new",
 		);
+	});
+
+	it("reports how long the transport was down once it reconnects", async () => {
+		tauriInvoke.mockResolvedValue(
+			"ws://127.0.0.1:3126/transport?approval_token=token",
+		);
+		const { desktopClient } = await import("./desktop-client");
+		desktopClient.subscribeTransportState(() => undefined);
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		sockets[0]?.open();
+
+		sockets[0]?.close();
+		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
+		await vi.waitFor(() => expect(sockets).toHaveLength(2));
+		sockets[1]?.open();
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+		const bodies = fetchMock.mock.calls.map((call) =>
+			JSON.parse(String(call[1]?.body)),
+		);
+		expect(bodies[0]?.errorMessage).toMatch(
+			/^Desktop backend transport closed \(code 1006, unclean, idle <30s, /,
+		);
+		expect(bodies[1]).toMatchObject({
+			operation: "webview.transport_reconnected",
+			severity: "info",
+			errorMessage: "Desktop backend transport reconnected after <2s",
+			transportState: "connected",
+		});
+		// The endpoint URL (and its approval token) never enters a report.
+		expect(JSON.stringify(bodies)).not.toContain("approval_token");
 	});
 });
 

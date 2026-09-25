@@ -136,6 +136,8 @@ export type DesktopErrorReport = {
 	operation: string;
 	error: unknown;
 	handled?: boolean;
+	/** Lifecycle reports that are not failures; the sidecar defaults to "error". */
+	severity?: "info";
 	command?: string;
 	timeoutMs?: number;
 	/** Failing resource URL from an ErrorEvent's `filename`. */
@@ -177,6 +179,33 @@ function raceDeadline<T>(
 	});
 	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
+
+/**
+ * Coarse duration labels for transport telemetry messages. Buckets keep the
+ * message cardinality small while still separating an idle close (server
+ * timeout, sleep) from one that interrupted live traffic, and a reconnect
+ * blip from a real outage.
+ */
+function durationBucket(
+	ms: number,
+	edges: readonly (readonly [number, string])[],
+	beyond: string,
+): string {
+	for (const [limit, label] of edges) {
+		if (ms < limit) return label;
+	}
+	return beyond;
+}
+const IDLE_BUCKETS = [
+	[30_000, "<30s"],
+	[120_000, "30s-2min"],
+	[600_000, "2-10min"],
+] as const;
+const DOWNTIME_BUCKETS = [
+	[2_000, "<2s"],
+	[10_000, "2-10s"],
+	[60_000, "10-60s"],
+] as const;
 
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
@@ -293,6 +322,8 @@ class DesktopClient {
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
 	private endpoint: string | null = null;
+	private lastReceivedAt = 0;
+	private disconnectedAt: number | null = null;
 	private recentErrorReports = new Map<string, number>();
 	private reportedErrorObjects = new WeakSet<object>();
 	private errorObjectDeliveries = new WeakMap<object, Promise<boolean>>();
@@ -349,6 +380,7 @@ class DesktopClient {
 					errorMessage,
 					errorType,
 					handled: report.handled ?? true,
+					severity: report.severity,
 					command: report.command,
 					timeoutMs: report.timeoutMs,
 					transportState: this.transportState,
@@ -398,14 +430,6 @@ class DesktopClient {
 	}
 
 	private rejectPending(errorMessage: string) {
-		// Only report closures that actually drop in-flight requests; a clean
-		// transport close (app quit, sidecar restart) is not an error.
-		if (this.pending.size > 0) {
-			this.reportError({
-				operation: "webview.transport_closed",
-				error: new Error(errorMessage),
-			});
-		}
 		for (const requestId of this.pending.keys()) {
 			this.takePending(requestId)?.reject(new Error(errorMessage));
 		}
@@ -425,6 +449,7 @@ class DesktopClient {
 	}
 
 	private handleMessage(raw: string) {
+		this.lastReceivedAt = Date.now();
 		let parsed: DesktopTransportMessage;
 		try {
 			parsed = JSON.parse(raw) as DesktopTransportMessage;
@@ -504,6 +529,21 @@ class DesktopClient {
 				}, WS_HANDSHAKE_TIMEOUT_MS);
 				socket.onopen = () => {
 					clearTimeout(handshakeTimer);
+					const now = Date.now();
+					this.lastReceivedAt = now;
+					if (this.disconnectedAt !== null) {
+						// Pairs with webview.transport_closed. Delivered over the
+						// connection that just came back, so it lands even when the
+						// close report could not be sent (sidecar was gone).
+						this.reportError({
+							operation: "webview.transport_reconnected",
+							severity: "info",
+							error: new Error(
+								`Desktop backend transport reconnected after ${durationBucket(now - this.disconnectedAt, DOWNTIME_BUCKETS, ">60s")}`,
+							),
+						});
+						this.disconnectedAt = null;
+					}
 					this.hasConnectedOnce = true;
 					this.transportError = null;
 					this.setTransportState("connected");
@@ -515,17 +555,32 @@ class DesktopClient {
 				socket.onerror = () => {
 					// Wait for onclose to reject or reconnect.
 				};
-				socket.onclose = () => {
+				socket.onclose = (event: CloseEvent) => {
 					clearTimeout(handshakeTimer);
 					if (this.socket === socket) {
 						this.socket = null;
 					}
 					if (this.transportState !== "connected") {
+						// The endpoint URL carries the approval token; keep it out
+						// of error text that ends up in telemetry.
 						reject(
-							new Error(`Desktop backend transport unavailable at ${endpoint}`),
+							new Error(
+								`Desktop backend transport unavailable (handshake closed, code ${event.code})`,
+							),
 						);
 						return;
 					}
+					// Report every close, not just ones with requests in flight. The
+					// code, clean flag, idle gap and page visibility are what tell a
+					// server idle timeout from sleep/resume or a dead peer.
+					const now = Date.now();
+					this.disconnectedAt = now;
+					this.reportError({
+						operation: "webview.transport_closed",
+						error: new Error(
+							`Desktop backend transport closed (code ${event.code}, ${event.wasClean ? "clean" : "unclean"}, idle ${durationBucket(now - this.lastReceivedAt, IDLE_BUCKETS, ">10min")}, ${typeof document === "undefined" ? "unknown" : document.visibilityState})`,
+						),
+					});
 					this.setTransportState("reconnecting");
 					this.rejectPending("Desktop backend transport closed");
 					this.scheduleReconnect();
