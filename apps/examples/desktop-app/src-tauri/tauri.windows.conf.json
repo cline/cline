@@ -7,14 +7,17 @@
 				"title": "Cline",
 				"width": 1500,
 				"height": 980,
+				"preventOverflow": true,
 				"resizable": true,
 				"decorations": false,
 				"shadow": true,
+				"visible": false,
 				"dragDropEnabled": false
 			}
 		]
 	},
 	"bundle": {
+		"resources": ["icons/app/*.ico", "icons/app/*.png", "bin/remote-helpers/*"],
 		"windows": {
 			"nsis": {
 				"installerHooks": "nsis/installer-hooks.nsh"
