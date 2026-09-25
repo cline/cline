@@ -224,7 +224,7 @@ export class UnifiedSessionPersistenceService {
 		prompt?: string | null;
 		metadata?: Record<string, unknown> | null;
 		title?: string | null;
-	}): Promise<{ updated: boolean }> {
+	}): Promise<{ updated: boolean; metadata?: Record<string, unknown> | null }> {
 		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const row = await this.adapter.getSession(input.sessionId);
 			if (!row) return { updated: false };
@@ -281,8 +281,11 @@ export class UnifiedSessionPersistenceService {
 						: (sanitizeMetadata(manifest.metadata) ?? {});
 				if (nextTitle) manifestMeta.title = nextTitle;
 				manifest.metadata =
-					Object.keys(manifestMeta).length > 0 ? manifestMeta : undefined;
+					Object.keys(manifestMeta).length > 0
+						? JSON.parse(JSON.stringify(manifestMeta))
+						: undefined;
 				this.manifestStore.writeSessionManifest(manifestPath, manifest);
+				return { updated: true, metadata: manifest.metadata ?? null };
 			}
 			return { updated: true };
 		}
