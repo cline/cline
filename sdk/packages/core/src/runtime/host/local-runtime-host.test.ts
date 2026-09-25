@@ -452,6 +452,8 @@ describe("LocalRuntimeHost", () => {
 					cwd: workspaceRoot,
 					workspaceRoot,
 					enableAgentTeams: false,
+					thinking: true,
+					reasoningEffort: "high",
 				}),
 				prompt: "change repository state",
 				interactive: true,
@@ -482,6 +484,53 @@ describe("LocalRuntimeHost", () => {
 				branch: "feature/session-git",
 			},
 		});
+		await manager.dispose();
+		for (const [index, { config, metadata, expected }] of [
+			{
+				config: {},
+				metadata: {},
+				expected: { thinking: true, reasoningEffort: "high" },
+			},
+			{
+				config: { thinking: false },
+				metadata: {},
+				expected: { thinking: false, reasoningEffort: null },
+			},
+			{
+				config: {},
+				metadata: { thinking: null, reasoningEffort: null },
+				expected: { thinking: null, reasoningEffort: null },
+			},
+		].entries()) {
+			await git.checkoutLocalBranch(`feature/restore-${index}`);
+			const restored = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: new FileSessionService(sessionsDir),
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+			});
+			try {
+				await restored.startSession(
+					normalizeStartInput({
+						config: createConfig({ sessionId, cwd: workspaceRoot, ...config }),
+						initialMessages: [{ role: "user", content: "Saved conversation" }],
+						interactive: true,
+						sessionMetadata: metadata,
+					}),
+				);
+				expect((await restored.getSession(sessionId))?.metadata).toMatchObject(
+					expected,
+				);
+				expect(
+					sessionService.readSessionManifest(sessionId)?.metadata,
+				).toMatchObject({
+					...expected,
+					git: { branch: `feature/restore-${index}` },
+				});
+			} finally {
+				await restored.dispose();
+			}
+		}
 	});
 
 	it("forwards rootOnly to the session backend when listing sessions", async () => {

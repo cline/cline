@@ -664,14 +664,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
+		const restoredSessionMetadata = {
+			...(resumedArtifacts?.manifest.metadata ?? {}),
+			...(startInput.sessionMetadata ?? {}),
+		};
 		const initialSessionMetadata = withSessionHistoryOriginMetadata(
 			withSessionGitMetadata(
 				{
-					...(resumedArtifacts?.manifest.metadata ?? {}),
-					...(startInput.sessionMetadata ?? {}),
+					...restoredSessionMetadata,
 					// Null records an unset preference; missing keys belong to legacy sessions.
-					thinking: bootstrap.config.thinking ?? null,
-					reasoningEffort: bootstrap.config.reasoningEffort ?? null,
+					thinking:
+						bootstrap.config.thinking ??
+						restoredSessionMetadata.thinking ??
+						null,
+					reasoningEffort:
+						bootstrap.config.thinking === false
+							? null
+							: (bootstrap.config.reasoningEffort ??
+								restoredSessionMetadata.reasoningEffort ??
+								null),
 				},
 				bootstrap.gitState,
 			),
