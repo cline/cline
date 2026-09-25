@@ -423,7 +423,7 @@ export class SessionRuntime {
 
 		this.conversation = new ConversationStore(config.initialMessages);
 		const toolResultStore = config.sessionId
-			? new ToolResultStore(config.sessionId)
+			? new ToolResultStore(config.sessionId, config.sessionsDirectory)
 			: undefined;
 		this.messageBuilder = new MessageBuilder({
 			...getMessageBuilderOptionsFromEnv(),

@@ -644,6 +644,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build({
 			...bootstrap.runtimeBuilderInput,
+			sessionsDirectory: sessionsDir,
 			distinctId: this.distinctId,
 			runCommandExecutionController: this.runCommandExecutionController,
 		});
@@ -759,6 +760,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		const agentConfig = {
+			sessionsDirectory: sessionsDir,
 			distinctId: this.distinctId,
 			sessionId,
 			providerId: providerConfig.providerId,

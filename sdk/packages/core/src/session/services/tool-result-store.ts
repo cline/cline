@@ -1,29 +1,32 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { ToolResultContent } from "@cline/shared";
 import { resolveSessionDataDir } from "@cline/shared/storage";
+import { SessionArtifacts } from "../../services/session-artifacts";
 import { serializeToolResultContent } from "./tool-result-recovery";
 
 /** Complete external tool output, owned by the same directory as session history. */
 export class ToolResultStore {
-	private readonly directory: string;
+	private readonly artifacts: SessionArtifacts;
 
-	constructor(sessionId: string, sessionsDirectory = resolveSessionDataDir()) {
-		if (!/^[a-zA-Z0-9_-][a-zA-Z0-9._-]*$/.test(sessionId)) {
-			throw new Error("Invalid session ID for tool result storage");
-		}
-		this.directory = resolve(sessionsDirectory, sessionId, "tools");
+	constructor(
+		private readonly sessionId: string,
+		sessionsDirectory = resolveSessionDataDir(),
+	) {
+		this.artifacts = new SessionArtifacts(() => sessionsDirectory);
 	}
 
 	async save(result: ToolResultContent): Promise<string> {
+		// Resolve lazily: a storage failure must not prevent session startup.
+		const directory = this.artifacts.sessionToolResultsDir(this.sessionId);
 		// Encode provider-owned IDs reversibly: separators must not escape tools/,
 		// and different IDs must not collapse to the same sanitized filename.
 		const filename = `${encodeURIComponent(result.tool_use_id)}.result.txt`;
-		const path = join(this.directory, filename);
-		const temporaryPath = join(this.directory, `${randomUUID()}.tmp`);
+		const path = join(directory, filename);
+		const temporaryPath = join(directory, `${randomUUID()}.tmp`);
 		const text = serializeToolResultContent(result.content);
-		await mkdir(this.directory, { recursive: true, mode: 0o700 });
+		await mkdir(directory, { recursive: true, mode: 0o700 });
 		try {
 			await writeFile(temporaryPath, text, {
 				encoding: "utf8",

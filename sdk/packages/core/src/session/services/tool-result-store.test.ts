@@ -166,6 +166,32 @@ describe("recoverable external tool results", () => {
 		).toBe(block.content);
 	});
 
+	it.each([
+		"user@example.com",
+		"session+resume",
+		"session name",
+	])("accepts persistence-compatible session ID %s", async (sessionId) => {
+		const path = await new ToolResultStore(sessionId, directory).save(
+			result("full"),
+		);
+		expect(path).toBe(join(directory, sessionId, "tools", "call_1.result.txt"));
+		expect(await readFile(path, "utf8")).toBe("full");
+	});
+
+	it("isolates root, child, and team-task results sharing a tool-call ID", async () => {
+		const ids = ["root", "root__agent", "root__teamtask__agent__task1"];
+		const paths = await Promise.all(
+			ids.map((id) => new ToolResultStore(id, directory).save(result(id))),
+		);
+		expect(new Set(paths).size).toBe(3);
+		for (let index = 0; index < ids.length; index++) {
+			expect(paths[index].startsWith(join(directory, "root", "tools"))).toBe(
+				true,
+			);
+			expect(await readFile(paths[index], "utf8")).toBe(ids[index]);
+		}
+	});
+
 	it("uses the configured session history directory", async () => {
 		vi.stubEnv("CLINE_SESSION_DATA_DIR", directory);
 		const path = await new ToolResultStore("session_1").save(result("full"));
@@ -195,8 +221,8 @@ describe("recoverable external tool results", () => {
 		expect(await readdir(join(directory, "session_1", "tools"))).toHaveLength(
 			ids.length,
 		);
-		expect(() => new ToolResultStore("../outside", directory)).toThrow(
-			"Invalid session ID",
-		);
+		await expect(
+			new ToolResultStore("../outside", directory).save(result("full")),
+		).rejects.toThrow("inside the session history directory");
 	});
 });

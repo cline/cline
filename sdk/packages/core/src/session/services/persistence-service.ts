@@ -589,6 +589,7 @@ export class UnifiedSessionPersistenceService {
 		if (!row) return { deleted: false };
 
 		await this.adapter.deleteSession(id, false);
+		this.manifestStore.artifacts.removeSessionToolResults(id);
 
 		if (!row.isSubagent) {
 			const children = await this.adapter.listSessions({
@@ -606,6 +607,9 @@ export class UnifiedSessionPersistenceService {
 							child.sessionId,
 							false,
 						),
+					);
+					this.manifestStore.artifacts.removeSessionToolResults(
+						child.sessionId,
 					);
 					this.manifestStore.artifacts.removeSessionDirIfEmpty(child.sessionId);
 				}),

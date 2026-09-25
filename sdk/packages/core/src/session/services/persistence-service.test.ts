@@ -15,6 +15,7 @@ import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
 import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
+import { ToolResultStore } from "./tool-result-store";
 
 const require = createRequire(import.meta.url);
 const sqliteAvailable = (() => {
@@ -1014,6 +1015,43 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(result).toEqual({ deleted: false });
 		expect(existsSync(artifacts.messagesPath)).toBe(true);
 		expect(existsSync(artifacts.manifestPath)).toBe(true);
+	});
+
+	it.each([
+		"root__agent",
+		"root__teamtask__agent__task1",
+	])("removes %s results without deleting sibling or root results", async (childId) => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "delete-tool-results-"));
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		await createRootSession(service, "root", "parent");
+		const indexPath = join(sessionsDir, "sessions.index.json");
+		const index = JSON.parse(readFileSync(indexPath, "utf8"));
+		index.sessions[childId] = {
+			...index.sessions.root,
+			sessionId: childId,
+			parentSessionId: "root",
+			isSubagent: true,
+			messagesPath: null,
+		};
+		writeFileSync(indexPath, JSON.stringify(index), "utf8");
+		const ids = ["root", childId, "root__sibling"];
+		const paths = await Promise.all(
+			ids.map((id) =>
+				new ToolResultStore(id, sessionsDir).save({
+					type: "tool_result",
+					tool_use_id: "call_1",
+					name: "external",
+					content: id,
+				}),
+			),
+		);
+		expect(await service.deleteSession(childId)).toEqual({ deleted: true });
+		expect(existsSync(paths[0])).toBe(true);
+		expect(existsSync(paths[1])).toBe(false);
+		expect(existsSync(paths[2])).toBe(true);
+		await service.deleteSession("root");
+		expect(paths.some(existsSync)).toBe(false);
 	});
 
 	it("cascades file-backed child rows after deleting the parent row", async () => {

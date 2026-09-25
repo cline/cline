@@ -552,10 +552,13 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 describe("SessionRuntime message preparation", () => {
 	it("writes external results under the session history directory before model calls", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cline-runtime-results-"));
-		vi.stubEnv("CLINE_SESSION_DATA_DIR", directory);
+		vi.stubEnv(
+			"CLINE_SESSION_DATA_DIR",
+			join(directory, "wrong-global-directory"),
+		);
 		const { deps, configs } = makeRecordingRuntimeFactory();
 		const session = new SessionRuntime(
-			makeAgentConfig({ sessionId: "session_1" }),
+			makeAgentConfig({ sessionId: "session_1", sessionsDirectory: directory }),
 			deps,
 		);
 		try {
