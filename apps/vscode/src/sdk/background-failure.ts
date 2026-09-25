@@ -1,4 +1,4 @@
-import { CommandExitError, CommandSpawnError } from "@cline/core"
+import { CommandExitError, CommandSpawnError, CommandTerminationError } from "@cline/core"
 
 /** Telemetry dimensions for one failed background (`child_process`) execution. */
 export interface BackgroundFailureDimensions {
@@ -8,7 +8,8 @@ export interface BackgroundFailureDimensions {
 	 * The process never produced an exit code, and why: the operating system
 	 * code when the shell could not be started (`ENOENT` when it is not on
 	 * PATH, `EACCES`, `EFTYPE`), `ENOENT_CWD` when the working directory had
-	 * vanished instead, `aborted` when the turn was cancelled, or `other`.
+	 * vanished instead, `signal` or `no_exit_code` for a process terminated
+	 * without a numeric code, `aborted` when the turn was cancelled, or `other`.
 	 */
 	errorCode?: string
 }
@@ -22,6 +23,9 @@ export interface BackgroundFailureDimensions {
 export function describeBackgroundFailure(error: unknown): BackgroundFailureDimensions {
 	if (error instanceof CommandExitError) {
 		return { exitCode: error.exitCode }
+	}
+	if (error instanceof CommandTerminationError) {
+		return { errorCode: error.signal ? "signal" : "no_exit_code" }
 	}
 	if (error instanceof CommandSpawnError) {
 		// spawn says ENOENT for a missing executable and for a missing working

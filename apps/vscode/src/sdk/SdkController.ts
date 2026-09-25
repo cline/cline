@@ -211,7 +211,7 @@ export class Controller {
 	// Lazy terminal manager for foreground (VS Code terminal) command execution.
 	// Created on first use; shared across all sessions in this Controller's lifetime.
 	// Only used in the `vscodeTerminal` execution mode — `backgroundExec` and the
-	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
+	// standalone (JetBrains/CLI) host use the custom tool's SDK shell executor.
 	private _terminalManager?: VscodeTerminalManager
 
 	// Registry of in-flight foreground (VS Code terminal) command executions.

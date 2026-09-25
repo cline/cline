@@ -16,7 +16,7 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { CommandExitError } from "./executors/bash";
+import { CommandExitError, CommandTerminationError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
@@ -232,7 +232,10 @@ async function executeShellCommands(
 							durationMs: Date.now() - startedAt,
 						});
 					}
-					if (error instanceof CommandExitError) {
+					if (
+						error instanceof CommandExitError ||
+						error instanceof CommandTerminationError
+					) {
 						return {
 							query,
 							result: error.output,
