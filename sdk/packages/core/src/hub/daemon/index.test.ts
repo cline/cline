@@ -250,6 +250,22 @@ describe("ensureDetachedHubServer", () => {
 		);
 	});
 
+	it("preserves discovery and does not spawn when a live Hub probe times out", async () => {
+		const { ensureDetachedHubServer } = await import(".");
+		readHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "existing-token",
+		});
+		const timeout = new Error("Hub probe timed out");
+		timeout.name = "HubProbeTimeoutError";
+		probeHubServer.mockRejectedValue(timeout);
+		await expect(ensureDetachedHubServer("/workspace")).rejects.toThrow(
+			"Hub probe timed out",
+		);
+		expect(clearHubDiscovery).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
 	it("retries a transient ETXTBSY spawn failure while starting the detached daemon", async () => {
 		vi.useFakeTimers();
 		try {

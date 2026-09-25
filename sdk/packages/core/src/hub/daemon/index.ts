@@ -192,11 +192,9 @@ async function safeProbeHubServer(
 	url: string,
 	authToken?: string,
 ): Promise<HubServerProbeRecord | undefined> {
-	try {
-		return await probeHubServer(url, { authToken });
-	} catch {
-		return undefined;
-	}
+	// Timeouts are indeterminate, not evidence that the existing Hub is dead.
+	// Propagate them before discovery mutation or replacement can occur.
+	return await probeHubServer(url, { authToken });
 }
 
 async function waitForHubToRetire(

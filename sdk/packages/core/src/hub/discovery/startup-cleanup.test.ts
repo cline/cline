@@ -1,9 +1,10 @@
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { probeHubServer, withHubStartupLock } from ".";
+import { HubInstanceLock } from "./instance-lock";
 
 it("cancels a lock waiter without removing the active owner's lock", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "hub-cleanup-"));
@@ -20,10 +21,7 @@ it("cancels a lock waiter without removing the active owner's lock", async () =>
 		});
 	});
 	await entered;
-	await writeFile(
-		join(`${path}.lock`, "owner.json"),
-		JSON.stringify({ pid: process.pid, acquiredAt: new Date(0).toISOString() }),
-	);
+
 	try {
 		const controller = new AbortController();
 		const waiter = withHubStartupLock(
@@ -37,7 +35,7 @@ it("cancels a lock waiter without removing the active owner's lock", async () =>
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		controller.abort();
 		await rejected;
-		expect((await stat(`${path}.lock`)).isDirectory()).toBe(true);
+		expect(() => HubInstanceLock.acquire(`${path}.mutex.sqlite`)).toThrow();
 	} finally {
 		release();
 		await owner;
@@ -54,7 +52,6 @@ it("releases an owned lock when initialization fails and permits recovery", asyn
 				throw new Error("failed initialization");
 			}),
 		).rejects.toThrow("failed initialization");
-		await expect(stat(`${path}.lock`)).rejects.toThrow();
 		await expect(
 			withHubStartupLock(path, async () => "recovered"),
 		).resolves.toBe("recovered");
@@ -84,7 +81,7 @@ it.each([
 			withHubStartupLock(path, () =>
 				probeHubServer(`http://127.0.0.1:${address.port}`),
 			),
-		).resolves.toBeUndefined();
+		).rejects.toThrow("probe timed out");
 		await expect(
 			withHubStartupLock(path, async () => "recovered"),
 		).resolves.toBe("recovered");
@@ -94,3 +91,23 @@ it.each([
 		await rm(dir, { recursive: true, force: true });
 	}
 }, 10_000);
+
+it("does not strand startup on an abandoned PID record reused by a live process", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "hub-reused-pid-"));
+	const path = join(dir, "discovery.json");
+	try {
+		await mkdir(`${path}.lock`);
+		await writeFile(
+			join(`${path}.lock`, "owner.json"),
+			JSON.stringify({
+				pid: process.pid,
+				acquiredAt: new Date(0).toISOString(),
+			}),
+		);
+		await expect(
+			withHubStartupLock(path, async () => "recovered"),
+		).resolves.toBe("recovered");
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});

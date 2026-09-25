@@ -16,8 +16,8 @@
  * Hub can exist per owner context, enforced by the OS before either process
  * gets a chance to disagree.
  *
- * The startup-lock directory (`<discoveryPath>.lock`, see `withHubLock`)
- * remains a short-lived mutex around discovery reads/writes; this lock is a
+ * Startup and discovery mutation use separate short-lived OS-backed locks
+ * (`<lockBasis>.mutex.sqlite`, see `withHubLock`); this instance lock is a
  * different thing — it is held for the entire lifetime of the serving Hub.
  */
 

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@cline/shared";
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
+import { HubInstanceLock, isHubLockHeldError } from "./instance-lock";
 
 declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
 declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
@@ -69,53 +70,12 @@ function hashValue(value: string): string {
 	return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
-function isPidAlive(pid: number | undefined): boolean {
-	if (!Number.isInteger(pid) || !pid || pid <= 0) {
-		return false;
-	}
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (error) {
-		return error instanceof Error && "code" in error
-			? String((error as NodeJS.ErrnoException).code) === "EPERM"
-			: false;
-	}
-}
-
 export function createHubAuthToken(): string {
 	return randomBytes(32).toString("hex");
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 	return delay(ms, undefined, { signal });
-}
-
-function getHubLockDir(lockBasis: string): string {
-	return `${lockBasis}.lock`;
-}
-
-async function readHubLockRecord(
-	lockDir: string,
-): Promise<{ pid: number; acquiredAt: string } | undefined> {
-	try {
-		const parsed = JSON.parse(
-			await readFile(join(lockDir, "owner.json"), "utf8"),
-		) as Partial<{ pid: number; acquiredAt: string }>;
-		if (
-			typeof parsed.pid !== "number" ||
-			typeof parsed.acquiredAt !== "string"
-		) {
-			return undefined;
-		}
-		return { pid: parsed.pid, acquiredAt: parsed.acquiredAt };
-	} catch {
-		return undefined;
-	}
-}
-
-async function removeHubLock(lockDir: string): Promise<void> {
-	await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
 }
 
 export function resolveHubBuildId(): string {
@@ -467,61 +427,28 @@ async function withHubLock<T>(
 	signal?: AbortSignal,
 ): Promise<T> {
 	signal?.throwIfAborted();
-	const lockDir = getHubLockDir(lockBasis);
-	await mkdir(dirname(lockDir), { recursive: true });
+	const lockFile = `${lockBasis}.mutex.sqlite`;
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
-
 	while (true) {
 		signal?.throwIfAborted();
+		let lock: HubInstanceLock;
 		try {
-			await mkdir(lockDir, { recursive: false });
+			lock = HubInstanceLock.acquire(lockFile);
 		} catch (error) {
-			const code =
-				error instanceof Error && "code" in error
-					? String((error as NodeJS.ErrnoException).code)
-					: "";
-			if (code !== "EEXIST") {
-				throw error;
-			}
-			const record = await readHubLockRecord(lockDir);
-			if (!record) {
-				// The winner creates the directory before it can publish owner.json.
-				// Do not steal that initialization window. A genuinely abandoned
-				// empty lock is reclaimed only after the bounded wait.
-				if (Date.now() >= deadline) {
-					await removeHubLock(lockDir);
-					continue;
-				}
-				await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
-				continue;
-			}
-			// A slow live owner may still be publishing its shared daemon.
-			// Age alone does not authorize stealing its lock.
-			if (!isPidAlive(record.pid)) {
-				await removeHubLock(lockDir);
-				continue;
-			}
-			if (Date.now() >= deadline) {
-				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
-			}
+			if (!isHubLockHeldError(error)) throw error;
+			if (Date.now() >= deadline)
+				throw new Error(`Timed out waiting for hub ${label} lock ${lockFile}`);
 			await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
 			continue;
 		}
-
+		// Startup serialization must never silently degrade to no lock.
+		if (!lock.held)
+			throw new Error(`Unable to acquire hub ${label} lock ${lockFile}`);
 		try {
-			await writeFile(
-				join(lockDir, "owner.json"),
-				`${JSON.stringify(
-					{ pid: process.pid, acquiredAt: new Date().toISOString() },
-					null,
-					2,
-				)}\n`,
-				"utf8",
-			);
 			signal?.throwIfAborted();
 			return await callback();
 		} finally {
-			await removeHubLock(lockDir);
+			lock.release();
 		}
 	}
 }
@@ -545,17 +472,27 @@ export function withHubStartupLock<T>(
 	return withHubLock(discoveryPath, "startup", callback, signal);
 }
 
+export class HubProbeTimeoutError extends Error {
+	constructor() {
+		super(
+			"Cline Hub probe timed out; the existing Hub was left running. Retry to reconnect.",
+		);
+		this.name = "HubProbeTimeoutError";
+	}
+}
+
 export async function probeHubServer(
 	url: string,
 	options?: { authToken?: string },
 ): Promise<HubServerProbeRecord | undefined> {
+	const signal = AbortSignal.timeout(3_000);
 	try {
 		const response = await fetch(
 			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),
 			{
 				// Covers response headers and body consumption, so a hung probe
 				// cannot indefinitely retain the startup lock.
-				signal: AbortSignal.timeout(3_000),
+				signal,
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
 					: undefined,
@@ -609,6 +546,7 @@ export async function probeHubServer(
 				typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
 		};
 	} catch {
+		if (signal.aborted) throw new HubProbeTimeoutError();
 		return undefined;
 	}
 }
