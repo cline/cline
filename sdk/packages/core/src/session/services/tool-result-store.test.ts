@@ -74,132 +74,121 @@ function recoveryPath(messages: Message[]): string {
 	throw new Error("Missing recovery notice");
 }
 
-describe("recoverable external tool results", () => {
+describe("recorded external tool results", () => {
 	it.each([
 		"mcp__github__get_diff",
 		"connector_search",
 		"custom_tool",
-	])("saves the full %s response and exposes a readable path", async (name) => {
+	])("records a preview and file path once for %s", async (name) => {
 		const store = new ToolResultStore(directory);
-		const block = result(`begin\n${"重要な情報".repeat(2000)}\nend`, name);
-		const messages = history(block);
-		const builder = new MessageBuilder({
-			maxToolResultChars: 500,
-			storeToolResult: (value) => store.save(value),
-		});
-		const prepared = await builder.buildForApi(messages);
-		const path = recoveryPath(prepared);
-		expect(output(prepared).content).toContainEqual({
-			type: "text",
-			text: `Full result saved to ${path} for search.`,
-		});
-		expect(JSON.stringify(output(prepared).content)).toContain("truncated");
-		expect(await readFile(path, "utf8")).toBe(block.content);
-		expect(output(messages)).toEqual(block);
-		const roundTrip = agentMessagesToMessages(
-			messagesToAgentMessages(prepared),
+		const save = vi.fn((value: ToolResultContent) => store.save(value));
+		const builder = new MessageBuilder({ maxToolResultChars: 500 });
+		const original = result("important records\n".repeat(2000), name);
+		const recorded = await builder.prepareExternalToolResult(original, save);
+		const messages = history(recorded);
+		const path = recoveryPath(messages);
+		expect(await readFile(path, "utf8")).toBe(original.content);
+		expect(JSON.stringify(recorded)).toContain("truncated");
+		const resumed = agentMessagesToMessages(
+			messagesToAgentMessages(JSON.parse(JSON.stringify(messages))),
 		);
-		expect(JSON.stringify(roundTrip)).toContain(path);
-		expect(await builder.buildForApi(messages)).toEqual(prepared);
-		// A resumed runtime uses a new temp namespace and regenerates the file.
-		const resumedStore = new ToolResultStore(directory);
-		const resumed = new MessageBuilder({
-			maxToolResultChars: 500,
-			storeToolResult: (value) => resumedStore.save(value),
+		const resumedBuilder = new MessageBuilder({
+			maxToolResultChars: 100,
+			maxTotalTextBytes: 10_000,
 		});
-		const resumedPath = recoveryPath(await resumed.buildForApi(messages));
-		expect(resumedPath).not.toBe(path);
-		expect(await readFile(resumedPath, "utf8")).toBe(block.content);
+		for (let i = 0; i < 3; i++) {
+			expect(output(await builder.buildForApi(messages))).toEqual(recorded);
+			expect(output(await resumedBuilder.buildForApi(resumed))).toEqual(
+				recorded,
+			);
+		}
+		expect(save).toHaveBeenCalledTimes(1);
+		expect(await readFile(path, "utf8")).toBe(original.content);
 	});
-
-	it("preserves structured results and native media while recovering aggregate truncation", async () => {
+	it("bounds many small structured fields and preserves native media", async () => {
 		const store = new ToolResultStore(directory);
+		const builder = new MessageBuilder({ maxToolResultChars: 500 });
 		const image = { type: "image", mediaType: "image/png", data: "aGVsbG8=" };
-		const block = result([
-			{
-				query: "records",
-				result: { data: "e".repeat(30_000), tail: "important" },
-				success: true,
-			},
+		const original = result([
+			...Array.from({ length: 1000 }, () => ({ value: "small field" })),
 			image,
 		] as unknown as ToolResultContent["content"]);
-		const builder = new MessageBuilder({
-			maxToolResultChars: 50_000,
-			maxTotalTextBytes: 10_000,
-			storeToolResult: (value) => store.save(value),
-		});
-		const prepared = await builder.buildForApi(history(block));
-		const path = recoveryPath(prepared);
-		expect(JSON.parse(await readFile(path, "utf8"))).toEqual(block.content);
-		expect(JSON.stringify(output(prepared).content)).toContain(
-			"provider request budget",
+		const recorded = await builder.prepareExternalToolResult(
+			original,
+			(value) => store.save(value),
 		);
-		expect(JSON.stringify(output(prepared).content)).toContain(path);
-		expect(output(prepared).content).toContainEqual(image);
+		expect(recorded.content).toContainEqual(image);
+		expect(JSON.stringify(recorded.content).length).toBeLessThan(1500);
+		expect(
+			JSON.parse(await readFile(recoveryPath(history(recorded)), "utf8")),
+		).toEqual(original.content);
 	});
-
-	it("keeps short external results and default tools out of storage", async () => {
+	it("does not store short responses or alter default tool results at ingestion", async () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 100 });
 		const save = vi.fn();
-		const builder = new MessageBuilder({
-			maxToolResultChars: 100,
-			storeToolResult: save,
-		});
-		expect(
-			output(await builder.buildForApi(history(result("short")))).content,
-		).toBe("short");
-		expect(
-			output(
-				await builder.buildForApi(
-					history(result("x".repeat(1000), "run_commands")),
-				),
-			).content,
-		).toContain("truncated");
+		for (const block of [
+			result("short"),
+			result("x".repeat(1000), "run_commands"),
+		]) {
+			expect(await builder.prepareExternalToolResult(block, save)).toBe(block);
+		}
 		expect(save).not.toHaveBeenCalled();
 	});
-
-	it("returns the complete result if storage fails, including under aggregate pressure", async () => {
-		await writeFile(join(directory, "session_1"), "not a directory");
-		const store = new ToolResultStore(join(directory, "session_1"));
+	it("continues with a bounded preview when saving fails and respects aggregate overflow", async () => {
 		const builder = new MessageBuilder({
-			maxToolResultChars: 5000,
-			maxTotalTextBytes: 2000,
-			storeToolResult: (value) => store.save(value),
+			maxToolResultChars: 8000,
+			maxTotalTextBytes: 1000,
 		});
-		const block = result("x".repeat(30_000));
-		expect(output(await builder.buildForApi(history(block)))).toEqual(block);
+		const warning = vi.fn();
+		const recorded = await builder.prepareExternalToolResult(
+			result("x".repeat(500_000)),
+			async () => {
+				throw new Error("disk full");
+			},
+			warning,
+		);
+		expect(warning).toHaveBeenCalledOnce();
+		expect(JSON.stringify(recorded)).not.toContain("Full result saved");
+		expect(JSON.stringify(recorded).length).toBeLessThan(8500);
+		const original = JSON.stringify(recorded);
+		const prepared = output(await builder.buildForApi(history(recorded)));
+		const textBytes =
+			typeof prepared.content === "string"
+				? Buffer.byteLength(prepared.content)
+				: prepared.content.reduce(
+						(total, entry) =>
+							total +
+							(entry.type === "text" ? Buffer.byteLength(entry.text) : 0),
+						0,
+					);
+		expect(textBytes).toBeLessThanOrEqual(1000);
+		expect(JSON.stringify(recorded)).toBe(original);
 	});
-
-	it("handles unnamed imported results and error responses", async () => {
+	it("keeps saved paths while reducing only provider copies under aggregate pressure", async () => {
 		const store = new ToolResultStore(directory);
-		const block = {
-			...result("error details".repeat(1000)),
-			name: "",
-			is_error: true,
-		};
 		const builder = new MessageBuilder({
-			maxToolResultChars: 500,
-			storeToolResult: (value) => store.save(value),
+			maxToolResultChars: 8000,
+			maxTotalTextBytes: 1000,
 		});
-		const prepared = await builder.buildForApi([
-			{ role: "user", content: [block] },
-		]);
-		expect(JSON.stringify(prepared)).toContain("call_1.result.txt");
-		expect(JSON.stringify(prepared)).toContain('"is_error":true');
-		expect(await readFile(recoveryPath(prepared), "utf8")).toBe(block.content);
-	});
-
-	it("recreates files removed by temp cleanup and reuses the path for the same call", async () => {
-		const store = new ToolResultStore(directory);
-		const block = result("original".repeat(1000));
-		const builder = new MessageBuilder({
-			maxToolResultChars: 100,
-			storeToolResult: (value) => store.save(value),
-		});
-		const first = await builder.buildForApi(history(block));
-		const path = recoveryPath(first);
-		await rm(dirname(path), { recursive: true, force: true });
-		expect(await builder.buildForApi(history(block))).toEqual(first);
-		expect(await readFile(path, "utf8")).toBe(block.content);
+		const full = result("x".repeat(500_000));
+		const recorded = await builder.prepareExternalToolResult(full, (value) =>
+			store.save(value),
+		);
+		const path = recoveryPath(history(recorded));
+		const prepared = output(await builder.buildForApi(history(recorded)));
+		expect(JSON.stringify(prepared.content)).toContain(path);
+		const textBytes =
+			typeof prepared.content === "string"
+				? Buffer.byteLength(prepared.content)
+				: prepared.content.reduce(
+						(total, entry) =>
+							total +
+							(entry.type === "text" ? Buffer.byteLength(entry.text) : 0),
+						0,
+					);
+		expect(textBytes).toBeLessThanOrEqual(1000);
+		expect(await readFile(path, "utf8")).toBe(full.content);
+		expect(JSON.stringify(recorded.content).length).toBeGreaterThan(1000);
 	});
 
 	it("isolates runtimes and keeps repeated tool executions separate", async () => {

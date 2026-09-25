@@ -1324,7 +1324,7 @@ describe("MessageBuilder tool result truncation", () => {
 		expect(block.content).toBe("d".repeat(5_000));
 	});
 
-	it("excludes non-builtin tool results as aggregate budget candidates", async () => {
+	it("applies aggregate overflow relief to non-builtin results without mutating history", async () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 50_000,
 			maxTotalTextBytes: 20_000,
@@ -1365,7 +1365,9 @@ describe("MessageBuilder tool result truncation", () => {
 		if (entry.type !== "text") {
 			throw new Error("expected text entry");
 		}
-		expect(entry.text).toBe("e".repeat(30_000));
+		expect(Buffer.byteLength(entry.text)).toBeLessThanOrEqual(20_000);
+		expect(entry.text).toContain("truncated");
+		expect(JSON.stringify(messages)).toContain("e".repeat(30_000));
 	});
 
 	it("counts tool_use input strings toward the aggregate budget", async () => {

@@ -24,9 +24,8 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
-
 import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
-import { annotateToolResultTruncation } from "./tool-result-recovery";
+import { serializeToolResultContent } from "./tool-result-recovery";
 
 const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
 
@@ -80,8 +79,6 @@ interface TruncationCandidate {
 }
 
 export interface MessageBuilderOptions {
-	/** Persist complete external results before returning a shortened provider copy. */
-	storeToolResult?: (result: ToolResultContent) => Promise<string>;
 	maxToolResultChars?: number;
 	maxFileContentChars?: number;
 	maxTotalTextBytes?: number;
@@ -137,7 +134,7 @@ export class MessageBuilder {
 	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
-	constructor(private readonly options: MessageBuilderOptions = {}) {
+	constructor(options: MessageBuilderOptions = {}) {
 		this.maxToolResultChars = normalizePositiveLimit(
 			options.maxToolResultChars,
 			DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -209,73 +206,48 @@ export class MessageBuilder {
 
 		const mediaLimited = this.applyMediaBudget(prepared);
 		const limited = this.truncateToTotalTextBudget(mediaLimited);
-		return this.preserveExternalResults(repairedMessages, limited);
+		return limited;
 	}
 
 	private canTruncateToolResult(block: ToolResultContent): boolean {
-		return (
-			DEFAULT_TOOL_NAMES.has(this.resolveToolName(block) ?? "") ||
-			!!this.options.storeToolResult
-		);
+		return DEFAULT_TOOL_NAMES.has(this.resolveToolName(block) ?? "");
 	}
 
-	private async preserveExternalResults(
-		original: Message[],
-		prepared: Message[],
-	): Promise<Message[]> {
-		const storeToolResult = this.options.storeToolResult;
-		if (!storeToolResult) return prepared;
-		const originals = new Map<string, ToolResultContent>();
-		for (const message of original) {
-			if (!Array.isArray(message.content)) continue;
-			for (const block of message.content) {
-				if (
-					block.type === "tool_result" &&
-					!DEFAULT_TOOL_NAMES.has(this.resolveToolName(block) ?? "")
-				) {
-					originals.set(block.tool_use_id, block);
-				}
-			}
+	/** Normalize a newly executed external result once, before recording history. */
+	async prepareExternalToolResult(
+		result: ToolResultContent,
+		save: (result: ToolResultContent) => Promise<string>,
+		onSaveFailure?: () => void,
+	): Promise<ToolResultContent> {
+		if (DEFAULT_TOOL_NAMES.has(result.name?.toLowerCase() ?? "")) return result;
+		// Bound the whole textual response, including many small structured fields.
+		// Keep native media blocks intact instead of truncating base64 data.
+		const media = Array.isArray(result.content)
+			? result.content.filter(isBinaryContentLike)
+			: [];
+		const textual = Array.isArray(result.content)
+			? result.content.filter((entry) => !isBinaryContentLike(entry))
+			: result.content;
+		const fullText = serializeToolResultContent(textual);
+		if (typeof fullText !== "string") return result;
+		const preview = this.truncateMiddle(fullText);
+		if (preview === fullText) return result;
+		const content: ToolResultContent["content"] = [
+			{ type: "text", text: preview },
+			...media,
+		];
+		try {
+			const path = await save(result);
+			content.push({
+				type: "text",
+				text: `Full result saved to ${path} for search.`,
+			});
+		} catch {
+			// Saving is best-effort: keep the bounded preview, never restore the
+			// full response or advertise a file that was not written.
+			onSaveFailure?.();
 		}
-		return Promise.all(
-			prepared.map(async (message) => {
-				if (!Array.isArray(message.content)) return message;
-				const content = await Promise.all(
-					message.content.map(async (block) => {
-						if (block.type !== "tool_result") return block;
-						const full = originals.get(block.tool_use_id);
-						if (
-							!full ||
-							JSON.stringify(full.content) === JSON.stringify(block.content)
-						)
-							return block;
-						try {
-							const path = await storeToolResult(full);
-							// Append after every budget pass so the recovery path cannot be truncated.
-							const preview = annotateToolResultTruncation(
-								full.content,
-								block.content,
-							);
-							const notice = `Full result saved to ${path} for search.`;
-							// Provider-only metadata: never append to persisted history/UI events.
-							return {
-								...block,
-								content: [
-									...(typeof preview === "string"
-										? [{ type: "text" as const, text: preview }]
-										: preview),
-									{ type: "text" as const, text: notice },
-								],
-							};
-						} catch {
-							// A failed write must never turn a one-shot external response into data loss.
-							return full;
-						}
-					}),
-				);
-				return { ...message, content };
-			}),
-		);
+		return { ...result, content };
 	}
 
 	private transformBlock(
@@ -339,7 +311,7 @@ export class MessageBuilder {
 			}
 		}
 
-		// External results are only eligible when their complete content can be saved.
+		// External results were already normalized before entering history.
 		if (this.canTruncateToolResult(block)) {
 			nextContent = this.truncateToolResultContent(nextContent);
 		}
@@ -1257,11 +1229,17 @@ export class MessageBuilder {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
-			if (currentBytes <= candidate.minBytes) {
+			// Scale retention floors to small configured budgets instead of
+			// allowing a single 2KB floor to defeat a 1KB request budget.
+			const minimumBytes = Math.min(
+				candidate.minBytes,
+				Math.floor(this.maxTotalTextBytes / candidates.length),
+			);
+			if (currentBytes <= minimumBytes) {
 				continue;
 			}
 			const overflow = totalBytes - this.maxTotalTextBytes;
-			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
+			const targetBytes = Math.max(minimumBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
 				targetBytes,
@@ -1355,9 +1333,8 @@ export class MessageBuilder {
 				if (block.type !== "tool_result") {
 					continue;
 				}
-				if (!this.canTruncateToolResult(block)) {
-					continue;
-				}
+				// Per-result normalization happens at ingestion for external tools,
+				// but all results remain eligible for aggregate overflow relief.
 				if (typeof block.content === "string") {
 					resultCandidates.push({
 						byteLength: utf8ByteLength(block.content),

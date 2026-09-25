@@ -580,19 +580,15 @@ Design implications:
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 
-#### Temporary recovery files for external tool results
+#### Recorded recovery files for external tool results
 
-MCP, connector, and custom tools may return large responses without accepting pagination or size controls. Truncating those responses without a recovery copy can hide information the agent cannot otherwise retrieve. Core therefore saves the complete result before shortening its provider copy; if saving fails, it keeps the full response. Default tools retain their existing truncation behavior because their output is recoverable through their inputs.
+Core normalizes oversized MCP, connector, and custom tool results once, after tool hooks and before adding the result to the runtime transcript. It atomically saves the full response, then records a bounded preview and `Full result saved to <path> for search.` in the canonical message. The same preview and path appear in history, UI events, subsequent model requests, and resumed sessions. Default tools keep their existing provider-side truncation behavior.
 
-**Decision:** use disposable OS temp files rather than permanent session-history artifacts. These files support inspection during the current runtime; they are not a durable archive or a promise that an old response remains useful after a restart. Keeping them temporary avoids coupling recovery output to custom history-directory configuration, session-ID syntax, history migration, retention, or child-session deletion. The canonical transcript remains unchanged and retains the original result independently of these files.
-
-Lifetime and recovery semantics:
-
-- Each runtime lazily allocates a private `cline-tool-results-*` directory under the OS temp directory. Delegated runtimes and resumed sessions get independent directories. Cleanup follows OS temp policy; files are not guaranteed to survive a restart, nor guaranteed to disappear immediately when a session ends.
-- Preparing the same recorded tool call again reuses its `<encoded-tool-call-id>.result.txt` path within that runtime. A newly executed call has a different call ID and a separate file; identical arguments do not imply identical results. Temp storage does not deduplicate or cache tool execution.
-- Before emitting a recovery path, core writes the complete recorded result atomically, recreating files removed by temp cleanup. On resume, retained results can be materialized in the new runtime's temp directory. No stale temp path is persisted as a replacement for the original result.
-- If an old result is no longer in the active context and is needed again, the agent can make a fresh request through the original tool. Core does not automatically replay tool calls, and a fresh response need not match the earlier one. Accepting disposable recovery files does not make an unbounded external response safe to truncate without first saving it.
-- Strings are saved verbatim; structured results are saved as JSON. Truncation markers identify saved-file line ranges. The short `Full result saved to <path> for search.` notice is appended as a separate text block after all budget passes, only in the provider copy, so it does not appear in persisted history or the UI. Reading and searching instructions belong to the tools the agent chooses, not this notice.
+- Full results live under the host's configured session directory in `tool-results/`, with a private namespace per runtime to isolate call IDs across delegated agents and resumes. Delegated runtimes inherit the root session's result directory. Root-session deletion removes these artifacts; deleting only a child leaves its recovery files until root-session deletion.
+- Direct, unhosted orchestrators default to the Cline data directory's `tool-results/`; callers can supply `toolResultsDirectory` to own their retention policy. Files are not deleted on runtime shutdown because recorded messages still reference them.
+- Strings are stored verbatim and structured responses as JSON. Text is bounded across the entire result, including arrays of small fields; native media remains intact.
+- Model-request preparation never saves external results or reapplies their per-result cap. The aggregate overflow budget can further shorten the provider copy without changing canonical history. A resumed runtime uses recorded paths without rewriting old results. If a file is manually removed, the original response cannot be regenerated from the shortened transcript; the agent must request fresh data.
+- A failed save logs a warning and records the truncated preview without a file notice. It does not fail the successful tool execution, publish a nonexistent path, or restore the oversized response. The aggregate overflow budget still applies. Saving files does not cache or replay tool execution.
 
 ### 10. Extension Layering Inside Core
 

@@ -59,6 +59,7 @@ export interface BuiltRuntime {
 }
 
 export interface RuntimeBuilderInput {
+	toolResultsDirectory?: string;
 	config: CoreSessionConfig;
 	/**
 	 * Host-resolved stable end-user identity, forwarded so delegated agents

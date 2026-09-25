@@ -49,6 +49,7 @@ import {
 	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	type ToolCallRecord,
+	type ToolResultContent,
 	usesImageGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
@@ -61,6 +62,7 @@ import {
 	captureMistakeLimitReached,
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import {
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
@@ -396,6 +398,7 @@ export class SessionRuntime {
 	private currentTurnSuccessfulTools = 0;
 	private currentTurnFailedTools = 0;
 	private currentTurnFailureDetails: string[] = [];
+	private readonly toolResultStore: ToolResultStore;
 	/**
 	 * Serial queue for `MistakeTracker.record(...)` + loop-detection
 	 * side-effects fired from the sync `handleRuntimeEvent` stream. The
@@ -412,6 +415,7 @@ export class SessionRuntime {
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
+		this.toolResultStore = new ToolResultStore(config.toolResultsDirectory);
 		this.agentId = `agent_${Date.now()}_${Math.random()
 			.toString(36)
 			.slice(2, 8)}`;
@@ -422,10 +426,8 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		const toolResultStore = new ToolResultStore();
 		this.messageBuilder = new MessageBuilder({
 			...getMessageBuilderOptionsFromEnv(),
-			storeToolResult: (result) => toolResultStore.save(result),
 		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
@@ -1134,6 +1136,33 @@ export class SessionRuntime {
 		]);
 		return {
 			...hooks,
+			afterTool: async (ctx) => {
+				const control = await hooks.afterTool?.(ctx);
+				const result = control?.result ?? ctx.result;
+				const block: ToolResultContent = {
+					type: "tool_result",
+					tool_use_id: ctx.toolCall.toolCallId,
+					name: ctx.toolCall.toolName,
+					content: toPersistedToolResultContent(result.output),
+					is_error: result.isError,
+				};
+				const prepared = await this.messageBuilder.prepareExternalToolResult(
+					block,
+					(value) => this.toolResultStore.save(value),
+					() =>
+						this.logger?.log(
+							"Unable to save full external tool result; continuing with truncated output",
+							{ severity: "warn" },
+						),
+				);
+				return {
+					...control,
+					result:
+						prepared === block
+							? result
+							: { ...result, output: prepared.content },
+				};
+			},
 			beforeModel: async (ctx) => {
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {

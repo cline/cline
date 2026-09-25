@@ -14,7 +14,14 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import {
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -550,58 +557,194 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 });
 
 describe("SessionRuntime message preparation", () => {
-	it("writes external results to runtime-scoped temporary files before model calls", async () => {
+	it("finishes a successful tool call when storing its large output fails", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "failed-result-store-"));
+		const blocked = join(directory, "not-a-directory");
+		await writeFile(blocked, "blocked");
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		let calls = 0;
+		const model: AgentModel = {
+			async stream(request) {
+				const first = calls++ === 0;
+				if (!first) {
+					const wire = JSON.stringify(request.messages);
+					expect(wire).not.toContain("x".repeat(500_000));
+					expect(wire).not.toContain("Full result saved");
+					expect(wire).toContain("truncated");
+				}
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "call",
+							toolName: "external",
+							inputText: "{}",
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "done" };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				logger,
+				toolResultsDirectory: blocked,
+				tools: [
+					{
+						name: "external",
+						description: "external",
+						inputSchema: { type: "object" },
+						execute: async () => "x".repeat(500_000),
+					},
+				],
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		try {
+			const result = await session.run("go");
+			expect(result.text).toBe("done");
+			expect(logger.log).toHaveBeenCalledWith(
+				expect.stringContaining("continuing with truncated output"),
+				{ severity: "warn" },
+			);
+			expect(JSON.stringify(session.getMessages())).not.toContain(
+				"Full result saved",
+			);
+		} finally {
+			await session.shutdown();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("persists the shortened tool output and reuses it across turns and resume without writes", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "recorded-results-"));
+		const full = "full external response\n".repeat(2000);
+		let calls = 0;
+		const scriptedModel: AgentModel = {
+			async stream() {
+				const first = calls++ === 0;
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "external_call",
+							toolName: "external",
+							inputText: "{}",
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "done" };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const config = makeAgentConfig({
+			toolResultsDirectory: directory,
+			tools: [
+				{
+					name: "external",
+					description: "external",
+					inputSchema: { type: "object" },
+					execute: async () => full,
+				},
+			],
+		});
+		const deps = {
+			createAgentRuntimeImpl: (runtimeConfig: AgentRuntimeConfig) =>
+				createAgentRuntime({ ...runtimeConfig, model: scriptedModel }),
+		};
+		const session = new SessionRuntime(config, deps);
+		let resumed: SessionRuntime | undefined;
+		try {
+			await session.run("go");
+			const [namespace] = await readdir(directory);
+			const path = join(directory, namespace, "external_call.result.txt");
+			const before = await stat(path);
+			const history = JSON.parse(JSON.stringify(session.getMessages()));
+			expect(JSON.stringify(history)).toContain(path);
+			expect(JSON.stringify(history)).not.toContain(full);
+			expect(await readFile(path, "utf8")).toBe(full);
+			await session.run("follow up");
+			await session.shutdown();
+			resumed = new SessionRuntime(
+				{ ...config, initialMessages: history },
+				deps,
+			);
+			await resumed.continue();
+			expect((await stat(path)).mtimeMs).toBe(before.mtimeMs);
+			expect(await readdir(directory)).toEqual([namespace]);
+			expect(JSON.stringify(resumed.getMessages())).toContain(path);
+		} finally {
+			await session.shutdown();
+			await resumed?.shutdown();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("normalizes external output in afterTool before history and leaves model preparation read-only", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cline-runtime-results-"));
-		for (const variable of ["TMPDIR", "TMP", "TEMP"])
-			vi.stubEnv(variable, directory);
 		const { deps, configs } = makeRecordingRuntimeFactory();
 		const session = new SessionRuntime(
-			makeAgentConfig({ sessionId: "user@example.com+resume" }),
+			makeAgentConfig({ toolResultsDirectory: directory }),
 			deps,
 		);
 		try {
 			await session.run("go");
 			const full = "important records".repeat(2000);
-			const prepared = await configs[0]?.hooks?.beforeModel?.({
+			const tool: AgentTool = {
+				name: "connector_search",
+				description: "Search",
+				inputSchema: {},
+				execute: async () => full,
+			};
+			const after = await configs[0]?.hooks?.afterTool?.({
 				snapshot: makeSnapshot(),
-				request: {
-					systemPrompt: "system",
-					tools: [],
-					messages: messagesToAgentMessages([
-						{
-							role: "assistant",
-							content: [
-								{
-									type: "tool_use",
-									id: "call_1",
-									name: "connector_search",
-									input: {},
-								},
-							],
-						},
-						{
-							role: "user",
-							content: [
-								{
-									type: "tool_result",
-									tool_use_id: "call_1",
-									name: "connector_search",
-									content: full,
-								},
-							],
-						},
-					]),
+				tool,
+				toolCall: {
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: tool.name,
+					input: {},
 				},
+				input: {},
+				result: { output: full },
+				startedAt: new Date(),
+				endedAt: new Date(),
+				durationMs: 0,
 			});
 			const [runtimeDir] = await readdir(directory);
-			expect(runtimeDir).toMatch(/^cline-tool-results-/);
 			const path = join(directory, runtimeDir, "call_1.result.txt");
+			expect(JSON.stringify(after?.result?.output)).toContain(path);
+			expect(await readFile(path, "utf8")).toBe(full);
+			const messages = messagesToAgentMessages([
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "call_1",
+							name: tool.name,
+							content: after?.result?.output as string,
+						},
+					],
+				},
+			]);
+			const prepared = await configs[0]?.hooks?.beforeModel?.({
+				snapshot: makeSnapshot(),
+				request: { systemPrompt: "system", tools: [], messages },
+			});
 			expect(JSON.stringify(prepared?.messages)).toContain(path);
-			expect(JSON.stringify(prepared?.messages)).toContain("truncated");
+			await session.shutdown();
 			expect(await readFile(path, "utf8")).toBe(full);
 		} finally {
 			await session.shutdown();
-			vi.unstubAllEnvs();
 			await rm(directory, { recursive: true, force: true });
 		}
 	});
