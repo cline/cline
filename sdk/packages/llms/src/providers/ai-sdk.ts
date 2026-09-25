@@ -844,7 +844,10 @@ function toAiSdkMessages(
 	});
 }
 
-function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
+function toAiSdkTools(
+	request: GatewayStreamRequest,
+	kind: ProviderModuleKind,
+): ToolSet | undefined {
 	if (!request.tools?.length) {
 		return undefined;
 	}
@@ -858,6 +861,8 @@ function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 	for (const definition of request.tools) {
 		tools[definition.name] = {
 			description: definition.description,
+			// Responses otherwise normalizes optional properties into required fields.
+			...(kind === "openai" ? { strict: false } : {}),
 			inputSchema: jsonSchema(
 				normalizeAiSdkToolInputSchema(definition.inputSchema),
 			),
@@ -2254,7 +2259,7 @@ function createAiSdkProvider(
 					!modelSupportsToolCalling(context.model);
 				const runtimeTools = toolCallingDisabled
 					? undefined
-					: toAiSdkTools(request);
+					: toAiSdkTools(request, kind);
 				const activeModelTools = toolCallingDisabled
 					? []
 					: (request.modelTools ?? []).filter(
