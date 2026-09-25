@@ -76,4 +76,36 @@ describe("CommandOutputContent", () => {
 		await act(async () => {})
 		expect(onOutputChange).not.toHaveBeenCalled()
 	})
+
+	it("keeps the scrollbar visible on the height-capped output container", () => {
+		const { container } = render(
+			<CommandOutputContent
+				isContainerExpanded={true}
+				isOutputFullyExpanded={false}
+				onToggle={vi.fn()}
+				output={"1\n2\n3\n4\n5\n6"}
+			/>,
+		)
+
+		const scrollContainer = container.querySelector(".overflow-y-auto")
+		expect(scrollContainer).not.toBeNull()
+		expect(scrollContainer?.classList.contains("code-block-scrollable")).toBe(true)
+		expect(scrollContainer?.classList.contains("max-h-[75px]")).toBe(true)
+	})
+
+	it("keeps the scrollbar visible once the output is fully expanded", () => {
+		const { container } = render(
+			<CommandOutputContent
+				isContainerExpanded={true}
+				isOutputFullyExpanded={true}
+				onToggle={vi.fn()}
+				output={"1\n2\n3\n4\n5\n6"}
+			/>,
+		)
+
+		const scrollContainer = container.querySelector(".overflow-y-auto")
+		expect(scrollContainer).not.toBeNull()
+		expect(scrollContainer?.classList.contains("code-block-scrollable")).toBe(true)
+		expect(scrollContainer?.classList.contains("max-h-[200px]")).toBe(true)
+	})
 })
