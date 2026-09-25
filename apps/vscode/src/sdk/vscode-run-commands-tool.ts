@@ -43,8 +43,11 @@ import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-c
 type ShellCommand = string | StructuredCommandInput
 type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 
-/** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
-export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
+/** VS Code run_commands can run longer IDE tasks, in both foreground and background modes. */
+export const VSCODE_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
+
+/** @deprecated Use VSCODE_RUN_COMMANDS_TIMEOUT_MS. */
+export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = VSCODE_RUN_COMMANDS_TIMEOUT_MS
 
 /** Release the agent turn if a foreground command is still running after 300 seconds. */
 export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = 300 * 1000
@@ -64,7 +67,7 @@ export interface VscodeRunCommandsToolOptions {
 	cwd: string
 	/** Lazy factory for the VscodeTerminalManager. Called once on first foreground use. */
 	getTerminalManager: () => VscodeTerminalManager
-	/** Timeout passed to the SDK shell tool wrapper and timeout telemetry. */
+	/** Timeout passed to the SDK shell tool wrapper, executor, and timeout telemetry. */
 	bashTimeoutMs?: number
 	/** Terminal execution mode captured when this session's tool set is built. */
 	vscodeTerminalExecutionMode?: VscodeTerminalExecutionMode
@@ -563,6 +566,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 				bgExecutorShell = shell
 				bgExecutor = createShellExecutor({
 					shell,
+					timeoutMs: options.bashTimeoutMs,
 					// Set SHELL env to match the shell we're spawning so child
 					// processes see the correct value instead of the inherited parent's.
 					env: { SHELL: shell },
