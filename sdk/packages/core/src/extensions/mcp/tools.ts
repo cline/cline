@@ -13,6 +13,36 @@ function defaultMcpDescription(
 	return `Execute MCP tool "${tool.name}" from server "${serverName}".`;
 }
 
+const REGEX_LOOKAROUND = /\(\?<?[=!]/;
+
+/**
+ * OpenAI-backed models reject any request whose tool schemas contain a
+ * `pattern` using regex lookaround (e.g. Zod v4's `z.email()`), which blocks
+ * the whole conversation even when the tool is never called. `pattern` is only
+ * advisory to the model and the MCP server still validates arguments, so
+ * dropping just the offending patterns is lossless.
+ */
+export function stripLookaroundPatterns<T>(schema: T): T {
+	if (Array.isArray(schema)) {
+		return schema.map(stripLookaroundPatterns) as T;
+	}
+	if (!schema || typeof schema !== "object") {
+		return schema;
+	}
+	const result: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(schema)) {
+		if (
+			key === "pattern" &&
+			typeof value === "string" &&
+			REGEX_LOOKAROUND.test(value)
+		) {
+			continue;
+		}
+		result[key] = stripLookaroundPatterns(value);
+	}
+	return result as T;
+}
+
 export async function createMcpTools(
 	options: CreateMcpToolsOptions,
 ): Promise<AgentTool[]> {
@@ -28,7 +58,7 @@ export async function createMcpTools(
 		return createTool({
 			name: agentToolName,
 			description: defaultMcpDescription(options.serverName, descriptor),
-			inputSchema: descriptor.inputSchema,
+			inputSchema: stripLookaroundPatterns(descriptor.inputSchema),
 			timeoutMs: options.timeoutMs,
 			retryable: options.retryable,
 			maxRetries: options.maxRetries,
