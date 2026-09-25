@@ -255,6 +255,64 @@ export const SkillsInputSchema = z.object({
 		.describe("Arguments for the skill; use null when omitted"),
 });
 
+/** Schema for the monitor tool input. */
+export const MonitorInputSchema = z
+	.object({
+		action: z
+			.enum(["start", "list", "stop"])
+			.default("start")
+			.describe(
+				"start begins a new background watch, list shows active watches, stop ends one.",
+			),
+		name: z
+			.string()
+			.optional()
+			.describe(
+				"Short identifier for the watch, unique among running monitors. Required for start; accepted by stop in place of monitor_id.",
+			),
+		command: z
+			.string()
+			.optional()
+			.describe(
+				"Shell command to run in the background. It should keep running and print a line whenever something changes. Required for start.",
+			),
+		description: z
+			.string()
+			.optional()
+			.describe(
+				"Short summary of what is being watched, shown to the user and repeated on every notification. Required for start.",
+			),
+		monitor_id: z
+			.string()
+			.optional()
+			.describe("Id of the monitor to stop, as returned by start or list."),
+	})
+	.superRefine((input, ctx) => {
+		if (input.action === "start") {
+			for (const field of ["name", "command", "description"] as const) {
+				if (!input[field]?.trim()) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						path: [field],
+						message: `${field} is required when action is "start"`,
+					});
+				}
+			}
+			return;
+		}
+		if (
+			input.action === "stop" &&
+			!input.monitor_id?.trim() &&
+			!input.name?.trim()
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["monitor_id"],
+				message: 'monitor_id or name is required when action is "stop"',
+			});
+		}
+	});
+
 /**
  * Schema for ask_followup_question tool input
  */
@@ -339,6 +397,9 @@ export type ApplyPatchInput = z.infer<typeof ApplyPatchInputSchema>;
  * Input for the skills tool
  */
 export type SkillsInput = z.infer<typeof SkillsInputSchema>;
+
+/** Input for the monitor tool. */
+export type MonitorInput = z.infer<typeof MonitorInputSchema>;
 
 /**
  * Input for the ask_followup_question tool
