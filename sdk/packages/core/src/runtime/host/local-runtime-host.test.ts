@@ -3866,10 +3866,18 @@ describe("LocalRuntimeHost", () => {
 			updated: true,
 		},
 		{ name: "clear", updates: { metadata: null }, updated: true },
+		{
+			name: "clear all",
+			updates: { metadata: null, title: null },
+			updated: true,
+		},
+		{ name: "missing manifest", updates: { metadata: null }, updated: true },
+		{ name: "invalid manifest", updates: { metadata: null }, updated: true },
 		{ name: "failed save", updates: { metadata: null }, updated: false },
 		{ name: "rename", updates: { title: "Renamed session" }, updated: true },
 		{ name: "derived title", updates: { prompt: "New prompt" }, updated: true },
 	])("keeps active metadata consistent with persistence after $name", async ({
+		name,
 		updates,
 		updated,
 	}) => {
@@ -3895,7 +3903,7 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 		try {
-			await manager.startSession(
+			const { manifestPath } = await manager.startSession(
 				normalizeStartInput({
 					config: createConfig({
 						sessionId,
@@ -3917,23 +3925,39 @@ describe("LocalRuntimeHost", () => {
 				).toBeUndefined();
 			}
 			const before = (await manager.getSession(sessionId))?.metadata;
+			const missingManifest =
+				name === "missing manifest" || name === "invalid manifest";
+			if (name === "missing manifest") rmSync(manifestPath);
+			if (name === "invalid manifest")
+				writeFileSync(manifestPath, "invalid JSON");
 			if (!updated)
 				vi.spyOn(sessionService, "updateSession").mockResolvedValueOnce({
 					updated: false,
 				});
+			const readManifest = vi.spyOn(sessionService, "readSessionManifest");
 			await expect(manager.updateSession(sessionId, updates)).resolves.toEqual({
 				updated,
 			});
-			const expected = updated
-				? {
-						...(updates.metadata !== undefined ? updates.metadata : before),
-						title: updates.title ?? updates.prompt ?? "Named session",
-					}
-				: before;
+			expect(readManifest).not.toHaveBeenCalled();
+			const expected =
+				name === "clear all"
+					? undefined
+					: updated && !missingManifest
+						? {
+								...(updates.metadata !== undefined ? updates.metadata : before),
+								title: updates.title ?? updates.prompt ?? "Named session",
+							}
+						: before;
 			expect(sessionService.readSessionManifest(sessionId)?.metadata).toEqual(
-				expected,
+				missingManifest ? undefined : expected,
 			);
 			expect((await manager.getSession(sessionId))?.metadata).toEqual(expected);
+			if (updates.metadata?.custom) {
+				updates.metadata.custom.status = "mutated after save";
+				expect((await manager.getSession(sessionId))?.metadata?.custom).toEqual(
+					{ status: "complete" },
+				);
+			}
 		} finally {
 			await manager.dispose();
 		}
