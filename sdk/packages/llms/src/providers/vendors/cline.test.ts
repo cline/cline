@@ -207,6 +207,35 @@ describe("createCline", () => {
 		expect(body).toMatchObject({ model: modelId, max_tokens: 8_192 });
 		expect(body).not.toHaveProperty("max_completion_tokens");
 	});
+
+	it.each([
+		"full-width",
+		"ascii",
+	])("converts %s leaked DeepSeek DSML tool calls into native tool calls", async (variant) => {
+		fetchMock.mockResolvedValue(deepSeekDsmlResponse(variant));
+		const cline = createCline({
+			apiKey: "test-api-key",
+			baseURL: "https://api.cline.bot/api/v1",
+			fetch: fetchMock,
+		});
+
+		const { stream } = await cline("deepseek-v4-flash-0731").doStream({
+			prompt: [
+				{ role: "user", content: [{ type: "text", text: "read a file" }] },
+			],
+			maxOutputTokens: 1_024,
+		});
+		const parts = await collectStreamParts(stream);
+
+		expect(parts).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call",
+				toolName: "read_file",
+				input: '{"path":"README.md","line_end":12}',
+			}),
+		);
+		expect(parts.filter((part) => part.type === "text-delta")).toEqual([]);
+	});
 });
 
 function capturedRequestBody(
@@ -233,4 +262,51 @@ function jsonCompletionResponse(modelId: string): Response {
 		}),
 		{ status: 200, headers: { "content-type": "application/json" } },
 	);
+}
+
+async function collectStreamParts(
+	stream: ReadableStream<unknown>,
+): Promise<Array<Record<string, unknown> & { type: string }>> {
+	const parts: Array<Record<string, unknown> & { type: string }> = [];
+	const reader = stream.getReader();
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) {
+			return parts;
+		}
+		parts.push(value as Record<string, unknown> & { type: string });
+	}
+}
+
+function deepSeekDsmlResponse(variant: string): Response {
+	const marker = variant === "ascii" ? "||" : "｜";
+	const events = [
+		`data: ${JSON.stringify({
+			id: "chatcmpl-dsml",
+			created: 0,
+			model: "deepseek-v4-flash-0731",
+			choices: [
+				{
+					index: 0,
+					delta: {
+						role: "assistant",
+						content: `<${marker}DSML${marker}tool_calls>\n<${marker}DSML${marker}invoke name="read_file">\n<${marker}DSML${marker}parameter name="path" string="true">README.md</${marker}DSML${marker}parameter>\n<${marker}DSML${marker}parameter name="line_end" string="false">12</${marker}DSML${marker}parameter>\n</${marker}DSML${marker}invoke>\n</${marker}DSML${marker}tool_calls>`,
+					},
+				},
+			],
+		})}`,
+		`data: ${JSON.stringify({
+			id: "chatcmpl-dsml",
+			created: 0,
+			model: "deepseek-v4-flash-0731",
+			choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+			usage: { prompt_tokens: 1, completion_tokens: 8, total_tokens: 9 },
+		})}`,
+		"data: [DONE]",
+		"",
+	].join("\n\n");
+	return new Response(events, {
+		status: 200,
+		headers: { "content-type": "text/event-stream" },
+	});
 }
