@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+import type { watch } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -172,6 +174,54 @@ describe("runtime plugin catalogs", () => {
 			() => expect(load.mock.calls.length).toBeGreaterThan(calls),
 			{ timeout: 3000 },
 		);
+	});
+	it.each([
+		"add",
+		"edit",
+		"remove",
+		"unchanged",
+		"watch-throw",
+	])("reconciles %s during watcher outages without resetting unchanged plugins", async (change) => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const file = join(directory, "echo.js");
+		if (change !== "add") await writeFile(file, "before");
+		const watchers: EventEmitter[] = [];
+		let unavailable = change === "watch-throw";
+		const watchFiles = vi.fn(() => {
+			if (unavailable) throw new Error("watch unavailable");
+			const watcher = Object.assign(new EventEmitter(), { close: vi.fn() });
+			watchers.push(watcher);
+			return watcher;
+		});
+		const initial = loaded();
+		const load = vi.fn(async () => initial);
+		const manager = new PluginCommandManager({
+			load,
+			watch: watchFiles as unknown as typeof watch,
+		});
+		managers.push(manager);
+		const updates = vi.fn();
+		manager.subscribe(updates);
+		await manager.list({ workspacePath });
+		const attempts = watchFiles.mock.calls.length;
+		watchers[0]?.emit("error", new Error("watch lost"));
+		if (change === "remove") await rm(file);
+		else if (change !== "unchanged") await writeFile(file, "after");
+		unavailable = false;
+		await vi.waitFor(
+			() => expect(watchFiles.mock.calls.length).toBeGreaterThan(attempts),
+			{ timeout: 3000 },
+		);
+		if (change === "unchanged") {
+			expect(load).toHaveBeenCalledTimes(1);
+			expect(initial.shutdown).not.toHaveBeenCalled();
+		} else {
+			await vi.waitFor(() => expect(updates).toHaveBeenCalledTimes(2));
+			expect(load).toHaveBeenCalledTimes(2);
+			expect(initial.shutdown).toHaveBeenCalledTimes(1);
+		}
 	});
 	it("waits for active handlers before disposing the sandbox", async () => {
 		const workspacePath = await workspace();

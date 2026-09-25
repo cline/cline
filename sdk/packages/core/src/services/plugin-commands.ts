@@ -1,4 +1,13 @@
-import { existsSync, type FSWatcher, statSync, watch } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+	existsSync,
+	type FSWatcher,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	statSync,
+	watch,
+} from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import {
 	type AgentExtensionCommand,
@@ -36,6 +45,7 @@ type Entry = {
 	timer?: ReturnType<typeof setTimeout>;
 	watchers: FSWatcher[];
 	watchRetry?: ReturnType<typeof setTimeout>;
+	fingerprint?: string;
 	/** Serializes execution with reload/disposal so a handler cannot lose its sandbox. */
 	tail: Promise<unknown>;
 };
@@ -52,6 +62,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 			logger?: BasicLogger;
 			load?: typeof loadResolvedAgentPlugins;
 			retryDelayMs?: number;
+			watch?: typeof watch;
 		} = {},
 	) {}
 
@@ -95,17 +106,66 @@ export class PluginCommandManager implements PluginCommandsApi {
 		}, delay);
 		entry.timer.unref?.();
 	}
+	private watchRoots(entry: Entry): Set<string> {
+		return new Set([
+			...resolvePluginConfigSearchPaths(entry.workspacePath),
+			...entry.pluginPaths.map(dirname),
+			resolveGlobalSettingsPath(),
+		]);
+	}
+	/** Compare contents across watcher outages without replacing unchanged plugin instances. */
+	private fingerprint(entry: Entry): string {
+		const hash = createHash("sha256");
+		const visited = new Set<string>();
+		const visit = (path: string): void => {
+			hash.update(JSON.stringify(path));
+			let real: string;
+			try {
+				real = realpathSync(path);
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+					hash.update("missing");
+					return;
+				}
+				throw error;
+			}
+			if (visited.has(real)) return;
+			visited.add(real);
+			if (statSync(path).isDirectory()) {
+				for (const name of readdirSync(path).sort()) {
+					if (name !== "node_modules") visit(resolve(path, name));
+				}
+			} else if (statSync(path).isFile()) hash.update(readFileSync(path));
+		};
+		for (const root of [...this.watchRoots(entry)].sort()) visit(root);
+		return hash.digest("hex");
+	}
+	private reconnect(entry: Entry): void {
+		if (this.disposed) return;
+		clearTimeout(entry.watchRetry);
+		entry.watchRetry = setTimeout(() => {
+			if (this.disposed) return;
+			// Install watchers first, then reconcile changes missed during the outage.
+			this.watch(entry);
+			try {
+				if (this.fingerprint(entry) !== entry.fingerprint) {
+					entry.dirty = true;
+					void this.refresh(entry);
+				}
+			} catch (error) {
+				this.options.logger?.debug?.("Plugin command rescan failed", { error });
+				this.reconnect(entry);
+			}
+		}, 1000);
+		entry.watchRetry.unref?.();
+	}
 	private watch(entry: Entry): void {
 		clearTimeout(entry.watchRetry);
 		if (this.disposed) return;
 		for (const watcher of entry.watchers) watcher.close();
 		entry.watchers = [];
 		const settings = resolveGlobalSettingsPath();
-		const roots = new Set([
-			...resolvePluginConfigSearchPaths(entry.workspacePath),
-			...entry.pluginPaths.map(dirname),
-			settings,
-		]);
+		const roots = this.watchRoots(entry);
 		for (const root of roots) {
 			let directory = root === settings ? dirname(root) : root;
 			while (!existsSync(directory) && dirname(directory) !== directory)
@@ -113,7 +173,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 			try {
 				const recursive =
 					directory === root && statSync(directory).isDirectory();
-				const watcher = watch(
+				const watcher = (this.options.watch ?? watch)(
 					directory,
 					{ recursive, persistent: false },
 					(_event, file) => {
@@ -134,9 +194,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 						"Plugin command watcher failed; reconnecting",
 						{ directory, error },
 					);
-					clearTimeout(entry.watchRetry);
-					entry.watchRetry = setTimeout(() => this.watch(entry), 1000);
-					entry.watchRetry.unref?.();
+					this.reconnect(entry);
 				});
 				entry.watchers.push(watcher);
 			} catch (error) {
@@ -144,6 +202,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 					directory,
 					error,
 				});
+				this.reconnect(entry);
 			}
 		}
 	}
@@ -175,6 +234,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 							workspacePath: entry.workspacePath,
 						});
 						entry.failedPaths = entry.pluginPaths;
+						entry.fingerprint = this.fingerprint(entry);
 					}
 					loaded = await (this.options.load ?? loadResolvedAgentPlugins)({
 						cwd: entry.workspacePath,
