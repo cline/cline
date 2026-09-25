@@ -11,9 +11,17 @@ import {
 	Loader2,
 	MoreHorizontal,
 	Plus,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
-import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
+import {
+	type CSSProperties,
+	memo,
+	type ReactNode,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	agentEntryState,
@@ -60,6 +68,11 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	/** Toggles the task's integrated terminal; omitted when unavailable. */
+	terminalOpen?: boolean;
+	onToggleTerminal?: () => void;
+	/** Rendered before the session actions (e.g. a Chat / Terminal switcher). */
+	viewSwitcher?: ReactNode;
 };
 
 function AgentHeaderImpl({
@@ -83,6 +96,9 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	terminalOpen = false,
+	onToggleTerminal,
+	viewSwitcher,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -226,6 +242,7 @@ function AgentHeaderImpl({
 
 			{showSessionActions ? (
 				<div className="flex shrink-0 items-center gap-2">
+					{viewSwitcher}
 					<AgentActivityStatus
 						activity={agentActivity}
 						agents={agents}
@@ -254,6 +271,23 @@ function AgentHeaderImpl({
 							<span className="text-destructive">-{deletions}</span>
 						</Button>
 					)}
+					{onToggleTerminal ? (
+						<Button
+							aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+							aria-pressed={terminalOpen}
+							className={cn(
+								"flex items-center gap-1 rounded-md text-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground",
+								terminalOpen && "bg-secondary text-foreground",
+							)}
+							id="toggle-terminal"
+							onClick={onToggleTerminal}
+							size="icon-sm"
+							title={`${terminalOpen ? "Hide" : "Show"} terminal (Ctrl+\`)`}
+							variant="ghost"
+						>
+							<SquareTerminal className="size-4" />
+						</Button>
+					) : null}
 					{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}
