@@ -150,6 +150,28 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers Pioneer as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("pioneer");
+		const defaultModelId = generatedProviderDefault("pioneer");
+
+		await expect(getProvider("pioneer")).resolves.toMatchObject({
+			id: "pioneer",
+			name: "Pioneer",
+			baseUrl: "https://api.pioneer.ai/v1",
+			defaultModelId,
+			client: "openai-compatible",
+		});
+		const models = await getModelsForProvider("pioneer");
+		expect(Object.hasOwn(models, defaultModelId)).toBe(true);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "pioneer",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		const provider = await getProvider("kilo");
 		expect(provider).toMatchObject({
