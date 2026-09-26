@@ -2,14 +2,16 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
+import { BackendReadinessError } from "./backend-readiness";
 import { handleCommand } from "./commands";
+import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
+	getBackendInitialization,
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
-import { abandonComposioConnectsForOwner } from "./composio";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -359,6 +361,12 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 		maxPayloadLength: MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES,
 		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
+			ws.send(
+				encodeSidecarEvent(
+					"backend_readiness",
+					getBackendInitialization(ctx).state,
+				),
+			);
 			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			sendEvent(ctx, "host_ready", {
 				pid: process.pid,
@@ -395,7 +403,17 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 				captureDesktopError(ctx, "command.execute", error, {
 					command: request.command,
 				});
-				ws.send(jsonResponse(request.id, false, undefined, message));
+				ws.send(
+					JSON.stringify({
+						type: "response",
+						id: request.id,
+						ok: false,
+						error: message,
+						...(error instanceof BackendReadinessError
+							? { errorCode: error.code, readiness: error.readiness }
+							: {}),
+					}),
+				);
 			}
 		},
 		close(ws: SidecarWebSocketClient) {

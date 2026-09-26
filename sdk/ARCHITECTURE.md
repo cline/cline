@@ -40,6 +40,37 @@ flowchart LR
   apps --> core
 ```
 
+## Desktop startup readiness
+
+The desktop webview mounts immediately. Its sidecar publishes the authenticated
+WebSocket endpoint before resolving the login-shell PATH or initializing the
+local session service. Transport readiness enables authentication, local provider
+settings, diagnostics, and recovery independently of the shared Hub.
+
+The sidecar owns one serialized local bootstrap lifecycle (`starting`, `ready`,
+`failed`), replayed to each WebSocket client. Each attempt has a 30-second deadline;
+failures trigger up to three automatic retries after cleanup, with 1-, 2-, and
+4-second delays. Manual retries remain available afterward, with exponential
+backoff capped at 30 seconds. Shutdown cancels scheduled retries. Hub-dependent commands return `SESSION_SERVICE_NOT_READY`
+with the current state. A full-screen loader displays actual bootstrap steps and
+keeps the app shell and sidebar hidden until local readiness. Automatic retry
+waits remain loading; exhausted retries show an actionable error. Authentication
+and settings commands remain independent of the Hub. SSH runtimes continue to
+connect on demand.
+
+Bootstrap retains `backendMode: "hub"` and `require-hub` discovery. A compatible
+existing daemon is reused; the desktop still owns its Core session manager and
+observer client. `ClineCore.create({ signal })` and `NodeHubClient.connect(signal)`
+allow cancellation to close partial connections. Shutdown aborts bootstrap, and
+late completions cannot install runtime bindings. Once a shared daemon has been
+spawned, its discovery lock remains held until startup settles, so cancellation
+of one caller cannot cause a duplicate daemon.
+
+Tauri separately tracks bounded, sanitized sidecar startup diagnostics and exit
+status. Its status and retry commands do not require the WebSocket transport, so
+launch/crash failures are actionable before sign-in is available. Neither layer
+extends the desktop command-readiness timeout.
+
 ## Package Responsibilities
 
 ### `@cline/shared`
@@ -1042,3 +1073,27 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Desktop bootstrap cleanup
+
+Cancellation interrupts waiting for the shared Hub startup lock. Startup and
+discovery mutation use filesystem locks, released in `finally`, without requiring
+SQLite support. Each contender prepares a private nonempty directory, then atomically
+renames it into the shared lock path. Its unique owner filename contains the PID
+and acquisition time, so ownership cannot be partially published. Cleanup removes
+only that generation’s entry and uses nonrecursive directory removal; a delayed
+reclaimer cannot erase a replacement owner. Empty abandoned directories are safe
+to remove because active locks are always published nonempty. Abandoned owners
+are detected by process liveness and OS process creation time to account for PID reuse. A live owner is never displaced solely
+because of lock age; unreadable ownership fails closed. Previous `owner.json`
+records are also checked for dead or reused PIDs during upgrade recovery. Their
+cleanup removes only `owner.json`, which no new owner writes, preserving the
+same protection against deleting a replacement lock.
+
+Hub health probes have a three-second limit
+covering both response headers and body, preventing an unresponsive endpoint from
+holding bootstrap open indefinitely. A probe timeout is an explicit retryable
+error, preserving discovery and preventing replacement of an unconfirmed Hub.
+After daemon spawn, probe timeouts are retried within the existing bounded
+discovery wait. The lock remains held until that wait completes to prevent
+duplicate daemons. This cleanup does not terminate a shared Hub used by other clients.

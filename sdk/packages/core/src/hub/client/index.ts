@@ -15,6 +15,7 @@ import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
 } from "../../runtime/host/runtime-host";
+import { waitForAbortable } from "../../utils/abort";
 import { ensureDetachedHubServer } from "../daemon";
 import {
 	clearHubDiscovery,
@@ -197,6 +198,7 @@ export interface HubClientOptions {
 }
 
 export interface LocalHubResolutionOptions {
+	signal?: AbortSignal;
 	endpoint?: string;
 	strategy?: "prefer-hub" | "require-hub";
 	workspaceRoot?: string;
@@ -393,7 +395,24 @@ export class NodeHubClient {
 		});
 	}
 
-	async connect(): Promise<void> {
+	async connect(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
+		if (!signal) return this.connectWithoutSignal();
+		return new Promise<void>((resolve, reject) => {
+			const abort = () => {
+				this.close();
+				reject(signal.reason);
+			};
+			signal.addEventListener("abort", abort, { once: true });
+			void this.connectWithoutSignal()
+				.then(resolve, reject)
+				.finally(() => {
+					signal.removeEventListener("abort", abort);
+				});
+		});
+	}
+
+	private async connectWithoutSignal(): Promise<void> {
 		if (this.connectPromise) {
 			return this.connectPromise;
 		}
@@ -1041,7 +1060,9 @@ export function normalizeHubWebSocketUrl(url: string): string {
 
 export async function verifyHubConnection(
 	url: string,
-	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd" | "authToken">,
+	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd" | "authToken"> & {
+		signal?: AbortSignal;
+	},
 ): Promise<boolean> {
 	const client = new NodeHubClient({
 		url,
@@ -1052,7 +1073,7 @@ export async function verifyHubConnection(
 		cwd: options?.cwd,
 	});
 	try {
-		await client.connect();
+		await client.connect(options?.signal);
 		return true;
 	} catch {
 		return false;
@@ -1316,25 +1337,39 @@ export async function resolveCompatibleLocalHubUrl(
 export async function ensureCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
-	const resolved = await resolveCompatibleLocalHubUrl(options);
+	options.signal?.throwIfAborted();
+	const resolved = await waitForAbortable(
+		resolveCompatibleLocalHubUrl(options),
+		options.signal,
+	);
+	options.signal?.throwIfAborted();
 	if (
 		resolved &&
 		(await verifyHubConnection(resolved, {
+			signal: options.signal,
 			workspaceRoot: options.workspaceRoot,
 			cwd: options.cwd,
 		}))
 	) {
 		return resolved;
 	}
+	options.signal?.throwIfAborted();
 	if (options.endpoint?.trim()) {
 		return undefined;
 	}
 	try {
-		const ensured = await ensureDetachedHubServer(
-			options.workspaceRoot ?? process.cwd(),
+		const ensured = await waitForAbortable(
+			ensureDetachedHubServer(
+				options.workspaceRoot ?? process.cwd(),
+				{},
+				options.signal,
+			),
+			options.signal,
 		);
+		options.signal?.throwIfAborted();
 		return ensured.url;
 	} catch (error) {
+		options.signal?.throwIfAborted();
 		options.onStartupError?.(error);
 		return undefined;
 	}

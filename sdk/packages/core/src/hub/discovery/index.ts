@@ -1,7 +1,20 @@
+import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	open,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	rmdir,
+	writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import {
 	ensureLoopbackProxyBypass,
 	type HubCompatibilityResult,
@@ -17,7 +30,6 @@ declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
 const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
 const HUB_BUILD_ID_ENV = "CLINE_HUB_BUILD_ID";
 const HUB_BUILD_EPOCH_ENV = "CLINE_HUB_BUILD_EPOCH_MS";
-const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const HUB_STARTUP_LOCK_WAIT_MS = 15_000;
 const HUB_STARTUP_LOCK_POLL_MS = 100;
 
@@ -70,53 +82,12 @@ function hashValue(value: string): string {
 	return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
-function isPidAlive(pid: number | undefined): boolean {
-	if (!Number.isInteger(pid) || !pid || pid <= 0) {
-		return false;
-	}
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (error) {
-		return error instanceof Error && "code" in error
-			? String((error as NodeJS.ErrnoException).code) === "EPERM"
-			: false;
-	}
-}
-
 export function createHubAuthToken(): string {
 	return randomBytes(32).toString("hex");
 }
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getHubLockDir(lockBasis: string): string {
-	return `${lockBasis}.lock`;
-}
-
-async function readHubLockRecord(
-	lockDir: string,
-): Promise<{ pid: number; acquiredAt: string } | undefined> {
-	try {
-		const parsed = JSON.parse(
-			await readFile(join(lockDir, "owner.json"), "utf8"),
-		) as Partial<{ pid: number; acquiredAt: string }>;
-		if (
-			typeof parsed.pid !== "number" ||
-			typeof parsed.acquiredAt !== "string"
-		) {
-			return undefined;
-		}
-		return { pid: parsed.pid, acquiredAt: parsed.acquiredAt };
-	} catch {
-		return undefined;
-	}
-}
-
-async function removeHubLock(lockDir: string): Promise<void> {
-	await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+	return delay(ms, undefined, { signal });
 }
 
 export function resolveHubBuildId(): string {
@@ -461,64 +432,159 @@ export async function clearHubDiscoveryIfOwned(
 	});
 }
 
+// Process creation time distinguishes an abandoned lock from a reused PID.
+// If the OS cannot supply it, retain the lock rather than displacing a live owner.
+async function processStartedAt(pid: number): Promise<number | undefined> {
+	if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
+	try {
+		const windows = process.platform === "win32";
+		const { stdout } = await promisify(execFile)(
+			windows ? "powershell.exe" : "ps",
+			windows
+				? [
+						"-NoProfile",
+						"-NonInteractive",
+						"-Command",
+						`(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString("o")`,
+					]
+				: ["-p", String(pid), "-o", "lstart="],
+			{
+				timeout: 2000,
+				windowsHide: true,
+				env: { ...process.env, LC_ALL: "C" },
+			},
+		);
+		const timestamp = Date.parse(stdout.trim());
+		return Number.isFinite(timestamp) ? timestamp : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+async function readLockOwner(
+	lockDir: string,
+	entry: string,
+): Promise<{ pid: number; acquiredAt: number } | undefined> {
+	const match = /^(\d+)-(\d+)-[a-f0-9]{32}\.owner$/.exec(entry);
+	if (match) return { pid: Number(match[1]), acquiredAt: Number(match[2]) };
+	if (entry !== "owner.json") return undefined;
+	// An upgrade can leave the previous implementation's owner record behind.
+	// Read it only for abandonment detection; new owners always use unique names.
+	try {
+		const owner = JSON.parse(await readFile(join(lockDir, entry), "utf8"));
+		if (!owner || typeof owner.pid !== "number") return undefined;
+		return {
+			pid: owner.pid,
+			acquiredAt:
+				typeof owner.acquiredAt === "string"
+					? Date.parse(owner.acquiredAt)
+					: Number.NaN,
+		};
+	} catch {
+		// Missing/partially written metadata is not proof that an older owner died.
+		return undefined;
+	}
+}
+
+// Remove only the observed generation's entry, then remove the directory ONLY
+// if empty. A delayed reclaimer can never remove a replacement owner's entry.
+async function removeLockOwner(
+	lockDir: string,
+	ownerName?: string,
+): Promise<void> {
+	if (ownerName) await rm(join(lockDir, ownerName), { force: true });
+	try {
+		await rmdir(lockDir);
+	} catch (error) {
+		if (
+			!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(
+				(error as NodeJS.ErrnoException).code ?? "",
+			)
+		)
+			throw error;
+	}
+}
+
 async function withHubLock<T>(
 	lockBasis: string,
 	label: string,
 	callback: () => Promise<T>,
+	signal?: AbortSignal,
 ): Promise<T> {
-	const lockDir = getHubLockDir(lockBasis);
-	await mkdir(dirname(lockDir), { recursive: true });
+	signal?.throwIfAborted();
+	const lockDir = `${lockBasis}.lock`;
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
-
-	while (true) {
-		try {
-			await mkdir(lockDir, { recursive: false });
-		} catch (error) {
-			const code =
-				error instanceof Error && "code" in error
-					? String((error as NodeJS.ErrnoException).code)
-					: "";
-			if (code !== "EEXIST") {
-				throw error;
-			}
-			const record = await readHubLockRecord(lockDir);
-			if (!record) {
-				// The winner creates the directory before it can publish owner.json.
-				// Do not steal that initialization window. A genuinely abandoned
-				// empty lock is reclaimed only after the bounded wait.
-				if (Date.now() >= deadline) {
-					await removeHubLock(lockDir);
+	await mkdir(dirname(lockDir), { recursive: true });
+	// Assemble ownership off-path. Rename publishes a nonempty directory atomically;
+	// a crash before publication cannot leave a partially initialized shared lock.
+	const candidate = await mkdtemp(`${lockBasis}.candidate-`);
+	const ownerName = `${process.pid}-${Date.now()}-${randomBytes(16).toString("hex")}.owner`;
+	try {
+		await writeFile(join(candidate, ownerName), "");
+		while (true) {
+			signal?.throwIfAborted();
+			if (Date.now() >= deadline)
+				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
+			try {
+				await rename(candidate, lockDir);
+				break;
+			} catch (error) {
+				if (
+					!["EEXIST", "ENOTEMPTY", "EPERM", "EACCES"].includes(
+						(error as NodeJS.ErrnoException).code ?? "",
+					)
+				)
+					throw error;
+				let entries: string[];
+				try {
+					entries = await readdir(lockDir);
+				} catch (readError) {
+					if ((readError as NodeJS.ErrnoException).code === "ENOENT") {
+						if (
+							["EPERM", "EACCES"].includes(
+								(error as NodeJS.ErrnoException).code ?? "",
+							)
+						)
+							throw error;
+						continue;
+					}
+					throw readError;
+				}
+				if (!entries.length) {
+					await removeLockOwner(lockDir);
 					continue;
 				}
-				await sleep(HUB_STARTUP_LOCK_POLL_MS);
-				continue;
+				for (const entry of entries) {
+					const owner = await readLockOwner(lockDir, entry);
+					if (!owner) continue;
+					const { pid, acquiredAt } = owner;
+					if (!Number.isSafeInteger(pid) || pid <= 0) continue;
+					let abandoned = false;
+					try {
+						process.kill(pid, 0);
+					} catch (error) {
+						abandoned = (error as NodeJS.ErrnoException).code === "ESRCH";
+					}
+					if (!abandoned) {
+						const startedAt = await processStartedAt(pid);
+						abandoned = startedAt !== undefined && startedAt > acquiredAt;
+					}
+					if (abandoned) await removeLockOwner(lockDir, entry);
+				}
+				if (Date.now() >= deadline)
+					throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
+				await sleep(HUB_STARTUP_LOCK_POLL_MS, signal);
 			}
-			const lockAge = Date.now() - Date.parse(record.acquiredAt);
-			if (!isPidAlive(record.pid) || lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS) {
-				await removeHubLock(lockDir);
-				continue;
-			}
-			if (Date.now() >= deadline) {
-				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
-			}
-			await sleep(HUB_STARTUP_LOCK_POLL_MS);
-			continue;
 		}
-
 		try {
-			await writeFile(
-				join(lockDir, "owner.json"),
-				`${JSON.stringify(
-					{ pid: process.pid, acquiredAt: new Date().toISOString() },
-					null,
-					2,
-				)}\n`,
-				"utf8",
-			);
+			signal?.throwIfAborted();
 			return await callback();
 		} finally {
-			await removeHubLock(lockDir);
+			await removeLockOwner(lockDir, ownerName);
 		}
+	} finally {
+		// This is our private unpublished candidate, never another owner's lock.
+		await rm(candidate, { recursive: true, force: true });
 	}
 }
 
@@ -536,20 +602,34 @@ function withHubDiscoveryMutationLock<T>(
 export function withHubStartupLock<T>(
 	discoveryPath: string,
 	callback: () => Promise<T>,
+	signal?: AbortSignal,
 ): Promise<T> {
-	return withHubLock(discoveryPath, "startup", callback);
+	return withHubLock(discoveryPath, "startup", callback, signal);
+}
+
+export class HubProbeTimeoutError extends Error {
+	constructor() {
+		super(
+			"Cline Hub probe timed out; the existing Hub was left running. Retry to reconnect.",
+		);
+		this.name = "HubProbeTimeoutError";
+	}
 }
 
 export async function probeHubServer(
 	url: string,
 	options?: { authToken?: string; signal?: AbortSignal },
 ): Promise<HubServerProbeRecord | undefined> {
+	const signal = AbortSignal.timeout(3_000);
 	// Idempotent; repeated here so every embedder of the hub client is covered.
 	ensureLoopbackProxyBypass();
 	try {
 		const response = await fetch(
 			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),
 			{
+				// Covers response headers and body consumption, so a hung probe
+				// cannot indefinitely retain the startup lock.
+				signal,
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
 					: undefined,
@@ -604,6 +684,7 @@ export async function probeHubServer(
 				typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
 		};
 	} catch {
+		if (signal.aborted) throw new HubProbeTimeoutError();
 		return undefined;
 	}
 }

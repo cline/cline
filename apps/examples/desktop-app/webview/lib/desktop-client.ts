@@ -10,6 +10,7 @@ import type {
 	HubTaskUpdateInput,
 } from "@cline/shared";
 import type {
+	DesktopBackendReadiness,
 	DesktopTransportEvent,
 	DesktopTransportMessage,
 	DesktopTransportRequest,
@@ -267,7 +268,20 @@ export function writeDesktopDebugLog(payload: unknown): void {
 	}
 }
 
+export class DesktopCommandError extends Error {
+	constructor(
+		message: string,
+		public readonly errorCode?: string,
+		public readonly readiness?: DesktopBackendReadiness,
+	) {
+		super(message);
+		this.name = "DesktopCommandError";
+	}
+}
+
 const NATIVE_COMMANDS = new Set([
+	"get_desktop_backend_status",
+	"retry_desktop_backend",
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
 	"get_update_status",
@@ -447,7 +461,13 @@ class DesktopClient {
 			return;
 		}
 		if (!response.ok) {
-			pending.reject(new Error(response.error || "Desktop command failed"));
+			pending.reject(
+				new DesktopCommandError(
+					response.error || "Desktop command failed",
+					response.errorCode,
+					response.readiness,
+				),
+			);
 			return;
 		}
 		pending.resolve(response.result);
@@ -521,9 +541,7 @@ class DesktopClient {
 						this.socket = null;
 					}
 					if (this.transportState !== "connected") {
-						reject(
-							new Error(`Desktop backend transport unavailable at ${endpoint}`),
-						);
+						reject(new Error("Desktop backend transport unavailable"));
 						return;
 					}
 					this.setTransportState("reconnecting");
@@ -740,6 +758,13 @@ class DesktopClient {
 		return () => {
 			this.transportStateHandlers.delete(handler);
 		};
+	}
+
+	async retryConnection(): Promise<void> {
+		if (isTauriAvailable()) await tryTauriInvoke("retry_desktop_backend");
+		this.endpoint = null;
+		resolvedEndpointCache = null;
+		await this.ensureConnected(true);
 	}
 
 	getTransportState(): DesktopTransportState {

@@ -112,12 +112,16 @@ async function runStartupScenario(
 			stderr,
 		});
 		let endpoint: string | undefined;
+		let wsEndpoint: string | undefined;
 		const deadline = Date.now() + 15_000;
 		while (Date.now() < deadline) {
 			for (const line of readFileSync(stdoutPath, "utf8").split("\n")) {
 				try {
 					const message = JSON.parse(line);
-					if (message.type === "ready") endpoint = message.endpoint;
+					if (message.type === "ready") {
+						endpoint = message.endpoint;
+						wsEndpoint = message.wsEndpoint;
+					}
 				} catch {
 					/* Ignore other output and incomplete lines. */
 				}
@@ -134,6 +138,33 @@ async function runStartupScenario(
 		});
 		expect(health.ok).toBe(true);
 		expect(await health.json()).toMatchObject({ ok: true, pid: child.pid });
+		if (!wsEndpoint) throw new Error("Missing desktop WebSocket endpoint");
+		const socket = new WebSocket(wsEndpoint);
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					socket.close();
+					reject(new Error("Session service did not become ready"));
+				}, 15_000);
+				socket.onerror = () => {
+					clearTimeout(timeout);
+					reject(new Error("Desktop socket failed"));
+				};
+				socket.onmessage = (event) => {
+					const message = JSON.parse(String(event.data));
+					if (
+						message.event?.name === "backend_readiness" &&
+						message.event.payload.state === "ready"
+					) {
+						clearTimeout(timeout);
+						resolve();
+					}
+				};
+			});
+			expect(JSON.parse(readFileSync(discoveryPath, "utf8")).pid).toBe(hubPid);
+		} finally {
+			socket.close();
+		}
 	} finally {
 		if (child && child.exitCode === null) {
 			child.kill();
@@ -196,3 +227,110 @@ test("compiled desktop backend starts behind a dead HTTP(S) proxy", async () => 
 		https_proxy: "http://127.0.0.1:9",
 	});
 }, 100_000);
+
+test("source desktop publishes transport while hub registration hangs", async () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-desktop-hanging-hub-"));
+	const output = join(root, "stdout.log");
+	const errors = join(root, "stderr.log");
+	const stdout = openSync(output, "w");
+	const stderr = openSync(errors, "w");
+	const hub = Bun.serve({
+		hostname: "127.0.0.1",
+		port: 0,
+		fetch(request, server) {
+			if (server.upgrade(request)) return;
+			return new Response("pending");
+		},
+		websocket: { message() {} },
+	});
+	let child: ReturnType<typeof Bun.spawn> | undefined;
+	let socket: WebSocket | undefined;
+	try {
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) => !/^(CLINE_|OTEL_|TELEMETRY_|ERROR_SERVICE_)/.test(key),
+			),
+		);
+		Object.assign(env, {
+			CLINE_DIR: root,
+			CLINE_DATA_DIR: join(root, "data"),
+			CLINE_HUB_DISCOVERY_PATH: join(root, "hub.json"),
+			CLINE_HUB_PORT: String(hub.port),
+			CLINE_SIDECAR_PORT: "0",
+		});
+		child = Bun.spawn(
+			[
+				process.execPath,
+				fileURLToPath(new URL("../sidecar/index.ts", import.meta.url)),
+			],
+			{ cwd: root, env, stdout, stderr },
+		);
+		let endpoint: string | undefined;
+		const deadline = Date.now() + 8_000;
+		while (Date.now() < deadline && !endpoint && child.exitCode === null) {
+			for (const line of readFileSync(output, "utf8").split("\n")) {
+				try {
+					const value = JSON.parse(line);
+					if (value.type === "ready") endpoint = value.wsEndpoint;
+				} catch {}
+			}
+			if (!endpoint) await Bun.sleep(25);
+		}
+		expect(endpoint, readFileSync(errors, "utf8")).toBeTruthy();
+		if (!endpoint) throw new Error("Desktop endpoint missing");
+		const connection = new WebSocket(endpoint);
+		socket = connection;
+		const responses = new Map<
+			string,
+			(value: { ok: boolean; [key: string]: unknown }) => void
+		>();
+		socket.onmessage = (event) => {
+			const message = JSON.parse(String(event.data));
+			if (
+				message?.type !== "response" ||
+				typeof message.id !== "string" ||
+				typeof message.ok !== "boolean" ||
+				!responses.has(message.id)
+			) {
+				return;
+			}
+			const resolve = responses.get(message.id);
+			if (typeof resolve === "function") {
+				responses.delete(message.id);
+				resolve(message);
+			}
+		};
+		await new Promise<void>((resolve, reject) => {
+			connection.onopen = () => resolve();
+			connection.onerror = reject;
+		});
+		const command = (id: string, name: string) =>
+			new Promise((resolve) => {
+				responses.set(id, resolve);
+				connection.send(JSON.stringify({ id, command: name }));
+			});
+		expect(await command("settings", "get_global_settings")).toMatchObject({
+			ok: true,
+		});
+		expect(await command("providers", "list_provider_catalog")).toMatchObject({
+			ok: true,
+		});
+		expect(await command("hub", "list_routine_schedules")).toMatchObject({
+			ok: false,
+			errorCode: "SESSION_SERVICE_NOT_READY",
+			readiness: { state: "starting" },
+		});
+	} finally {
+		socket?.close();
+		if (child) {
+			child.kill();
+			await Promise.race([child.exited, Bun.sleep(6_000)]);
+			if (child.exitCode === null) child.kill("SIGKILL");
+			await child.exited;
+		}
+		hub.stop(true);
+		closeSync(stdout);
+		closeSync(stderr);
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 25_000);

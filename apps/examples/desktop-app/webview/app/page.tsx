@@ -39,6 +39,7 @@ import { EnvironmentSelector } from "@/components/views/chat/environment-selecto
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import { SiteLoader } from "@/components/views/loading/SiteLoader";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
@@ -53,6 +54,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -285,6 +287,19 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	const readiness = useDesktopReadiness();
+	return (
+		<SiteLoader readiness={readiness}>
+			<HomeShell readiness={readiness} />
+		</SiteLoader>
+	);
+}
+
+function HomeShell({
+	readiness,
+}: {
+	readiness: ReturnType<typeof useDesktopReadiness>;
+}) {
 	const [initialThreadId] = useState(makeThreadId);
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
@@ -749,6 +764,10 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const refreshHistory = sessionHistory.refreshSessions;
+	useEffect(() => {
+		if (readiness.hub.state === "ready") void refreshHistory();
+	}, [readiness.hub.state, refreshHistory]);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;
@@ -857,6 +876,12 @@ export default function Home() {
 		sessionHistory.threads,
 	]);
 
+	const localChatUnavailable =
+		readiness.hub.state !== "ready" &&
+		view === "chat" &&
+		activeThread?.environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+		activeThread.historySession?.origin !== "cloud";
+
 	return (
 		<AccountProvider>
 			<SidebarProvider>
@@ -900,6 +925,31 @@ export default function Home() {
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{localChatUnavailable && (
+									<div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+										<output className="text-sm text-muted-foreground">
+											{readiness.hub.message ?? "Starting session service…"}
+										</output>
+										{readiness.hub.state === "failed" &&
+											!readiness.hub.automaticRetry && (
+												<button
+													type="button"
+													disabled={readiness.retrying}
+													onClick={() => void readiness.retry()}
+													className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+												>
+													Retry session service
+												</button>
+											)}
+										<EnvironmentSelector
+											activeEnvironmentId={activeThread.environmentId}
+											profiles={remoteEnvironmentProfiles}
+											loading={remoteEnvironmentProfilesLoading}
+											onSelectEnvironment={handleSelectEnvironment}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
+										/>
+									</div>
+								)}
 								{view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
@@ -907,9 +957,20 @@ export default function Home() {
 									/>
 								) : activeThread ? (
 									<div
-										aria-hidden={view === "settings" ? true : undefined}
+										aria-hidden={
+											view === "settings" || localChatUnavailable
+												? true
+												: undefined
+										}
 										className="flex min-h-0 flex-1 flex-col"
-										inert={view === "settings" ? true : undefined}
+										inert={
+											view === "settings" || localChatUnavailable
+												? true
+												: undefined
+										}
+										style={
+											localChatUnavailable ? { display: "none" } : undefined
+										}
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}

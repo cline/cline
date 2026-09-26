@@ -11,6 +11,8 @@ export type DesktopTransportResponse = {
 	ok: boolean;
 	result?: unknown;
 	error?: string;
+	errorCode?: string;
+	readiness?: DesktopBackendReadiness;
 };
 
 export type DesktopTransportEvent = {
@@ -44,4 +46,12 @@ export type DesktopBackendReadyPayload = {
 	wsEndpoint: string;
 	pid: number;
 	mode: "bun";
+};
+
+export type DesktopBackendReadiness = {
+	state: "starting" | "ready" | "failed";
+	message?: string;
+	attempt: number;
+	automaticRetry?: boolean;
+	step?: "environment" | "discovery" | "connecting" | "sessions";
 };

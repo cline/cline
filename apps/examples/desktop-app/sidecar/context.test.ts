@@ -31,6 +31,7 @@ vi.mock("@cline/core", async () => {
 			create: createCoreMock,
 		},
 		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,
+		ensureLoginShellPath: vi.fn().mockResolvedValue(undefined),
 		NodeHubClient: class {
 			constructor(options: unknown) {
 				nodeHubClientCtorMock(options);
@@ -43,6 +44,7 @@ vi.mock("@cline/core", async () => {
 			subscribe = subscribeMock;
 			updateCapabilities = updateCapabilitiesMock;
 			dispose = vi.fn();
+			close = vi.fn();
 		},
 	};
 });
@@ -219,27 +221,131 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
-	it("starts or reuses the shared Hub when a command needs a client", async () => {
-		const { createSidecarContext, ensureSharedHubClient } = await import(
-			"./context"
+	it("gates shared Hub commands without starting another discovery lifecycle", async () => {
+		const {
+			createSidecarContext,
+			getSharedHubClient,
+			initializeSessionManager,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		expect(() => getSharedHubClient(ctx)).toThrow("Starting session service");
+		expect(ensureCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
+		await initializeSessionManager(ctx);
+		expect(getSharedHubClient(ctx)).toBe(
+			ctx.runtimeBindings.get("local")?.hubClient,
+		);
+		expect(createCoreMock).toHaveBeenCalledTimes(1);
+		expect(nodeHubClientCtorMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps transport, local settings and diagnostics usable while hub creation hangs", async () => {
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			disposeSidecarContext,
+		} = await import("./context");
+		const { createWebSocketHandler } = await import("./server");
+		const { handleCommand } = await import("./commands");
+		let complete!: (value: unknown) => void;
+		createCoreMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
 		);
 		const ctx = createSidecarContext("/workspace/project");
-
-		const hubClient = await ensureSharedHubClient(ctx);
-		expect(hubClient).toBeDefined();
-
-		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
-			strategy: "require-hub",
-			workspaceRoot: "/workspace/project",
-			cwd: "/workspace/project",
-		});
-		expect(nodeHubClientCtorMock).toHaveBeenCalledWith(
+		const pending = initializeSessionManager(ctx);
+		await vi.waitFor(() => expect(createCoreMock).toHaveBeenCalled());
+		const ws = { send: vi.fn() };
+		const handler = createWebSocketHandler(ctx);
+		handler.open(ws);
+		expect(ws.send.mock.calls.map(([raw]) => JSON.parse(raw))).toContainEqual(
 			expect.objectContaining({
-				url: "ws://127.0.0.1:25463/hub",
-				clientType: "code-sidecar-observer",
+				event: expect.objectContaining({
+					name: "backend_readiness",
+					payload: { state: "starting", attempt: 1, step: "discovery" },
+				}),
 			}),
 		);
-		expect(connectMock).toHaveBeenCalledOnce();
+		await expect(
+			handleCommand(ctx, "get_global_settings"),
+		).resolves.toBeDefined();
+		await expect(
+			handleCommand(ctx, "list_provider_catalog"),
+		).resolves.toBeDefined();
+		await expect(
+			handleCommand(ctx, "get_process_context"),
+		).resolves.toMatchObject({ hub: { status: "starting" } });
+		await handler.message(
+			ws,
+			JSON.stringify({ id: "hub", command: "list_routine_schedules" }),
+		);
+		expect(JSON.parse(ws.send.mock.calls.at(-1)?.[0])).toMatchObject({
+			ok: false,
+			errorCode: "SESSION_SERVICE_NOT_READY",
+			readiness: { state: "starting" },
+		});
+		await disposeSidecarContext(ctx);
+		const dispose = vi.fn();
+		complete({
+			runtimeAddress: "ws://localhost/hub",
+			subscribe: vi.fn(),
+			dispose,
+		});
+		await pending;
+		expect(dispose).toHaveBeenCalledTimes(1);
+		expect(ctx.runtimeBindings.size).toBe(0);
+		expect(nodeHubClientCtorMock).not.toHaveBeenCalled();
+	});
+
+	it("cleans partial observer initialization and replays a failed state", async () => {
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			getBackendInitialization,
+		} = await import("./context");
+		const { createWebSocketHandler } = await import("./server");
+		const dispose = vi.fn();
+		const unsubscribe = vi.fn();
+		createCoreMock.mockResolvedValueOnce({
+			runtimeAddress: "ws://localhost/hub",
+			subscribe: () => unsubscribe,
+			dispose,
+		});
+		connectMock.mockRejectedValueOnce(new Error("observer connect failed"));
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		expect(getBackendInitialization(ctx).state.state).toBe("failed");
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
+		expect(dispose).toHaveBeenCalledTimes(1);
+		expect(ctx.runtimeBindings.size).toBe(0);
+		const ws = { send: vi.fn() };
+		createWebSocketHandler(ctx).open(ws);
+		expect(JSON.parse(ws.send.mock.calls[0][0]).event.payload.state).toBe(
+			"failed",
+		);
+		getBackendInitialization(ctx).stop();
+	});
+
+	it("recovers the runtime after failure without duplicate clients on repeated retries", async () => {
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			getBackendInitialization,
+			disposeSidecarContext,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		createCoreMock.mockRejectedValueOnce(new Error("hub unavailable"));
+		await initializeSessionManager(ctx);
+		expect(getBackendInitialization(ctx).state.state).toBe("failed");
+		const retry = initializeSessionManager(ctx);
+		expect(initializeSessionManager(ctx)).toBe(retry);
+		await retry;
+		expect(getBackendInitialization(ctx).state.state).toBe("ready");
+		expect(ctx.runtimeBindings.size).toBe(1);
+		expect(createCoreMock).toHaveBeenCalledTimes(2);
+		expect(nodeHubClientCtorMock).toHaveBeenCalledTimes(1);
+		await disposeSidecarContext(ctx);
 	});
 
 	it("returns indexed search results without listing every session", async () => {

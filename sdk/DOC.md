@@ -256,3 +256,13 @@ dialog's tab order. Image source validation and resolution remain host-owned;
 provider-generated URLs must go through an explicit host trust policy before
 rendering. This presentation primitive does not replace `GeneratedMediaContent`
 or its inline-byte validation.
+
+## Canceling hub bootstrap
+
+Pass an optional `AbortSignal` to `ClineCore.create({ backendMode: "hub", signal })`
+or `ensureCompatibleLocalHubUrl({ signal })` to cancel a pending shared-hub
+bootstrap. For a directly owned `NodeHubClient`, use `await client.connect(signal)`;
+cancellation closes that client's partial connection. After creation succeeds,
+normal lifetime management still requires `core.dispose()` or `client.dispose()`.
+Canceling one bootstrap does not terminate an already-spawned shared daemon: its
+serialized discovery publication finishes so other clients can reuse it.

@@ -136,6 +136,7 @@ type DesktopProcessContext = {
 };
 type HubStatus = {
 	connected: boolean;
+	starting: boolean;
 	error: string | null;
 	url: string | null;
 };
@@ -356,12 +357,18 @@ export function AgentSidebar({
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+	const processContextPending = useRef(false);
+	const processContextRevision = useRef(0);
 
-	const loadProcessContext = useCallback(async () => {
+	const loadProcessContext = useCallback(async (refresh = false) => {
+		if (processContextPending.current && !refresh) return;
+		processContextPending.current = true;
+		const revision = ++processContextRevision.current;
 		try {
 			const context = await desktopClient.invoke<DesktopProcessContext>(
 				"get_process_context",
 			);
+			if (revision !== processContextRevision.current) return;
 			const version =
 				typeof context?.appVersion === "string"
 					? context.appVersion.trim()
@@ -373,6 +380,7 @@ export function AgentSidebar({
 					: null;
 			setHubStatus({
 				connected: context?.hub?.status === "connected",
+				starting: context?.hub?.status === "starting",
 				error:
 					typeof context?.hub?.error === "string"
 						? context.hub.error.trim() || null
@@ -380,19 +388,34 @@ export function AgentSidebar({
 				url: hubUrl,
 			});
 		} catch (error) {
+			if (revision !== processContextRevision.current) return;
 			setHubStatus({
 				connected: false,
+				starting: false,
 				error:
 					error instanceof Error
 						? error.message
 						: "Unable to read Cline Hub status.",
 				url: null,
 			});
+		} finally {
+			if (revision === processContextRevision.current)
+				processContextPending.current = false;
 		}
 	}, []);
 
 	useEffect(() => {
 		void loadProcessContext();
+		const timer = setInterval(() => void loadProcessContext(), 5_000);
+		const unsubscribe = desktopClient.subscribe("backend_readiness", () => {
+			// This event describes only the local service. Read the active
+			// environment instead, even if an older status request is pending.
+			void loadProcessContext(true);
+		});
+		return () => {
+			clearInterval(timer);
+			unsubscribe();
+		};
 	}, [loadProcessContext]);
 
 	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
@@ -840,7 +863,7 @@ export function AgentSidebar({
 								<button
 									aria-label="Cline home"
 									className={cn(
-										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+										"relative flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 										isCollapsed && "size-9",
 									)}
 									onClick={openHome}
@@ -848,6 +871,21 @@ export function AgentSidebar({
 									type="button"
 								>
 									<ClineLogo className="size-5" />
+									{hubStatus && !hubStatus.connected && !hubStatus.starting && (
+										<output
+											aria-label="Cline Hub connection error"
+											className="pointer-events-none absolute right-0.5 top-0.5 flex size-2"
+										>
+											<span
+												aria-hidden="true"
+												className="absolute inline-flex size-full rounded-full bg-destructive opacity-75 motion-safe:animate-ping"
+											/>
+											<span
+												aria-hidden="true"
+												className="relative inline-flex size-2 rounded-full bg-destructive"
+											/>
+										</output>
+									)}
 								</button>
 							</HoverCardTrigger>
 							<HoverCardContent
@@ -882,7 +920,12 @@ export function AgentSidebar({
 											Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
 										</span>
 									</div>
-									{hubStatus && !hubStatus.connected && (
+									{hubStatus?.starting && (
+										<p className="mt-1 text-[11px] text-muted-foreground">
+											Starting session service…
+										</p>
+									)}
+									{hubStatus && !hubStatus.connected && !hubStatus.starting && (
 										<p className="mt-1 text-[11px] text-destructive">
 											{hubStatus.error ?? "Cline Hub is not connected."}
 										</p>
