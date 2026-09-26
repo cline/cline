@@ -408,8 +408,24 @@ export function getButtonConfigFromState(
 	foregroundCommandRunning = false,
 ): ButtonConfig {
 	if (turnState) {
-		const anchored = turnState.anchorTs !== undefined ? messages.find((m) => m.ts === turnState.anchorTs) : undefined
+		const anchored = getTurnStateMessage(messages, turnState)
 		return buttonsForPhase(turnState, anchored, foregroundCommandRunning)
 	}
 	return getButtonConfigForMessages(messages, mode)
+}
+
+export function getTurnStateMessage(messages: ClineMessage[], turnState: TurnState | undefined): ClineMessage | undefined {
+	return turnState?.anchorTs !== undefined ? messages.find((message) => message.ts === turnState.anchorTs) : undefined
+}
+
+export function isOptionsAskActive(
+	message: ClineMessage,
+	turnState: TurnState | undefined,
+	isLast: boolean,
+	lastModifiedMessage: ClineMessage | undefined,
+): boolean {
+	if (turnState) {
+		return turnState.phase === "awaiting_followup" && turnState.anchorTs === message.ts
+	}
+	return isLast && lastModifiedMessage?.ask === message.ask
 }
