@@ -139,18 +139,21 @@ function encodeFramedMessage(message: Record<string, unknown>): Buffer {
 type StdioProtocolMode = "newline" | "framed";
 
 class FramedMessageParser {
-	private buffer = "";
-	private readonly decoder = new StringDecoder("utf8");
+	// Content-Length counts bytes, so buffer raw bytes and only decode
+	// complete bodies; slicing a decoded string would miscount multibyte text.
+	private buffer = Buffer.alloc(0);
 
 	push(chunk: Buffer): string[] {
-		this.buffer += this.decoder.write(chunk);
+		this.buffer = Buffer.concat([this.buffer, chunk]);
 		const messages: string[] = [];
 		while (true) {
 			const separatorIndex = this.buffer.indexOf("\r\n\r\n");
 			if (separatorIndex < 0) {
 				break;
 			}
-			const headerText = this.buffer.slice(0, separatorIndex);
+			const headerText = this.buffer
+				.subarray(0, separatorIndex)
+				.toString("utf8");
 			const contentLengthMatch = headerText.match(
 				/(?:^|\r\n)Content-Length:\s*(\d+)(?:\r\n|$)/i,
 			);
@@ -165,8 +168,8 @@ class FramedMessageParser {
 			if (this.buffer.length < bodyEnd) {
 				break;
 			}
-			messages.push(this.buffer.slice(bodyStart, bodyEnd));
-			this.buffer = this.buffer.slice(bodyEnd);
+			messages.push(this.buffer.subarray(bodyStart, bodyEnd).toString("utf8"));
+			this.buffer = this.buffer.subarray(bodyEnd);
 		}
 		return messages;
 	}
