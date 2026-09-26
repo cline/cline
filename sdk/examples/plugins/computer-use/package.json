@@ -1,0 +1,36 @@
+{
+	"name": "cline-computer-use-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Deadline-aware local computer control plugin for Cline",
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "bun test index.test.ts && vitest run backend-restart.test.ts",
+		"clean": "rm -rf node_modules dist"
+	},
+	"exports": {
+		".": "./index.ts"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./index.ts"
+				],
+				"capabilities": [
+					"tools",
+					"messageBuilders"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		}
+	}
+}

@@ -9,7 +9,6 @@ import {
 	type CoreSettingsToggleInput,
 	createSessionCompactionState,
 	isSessionNotFoundError,
-	mergeAgentHooks,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
 	projectSessionCompactionState,
@@ -110,17 +109,6 @@ export function createInteractiveSessionRuntime(input: {
 	askQuestionRef: AskQuestionRef;
 	resolveMistakeLimitDecision: Config["onConsecutiveMistakeLimitReached"];
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
-	/**
-	 * Mode-independent extra tools (e.g. the computer-user tools) that must
-	 * survive plan/act switches. Rebuilt into config.extraTools on every
-	 * mode change alongside the mode-dependent switch tool.
-	 */
-	persistentExtraTools?: NonNullable<Config["extraTools"]>;
-	/**
-	 * Host-supplied hooks layer (e.g. computer-use transcript recording)
-	 * merged after the runtime's own hooks on every session build.
-	 */
-	extraAgentHooks?: AgentHooks;
 	onAgentEvent: (event: AgentEvent) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
@@ -222,7 +210,7 @@ export function createInteractiveSessionRuntime(input: {
 			throw new Error("interactive runtime hooks are unavailable");
 		}
 		const hooks = withInteractiveApprovalPolicyHook(
-			mergeAgentHooks([runtimeHooks.hooks, input.extraAgentHooks]),
+			runtimeHooks.hooks,
 			input.resolveToolPolicy,
 		);
 		return buildInteractiveSessionConfig({
@@ -661,7 +649,6 @@ export function createInteractiveSessionRuntime(input: {
 			config: input.config,
 			mode,
 			switchToActModeTool: input.switchToActModeTool,
-			persistentExtraTools: input.persistentExtraTools,
 		});
 		await restartWithCurrentMessages();
 	};

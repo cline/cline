@@ -84,6 +84,11 @@ async function startProbeServer() {
 
 function isAlive(pid: number): boolean {
 	try {
+		if (process.platform === "linux") {
+			const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+			const state = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[0];
+			if (state === "Z") return false;
+		}
 		process.kill(pid, 0);
 		return true;
 	} catch {
