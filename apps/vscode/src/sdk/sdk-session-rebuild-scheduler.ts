@@ -18,7 +18,6 @@ export interface SessionRebuildContext {
 
 interface ScheduledRebuild {
 	run: (context: SessionRebuildContext) => Promise<void>
-	onCancel?: () => void
 	generation: number
 }
 
@@ -35,14 +34,10 @@ export class SdkSessionRebuildScheduler {
 	 * rebuild for the same reason that is already running is superseded: its
 	 * context.isCurrent() turns false and this request runs after it.
 	 */
-	request(reason: SessionRebuildReason, run: (context: SessionRebuildContext) => Promise<void>, onCancel?: () => void): void {
-		const previous = this.pending.get(reason)
-		if (previous?.onCancel !== onCancel) {
-			previous?.onCancel?.()
-		}
+	request(reason: SessionRebuildReason, run: (context: SessionRebuildContext) => Promise<void>): void {
 		const generation = (this.latestGeneration.get(reason) ?? 0) + 1
 		this.latestGeneration.set(reason, generation)
-		this.pending.set(reason, { run, onCancel, generation })
+		this.pending.set(reason, { run, generation })
 		this.drainIfIdle()
 	}
 
@@ -74,7 +69,7 @@ export class SdkSessionRebuildScheduler {
 	 */
 	async runTaskTransition<T>(operation: () => Promise<T>): Promise<T> {
 		return this.runExclusive(async () => {
-			this.cancelPending()
+			this.pending.clear()
 			return operation()
 		})
 	}
@@ -119,12 +114,5 @@ export class SdkSessionRebuildScheduler {
 			this.drainInFlight = undefined
 			this.drainIfIdle()
 		})
-	}
-
-	private cancelPending(): void {
-		for (const rebuild of this.pending.values()) {
-			rebuild.onCancel?.()
-		}
-		this.pending.clear()
 	}
 }

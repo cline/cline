@@ -116,8 +116,7 @@ describe("SdkSessionRebuildScheduler", () => {
 		const activeSession = { isRunning: true }
 		const scheduler = makeScheduler(activeSession)
 		const rebuild = vi.fn().mockResolvedValue(undefined)
-		const onCancel = vi.fn()
-		scheduler.request("provider", rebuild, onCancel)
+		scheduler.request("provider", rebuild)
 
 		await scheduler.runTaskTransition(async () => {
 			activeSession.isRunning = false
@@ -125,7 +124,6 @@ describe("SdkSessionRebuildScheduler", () => {
 		scheduler.sessionBecameIdle()
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
-		expect(onCancel).toHaveBeenCalledOnce()
 		expect(rebuild).not.toHaveBeenCalled()
 	})
 
@@ -147,16 +145,6 @@ describe("SdkSessionRebuildScheduler", () => {
 		resolveTransition()
 		await transition
 		await vi.waitFor(() => expect(rebuild).toHaveBeenCalledOnce())
-	})
-
-	it("cleans up a coalesced request before storing its replacement", () => {
-		const scheduler = makeScheduler({ isRunning: true })
-		const firstCancel = vi.fn()
-
-		scheduler.request("checkpoints", vi.fn().mockResolvedValue(undefined), firstCancel)
-		scheduler.request("checkpoints", vi.fn().mockResolvedValue(undefined))
-
-		expect(firstCancel).toHaveBeenCalledOnce()
 	})
 })
 

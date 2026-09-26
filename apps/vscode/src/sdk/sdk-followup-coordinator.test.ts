@@ -95,9 +95,6 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
 
-		expect(options.handlePendingRebuilds).toHaveBeenCalledWith(
-			expect.objectContaining({ type: "defer", session: activeSession, prompt: "resolved: queued while streaming" }),
-		)
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -130,13 +127,6 @@ describe("SdkFollowupCoordinator", () => {
 			"messageResponse",
 			undefined,
 			undefined,
-		)
-		expect(options.handlePendingRebuilds).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "defer",
-				session: activeSession,
-				prompt: "resolved: do the next thing after this",
-			}),
 		)
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -220,99 +210,6 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: after rebuild",
 			undefined,
 			undefined,
-		)
-	})
-
-	it("abandons a running-turn follow-up when navigation completes during checkpoint handoff", async () => {
-		const oldSession = makeActiveSession({ isRunning: true })
-		const oldTask = makeTask("session-123")
-		let currentTask = oldTask
-		let resolveHandoff: (result: "ready") => void = () => {}
-		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, task: oldTask })
-		options.getTask.mockImplementation(() => currentTask)
-		options.handlePendingRebuilds.mockImplementationOnce(
-			() =>
-				new Promise((resolve) => {
-					resolveHandoff = resolve
-				}),
-		)
-
-		const send = coordinator.askResponse("old task", undefined, undefined, "messageResponse", "streaming")
-		await Promise.resolve()
-		currentTask = makeTask("other-task")
-		resolveHandoff("ready")
-		await send
-
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
-	})
-
-	it("queues a chat-field message while tool approval and a checkpoint rebuild are pending", async () => {
-		const activeSession = makeActiveSession({ isRunning: false })
-		const { coordinator, options } = makeCoordinator({
-			activeSession,
-		})
-		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
-		options.handlePendingRebuilds.mockResolvedValue("deferred")
-
-		await coordinator.askResponse("queue after approval", undefined, undefined, "messageResponse", "awaiting_approval")
-
-		expect(options.handlePendingRebuilds).toHaveBeenCalledOnce()
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.handlePendingRebuilds).toHaveBeenCalledWith({
-			type: "defer",
-			session: activeSession,
-			prompt: "resolved: queue after approval",
-			userImages: undefined,
-			userFiles: undefined,
-		})
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-	})
-
-	it("queues on the replacement if mention resolution outlives the checkpoint rebuild", async () => {
-		const oldSession = makeActiveSession({ isRunning: true })
-		const replacementSession = makeActiveSession({ isRunning: false })
-		const task = makeTask("session-123")
-		let resolveMentions: (prompt: string) => void = () => {}
-		const { coordinator, options } = makeCoordinator({
-			activeSession: oldSession,
-			task,
-		})
-		options.resolveContextMentions.mockImplementationOnce(
-			() =>
-				new Promise((resolve) => {
-					resolveMentions = resolve
-				}),
-		)
-		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(replacementSession)
-
-		const send = coordinator.askResponse("with @mention", undefined, undefined, "messageResponse", "streaming")
-		await Promise.resolve()
-		resolveMentions("resolved after rebuild")
-		await send
-
-		expect(options.handlePendingRebuilds).toHaveBeenCalledWith({
-			type: "defer",
-			session: oldSession,
-			prompt: "resolved after rebuild",
-			userImages: undefined,
-			userFiles: undefined,
-		})
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			replacementSession.sdkHost,
-			"session-123",
-			"resolved after rebuild",
-			undefined,
-			undefined,
-			"queue",
-		)
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalledWith(
-			oldSession.sdkHost,
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
 		)
 	})
 
@@ -743,7 +640,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
-		handlePendingRebuilds: input.handlePendingRebuilds ?? vi.fn().mockResolvedValue("ready"),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
 		onFollowUpAbandoned: vi.fn(),
@@ -780,7 +676,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
-		handlePendingRebuilds: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>
 		onFollowUpAbandoned: ReturnType<typeof vi.fn>
@@ -807,7 +702,6 @@ interface MakeCoordinatorInput {
 	}
 	mode: "act" | "plan"
 	isLegacyTask: boolean
-	handlePendingRebuilds: SdkFollowupCoordinatorOptions["handlePendingRebuilds"]
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 

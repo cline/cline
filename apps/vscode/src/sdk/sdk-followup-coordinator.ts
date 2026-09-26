@@ -7,7 +7,6 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
-import type { DeferredRebuildFollowUp, PendingRebuildResult } from "./sdk-session-config-change-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { prepareTaskResumeStartInput } from "./sdk-task-resume"
@@ -44,7 +43,6 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	handlePendingRebuilds: (disposition: DeferredRebuildFollowUp) => Promise<PendingRebuildResult>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -140,26 +138,12 @@ export class SdkFollowupCoordinator {
 
 		// The submitted turn phase is authoritative when the lifecycle flag is
 		// briefly stale. Keep passive rebuilds behind the active turn while mention
-		// resolution runs; deferred checkpoint follow-ups are transferred once the
-		// turn later marks the session idle.
+		// resolution runs. Core owns the queue: it shows the prompt in the webview
+		// at once, and a later session rebuild carries the queue over.
 		this.options.sessions.setRunning(true)
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
 		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
 			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
-			return
-		}
-		const rebuildResult = await this.options.handlePendingRebuilds({
-			type: "defer",
-			session: activeSession,
-			prompt: resolvedPrompt,
-			userImages: images,
-			userFiles: files,
-		})
-		if (rebuildResult === "deferred") {
-			return
-		}
-		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
-			await this.abandonFollowUp(`Task changed before queuing a follow-up for ${displayedTaskId}; cancelling follow-up`)
 			return
 		}
 
