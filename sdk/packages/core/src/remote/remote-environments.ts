@@ -1015,9 +1015,11 @@ export async function runRemoteProcess(
 		let bytes = 0;
 		let settled = false;
 		let failure: Error | undefined;
+		let inputPending = false;
 		let input: ReturnType<typeof createReadStream> | undefined;
 		let escalation: ReturnType<typeof setTimeout> | undefined;
 		let deadline: ReturnType<typeof setTimeout> | undefined;
+		let grace: ReturnType<typeof setTimeout> | undefined;
 		const stopInput = () => {
 			input?.destroy();
 			child.stdin?.destroy();
@@ -1046,10 +1048,14 @@ export async function runRemoteProcess(
 			clearTimeout(timer);
 			clearTimeout(escalation);
 			clearTimeout(deadline);
+			clearTimeout(grace);
 			stopInput();
 			child.stdout?.destroy();
 			child.stderr?.destroy();
 			if (error) reject(error);
+			// A zero exit before the input was flushed would hide a truncated upload.
+			else if (code === 0 && inputPending)
+				reject(new Error(`${executable} exited before the upload completed`));
 			else
 				resolve({
 					stdout: Buffer.concat(stdout).toString("utf8"),
@@ -1100,8 +1106,19 @@ export async function runRemoteProcess(
 			),
 		);
 		if (options.inputFile && child.stdin) {
+			inputPending = true;
 			input = createReadStream(options.inputFile);
-			child.stdin.once("error", terminate);
+			child.stdin.once("finish", () => {
+				inputPending = false;
+			});
+			// ssh exiting mid-upload (dropped connection, failed login) surfaces
+			// here as EPIPE before "close". Its stderr and exit code explain the
+			// failure, so stop writing and let them arrive instead of killing it.
+			child.stdin.on("error", (error) => {
+				if (settled || failure || grace) return;
+				stopInput();
+				grace = setTimeout(() => terminate(error), 5_000);
+			});
 			input.once("error", terminate);
 			input.pipe(child.stdin);
 		}

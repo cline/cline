@@ -1,6 +1,13 @@
 import * as childProcess from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import {
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -187,6 +194,35 @@ describe("RemoteEnvironmentService", () => {
 				inputFile: join(testDirectory, "missing"),
 			}),
 		).rejects.toThrow("ENOENT");
+	});
+	it("reports SSH diagnostics when it exits during an upload", async () => {
+		// Larger than any pipe buffer so a write fails with EPIPE once ssh is gone.
+		const inputFile = join(testDirectory, "helper");
+		await writeFile(inputFile, Buffer.alloc(8 * 1024 * 1024));
+		await expect(
+			runRemoteProcess(
+				process.execPath,
+				[
+					"-e",
+					'process.stderr.write("Connection timed out during banner exchange\\n"); process.exit(255);',
+				],
+				{ timeoutMs: 5000, inputFile },
+			),
+		).resolves.toEqual({
+			exitCode: 255,
+			stdout: "",
+			stderr: "Connection timed out during banner exchange\n",
+		});
+	});
+	it("rejects a truncated upload that exits successfully", async () => {
+		const inputFile = join(testDirectory, "helper");
+		await writeFile(inputFile, Buffer.alloc(8 * 1024 * 1024));
+		await expect(
+			runRemoteProcess(process.execPath, ["-e", "process.exit(0)"], {
+				timeoutMs: 5000,
+				inputFile,
+			}),
+		).rejects.toThrow("exited before the upload completed");
 	});
 
 	it.each([
