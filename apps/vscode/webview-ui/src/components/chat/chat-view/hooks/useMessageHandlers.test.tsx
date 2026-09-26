@@ -729,6 +729,80 @@ describe("useMessageHandlers — send routing", () => {
 		expect(condense).not.toHaveBeenCalled()
 	})
 
+	it("keeps a typed /compact in the composer during API error recovery instead of sending it as text", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("/compact"))
+
+		await act(async () => {
+			await result.current.handlers.handleSendMessage("/compact", [], [])
+		})
+
+		expect(condense).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+		expect(result.current.chatState.inputValue).toBe("/compact")
+		expect(result.current.handlers.recoveryActionInFlight).toBe(false)
+	})
+
+	it("offers recovery for a provider failure that reaches the error phase without an anchor", async () => {
+		mockTurnState = { phase: "error", seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "say", say: "error", text: "Agent error: provider unavailable" },
+		]
+		let resolveAskResponse: () => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAskResponse = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		expect(result.current.handlers.errorRecoveryAvailable).toBe(true)
+		act(() => result.current.chatState.setInputValue("try a different approach"))
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("try a different approach", [], [])
+			await Promise.resolve()
+		})
+		expect(result.current.handlers.recoveryActionInFlight).toBe(true)
+
+		await act(async () => {
+			await expect(result.current.handlers.executeButtonAction({ type: "retry" })).resolves.toBe(false)
+		})
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "try a different approach" }),
+		)
+
+		await act(async () => {
+			resolveAskResponse()
+			await sendPromise
+		})
+	})
+
+	it("does not treat the mistake limit as API error recovery", () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const conversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "mistake_limit_reached", text: "" },
+		]
+		const { result } = renderHook(() => useMessageHandlers(conversation, makeChatState(conversation)))
+
+		expect(result.current.errorRecoveryAvailable).toBe(false)
+	})
+
 	it("reports that a duplicate cancellation did not start", async () => {
 		mockTurnState = { phase: "streaming", seq: 4 }
 		let resolveCancelTask: () => void = () => {}

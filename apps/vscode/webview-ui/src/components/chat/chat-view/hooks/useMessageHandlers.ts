@@ -5,7 +5,7 @@ import { IntentEvent } from "@shared/proto/cline/ui"
 import { useCallback, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { getTurnStateMessage } from "../shared/buttonConfig"
+import { buttonsForPhase, getTurnStateMessage } from "../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
 
 function formatDraftText(text: string, activeQuote: string | null): string {
@@ -13,6 +13,16 @@ function formatDraftText(text: string, activeQuote: string | null): string {
 		return text
 	}
 	return `[context] \n>  ${activeQuote} \n[/context] \n\n ${text}`
+}
+
+// `/compact` and its aliases `/smol` and `/newtask` run a real SDK manual
+// compaction via the condense RPC. Sending the literal text to the model would
+// make it improvise a fake summary instead of compacting the context window
+// (CLINE-2503). `/newtask` aliases compaction because condensing achieves its
+// goal (continue working with a fresh, summarized context) without the legacy
+// new_task tool.
+function isCompactionCommand(text: string): boolean {
+	return text === "/compact" || text === "/smol" || text === "/newtask"
 }
 
 /**
@@ -43,9 +53,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// handlers observe the claim before React can render the mirrored UI state.
 	const recoveryClaimRef = useRef<number | undefined>(undefined)
 	const [claimedRecoverySeq, setClaimedRecoverySeq] = useState<number | undefined>(undefined)
-	const turnStateMessage = getTurnStateMessage(messages, turnState)
+	// Recovery is available exactly when the footer offers Retry, so the composer,
+	// the footer buttons and the embedded retry controls share one decision. Most
+	// provider failures reach the error phase without an anchor message, so the
+	// anchor only refines the button set (mistake_limit_reached shows Proceed).
 	const recoverySeq =
-		turnState?.phase === "error" && turnStateMessage?.type === "ask" && turnStateMessage.ask === "api_req_failed"
+		turnState?.phase === "error" &&
+		buttonsForPhase(turnState, getTurnStateMessage(messages, turnState)).primaryAction === "retry"
 			? turnState.seq
 			: undefined
 	const errorRecoveryAvailable = recoverySeq !== undefined
@@ -68,6 +82,17 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		}
 	}, [recoverySeq])
 
+	// Manual compaction does not take part in the recovery claim, so it is
+	// unavailable while Retry / Start New Task are offered. The header button
+	// and the typed /compact command both go through this gate.
+	const compactTask = useCallback(async () => {
+		if (errorRecoveryAvailable) {
+			return false
+		}
+		await SlashServiceClient.condense(StringRequest.create({ value: "compact" }))
+		return true
+	}, [errorRecoveryAvailable])
+
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
@@ -85,27 +110,20 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
-			// `/compact` (and its aliases `/smol` and `/newtask`) must run a real
-			// SDK manual compaction via the condense RPC — sending the literal
-			// text to the model would make it improvise a fake summary instead of
-			// compacting the context window (CLINE-2503). `/newtask` aliases
-			// compaction because condensing achieves its goal (continue working
-			// with a fresh, summarized context) without the legacy new_task tool.
 			// With no active task there is nothing to compact, so fall through to
 			// normal new-task handling.
-			if (
-				recoveryDraft === undefined &&
-				messages.length > 0 &&
-				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
-			) {
+			if (messages.length > 0 && isCompactionCommand(messageToSend)) {
+				// While Retry / Start New Task are offered the command is neither
+				// compacted nor sent to the model as text; the draft stays put.
+				if (errorRecoveryAvailable) {
+					return
+				}
 				// Clear the input before awaiting the RPC — condense resolves only
 				// after compaction finishes, and the typed command lingering in the
 				// field the whole time reads as if the send didn't register.
 				setInputValue("")
 				setActiveQuote(null)
-				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
-					console.error("Failed to compact task:", err),
-				)
+				await compactTask().catch((err) => console.error("Failed to compact task:", err))
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
@@ -390,6 +408,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			turnState,
 			activeQuote,
 			recoverySeq,
+			errorRecoveryAvailable,
+			compactTask,
 			claimErrorRecovery,
 			releaseErrorRecoveryClaim,
 			setInputValue,
@@ -445,14 +465,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		},
 		[claimErrorRecovery, clearTask, releaseErrorRecoveryClaim, setActiveQuote],
 	)
-
-	const compactTask = useCallback(async () => {
-		if (errorRecoveryAvailable) {
-			return false
-		}
-		await SlashServiceClient.condense(StringRequest.create({ value: "compact" }))
-		return true
-	}, [errorRecoveryAvailable])
 
 	// Execute button action based on type
 	const executeButtonAction = useCallback(
