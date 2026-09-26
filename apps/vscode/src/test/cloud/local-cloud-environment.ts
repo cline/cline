@@ -168,6 +168,11 @@ export async function startLocalCloudEnvironment(
 			}
 
 			if (url.pathname === "/api/v1/integrations/github/repositories" && req.method === "GET") {
+				// CLINE_LOCAL_CLOUD_NO_REPOSITORIES=1 reproduces a connected GitHub App with
+				// no accessible repositories, so Cloud can be selected without a repository.
+				if (process.env.CLINE_LOCAL_CLOUD_NO_REPOSITORIES === "1") {
+					return json(res, 200, { success: true, data: [] })
+				}
 				return json(res, 200, {
 					success: true,
 					data: [

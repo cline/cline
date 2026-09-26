@@ -23,7 +23,7 @@ import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } fr
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
-import type { CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
+import { CLOUD_SESSION_MODE, type CurrentCloudTaskInfo, isCloudSessionId } from "@shared/cloud/cloud-sessions"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -330,7 +330,7 @@ export class Controller {
 			// start a new session, so start metadata never goes stale the way
 			// a mid-task model-only switch does for models below.
 			() => this.getSessionProviderId() ?? this.getActiveProviderId(),
-			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+			() => this.getDisplayedTaskMode(),
 			() => this.lastKnownWorkspaceRoot,
 			// Model backing the active turn — lets error reshaping recognize
 			// retired cline-free/ models (the error payload itself never names one).
@@ -1466,6 +1466,18 @@ export class Controller {
 		return this.cloud.getCurrentTaskInfo()
 	}
 
+	/**
+	 * Plan/act mode governing the displayed task. A cloud task always runs in
+	 * Act, so its completion rows render as Act output even while the user's
+	 * saved local mode is Plan.
+	 */
+	private getDisplayedTaskMode(): Mode {
+		if (this.task && isCloudSessionId(this.task.taskId)) {
+			return CLOUD_SESSION_MODE
+		}
+		return this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+	}
+
 	/** Forgets cached cloud sessions after the account or organization changes. */
 	async resetCloudSessions(changeScope?: () => Promise<void>): Promise<void> {
 		await this.cloud.reset(changeScope)
@@ -1623,6 +1635,12 @@ export class Controller {
 		const currentTask = this.task
 		if (!currentTask) {
 			throw new Error("No active task to edit")
+		}
+		// The rebuilt conversation below is a local session on this machine's
+		// workspace. A cloud task's transcript lives in its sandbox, so rebuilding
+		// it here would silently move the task out of the cloud.
+		if (isCloudSessionId(currentTask.taskId)) {
+			throw new Error("Editing an earlier message is not available for cloud tasks yet.")
 		}
 
 		const clineMessages = currentTask.messageStateHandler.getClineMessages()

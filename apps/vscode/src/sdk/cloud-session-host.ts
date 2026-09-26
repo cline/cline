@@ -36,7 +36,7 @@ import {
 	type StartSessionResult,
 } from "@cline/core"
 import type { AgentResult, ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
-import { CLOUD_WORKSPACE_ROOT, type CloudSessionStatus } from "@shared/cloud/cloud-sessions"
+import { CLOUD_SESSION_MODE, CLOUD_WORKSPACE_ROOT, type CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 
@@ -55,8 +55,6 @@ export interface CloudSessionHostOptions {
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
 	telemetry?: ITelemetryService
 	onStatusChange?: (status: CloudSessionStatus) => void
-	/** Mode attached to each turn. The cloud coordinator pins the first release to Act. */
-	getMode?: () => "plan" | "act"
 	/** Sandbox workspace root. Hosted sandboxes use /workspace. */
 	workspaceRoot?: string
 }
@@ -277,7 +275,8 @@ export class CloudSessionHost implements SdkSessionHost {
 			return await this.host.runTurn({
 				...input,
 				sessionId,
-				mode: input.mode ?? this.options.getMode?.(),
+				// The sandbox runtime was built for Act; every turn must say the same.
+				mode: CLOUD_SESSION_MODE,
 				// Local file paths mean nothing inside the sandbox; images travel as data URLs.
 				userFiles: undefined,
 			})

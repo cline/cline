@@ -89,8 +89,12 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 }
 
 describe("SdkCloudSessionCoordinator ownership", () => {
-	it("uses the Act-mode Cline model while the local UI is in Plan mode", async () => {
-		const { coordinator } = makeCoordinator({
+	it("starts the sandbox in Act with the Act-mode Cline model while the local UI is in Plan mode", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const startNewSession = vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } }))
+		const fireAndForgetSend = vi.fn()
+		const { coordinator, cloudSessions, options } = makeCoordinator({
 			stateManager: {
 				getApiConfiguration: () => ({
 					actModeApiProvider: "cline",
@@ -100,11 +104,22 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 				}),
 				getGlobalSettingsKey: () => "plan",
 			} as never,
+			sessions: { startNewSession, fireAndForgetSend } as never,
 		})
 
-		expect(await (coordinator as unknown as { resolveCloudModelId: () => Promise<string> }).resolveCloudModelId()).toBe(
-			"act-cloud-model",
+		expect(await coordinator.startCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })).toBe(record.id)
+
+		expect(cloudSessions.createSession).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "act-cloud-model" }),
+			expect.any(Function),
 		)
+		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith(expect.objectContaining({ mode: "act" }))
+		expect(startNewSession).toHaveBeenCalledWith(
+			expect.objectContaining({ config: expect.objectContaining({ mode: "act" }) }),
+			host,
+			expect.any(Function),
+		)
+		await coordinator.dispose()
 	})
 
 	it("refuses to connect when the control plane omits the canonical task id", async () => {

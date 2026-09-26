@@ -169,7 +169,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				}
 
 				if (messages.length === 0) {
-					const runInCloud = cloudSessionsEnabled && cloudTaskTarget?.target === "cloud" && !!cloudTaskTarget.repoUrl
+					// Cloud selected means cloud requested, even without a repository: the
+					// extension refuses an incomplete cloud request rather than running the
+					// task locally behind a Cloud label.
+					const runInCloud = !!cloudSessionsEnabled && cloudTaskTarget?.target === "cloud"
 					const request = NewTaskRequest.create({
 						text: messageToSend,
 						images,

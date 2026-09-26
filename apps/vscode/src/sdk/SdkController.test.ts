@@ -288,3 +288,33 @@ describe("resolveWorkspaceManagerPaths", () => {
 		expect(resolveWorkspaceManagerPaths([], "  ")).toEqual([])
 	})
 })
+
+describe("cloud tasks stay in the cloud", () => {
+	const stateManager = { getGlobalSettingsKey: (key: string) => (key === "mode" ? "plan" : undefined) }
+
+	it("refuses to rebuild a cloud task's conversation as a local session", async () => {
+		const startNewSession = vi.fn()
+		const controller = {
+			task: { taskId: "ses-cloud", messageStateHandler: { getClineMessages: () => [] } },
+			sessions: { getActiveSession: () => undefined, startNewSession },
+			stateManager,
+		}
+
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller as never, { messageTs: 1, text: "edited" }),
+		).rejects.toThrow("not available for cloud tasks")
+		expect(startNewSession).not.toHaveBeenCalled()
+	})
+
+	it("renders a displayed cloud task in Act while the saved local mode is Plan", () => {
+		const mode = (taskId: string | undefined) =>
+			SdkController.prototype["getDisplayedTaskMode"].call({
+				task: taskId ? { taskId } : undefined,
+				stateManager,
+			} as never)
+
+		expect(mode("ses-cloud")).toBe("act")
+		expect(mode("local-task")).toBe("plan")
+		expect(mode(undefined)).toBe("plan")
+	})
+})

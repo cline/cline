@@ -41,6 +41,20 @@ describe("CloudSessionHost status", () => {
 		expect(mapAgentFinishReason(reason)).toBe(expected)
 	})
 
+	it("sends every turn in Act mode even when the caller asks for Plan", async () => {
+		runtime.runTurn.mockResolvedValue({ finishReason: "completed" })
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+		})
+
+		await host.send({ sessionId: "ses-outer", prompt: "continue", mode: "plan" })
+
+		expect(runtime.runTurn).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "inner-session", mode: "act" }))
+	})
+
 	it("leaves running state when runTurn rejects without a terminal event", async () => {
 		const error = new Error("connection closed")
 		runtime.runTurn.mockRejectedValue(error)
