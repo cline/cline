@@ -20,6 +20,7 @@ import {
 	installPlugin,
 	isOfficialPluginSlug,
 	parsePluginSource,
+	resolveWindowsNpmInvocation,
 } from "./plugin-install";
 
 type FetchCall = (
@@ -209,6 +210,35 @@ describe("plugin install service", () => {
 		);
 	});
 
+	// The package-directory paths run `npm install`, which used to fail on
+	// Windows with `ENOENT: uv_spawn 'npm'` because npm only exists as npm.cmd.
+	it.runIf(process.platform === "win32")(
+		"runs npm install for a local plugin package on Windows",
+		async () => {
+			const source = join(root, "npm-backed-plugin");
+			await mkdir(source, { recursive: true });
+			await writeFile(
+				join(source, "package.json"),
+				JSON.stringify({
+					name: "npm-backed-plugin",
+					private: true,
+					cline: { plugins: [{ paths: ["index.ts"] }] },
+				}),
+				"utf8",
+			);
+			await writeFile(
+				join(source, "index.ts"),
+				"export default { name: 'npm-backed-plugin', manifest: { capabilities: ['tools'] } };",
+				"utf8",
+			);
+
+			const result = await installPlugin({ source, cwd: workspace });
+
+			expect(result.entryPaths).toHaveLength(1);
+			expect(existsSync(result.entryPaths[0] ?? "")).toBe(true);
+		},
+	);
+
 	it("syncs MCP servers declared by installed plugins", async () => {
 		const source = join(root, "mcp-plugin.ts");
 		writeFileSync(
@@ -275,4 +305,85 @@ export default {
 		expect(second.installPath).toBe(first.installPath);
 		expect(existsSync(second.entryPaths[0] ?? "")).toBe(true);
 	});
+});
+
+describe("resolveWindowsNpmInvocation", () => {
+	const npmDir = "C:\\Program Files\\nodejs";
+	const npmCmd = `${npmDir}\\npm.cmd`;
+	const npmCli = `${npmDir}\\node_modules\\npm\\bin\\npm-cli.js`;
+	const bundledNode = `${npmDir}\\node.exe`;
+	const args = ["install", "pkg@>=1 <2", "--prefix", "C:\\Users\\A B\\x"];
+
+	function resolveWith(command: string, files: string[], pathEnv = npmDir) {
+		const existing = new Set(files);
+		return resolveWindowsNpmInvocation(command, args, {
+			platform: "win32",
+			pathEnv,
+			fileExists: (path) => existing.has(path),
+		});
+	}
+
+	it("runs npm-cli.js with the node next to npm.cmd, passing args through", () => {
+		expect(resolveWith("npm", [npmCmd, npmCli, bundledNode])).toEqual({
+			command: bundledNode,
+			args: [npmCli, ...args],
+		});
+	});
+
+	it("falls back to node on PATH when npm.cmd has no bundled node.exe", () => {
+		expect(resolveWith("npm", [npmCmd, npmCli])).toEqual({
+			command: "node",
+			args: [npmCli, ...args],
+		});
+	});
+
+	it("searches every PATH entry for npm.cmd", () => {
+		expect(
+			resolveWith("npm", [npmCmd, npmCli], `C:\\Windows;;${npmDir}`),
+		).toEqual({ command: "node", args: [npmCli, ...args] });
+	});
+
+	it("handles an explicit npm.cmd path such as CLINE_NPM_COMMAND", () => {
+		expect(resolveWith(npmCmd, [npmCli], "")).toEqual({
+			command: "node",
+			args: [npmCli, ...args],
+		});
+	});
+
+	it("leaves npm alone when an npm.exe shim comes first on PATH", () => {
+		expect(resolveWith("npm", [`${npmDir}\\npm.exe`, npmCmd, npmCli])).toEqual({
+			command: "npm",
+			args,
+		});
+	});
+
+	it("leaves npm alone when npm-cli.js is not next to npm.cmd", () => {
+		expect(resolveWith("npm", [npmCmd])).toEqual({ command: "npm", args });
+	});
+
+	it("leaves other commands and other platforms alone", () => {
+		expect(resolveWith("git", [npmCmd, npmCli])).toEqual({
+			command: "git",
+			args,
+		});
+		expect(
+			resolveWindowsNpmInvocation("npm", args, {
+				platform: "linux",
+				pathEnv: npmDir,
+				fileExists: () => true,
+			}),
+		).toEqual({ command: "npm", args });
+	});
+
+	it.runIf(process.platform === "win32")(
+		"produces a command that spawns npm on this Windows machine",
+		() => {
+			const invocation = resolveWindowsNpmInvocation("npm", ["--version"]);
+			const version = execFileSync(invocation.command, invocation.args, {
+				encoding: "utf8",
+				windowsHide: true,
+			});
+			expect(version.trim()).toMatch(/^\d+\.\d+\.\d+/);
+		},
+	);
 });
