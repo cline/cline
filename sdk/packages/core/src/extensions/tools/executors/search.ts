@@ -7,7 +7,11 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { AgentToolContext } from "@cline/shared";
+import {
+	type AgentToolContext,
+	sliceHeadAtCodePointBoundary,
+	sliceTailAtCodePointBoundary,
+} from "@cline/shared";
 import { getFileIndex } from "../../../services/workspace";
 import type { SearchExecutor } from "../types";
 import { MAX_LINE_CHARS, MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
@@ -445,7 +449,7 @@ export function createSearchExecutor(
 						for (let i = contextStart; i <= contextEnd; i++) {
 							const prefix = i === lineIdx ? ">" : " ";
 							contextLinesArr.push(
-								`${prefix} ${i + 1}: ${lines[i].slice(0, MAX_LINE_CHARS)}`,
+								`${prefix} ${i + 1}: ${sliceHeadAtCodePointBoundary(lines[i], MAX_LINE_CHARS)}`,
 							);
 						}
 
@@ -508,9 +512,9 @@ function capSearchOutput(text: string): string {
 	const headLimit = Math.ceil(MAX_SEARCH_OUTPUT_CHARS / 2);
 	const tailLimit = Math.max(1, MAX_SEARCH_OUTPUT_CHARS - headLimit);
 	return (
-		`${text.slice(0, headLimit)}\n` +
+		`${sliceHeadAtCodePointBoundary(text, headLimit)}\n` +
 		`[... search output truncated: ${text.length} chars total. ` +
 		"Narrow the pattern or scope to view the elided matches ...]\n" +
-		text.slice(-tailLimit)
+		sliceTailAtCodePointBoundary(text, tailLimit)
 	);
 }

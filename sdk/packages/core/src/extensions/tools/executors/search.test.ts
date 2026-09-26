@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolContext } from "@cline/shared";
+import { type AgentToolContext, sanitizeSurrogates } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
 import { createSearchExecutor } from "./search";
@@ -61,6 +61,29 @@ describe("createSearchExecutor", () => {
 
 			expect(result.length).toBeLessThanOrEqual(50_000);
 			expect(result).toContain("small.ts");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+	it("cuts a long matching line on a code point boundary", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		// MAX_LINE_CHARS is 2000, and the leading "a" puts that cut at an odd
+		// offset inside the emoji run — the offset where a raw slice leaves an
+		// unpaired surrogate that later reads as U+FFFD.
+		await fs.writeFile(
+			path.join(dir, "wide.ts"),
+			`a${"\u{1F3AE}".repeat(1_100)}\n`,
+			"utf-8",
+		);
+
+		try {
+			const search = createSearchExecutor({ contextLines: 0 });
+			// Lookahead is unsupported by ripgrep, forcing the fallback scan.
+			const result = await search("(?=a\u{1F3AE})", dir, ctx);
+
+			expect(result).toContain("wide.ts");
+			expect(sanitizeSurrogates(result)).toBe(result);
+			expect(Buffer.from(result, "utf8").toString("utf8")).toBe(result);
 		} finally {
 			await fs.rm(dir, { recursive: true, force: true });
 		}

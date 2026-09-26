@@ -307,6 +307,8 @@ export {
 export {
 	maskSecret,
 	sanitizeFileName,
+	sliceHeadAtCodePointBoundary,
+	sliceTailAtCodePointBoundary,
 	stripUtf8Bom,
 	trimNonEmpty,
 	truncateSplit,
