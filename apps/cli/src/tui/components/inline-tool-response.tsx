@@ -292,6 +292,7 @@ function AskQuestionResponse(
 	const scrollRef = useRef<ScrollBoxRenderable | null>(null);
 	const selectedRef = useRef(0);
 	const customValueRef = useRef("");
+	const isPastingRef = useRef(false);
 	const interactionId = interaction.id;
 	const onResolveAskQuestion = props.onResolveAskQuestion;
 	const customIndex = interaction.options.length;
@@ -370,11 +371,19 @@ function AskQuestionResponse(
 				event.preventDefault?.();
 				event.stopPropagation?.();
 				selectIndex(customIndex);
-				void readTextFromSystemClipboard().then((text) => {
-					if (text) {
-						appendPastedText(text);
-					}
-				});
+				if (isPastingRef.current) return;
+				isPastingRef.current = true;
+				void readTextFromSystemClipboard()
+					.then((text) => {
+						if (text) {
+							appendPastedText(text);
+						}
+					})
+					.finally(() => {
+						setTimeout(() => {
+							isPastingRef.current = false;
+						}, 100);
+					});
 				return;
 			}
 			selectIndex(customIndex);
@@ -405,11 +414,19 @@ function AskQuestionResponse(
 	useKeyboard((key) => {
 		const typing = selectedRef.current === customIndex;
 		if (key.ctrl && key.name === "v") {
-			void readTextFromSystemClipboard().then((text) => {
-				if (text) {
-					appendPastedText(text);
-				}
-			});
+			if (isPastingRef.current) return;
+			isPastingRef.current = true;
+			void readTextFromSystemClipboard()
+				.then((text) => {
+					if (text) {
+						appendPastedText(text);
+					}
+				})
+				.finally(() => {
+					setTimeout(() => {
+						isPastingRef.current = false;
+					}, 100);
+				});
 			return;
 		}
 		if (key.name === "escape") {

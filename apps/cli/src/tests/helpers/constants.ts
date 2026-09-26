@@ -7,9 +7,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 function resolveClineBin(): string {
-	const distBin = new URL("../../../dist/index.js", import.meta.url).pathname;
+	const distBin = fileURLToPath(
+		new URL("../../../dist/index.js", import.meta.url),
+	);
 	if (fs.existsSync(distBin)) {
 		return distBin;
 	}

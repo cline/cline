@@ -61,6 +61,7 @@ type AuthCommandInput = {
 	modelid?: string;
 	baseurl?: string;
 	azureApiVersion?: string;
+	mouse?: boolean;
 };
 
 type ParsedAuthCommandArgs = {
@@ -69,6 +70,7 @@ type ParsedAuthCommandArgs = {
 	modelid?: string;
 	baseurl?: string;
 	azureApiVersion?: string;
+	mouse?: boolean;
 	parseError?: string;
 };
 
@@ -89,7 +91,8 @@ export function createAuthCommand(): Command {
 		.option("-k, --apikey <key>", "API key")
 		.option("-m, --modelid <id>", "model id")
 		.option("-b, --baseurl <url>", "base URL")
-		.option("--azure-api-version <version>", "Azure API version");
+		.option("--azure-api-version <version>", "Azure API version")
+		.option("--no-mouse", "Disable mouse capture in the auth TUI");
 	return cmd;
 }
 
@@ -107,6 +110,7 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		modelid?: string;
 		baseurl?: string;
 		azureApiVersion?: string;
+		mouse?: boolean;
 	}>();
 	const positionalProvider = cmd.args[0];
 	return {
@@ -115,6 +119,7 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		modelid: opts.modelid,
 		baseurl: opts.baseurl,
 		azureApiVersion: opts.azureApiVersion,
+		mouse: opts.mouse,
 	};
 }
 
@@ -332,8 +337,11 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 	}
 	const { createCliRenderer, createRoot, OnboardingView } =
 		await loadAuthTuiRuntime();
+	// Prefer explicit --no-mouse flag, fall back to env vars
 	const useMouse =
-		process.env.CLINE_NO_MOUSE !== "1" && process.env.CLINE_MOUSE !== "0";
+		input.mouse !== undefined
+			? input.mouse
+			: process.env.CLINE_NO_MOUSE !== "1" && process.env.CLINE_MOUSE !== "0";
 	const renderer = await createCliRenderer({
 		exitOnCtrlC: false,
 		autoFocus: false,
