@@ -97,7 +97,6 @@ export class SdkSessionConfigChangeCoordinator {
 			config.sessionId = oldSessionId
 
 			const initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)
-			const pendingPrompts = await oldManager.pendingPrompts("list", { sessionId: oldSessionId })
 			const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
 
 			// Rebuilds may preserve the session ID, so identity is the only reliable
@@ -108,15 +107,16 @@ export class SdkSessionConfigChangeCoordinator {
 				return
 			}
 			// A newer change for the same reason runs next, so this stale
-			// configuration must not be installed. Nothing suspends between this
-			// check and replaceActiveSession detaching the old session.
+			// configuration must not be installed.
 			if (!context.isCurrent()) {
 				Logger.log(`[SdkController] Configuration restart superseded before replacing ${oldSessionId}; aborting`)
 				return
 			}
-			if (currentSession !== activeSession || currentSession.isRunning) {
+			// The scheduler only starts a rebuild on an idle session with nothing
+			// queued; a prompt the user sent while we awaited re-queues the rebuild.
+			if (currentSession !== activeSession || currentSession.isRunning || currentSession.queuedPromptCount > 0) {
 				Logger.log(
-					`[SdkController] Active session changed or started running during configuration restart (was ${oldSessionId}); deferring`,
+					`[SdkController] Active session changed or received a prompt during configuration restart (was ${oldSessionId}); deferring`,
 				)
 				this.options.rebuilds.request(details.reason, (nextContext) => this.restartSession(details, nextContext))
 				return
@@ -141,40 +141,9 @@ export class SdkSessionConfigChangeCoordinator {
 				)
 			}
 
-			// Prompts the user queued on the old session belong to the replacement.
-			// The first one starts a turn, unless a newer change for the same
-			// reason arrived while the replacement was starting: then every prompt
-			// is re-queued so the newer rebuild carries them over before any turn
-			// runs under this superseded configuration.
-			const startsTurn = context.isCurrent()
-			const [nextPrompt, ...remainingPrompts] = pendingPrompts
-			if (nextPrompt && startsTurn) {
-				this.options.sessions.setRunning(true)
-				this.options.sessions.fireAndForgetSend(
-					sdkHost,
-					startResult.sessionId,
-					nextPrompt.prompt,
-					nextPrompt.userImages,
-					nextPrompt.userFiles,
-				)
-			}
-			const requeued = startsTurn ? remainingPrompts : pendingPrompts
-			const replayOrder = [
-				...requeued.filter((prompt) => prompt.delivery === "queue"),
-				...requeued.filter((prompt) => prompt.delivery === "steer").reverse(),
-			]
-			for (const pendingPrompt of replayOrder) {
-				await sdkHost.send({
-					sessionId: startResult.sessionId,
-					prompt: pendingPrompt.prompt,
-					userImages: pendingPrompt.userImages,
-					userFiles: pendingPrompt.userFiles,
-					delivery: pendingPrompt.delivery,
-				})
-			}
 			this.options.messages.emitSessionEvents([], {
 				type: "status",
-				payload: { sessionId: startResult.sessionId, status: nextPrompt && startsTurn ? "running" : "idle" },
+				payload: { sessionId: startResult.sessionId, status: "idle" },
 			})
 
 			await this.options.postStateToWebview()

@@ -92,6 +92,12 @@ export interface ActiveSession {
 	startResult?: StartSessionResult
 	/** Whether the session is currently running */
 	isRunning: boolean
+	/**
+	 * Prompts Core holds in this session's queue. Core drains the queue itself
+	 * as soon as a turn ends, so a session with queued prompts is about to run
+	 * again and is not idle for passive rebuilds.
+	 */
+	queuedPromptCount: number
 }
 
 function createSdkLogger() {

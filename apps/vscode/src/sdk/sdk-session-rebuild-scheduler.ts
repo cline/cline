@@ -7,6 +7,16 @@ export interface SdkSessionRebuildSchedulerOptions {
 	sessions: Pick<SdkSessionLifecycle, "getActiveSession">
 }
 
+/**
+ * A rebuild replaces the session, so it may only run between turns. Core
+ * drains its own prompt queue the moment a turn ends, so a session with
+ * queued prompts is about to run again: treat it as busy until Core has
+ * emptied the queue.
+ */
+function isIdle(session: ReturnType<SdkSessionLifecycle["getActiveSession"]>): boolean {
+	return session !== undefined && !session.isRunning && session.queuedPromptCount === 0
+}
+
 export interface SessionRebuildContext {
 	/**
 	 * True until a newer request for the same reason arrives. A superseded
@@ -21,7 +31,7 @@ interface ScheduledRebuild {
 	generation: number
 }
 
-/** Serializes passive session rebuilds and drains them only while the session is idle. */
+/** Serializes passive session rebuilds and drains them only while the session is idle (see isIdle). */
 export class SdkSessionRebuildScheduler {
 	private readonly pending = new Map<SessionRebuildReason, ScheduledRebuild>()
 	private drainInFlight: Promise<void> | undefined
@@ -79,8 +89,7 @@ export class SdkSessionRebuildScheduler {
 	}
 
 	private drainIfIdle(): void {
-		const activeSession = this.options.sessions.getActiveSession()
-		if (this.drainInFlight || this.pending.size === 0 || !activeSession || activeSession.isRunning) {
+		if (this.drainInFlight || this.pending.size === 0 || !isIdle(this.options.sessions.getActiveSession())) {
 			return
 		}
 
@@ -91,7 +100,7 @@ export class SdkSessionRebuildScheduler {
 					this.pending.clear()
 					return
 				}
-				if (activeSession.isRunning) {
+				if (!isIdle(activeSession)) {
 					return
 				}
 

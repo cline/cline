@@ -69,7 +69,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 e2e.describe("Checkpoint settings", () => {
 	e2e.describe.configure({ timeout: 180_000 })
 
-	e2e("enabling during a turn applies before the next message", async ({ helper, page, server, sidebar }) => {
+	e2e("enabling during a turn applies after the queued message", async ({ helper, page, server, sidebar }) => {
 		await helper.signin(sidebar)
 
 		const openSettings = async () => {
@@ -129,18 +129,25 @@ e2e.describe("Checkpoint settings", () => {
 			await expect(checkpoints).toBeChecked()
 			await sidebar.getByRole("button", { name: "Done" }).click()
 
-			await inputbox.fill("follow-up after enabling checkpoints")
+			// A message sent during the turn joins Core's queue and runs with the
+			// settings in force when that turn ends; the setting change applies
+			// from the next message.
+			await inputbox.fill("queued during checkpoint change")
 			const sendButton = sidebar.getByTestId("send-button")
 			await expect(sendButton).not.toHaveClass(/disabled/)
 			await sendButton.click()
-			await expect(sidebar.getByText("follow-up after enabling checkpoints")).toBeVisible({ timeout: 30_000 })
+			await expect(sidebar.getByText("queued during checkpoint change")).toBeVisible({ timeout: 30_000 })
 			server.releaseCheckpointProbe()
-			await expect(sidebar.getByText("Checkpoint-enabled follow-up reached the rebuilt session.")).toBeVisible({
-				timeout: 30_000,
-			})
+			await expect(sidebar.getByText("mock Cline API response")).toHaveCount(3, { timeout: 30_000 })
 		} finally {
 			server.releaseCheckpointProbe()
 		}
+
+		await inputbox.fill("follow-up after enabling checkpoints")
+		await sidebar.getByTestId("send-button").click()
+		await expect(sidebar.getByText("Checkpoint-enabled follow-up reached the rebuilt session.")).toBeVisible({
+			timeout: 30_000,
+		})
 
 		await sidebar
 			.locator('[title="Edit and regenerate from here"]')

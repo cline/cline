@@ -16,6 +16,20 @@ describe("SdkSessionRebuildScheduler", () => {
 		await vi.waitFor(() => expect(rebuild).toHaveBeenCalledOnce())
 	})
 
+	it("waits for Core to drain queued prompts before rebuilding", async () => {
+		const activeSession = { isRunning: false, queuedPromptCount: 1 }
+		const scheduler = makeScheduler(activeSession)
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+
+		scheduler.request("checkpoints", rebuild)
+		await Promise.resolve()
+		expect(rebuild).not.toHaveBeenCalled()
+
+		activeSession.queuedPromptCount = 0
+		scheduler.sessionBecameIdle()
+		await vi.waitFor(() => expect(rebuild).toHaveBeenCalledOnce())
+	})
+
 	it("coalesces repeated requests for the same reason", async () => {
 		const activeSession = { isRunning: true }
 		const scheduler = makeScheduler(activeSession)
@@ -148,7 +162,8 @@ describe("SdkSessionRebuildScheduler", () => {
 	})
 })
 
-function makeScheduler(activeSession: { isRunning: boolean }) {
+function makeScheduler(activeSession: { isRunning: boolean; queuedPromptCount?: number }) {
+	activeSession.queuedPromptCount ??= 0
 	return new SdkSessionRebuildScheduler({
 		sessions: {
 			getActiveSession: () =>

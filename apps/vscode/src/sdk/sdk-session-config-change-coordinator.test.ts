@@ -85,6 +85,28 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		expect(options.rebuilds.request).toHaveBeenLastCalledWith("checkpoints", expect.any(Function))
 	})
 
+	it("re-defers when a prompt is queued during restart preparation", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
+		let resolveBuild: (() => void) | undefined
+		options.sessionConfigBuilder.build.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveBuild = () => resolve({ providerId: "anthropic", modelId: "claude", apiKey: "key" })
+				}),
+		)
+
+		coordinator.handleCheckpointsSettingChanged(false, true)
+		const restart = runScheduledRebuild()
+		await waitFor(() => resolveBuild !== undefined)
+		activeSession.queuedPromptCount = 1
+		resolveBuild?.()
+		await restart
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(2)
+	})
+
 	it.each([
 		{
 			name: "terminal execution mode",
@@ -126,39 +148,6 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it("replays queued prompts in order on the replacement session", async () => {
-		const activeSession = makeActiveSession()
-		activeSession.sdkHost.pendingPrompts.mockResolvedValue([
-			{ id: "one", prompt: "first", delivery: "queue", attachmentCount: 1, userFiles: ["a.ts"] },
-			{ id: "two", prompt: "second", delivery: "steer", attachmentCount: 1, userImages: ["image.png"] },
-		])
-		const { coordinator, options, runScheduledRebuild } = makeCoordinator({ activeSession })
-
-		coordinator.handleCheckpointsSettingChanged(true, false)
-		await runScheduledRebuild()
-
-		const replacementHost = options.sessions.replaceActiveSession.mock.results[0].value
-		await expect(replacementHost).resolves.toBeDefined()
-		const send = (await replacementHost).sdkHost.send
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledBefore(send)
-		expect(send).toHaveBeenCalledOnce()
-		expect(send).toHaveBeenCalledWith({
-			sessionId: "new-session",
-			prompt: "second",
-			userImages: ["image.png"],
-			userFiles: undefined,
-			delivery: "steer",
-		})
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			(await replacementHost).sdkHost,
-			"new-session",
-			"first",
-			undefined,
-			["a.ts"],
-		)
-	})
-
 	it("does not replace the session when superseded before replacement", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, runScheduledRebuild, invalidateRebuild } = makeCoordinator({ activeSession })
@@ -178,40 +167,6 @@ describe("SdkSessionConfigChangeCoordinator", () => {
 		await restart
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-	})
-
-	it("re-queues prompts instead of starting a turn when superseded after replacement", async () => {
-		const activeSession = makeActiveSession()
-		activeSession.sdkHost.pendingPrompts.mockResolvedValue([
-			{ id: "one", prompt: "first", delivery: "queue", attachmentCount: 0 },
-			{ id: "two", prompt: "second", delivery: "queue", attachmentCount: 0 },
-		])
-		const { coordinator, options, runScheduledRebuild, invalidateRebuild } = makeCoordinator({ activeSession })
-		let resolveReplacement: (() => void) | undefined
-		options.sessions.replaceActiveSession.mockImplementationOnce(
-			() =>
-				new Promise((resolve) => {
-					resolveReplacement = () => resolve({ startResult: replacementStartResult, sdkHost: replacementHost })
-				}),
-		)
-
-		coordinator.handleCheckpointsSettingChanged(false, true)
-		const restart = runScheduledRebuild()
-		await waitFor(() => resolveReplacement !== undefined)
-		invalidateRebuild()
-		resolveReplacement?.()
-		await restart
-
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(true)
-		expect(replacementHost.send.mock.calls.map(([input]) => [input.prompt, input.delivery])).toEqual([
-			["first", "queue"],
-			["second", "queue"],
-		])
-		expect(options.messages.emitSessionEvents).toHaveBeenLastCalledWith([], {
-			type: "status",
-			payload: { sessionId: "new-session", status: "idle" },
-		})
 	})
 })
 
@@ -299,10 +254,11 @@ type TestOptions = SdkSessionConfigChangeCoordinatorOptions & {
 function makeActiveSession(overrides: Partial<{ isRunning: boolean }> = {}) {
 	const session = {
 		sessionId: "old-session",
-		sdkHost: { readMessages: vi.fn(), pendingPrompts: vi.fn().mockResolvedValue([]) },
+		sdkHost: { readMessages: vi.fn() },
 		startResult: { sessionId: "old-session" },
 		unsubscribe: vi.fn(),
 		isRunning: overrides.isRunning ?? false,
+		queuedPromptCount: 0,
 	}
 	return session as typeof session & ActiveSession
 }

@@ -514,14 +514,19 @@ export class ClineApiServerMock {
 						}
 						const checkpointProbeIndex = lastIndexIncluding("checkpoint_rebuild_probe")
 						const checkpointFollowupIndex = lastIndexIncluding("follow-up after enabling checkpoints")
-						const checkpointProbeRelease = checkpointProbeIndex >= 0 ? controller.checkpointProbeRelease : undefined
+						const lastUserIndex = Array.isArray(messages)
+							? messages.map((m: { role?: string }) => m?.role).lastIndexOf("user")
+							: -1
+						// Only the probe turn itself is held open and streams slowly; later
+						// turns whose history contains the probe text answer normally.
+						const isCheckpointProbeTurn = checkpointProbeIndex >= 0 && checkpointProbeIndex === lastUserIndex
+						const checkpointProbeRelease = isCheckpointProbeTurn ? controller.checkpointProbeRelease : undefined
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
-						const chunkDelayMs =
-							checkpointProbeIndex >= 0 && checkpointFollowupIndex < checkpointProbeIndex ? 750 : 10
-						log("Checkpoint probe indices:", { checkpointFollowupIndex, checkpointProbeIndex })
-						if (checkpointFollowupIndex > checkpointProbeIndex) {
+						const chunkDelayMs = isCheckpointProbeTurn ? 750 : 10
+						log("Checkpoint probe indices:", { checkpointFollowupIndex, checkpointProbeIndex, lastUserIndex })
+						if (checkpointFollowupIndex >= 0 && checkpointFollowupIndex === lastUserIndex) {
 							responseText = E2E_MOCK_API_RESPONSES.CHECKPOINT_FOLLOWUP
-						} else if (checkpointProbeIndex >= 0) {
+						} else if (isCheckpointProbeTurn) {
 							responseText = E2E_MOCK_API_RESPONSES.CHECKPOINT_REBUILD_PROBE
 						}
 						// The hooks e2e sends "hook context probe" after its
