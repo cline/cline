@@ -98,6 +98,11 @@ export interface ParsedCron {
 	daysOfMonth: number[];
 	months: number[];
 	daysOfWeek: number[];
+	/**
+	 * True when both day fields are restricted (neither starts with `*`). Standard
+	 * cron then matches a day when EITHER field matches, not both.
+	 */
+	dayOfMonthOrDayOfWeek: boolean;
 }
 
 interface CronDateParts {
@@ -137,22 +142,21 @@ export function parseCron(pattern: string): ParsedCron {
 			`Invalid cron pattern "${pattern}": expected 5 fields, got ${fields.length}`,
 		);
 	}
+	const dayOfMonthField = getRequiredField(fields, 2, pattern);
+	const dayOfWeekField = getRequiredField(fields, 4, pattern);
 	return {
 		minutes: parseCronField(getRequiredField(fields, 0, pattern), 0, 59),
 		hours: parseCronField(getRequiredField(fields, 1, pattern), 0, 23),
-		daysOfMonth: parseCronField(getRequiredField(fields, 2, pattern), 1, 31),
+		daysOfMonth: parseCronField(dayOfMonthField, 1, 31),
 		months: parseCronField(
 			getRequiredField(fields, 3, pattern),
 			1,
 			12,
 			MONTH_NAMES,
 		),
-		daysOfWeek: parseCronField(
-			getRequiredField(fields, 4, pattern),
-			0,
-			6,
-			DOW_NAMES,
-		),
+		daysOfWeek: parseCronField(dayOfWeekField, 0, 6, DOW_NAMES),
+		dayOfMonthOrDayOfWeek:
+			!dayOfMonthField.startsWith("*") && !dayOfWeekField.startsWith("*"),
 	};
 }
 
@@ -238,11 +242,22 @@ function getLocalCronDateParts(timestampMs: number): CronDateParts {
 	};
 }
 
+function cronMatchesDay(
+	cron: ParsedCron,
+	dayOfMonth: number,
+	dayOfWeek: number,
+): boolean {
+	const dayOfMonthMatches = cron.daysOfMonth.includes(dayOfMonth);
+	const dayOfWeekMatches = cron.daysOfWeek.includes(dayOfWeek);
+	return cron.dayOfMonthOrDayOfWeek
+		? dayOfMonthMatches || dayOfWeekMatches
+		: dayOfMonthMatches && dayOfWeekMatches;
+}
+
 function cronMatchesParts(cron: ParsedCron, parts: CronDateParts): boolean {
 	return (
 		cron.months.includes(parts.month) &&
-		cron.daysOfMonth.includes(parts.dayOfMonth) &&
-		cron.daysOfWeek.includes(parts.dayOfWeek) &&
+		cronMatchesDay(cron, parts.dayOfMonth, parts.dayOfWeek) &&
 		cron.hours.includes(parts.hour) &&
 		cron.minutes.includes(parts.minute)
 	);
@@ -314,10 +329,7 @@ export function getNextCronTime(
 			continue;
 		}
 
-		if (
-			!cron.daysOfMonth.includes(dayOfMonth) ||
-			!cron.daysOfWeek.includes(dayOfWeek)
-		) {
+		if (!cronMatchesDay(cron, dayOfMonth, dayOfWeek)) {
 			next = new Date(
 				next.getFullYear(),
 				next.getMonth(),
