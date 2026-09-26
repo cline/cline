@@ -1640,9 +1640,15 @@ export class SqliteCronStore {
 				LIMIT 1
 			`);
 			while (claimed.length < limit) {
+				// bun:sqlite binds named parameters by their exact SQL token
+				// (":now", ":capacity"); unprefixed keys bind as NULL, which
+				// makes every comparison in the WHERE clause NULL and the
+				// claim query match no rows. node:sqlite happens to accept
+				// both spellings, which is why this only breaks on Bun
+				// (the Cline Desktop runtime).
 				const row = nextDueRun.get({
-					now: referenceIso,
-					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+					":now": referenceIso,
+					":capacity": Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
 				});
 				if (!row) break;
 				const runId = asString(row.run_id);
