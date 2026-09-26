@@ -6,6 +6,7 @@ import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } 
 import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
+import { CloudGitHubCard } from "@/components/cloud/CloudGitHubCard"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -68,7 +69,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 
 const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
-	const { remoteConfigSettings, environment } = useExtensionState()
+	const { remoteConfigSettings, environment, cloudSessionsEnabled } = useExtensionState()
 
 	// Determine if dropdown should be locked by remote config
 	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
@@ -368,6 +369,12 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<VSCodeDivider className="w-full my-6" />
 
+				{cloudSessionsEnabled && (
+					<div className="mb-6">
+						<CloudGitHubCard />
+					</div>
+				)}
+
 				<CreditBalance
 					balance={balance}
 					creditUrl={getClineUris(clineUrl, "credits", dropdownValue === uid ? "account" : "organization")}
@@ -380,7 +387,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-				<div className="grow flex flex-col min-h-0 pb-[0px]">
+				<div className="flex flex-col pb-[0px]">
 					<CreditsHistoryTable
 						isLoading={isLoading}
 						paymentsData={paymentsData}

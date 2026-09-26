@@ -28,6 +28,7 @@ export class FeatureFlagsService {
 	public constructor(private provider: IFeatureFlagsProvider) {}
 
 	private cache: Map<FeatureFlag, FeatureFlagPayload> = new Map()
+	private pollGeneration = 0
 	/**
 	 * Tracks cache update time and user ID for cache validity
 	 */
@@ -46,30 +47,38 @@ export class FeatureFlagsService {
 			}
 		}
 
-		// Only update timestamp after successfully populating cache
-		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
+		const pollGeneration = ++this.pollGeneration
 
 		try {
 			const values = await this.provider.getAllFlagsAndPayloads({
+				distinctId: userId || undefined,
 				flagKeys: FEATURE_FLAGS,
 			})
-			this.cacheInfo.flagsPayload = values
+			// Authentication can change while a request is in flight. Only the newest
+			// auth snapshot may become the cache observed by extension features.
+			if (pollGeneration !== this.pollGeneration) {
+				return
+			}
+
+			this.cacheInfo = { updateTime: timesNow, userId: userId || null, flagsPayload: values }
 			Logger.log("Fetched Feature Flag values + " + JSON.stringify(values))
 
 			for (const flag of FEATURE_FLAGS) {
-				const payload = await this.getFeatureFlag(flag).catch(() => false)
+				const payload = this.getFeatureFlag(flag)
 				this.cache.set(flag, payload ?? false)
 			}
 		} catch (error) {
 			// On error, clear cache info to force refresh on next poll
-			this.cacheInfo = { updateTime: 0, userId: null }
+			if (pollGeneration === this.pollGeneration) {
+				this.cacheInfo = { updateTime: 0, userId: null }
+			}
 			throw error
 		}
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
 	}
 
-	private async getFeatureFlag(flagName: FeatureFlag): Promise<FeatureFlagPayload | undefined> {
+	private getFeatureFlag(flagName: FeatureFlag): FeatureFlagPayload | undefined {
 		try {
 			const payload = this.cacheInfo.flagsPayload?.featureFlagPayloads?.[flagName]
 			const flagValue = this.cacheInfo.flagsPayload?.featureFlags?.[flagName]
