@@ -319,11 +319,13 @@ export class CloudSessionsService {
 	 * Creates a sandbox and resolves once it is ready to accept a Hub connection.
 	 * `onProvisioning` fires as soon as the record exists so the UI can show progress.
 	 * Providing that callback transfers cleanup ownership to the caller, including
-	 * when readiness or subsequent record lookup fails.
+	 * when readiness or subsequent record lookup fails. Aborting `signal` stops the
+	 * readiness poll; the record already created stays the caller's to delete.
 	 */
 	async createSession(
 		input: CreateCloudSessionInput,
 		onProvisioning?: (sessionId: string) => void,
+		signal?: AbortSignal,
 	): Promise<CloudSessionRecord> {
 		const orgId = input.organizationId ?? this.options.getActiveOrganizationId()?.trim()
 		const created = await this.request<{ sessionId: string; sandboxUrl?: string; status?: string }>("/api/v1/session", {
@@ -344,7 +346,7 @@ export class CloudSessionsService {
 		onProvisioning?.(sessionId)
 		if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
 			try {
-				await this.waitUntilReady(sessionId)
+				await this.waitUntilReady(sessionId, CREATE_TIMEOUT_MS, signal)
 			} catch (error) {
 				if (!onProvisioning && error instanceof CloudSessionError && error.code === "session_failed") {
 					await this.deleteSession(sessionId)
@@ -366,17 +368,42 @@ export class CloudSessionsService {
 		)
 	}
 
-	async waitUntilReady(sessionId: string, timeoutMs = CREATE_TIMEOUT_MS): Promise<void> {
+	/**
+	 * Polls until the sandbox accepts connections. Aborting the signal stops the
+	 * poll at once (the caller then deletes the unused record) instead of after
+	 * the sandbox comes up.
+	 */
+	async waitUntilReady(sessionId: string, timeoutMs = CREATE_TIMEOUT_MS, signal?: AbortSignal): Promise<void> {
 		const deadline = Date.now() + timeoutMs
+		const pause = () =>
+			new Promise<void>((resolve, reject) => {
+				if (signal?.aborted) {
+					reject(signal.reason)
+					return
+				}
+				const timer = setTimeout(() => {
+					signal?.removeEventListener("abort", onAbort)
+					resolve()
+				}, PROVISIONING_POLL_MS)
+				const onAbort = () => {
+					clearTimeout(timer)
+					reject(signal?.reason)
+				}
+				signal?.addEventListener("abort", onAbort, { once: true })
+			})
 		while (Date.now() < deadline) {
+			signal?.throwIfAborted()
 			let result: { status?: string; statusReason?: string } | undefined
 			try {
-				result = await this.getStatus(sessionId)
+				result = await this.getStatus(sessionId, signal)
 			} catch (error) {
+				if (signal?.aborted) {
+					throw error
+				}
 				if (error instanceof CloudSessionError && error.code !== "request_failed") {
 					throw error
 				}
-				await new Promise((resolve) => setTimeout(resolve, PROVISIONING_POLL_MS))
+				await pause()
 				continue
 			}
 			const status = result?.status?.trim().toLowerCase()
@@ -389,7 +416,7 @@ export class CloudSessionsService {
 					result?.statusReason?.trim() || "The cloud sandbox could not be prepared.",
 				)
 			}
-			await new Promise((resolve) => setTimeout(resolve, PROVISIONING_POLL_MS))
+			await pause()
 		}
 		throw new CloudSessionError("request_failed", "Timed out waiting for the cloud sandbox to become ready.")
 	}

@@ -138,7 +138,8 @@ export class SdkCloudSessionCoordinator {
 	private disposed = false
 	private scopeGeneration = 0
 	private startGeneration = 0
-	private pendingStartGeneration: number | undefined
+	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
+	private pendingStart: AbortController | undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
@@ -592,31 +593,49 @@ export class SdkCloudSessionCoordinator {
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
 	}
 
-	async startCloudTask(input: CloudTaskInput): Promise<string | undefined> {
+	/**
+	 * Claims the next cloud start synchronously and returns the function that
+	 * runs it. Callers that must await other work first (remote config) claim
+	 * before awaiting, so a Cancel arriving in that gap invalidates this start.
+	 */
+	beginCloudTask(input: CloudTaskInput): () => Promise<string | undefined> {
 		const generationBeforeTransition = this.scopeGeneration
 		const startGeneration = ++this.startGeneration
-		this.pendingStartGeneration = startGeneration
-		try {
-			await this.scopeTransition
-			if (this.disposed || generationBeforeTransition !== this.scopeGeneration || startGeneration !== this.startGeneration)
-				return undefined
-			return await this.trackScopeOperation(() =>
-				this.startCloudTaskInScope(input, generationBeforeTransition, startGeneration),
-			)
-		} finally {
-			if (this.pendingStartGeneration === startGeneration) {
-				this.pendingStartGeneration = undefined
+		const pendingStart = new AbortController()
+		this.pendingStart = pendingStart
+		return async () => {
+			try {
+				await this.scopeTransition
+				if (
+					this.disposed ||
+					generationBeforeTransition !== this.scopeGeneration ||
+					startGeneration !== this.startGeneration
+				)
+					return undefined
+				return await this.trackScopeOperation(() =>
+					this.startCloudTaskInScope(input, generationBeforeTransition, startGeneration, pendingStart.signal),
+				)
+			} finally {
+				if (this.pendingStart === pendingStart) {
+					this.pendingStart = undefined
+				}
 			}
 		}
 	}
 
-	/** Invalidates cloud provisioning before an active SDK session exists. */
+	/**
+	 * Invalidates cloud provisioning before an active SDK session exists and
+	 * stops the readiness poll, so the sandbox record is deleted as soon as the
+	 * control plane answers instead of after the sandbox finishes starting.
+	 */
 	cancelPendingStart(): boolean {
-		if (this.pendingStartGeneration === undefined) {
+		const pendingStart = this.pendingStart
+		if (!pendingStart) {
 			return false
 		}
-		this.pendingStartGeneration = undefined
+		this.pendingStart = undefined
 		this.startGeneration++
+		pendingStart.abort(new Error("Cloud task cancelled while provisioning"))
 		return true
 	}
 
@@ -624,6 +643,7 @@ export class SdkCloudSessionCoordinator {
 		input: CloudTaskInput,
 		generation: number,
 		startGeneration: number,
+		cancelSignal: AbortSignal,
 	): Promise<string | undefined> {
 		if (this.disposed || generation !== this.scopeGeneration || startGeneration !== this.startGeneration) return undefined
 		// clearTask bumps the task-view generation itself, so claim ours after it.
@@ -683,6 +703,7 @@ export class SdkCloudSessionCoordinator {
 				(id) => {
 					sessionId = id
 				},
+				cancelSignal,
 			)
 			sessionId = record.id
 			if (isStale()) return sessionId
