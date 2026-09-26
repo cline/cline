@@ -22,6 +22,7 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { describeAddressInUse } from "./bind-diagnostics";
 import {
 	createHubDaemonShutdownCoordinator,
 	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
@@ -281,12 +282,24 @@ async function main(): Promise<void> {
 	} catch (error) {
 		// Losing the singleton race to a live Hub is expected, not a failure.
 		if (!isHubLockHeldError(error)) {
+			// The lock is taken before binding, so whatever holds the port is
+			// not a live Hub for this owner. Record what it is so the fix can
+			// target the actual cause instead of guessing.
+			const context = isAddressInUseError(error)
+				? await describeAddressInUse(error, endpoint)
+				: undefined;
+			if (context) {
+				process.stderr.write(
+					`[hub-daemon] port ${endpoint.port} is in use: ${JSON.stringify(context)}\n`,
+				);
+			}
 			captureSdkError(daemonTelemetry.telemetry, {
 				component: "hub",
 				operation: "hub.daemon.startup",
 				error,
 				handled: false,
 				severity: "fatal",
+				context,
 			});
 		}
 		// Flush before the top-level catch exits so failed daemon starts are

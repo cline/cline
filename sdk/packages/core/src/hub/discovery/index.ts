@@ -542,7 +542,7 @@ export function withHubStartupLock<T>(
 
 export async function probeHubServer(
 	url: string,
-	options?: { authToken?: string },
+	options?: { authToken?: string; signal?: AbortSignal },
 ): Promise<HubServerProbeRecord | undefined> {
 	// Idempotent; repeated here so every embedder of the hub client is covered.
 	ensureLoopbackProxyBypass();
@@ -553,6 +553,7 @@ export async function probeHubServer(
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
 					: undefined,
+				signal: options?.signal,
 			},
 		);
 		if (!response.ok) {
