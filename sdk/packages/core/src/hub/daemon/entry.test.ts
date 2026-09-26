@@ -111,6 +111,14 @@ vi.mock("./telemetry", () => ({
 	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
 }));
 
+const mockDescribeAddressInUse = vi.hoisted(() =>
+	vi.fn(async () => ({ port_owners: "4242\tcline", occupant_is_hub: false })),
+);
+
+vi.mock("./bind-diagnostics", () => ({
+	describeAddressInUse: mockDescribeAddressInUse,
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -142,6 +150,7 @@ describe("hub daemon entry", () => {
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
+		mockDaemonTelemetryService.capture.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -505,6 +514,58 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
-		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "hub",
+				operation: "hub.daemon.startup",
+				severity: "fatal",
+				error_message: "port already in use",
+			}),
+		});
+		expect(
+			mockDaemonTelemetryService.capture.mock.invocationCallOrder[0],
+		).toBeLessThan(mockDaemonTelemetryDispose.mock.invocationCallOrder[0]);
+		expect(mockDescribeAddressInUse).not.toHaveBeenCalled();
 	});
+
+	it("attaches port-owner diagnostics when the bind fails with EADDRINUSE", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const stderrSpy = vi
+			.spyOn(process.stderr, "write")
+			.mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		mockStartHubWebSocketServer.mockRejectedValue(
+			Object.assign(new Error("listen EADDRINUSE"), { code: "EADDRINUSE" }),
+		);
+
+		await import("./entry");
+		await vi.waitFor(
+			() => {
+				expect(exitSpy).toHaveBeenCalledWith(1);
+			},
+			{ timeout: 10_000 },
+		);
+		expect(mockDescribeAddressInUse).toHaveBeenCalledWith(
+			expect.objectContaining({ code: "EADDRINUSE" }),
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
+		);
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "hub.daemon.startup",
+				error_code: "EADDRINUSE",
+				port_owners: "4242\tcline",
+				occupant_is_hub: false,
+			}),
+		});
+		expect(stderrSpy).toHaveBeenCalledWith(
+			expect.stringContaining("[hub-daemon] port 25463 is in use: "),
+		);
+	}, 15_000);
 });

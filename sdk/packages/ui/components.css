@@ -1,4 +1,6 @@
 @import "./theme/component-theme.css";
+@import "./components/agent-changes.css";
+@import "./components/agent-pull-request-bar.css";
 @import "./components/agent-approval-card.css";
 @import "./components/agent-ask-question.css";
 @import "./components/agent-aurora.css";

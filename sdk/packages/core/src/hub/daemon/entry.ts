@@ -1,5 +1,10 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import {
+	captureSdkError,
+	ensureLoopbackProxyBypass,
+	initVcr,
+	resolveClineBuildEnv,
+} from "@cline/shared";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -17,6 +22,7 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { describeAddressInUse } from "./bind-diagnostics";
 import {
 	createHubDaemonShutdownCoordinator,
 	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
@@ -150,6 +156,7 @@ export function isAbortRejection(reason: unknown): boolean {
 }
 
 async function main(): Promise<void> {
+	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
 
@@ -273,6 +280,28 @@ async function main(): Promise<void> {
 			cronOptions: { workspaceRoot: options.cwd },
 		});
 	} catch (error) {
+		// Losing the singleton race to a live Hub is expected, not a failure.
+		if (!isHubLockHeldError(error)) {
+			// The lock is taken before binding, so whatever holds the port is
+			// not a live Hub for this owner. Record what it is so the fix can
+			// target the actual cause instead of guessing.
+			const context = isAddressInUseError(error)
+				? await describeAddressInUse(error, endpoint)
+				: undefined;
+			if (context) {
+				process.stderr.write(
+					`[hub-daemon] port ${endpoint.port} is in use: ${JSON.stringify(context)}\n`,
+				);
+			}
+			captureSdkError(daemonTelemetry.telemetry, {
+				component: "hub",
+				operation: "hub.daemon.startup",
+				error,
+				handled: false,
+				severity: "fatal",
+				context,
+			});
+		}
 		// Flush before the top-level catch exits so failed daemon starts are
 		// still visible in telemetry instead of dying silently.
 		await daemonTelemetry.dispose().catch(() => undefined);

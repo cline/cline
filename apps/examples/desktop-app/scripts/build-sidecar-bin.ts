@@ -64,6 +64,13 @@ const buildSidecar = async (
 	const runtimeIsolationArgs = [
 		"--no-compile-autoload-dotenv",
 		"--no-compile-autoload-bunfig",
+		// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS to
+		// intranet endpoints signed by a corporate CA (LiteLLM proxies, MITM
+		// firewalls) fails with "unable to get local issuer certificate". Bake
+		// --use-system-ca into the runtime so the sidecar and the Hub daemon it
+		// re-executes from this binary also trust the OS Keychain/cert store,
+		// matching the CLI wrapper's OS trust-anchor harvesting.
+		"--compile-exec-argv=--use-system-ca",
 	];
 	if (bunTarget) {
 		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
@@ -101,7 +108,8 @@ const compressRemoteHelper = async (outfile: string): Promise<void> => {
 // command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
 // macOS helpers are deliberately not bundled: they are Mach-O files under
 // Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
-// in the bundle fails notarization. Shipping them needs a signing step first.
+// in the bundle fails notarization. Mac remotes are served from a macOS
+// desktop by its own signed sidecar instead (sidecar/remote-helper.ts).
 //
 // On a Windows host, Bun fails to extract the downloaded Linux runtime these
 // cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").

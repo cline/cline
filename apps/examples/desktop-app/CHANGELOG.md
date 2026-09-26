@@ -1,5 +1,67 @@
 # Cline Desktop Changelog
 
+## 0.0.37
+
+- Settings has a new **About** page. It shows your version and channel, has **Check for updates** and **Restart to update** buttons, and lists the release notes for recent versions with links to each GitHub release and the full changelog. **Report an issue** is there too
+- After an update, a one-time **What's new** dialog now catches you up on recent features. The first one covers SSH remotes, worktrees, pull request status in the composer, and parallel sub-agents. To see it again, use **Highlights** on the About page
+- On macOS, **Help → Export Diagnostics…** now opens the diagnostics export directly, so you don't have to find it in Settings
+- On Amazon Bedrock, OpenAI models reached through inference profiles (`us.openai.…`, `global.openai.…`) no longer fail with "Unknown parameter: 'reasoningConfig'" when reasoning effort is set
+
+## 0.0.36
+
+- The app now starts on machines that set a system HTTP(S) proxy, such as Clash, v2ray, or a corporate proxy. Before, the backend sent its local connection checks through the proxy, so it couldn't find its own hub and failed with "No compatible hub runtime is available." Local connections now skip the proxy, and any proxy exemptions you already had are kept
+- On small or scaled displays, the main window now fits on screen. A 1080p laptop at 150% scaling used to open the window larger than the screen, which pushed the settings and account controls out of reach. An oversized window now shrinks to fit the screen (not counting the taskbar) and opens centered
+- Plugin slash commands like `/goal` no longer vanish from the slash menu the first time you use them. Plugin commands now load as soon as a workspace opens instead of on your first `/`. If that first load is slow or fails, the app retries in the background, so the command no longer gets sent to the model as plain text
+- The Providers settings (renamed from API Providers) now keep the model list inside the panel. Long model lists scroll in place, and the model controls stay reachable in short windows
+- In SSH settings, **Save** is disabled until you change a saved host, and the button for a new host now says **Add**
+- On Amazon Bedrock, OpenAI GPT-6 and GPT-5.6 models now work without turning on cross-region inference. They used to fail with "on-demand throughput isn't supported." India regions (ap-south-1/2) now use the `in.` inference profile
+
+## 0.0.35
+
+- Cline Desktop now runs on Linux. Each release ships x64 `.deb` and `.rpm` packages alongside the macOS and Windows builds. **Open folder…** uses the native GTK picker, and updates download in the background and install when you choose **Restart now**, so you are never hit with a surprise password prompt. There is no AppImage for now
+- Plugin slash commands now work in the desktop app. Commands a plugin registers, like `/goal`, used to be sent to the model as plain text; they now run the plugin's handler, show its reply, and start a turn only when the command asks for one. Enabled plugin commands appear in the slash menu, skills and workflows in that menu now come from the conversation's own workspace (including worktrees), and a broken plugin no longer makes every slash prompt fail
+- Settings has a new **Diagnostics** row. **Export…** writes a single text file to your Downloads folder with the app version, OS, settings, recent sidecar and hub logs, and the manifests of the sessions you pick. API keys, credential-shaped values, your prompts, and your home directory path are stripped, so the file is safe to attach to a GitHub issue
+- Voice input works again with provider-backed transcription, and it streams live. OpenAI, Vercel AI Gateway, and ElevenLabs transcribe as you speak; when the network drops mid-recording, the app falls back to the browser's recognizer and retries the provider next time. The model picker labels which voice models are realtime and which transcribe recordings
+- Your reasoning effort choice is now remembered per provider. Reopening a session reset the thinking picker to Low, and that Low was sent with your next message; switching providers now applies the effort you last picked for that provider
+- Model lists for LiteLLM, Baseten, Hicap, Poolside, Ollama, and LM Studio now show the actual error when your endpoint can't be reached, instead of an empty list or a placeholder model. The app also trusts your operating system's certificate store, so endpoints signed by a corporate CA stop failing with "unable to get local issuer certificate"
+- When the backend's hub fails to start, the error now says why, and the app waits up to 15 seconds for it instead of 8. The first launch after an install or update can take 8 to 13 seconds on Windows while the new binary is scanned
+- Renaming a session now sticks after a relaunch, and renaming no longer clears other state such as pinning
+- CLI sessions that were opened and closed without a prompt no longer show up as empty entries in the sidebar
+- Arrow-key navigation in the slash command and @-mention menus now scrolls the highlighted option into view
+- Free models under the picker's Free header no longer carry a redundant FREE badge on every row
+- Short session titles now have room to edit
+- Long replies on local models (llama.cpp, Ollama, LM Studio) that hit the output-token limit now compact the conversation and retry once instead of failing the run
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan
+- Refreshed the model catalog to 6,386 models. The default model changes for 19 providers, 11 of them to Claude Opus 5.5 (including GitHub Copilot and Vertex). If you use one of those providers without picking a model, expect a different default
+
+## 0.0.34
+
+- Composio connectors now load all their tools, not just the first 20. Google Calendar, for example, showed only 20 of its 47 tools, and the Installed view wrongly said "20/20." The full list is now fetched and the tool cache refreshes instead of staying stale forever
+- You can now connect to a Mac as an SSH remote from a Mac. Picking a Mac host used to fail with "Remote target darwin/arm64 is unsupported in SSH" even though **Test** passed on the same profile. The app now uses its own signed backend as the helper on both Apple Silicon and Intel Mac hosts. Windows and Linux desktops still can't connect to a Mac out of the box
+- Session errors now stay in the transcript when you leave a session or open it in another client. Before, a failed run's error disappeared once you went away and came back, or opened the session in the CLI. Failures after all retries run out are now recorded too, and these error-only entries are left out of compaction
+- Stopping a run while it waits to retry an empty model response now takes effect right away, instead of after the backoff finishes
+
+## 0.0.33
+
+- Start a task in its own git worktree. The welcome screen's “Work in” switch (next to the folder and branch chips) now offers Local or Worktree; pick Worktree and the first prompt of a new thread cuts a fresh `cline/<id>` branch off the current one, creates a worktree under `~/.cline/worktrees/`, and runs the task there, so the agent never touches your working tree. The conversation chip shows `<repo> / cline/<id>` with the full path in its tooltip. Deleting the task removes its worktree and branch (discarding uncommitted changes in it), unless another session still lives there. Only new threads are affected — follow-ups and reopened sessions stay where they are
+- Long sessions in the desktop app now compact automatically. Auto-compaction had never actually run here: the sidecar opted sessions into checkpoints but never into compaction, so the 90% trigger was never installed and long conversations simply ran out of room. This was not a recent regression — the gap dated to compaction becoming opt-in in core back in April
+- On Windows, launching Cline while it is already running now brings the existing window to the front instead of starting a second copy. Closing the window hides Cline to the tray rather than quitting, so every subsequent launch from Start, the taskbar, or a shortcut started another full app — another tray icon, another backend process, all on the same Hub. Open and close a few times and the tray filled with identical icons while several idle copies kept running. Cline Beta still runs side by side with stable
+- Signing in no longer fails when the app is still starting up. A click that landed while the backend was booting (or being restarted after a failed first start) returned “desktop backend endpoint not ready” even though the connection succeeded moments later. The app now waits for a usable connection with bounded retries, restarts a backend that died before it was ready, and allows a longer window for slow login-shell profiles and for the sign-in browser round trip
+- Starting a brand-new chat on an SSH host works. A new chat on a connected remote failed immediately with “Unknown session” because the app asked the remote for the transcript of a session it had not created yet, and that rejection aborted startup before the session could be created. A missing transcript on that first read is now treated as an empty one; any other read failure still stops before creating a session
+- “Check for Updates…” is now in the app menu on macOS (under About Cline) and the tray menu on every platform. The label reflects what the updater is doing — Checking for Updates…, or Downloading Update vX.Y.Z… — and is disabled while either is in progress. Cline still checks on its own shortly after launch and every two hours
+- Deleting the session you are currently viewing now returns you to the new-task view instead of leaving its chat on screen. This only affected sessions started by sending a prompt in that pane; sessions opened from history already closed correctly
+- On macOS, a fullscreen window now leaves fullscreen before hiding on close, instead of leaving an empty fullscreen space behind
+- Cloud sessions are hidden from the sidebar, history, and search whenever Cloud is turned off, rather than lingering there. No session data is deleted and no remote runs are stopped — turning Cloud back on restores them
+- Cline runs on older Linux x64 machines again: the bundled helpers are now built for pre-AVX2 CPUs, and the Linux SSH remote helpers are compressed, making the download smaller
+- Agent Skills, rules, and MCP servers from `.cline/rules` are picked up consistently, including global rules created in a OneDrive-redirected Documents folder on Windows
+- Single-choice questions from the agent now submit as soon as you click an option, and accept a typed answer when none of the offered ones fit. Multiple-choice questions still use Submit
+- A model turn that hits its output-token limit before making a tool call no longer kills the run — it is retried up to three times with a reminder to be concise, and models with a large advertised output limit get a bigger default output budget
+- Compaction no longer silently falls back to truncation partway through a long session. The summarizer kept the credentials captured when the session started, so once they refreshed its request failed and the error was swallowed; it now follows the session's current credentials and model
+- Deleting a session from history now actually removes it, instead of the row reappearing on the next refresh
+- Sub-agents you configure yourself no longer ask you to approve their individual tool calls after you have already approved the delegation
+- The environment selector renders Cloud in uppercase, and the workspace selector's labels use matching font sizes
+- Refreshed the model catalog: 203 to 209 providers and 6,079 to 6,237 models. Kimi For Coding splits into separate kimi.com and kimi.ai providers, and AI21 Labs, ainetcafe, Inco, OCI Generative AI, Tempr, and Vispark are new. The resolved default model changes for 36 providers that do not pin one — most landing on DeepSeek V4.1 Flash, GLM 5.3 Flash, or MiMo V2.6 Flash. If you use one of those without pinning a model, expect a different default
+
 ## 0.0.32
 
 - Cline starts again after updating. In 0.0.31 the app could fail at launch with "desktop backend exited before publishing its endpoint" and never reach the workspace picker. Cline runs its own copy of the Cline Hub in the background, and the two halves had been built from different copies of the same code — so the Hub announced one build identity while the app expected another, the app shut down the very Hub it had just started, and startup timed out reporting "No compatible hub runtime is available". Both halves now load the same copy of that code, and the real compiled backend is now booted end-to-end in CI on every change so the two cannot drift apart again

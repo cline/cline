@@ -1,5 +1,23 @@
 # Cline CLI Changelog
 
+## 3.0.65
+
+- Long sessions on local models no longer die mid-answer at the output-token limit. llama.cpp, Ollama, and LM Studio cap generation at whatever context is left, whatever output budget you set, so a text-only reply could be cut off and fail the run. The CLI now compacts the conversation and retries that turn once before falling back to the existing concise-retry recovery, and the partial answer is kept if nothing helps
+- When the hub fails to start, the error now says why instead of only "No compatible hub runtime is available". The CLI also waits up to 15 seconds for a freshly started hub instead of 8, since the first launch after an install or update can take 8 to 13 seconds on Windows
+- Error messages in a session are now kept when you resume it. A failure shown during a run, including one reported after retries ran out, used to disappear once you left the session; it now reappears in the transcript on resume without being sent to the model or counted by compaction
+- `cline history update --title` and `--prompt` now persist for hub-managed sessions. The new title only changed in memory and reverted on the next launch, and updating metadata could drop other keys such as pinned state
+- A plugin that fails to load no longer costs a sandbox spawn on every prompt. The CLI continues without that plugin's slash commands and retries loading it after 30 seconds, so a transient sandbox timeout recovers on its own
+- Pressing Esc during an empty-response retry now cancels right away instead of after the backoff delay
+- Yolo mode (`-y`) prompts the model with tighter output rules: shorter plans, no preamble before routine tool calls, and code and edits written straight into tool calls instead of drafted in text first. Expect less narration and fewer tokens spent restating the plan
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan. Set `AIAND_API_KEY`; the default model is GLM 5.3
+- Refreshed the model catalog: 6,237 to 6,386 models across the same 209 providers. The default model changes for 19 providers. Eleven land on Claude Opus 5.5 (Cortecs, CrossModel, DigitalOcean, Eden AI, GitHub Copilot, both LLM Gateway providers, Ofox, Requesty, Vertex, Vivgrid), both StepFun providers move to Step 5 Preview, Above to MiMo V2.6 Flash, Fireworks to Ember-1, Kenari to DeepSeek V4.1 Flash, NanoGPT to Aion 3.5, OpenCode Go to Space Bunny Free, and Pioneer to GLiNER 2.5 Multi. If you use one of those without pinning a model, expect a different default
+
+## 3.0.64
+
+- Runs no longer die when a model turn hits its output-token limit before making a tool call. A reasoning-heavy or oversized response could spend the whole output allowance and end the run with an output-token-limit error; the turn is now retried up to three times with a reminder to be concise and split the work across tool calls, and only fails after that
+- Models with a large advertised output limit get a bigger default output budget — 30% of the limit rather than a flat 32,000 tokens, whichever is larger. Nothing changes for models under roughly 107k output tokens. Longer responses can mean higher per-turn cost and latency on those models
+- Refreshed the model catalog: 6,188 to 6,237 models across the same 209 providers. Cline Pass gains MiMo V2.6 Flash and MiMo V2.6 Pro. The default model changes for 10 providers — six land on MiMo V2.6 Flash (Xiaomi and its three token plans, Empirio Labs, NanoGPT), Eden AI moves to Grok 4.7, CoreWeave to DeepSeek V4.1 Flash, CoralBricks to DeepSeek V4.1 Flash Fast, and Tempr to Gemini 3.8 Flash. If you use one of those without pinning a model, expect a different default
+
 ## 3.0.63
 
 - Context compaction no longer silently degrades to truncation partway through a long session on OAuth providers. The summarizer kept the access token resolved when the session started while the main agent loop refreshed its own each turn, so once the token rotated the summarizer's request failed with 401 and the failure was swallowed by the truncation fallback — you got a chopped transcript instead of a summary, most visibly on `cline-free/*` models. The summarizer also stayed on the original model after a mid-session model switch. Both now follow the session's current credentials and model

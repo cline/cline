@@ -12,7 +12,9 @@ import {
 } from "@cline/core";
 import {
 	claimHubDaemonProcess,
+	ensureLoopbackProxyBypass,
 	type HubUINotifyPayload,
+	isBunEmbeddedModulePath,
 	type SessionRecord,
 } from "@cline/shared";
 import { configureMenubarConnectorCliLaunch } from "./connector-cli-launch";
@@ -84,14 +86,16 @@ type ClientSummaryGroup = {
 
 function isBundledDaemonEntryInvocation(): boolean {
 	const entryArg = process.argv[1]?.trim() ?? "";
+	const normalizedEntryArg = entryArg.replace(/\\/g, "/");
 	const isBunEmbeddedEntry =
-		entryArg.includes("/$bunfs/") &&
-		(entryArg.endsWith("/entry.js") || entryArg.endsWith("/entry.ts"));
+		isBunEmbeddedModulePath(entryArg) &&
+		(normalizedEntryArg.endsWith("/entry.js") ||
+			normalizedEntryArg.endsWith("/entry.ts"));
 	return (
 		process.argv.includes("--cline-hub-daemon") ||
 		isBunEmbeddedEntry ||
-		entryArg.endsWith("/daemon-entry.js") ||
-		entryArg.endsWith("/daemon-entry.ts") ||
+		normalizedEntryArg.endsWith("/daemon-entry.js") ||
+		normalizedEntryArg.endsWith("/daemon-entry.ts") ||
 		entryArg === "daemon-entry.js" ||
 		entryArg === "daemon-entry.ts"
 	);
@@ -949,6 +953,8 @@ async function main(): Promise<void> {
 // argv. Leaving the variable in the environment would hand it to every process a
 // daemon-hosted session spawns — agent shell commands, MCP servers, hooks — each
 // of which would then try to become a hub daemon and die on EADDRINUSE.
+// Applies to both personalities below.
+ensureLoopbackProxyBypass();
 const claimedDaemonSentinel = claimHubDaemonProcess();
 if (claimedDaemonSentinel || isBundledDaemonEntryInvocation()) {
 	await import("@cline/core/hub/daemon-entry");

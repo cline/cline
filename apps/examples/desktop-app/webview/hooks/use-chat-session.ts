@@ -1,7 +1,14 @@
 "use client";
 
 import { formatDisplayUserInput } from "@cline/shared/browser";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	createElement,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	serializeAttachments,
 	toChatMessageImages,
@@ -20,6 +27,7 @@ import {
 	resolveCredentialError,
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
+import { canReplaceFailedTurn } from "@/hooks/chat-session/history-reconciliation";
 import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
@@ -37,6 +45,7 @@ import type {
 	ToolCallStartEvent,
 	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
+import { toast } from "@/hooks/use-toast";
 import {
 	type ChatMessage,
 	ChatMessageImageSchema,
@@ -49,6 +58,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import { formatRunError } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -896,17 +906,11 @@ export function useChatSession(environmentId: string) {
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
 			const providerId = ownedProviderId ?? providerIdRef.current;
-			const content = [
-				description
-					? `The run failed: ${description}`
-					: "The run failed before a response was produced.",
-				looksCredentialRelated ? resolveCredentialFailureHint(providerId) : "",
-			]
-				.filter(Boolean)
-				.join(" ");
-			const meta = looksCredentialRelated
-				? credentialFailureMeta(providerId)
-				: undefined;
+			const content = formatRunError(description, providerId);
+			const meta = {
+				providerId,
+				...(looksCredentialRelated ? credentialFailureMeta(providerId) : {}),
+			};
 			const shown = shownTurnFailureRef.current;
 			if (shown && shown.sid === sid && shown.generation === generation) {
 				if (!description || shown.hasDetail) {
@@ -937,32 +941,19 @@ export function useChatSession(environmentId: string) {
 		[],
 	);
 
-	// Persisted history never contains UI-only error bubbles, so replacing the
-	// transcript with canonical messages wholesale would silently erase a
-	// failure explanation appended from chat_done moments earlier. Re-append
-	// the session's error messages after the canonical history — but only the
-	// ones still at the tail of the transcript (explaining the most recent
-	// turn). Re-pinning every historical error would resurface failures from
-	// long-completed turns at the bottom, out of chronological order, on
-	// every hydration.
+	// Keep a live failure while persistence catches up. Once canonical history
+	// contains the failed turn's error, it replaces the temporary UI bubble.
 	const applyCanonicalHistory = useCallback(
 		(sid: string, historyMessages: ChatMessage[]) => {
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
 				);
-				let tailErrorStart = sessionMessages.length;
-				while (
-					tailErrorStart > 0 &&
-					sessionMessages[tailErrorStart - 1]?.role === "error"
-				) {
-					tailErrorStart -= 1;
-				}
-				const preservedErrors = sessionMessages.slice(tailErrorStart);
-				if (preservedErrors.length === 0) {
-					return historyMessages;
-				}
-				return sliceMessages([...historyMessages, ...preservedErrors]);
+				// Keep the entire live turn, including partial assistant/tool output,
+				// until canonical history contains this run's terminal error.
+				if (!canReplaceFailedTurn(sessionMessages, historyMessages))
+					return prev;
+				return historyMessages;
 			});
 		},
 		[],
@@ -1014,7 +1005,10 @@ export function useChatSession(environmentId: string) {
 						}
 						if (
 							historyMessages.length === 0 ||
-							!historyMessages.some((message) => message.role === "assistant")
+							!historyMessages.some(
+								(message) =>
+									message.role === "assistant" || message.role === "error",
+							)
 						) {
 							// Persistence has not caught up: keep the live state
 							// rather than wiping it with an incomplete transcript.
@@ -1628,6 +1622,31 @@ export function useChatSession(environmentId: string) {
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
 	}, [setPromptsInQueue, subscribeToEnvironment]);
+
+	// Replies from plugin slash commands run by the sidecar. They are not part
+	// of the persisted transcript, so surface them as a toast rather than a
+	// message that canonical rehydration would drop.
+	useEffect(() => {
+		return subscribeToEnvironment("chat_command_output", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const record = payload as {
+				sessionId?: string;
+				command?: string;
+				text?: string;
+			};
+			if (record.sessionId !== activeSessionIdRef.current) return;
+			const text = record.text?.trim();
+			if (!text) return;
+			toast({
+				title: record.command ? `/${record.command}` : undefined,
+				description: createElement(
+					"span",
+					{ className: "whitespace-pre-line" },
+					text,
+				),
+			});
+		});
+	}, [subscribeToEnvironment]);
 
 	// ---- Incoming chunk handler ----
 
@@ -3048,6 +3067,23 @@ export function useChatSession(environmentId: string) {
 			};
 			try {
 				const payload = await sendTask;
+				if (payload.ok && payload.commandHandled) {
+					// A plugin slash command (e.g. `/goal status`) was handled by
+					// the sidecar without a turn: its reply arrives as a
+					// chat_command_output toast, so retract the optimistic
+					// bubble/queue entry and hand status back to the prior turn.
+					if (optimisticQueuedPromptId) {
+						setPromptsInQueue((prev) =>
+							prev.filter((item) => item.id !== optimisticQueuedPromptId),
+						);
+					}
+					withdrawPrompt();
+					if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus(status);
+					}
+					return true;
+				}
 				// A queued successor clears the abort flag before the old send's
 				// aborted RPC reply can arrive. Its stream now owns the UI.
 				if (

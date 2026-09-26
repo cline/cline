@@ -4,7 +4,21 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import {
+	AgentComposer,
+	AgentComposerActions,
+	AgentComposerAttachments,
+	AgentComposerBody,
+	AgentComposerField,
+	AgentComposerSendButton,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	AgentComposerSettingsGroup,
+	AgentComposerStopButton,
+	AgentComposerTextarea,
+	AgentPromptQueue,
+	SearchCombobox,
+} from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
@@ -16,16 +30,7 @@ import {
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	SpeechInput,
-	type SpeechTranscriptionSource,
-} from "@/components/ai-elements/speech-input";
-import { Button } from "@/components/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
 	SelectContent,
@@ -36,7 +41,6 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
-import { formatCostUsd } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
@@ -52,7 +56,9 @@ import {
 } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
+	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
+	writeReasoningSelectionToWindow,
 } from "@/lib/model-selection";
 import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -65,11 +71,10 @@ import {
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
 import type { ProviderModel } from "@/lib/provider-schema";
+import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-
-import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
-import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { PullRequestBar } from "./pull-request-bar";
+import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -118,12 +123,15 @@ let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
+	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
+	// command service, so the menu matches what `/name` can actually run.
+	pluginCommands: SlashCommand[] = [],
 ): SlashCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
+	const result = commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
 			return [];
@@ -138,6 +146,15 @@ export function buildUserInstructionSlashCommands(
 			},
 		];
 	});
+	for (const command of pluginCommands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	return result;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
@@ -179,23 +196,6 @@ const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
-const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
-
-async function blobToBase64(blob: Blob): Promise<string> {
-	const bytes = new Uint8Array(await blob.arrayBuffer());
-	let binary = "";
-	for (
-		let offset = 0;
-		offset < bytes.length;
-		offset += AUDIO_BASE64_CHUNK_SIZE
-	) {
-		binary += String.fromCharCode(
-			...bytes.subarray(offset, offset + AUDIO_BASE64_CHUNK_SIZE),
-		);
-	}
-	return window.btoa(binary);
-}
-
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
 	reasoningEffort: ChatSessionConfig["reasoningEffort"],
@@ -412,20 +412,6 @@ function ChatInputBarImpl({
 			}),
 		[],
 	);
-	const batchTranscriptSessionRef = useRef<{
-		start: number;
-		end: number;
-		expectedValue: string;
-		draftVersion: number;
-		generation: number;
-	} | null>(null);
-	const speechRecognitionSessionRef = useRef<{
-		start: number;
-		end: number;
-		expectedValue: string;
-		draftVersion: number;
-		generation: number;
-	} | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
@@ -435,7 +421,6 @@ function ChatInputBarImpl({
 	} | null>(null);
 	const transcriptionGenerationRef = useRef(0);
 	const transcriptionTargetIdentityRef = useRef("unconfigured");
-	const transcriptionTargetStreamsRef = useRef(false);
 	const setPromptInput = useCallback(
 		(value: string) => {
 			promptInputValueRef.current = value;
@@ -449,8 +434,6 @@ function ChatInputBarImpl({
 			return;
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
-		batchTranscriptSessionRef.current = null;
-		speechRecognitionSessionRef.current = null;
 		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
@@ -460,7 +443,6 @@ function ChatInputBarImpl({
 		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
 	const [speechInputActive, setSpeechInputActive] = useState(false);
-	const speechInputActiveRef = useRef(false);
 	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 
 	const [reasoningCapability, setReasoningCapability] = useState<{
@@ -609,15 +591,11 @@ function ChatInputBarImpl({
 	const updateTranscriptionTarget = useCallback(
 		(target: TranscriptionModelTarget | null) => {
 			const identity = target
-				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "auto"}`
+				? `${target.providerId}:${target.modelId}`
 				: "unconfigured";
-			transcriptionTargetStreamsRef.current =
-				target?.supportsStreaming ?? false;
 			if (identity !== transcriptionTargetIdentityRef.current) {
 				transcriptionTargetIdentityRef.current = identity;
 				transcriptionGenerationRef.current += 1;
-				batchTranscriptSessionRef.current = null;
-				speechRecognitionSessionRef.current = null;
 				streamingTranscriptRangeRef.current = null;
 			}
 			setTranscriptionTarget(target);
@@ -677,7 +655,7 @@ function ChatInputBarImpl({
 		let loadId = 0;
 		const loadVoiceInput = () => {
 			const currentLoadId = ++loadId;
-			loadProviderModelCatalog()
+			loadProviderModelCatalog({ includeVoiceInput: true })
 				.then((catalog) => {
 					if (!cancelled && currentLoadId === loadId) {
 						updateTranscriptionTarget(catalog.voiceInput);
@@ -700,99 +678,6 @@ function ChatInputBarImpl({
 			);
 		};
 	}, [updateTranscriptionTarget]);
-
-	const handleTranscriptionChange = useCallback(
-		(
-			transcript: string,
-			source: SpeechTranscriptionSource = "media-recorder",
-		) => {
-			const text = transcript.trim();
-			const session =
-				source === "speech-recognition"
-					? speechRecognitionSessionRef.current
-					: batchTranscriptSessionRef.current;
-
-			if (source === "speech-recognition") {
-				// Browser speech recognition yields final chunks while the microphone
-				// remains open. Keep its insertion cursor alive across those chunks.
-				batchTranscriptSessionRef.current = null;
-			} else {
-				// A completed recording produces one batch result.
-				speechRecognitionSessionRef.current = null;
-				batchTranscriptSessionRef.current = null;
-			}
-			// Each result must belong to the draft captured when recording began.
-			// Batch snapshots are consumed once; browser recognition advances its
-			// cursor after each final chunk.
-			if (!text || !session) return;
-
-			const current = promptInputValueRef.current;
-			if (
-				session.generation !== transcriptionGenerationRef.current ||
-				session.draftVersion !== latestDraftVersionRef.current ||
-				session.expectedValue !== current
-			) {
-				return;
-			}
-			const insertionStart = session.start;
-			const insertionEnd = session.end;
-			const before = current.slice(0, insertionStart);
-			const after = current.slice(insertionEnd);
-			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
-			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
-			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
-			const next = `${before}${insertedText}${after}`;
-			const nextCursor = before.length + insertedText.length;
-			if (source === "speech-recognition") {
-				speechRecognitionSessionRef.current = {
-					start: nextCursor,
-					end: nextCursor,
-					expectedValue: next,
-					draftVersion: session.draftVersion,
-					generation: session.generation,
-				};
-			}
-			setPromptInput(next);
-			requestAnimationFrame(() => {
-				const textarea = promptInputRef.current;
-				if (!textarea) return;
-				textarea.focus();
-				textarea.setSelectionRange(nextCursor, nextCursor);
-				setCursorIndex(nextCursor);
-			});
-		},
-		[setPromptInput],
-	);
-
-	const handleSpeechInputActiveChange = useCallback((active: boolean) => {
-		const wasActive = speechInputActiveRef.current;
-		speechInputActiveRef.current = active;
-		setSpeechInputActive(active);
-
-		if (!active) {
-			batchTranscriptSessionRef.current = null;
-			speechRecognitionSessionRef.current = null;
-			return;
-		}
-		if (wasActive || transcriptionTargetStreamsRef.current) return;
-
-		const current = promptInputValueRef.current;
-		const input = promptInputRef.current;
-		const start = input?.selectionStart ?? current.length;
-		const end = input?.selectionEnd ?? start;
-		const session = {
-			start,
-			end,
-			expectedValue: current,
-			draftVersion: latestDraftVersionRef.current,
-			generation: transcriptionGenerationRef.current,
-		};
-		// `auto` chooses browser speech recognition when available and falls back
-		// to MediaRecorder. Capture both session shapes until the result tells us
-		// which transport was selected.
-		batchTranscriptSessionRef.current = session;
-		speechRecognitionSessionRef.current = session;
-	}, []);
 
 	const handleStreamingTranscriptionStart = useCallback(() => {
 		const current = promptInputValueRef.current;
@@ -858,7 +743,7 @@ function ChatInputBarImpl({
 
 	const handleStartStreamingTranscription = useCallback(() => {
 		const generation = transcriptionGenerationRef.current;
-		return startVercelStreamingTranscription({
+		return startStreamingTranscription({
 			onTranscript: (transcript) => {
 				if (generation === transcriptionGenerationRef.current) {
 					handleStreamingTranscriptionChange(transcript);
@@ -866,45 +751,6 @@ function ChatInputBarImpl({
 			},
 		});
 	}, [handleStreamingTranscriptionChange]);
-
-	const handleAudioRecorded = useCallback(
-		async (audioBlob: Blob): Promise<string> => {
-			if (!transcriptionTarget) {
-				throw new Error(
-					"Configure an audio-to-text provider before using speech input",
-				);
-			}
-			if (audioBlob.size > MAX_RECORDED_AUDIO_BYTES) {
-				throw new Error("Recorded audio exceeds the 25 MiB upload limit");
-			}
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "debug",
-				message: "Webview recorded audio and is sending it to the sidecar",
-				timestamp: new Date().toISOString(),
-				metadata: {
-					providerId: transcriptionTarget.providerId,
-					modelId: transcriptionTarget.modelId,
-					mediaType: audioBlob.type,
-					audioBytes: audioBlob.size,
-				},
-			});
-			const audioBase64 = await blobToBase64(audioBlob);
-			const result = await desktopClient.invoke<{ text?: string }>(
-				"transcribe_audio",
-				{
-					audioBase64,
-					mediaType: audioBlob.type,
-				},
-			);
-			const text = result.text?.trim();
-			if (!text) {
-				throw new Error("The transcription provider returned no text");
-			}
-			return text;
-		},
-		[transcriptionTarget],
-	);
 
 	const handleSpeechInputError = useCallback((error: unknown) => {
 		// Keep recording and provider failures in chat so the user can see
@@ -963,20 +809,53 @@ function ChatInputBarImpl({
 			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
 			if (nextOption) {
 				onReasoningChange(buildReasoningConfig(nextOption));
+				try {
+					writeReasoningSelectionToWindow(
+						normalizeProviderId(provider),
+						nextOption.value,
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 			}
 		},
-		[modelSupportsReasoning, onReasoningChange],
+		[modelSupportsReasoning, onReasoningChange, provider],
 	);
 
+	const seededReasoningProviderRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (
-			modelSupportsReasoning === true &&
-			thinking === undefined &&
-			reasoningEffort === undefined
-		) {
-			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
+		if (modelSupportsReasoning !== true) {
+			return;
 		}
-	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
+		const normalizedId = normalizeProviderId(provider);
+		const unset = thinking === undefined && reasoningEffort === undefined;
+		if (!unset && seededReasoningProviderRef.current === normalizedId) {
+			return;
+		}
+		seededReasoningProviderRef.current = normalizedId;
+		// The thread's config is rebuilt on every mount (and session hydration
+		// only restores provider/model), so seed the effort from the last value
+		// the user picked for this provider before falling back to the default.
+		// A provider switch re-seeds too, but only when that provider has a
+		// remembered value; otherwise the current choice carries over.
+		const remembered = EFFORT_LEVELS.find(
+			(option) =>
+				option.value ===
+				readReasoningSelectionStorageFromWindow()[normalizedId],
+		);
+		if (!unset && !remembered) {
+			return;
+		}
+		onReasoningChange(
+			buildReasoningConfig(remembered ?? DEFAULT_REASONING_EFFORT),
+		);
+	}, [
+		modelSupportsReasoning,
+		onReasoningChange,
+		provider,
+		reasoningEffort,
+		thinking,
+	]);
 
 	// Focus the composer on mount/variant change and when text is injected
 	// from outside (quick actions, queue undo). Deliberately NOT on every
@@ -1106,6 +985,22 @@ function ChatInputBarImpl({
 		}
 	}, [slashOpen]);
 
+	// The menus scroll (max-h + overflow-y-auto), so keep the keyboard-selected
+	// option visible as arrow keys move the highlight past the visible rows.
+	useEffect(() => {
+		if (!slashOpen) return;
+		document
+			.getElementById(`slash-command-option-${slashSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [slashOpen, slashSelectedIndex]);
+
+	useEffect(() => {
+		if (!mentionOpen) return;
+		document
+			.getElementById(`mention-file-option-${mentionSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [mentionOpen, mentionSelectedIndex]);
+
 	// Reload user commands whenever the slash menu opens so newly installed or
 	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {
@@ -1115,13 +1010,22 @@ function ChatInputBarImpl({
 		let cancelled = false;
 		// Only show the loading row when there is nothing cached to show.
 		setSlashLoading(cachedSlashCommands === null);
-		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+		Promise.all([
+			desktopClient.invoke<UserInstructionConfigResponse>(
+				"list_user_instruction_configs",
+				{ workspacePath: workspaceRoot },
+			),
+			desktopClient
+				.invoke<SlashCommand[]>("list_plugin_commands", {
+					workspacePath: workspaceRoot,
+				})
+				.catch((): SlashCommand[] => []),
+		])
+			.then(([response, pluginCommands]) => {
 				if (cancelled) return;
 				const next = [
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
+					...buildUserInstructionSlashCommands(response, pluginCommands),
 				];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
@@ -1135,7 +1039,7 @@ function ChatInputBarImpl({
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen]);
+	}, [slashOpen, workspaceRoot]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
@@ -1188,26 +1092,10 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<div
-			className={cn(
-				"bg-card",
-				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-			)}
-		>
+		<AgentComposer variant={variant}>
 			{/* Input area */}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
-			<div
-				className={cn(
-					"px-4 py-3",
-					variant === "welcome"
-						? "pb-2 pt-4"
-						: promptsInQueue.length > 0
-							? "pb-4 pt-0"
-							: "py-4",
-				)}
-			>
+			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
@@ -1300,14 +1188,9 @@ function ChatInputBarImpl({
 							)}
 						</div>
 					)}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
-					<div
-						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
-								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
-						)}
+					{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
+					<AgentComposerField
+						variant={variant}
 						onMouseDown={(event) => {
 							const target = event.target;
 							if (
@@ -1329,7 +1212,7 @@ function ChatInputBarImpl({
 								<span className="sr-only">Transcribing voice input</span>
 							</output>
 						)}
-						<textarea
+						<AgentComposerTextarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
 									? `slash-command-option-${slashSelectedIndex}`
@@ -1347,10 +1230,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							className={cn(
-								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								variant === "welcome" && "self-start",
-							)}
+							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
 								setPromptInput(e.target.value);
@@ -1491,12 +1371,7 @@ function ChatInputBarImpl({
 							}}
 							value={promptInput}
 						/>
-						<div
-							className={cn(
-								"flex shrink-0 items-center gap-2",
-								variant === "conversation" && "self-end",
-							)}
-						>
+						<AgentComposerActions variant={variant}>
 							{needsCloudRepository ? (
 								<span
 									aria-live="polite"
@@ -1506,56 +1381,46 @@ function ChatInputBarImpl({
 								</span>
 							) : null}
 							{canAbort && (
-								<button
+								<AgentComposerStopButton
 									aria-label="Stop agent"
-									className={cn(
-										"bg-foreground p-1.5 text-background hover:bg-destructive",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
-									)}
+									variant={variant}
 									onClick={onAbort}
 									title="Stop the agent (Esc)"
 									type="button"
 								>
 									<CircleStop className="size-3" />
-								</button>
+								</AgentComposerStopButton>
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
-							    don't get a dead control. */}
+							    don't get a dead control. Start with the configured provider;
+							    browser recognition is only a fallback for network failures. */}
 							{transcriptionTarget ? (
 								<SpeechInput
-									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`}
-									onActiveChange={handleSpeechInputActiveChange}
-									onAudioRecorded={handleAudioRecorded}
+									fallbackOnNetworkError
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
+									onActiveChange={setSpeechInputActive}
 									onError={handleSpeechInputError}
-									onProcessingChange={setSpeechInputProcessing}
-									onStartStreaming={
-										transcriptionTarget.supportsStreaming
-											? handleStartStreamingTranscription
-											: undefined
+									onNetworkFallback={() =>
+										toast({
+											title: "Switched to browser speech recognition",
+											description:
+												"The voice provider could not be reached. Click the microphone and repeat any missing speech. Browser recognition may also require internet access.",
+										})
 									}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={handleStartStreamingTranscription}
 									onStreamingEnd={handleStreamingTranscriptionEnd}
 									onStreamingStart={handleStreamingTranscriptionStart}
-									onTranscriptionChange={
-										transcriptionTarget.supportsStreaming
-											? undefined
-											: handleTranscriptionChange
-									}
-									recordingMode={
-										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
-									}
-									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+									onTranscriptionChange={handleStreamingTranscriptionChange}
+									recordingMode="streaming"
+									title={`Transcribe live with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
 								/>
 							) : null}
 							{(!isBusy || canSend) && (
-								<button
+								<AgentComposerSendButton
 									aria-label="Send message"
-									className={cn(
-										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
-									)}
+									variant={variant}
 									disabled={!canSend}
 									onClick={handleSend}
 									title={
@@ -1566,10 +1431,10 @@ function ChatInputBarImpl({
 									type="button"
 								>
 									<ArrowUp className="size-3" />
-								</button>
+								</AgentComposerSendButton>
 							)}
-						</div>
-					</div>
+						</AgentComposerActions>
+					</AgentComposerField>
 				</div>
 				{unsupportedDraftImageCount > 0 && (
 					<output className="block px-2 text-sm text-destructive">
@@ -1578,7 +1443,7 @@ function ChatInputBarImpl({
 					</output>
 				)}
 				{attachments.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1.5">
+					<AgentComposerAttachments>
 						{attachments.map((attachment) => (
 							<span
 								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
@@ -1595,13 +1460,13 @@ function ChatInputBarImpl({
 								</button>
 							</span>
 						))}
-					</div>
+					</AgentComposerAttachments>
 				)}
-			</div>
+			</AgentComposerBody>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
-				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
+			<AgentComposerSettings>
+				<AgentComposerSettingsGroup>
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1715,9 +1580,9 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+				</AgentComposerSettingsGroup>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				<AgentComposerSettingsEnd>
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -1754,9 +1619,9 @@ function ChatInputBarImpl({
 							/>
 						</div>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</AgentComposerSettingsEnd>
+			</AgentComposerSettings>
+		</AgentComposer>
 	);
 }
 
@@ -1767,7 +1632,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
-/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
+/** Sentinel provider-picker row that opens Settings → Providers instead of selecting. */
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
 const ModelSelector = memo(function ModelSelector({
@@ -1795,7 +1660,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
-	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
+	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
@@ -2345,169 +2210,3 @@ const ModelSelector = memo(function ModelSelector({
 		</div>
 	);
 });
-
-type TokenUsage = {
-	tokensIn: number;
-	tokensOut: number;
-	cacheReadTokens: number;
-	totalCost?: number;
-	contextWindow?: number;
-};
-
-/** Current model context relative to the selected model's context window. */
-function TokenUsageRing({ usage }: { usage: TokenUsage }) {
-	const contextWindow = usage.contextWindow;
-	const totalTokens = usage.tokensIn + usage.tokensOut;
-	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
-		return null;
-	}
-
-	const ratio = Math.min(
-		Math.max(totalTokens / Math.max(contextWindow, 1), 0),
-		1,
-	);
-	const percent = Math.round(ratio * 100);
-	const ringColorClass =
-		ratio >= 0.75
-			? "stroke-red-500"
-			: ratio >= 0.5
-				? "stroke-orange-500"
-				: "stroke-primary";
-	const cost = formatCostUsd(usage.totalCost);
-	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
-	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
-	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);
-	const segmentScale =
-		totalTokens > contextWindow ? contextWindow / totalTokens : 1;
-	const segmentWidth = (tokens: number) =>
-		`${(tokens / contextWindow) * segmentScale * 100}%`;
-	const radius = 8.5;
-	const circumference = 2 * Math.PI * radius;
-
-	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
-					id="token-usage"
-					size="icon-sm"
-					type="button"
-					variant="text"
-				>
-					<svg
-						aria-hidden="true"
-						className="-rotate-90 size-3.5"
-						height="22"
-						viewBox="0 0 22 22"
-						width="22"
-					>
-						<circle
-							className="stroke-muted-foreground/20"
-							cx="11"
-							cy="11"
-							fill="none"
-							r={radius}
-							strokeWidth="4"
-						/>
-						<circle
-							className={cn("", ringColorClass)}
-							cx="11"
-							cy="11"
-							fill="none"
-							r={radius}
-							strokeDasharray={circumference}
-							strokeDashoffset={circumference * (1 - ratio)}
-							strokeLinecap="round"
-							strokeWidth="4"
-						/>
-					</svg>
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				className="w-80 p-0"
-				id="token-usage-panel"
-				side="top"
-				sideOffset={8}
-			>
-				<div className="px-3 py-3">
-					<div className="flex items-center justify-between gap-4 text-sm">
-						<span className="text-muted-foreground">Context window</span>
-						<span className="font-mono text-sm text-foreground">
-							{contextUsageLabel}
-						</span>
-					</div>
-					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-primary transition-[width] duration-120"
-							data-token-kind="uncached-input"
-							style={{ width: segmentWidth(uncachedInputTokens) }}
-						/>
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-120"
-							data-token-kind="cached-input"
-							style={{
-								backgroundImage:
-									"linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 60%, transparent))",
-								width: segmentWidth(cachedTokens),
-							}}
-						/>
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
-							data-token-kind="output"
-							style={{
-								backgroundImage:
-									"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
-								width: segmentWidth(usage.tokensOut),
-							}}
-						/>
-					</div>
-					<div className="mt-3 space-y-2 text-sm">
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Input tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.tokensIn.toLocaleString()}
-							</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Output tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.tokensOut.toLocaleString()}
-							</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Cached tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.cacheReadTokens.toLocaleString()}
-							</span>
-						</div>
-						{cost ? (
-							<div className="flex items-center justify-between gap-4">
-								<span className="text-muted-foreground">Cost</span>
-								<span className="font-mono text-foreground">{cost}</span>
-							</div>
-						) : null}
-					</div>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function formatCompactTokens(value: number): string {
-	if (value >= 1_000_000) {
-		return `${(value / 1_000_000).toFixed(1)}M`;
-	}
-	if (value >= 1_000) {
-		return `${formatCompactUnit(value / 1_000)}k`;
-	}
-	return value.toLocaleString();
-}
-
-function formatCompactUnit(value: number): string {
-	return value.toFixed(1).replace(/\.0$/, "");
-}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	resolveCredentialError,
 	resolveCredentialFailureAction,
@@ -138,10 +139,10 @@ describe("resolveCredentialFailureHint", () => {
 		);
 	});
 
-	it("points everything else at Settings → API Providers", () => {
+	it("points everything else at Settings → Providers", () => {
 		for (const providerId of ["anthropic", "openai-codex", ""]) {
 			expect(resolveCredentialFailureHint(providerId)).toMatch(
-				/Settings → API Providers/,
+				/Settings → Providers/,
 			);
 		}
 	});
@@ -188,5 +189,26 @@ describe("inferHydratedChatStatus", () => {
 				},
 			]),
 		).toBe("completed");
+	});
+});
+
+describe("extractAssistantTurnDataFromRpcMessages", () => {
+	it("does not render a display-only error as an assistant response", () => {
+		expect(
+			extractAssistantTurnDataFromRpcMessages([
+				{ role: "user", content: "hi" },
+				{
+					role: "assistant",
+					content: "API key expired.",
+					metadata: { displayOnly: true, displayRole: "error" },
+				},
+			]),
+		).toEqual({
+			text: "",
+			reasoning: "",
+			reasoningRedacted: false,
+			images: [],
+			media: [],
+		});
 	});
 });

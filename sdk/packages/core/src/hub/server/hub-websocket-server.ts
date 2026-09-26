@@ -749,6 +749,12 @@ export async function startHubWebSocketServer(
 			clearInterval(heartbeatTimer);
 			heartbeatTimer = undefined;
 		}
+		// A bind failure while the singleton lock is held means the occupant
+		// is not a live Hub for this owner; record which case this was.
+		if (error instanceof Error) {
+			(error as Error & { hubInstanceLockHeld?: boolean }).hubInstanceLockHeld =
+				instanceLock.held;
+		}
 		await settlesWithin(
 			Promise.resolve().then(() => transport.stop()),
 			HUB_STARTUP_ROLLBACK_TIMEOUT_MS,
