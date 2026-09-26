@@ -1,3 +1,20 @@
+export function resolveModelIdAlias(
+	providerId: string,
+	modelId: string,
+): string {
+	// DeepSeek still accepts these retired IDs and serves V4.1 Flash for both.
+	// Resolve metadata without adding retired IDs to the public model catalog.
+	// https://api-docs.deepseek.com/quick_start/pricing
+	if (
+		providerId === "deepseek" &&
+		(modelId === "deepseek-v4-flash" ||
+			modelId === "deepseek-v4-flash-vision-exp")
+	) {
+		return "deepseek-flash";
+	}
+	return modelId;
+}
+
 export interface ModelIdAliasRule {
 	canonicalPrefix: string;
 	aliasPrefix: string;

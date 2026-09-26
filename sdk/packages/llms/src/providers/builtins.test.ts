@@ -13,6 +13,7 @@ import {
 } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
+import { GatewayRegistry } from "./registry";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
 
 function findClineSpec() {
@@ -22,6 +23,42 @@ function findClineSpec() {
 	}
 	return spec;
 }
+
+describe("deepseek builtin models", () => {
+	it("defaults to the current Flash model with catalog metadata", async () => {
+		const provider = await getProvider("deepseek");
+		const models = await getModelsForProvider("deepseek");
+
+		expect(provider?.defaultModelId).toBe("deepseek-flash");
+		expect(models["deepseek-flash"]?.contextWindow).toBeDefined();
+		expect(models["deepseek-flash"]?.pricing?.input).toBeGreaterThan(0);
+	});
+
+	it.each([
+		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+	])("resolves %s without adding it to the model list", async (id) => {
+		const models = await getModelsForProvider("deepseek");
+		const generated = getGeneratedModelsForRuntimeProvider("deepseek");
+		const manifest = BUILTIN_PROVIDER_MANIFESTS_BY_ID.deepseek;
+		const registry = new GatewayRegistry();
+		registry.registerProvider({
+			manifest,
+			createProvider: () => {
+				throw new Error("No provider request expected");
+			},
+		});
+
+		expect(models[id]).toBeUndefined();
+		expect(generated[id]).toBeUndefined();
+		expect(
+			registry.listModels("deepseek").some((model) => model.id === id),
+		).toBe(false);
+		expect(
+			registry.resolveModel({ providerId: "deepseek", modelId: id }).model,
+		).toEqual(manifest.models.find((model) => model.id === "deepseek-flash"));
+	});
+});
 
 describe("cline builtin spec defaults.baseUrl", () => {
 	const originalEnvironment = process.env[CLINE_ENVIRONMENT_ENV];

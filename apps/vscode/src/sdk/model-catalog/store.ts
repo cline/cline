@@ -6,7 +6,7 @@ import {
 	syncStoredProviderRegistration,
 	writeModelsFileSync,
 } from "@cline/core"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID, resolveModelIdAlias } from "@cline/llms"
 import { ModelCapabilitySchema } from "@cline/shared"
 import { type ApiConfiguration, type ApiProvider, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { Logger } from "@shared/services/Logger"
@@ -401,7 +401,8 @@ function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOver
 
 function readBaseModelInfoForProvider(providerId: ProviderId, modelId: string): ModelInfo | undefined {
 	const sdkProviderId = toSdkProviderId(providerId)
-	const generatedModelInfo = getGeneratedModelsForProvider(sdkProviderId)[modelId]
+	const catalogModelId = resolveModelIdAlias(sdkProviderId, modelId)
+	const generatedModelInfo = getGeneratedModelsForProvider(sdkProviderId)[catalogModelId]
 	if (isModelInfo(generatedModelInfo)) {
 		return generatedModelInfo
 	}
@@ -413,7 +414,7 @@ function readBaseModelInfoForProvider(providerId: ProviderId, modelId: string): 
 		}
 	}
 
-	const collectionModelInfo = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId]
+	const collectionModelInfo = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[catalogModelId]
 	if (isModelInfo(collectionModelInfo)) {
 		return collectionModelInfo
 	}

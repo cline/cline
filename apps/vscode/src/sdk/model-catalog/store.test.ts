@@ -98,7 +98,8 @@ vi.mock("@cline/core", () => ({
 	writeModelsFileSync: vi.fn((_filePath: string, state: ReturnType<typeof mocks.getModelsFile>) => mocks.setModelsFile(state)),
 }))
 
-vi.mock("@cline/llms", () => ({
+vi.mock("@cline/llms", async (importOriginal) => ({
+	resolveModelIdAlias: (await importOriginal<typeof import("@cline/llms")>()).resolveModelIdAlias,
 	getGeneratedModelsForProvider: vi.fn((providerId: string) => mocks.getGeneratedModels(providerId)),
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 }))
@@ -417,6 +418,40 @@ describe("createProviderConfigStore", () => {
 				supportsPromptCache: false,
 			}),
 		})
+	})
+
+	it.each([
+		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+	])("resolves saved %s metadata without changing its ID or losing overrides", async (modelId) => {
+		const { createProviderConfigStore } = await import("./store")
+		const canonicalModelInfo: ModelInfo = {
+			name: "DeepSeek V4.1 Flash",
+			contextWindow: 1_000_000,
+			maxTokens: 393_216,
+			inputPrice: 0.15,
+			outputPrice: 0.6,
+			cacheReadsPrice: 0.003,
+			supportsPromptCache: true,
+		}
+		mocks.setGeneratedModels("deepseek", { "deepseek-flash": canonicalModelInfo })
+		mocks.setProviderSettings({ deepseek: { provider: "deepseek", model: modelId } })
+		mocks.setModelsFile({
+			version: 1,
+			providers: { deepseek: { models: { [modelId]: { maxTokens: 4_096 } } } },
+		})
+
+		const selection = createProviderConfigStore().readSelection(parseProviderId("deepseek"), "act")
+
+		expect(selection).toMatchObject({
+			modelId,
+			modelInfoSource: "catalog",
+			baseModelInfo: canonicalModelInfo,
+			overrides: { maxTokens: 4_096 },
+			modelInfo: { ...canonicalModelInfo, maxTokens: 4_096 },
+		})
+		expect(mocks.getSaveProviderSettingsMock()).not.toHaveBeenCalled()
+		expect(Object.keys(mocks.getGeneratedModels("deepseek"))).toEqual(["deepseek-flash"])
 	})
 
 	it("does not combine a generic provider's remembered model info with another provider's active model id", async () => {
