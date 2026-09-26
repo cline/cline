@@ -9,6 +9,7 @@ import type {
 	CronSpecParseResult,
 	CronTriggerKind,
 } from "@cline/shared";
+import { stripUtf8Bom } from "@cline/shared";
 import YAML from "yaml";
 import { ALL_DEFAULT_TOOL_NAMES } from "../../extensions/tools/constants";
 import { validateCronSchedule } from "../schedule/scheduler";
@@ -42,7 +43,9 @@ export function splitFrontmatter(raw: string): {
 	frontmatter: string | undefined;
 	body: string;
 } {
-	const text = raw.replace(/\r\n/g, "\n");
+	// Editors like Windows Notepad may save "UTF-8 with BOM"; the BOM would
+	// otherwise hide the opening `---` fence.
+	const text = stripUtf8Bom(raw).replace(/\r\n/g, "\n");
 	if (!text.startsWith("---\n")) {
 		return { frontmatter: undefined, body: raw };
 	}
