@@ -14,6 +14,27 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("keeps retired DeepSeek aliases out of the live model list", () => {
+		const result = normalizeModelsDevProviderModels({
+			deepseek: {
+				models: {
+					"deepseek-flash": {
+						tool_call: true,
+						limit: { context: 1_048_576, output: 393_216 },
+						cost: { input: 0.3, output: 1.2, cache_read: 0.006 },
+					},
+					"deepseek-v4-flash": { tool_call: true, status: "deprecated" },
+					"deepseek-v4-flash-vision-exp": {
+						tool_call: true,
+						status: "deprecated",
+					},
+				},
+			},
+		});
+
+		expect(Object.keys(result.deepseek)).toEqual(["deepseek-flash"]);
+	});
+
 	it("preserves model adapters and narrowly fills missing Go Qwen declarations", () => {
 		const models = {
 			muse: { tool_call: true, provider: { npm: "@ai-sdk/openai" } },

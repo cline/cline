@@ -4,6 +4,7 @@ import {
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	resolveModelIdAlias,
 	toGatewayModelCapabilities,
 } from "@cline/llms";
 import type {
@@ -108,6 +109,16 @@ export function resolveKnownModelsFromConfig(
 		: (config.knownModels ??
 			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
 			undefined);
+	const canonicalModelId = resolveModelIdAlias(
+		config.providerId,
+		config.modelId,
+	);
+	const canonicalModelInfo =
+		canonicalModelId !== config.modelId
+			? knownModels?.[canonicalModelId]
+			: undefined;
+	// Resolve a saved alias only for this session's selected model. Keep the
+	// public catalog unchanged and let explicit metadata for the old ID win.
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
@@ -121,12 +132,17 @@ export function resolveKnownModelsFromConfig(
 		pc?.modelInfo && pc.modelInfo.id === config.modelId
 			? pc.modelInfo
 			: undefined;
-	if (configuredContextWindow === undefined && !modelInfo) {
+	if (
+		configuredContextWindow === undefined &&
+		!modelInfo &&
+		!canonicalModelInfo
+	) {
 		return knownModels;
 	}
 	return {
 		...(knownModels ?? {}),
 		[config.modelId]: {
+			...canonicalModelInfo,
 			...knownModels?.[config.modelId],
 			...(configuredContextWindow !== undefined
 				? {

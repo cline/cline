@@ -9,6 +9,7 @@ import type {
 	GatewayResolvedModel,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
+import { resolveModelIdAlias } from "../catalog/model-id-aliases";
 
 interface ProviderRecord {
 	manifest: GatewayProviderManifest;
@@ -257,9 +258,15 @@ export class GatewayRegistry {
 		}
 
 		const modelId = selection.modelId ?? provider.defaultModelId;
+		const canonicalModelId = resolveModelIdAlias(provider.id, modelId);
+		const canonicalModel = provider.models.find(
+			(entry) => entry.id === canonicalModelId,
+		);
 		const model =
 			provider.models.find((entry) => entry.id === modelId) ??
-			createUnregisteredModel(provider, modelId);
+			(canonicalModel
+				? { ...canonicalModel, id: modelId }
+				: createUnregisteredModel(provider, modelId));
 
 		return {
 			provider,

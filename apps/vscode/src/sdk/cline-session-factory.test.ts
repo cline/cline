@@ -877,6 +877,30 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.family).toBe(expectedModel.family)
 	})
 
+	it("uses canonical DeepSeek metadata for a saved legacy ID without adding a public catalog entry", async () => {
+		const modelId = "deepseek-v4-flash"
+		const canonical = (await LlmsModels.getModelsForProvider("deepseek"))["deepseek-flash"]
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "deepseek",
+			actModeApiModelId: modelId,
+			deepSeekApiKey: "deepseek-key",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.modelId).toBe(modelId)
+		expect(config.providerConfig).toMatchObject({ providerId: "deepseek", modelId })
+		expect(config.knownModels?.[modelId]).toMatchObject({
+			id: modelId,
+			contextWindow: canonical.contextWindow,
+			maxInputTokens: canonical.maxInputTokens,
+			maxTokens: canonical.maxTokens,
+			pricing: canonical.pricing,
+		})
+		expect((config.providerConfig as { knownModels?: unknown }).knownModels).toBe(config.knownModels)
+		expect(await LlmsModels.getModelsForProvider("deepseek")).not.toHaveProperty(modelId)
+	})
+
 	it("injects cached LiteLLM max input tokens when the dynamic model is absent from the SDK registry", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "litellm",

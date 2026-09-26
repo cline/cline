@@ -1,4 +1,4 @@
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID, resolveModelIdAlias } from "@cline/llms"
 import type { Mode, ProviderConfigStore, ProviderId } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
@@ -35,7 +35,8 @@ function resolveProviderSwitchModelId(
 	const generatedModels = getGeneratedModelsForProvider(sdkProviderId)
 	const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]
 	const collectionModels = collection?.models ?? {}
-	if (currentModelId && (generatedModels[currentModelId] || collectionModels[currentModelId])) {
+	const catalogModelId = currentModelId ? resolveModelIdAlias(sdkProviderId, currentModelId) : undefined
+	if (currentModelId && catalogModelId && (generatedModels[catalogModelId] || collectionModels[catalogModelId])) {
 		return currentModelId
 	}
 
