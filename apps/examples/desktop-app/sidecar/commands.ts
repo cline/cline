@@ -129,6 +129,7 @@ import {
 import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
+	setKeepAwakeEnabled,
 } from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
 import {
@@ -2175,6 +2176,7 @@ export async function handleCommand(
 			platform: binding.remote?.platform ?? process.platform,
 			appVersion: packageJson.version,
 			runningSessionCount,
+			keepAwakeEnabled: readDesktopSettings().keepAwakeEnabled,
 			activeEnvironmentId: ctx.activeEnvironmentId,
 			remoteEnvironment:
 				binding.kind === "ssh"
@@ -3230,6 +3232,12 @@ export async function handleCommand(
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
 		return settings;
+	}
+	if (command === "set_keep_awake_enabled") {
+		if (typeof args?.keep_awake_enabled !== "boolean") {
+			throw new Error("keep_awake_enabled must be a boolean");
+		}
+		return setKeepAwakeEnabled(args.keep_awake_enabled);
 	}
 	if (command === "set_web_search_enabled") {
 		if (typeof args?.web_search_enabled !== "boolean") {

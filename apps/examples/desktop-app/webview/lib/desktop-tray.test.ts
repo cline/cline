@@ -7,6 +7,7 @@ type MenuEventHandler = (event: { payload: unknown }) => void;
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
 	isTauriAvailable: false,
+	emit: vi.fn(),
 	listen: vi.fn(),
 	subscribe: vi.fn(),
 	unlisten: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("@/lib/desktop-client", () => ({
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
+	emit: mocks.emit,
 	listen: mocks.listen,
 }));
 
@@ -29,6 +31,7 @@ async function importFresh() {
 beforeEach(() => {
 	mocks.isTauriAvailable = false;
 	mocks.invoke.mockReset();
+	mocks.emit.mockReset();
 	mocks.listen.mockReset();
 	mocks.subscribe.mockReset().mockReturnValue(() => {});
 	mocks.unlisten.mockReset();
@@ -110,6 +113,7 @@ describe("desktop tray", () => {
 				return {
 					hub: { status: "connected" },
 					runningSessionCount: 2,
+					keepAwakeEnabled: true,
 				};
 			}
 			return undefined;
@@ -122,9 +126,76 @@ describe("desktop tray", () => {
 			expect(mocks.invoke).toHaveBeenCalledWith("set_tray_status", {
 				hubHealthy: true,
 				runningSessions: 2,
+				keepAwakeEnabled: true,
 			}),
 		);
 		stopWatching();
+	});
+
+	it("forwards the keep-awake opt-out with the running session count", async () => {
+		mocks.isTauriAvailable = true;
+		mocks.invoke.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return {
+					hub: { status: "connected" },
+					runningSessionCount: 1,
+					keepAwakeEnabled: false,
+				};
+			}
+			return undefined;
+		});
+		const { watchDesktopTrayStatus } = await importFresh();
+
+		const stopWatching = watchDesktopTrayStatus();
+
+		await vi.waitFor(() =>
+			expect(mocks.invoke).toHaveBeenCalledWith("set_tray_status", {
+				hubHealthy: true,
+				runningSessions: 1,
+				keepAwakeEnabled: false,
+			}),
+		);
+		stopWatching();
+	});
+
+	it("keeps the assertion on when an older sidecar omits the preference", async () => {
+		mocks.isTauriAvailable = true;
+		mocks.invoke.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return { hub: { status: "connected" }, runningSessionCount: 3 };
+			}
+			return undefined;
+		});
+		const { watchDesktopTrayStatus } = await importFresh();
+
+		const stopWatching = watchDesktopTrayStatus();
+
+		await vi.waitFor(() =>
+			expect(mocks.invoke).toHaveBeenCalledWith("set_tray_status", {
+				hubHealthy: true,
+				runningSessions: 3,
+				keepAwakeEnabled: true,
+			}),
+		);
+		stopWatching();
+	});
+
+	it("notifies the native shell when the keep-awake preference changes", async () => {
+		mocks.isTauriAvailable = true;
+		const { KEEP_AWAKE_CHANGED_EVENT, emitKeepAwakeChanged } =
+			await importFresh();
+
+		await emitKeepAwakeChanged(false);
+
+		expect(mocks.emit).toHaveBeenCalledWith(KEEP_AWAKE_CHANGED_EVENT, false);
+	});
+
+	it("does not notify the native shell outside the Tauri shell", async () => {
+		const { emitKeepAwakeChanged } = await importFresh();
+
+		await emitKeepAwakeChanged(false);
+
+		expect(mocks.emit).not.toHaveBeenCalled();
 	});
 
 	it("preserves the tray status when process context is unavailable", async () => {

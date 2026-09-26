@@ -194,7 +194,10 @@ describe("desktop settings commands", () => {
 			handleCommand(ctx, "set_cloud_sessions_enabled", {
 				cloud_sessions_enabled: enabled,
 			}),
-		).resolves.toEqual({ cloudSessionsEnabled: enabled });
+		).resolves.toEqual({
+			cloudSessionsEnabled: true,
+			keepAwakeEnabled: true,
+		});
 		expect(events).toEqual([
 			{ name: "cloud_sessions_changed", payload: { environmentId: "local" } },
 			{
@@ -211,6 +214,62 @@ describe("desktop settings commands", () => {
 		).resolves.toMatchObject({ cloudAgents: false });
 		await expect(
 			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: enabled });
+		).resolves.toEqual({
+			cloudSessionsEnabled: true,
+			keepAwakeEnabled: true,
+		});
+	});
+
+	it("rejects a non-boolean keep-awake toggle value", async () => {
+		const { ctx, events } = createContext();
+
+		await expect(
+			handleCommand(ctx, "set_keep_awake_enabled", {
+				keep_awake_enabled: "yes",
+			}),
+		).rejects.toThrow("keep_awake_enabled must be a boolean");
+		expect(events).toEqual([]);
+	});
+
+	it("persists the keep-awake opt-out and reports it with the process context", async () => {
+		const { ctx: settingsContext } = createContext();
+
+		await expect(
+			handleCommand(settingsContext, "set_keep_awake_enabled", {
+				keep_awake_enabled: false,
+			}),
+		).resolves.toEqual({
+			cloudSessionsEnabled: false,
+			keepAwakeEnabled: false,
+		});
+
+		// The shell reads the preference from the same payload as the running
+		// session count it applies to, and that command resolves the active
+		// environment's runtime binding, so it needs a connected local one.
+		const ctx = {
+			activeEnvironmentId: "local",
+			liveSessions: new Map(),
+			sessionEnvironmentIds: new Map(),
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						kind: "local",
+						environmentId: "local",
+						workspaceRoot: "/local/workspace",
+						hubClient: {
+							getUrl: () => null,
+							isConnected: () => false,
+							getConnectionError: () => undefined,
+						},
+						sessionManager: {},
+					},
+				],
+			]),
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleCommand(ctx, "get_process_context", {}),
+		).resolves.toMatchObject({ keepAwakeEnabled: false });
 	});
 });

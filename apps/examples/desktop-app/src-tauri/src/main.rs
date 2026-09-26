@@ -2,6 +2,7 @@
 
 #[cfg(target_os = "macos")]
 mod macos_notification;
+mod power;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -18,7 +19,7 @@ use tauri::menu::{Menu, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{
     menu::{MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager, RunEvent, State, WindowEvent,
+    Emitter, Listener, Manager, RunEvent, State, WindowEvent,
 };
 use tauri_plugin_updater::UpdaterExt;
 
@@ -32,6 +33,7 @@ const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
+const KEEP_AWAKE_CHANGED_EVENT: &str = "keep-awake-changed";
 #[cfg(any(target_os = "macos", test))]
 const EXPORT_DIAGNOSTICS_MENU_ID: &str = "export-diagnostics";
 #[cfg(any(target_os = "macos", test))]
@@ -86,6 +88,64 @@ struct TrayMenuState {
     // Shared by the tray menu and (on macOS) the application menu; None when
     // this build cannot update itself. Its label follows the updater state.
     check_for_updates: Option<MenuItem<tauri::Wry>>,
+}
+
+/// Holds the OS power assertion that stops the machine from idle-sleeping while
+/// agent tasks run.
+///
+/// One assertion covers every session: a single process-wide assertion is
+/// enough, and counting per session would leak an assertion whenever a
+/// session-end event went missing. The signal comes from the same webview poll
+/// that feeds the tray's session count (see `set_tray_status`).
+#[derive(Default)]
+struct KeepsAwakeState {
+    /// `None` while sleep is allowed; otherwise the platform's assertion token.
+    assertion: Mutex<Option<u32>>,
+}
+
+impl KeepsAwakeState {
+    /// Apply the latest preference and running-session count, returning whether
+    /// an assertion is held afterwards. Acquiring is skipped while one is
+    /// already held, so repeated polls are cheap.
+    fn apply(&self, enabled: bool, running_sessions: u32) -> bool {
+        let mut assertion = self
+            .assertion
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        if power::should_hold_assertion(enabled, running_sessions) {
+            if assertion.is_none() {
+                match power::acquire() {
+                    Ok(token) => *assertion = token,
+                    Err(error) => {
+                        eprintln!("[keep-awake] failed to prevent idle sleep: {error}")
+                    }
+                }
+            }
+        } else if let Some(token) = assertion.take() {
+            power::release(token);
+        }
+
+        assertion.is_some()
+    }
+
+    /// Drop the assertion even if sessions are still marked running. Used when
+    /// the user turns the setting off, and when the app stops.
+    fn release(&self) {
+        let mut assertion = self
+            .assertion
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(token) = assertion.take() {
+            power::release(token);
+        }
+    }
+}
+
+impl Drop for KeepsAwakeState {
+    fn drop(&mut self) {
+        self.release();
+    }
 }
 
 #[derive(Clone)]
@@ -1438,9 +1498,12 @@ fn set_tray_status(
     app: tauri::AppHandle,
     tray_menu: State<'_, TrayMenuState>,
     update_state: State<'_, Arc<UpdateState>>,
+    keeps_awake: State<'_, KeepsAwakeState>,
     hub_healthy: bool,
     running_sessions: u32,
+    keep_awake_enabled: Option<bool>,
 ) -> Result<(), String> {
+    keeps_awake.apply(keep_awake_enabled.unwrap_or(false), running_sessions);
     if let Ok(mut healthy) = tray_menu.hub_healthy.lock() {
         *healthy = hub_healthy;
     }
@@ -1490,6 +1553,7 @@ fn main() {
         .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
+        .manage(KeepsAwakeState::default())
         .setup(|app| {
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
@@ -1505,6 +1569,15 @@ fn main() {
             #[cfg(target_os = "macos")]
             if let Err(error) = macos_notification::configure(app.handle()) {
                 eprintln!("[notification] setup failed: {error}");
+            }
+            let keep_awake_handle = app.handle().clone();
+            let listener = app.listen_any(KEEP_AWAKE_CHANGED_EVENT, move |event| {
+                if event.payload() != "true" {
+                    keep_awake_handle.state::<KeepsAwakeState>().release();
+                }
+            });
+            if let Err(error) = listener {
+                eprintln!("[keep-awake] failed to listen for preference changes: {error}");
             }
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
@@ -1587,6 +1660,7 @@ fn main() {
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
                     .stop();
+                app_handle.state::<KeepsAwakeState>().release();
             }
             _ => {}
         });
@@ -1800,6 +1874,15 @@ mod tests {
         );
         assert_eq!(tray_badge_text(0), None);
         assert_eq!(tray_badge_text(3), Some("3".to_string()));
+    }
+
+    #[test]
+    fn sleep_is_only_inhibited_for_running_sessions() {
+        let state = KeepsAwakeState::default();
+        assert!(!state.apply(true, 0));
+        assert!(!state.apply(false, 4));
+        state.release();
+        assert!(!state.apply(false, 0));
     }
 
     /// A stand-in sidecar that stays alive without ever publishing a ready
