@@ -362,6 +362,25 @@ function AskQuestionResponse(
 		}
 	});
 
+	// Bracketed-paste (`usePaste` above) delivers the text inline, but the mouse
+	// and Ctrl+V paths have to read the system clipboard asynchronously. Two
+	// rapid triggers can resolve with the same contents and append it twice, so
+	// both share this single in-flight guard (mirrors InputBar).
+	const pasteFromClipboard = useCallback(async () => {
+		if (isPastingRef.current) return;
+		isPastingRef.current = true;
+		try {
+			const text = await readTextFromSystemClipboard();
+			if (text) {
+				appendPastedText(text);
+			}
+		} finally {
+			setTimeout(() => {
+				isPastingRef.current = false;
+			}, 100);
+		}
+	}, [appendPastedText]);
+
 	const handleCustomMouseDown = useCallback(
 		(event: MouseEvent) => {
 			if (
@@ -371,24 +390,12 @@ function AskQuestionResponse(
 				event.preventDefault?.();
 				event.stopPropagation?.();
 				selectIndex(customIndex);
-				if (isPastingRef.current) return;
-				isPastingRef.current = true;
-				void readTextFromSystemClipboard()
-					.then((text) => {
-						if (text) {
-							appendPastedText(text);
-						}
-					})
-					.finally(() => {
-						setTimeout(() => {
-							isPastingRef.current = false;
-						}, 100);
-					});
+				void pasteFromClipboard();
 				return;
 			}
 			selectIndex(customIndex);
 		},
-		[appendPastedText, customIndex, selectIndex],
+		[customIndex, pasteFromClipboard, selectIndex],
 	);
 
 	useEffect(() => {
@@ -414,19 +421,7 @@ function AskQuestionResponse(
 	useKeyboard((key) => {
 		const typing = selectedRef.current === customIndex;
 		if (key.ctrl && key.name === "v") {
-			if (isPastingRef.current) return;
-			isPastingRef.current = true;
-			void readTextFromSystemClipboard()
-				.then((text) => {
-					if (text) {
-						appendPastedText(text);
-					}
-				})
-				.finally(() => {
-					setTimeout(() => {
-						isPastingRef.current = false;
-					}, 100);
-				});
+			void pasteFromClipboard();
 			return;
 		}
 		if (key.name === "escape") {

@@ -194,6 +194,10 @@ export async function runCli(): Promise<void> {
 		.option("-m, --modelid <id>", "Model ID")
 		.option("-b, --baseurl <url>", "Base URL")
 		.option("--azure-api-version <version>", "Azure API version")
+		.option(
+			"--no-mouse",
+			"Disable mouse capture in the terminal user interface",
+		)
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
 		.option(
@@ -208,6 +212,7 @@ export async function runCli(): Promise<void> {
 				modelid?: string;
 				baseurl?: string;
 				azureApiVersion?: string;
+				mouse?: boolean;
 				config?: string;
 				cwd?: string;
 				dataDir?: string;
@@ -232,6 +237,19 @@ export async function runCli(): Promise<void> {
 			});
 			const { runAuthCommand } = await import("./commands/auth");
 			const providerSettingsManager = await createProviderSettingsManager();
+			// Commander defaults a negatable `--no-mouse` option to `true`, so only
+			// treat it as an explicit choice when it was actually supplied. Prefer
+			// the auth subcommand's own flag, then the root program's (so both
+			// `cline auth --no-mouse` and `cline --no-mouse auth` work). Leaving the
+			// value `undefined` lets the auth TUI fall back to CLINE_NO_MOUSE /
+			// CLINE_MOUSE.
+			const mouse =
+				(authCmd.getOptionValueSource("mouse") === "cli"
+					? opts.mouse
+					: undefined) ??
+				(program.getOptionValueSource("mouse") === "cli"
+					? program.opts().mouse
+					: undefined);
 			ctx.exitCode = await runAuthCommand({
 				providerSettingsManager,
 				explicitProvider: opts.provider ?? positionalProvider,
@@ -239,6 +257,7 @@ export async function runCli(): Promise<void> {
 				modelid: opts.modelid,
 				baseurl: opts.baseurl,
 				azureApiVersion: opts.azureApiVersion,
+				mouse,
 				io,
 			});
 		});

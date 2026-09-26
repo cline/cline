@@ -119,7 +119,11 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		modelid: opts.modelid,
 		baseurl: opts.baseurl,
 		azureApiVersion: opts.azureApiVersion,
-		mouse: opts.mouse,
+		// Commander defaults a negatable `--no-mouse` option to `true`, so only
+		// report the value when it was actually supplied on the command line.
+		// Leaving it `undefined` lets the auth TUI fall back to the
+		// CLINE_NO_MOUSE / CLINE_MOUSE environment variables.
+		mouse: cmd.getOptionValueSource("mouse") === "cli" ? opts.mouse : undefined,
 	};
 }
 
