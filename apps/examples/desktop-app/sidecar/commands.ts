@@ -1662,10 +1662,17 @@ async function listUserInstructionConfigs(
 
 function openFileInEditor(filePath: string): void {
 	const platform = process.platform;
+	// On Windows the path must not pass through cmd.exe: `cmd /c start
+	// <path>` re-parses metacharacters (&, ^, |) in the path as statement
+	// separators, turning a crafted path into command execution. rundll32
+	// hands the file straight to the shell's protocol handler with no shell
+	// parsing (same approach as openUrlInDefaultBrowser above).
 	const cmd =
-		platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+		platform === "darwin" ? "open" : platform === "win32" ? "rundll32" : "xdg-open";
 	const cmdArgs =
-		platform === "win32" ? ["/c", "start", "", filePath] : [filePath];
+		platform === "win32"
+			? ["url.dll,FileProtocolHandler", filePath]
+			: [filePath];
 	const child = spawn(cmd, cmdArgs, { stdio: "ignore", detached: true });
 	// An unhandled child error event would crash the sidecar process.
 	child.once("error", () => {});

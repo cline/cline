@@ -131,9 +131,17 @@ export function chunkText(chunk: unknown): string {
 
 export function openExternalUrl(url: string): void {
 	const platform = process.platform;
+	// On Windows the URL must not pass through cmd.exe: `cmd /c start <url>`
+	// re-parses metacharacters (&, ^, |) that are valid inside URLs and file
+	// paths as statement separators, turning a crafted string into command
+	// execution (Node only quotes argv entries that contain whitespace, so a
+	// bare `&` reaches cmd.exe's parser unquoted). rundll32 hands the URL
+	// straight to the protocol handler with no shell parsing — the same
+	// approach as openUrlInDefaultBrowser in
+	// apps/examples/desktop-app/sidecar/commands.ts.
 	const command =
-		platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-	const args = platform === "win32" ? ["/c", "start", "", url] : [url];
+		platform === "darwin" ? "open" : platform === "win32" ? "rundll32" : "xdg-open";
+	const args = platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url];
 	const child = spawn(command, args, {
 		stdio: "ignore",
 		detached: true,
@@ -141,5 +149,7 @@ export function openExternalUrl(url: string): void {
 		// browser/app still opens normally.
 		windowsHide: true,
 	});
+	// An unhandled child error event would crash the server.
+	child.once("error", () => {});
 	child.unref();
 }
