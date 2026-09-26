@@ -1461,20 +1461,26 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 		cloudTarget?: { repoUrl: string; branch?: string },
 	): Promise<string | undefined> {
-		await this.waitForInitialRemoteConfig()
-		// A new task is starting — the agent is about to stream.
-		this.turnStateTracker.set("streaming")
-		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
-		this.messageTranslatorState.clearTurnOutcome()
 		if (cloudTarget) {
-			this.pendingClineAuthRetryPrompt = undefined
-			return this.cloud.startCloudTask({
+			// Register the cloud start before the first await so a Cancel that
+			// arrives while remote config is still loading finds it and stops it.
+			const startCloudTask = this.cloud.beginCloudTask({
 				prompt: prompt ?? "",
 				images,
 				repoUrl: cloudTarget.repoUrl,
 				branch: cloudTarget.branch,
 			})
+			await this.waitForInitialRemoteConfig()
+			this.turnStateTracker.set("streaming")
+			this.messageTranslatorState.clearTurnOutcome()
+			this.pendingClineAuthRetryPrompt = undefined
+			return startCloudTask()
 		}
+		await this.waitForInitialRemoteConfig()
+		// A new task is starting — the agent is about to stream.
+		this.turnStateTracker.set("streaming")
+		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
+		this.messageTranslatorState.clearTurnOutcome()
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
 	}
 
@@ -1511,11 +1517,13 @@ export class Controller {
 		// Fence first: mark resumable and invalidate provisioning before any abort await,
 		// so straggler work cannot restore the cancelled turn's streaming state.
 		this.turnStateTracker.set("resumable")
-		const cancelledPendingCloudStart = this.cloud.cancelPendingStart()
-		await this.taskControl.cancelTask()
-		if (cancelledPendingCloudStart) {
-			await this.postStateToWebview()
+		if (this.cloud.cancelPendingStart()) {
+			// The sandbox never started and its record is being deleted, so there is
+			// nothing to resume: return to the home view instead of offering Resume Task.
+			await this.clearTask()
+			return
 		}
+		await this.taskControl.cancelTask()
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -1573,6 +1581,9 @@ export class Controller {
 		this.pendingClineAuthRetry = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
+		// A cloud task still provisioning has no SDK session for taskControl to end;
+		// stop it here so it cannot re-install its view after the user left.
+		this.cloud.cancelPendingStart()
 		await this.taskControl.clearTask()
 		await this.postStateToWebview()
 	}

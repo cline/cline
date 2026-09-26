@@ -204,7 +204,7 @@ describe("originating-account cloud cleanup", () => {
 		"prompt",
 	] as const)("drains %s and its DELETE through the real service before switching account", async (waitPoint) => {
 		const f = fixture(waitPoint, waitPoint === "create" ? undefined : "org-origin")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
 		expect(f.changeScope).not.toHaveBeenCalled()
@@ -234,7 +234,7 @@ describe("originating-account cloud cleanup", () => {
 	it("keeps the original account on timeout and can explicitly retry after cleanup settles", async () => {
 		vi.useFakeTimers()
 		const f = fixture("create")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
 		const rejected = expect(switching).rejects.toThrow("Your account has not changed")
@@ -253,7 +253,7 @@ describe("originating-account cloud cleanup", () => {
 	it("reports rejected cleanup once without exposing response text or retrying as the successor", async () => {
 		const f = fixture("create")
 		f.setDeletionStatus(401)
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
 		f.barrier.resolve()
@@ -270,7 +270,7 @@ describe("originating-account cloud cleanup", () => {
 	it("has one cleanup owner when readiness fails after provisioning returns an id", async () => {
 		const f = fixture("readiness")
 		f.setReadinessStatus("failed")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
 		f.barrier.resolve()
@@ -282,7 +282,7 @@ describe("originating-account cloud cleanup", () => {
 
 	it("keeps an ordinary successful start running rather than cleaning its sandbox", async () => {
 		const f = fixture("prompt")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		f.barrier.resolve()
 		expect(await starting).toBe(f.record.id)
@@ -326,7 +326,7 @@ describe("originating-account cloud cleanup", () => {
 
 	it.each(["lifecycle", "prompt"] as const)("cleans up a rejected %s wait without touching successor state", async (point) => {
 		const f = fixture(point)
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
 		f.barrier.reject(new Error("fixture failure"))
@@ -340,7 +340,7 @@ describe("originating-account cloud cleanup", () => {
 	it("keeps old connectors enrolled after a timed-out transition and concurrent retry", async () => {
 		vi.useFakeTimers()
 		const f = fixture("connect")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const first = f.coordinator.reset(f.changeScope)
 		const rejected = expect(first).rejects.toThrow("Your account has not changed")
@@ -356,7 +356,7 @@ describe("originating-account cloud cleanup", () => {
 
 	it("cleans up an in-flight create during controller disposal", async () => {
 		const f = fixture("create")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const disposing = f.coordinator.dispose()
 		f.barrier.resolve()
@@ -367,10 +367,10 @@ describe("originating-account cloud cleanup", () => {
 
 	it("delays successor starts until originating cleanup and account mutation finish", async () => {
 		const f = fixture("create")
-		const first = f.coordinator.startCloudTask(startInput)
+		const first = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
-		const second = f.coordinator.startCloudTask(startInput)
+		const second = f.coordinator.beginCloudTask(startInput)()
 		f.barrier.resolve()
 		await Promise.all([first, switching, second])
 		const posts = f.requests.filter((request) => request.method === "POST")
@@ -409,7 +409,7 @@ describe("originating-account cloud cleanup", () => {
 	it("allows controller teardown to continue after its deadline without dropping late cleanup", async () => {
 		vi.useFakeTimers()
 		const f = fixture("create")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const disposing = f.coordinator.dispose()
 		await vi.advanceTimersByTimeAsync(15_000)
@@ -422,7 +422,7 @@ describe("originating-account cloud cleanup", () => {
 
 	it("cleans ordinary pre-send failures and leaves a truthful error phase", async () => {
 		const f = fixture("prompt")
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		f.barrier.reject(new Error("cannot resolve prompt"))
 		expect(await starting).toBeUndefined()
@@ -435,7 +435,7 @@ describe("originating-account cloud cleanup", () => {
 	it("keeps originating cleanup enrolled until its DELETE response settles", async () => {
 		const f = fixture("delete")
 		vi.spyOn(f.options, "resolveContextMentions").mockRejectedValue(new Error("prompt failure"))
-		const starting = f.coordinator.startCloudTask(startInput)
+		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
 		const switching = f.coordinator.reset(f.changeScope)
 		expect(f.changeScope).not.toHaveBeenCalled()

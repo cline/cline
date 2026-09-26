@@ -34,6 +34,8 @@ interface OwnedSandbox {
 	root: string
 	hub?: HubWebSocketServer
 	sessionStore?: SqliteSessionStore
+	/** Pending flip from `provisioning` to `ready`. */
+	readyTimer?: ReturnType<typeof setTimeout>
 }
 
 export interface LocalCloudEnvironment {
@@ -88,9 +90,12 @@ export async function startLocalCloudEnvironment(
 		accessToken?: string
 		tempDir?: string
 		beforeModelResponse?: (signal?: AbortSignal | null) => Promise<void>
+		/** How long a new sandbox reports `provisioning` before `ready`. Default: ready at once. */
+		provisioningDelayMs?: number
 	} = {},
 ): Promise<LocalCloudEnvironment> {
 	const accessToken = options.accessToken ?? `local-cloud-${randomUUID()}`
+	const provisioningDelayMs = options.provisioningDelayMs ?? 0
 	const root = await mkdtemp(path.join(options.tempDir ?? tmpdir(), "cline-local-cloud-"))
 	const sessions = new Map<string, OwnedSandbox>()
 	const sockets = new Set<Socket>()
@@ -198,10 +203,14 @@ export async function startLocalCloudEnvironment(
 				const taskId = `tsk-${randomUUID()}`
 				const sandboxRoot = await mkdtemp(path.join(root, "sandbox-"))
 				const now = new Date().toISOString()
+				// The hosted control plane answers POST with `provisioning` and flips
+				// /status to `ready` once the sandbox is up; the fixture does the same
+				// after provisioningDelayMs so cancellation during that window is testable.
+				const provisioning = provisioningDelayMs > 0
 				const record: LocalCloudSessionRecord = {
 					id,
-					status: "active",
-					sandboxUrl: apiBaseUrl,
+					status: provisioning ? "provisioning" : "ready",
+					sandboxUrl: provisioning ? undefined : apiBaseUrl,
 					repoContext: {
 						repoUrl: String(input.repoUrl ?? ""),
 						branch: typeof input.branch === "string" ? input.branch : undefined,
@@ -210,8 +219,25 @@ export async function startLocalCloudEnvironment(
 					createdAt: now,
 					updatedAt: now,
 				}
-				sessions.set(id, { record, root: sandboxRoot })
-				return json(res, 200, { success: true, data: { sessionId: id, status: "active", sandboxUrl: apiBaseUrl } })
+				const owned: OwnedSandbox = { record, root: sandboxRoot }
+				sessions.set(id, owned)
+				if (provisioning) {
+					owned.readyTimer = setTimeout(() => {
+						owned.readyTimer = undefined
+						if (sessions.get(id) !== owned) return
+						record.status = "ready"
+						record.sandboxUrl = apiBaseUrl
+						record.updatedAt = new Date().toISOString()
+					}, provisioningDelayMs)
+				}
+				return json(res, 200, {
+					success: true,
+					data: {
+						sessionId: id,
+						status: record.status,
+						...(record.sandboxUrl ? { sandboxUrl: record.sandboxUrl } : {}),
+					},
+				})
 			}
 
 			const match = url.pathname.match(/^\/api\/v1\/session\/([^/]+)(?:\/(status|history))?$/)
@@ -229,6 +255,7 @@ export async function startLocalCloudEnvironment(
 			}
 			if (req.method === "DELETE") {
 				sessions.delete(owned.record.id)
+				clearTimeout(owned.readyTimer)
 				await activations.get(owned.record.id)?.catch(() => undefined)
 				await owned.hub?.close()
 				owned.sessionStore?.close()
@@ -291,7 +318,8 @@ export async function startLocalCloudEnvironment(
 			try {
 				await Promise.allSettled(activations.values())
 				const results = await Promise.allSettled(
-					[...sessions.values()].map(async ({ hub, sessionStore }) => {
+					[...sessions.values()].map(async ({ hub, sessionStore, readyTimer }) => {
+						clearTimeout(readyTimer)
 						try {
 							await hub?.close()
 						} finally {

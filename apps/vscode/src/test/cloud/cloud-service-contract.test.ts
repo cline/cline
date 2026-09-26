@@ -46,7 +46,7 @@ describe("local cloud service boundary", () => {
 			branch: "fixture",
 		})
 		expect(created).toMatchObject({
-			status: "active",
+			status: "ready",
 			repoContext: { repoUrl: "https://github.com/cline/fixture", branch: "fixture" },
 			metadata: { modelId: "fixture-model", taskId: expect.stringMatching(/^tsk-/) },
 		})
@@ -56,10 +56,37 @@ describe("local cloud service boundary", () => {
 
 		await service.renameSession(created.id, "renamed")
 		expect(await service.listSessions()).toEqual([expect.objectContaining({ id: created.id, title: "renamed" })])
-		expect(await service.getStatus(created.id)).toEqual({ status: "active" })
+		expect(await service.getStatus(created.id)).toEqual({ status: "ready" })
 		expect(await service.getHistory(created.id)).toEqual([])
 
 		await service.deleteSession(created.id)
+		expect(await service.listSessions()).toEqual([])
+	})
+
+	it("stops waiting for a provisioning sandbox when the start is cancelled", async () => {
+		environment = await startLocalCloudEnvironment({ provisioningDelayMs: 60_000 })
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			appBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => environment?.accessToken,
+			getActiveOrganizationId: () => undefined,
+		})
+		const cancel = new AbortController()
+		let provisioningId: string | undefined
+		const creating = service.createSession(
+			{ modelId: "fixture-model", repoUrl: "https://github.com/cline/fixture" },
+			(id) => {
+				provisioningId = id
+				cancel.abort(new Error("cancelled by test"))
+			},
+			cancel.signal,
+		)
+
+		await expect(creating).rejects.toThrow("cancelled by test")
+		expect(provisioningId).toMatch(/^ses-/)
+		// The record exists in `provisioning`; the caller owns its deletion.
+		expect(await service.getStatus(provisioningId!)).toEqual({ status: "provisioning" })
+		await service.deleteSession(provisioningId!)
 		expect(await service.listSessions()).toEqual([])
 	})
 
