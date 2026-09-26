@@ -7,6 +7,7 @@ import {
 	emptyStoredProviderSettings,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+	type StoredProviderSettings,
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
@@ -592,21 +593,34 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
-		const bedrockAuthentication = normalizeLegacyBedrockAuthentication(
+		const legacyBedrockAuthentication = normalizeLegacyBedrockAuthentication(
 			legacyGlobalState.awsAuthentication,
 		);
+		const legacyBedrockProfile = trimNonEmpty(legacyGlobalState.awsProfile);
+		// Legacy state grew three ways to say "use a named AWS profile":
+		// awsAuthentication "profile" (newest), the awsUseProfile toggle, and,
+		// on older installs, a bare awsProfile value with neither flag. Treat a
+		// profile name with no explicit authentication choice as profile auth,
+		// mirroring how the settings UI displays that state and how the Next
+		// extension resolves it from live settings — otherwise the migrated
+		// entry has no profile and providers.json readers (CLI, desktop) fall
+		// back to the default credential chain (cline/cline#14095).
 		const useBedrockProfile =
-			bedrockAuthentication === "profile" ||
-			legacyGlobalState.awsUseProfile === true;
+			legacyBedrockAuthentication === "profile" ||
+			legacyGlobalState.awsUseProfile === true ||
+			(legacyBedrockAuthentication === undefined &&
+				legacyBedrockProfile !== undefined);
+		const bedrockAuthentication =
+			useBedrockProfile && legacyBedrockAuthentication === undefined
+				? "profile"
+				: legacyBedrockAuthentication;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
 			authentication: bedrockAuthentication,
-			profile: useBedrockProfile
-				? trimNonEmpty(legacyGlobalState.awsProfile)
-				: undefined,
+			profile: useBedrockProfile ? legacyBedrockProfile : undefined,
 			usePromptCache: legacyGlobalState.awsBedrockUsePromptCache,
 			useCrossRegionInference: legacyGlobalState.awsUseCrossRegionInference,
 			useGlobalInference: legacyGlobalState.awsUseGlobalInference,
@@ -868,6 +882,62 @@ function collectCandidateProviderIds(
 	return candidates;
 }
 
+/**
+ * Repair a Bedrock entry written by an earlier run of this migration that
+ * dropped a bare legacy `awsProfile` (see the profile inference in
+ * buildLegacyProviderSettings). Migration never overwrites an existing
+ * entry, so without this pass the inference only reaches installs that have
+ * not migrated yet. Only untouched migration output is repaired: the entry
+ * is still tagged "migration", carries no authentication choice, profile,
+ * static credentials or API key, and legacy state still has the bare
+ * profile with no explicit authentication.
+ *
+ * Applied at most once per file: legacy state is never deleted, so a repair
+ * that re-evaluated on every launch would keep restoring a profile a user had
+ * removed through a path that does not write legacy state back (a hand-edited
+ * providers.json, or another client sharing the same data directory).
+ */
+function backfillMigratedBedrockProfile(
+	next: StoredProviderSettings,
+	legacyGlobalState: LegacyGlobalState,
+	now: string,
+): boolean {
+	if (next.repairs?.bedrockProfile) {
+		return false;
+	}
+	const entry = next.providers.bedrock;
+	if (!entry || entry.tokenSource !== "migration") {
+		return false;
+	}
+	if (legacyGlobalState.awsAuthentication !== undefined) {
+		return false;
+	}
+	const profile = trimNonEmpty(legacyGlobalState.awsProfile);
+	if (!profile) {
+		return false;
+	}
+	const aws = entry.settings.aws;
+	if (
+		aws?.authentication !== undefined ||
+		aws?.profile !== undefined ||
+		aws?.accessKey ||
+		aws?.secretKey ||
+		entry.settings.apiKey
+	) {
+		return false;
+	}
+	next.providers.bedrock = {
+		...entry,
+		settings: {
+			...entry.settings,
+			aws: { ...(aws ?? {}), authentication: "profile", profile },
+		},
+		updatedAt: now,
+	};
+	next.repairs = { ...next.repairs, bedrockProfile: true };
+	return true;
+}
+
 export function migrateLegacyProviderSettings(
 	options: MigrateLegacyProviderSettingsOptions,
 ): MigrateLegacyProviderSettingsResult {
@@ -904,6 +974,9 @@ export function migrateLegacyProviderSettings(
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
 	next.lastUsedProvider = existing.lastUsedProvider;
+	// Everything this function does not own has to survive the rewrite.
+	next.modes = existing.modes;
+	next.repairs = existing.repairs;
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
 	const modelsPath = join(
@@ -953,7 +1026,17 @@ export function migrateLegacyProviderSettings(
 		}
 	}
 
-	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
+	const repairedBedrockProfile = backfillMigratedBedrockProfile(
+		next,
+		globalState,
+		now,
+	);
+
+	if (
+		addedProviderCount === 0 &&
+		addedCustomProviderCount === 0 &&
+		!repairedBedrockProfile
+	) {
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,
@@ -981,7 +1064,10 @@ export function migrateLegacyProviderSettings(
 	}
 
 	return {
-		migrated: addedProviderCount > 0 || addedCustomProviderCount > 0,
+		migrated:
+			addedProviderCount > 0 ||
+			addedCustomProviderCount > 0 ||
+			repairedBedrockProfile,
 		providerCount: Object.keys(next.providers).length,
 		lastUsedProvider: next.lastUsedProvider,
 	};
