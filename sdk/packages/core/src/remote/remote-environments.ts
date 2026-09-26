@@ -166,8 +166,11 @@ interface ManagedConnection {
 }
 
 const PROFILE_FILE_VERSION = 1;
-const DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
-const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+// ConnectTimeout also bounds the banner exchange. Through a ProxyJump the TCP
+// connect is a pipe to the inner ssh, so the whole jump hop (bastion login,
+// channel open) must complete within this budget before the banner arrives.
+const DEFAULT_CONNECT_TIMEOUT_SECONDS = 30;
+const DEFAULT_COMMAND_TIMEOUT_MS = 60_000;
 const DEFAULT_UPLOAD_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_TUNNEL_TIMEOUT_MS = 10_000;
 const DEFAULT_HUB_SHUTDOWN_TIMEOUT_MS = 2_000;
@@ -586,7 +589,7 @@ export class RemoteEnvironmentService {
 		const uploadCommand = `umask 077; cat > ${shellQuote(temporaryPath)}`;
 		const upload = await this.dependencies.runProcess(
 			this.sshPath,
-			[...this.buildSshArgs(profile), this.destination(profile), uploadCommand],
+			[...this.buildCommandArgs(profile), uploadCommand],
 			{ timeoutMs: this.uploadTimeoutMs, inputFile: localHelper },
 		);
 		if (upload.exitCode !== 0) {
@@ -695,9 +698,22 @@ export class RemoteEnvironmentService {
 		const command = buildRemoteCommand(input.command, input.args, input.cwd);
 		return this.dependencies.runProcess(
 			this.sshPath,
-			[...this.buildSshArgs(profile), this.destination(profile), command],
+			[...this.buildCommandArgs(profile), command],
 			{ timeoutMs: this.commandTimeoutMs },
 		);
+	}
+
+	// One-shot commands never need the port forwardings an ssh_config alias may
+	// declare (LocalForward, RemoteForward, DynamicForward). Binding them on
+	// every command collides with the user's own sessions; clear them as scp
+	// and sftp do.
+	private buildCommandArgs(profile: RemoteEnvironmentProfile): string[] {
+		return [
+			...this.buildSshArgs(profile),
+			"-o",
+			"ClearAllForwardings=yes",
+			this.destination(profile),
+		];
 	}
 
 	private buildSshArgs(profile: RemoteEnvironmentProfile): string[] {
@@ -726,11 +742,12 @@ export class RemoteEnvironmentService {
 		localPort: number,
 		remotePort: number,
 	): string[] {
+		// ClearAllForwardings would drop this -L too, so alias forwardings stay.
+		// Without ExitOnForwardFailure a bind collision on one of them is a
+		// warning instead of a dead tunnel; waitForTunnel still verifies ours.
 		return [
 			...this.buildSshArgs(profile),
 			"-N",
-			"-o",
-			"ExitOnForwardFailure=yes",
 			"-o",
 			"ServerAliveInterval=15",
 			"-o",

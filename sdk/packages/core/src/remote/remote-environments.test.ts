@@ -385,8 +385,9 @@ describe("RemoteEnvironmentService", () => {
 			expect.arrayContaining([
 				"-o",
 				"BatchMode=yes",
-				"ConnectTimeout=10",
+				"ConnectTimeout=30",
 				"StrictHostKeyChecking=yes",
+				"ClearAllForwardings=yes",
 				"-p",
 				"2202",
 				"-i",
@@ -441,7 +442,7 @@ describe("RemoteEnvironmentService", () => {
 	it("bootstraps the exact helper and creates a loopback-only SSH tunnel", async () => {
 		const invocations: Invocation[] = [];
 		const tunnel = new FakeTunnel();
-		const spawnTunnel = vi.fn(() => tunnel);
+		const spawnTunnel = vi.fn((_executable: string, _args: string[]) => tunnel);
 		const waitForTunnel = vi.fn(async () => undefined);
 		const requestHubShutdown = vi.fn(async () => {
 			expect(tunnel.killed).toBe(false);
@@ -513,6 +514,7 @@ describe("RemoteEnvironmentService", () => {
 			options: { inputFile: "/opt/cline/code-sidecar-linux-arm64" },
 		});
 		expect(upload?.args.at(-1)).toContain("umask 077; cat >");
+		expect(upload?.args).toContain("ClearAllForwardings=yes");
 		const ensure = invocations.find((invocation) =>
 			invocation.args.at(-1)?.includes("--remote-hub-ensure"),
 		);
@@ -524,12 +526,15 @@ describe("RemoteEnvironmentService", () => {
 			"ssh",
 			expect.arrayContaining([
 				"-N",
-				"ExitOnForwardFailure=yes",
 				"-L",
 				"127.0.0.1:43117:127.0.0.1:25463",
 				"arm-builder",
 			]),
 		);
+		// ClearAllForwardings also drops command-line -L, so the tunnel must not use it.
+		const tunnelArgs = spawnTunnel.mock.calls[0]?.[1] ?? [];
+		expect(tunnelArgs).not.toContain("ClearAllForwardings=yes");
+		expect(tunnelArgs).not.toContain("ExitOnForwardFailure=yes");
 		expect(waitForTunnel).toHaveBeenCalledWith(43117, tunnel, 10_000);
 
 		await expect(service.disconnect()).resolves.toBe(true);
