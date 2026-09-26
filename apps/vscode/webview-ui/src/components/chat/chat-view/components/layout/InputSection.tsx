@@ -1,3 +1,4 @@
+import { isCloudTargetReady } from "@shared/cloud/cloud-sessions"
 import React from "react"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
@@ -42,7 +43,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	} = chatState
 
 	const { isAtBottom, scrollToBottomAuto } = scrollBehavior
-	const { turnState } = useExtensionState()
+	const { turnState, cloudSessionsEnabled, cloudTaskTarget, clineMessages = [] } = useExtensionState()
 	const legacyTaskRunning =
 		turnState === undefined &&
 		(lastMessage?.partial === true || (lastMessage?.type === "say" && lastMessage.say === "api_req_started"))
@@ -51,7 +52,13 @@ export const InputSection: React.FC<InputSectionProps> = ({
 		turnState?.phase === "awaiting_approval" ||
 		(messageHandlers.errorRecoveryAvailable && pendingResponse === undefined && !messageHandlers.recoveryActionInFlight) ||
 		legacyTaskRunning
-	const submitDisabled = sendingDisabled && !allowSubmitWhileDisabled
+	// The task-target panel above the composer shows what is still missing.
+	const cloudTargetIncomplete =
+		clineMessages.length === 0 &&
+		!!cloudSessionsEnabled &&
+		cloudTaskTarget?.target === "cloud" &&
+		!isCloudTargetReady(cloudTaskTarget)
+	const submitDisabled = (sendingDisabled && !allowSubmitWhileDisabled) || cloudTargetIncomplete
 
 	return (
 		<>
