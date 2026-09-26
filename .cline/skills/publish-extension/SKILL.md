@@ -71,13 +71,18 @@ The script fails when neither credential is set and checks that its timestamp ve
 ```bash
 VERSION=$(unzip -p apps/vscode/dist/cline-nightly.vsix extension/package.json \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
-MARKETPLACE_VERSION=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
-  -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
-  -d '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.cline-nightly"}]}],"flags":16}' \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['results'][0]['extensions'][0]['versions'][0]['version'])")
-OPENVSX_VERSION=$(curl -s "https://open-vsx.org/api/saoudrizwan/cline-nightly" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
-test "$MARKETPLACE_VERSION" = "$VERSION" && test "$OPENVSX_VERSION" = "$VERSION"
+if [[ -n "${VSCE_PAT:-}" ]]; then
+  MARKETPLACE_VERSION=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+    -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+    -d '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.cline-nightly"}]}],"flags":16}' \
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['results'][0]['extensions'][0]['versions'][0]['version'])")
+  test "$MARKETPLACE_VERSION" = "$VERSION"
+fi
+if [[ -n "${OVSX_PAT:-}" ]]; then
+  OPENVSX_VERSION=$(curl -s "https://open-vsx.org/api/saoudrizwan/cline-nightly" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
+  test "$OPENVSX_VERSION" = "$VERSION"
+fi
 ```
 
 The workflow validates the version and Marketplace monotonicity, tests the dispatch commit, installs with Bun, builds SDK dependencies, and packages the VSIX. For a release, it then waits for approval on the `publish` environment, publishes the prebuilt artifact, creates the tag and GitHub release, and posts to Slack.
