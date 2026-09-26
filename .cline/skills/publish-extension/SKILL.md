@@ -32,7 +32,7 @@ Both channels package the SDK-based extension from `main`. Stable and nightly ru
 2. **The workflow input, package version, and changelog heading agree.** Stable expects the package version without a `v` prefix and a leading `## [<version>]` changelog section.
 3. **Test the exact commit you publish.** Dispatch stable and nightly from protected `main`; do not substitute an arbitrary build ref.
 4. **Verify both registries.** A successful workflow log is not proof that Marketplace or Open VSX serves the version.
-5. **Leave protected release actions to the maintainer.** Ask before pushing release commits or tags, or dispatching a publish. Never approve the `publish` environment through the API; give the maintainer the run URL so they can review the deployment.
+5. **Leave release actions to the maintainer.** Ask before pushing release commits or tags, dispatching a publish, or running a local publish command. Never approve the `publish` environment through the API; give the maintainer the run URL so they can review the deployment.
 6. **Do not delete the `ext-sdk-bundle-rollout` PostHog flag yet.** Cline ≤4.1.17 embedded the retired loader and treats a missing flag as the old bundle. Keep the flag at 100% until activation traffic from those versions has ended. New builds do not read it.
 
 ## Stable release
@@ -58,7 +58,27 @@ gh workflow run ext-vscode-publish.yml \
 
 Use `publish=false` to build and inspect the VSIX without publishing, tagging, or waiting for approval on the `publish` environment.
 
-The stable `saoudrizwan.claude-dev` listing is release-only. The workflow accepts plain `X.Y.Z` versions and does not publish to its pre-release channel. Publish feature previews to the separate `saoudrizwan.cline-nightly` listing from the feature branch with `(cd apps/vscode && bun run publish:marketplace:nightly -- --pre-release)`.
+The stable `saoudrizwan.claude-dev` listing is release-only. The workflow accepts plain `X.Y.Z` versions and does not publish to its pre-release channel. Feature previews use the pre-release channel of the separate `saoudrizwan.cline-nightly` listing and do not use a legacy bundle or loader.
+
+After a maintainer approves the preview publish, provide `VSCE_PAT` and `OVSX_PAT`, then run this from the feature branch:
+
+```bash
+(cd apps/vscode && bun run publish:marketplace:nightly -- --pre-release)
+```
+
+The script fails when neither credential is set and checks that its timestamp version exceeds the live Marketplace version before packaging. A single credential publishes only to that registry; provide both for the normal two-registry preview. Read the packaged version from `apps/vscode/dist/cline-nightly.vsix`, then verify that exact version is served:
+
+```bash
+VERSION=$(unzip -p apps/vscode/dist/cline-nightly.vsix extension/package.json \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
+MARKETPLACE_VERSION=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+  -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+  -d '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.cline-nightly"}]}],"flags":16}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['results'][0]['extensions'][0]['versions'][0]['version'])")
+OPENVSX_VERSION=$(curl -s "https://open-vsx.org/api/saoudrizwan/cline-nightly" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])")
+test "$MARKETPLACE_VERSION" = "$VERSION" && test "$OPENVSX_VERSION" = "$VERSION"
+```
 
 The workflow validates the version and Marketplace monotonicity, tests the dispatch commit, installs with Bun, builds SDK dependencies, and packages the VSIX. For a release, it then waits for approval on the `publish` environment, publishes the prebuilt artifact, creates the tag and GitHub release, and posts to Slack.
 

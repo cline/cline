@@ -329,6 +329,84 @@ class NightlyPublisher {
 		return `${major}.${minor}.${timestamp}`
 	}
 
+	isVersionNewer(nextVersion, liveVersion) {
+		const next = nextVersion.split(".").map(Number)
+		const live = liveVersion.split(".").map(Number)
+
+		for (let index = 0; index < Math.max(next.length, live.length); index++) {
+			const nextPart = next[index] ?? 0
+			const livePart = live[index] ?? 0
+			if (nextPart !== livePart) {
+				return nextPart > livePart
+			}
+		}
+
+		return false
+	}
+
+	/**
+	 * Marketplace versions are shared across release and pre-release channels.
+	 * Refuse a publish that VS Code would reject because a newer nightly already
+	 * exists (for example, when publishing from a long-lived feature branch).
+	 */
+	verifyMarketplaceVersion(newVersion) {
+		const response = execFileSync(
+			"curl",
+			[
+				"-sf",
+				"--retry",
+				"3",
+				"-X",
+				"POST",
+				"https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery",
+				"-H",
+				"Content-Type: application/json",
+				"-H",
+				"Accept: application/json;api-version=3.0-preview.1",
+				"--data",
+				JSON.stringify({
+					filters: [{ criteria: [{ filterType: 7, value: "saoudrizwan.cline-nightly" }] }],
+					flags: 16,
+				}),
+			],
+			{ encoding: "utf8" },
+		)
+		const liveVersion = JSON.parse(response)?.results?.[0]?.extensions?.[0]?.versions?.[0]?.version
+
+		if (!liveVersion) {
+			throw new Error("Could not resolve the live Marketplace version for saoudrizwan.cline-nightly")
+		}
+
+		if (!this.isVersionNewer(newVersion, liveVersion)) {
+			throw new Error(`Version ${newVersion} does not exceed the live Marketplace version ${liveVersion}`)
+		}
+
+		log.info(`Version ok: ${newVersion} exceeds live Marketplace version ${liveVersion}`)
+	}
+
+	verifyOpenVSXVersion(newVersion) {
+		const response = execFileSync("curl", ["-sf", "--retry", "3", "https://open-vsx.org/api/saoudrizwan/cline-nightly"], {
+			encoding: "utf8",
+		})
+		const liveVersion = JSON.parse(response)?.version
+
+		if (!liveVersion) {
+			throw new Error("Could not resolve the live Open VSX version for saoudrizwan.cline-nightly")
+		}
+
+		if (!this.isVersionNewer(newVersion, liveVersion)) {
+			throw new Error(`Version ${newVersion} does not exceed the live Open VSX version ${liveVersion}`)
+		}
+
+		log.info(`Version ok: ${newVersion} exceeds live Open VSX version ${liveVersion}`)
+	}
+
+	validatePublishCredentials() {
+		if (!process.env.VSCE_PAT && !process.env.OVSX_PAT) {
+			throw new Error("VSCE_PAT or OVSX_PAT is required unless --dry-run is set")
+		}
+	}
+
 	/**
 	 * Update package.json with nightly configuration
 	 */
@@ -353,7 +431,9 @@ class NightlyPublisher {
 		pkg.version = newVersion
 		pkg.name = config.nightlyName
 		pkg.displayName = config.nightlyDisplayName
-		pkg.contributes.viewsContainers.activitybar.title = config.nightlyDisplayName
+		for (const container of pkg.contributes?.viewsContainers?.activitybar ?? []) {
+			container.title = config.nightlyDisplayName
+		}
 
 		// Save updated package.json
 		log.info("Updating package.json for nightly build")
@@ -388,7 +468,11 @@ class NightlyPublisher {
 		]
 
 		try {
+			const packageEnvironment = { ...process.env }
+			delete packageEnvironment.VSCE_PAT
+			delete packageEnvironment.OVSX_PAT
 			execFileSync("vsce", args, {
+				env: packageEnvironment,
 				stdio: "inherit",
 				cwd: config.projectRoot,
 			})
@@ -420,8 +504,10 @@ class NightlyPublisher {
 		]
 
 		try {
+			const publishEnvironment = { ...process.env, VSCE_PAT: token }
+			delete publishEnvironment.OVSX_PAT
 			execFileSync("vsce", args, {
-				env: { ...process.env, VSCE_PAT: token },
+				env: publishEnvironment,
 				stdio: "inherit",
 				cwd: config.projectRoot,
 			})
@@ -456,7 +542,11 @@ class NightlyPublisher {
 		]
 
 		try {
+			const publishEnvironment = { ...process.env }
+			delete publishEnvironment.VSCE_PAT
+			delete publishEnvironment.OVSX_PAT
 			execFileSync("bunx", args, {
+				env: publishEnvironment,
 				stdio: "inherit",
 				cwd: config.projectRoot,
 			})
@@ -474,6 +564,9 @@ class NightlyPublisher {
 		try {
 			const channelLabel = isPreRelease ? " (pre-release channel)" : " (release channel)"
 			log.info(`Starting nightly publish process${channelLabel}${isDryRun ? " (dry run)" : ""}`)
+			if (!isDryRun) {
+				this.validatePublishCredentials()
+			}
 
 			// Step 1: Check dependencies
 			this.checkDependencies()
@@ -483,6 +576,12 @@ class NightlyPublisher {
 
 			// Step 3: Update package.json
 			const newVersion = this.updatePackageJson()
+			if (!isDryRun && process.env.VSCE_PAT) {
+				this.verifyMarketplaceVersion(newVersion)
+			}
+			if (!isDryRun && process.env.OVSX_PAT) {
+				this.verifyOpenVSXVersion(newVersion)
+			}
 
 			// Step 3.5: Keep the workspace self-link aligned with the nightly package name
 			this.reconcileWorkspaceSelfLinkForNightly()
@@ -494,24 +593,17 @@ class NightlyPublisher {
 			this.packageExtension(isPreRelease)
 
 			// Step 5: Publish to marketplaces (skip if dry run)
-			let vsCodePublished = false
-			let openVSXPublished = false
-
 			if (isDryRun) {
 				log.info("Dry run mode: Skipping marketplace publishing")
 			} else {
-				vsCodePublished = this.publishToVSCodeMarketplace(isPreRelease)
-				openVSXPublished = this.publishToOpenVSX(isPreRelease)
+				this.publishToVSCodeMarketplace(isPreRelease)
+				this.publishToOpenVSX(isPreRelease)
 			}
 
 			// Summary
 			log.info(`Nightly publish process completed successfully${isDryRun ? " (dry run)" : ""}`)
 			log.info(`Package created for v${newVersion}: ${config.vsixPath}`)
 
-			if (!isDryRun && !vsCodePublished && !openVSXPublished) {
-				log.warn("Extension was packaged but not published to any marketplace")
-				log.warn("Set VSCE_PAT and/or OVSX_PAT environment variables to enable publishing")
-			}
 		} finally {
 			// Always restore workspace link first
 			this.restoreWorkspaceSelfLink()
