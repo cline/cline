@@ -848,6 +848,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.cerebras.ai/v1" },
 	},
 	{
+		id: "cheaperinference",
+		name: "Cheaper Inference",
+		description: "OpenAI-compatible gateway to models from several labs",
+		family: "openai-compatible",
+		defaultModelId: "gpt-5.4-mini",
+		apiKeyEnv: ["CHEAPER_INFERENCE_API_KEY"],
+		defaults: { baseUrl: "https://api.cheaperinference.com/v1" },
+	},
+	{
 		id: "sambanova",
 		name: "SambaNova",
 		description: "High-performance AI inference",
