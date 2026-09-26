@@ -20,8 +20,31 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 		return disposal
 	}
 
+	// CLINE_LOCAL_CLOUD_MODEL_DELAY_MS holds every scripted model reply so a
+	// person can act (cancel, navigate) while the sandbox is still "thinking".
+	const modelDelayMs = Number(process.env.CLINE_LOCAL_CLOUD_MODEL_DELAY_MS ?? 0)
+	const beforeModelResponse =
+		modelDelayMs > 0
+			? (signal?: AbortSignal | null) =>
+					new Promise<void>((resolve, reject) => {
+						const timer = setTimeout(resolve, modelDelayMs)
+						signal?.addEventListener(
+							"abort",
+							() => {
+								clearTimeout(timer)
+								reject(signal.reason)
+							},
+							{ once: true },
+						)
+					})
+			: undefined
 	try {
-		environment = await startLocalCloudEnvironment({ ...options, port: options.port ?? 7777, accessToken })
+		environment = await startLocalCloudEnvironment({
+			...options,
+			port: options.port ?? 7777,
+			accessToken,
+			beforeModelResponse,
+		})
 		const settingsDir = path.join(dataDir, "settings")
 		await mkdir(settingsDir, { recursive: true })
 		await writeFile(path.join(dataDir, "globalState.json"), JSON.stringify({ welcomeViewCompleted: true }))
