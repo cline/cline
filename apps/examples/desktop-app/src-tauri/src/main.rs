@@ -797,6 +797,7 @@ fn ensure_desktop_backend_started_locked(
                     return;
                 }
             }
+            eprintln!("[desktop-backend] {trimmed}");
             state_for_stdout.record_diagnostic(trimmed);
         });
         // Only clear the endpoint if this thread's child is still the one
@@ -813,7 +814,14 @@ fn ensure_desktop_backend_started_locked(
 
     let state_for_stderr = state.clone();
     thread::spawn(move || {
-        read_diagnostic_lines(stderr, |line| state_for_stderr.record_diagnostic(&line));
+        read_diagnostic_lines(stderr, |line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return;
+            }
+            eprintln!("[desktop-backend:err] {trimmed}");
+            state_for_stderr.record_diagnostic(trimmed);
+        });
     });
 
     *process_guard = Some(child);
