@@ -325,6 +325,7 @@ export function AgentPromptQueue({
 												setEditingId(item.id);
 												setEditingValue(item.prompt);
 											}}
+											title="Edit"
 											type="button"
 										>
 											<Icon name="pencil" />
@@ -334,6 +335,7 @@ export function AgentPromptQueue({
 											className={ACTION_CLASS_NAME}
 											disabled={isBusy}
 											onClick={() => void runAction(item, "remove")}
+											title="Delete"
 											type="button"
 										>
 											<Icon name="trash" />
