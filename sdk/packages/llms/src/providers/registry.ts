@@ -258,12 +258,15 @@ export class GatewayRegistry {
 		}
 
 		const modelId = selection.modelId ?? provider.defaultModelId;
+		const canonicalModelId = resolveModelIdAlias(provider.id, modelId);
+		const canonicalModel = provider.models.find(
+			(entry) => entry.id === canonicalModelId,
+		);
 		const model =
 			provider.models.find((entry) => entry.id === modelId) ??
-			provider.models.find(
-				(entry) => entry.id === resolveModelIdAlias(provider.id, modelId),
-			) ??
-			createUnregisteredModel(provider, modelId);
+			(canonicalModel
+				? { ...canonicalModel, id: modelId }
+				: createUnregisteredModel(provider, modelId));
 
 		return {
 			provider,

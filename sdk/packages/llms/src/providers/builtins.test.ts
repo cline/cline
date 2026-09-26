@@ -56,7 +56,10 @@ describe("deepseek builtin models", () => {
 		).toBe(false);
 		expect(
 			registry.resolveModel({ providerId: "deepseek", modelId: id }).model,
-		).toEqual(manifest.models.find((model) => model.id === "deepseek-flash"));
+		).toEqual({
+			...manifest.models.find((model) => model.id === "deepseek-flash"),
+			id,
+		});
 	});
 });
 
