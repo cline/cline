@@ -917,7 +917,9 @@ export const ChatRowContent = memo(
 							<UserMessage
 								files={message.files}
 								images={message.images}
-								messageTs={message.ts}
+								// Edit-and-regenerate rebuilds the conversation as a local session, which
+								// a cloud task cannot use; without a timestamp the row is read-only.
+								messageTs={currentCloudTask ? undefined : message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
 								text={message.text}
 								canRestoreWorkspace={!currentCloudTask && canRestoreWorkspaceFromMessage(clineMessages, message.ts)}

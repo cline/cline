@@ -39,6 +39,22 @@ export interface CurrentCloudTaskInfo {
 
 export const CLOUD_WORKSPACE_ROOT = "/workspace"
 
+/**
+ * Cloud sessions run in Act mode only, whatever Plan/Act mode the user has
+ * saved for local tasks. The sandbox runtime, each turn sent to it and the
+ * chat view all read this one value so they cannot disagree.
+ */
+export const CLOUD_SESSION_MODE = "act" as const
+
+/**
+ * Whether the persisted Local/Cloud choice names a sandbox that can be
+ * started: Cloud with a repository. Cloud without a repository is an
+ * incomplete selection, not a fallback to Local.
+ */
+export function isCloudTargetReady(selection: CloudTaskTargetSelection | undefined): boolean {
+	return selection?.target === "cloud" && !!selection.repoUrl?.trim()
+}
+
 export const ACTIVE_CLOUD_STATUSES: ReadonlySet<CloudSessionStatus> = new Set(["provisioning", "running"])
 
 export const CLOUD_PROVISIONING_ID_PREFIX = "cloud-provisioning-"

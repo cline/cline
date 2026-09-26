@@ -19,6 +19,7 @@ import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
 import {
 	ACTIVE_CLOUD_STATUSES,
 	CLOUD_PROVISIONING_ID_PREFIX,
+	CLOUD_SESSION_MODE,
 	CLOUD_WORKSPACE_ROOT,
 	type CloudSessionStatus,
 	type CurrentCloudTaskInfo,
@@ -28,7 +29,6 @@ import {
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { ShowMessageType } from "@shared/proto/host/window"
-import type { Mode } from "@shared/storage/types"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -481,7 +481,6 @@ export class SdkCloudSessionCoordinator {
 				getAuthToken: this.options.getAuthToken,
 				requestToolApproval: this.options.requestToolApproval,
 				telemetry: this.options.telemetry,
-				getMode: () => this.getCurrentMode(),
 				onStatusChange: (status) => {
 					// A replaced account entry must never receive its predecessor's events.
 					if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
@@ -583,10 +582,6 @@ export class SdkCloudSessionCoordinator {
 
 	// ---- Starting a task ----
 
-	private getCurrentMode(): Mode {
-		return this.options.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-	}
-
 	/** The Cline model the sandbox should run: the user's current Cline model, else the top recommendation. */
 	private async resolveCloudModelId(): Promise<string> {
 		const apiConfig = this.options.stateManager.getApiConfiguration()
@@ -676,7 +671,7 @@ export class SdkCloudSessionCoordinator {
 			const config = await this.options.sessionConfigBuilder.build({
 				cwd: CLOUD_WORKSPACE_ROOT,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
-				mode: "act",
+				mode: CLOUD_SESSION_MODE,
 				runtime: {
 					modelSelection: { providerId: "cline", modelId },
 					platform: "linux",
@@ -708,7 +703,7 @@ export class SdkCloudSessionCoordinator {
 					...config,
 					cwd: CLOUD_WORKSPACE_ROOT,
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
-					mode: this.getCurrentMode(),
+					mode: CLOUD_SESSION_MODE,
 					sessionId: record.id,
 					enableTools: true,
 					checkpoint: { enabled: false },
