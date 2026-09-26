@@ -160,7 +160,7 @@ describe("InputSection", () => {
 		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
 	})
 
-	it("keeps submit disabled for fatal errors", () => {
+	it("keeps submit disabled in the error phase when no recovery is offered", () => {
 		mockTurnState.mockReturnValue({ phase: "error", seq: 1 })
 		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
 
