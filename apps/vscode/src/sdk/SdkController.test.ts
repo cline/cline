@@ -537,6 +537,38 @@ describe("resolveWorkspaceManagerPaths", () => {
 	})
 })
 
+describe("cancelling a provisioning cloud task", () => {
+	it("returns to the home view instead of offering Resume Task", async () => {
+		const phases: string[] = []
+		const controller = {
+			turnStateTracker: { set: (phase: string) => phases.push(phase) },
+			cloud: { cancelPendingStart: vi.fn(() => true) },
+			clearTask: vi.fn(async () => phases.push("cleared")),
+			taskControl: { cancelTask: vi.fn() },
+		}
+
+		await SdkController.prototype.cancelTask.call(controller as never)
+
+		expect(phases).toEqual(["resumable", "cleared"])
+		expect(controller.taskControl.cancelTask).not.toHaveBeenCalled()
+	})
+
+	it("cancels the pending cloud start when the user starts a new task", async () => {
+		const cancelPendingStart = vi.fn(() => true)
+		const controller = {
+			turnStateTracker: { set: vi.fn() },
+			cloud: { cancelPendingStart },
+			taskControl: { clearTask: vi.fn(async () => undefined) },
+			postStateToWebview: vi.fn(async () => undefined),
+		}
+
+		await SdkController.prototype.clearTask.call(controller as never)
+
+		expect(cancelPendingStart).toHaveBeenCalledOnce()
+		expect(controller.taskControl.clearTask).toHaveBeenCalledOnce()
+	})
+})
+
 describe("cloud tasks stay in the cloud", () => {
 	const stateManager = { getGlobalSettingsKey: (key: string) => (key === "mode" ? "plan" : undefined) }
 

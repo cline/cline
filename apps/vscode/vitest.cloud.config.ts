@@ -10,11 +10,14 @@ export default defineConfig({
 		hookTimeout: 30_000,
 	},
 	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "src"),
-			"@core": path.resolve(__dirname, "src/core"),
-			"@utils": path.resolve(__dirname, "src/utils"),
-			"@shared": path.resolve(__dirname, "src/shared"),
-		},
+		alias: [
+			// Vite drops Zod's named namespace export on Windows while preserving
+			// its default export. Restore the package's declared `z` export for tests.
+			{ find: /^zod$/, replacement: path.resolve(__dirname, "src/test/zod-vitest-stub.ts") },
+			{ find: "@", replacement: path.resolve(__dirname, "src") },
+			{ find: "@core", replacement: path.resolve(__dirname, "src/core") },
+			{ find: "@utils", replacement: path.resolve(__dirname, "src/utils") },
+			{ find: "@shared", replacement: path.resolve(__dirname, "src/shared") },
+		],
 	},
 })

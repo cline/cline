@@ -38,12 +38,17 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 						)
 					})
 			: undefined
+	// CLINE_LOCAL_CLOUD_PROVISION_DELAY_MS keeps a new sandbox in `provisioning`
+	// for that long, like the hosted control plane, so cancelling during
+	// provisioning can be exercised.
+	const provisioningDelayMs = Number(process.env.CLINE_LOCAL_CLOUD_PROVISION_DELAY_MS ?? 0)
 	try {
 		environment = await startLocalCloudEnvironment({
 			...options,
 			port: options.port ?? 7777,
 			accessToken,
 			beforeModelResponse,
+			provisioningDelayMs,
 		})
 		const settingsDir = path.join(dataDir, "settings")
 		await mkdir(settingsDir, { recursive: true })

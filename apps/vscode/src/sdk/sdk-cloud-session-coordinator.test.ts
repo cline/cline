@@ -38,7 +38,10 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 	let task: { taskId: string } | undefined
 	const cloudSessions = {
 		listSessions: vi.fn<() => Promise<CloudSessionRecord[]>>(async () => []),
-		createSession: vi.fn(async (_input: CreateCloudSessionInput, _onProvisioning?: (sessionId: string) => void) => record),
+		createSession: vi.fn(
+			async (_input: CreateCloudSessionInput, _onProvisioning?: (sessionId: string) => void, _signal?: AbortSignal) =>
+				record,
+		),
 		deleteSession: vi.fn(async () => undefined),
 		renameSession: vi.fn(async () => undefined),
 		dashboardUrl: vi.fn((id: string) => `https://example.test/${id}`),
@@ -107,11 +110,12 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			sessions: { startNewSession, fireAndForgetSend } as never,
 		})
 
-		expect(await coordinator.startCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })).toBe(record.id)
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBe(record.id)
 
 		expect(cloudSessions.createSession).toHaveBeenCalledWith(
 			expect.objectContaining({ modelId: "act-cloud-model" }),
 			expect.any(Function),
+			expect.any(AbortSignal),
 		)
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith(expect.objectContaining({ mode: "act" }))
 		expect(startNewSession).toHaveBeenCalledWith(
@@ -392,10 +396,10 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 	it("does not provision when the task view was already superseded", async () => {
 		const { coordinator, cloudSessions } = makeCoordinator({ claimTaskViewGeneration: () => () => true })
 
-		const result = await coordinator.startCloudTask({
+		const result = await coordinator.beginCloudTask({
 			prompt: "test",
 			repoUrl: "https://github.com/cline/fixture",
-		})
+		})()
 
 		expect(result).toBeUndefined()
 		expect(cloudSessions.createSession).not.toHaveBeenCalled()
@@ -413,10 +417,10 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			return created.promise
 		})
 
-		const starting = coordinator.startCloudTask({
+		const starting = coordinator.beginCloudTask({
 			prompt: "test",
 			repoUrl: "https://github.com/cline/fixture",
-		})
+		})()
 		await provisioned.promise
 		expect(coordinator.cancelPendingStart()).toBe(true)
 		expect(coordinator.cancelPendingStart()).toBe(false)
@@ -426,6 +430,35 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
 		expect(startNewSession).not.toHaveBeenCalled()
 		expect(options.resolveContextMentions).not.toHaveBeenCalled()
+	})
+
+	it("stops the readiness poll as soon as the user cancels", async () => {
+		const provisioned = deferred<void>()
+		const { coordinator, cloudSessions } = makeCoordinator({ sessions: { startNewSession: vi.fn() } as never })
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning, signal) => {
+			onProvisioning?.(record.id)
+			provisioned.resolve()
+			// The real service polls /status until the sandbox is ready or the signal aborts.
+			await new Promise<void>((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason)))
+			throw new Error("unreachable")
+		})
+
+		const starting = coordinator.beginCloudTask({ prompt: "test", repoUrl: "https://github.com/cline/fixture" })()
+		await provisioned.promise
+		coordinator.cancelPendingStart()
+
+		expect(await starting).toBe(record.id)
+		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
+	})
+
+	it("defeats a start that is claimed but not yet running when the user cancels first", async () => {
+		const { coordinator, cloudSessions } = makeCoordinator()
+
+		const run = coordinator.beginCloudTask({ prompt: "test", repoUrl: "https://github.com/cline/fixture" })
+		expect(coordinator.cancelPendingStart()).toBe(true)
+
+		expect(await run()).toBeUndefined()
+		expect(cloudSessions.createSession).not.toHaveBeenCalled()
 	})
 
 	it("projects an authoritative usage snapshot from its live cloud host", async () => {
