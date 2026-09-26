@@ -449,4 +449,3 @@ export async function readTextFromSystemClipboard(
 
 	return undefined;
 }
-

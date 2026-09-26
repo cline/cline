@@ -450,7 +450,9 @@ describe("readTextFromSystemClipboard", () => {
 	it("falls back to next command on Linux when first command fails", async () => {
 		const failMock = createChildProcessMock({ closeCode: 1 });
 		const successMock = createChildProcessMock({ stdoutText: "from xclip" });
-		spawnMock.mockReturnValueOnce(failMock.child).mockReturnValueOnce(successMock.child);
+		spawnMock
+			.mockReturnValueOnce(failMock.child)
+			.mockReturnValueOnce(successMock.child);
 		const { readTextFromSystemClipboard } = await import("./clipboard");
 
 		const result = await readTextFromSystemClipboard({
@@ -461,8 +463,18 @@ describe("readTextFromSystemClipboard", () => {
 
 		expect(result).toBe("from xclip");
 		expect(spawnMock).toHaveBeenCalledTimes(2);
-		expect(spawnMock).toHaveBeenNthCalledWith(1, "wl-paste", ["--no-newline"], expect.any(Object));
-		expect(spawnMock).toHaveBeenNthCalledWith(2, "xclip", ["-selection", "clipboard", "-o"], expect.any(Object));
+		expect(spawnMock).toHaveBeenNthCalledWith(
+			1,
+			"wl-paste",
+			["--no-newline"],
+			expect.any(Object),
+		);
+		expect(spawnMock).toHaveBeenNthCalledWith(
+			2,
+			"xclip",
+			["-selection", "clipboard", "-o"],
+			expect.any(Object),
+		);
 	});
 
 	it("reads clipboard on Windows via powershell", async () => {
@@ -485,7 +497,9 @@ describe("readTextFromSystemClipboard", () => {
 
 	it("falls back to python3 X11 script on Linux when wl-paste, xclip, and xsel fail", async () => {
 		const failMock = () => createChildProcessMock({ closeCode: 1 }).child;
-		const successMock = createChildProcessMock({ stdoutText: "from python x11" });
+		const successMock = createChildProcessMock({
+			stdoutText: "from python x11",
+		});
 		spawnMock
 			.mockReturnValueOnce(failMock())
 			.mockReturnValueOnce(failMock())
@@ -510,7 +524,9 @@ describe("readTextFromSystemClipboard", () => {
 	});
 
 	it("returns undefined if all commands fail or return empty", async () => {
-		spawnMock.mockImplementation(() => createChildProcessMock({ closeCode: 1 }).child);
+		spawnMock.mockImplementation(
+			() => createChildProcessMock({ closeCode: 1 }).child,
+		);
 		const { readTextFromSystemClipboard } = await import("./clipboard");
 
 		const result = await readTextFromSystemClipboard({
@@ -521,5 +537,3 @@ describe("readTextFromSystemClipboard", () => {
 		expect(result).toBeUndefined();
 	});
 });
-
-

@@ -201,10 +201,7 @@ export function InputBar(props: InputBarProps) {
 			const text = await readTextFromSystemClipboard();
 			if (!text) return;
 
-			if (
-				shouldCompactPastedText(text) &&
-				onLargeTextPasteRef.current
-			) {
+			if (shouldCompactPastedText(text) && onLargeTextPasteRef.current) {
 				const marker = onLargeTextPasteRef.current(text);
 				insertAtomicText(marker);
 				return;
@@ -223,7 +220,13 @@ export function InputBar(props: InputBarProps) {
 				isPastingRef.current = false;
 			}, 100);
 		}
-	}, [emitVisualCursorChange, inputRef, insertAtomicText, insertImageAttachment, props.onFocusRequest]);
+	}, [
+		emitVisualCursorChange,
+		inputRef,
+		insertAtomicText,
+		insertImageAttachment,
+		props.onFocusRequest,
+	]);
 
 	useKeyboard((key) => {
 		if (

@@ -78,4 +78,3 @@ describe("normalizePastedAnswer", () => {
 		expect(normalizePastedAnswer(input)).toBe(expected);
 	});
 });
-

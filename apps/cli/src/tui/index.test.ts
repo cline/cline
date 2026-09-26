@@ -13,9 +13,7 @@ const rendererMock = vi.hoisted(() => ({
 	setTerminalTitle: vi.fn(),
 }));
 
-const createCliRendererMock = vi.hoisted(() =>
-	vi.fn(async () => rendererMock),
-);
+const createCliRendererMock = vi.hoisted(() => vi.fn(async () => rendererMock));
 
 const rootMock = vi.hoisted(() => ({
 	render: vi.fn(),
@@ -177,4 +175,3 @@ describe("renderOpenTui", () => {
 		);
 	});
 });
-

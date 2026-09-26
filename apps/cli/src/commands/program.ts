@@ -78,7 +78,10 @@ export function addRootOptions(cmd: Command): Command {
 				"Auto-create a detached git worktree under ~/.cline/worktrees/ and run the task there",
 			)
 			.option("--update", "Check for updates and install if available")
-			.option("--no-mouse", "Disable mouse capture in the terminal user interface")
+			.option(
+				"--no-mouse",
+				"Disable mouse capture in the terminal user interface",
+			)
 			.option("--kanban", "Run the kanban app")
 			.option("-v, --verbose", "Show verbose output")
 			// HIDDEN/LEGACY OPTIONS BELOW

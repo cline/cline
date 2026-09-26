@@ -32,4 +32,3 @@ export function normalizePastedAnswer(text: string): string {
 		.replace(/\s*[\r\n]+\s*/g, " ")
 		.trim();
 }
-
