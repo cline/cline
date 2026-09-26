@@ -1,8 +1,11 @@
+import type { WorkspaceRestoreAvailability } from "@shared/ExtensionMessage"
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
 import type React from "react"
 import { useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { highlightText } from "./task-header/Highlights"
 
@@ -12,17 +15,23 @@ interface UserMessageProps {
 	images?: string[]
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
-	canRestoreWorkspace?: boolean
+	workspaceRestoreAvailability?: WorkspaceRestoreAvailability
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, workspaceRestoreAvailability }) => {
+	const { navigateToSettings } = useExtensionState()
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
 	const [editedFiles, setEditedFiles] = useState(files ?? [])
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>()
+	const [workspaceRestorePopoverOpen, setWorkspaceRestorePopoverOpen] = useState(false)
 	const highlightedText = useMemo(() => highlightText(text), [text])
+	const workspaceRestoreTooltip = workspaceRestoreAvailability?.available
+		? "Rewind conversation, reset code edits"
+		: "No workspace checkpoint was created for this message."
+	const workspaceRestoreUnavailable = workspaceRestoreAvailability?.available === false
 
 	const startEditing = () => {
 		setEditedText(text ?? "")
@@ -50,7 +59,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	}
 
 	const handleSave = async (restoreWorkspace: boolean) => {
-		if (!messageTs || savingMode) {
+		if (!messageTs || savingMode || (restoreWorkspace && workspaceRestoreUnavailable)) {
 			return
 		}
 		setSavingMode(restoreWorkspace ? "workspace" : "chat")
@@ -73,6 +82,17 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			setSavingMode(undefined)
 		}
 	}
+
+	const resetCodeButton = workspaceRestoreAvailability ? (
+		<button
+			aria-disabled={workspaceRestoreUnavailable || undefined}
+			className="shrink-0 whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 aria-disabled:opacity-60 aria-disabled:cursor-not-allowed text-xs"
+			disabled={!!savingMode}
+			onClick={() => handleSave(true)}
+			type="button">
+			{savingMode === "workspace" ? "Restoring..." : "Reset Code"}
+		</button>
+	) : null
 
 	return (
 		<div
@@ -156,22 +176,32 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 									</span>
 								</TooltipTrigger>
 							</Tooltip>
-							{canRestoreWorkspace && (
-								<Tooltip>
-									<TooltipContent side="top">Rewind conversation, reset code edits</TooltipContent>
-									<TooltipTrigger asChild>
-										<span className="inline-flex shrink-0">
+							{workspaceRestoreAvailability &&
+								(workspaceRestoreUnavailable && workspaceRestoreAvailability.reason === "checkpoints_disabled" ? (
+									<Popover onOpenChange={setWorkspaceRestorePopoverOpen} open={workspaceRestorePopoverOpen}>
+										<PopoverContent className="max-w-xs w-auto text-xs" side="top">
+											No checkpoint is available for this message. Enable Checkpoints in{" "}
 											<button
-												className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
-												disabled={!!savingMode}
-												onClick={() => handleSave(true)}
+												className="cursor-pointer border-0 bg-transparent p-0 text-[inherit] text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground)]"
+												onClick={() => {
+													setWorkspaceRestorePopoverOpen(false)
+													navigateToSettings("checkpoints")
+												}}
 												type="button">
-												{savingMode === "workspace" ? "Restoring..." : "Reset Code"}
-											</button>
-										</span>
-									</TooltipTrigger>
-								</Tooltip>
-							)}
+												Settings
+											</button>{" "}
+											to create checkpoints for future messages.
+										</PopoverContent>
+										<PopoverTrigger asChild>{resetCodeButton}</PopoverTrigger>
+									</Popover>
+								) : (
+									<Tooltip>
+										<TooltipContent className="max-w-xs" side="top">
+											{workspaceRestoreTooltip}
+										</TooltipContent>
+										<TooltipTrigger asChild>{resetCodeButton}</TooltipTrigger>
+									</Tooltip>
+								))}
 						</div>
 					</div>
 				</div>

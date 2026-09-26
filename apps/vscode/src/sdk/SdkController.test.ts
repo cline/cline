@@ -50,6 +50,8 @@ describe("SDK remote-config coordination", () => {
 			isRemoteConfigAvailable: true,
 			currentRemoteConfigRevision: 7,
 			ensureWorkspaceManager: async () => undefined,
+			refreshWorkspaceRestoreAvailability: async () => undefined,
+			workspaceRestoreAvailabilityByMessageTs: {},
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
 			turnStateTracker: { get: () => undefined },
@@ -258,6 +260,160 @@ describe("SDK remote-config coordination", () => {
 		await SdkController.prototype.reinitExistingTaskFromId.call(controller as never, "task-id")
 
 		expect(events).toEqual(["policy", "resume"])
+	})
+})
+
+describe("workspace restore availability cache", () => {
+	it("builds history-task state when temporary host creation fails", async () => {
+		const task = {
+			taskId: "task-a",
+			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+		}
+		const controller = {
+			task,
+			sessions: { getActiveSession: () => undefined },
+			createRemoteConfigAwareSessionHost: vi.fn().mockRejectedValue(new Error("host unavailable")),
+			refreshWorkspaceRestoreAvailability: (SdkController.prototype as any).refreshWorkspaceRestoreAvailability,
+			workspaceRestoreAvailabilityGeneration: 0,
+			workspaceRestoreAvailabilitySessionId: undefined,
+			workspaceRestoreAvailabilityByMessageTs: { 1: { available: true } },
+			stateManager: {
+				getGlobalSettingsKey: () => undefined,
+				getRemoteConfigSettings: () => ({}),
+				setGlobalState: vi.fn(),
+			},
+			backgroundCommandRunning: false,
+			backgroundCommandTaskId: undefined,
+			foregroundCommands: { isRunning: false },
+			isRemoteConfigAvailable: true,
+			currentRemoteConfigRevision: 7,
+			ensureWorkspaceManager: async () => undefined,
+			taskHistory: { listHistory: async () => [] },
+			getWorkspaceRoot: async () => "/workspace",
+			turnStateTracker: { get: () => undefined },
+			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
+		}
+
+		const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+
+		expect(state.workspaceRestoreAvailabilityByMessageTs).toEqual({})
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBeUndefined()
+		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({})
+	})
+
+	it("does not block history-task state when temporary host cleanup fails", async () => {
+		const task = {
+			taskId: "task-a",
+			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+		}
+		const tempHost = {
+			get: vi.fn().mockResolvedValue({
+				metadata: { checkpoint: { history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] } },
+			}),
+			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "A" }]),
+			dispose: vi.fn().mockRejectedValue(new Error("cleanup failed")),
+		}
+		const controller = {
+			task,
+			sessions: { getActiveSession: () => undefined },
+			createRemoteConfigAwareSessionHost: vi.fn().mockResolvedValue(tempHost),
+			workspaceRestoreAvailabilityGeneration: 0,
+			workspaceRestoreAvailabilitySessionId: undefined,
+			workspaceRestoreAvailabilityByMessageTs: {},
+		}
+
+		await expect(
+			(SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true),
+		).resolves.toBeUndefined()
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-a")
+		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 1: { available: true } })
+		expect(tempHost.dispose).toHaveBeenCalledWith("workspaceRestoreAvailability")
+	})
+
+	it("does not publish a suspended refresh after switching tasks", async () => {
+		let resolveTaskA: ((value: unknown) => void) | undefined
+		const taskARecord = new Promise((resolve) => {
+			resolveTaskA = resolve
+		})
+		const taskA = {
+			taskId: "task-a",
+			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+		}
+		const taskB = {
+			taskId: "task-b",
+			messageStateHandler: { getClineMessages: () => [{ ts: 2, type: "say", say: "task", text: "B" }] },
+		}
+		const sessionA = {
+			sessionId: "task-a",
+			sdkHost: {
+				get: () => taskARecord,
+				readMessages: async () => [{ role: "user", content: "A" }],
+			},
+		}
+		const sessionB = {
+			sessionId: "task-b",
+			sdkHost: {
+				get: async () => ({
+					metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 1 }] } },
+				}),
+				readMessages: async () => [{ role: "user", content: "B" }],
+			},
+		}
+		let activeSession = sessionA
+		const controller = {
+			task: taskA,
+			sessions: { getActiveSession: () => activeSession },
+			stateManager: { getGlobalSettingsKey: () => true },
+			workspaceRestoreAvailabilityGeneration: 0,
+			workspaceRestoreAvailabilitySessionId: undefined,
+			workspaceRestoreAvailabilityByMessageTs: {},
+		}
+
+		const refreshTaskA = (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true)
+		controller.task = taskB
+		activeSession = sessionB
+		const refreshTaskB = (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true)
+		resolveTaskA?.({ metadata: { checkpoint: { history: [] } } })
+		await Promise.all([refreshTaskA, refreshTaskB])
+
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-b")
+		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 2: { available: true } })
+	})
+
+	it("retries a same-session refresh after a transient read failure", async () => {
+		const task = {
+			taskId: "task-a",
+			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+		}
+		const get = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("temporary read failure"))
+			.mockResolvedValueOnce({
+				metadata: { checkpoint: { history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] } },
+			})
+		const session = {
+			sessionId: "task-a",
+			sdkHost: {
+				get,
+				readMessages: async () => [{ role: "user", content: "A" }],
+			},
+		}
+		const controller = {
+			task,
+			sessions: { getActiveSession: () => session },
+			stateManager: { getGlobalSettingsKey: () => true },
+			workspaceRestoreAvailabilityGeneration: 0,
+			workspaceRestoreAvailabilitySessionId: "task-a",
+			workspaceRestoreAvailabilityByMessageTs: { 1: { available: false, reason: "checkpoint_unavailable" } },
+		}
+
+		await (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true)
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBeUndefined()
+		await (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, false)
+
+		expect(get).toHaveBeenCalledTimes(2)
+		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-a")
+		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 1: { available: true } })
 	})
 })
 

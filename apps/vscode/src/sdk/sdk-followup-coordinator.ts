@@ -43,8 +43,6 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	/** Resolves once no session rebuild is in flight. */
-	waitForPendingRebuilds: () => Promise<void>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -83,17 +81,14 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.queueToActiveSession(activeSession, prompt, images, files)
+			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
 			return
 		}
 
-		// Rebuilds replace idle sessions. Wait before acquiring the shared
-		// prepare/start boundary so this follow-up cannot target a replaced host.
-		await this.options.waitForPendingRebuilds()
-
 		await this.options.runExclusive(async () => {
-			// Task navigation does not use the rebuild scheduler. Do not deliver a
-			// prompt submitted from one task into a task selected while we waited.
+			// Task navigation and follow-up selection share this rebuild boundary.
+			// Still recheck logical identity because navigation may have completed
+			// before this operation acquired the boundary.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
 			// and the user's follow-up should survive that.
 			if (task && this.options.getTask()?.taskId !== task.taskId) {
@@ -105,7 +100,7 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.queueToActiveSession(currentSession, prompt, images, files)
+				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
 				return
 			}
 
@@ -133,16 +128,38 @@ export class SdkFollowupCoordinator {
 	/** Queue a follow-up onto a session whose turn is still running. */
 	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		displayedTaskId: string | undefined,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
 	): Promise<void> {
-		const { sdkHost, sessionId } = activeSession
+		const { sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
+		// The submitted turn phase is authoritative when the lifecycle flag is
+		// briefly stale. Keep passive rebuilds behind the active turn while mention
+		// resolution runs. Core owns the queue: it shows the prompt in the webview
+		// at once, and a later session rebuild carries the queue over.
 		this.options.sessions.setRunning(true)
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
+		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
+			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
+			return
+		}
+
+		const currentSession = this.options.sessions.getActiveSession()
+		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
+			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
+			return
+		}
+		this.options.sessions.fireAndForgetSend(
+			currentSession.sdkHost,
+			currentSession.sessionId,
+			resolvedPrompt,
+			images,
+			files,
+			"queue",
+		)
 	}
 
 	/**

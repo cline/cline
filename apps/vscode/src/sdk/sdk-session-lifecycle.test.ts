@@ -176,6 +176,63 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("keeps the session running when a send settles after Core started the next queued turn", async () => {
+		const onDidBecomeIdle = vi.fn()
+		let resolveSend: () => void = () => {}
+		const sdkHost = makeSdkHost({
+			send: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						resolveSend = resolve
+					}),
+			),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidBecomeIdle })
+		await lifecycle.startNewSession({} as StartInput)
+
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "first")
+		// Core emits idle for the first turn and immediately drains a queued prompt.
+		lifecycle.setRunning(false)
+		lifecycle.setRunning(true)
+		resolveSend()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
+		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
+	})
+
+	it("treats an emptied prompt queue on an idle session as becoming idle", async () => {
+		const onDidBecomeIdle = vi.fn()
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidBecomeIdle })
+		await lifecycle.startNewSession({} as StartInput)
+
+		lifecycle.setQueuedPromptCount(2)
+		lifecycle.setRunning(false)
+		expect(onDidBecomeIdle).toHaveBeenCalledTimes(1)
+		expect(lifecycle.getActiveSession()?.queuedPromptCount).toBe(2)
+
+		lifecycle.setQueuedPromptCount(0)
+		expect(onDidBecomeIdle).toHaveBeenCalledTimes(2)
+	})
+
+	it("notifies idle listeners after a send fails", async () => {
+		const onDidBecomeIdle = vi.fn()
+		const onSendError = vi.fn()
+		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(new Error("provider failed")) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidBecomeIdle, onSendError })
+		await lifecycle.startNewSession({} as StartInput)
+
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(onSendError).toHaveBeenCalledWith(expect.any(Error), "session-123"))
+
+		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
 	it("notifies idle listeners only on a running-to-idle transition", async () => {
 		const onDidBecomeIdle = vi.fn()
 		const sdkHost = makeSdkHost()

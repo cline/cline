@@ -209,6 +209,36 @@ vscode-dropdown::part(listbox) {
 	}
 }
 
+@keyframes settings-target-highlight {
+	0%,
+	70% {
+		border-color: var(--vscode-focusBorder);
+	}
+	100% {
+		border-color: transparent;
+	}
+}
+
+@keyframes settings-target-highlight-reduced-motion {
+	0%,
+	99% {
+		border-color: var(--vscode-focusBorder);
+	}
+	100% {
+		border-color: transparent;
+	}
+}
+
+.settings-target-highlight {
+	animation: settings-target-highlight 1.7s ease forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.settings-target-highlight {
+		animation: settings-target-highlight-reduced-motion 1.2s step-end forwards;
+	}
+}
+
 /* Fix tooltip arrow lag - disable animations on tooltips */
 [data-slot="tooltip-content"],
 [data-slot="tooltip-content"] * {
