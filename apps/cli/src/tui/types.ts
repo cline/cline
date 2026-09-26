@@ -148,6 +148,7 @@ export type RuntimeToolInteraction =
 
 export interface TuiProps {
 	config: Config;
+	mouse?: boolean;
 	startupTarget?: TuiStartupTarget;
 	initialPrompt?: string;
 	initialNotice?: CliMigrationNotice;
