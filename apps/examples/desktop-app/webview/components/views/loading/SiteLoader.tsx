@@ -23,9 +23,7 @@ export function SiteLoader({
 	useEffect(() => {
 		if (!ready) setFinished(false);
 	}, [ready]);
-	const [continueWithoutHub, setContinueWithoutHub] = useState(false);
-	const showApp =
-		readiness.transport === "connected" && (continueWithoutHub || finished);
+	const showApp = ready && finished;
 	const [hasLoaded, setHasLoaded] = useState(false);
 	useEffect(() => {
 		if (showApp) setHasLoaded(true);
@@ -42,11 +40,6 @@ export function SiteLoader({
 					readiness={readiness}
 					finishing={ready && minimumElapsed}
 					onComplete={finish}
-					onContinue={
-						readiness.transport === "connected"
-							? () => setContinueWithoutHub(true)
-							: undefined
-					}
 				/>
 			)}
 		</>

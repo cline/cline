@@ -8,12 +8,10 @@ export function LoadingScreen({
 	readiness,
 	finishing = false,
 	onComplete,
-	onContinue,
 }: {
 	readiness: ReturnType<typeof useDesktopReadiness>;
 	finishing?: boolean;
 	onComplete?: () => void;
-	onContinue?: () => void;
 }) {
 	const connected = readiness.transport === "connected";
 	const { hub, startup } = readiness;
@@ -151,15 +149,6 @@ export function LoadingScreen({
 						style={{ width: `${progress}%` }}
 					/>
 				</div>
-				{onContinue && hub.state !== "ready" && (
-					<button
-						type="button"
-						onClick={onContinue}
-						className="mt-4 text-sm text-primary underline underline-offset-4"
-					>
-						Continue to sign-in, settings, or remote environments
-					</button>
-				)}
 				{failed && (
 					<div className="mt-4 text-sm">
 						<p className="whitespace-pre-wrap text-muted-foreground">

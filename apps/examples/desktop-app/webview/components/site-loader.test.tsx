@@ -79,9 +79,7 @@ it("keeps automatic recovery in the loader without a Retry button or sidebar", (
 	expect(container.textContent).toContain(
 		"Retrying session service automatically",
 	);
-	expect(container.querySelector("button")?.textContent).toContain(
-		"Continue to sign-in",
-	);
+	expect(container.querySelector("button")).toBeNull();
 	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "starting", attempt: 2, step: "connecting" };
 	act(() =>
@@ -193,7 +191,7 @@ it("never reveals an unready app after the minimum duration", () => {
 it.each([
 	"starting",
 	"failed",
-] as const)("allows local screens while the hub is %s", (hubState) => {
+] as const)("blocks local screens while the hub is %s", (hubState) => {
 	const state = readiness();
 	state.transport = "connected";
 	state.hub = { state: hubState, attempt: 4 };
@@ -204,14 +202,14 @@ it.each([
 			</SiteLoader>,
 		),
 	);
-	const continueButton = Array.from(container.querySelectorAll("button")).find(
-		(button) => button.textContent?.includes("Continue to sign-in"),
-	);
-	expect(continueButton).toBeDefined();
-	act(() => continueButton?.click());
-	expect(container.querySelector("nav")).not.toBeNull();
-	expect(container.querySelector("[inert]")).toBeNull();
-	expect(container.querySelector("[hidden]")).toBeNull();
+	advance(20_000);
+	expect(container.querySelector("nav")).toBeNull();
+	expect(container.textContent).not.toContain("Continue to sign-in");
+	if (hubState === "failed") {
+		act(() => container.querySelector("button")?.click());
+		expect(state.retry).toHaveBeenCalledOnce();
+		expect(container.querySelector("nav")).toBeNull();
+	}
 });
 
 it("keeps the mounted composer and attachments across transport recovery", () => {
@@ -230,6 +228,10 @@ it("keeps the mounted composer and attachments across transport recovery", () =>
 	const composer = container.querySelector("textarea");
 	const attachments = container.querySelector("input");
 	expect(composer).not.toBeNull();
+	state.hub = { state: "failed", attempt: 4 };
+	act(render);
+	expect(container.querySelector("[hidden][inert] textarea")).toBe(composer);
+	expect(container.textContent).toContain("Cline could not finish starting");
 	state.transport = "connecting";
 	state.hub = { state: "starting", attempt: 0 };
 	act(render);
