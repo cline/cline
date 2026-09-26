@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"outDir": "./build",
+		"rootDir": ".",
+		"declaration": true,
+		"sourceMap": true
+	},
+	"include": ["cli.ts", "cloud-agent.ts", "server.ts"],
+	"exclude": ["*.test.ts", "build", "node_modules"]
+}
