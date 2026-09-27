@@ -1,6 +1,7 @@
 import { dirname } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentResult, BasicLogger } from "@cline/shared";
+import { resolveHierarchicalWorkspaceSync } from "@cline/shared/storage";
 import { nanoid } from "nanoid";
 import type {
 	SubAgentEndContext,
@@ -124,6 +125,20 @@ export class UnifiedSessionPersistenceService {
 		const terminal = !isNonTerminalSessionStatus(status);
 		const endedAt = terminal ? (input.endedAt ?? nowIso()) : undefined;
 		const exitCode = terminal ? (input.exitCode ?? 0) : undefined;
+		let anchorWorkspacePath = input.anchorWorkspacePath;
+		if (!anchorWorkspacePath) {
+			const target = input.cwd || input.workspaceRoot;
+			if (target) {
+				try {
+					anchorWorkspacePath =
+						resolveHierarchicalWorkspaceSync(target).primaryRoot;
+				} catch {
+					anchorWorkspacePath = input.workspaceRoot || input.cwd;
+				}
+			} else {
+				anchorWorkspacePath = input.workspaceRoot || input.cwd;
+			}
+		}
 		const manifest = {
 			version: 1 as const,
 			session_id: sessionId,
@@ -138,6 +153,7 @@ export class UnifiedSessionPersistenceService {
 			model: input.model,
 			cwd: input.cwd,
 			workspace_root: input.workspaceRoot,
+			anchor_workspace_path: anchorWorkspacePath,
 			team_name: input.teamName,
 			enable_tools: input.enableTools,
 			enable_spawn: input.enableSpawn,
@@ -161,6 +177,7 @@ export class UnifiedSessionPersistenceService {
 			model: input.model,
 			cwd: input.cwd,
 			workspaceRoot: input.workspaceRoot,
+			anchorWorkspacePath: anchorWorkspacePath ?? null,
 			teamName: input.teamName ?? null,
 			enableTools: input.enableTools,
 			enableSpawn: input.enableSpawn,
@@ -515,7 +532,12 @@ export class UnifiedSessionPersistenceService {
 
 	async listSessions(
 		limit = 200,
-		options: { rootOnly?: boolean } = {},
+		options: {
+			rootOnly?: boolean;
+			anchorPath?: string;
+			scope?: "current" | "hierarchical" | "all";
+			offset?: number;
+		} = {},
 	): Promise<SessionRow[]> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
@@ -525,6 +547,9 @@ export class UnifiedSessionPersistenceService {
 			await this.adapter.listSessions({
 				limit: scanLimit,
 				rootOnly: options.rootOnly,
+				anchorPath: options.anchorPath,
+				scope: options.scope,
+				offset: options.offset,
 			})
 		).slice(0, requestedLimit);
 		// Resolve manifest titles concurrently and off-thread. Each row only needs

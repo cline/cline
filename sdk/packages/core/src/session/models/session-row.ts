@@ -17,6 +17,7 @@ export interface SessionRow {
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	anchorWorkspacePath?: string | null;
 	teamName?: string | null;
 	enableTools: boolean;
 	enableSpawn: boolean;
@@ -45,6 +46,7 @@ export interface CreateRootSessionInput {
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	anchorWorkspacePath?: string;
 	teamName?: string;
 	enableTools: boolean;
 	enableSpawn: boolean;
@@ -65,6 +67,7 @@ export interface CreateRootSessionWithArtifactsInput {
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	anchorWorkspacePath?: string;
 	teamName?: string;
 	enableTools: boolean;
 	enableSpawn: boolean;
@@ -114,6 +117,7 @@ export const SESSION_SELECT_COLUMNS = `
 	model,
 	cwd,
 	workspace_root AS workspaceRoot,
+	anchor_workspace_path AS anchorWorkspacePath,
 	team_name      AS teamName,
 	enable_tools   AS enableTools,
 	enable_spawn   AS enableSpawn,

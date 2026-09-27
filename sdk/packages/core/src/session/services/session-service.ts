@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync } from "node:fs";
 import type { BasicLogger } from "@cline/shared";
-import { resolveSessionDataDir } from "@cline/shared/storage";
+import {
+	resolveHierarchicalWorkspaceSync,
+	resolveSessionDataDir,
+} from "@cline/shared/storage";
 import { nowIso } from "../../services/session-artifacts";
 import type { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import type { SessionMessagesArtifactUploader } from "../../types/session";
@@ -31,13 +34,27 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 	}
 
 	async upsertSession(row: SessionRow): Promise<void> {
+		let anchorWorkspacePath = row.anchorWorkspacePath;
+		if (!anchorWorkspacePath) {
+			const target = row.cwd || row.workspaceRoot;
+			if (target) {
+				try {
+					anchorWorkspacePath =
+						resolveHierarchicalWorkspaceSync(target).primaryRoot;
+				} catch {
+					anchorWorkspacePath = row.workspaceRoot || row.cwd;
+				}
+			} else {
+				anchorWorkspacePath = row.workspaceRoot || row.cwd;
+			}
+		}
 		this.store.run(
 			`INSERT OR REPLACE INTO sessions (
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				metadata_json, transcript_path, hook_path, messages_path, updated_at, anchor_workspace_path
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				row.sessionId,
 				row.source,
@@ -67,6 +84,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				row.hookPath ?? "",
 				row.messagesPath ?? null,
 				row.updatedAt,
+				anchorWorkspacePath ?? null,
 			],
 		);
 	}
@@ -84,6 +102,9 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		parentSessionId?: string;
 		status?: string;
 		rootOnly?: boolean;
+		anchorPath?: string;
+		scope?: "current" | "hierarchical" | "all";
+		offset?: number;
 	}): Promise<SessionRow[]> {
 		const whereClauses: string[] = [];
 		const params: unknown[] = [];
@@ -100,15 +121,43 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			whereClauses.push("status = ?");
 			params.push(options.status);
 		}
+		if (options.anchorPath && options.scope && options.scope !== "all") {
+			const normalizedAnchor = options.anchorPath
+				.replace(/\\/g, "/")
+				.replace(/\/+$/, "");
+			if (options.scope === "current") {
+				whereClauses.push(
+					"(anchor_workspace_path = ? OR (anchor_workspace_path IS NULL AND (workspace_root = ? OR cwd = ?)))",
+				);
+				params.push(normalizedAnchor, normalizedAnchor, normalizedAnchor);
+			} else if (options.scope === "hierarchical") {
+				const prefix = `${normalizedAnchor}/%`;
+				whereClauses.push(
+					"(anchor_workspace_path = ? OR anchor_workspace_path LIKE ? OR (anchor_workspace_path IS NULL AND (workspace_root = ? OR workspace_root LIKE ? OR cwd = ? OR cwd LIKE ?)))",
+				);
+				params.push(
+					normalizedAnchor,
+					prefix,
+					normalizedAnchor,
+					prefix,
+					normalizedAnchor,
+					prefix,
+				);
+			}
+		}
 		const where =
 			whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+		const offsetClause =
+			options.offset !== undefined && options.offset > 0
+				? ` OFFSET ${Math.floor(options.offset)}`
+				: "";
 		return this.store
 			.queryAll<Record<string, unknown>>(
 				`SELECT ${SESSION_SELECT_COLUMNS}
 				 FROM sessions
 				 ${where}
 				 ORDER BY started_at DESC
-				 LIMIT ?`,
+				 LIMIT ?${offsetClause}`,
 				[...params, options.limit],
 			)
 			.map(patchSqliteRow);
@@ -283,13 +332,27 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 	}
 
 	createRootSession(input: CreateRootSessionInput): void {
+		let anchorWorkspacePath = input.anchorWorkspacePath;
+		if (!anchorWorkspacePath) {
+			const target = input.cwd || input.workspaceRoot;
+			if (target) {
+				try {
+					anchorWorkspacePath =
+						resolveHierarchicalWorkspaceSync(target).primaryRoot;
+				} catch {
+					anchorWorkspacePath = input.workspaceRoot || input.cwd;
+				}
+			} else {
+				anchorWorkspacePath = input.workspaceRoot || input.cwd;
+			}
+		}
 		this.store.run(
 			`INSERT OR REPLACE INTO sessions (
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				metadata_json, transcript_path, hook_path, messages_path, updated_at, anchor_workspace_path
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				input.sessionId,
 				input.source,
@@ -319,6 +382,7 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 				"",
 				input.messagesPath,
 				nowIso(),
+				anchorWorkspacePath ?? null,
 			],
 		);
 	}

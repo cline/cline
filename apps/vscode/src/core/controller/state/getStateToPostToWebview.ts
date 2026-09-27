@@ -9,12 +9,35 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
+import type { WorkspaceHierarchyInfo } from "@/sdk/workspace-hierarchy"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
+import { Logger } from "@/shared/services/Logger"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
+
+/** The RFC 0001 workspace surface exposed to the webview. */
+interface WorkspaceSurfaceState {
+	hierarchy: WorkspaceHierarchyInfo
+	onboarding: { show: boolean; workspacePath: string }
+}
+
+/**
+ * Resolve the hierarchical workspace surface without ever failing the state post:
+ * a broken workspace path must not blank out the webview.
+ */
+async function resolveWorkspaceSurface(controller: {
+	getWorkspaceSurfaceState?: () => Promise<WorkspaceSurfaceState>
+}): Promise<Partial<WorkspaceSurfaceState>> {
+	try {
+		return (await controller.getWorkspaceSurfaceState?.()) ?? {}
+	} catch (error) {
+		Logger.warn("Failed to resolve the hierarchical workspace state:", error)
+		return {}
+	}
+}
 
 /**
  * Builds the ExtensionState object to push to the webview.
@@ -29,6 +52,7 @@ export async function getStateToPostToWebview(controller: {
 	foregroundCommandRunning?: boolean
 	workspaceManager?: any
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
+	getWorkspaceSurfaceState?: () => Promise<WorkspaceSurfaceState>
 	isRemoteConfigAvailable?: boolean
 	currentRemoteConfigRevision?: number
 }): Promise<ExtensionState> {
@@ -100,6 +124,7 @@ export async function getStateToPostToWebview(controller: {
 	const environment = clineConfig.environment
 	const banners = BannerService.get().getActiveBanners() ?? []
 	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
+	const workspaceSurface = await resolveWorkspaceSurface(controller)
 
 	// Check OpenAI Codex authentication status
 	let openAiCodexIsAuthenticated = false
@@ -162,6 +187,20 @@ export async function getStateToPostToWebview(controller: {
 		workspaceRoots: controller.workspaceManager?.getRoots?.() ?? [],
 		primaryRootIndex: controller.workspaceManager?.getPrimaryIndex?.() ?? 0,
 		isMultiRootWorkspace: (controller.workspaceManager?.getRoots?.()?.length ?? 0) > 1,
+		workspaceHierarchy: workspaceSurface.hierarchy
+			? {
+					targetPath: workspaceSurface.hierarchy.targetPath,
+					primaryRoot: workspaceSurface.hierarchy.primaryRoot,
+					isInitialized: workspaceSurface.hierarchy.isInitialized,
+					inheritedFromPath: workspaceSurface.hierarchy.inheritedFrom?.path,
+					layers: workspaceSurface.hierarchy.layers.map((layer) => ({
+						path: layer.path,
+						displayName: layer.displayName,
+						isPrimary: layer.isPrimary,
+					})),
+				}
+			: undefined,
+		workspaceOnboarding: workspaceSurface.onboarding,
 		multiRootSetting: {
 			user: stateManager.getGlobalStateKey("multiRootEnabled"),
 			featureFlag: true,

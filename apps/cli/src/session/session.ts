@@ -102,7 +102,12 @@ async function withCliCore<T>(
 
 export async function listSessions(
 	limit = 50,
-	options?: { workspaceRoot?: string; hydrate?: boolean },
+	options?: {
+		workspaceRoot?: string;
+		hydrate?: boolean;
+		anchorPath?: string;
+		scope?: "current" | "hierarchical" | "all";
+	},
 ): Promise<SessionHistoryRecord[]> {
 	const backend = await resolveSessionBackend({
 		telemetry: getCliTelemetryService(),
@@ -112,6 +117,8 @@ export async function listSessions(
 		includeManifestFallback: true,
 		hydrate: options?.hydrate ?? false,
 		includeSubagents: false,
+		anchorPath: options?.anchorPath,
+		scope: options?.scope,
 	});
 }
 

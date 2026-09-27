@@ -1287,7 +1287,31 @@ export class LocalRuntimeHost implements RuntimeHost {
 			if (seen.has(active.sessionId)) {
 				continue;
 			}
-			persisted.unshift(toActiveSessionRecord(active));
+			const record = toActiveSessionRecord(active);
+			if (options.anchorPath && options.scope && options.scope !== "all") {
+				const activeAnchor = (
+					record.anchorWorkspacePath ||
+					record.workspaceRoot ||
+					record.cwd ||
+					""
+				)
+					.replace(/\\/g, "/")
+					.replace(/\/+$/, "");
+				const normAnchor = options.anchorPath
+					.replace(/\\/g, "/")
+					.replace(/\/+$/, "");
+				if (options.scope === "current" && activeAnchor !== normAnchor) {
+					continue;
+				}
+				if (
+					options.scope === "hierarchical" &&
+					activeAnchor !== normAnchor &&
+					!activeAnchor.startsWith(`${normAnchor}/`)
+				) {
+					continue;
+				}
+			}
+			persisted.unshift(record);
 		}
 		return persisted.slice(0, limit);
 	}

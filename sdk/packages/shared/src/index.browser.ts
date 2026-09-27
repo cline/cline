@@ -515,6 +515,7 @@ export {
 	CLINE_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
+export * from "./storage/workspace-schema";
 export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";

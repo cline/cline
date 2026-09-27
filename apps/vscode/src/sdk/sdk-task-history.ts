@@ -45,8 +45,23 @@ export interface SdkTaskHistoryOptions {
 	telemetry?: TelemetryService
 }
 
+type MetadataHistoryCacheEntry = {
+	records: SessionHistoryRecord[]
+	/** Raw (pre-filter) number of rows the cache was built from. */
+	hostLimit: number
+	createdAt: number
+}
+
 type SdkTaskHistoryListOptions = ClineCoreListHistoryOptions & {
 	offset?: number
+	/**
+	 * Optional row predicate (workspace scope, favorites, search) applied *before*
+	 * pagination. Passing it keeps the returned page full and makes `hasMore`
+	 * honest for filtered views instead of filtering after the page is sliced.
+	 */
+	filter?: (record: SessionHistoryRecord) => boolean
+	/** Stable key for the filter, used to partition the metadata cache per view. */
+	filterKey?: string
 }
 
 function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
@@ -201,11 +216,11 @@ export class SdkTaskHistory {
 	private cachedHistoryHostPromise?: Promise<VscodeSessionHost>
 	private cachedHistoryHostRefCount = 0
 	private cachedHistoryHostIdleTimer?: NodeJS.Timeout
-	private metadataHistoryCache?: {
-		records: SessionHistoryRecord[]
-		hostLimit: number
-		createdAt: number
-	}
+	/**
+	 * Metadata (non-hydrated) history cache, partitioned by view (workspace scope,
+	 * favorites, search) so one filtered view can never poison the others.
+	 */
+	private metadataHistoryCache = new Map<string, MetadataHistoryCacheEntry>()
 	private disposed = false
 	private readonly cachedHistoryHostIdleMs = 30_000
 	private readonly metadataHistoryCacheTtlMs = 10_000
@@ -329,7 +344,7 @@ export class SdkTaskHistory {
 	}
 
 	private invalidateMetadataHistoryCache(): void {
-		this.metadataHistoryCache = undefined
+		this.metadataHistoryCache.clear()
 	}
 
 	/**
@@ -339,31 +354,32 @@ export class SdkTaskHistory {
 	 * The persistence layer bumps `updatedAt` on every write, so the cached
 	 * record is updated to match and the cache is re-sorted to preserve the
 	 * descending-`updatedAt` ordering that {@link listHistory} establishes.
-	 * When the session isn't in the cache (e.g. a brand-new task whose list
-	 * membership/ordering may change) the cache is invalidated so the next
+	 * When the session isn't in a cache bucket (e.g. a brand-new task whose list
+	 * membership/ordering may change) that bucket is invalidated so the next
 	 * read re-enumerates from disk.
 	 */
 	private updateCachedSessionRecord(
 		sessionId: string,
 		updates: { prompt: string; metadata: Record<string, unknown>; updatedAt: string },
 	): void {
-		const cache = this.metadataHistoryCache
-		if (!cache) {
+		if (this.metadataHistoryCache.size === 0) {
 			return
 		}
-		const index = cache.records.findIndex((record) => record.sessionId === sessionId)
-		if (index === -1) {
-			this.invalidateMetadataHistoryCache()
-			return
+		for (const cache of this.metadataHistoryCache.values()) {
+			const index = cache.records.findIndex((record) => record.sessionId === sessionId)
+			if (index === -1) {
+				this.invalidateMetadataHistoryCache()
+				return
+			}
+			const existing = cache.records[index]
+			cache.records[index] = {
+				...existing,
+				prompt: updates.prompt,
+				metadata: updates.metadata,
+				updatedAt: updates.updatedAt,
+			}
+			cache.records.sort(compareSessionHistoryRecordsByRecencyDesc)
 		}
-		const existing = cache.records[index]
-		cache.records[index] = {
-			...existing,
-			prompt: updates.prompt,
-			metadata: updates.metadata,
-			updatedAt: updates.updatedAt,
-		}
-		cache.records.sort(compareSessionHistoryRecordsByRecencyDesc)
 	}
 
 	private canUseMetadataHistoryCache(options: SdkTaskHistoryListOptions): boolean {
@@ -391,8 +407,9 @@ export class SdkTaskHistory {
 		const limit = Math.max(0, Math.floor(options.limit ?? 10_000))
 		const hostLimit = offset + limit
 		const useCache = this.canUseMetadataHistoryCache(options)
+		const cacheKey = options.filterKey ?? "all"
 		const now = Date.now()
-		const cached = useCache ? this.metadataHistoryCache : undefined
+		const cached = useCache ? this.metadataHistoryCache.get(cacheKey) : undefined
 		if (cached && cached.hostLimit >= hostLimit && now - cached.createdAt < this.metadataHistoryCacheTtlMs) {
 			const result = cached.records.slice(offset, offset + limit)
 			return result
@@ -400,11 +417,15 @@ export class SdkTaskHistory {
 
 		const hostOptions: ClineCoreListHistoryOptions = { ...options }
 		delete (hostOptions as { offset?: number }).offset
+		// A filter can drop most rows, so pull a wider raw window to keep the
+		// filtered page full. Bounded so an unfiltered caller's fetch is unchanged.
+		const rawLimit = options.filter ? Math.min(Math.max(hostLimit * 3, 500), 5_000) : hostLimit
+		const fetchLimit = rawLimit || 10_000
 
 		const sdkHistory = await this.withHistoryHost((host) =>
 			host.listHistory({
 				...hostOptions,
-				limit: hostLimit || 10_000,
+				limit: fetchLimit,
 				includeManifestFallback: true,
 			}),
 		)
@@ -422,12 +443,14 @@ export class SdkTaskHistory {
 		).length
 
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
+		const filteredHistory = options.filter ? mergedHistory.filter(options.filter) : mergedHistory
+
 		if (useCache) {
-			this.metadataHistoryCache = {
-				records: mergedHistory,
-				hostLimit,
+			this.metadataHistoryCache.set(cacheKey, {
+				records: filteredHistory,
+				hostLimit: fetchLimit,
 				createdAt: Date.now(),
-			}
+			})
 		}
 
 		this.options.telemetry?.safeCapture(
@@ -441,7 +464,7 @@ export class SdkTaskHistory {
 			"SdkTaskHistory.listHistory.legacyMigrationBacklog",
 		)
 
-		const result = mergedHistory.slice(offset, offset + limit)
+		const result = filteredHistory.slice(offset, offset + limit)
 		return result
 	}
 

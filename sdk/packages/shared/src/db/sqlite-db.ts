@@ -213,7 +213,8 @@ const SCHEMA_STATEMENTS = [
 		transcript_path TEXT NOT NULL DEFAULT '',
 		hook_path TEXT NOT NULL,
 		messages_path TEXT,
-		updated_at TEXT NOT NULL
+		updated_at TEXT NOT NULL,
+		anchor_workspace_path TEXT
 	);`,
 	`CREATE TABLE IF NOT EXISTS subagent_spawn_queue (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -323,6 +324,11 @@ const LEGACY_MIGRATIONS: Array<{
 		sql: "ALTER TABLE sessions ADD COLUMN transcript_path TEXT NOT NULL DEFAULT '';",
 	},
 	{
+		table: "sessions",
+		column: "anchor_workspace_path",
+		sql: "ALTER TABLE sessions ADD COLUMN anchor_workspace_path TEXT;",
+	},
+	{
 		table: "schedules",
 		column: "claim_token",
 		sql: "ALTER TABLE schedules ADD COLUMN claim_token TEXT;",
@@ -377,8 +383,16 @@ export function ensureSessionSchema(
 				db.exec(
 					"UPDATE sessions SET workspace_root = cwd WHERE workspace_root IS NULL OR workspace_root = '';",
 				);
+			} else if (migration.column === "anchor_workspace_path") {
+				db.exec(
+					"UPDATE sessions SET anchor_workspace_path = COALESCE(NULLIF(workspace_root, ''), cwd) WHERE anchor_workspace_path IS NULL OR anchor_workspace_path = '';",
+				);
 			}
 			columnCache.delete(migration.table);
 		}
 	}
+
+	db.exec(
+		"CREATE INDEX IF NOT EXISTS idx_sessions_anchor ON sessions(anchor_workspace_path, started_at DESC);",
+	);
 }

@@ -96,6 +96,7 @@ export function buildHistoryFooterText(input: {
 	return [
 		"\u2191/\u2193 navigate",
 		"Enter to resume",
+		"Tab toggle scope",
 		input.canDelete ? "\u2190 delete" : undefined,
 		input.canExport ? "\u2192 export" : undefined,
 		"Esc to close",

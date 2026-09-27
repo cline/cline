@@ -551,6 +551,13 @@ export async function runInteractive(
 		loadConfigData: configDataLoader.loadConfigData,
 		onToggleConfigItem,
 		onDeleteConfigItem,
+		onWorkspaceInitialized: async () => {
+			if (userInstructionService) {
+				await userInstructionService.refreshType("rule").catch(() => {});
+				await userInstructionService.refreshType("skill").catch(() => {});
+				await userInstructionService.refreshType("workflow").catch(() => {});
+			}
+		},
 		subscribeToEvents: ({
 			onAgentEvent: onAgent,
 			onTeamEvent: onTeam,

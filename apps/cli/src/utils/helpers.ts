@@ -3,7 +3,10 @@ import { appendFileSync, existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type HookEventPayload, parseHookEventPayload } from "@cline/shared";
-import { ensureHookLogDir } from "@cline/shared/storage";
+import {
+	ensureHookLogDir,
+	findWorkspaceHierarchySync,
+} from "@cline/shared/storage";
 import { nanoid } from "nanoid";
 import { commanderToParsedArgs, createProgram } from "../commands/program";
 import type { ParsedArgs } from "./types";
@@ -41,6 +44,14 @@ export function randomSessionId(): string {
 }
 
 export function resolveWorkspaceRoot(cwd: string): string {
+	try {
+		const hierarchy = findWorkspaceHierarchySync(cwd);
+		if (hierarchy.isInitialized) {
+			return hierarchy.primaryRoot;
+		}
+	} catch {
+		// Fallback to git root
+	}
 	const result = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
 		encoding: "utf8",
 	});

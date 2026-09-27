@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import type { ITelemetryService, WorkspaceInfo } from "@cline/shared";
 import {
+	captureWorkspaceHierarchyResolved,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
+	type WorkspaceHierarchyResolvedProperties,
 } from "../telemetry/core-events";
 
 export interface WorkspaceLifecycleTelemetryInput {
@@ -21,10 +23,16 @@ export interface WorkspaceLifecycleTelemetryInput {
 	initError?: { errorType: string; message: string };
 	featureFlagEnabled?: boolean;
 	isRemoteWorkspace?: boolean;
+	/**
+	 * RFC 0001 hierarchical resolution summary. When present, also emits the
+	 * privacy-preserving `workspace.resolved` event (depth, VCS, inheritance).
+	 */
+	hierarchy?: WorkspaceHierarchyResolvedProperties;
 }
 
 const initializedWorkspaceHashes = new Set<string>();
 const initErrorWorkspaceHashes = new Set<string>();
+const hierarchyResolvedHashes = new Set<string>();
 
 function hashWorkspacePath(rootPath: string, scope?: string): string {
 	return createHash("sha256")
@@ -71,9 +79,15 @@ export function emitWorkspaceLifecycleTelemetry(
 			workspace_count: rootCount,
 		});
 	}
+
+	if (input.hierarchy && !hierarchyResolvedHashes.has(workspaceHash)) {
+		hierarchyResolvedHashes.add(workspaceHash);
+		captureWorkspaceHierarchyResolved(input.telemetry, input.hierarchy);
+	}
 }
 
 export function resetWorkspaceTelemetryForTests(): void {
 	initializedWorkspaceHashes.clear();
 	initErrorWorkspaceHashes.clear();
+	hierarchyResolvedHashes.clear();
 }

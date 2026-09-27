@@ -34,6 +34,7 @@ import {
 	isPendingResponseUnconfirmed,
 	withPendingUserMessage,
 } from "./chat-view/utils/pendingResponse"
+import { WorkspaceOnboardingCard } from "./WorkspaceOnboardingCard"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -413,6 +414,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
+				<WorkspaceOnboardingCard />
 				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}

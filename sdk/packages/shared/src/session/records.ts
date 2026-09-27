@@ -43,6 +43,7 @@ export interface SessionRuntimeRecordShape extends SessionLineage {
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	anchorWorkspacePath?: string;
 	teamName?: string;
 	enableTools: boolean;
 	enableSpawn: boolean;

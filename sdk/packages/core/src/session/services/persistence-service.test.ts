@@ -172,6 +172,95 @@ describe("UnifiedSessionPersistenceService", () => {
 		},
 	);
 
+	it.each(["sqlite", "file"] as const)(
+		"filters sessions by current and hierarchical workspace scope (%s)",
+		async (kind) => {
+			const dir = mkdtempSync(join(tmpdir(), "scoped-history-test-"));
+			tempDirs.push(dir);
+			const service =
+				kind === "sqlite"
+					? new CoreSessionService(new SqliteSessionStore({ sessionsDir: dir }), {
+							sessionArtifactsDir: dir,
+						})
+					: new FileSessionService(dir);
+
+			await service.createRootSessionWithArtifacts({
+				sessionId: "sess_repo_root",
+				source: SessionSource.CLI,
+				pid: 1,
+				interactive: true,
+				provider: "anthropic",
+				model: "claude",
+				cwd: "/repo/monorepo",
+				workspaceRoot: "/repo/monorepo",
+				anchorWorkspacePath: "/repo/monorepo",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				startedAt: "2026-09-27T03:00:00.000Z",
+			});
+
+			await service.createRootSessionWithArtifacts({
+				sessionId: "sess_child_app",
+				source: SessionSource.CLI,
+				pid: 2,
+				interactive: true,
+				provider: "anthropic",
+				model: "claude",
+				cwd: "/repo/monorepo/apps/cli",
+				workspaceRoot: "/repo/monorepo/apps/cli",
+				anchorWorkspacePath: "/repo/monorepo/apps/cli",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				startedAt: "2026-09-27T02:00:00.000Z",
+			});
+
+			await service.createRootSessionWithArtifacts({
+				sessionId: "sess_other_repo",
+				source: SessionSource.CLI,
+				pid: 3,
+				interactive: true,
+				provider: "anthropic",
+				model: "claude",
+				cwd: "/other/project",
+				workspaceRoot: "/other/project",
+				anchorWorkspacePath: "/other/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				startedAt: "2026-09-27T01:00:00.000Z",
+			});
+
+			// Exact "current" scope
+			const currentApp = await service.listSessions(10, {
+				anchorPath: "/repo/monorepo/apps/cli",
+				scope: "current",
+			});
+			expect(currentApp.map((s) => s.sessionId)).toEqual(["sess_child_app"]);
+
+			// "hierarchical" scope on parent repo includes parent and child app
+			const hierarchical = await service.listSessions(10, {
+				anchorPath: "/repo/monorepo",
+				scope: "hierarchical",
+			});
+			expect(hierarchical.map((s) => s.sessionId)).toEqual([
+				"sess_repo_root",
+				"sess_child_app",
+			]);
+
+			// "all" scope returns all sessions
+			const all = await service.listSessions(10, {
+				scope: "all",
+			});
+			expect(all.map((s) => s.sessionId)).toEqual([
+				"sess_repo_root",
+				"sess_child_app",
+				"sess_other_repo",
+			]);
+		},
+	);
+
 	it("persists compaction state as a separate session artifact", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-artifact-"));
 		tempDirs.push(sessionsDir);

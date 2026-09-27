@@ -97,6 +97,11 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
+	// RFC 0001 onboarding: workspace folder whose webview onboarding card the
+	// user dismissed. Stored per install (not per VS Code workspace) so the card
+	// reappears for a different uninitialized project but never nags twice for
+	// the same one. Backend-only: the webview reads a computed `show` flag.
+	dismissedWorkspaceOnboardingPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts

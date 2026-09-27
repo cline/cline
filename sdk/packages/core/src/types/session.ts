@@ -119,6 +119,9 @@ export interface SessionPersistenceAdapter {
 		status?: string;
 		/** Only root sessions: excludes subagent and team-task child rows. */
 		rootOnly?: boolean;
+		anchorPath?: string;
+		scope?: "current" | "hierarchical" | "all";
+		offset?: number;
 	}): Promise<SessionRow[]>;
 	updateSession(
 		input: PersistedSessionUpdateInput,

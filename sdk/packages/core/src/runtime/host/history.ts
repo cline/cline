@@ -21,6 +21,9 @@ export interface SessionHistoryListOptions {
 	includeManifestFallback?: boolean;
 	hydrate?: boolean;
 	includeSubagents?: boolean;
+	anchorPath?: string;
+	scope?: "current" | "hierarchical" | "all";
+	offset?: number;
 }
 
 type StoredSessionMessage = LlmsProviders.Message & {
@@ -120,6 +123,7 @@ export function manifestToSessionRecord(
 		model: manifest.model,
 		cwd: manifest.cwd,
 		workspaceRoot: manifest.workspace_root,
+		anchorWorkspacePath: manifest.anchor_workspace_path,
 		teamName: manifest.team_name,
 		enableTools: manifest.enable_tools,
 		enableSpawn: manifest.enable_spawn,
@@ -188,15 +192,33 @@ async function listManifestHistoryRows(
 async function listHostSessionRows(
 	host: Pick<RuntimeHost, "listSessions" | "readSessionMessages">,
 	limit: number,
-	options: { includeSubagents: boolean },
+	options: {
+		includeSubagents: boolean;
+		anchorPath?: string;
+		scope?: "current" | "hierarchical" | "all";
+		offset?: number;
+	},
 ): Promise<SessionRecord[]> {
 	const requestedLimit = normalizeHistoryLimit(limit);
+	const hasScopeOptions =
+		options.anchorPath !== undefined ||
+		options.scope !== undefined ||
+		options.offset !== undefined;
+	const hostOptions: ListSessionsOptions | undefined = hasScopeOptions
+		? {
+				...(options.anchorPath !== undefined
+					? { anchorPath: options.anchorPath }
+					: {}),
+				...(options.scope !== undefined ? { scope: options.scope } : {}),
+				...(options.offset !== undefined ? { offset: options.offset } : {}),
+			}
+		: undefined;
 	if (requestedLimit === 0) {
 		await host.listSessions(0);
 		return [];
 	}
 	if (options.includeSubagents) {
-		const rows = await host.listSessions(requestedLimit);
+		const rows = await host.listSessions(requestedLimit, hostOptions);
 		return rows.slice(0, requestedLimit);
 	}
 	// Ask the backend for root rows only so child rows (subagent / team-task
@@ -205,7 +227,10 @@ async function listHostSessionRows(
 	// page fills or the backend runs out of rows.
 	let scanLimit = normalizeHistoryScanLimit(requestedLimit);
 	for (;;) {
-		const rows = await host.listSessions(scanLimit, { rootOnly: true });
+		const rows = await host.listSessions(
+			scanLimit,
+			hostOptions ? { ...hostOptions, rootOnly: true } : { rootOnly: true },
+		);
 		const roots = rows.filter(isRootSessionRecord);
 		if (
 			roots.length >= requestedLimit ||
@@ -454,6 +479,9 @@ export async function listSessionHistory(
 	const includeSubagents = options.includeSubagents === true;
 	const backendRows = await listHostSessionRows(host, limit, {
 		includeSubagents,
+		anchorPath: options.anchorPath,
+		scope: options.scope,
+		offset: options.offset,
 	});
 	const manifestRows =
 		options.includeManifestFallback === true && backendRows.length < limit

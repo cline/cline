@@ -1,1 +1,4 @@
-export type { SessionStore } from "../../types/storage";
+export type {
+	SessionHistoryFilterOptions,
+	SessionStore,
+} from "../../types/storage";

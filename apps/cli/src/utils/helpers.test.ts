@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +18,7 @@ import {
 	isCliHookPayload,
 	normalizeAutoApproveArgs,
 	parseArgs,
+	resolveWorkspaceRoot,
 	truncate,
 } from "./helpers";
 
@@ -600,5 +609,86 @@ describe("sandbox environment", () => {
 			process.env.CLINE_HOOKS_LOG_PATH = previous.CLINE_HOOKS_LOG_PATH;
 			rmSync(root, { recursive: true, force: true });
 		}
+	});
+});
+
+describe("resolveWorkspaceRoot", () => {
+	const tempDirs: string[] = [];
+
+	afterEach(() => {
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns the nearest .cline parent when cwd is a subdirectory", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cline-resolve-root-"));
+		tempDirs.push(repo);
+		mkdirSync(path.join(repo, ".git"));
+		mkdirSync(path.join(repo, ".cline"));
+		const sub = path.join(repo, "apps", "cli");
+		mkdirSync(sub, { recursive: true });
+
+		expect(resolveWorkspaceRoot(sub)).toBe(repo);
+	});
+
+	it("returns the innermost .cline when a sub-package defines its own", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cline-resolve-nested-"));
+		tempDirs.push(repo);
+		mkdirSync(path.join(repo, ".git"));
+		mkdirSync(path.join(repo, ".cline"));
+		const child = path.join(repo, "apps", "cli");
+		mkdirSync(child, { recursive: true });
+		mkdirSync(path.join(child, ".cline"));
+
+		expect(resolveWorkspaceRoot(child)).toBe(child);
+		expect(resolveWorkspaceRoot(path.join(child, "src"))).toBe(child);
+	});
+
+	it("honors .cline-boundary files as isolation markers", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cline-resolve-bounded-"));
+		tempDirs.push(repo);
+		mkdirSync(path.join(repo, ".git"));
+		mkdirSync(path.join(repo, ".cline"));
+		const child = path.join(repo, "apps", "cli");
+		mkdirSync(child, { recursive: true });
+		mkdirSync(path.join(child, ".cline"));
+		// A boundary file prevents the parent from layering on top of the child
+		// layer, so the child is the sole layer and the primary anchor.
+		writeFileSync(path.join(child, ".cline-boundary"), "");
+
+		expect(resolveWorkspaceRoot(child)).toBe(child);
+	});
+
+	it("falls back to the git root when no .cline directory exists", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cline-resolve-git-"));
+		tempDirs.push(repo);
+		// `git rev-parse --show-toplevel` requires a real git repository, not
+		// just an empty .git directory.
+		const initResult = spawnSync(
+			"git",
+			["-C", repo, "init", "-q", "-b", "main"],
+			{
+				encoding: "utf8",
+			},
+		);
+		if (initResult.status !== 0) {
+			// git isn't available on this machine; the resolver's cwd fallback
+			// is the correct behaviour in that case.
+			return;
+		}
+		const sub = path.join(repo, "apps", "cli");
+		mkdirSync(sub, { recursive: true });
+
+		expect(resolveWorkspaceRoot(sub)).toBe(repo);
+	});
+
+	it("returns the cwd itself when neither a .cline nor a .git exists", () => {
+		const dir = mkdtempSync(path.join(os.tmpdir(), "cline-resolve-bare-"));
+		tempDirs.push(dir);
+		const sub = path.join(dir, "deep", "sub");
+		mkdirSync(sub, { recursive: true });
+
+		expect(resolveWorkspaceRoot(sub)).toBe(sub);
 	});
 });

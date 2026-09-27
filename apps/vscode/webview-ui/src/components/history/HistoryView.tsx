@@ -1,12 +1,12 @@
 import { EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
+import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem, WorkspaceHistoryScope } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GroupedVirtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatSize } from "@/utils/format"
@@ -18,6 +18,22 @@ type HistoryViewProps = {
 }
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
+
+/** RFC 0001 §3.3 workspace scopes offered by the History tab. */
+type WorkspaceScopeOption = "current" | "includeParent" | "all"
+
+/** Scope options in dropdown order, mapped onto the backend's proto enum. */
+const WORKSPACE_SCOPE_OPTIONS: Array<{ value: WorkspaceScopeOption; label: string }> = [
+	{ value: "all", label: "All Recent Projects" },
+	{ value: "current", label: "Current Project" },
+	{ value: "includeParent", label: "Include Parent" },
+]
+
+const WORKSPACE_SCOPE_PROTO: Record<WorkspaceScopeOption, WorkspaceHistoryScope> = {
+	current: WorkspaceHistoryScope.WORKSPACE_HISTORY_SCOPE_CURRENT,
+	includeParent: WorkspaceHistoryScope.WORKSPACE_HISTORY_SCOPE_INCLUDE_PARENT,
+	all: WorkspaceHistoryScope.WORKSPACE_HISTORY_SCOPE_ALL,
+}
 
 const isToday = (timestamp: number): boolean => {
 	const date = new Date(timestamp)
@@ -31,7 +47,6 @@ const HISTORY_FILTERS = {
 	mostExpensive: "Most Expensive",
 	mostTokens: "Most Tokens",
 	mostRelevant: "Most Relevant",
-	workspaceOnly: "Workspace Only",
 	favoritesOnly: "Favorites Only",
 }
 
@@ -46,7 +61,24 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
+	// RFC 0001 §3.3: which workspaces' sessions this list covers. Defaults to All,
+	// which is what the tab showed before scoped history existed.
+	const [workspaceScope, setWorkspaceScope] = useState<WorkspaceScopeOption>("all")
+	// Name the resolved anchors in the scope labels, e.g. "Current Project (apps-cli)".
+	const scopeOptions = useMemo(() => {
+		const hierarchy = extensionStateContext.workspaceHierarchy
+		const primaryLabel = hierarchy?.layers.find((layer) => layer.isPrimary)?.displayName
+		const parentLabel = hierarchy?.layers.find((layer) => !layer.isPrimary)?.displayName
+		return WORKSPACE_SCOPE_OPTIONS.map((option) => ({
+			...option,
+			label:
+				option.value === "current" && primaryLabel
+					? `${option.label} (${primaryLabel})`
+					: option.value === "includeParent" && parentLabel
+						? `${option.label} (${parentLabel})`
+						: option.label,
+		}))
+	}, [extensionStateContext.workspaceHierarchy])
 
 	// Keep track of pending favorite toggle operations
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
@@ -77,7 +109,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						favoritesOnly: showFavoritesOnly,
 						searchQuery: searchQuery || undefined,
 						sortBy: sortOption,
-						currentWorkspaceOnly: showCurrentWorkspaceOnly,
+						historyScope: WORKSPACE_SCOPE_PROTO[workspaceScope],
 						limit: HISTORY_PAGE_SIZE,
 						offset,
 					}),
@@ -111,7 +143,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}
 			}
 		},
-		[showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption],
+		[showFavoritesOnly, workspaceScope, searchQuery, sortOption],
 	)
 
 	const loadMoreTaskHistory = useCallback(() => {
@@ -127,7 +159,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setHasMoreTasks(false)
 		setNextHistoryOffset(0)
 		loadTaskHistory(0)
-	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
+	}, [loadTaskHistory, showFavoritesOnly, workspaceScope])
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
@@ -148,8 +180,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					currentTasks.map((task) => (task.id === taskId ? { ...task, isFavorited: nextValue } : task)),
 				)
 
-				// Refresh if either filter is active to ensure proper combined filtering
-				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
+				// Refresh if any filter is active to ensure proper combined filtering
+				if (showFavoritesOnly || workspaceScope !== "all") {
 					await loadTaskHistory(0)
 				}
 			} catch (err) {
@@ -171,7 +203,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}, 1000)
 			}
 		},
-		[showFavoritesOnly, showCurrentWorkspaceOnly, loadTaskHistory],
+		[showFavoritesOnly, workspaceScope, loadTaskHistory],
 	)
 
 	// Use the onRelinquishControl hook instead of message event
@@ -387,6 +419,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			<div className="flex flex-col gap-3 px-3">
 				{/* REPLACE VSCODE RADIO GROUP */}
 				<div className="flex justify-between items-center">
+					{/* RFC 0001 WORKSPACE SCOPE */}
+					<Select onValueChange={(value) => setWorkspaceScope(value as WorkspaceScopeOption)} value={workspaceScope}>
+						<SelectTrigger
+							aria-label="Workspace scope"
+							className="border-0 cursor-pointer w-[9.5rem] shrink-0 truncate">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent position="popper">
+							{scopeOptions.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					{/* SEARCH BOX */}
 					<VSCodeTextField
 						className="w-full"
@@ -430,9 +477,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								}
 							}
 							// Handle filter toggles
-							else if (value === "workspaceOnly") {
-								setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
-							} else if (value === "favoritesOnly") {
+							else if (value === "favoritesOnly") {
 								setShowFavoritesOnly(!showFavoritesOnly)
 							}
 						}}
@@ -445,14 +490,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								const isSortOption = ["newest", "oldest", "mostExpensive", "mostTokens", "mostRelevant"].includes(
 									key,
 								)
-								const isFilterOption = ["workspaceOnly", "favoritesOnly"].includes(key)
-								const isSelected = isSortOption
-									? sortOption === key
-									: key === "workspaceOnly"
-										? showCurrentWorkspaceOnly
-										: key === "favoritesOnly"
-											? showFavoritesOnly
-											: false
+								const isFilterOption = key === "favoritesOnly"
+								const isSelected = isSortOption ? sortOption === key : isFilterOption ? showFavoritesOnly : false
 								const isDisabled = key === "mostRelevant" && !searchQuery
 
 								return (
@@ -464,9 +503,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										<span className="flex items-center gap-2">
 											{isFilterOption && (
 												<span
-													className={`codicon ${
-														key === "workspaceOnly" ? "codicon-folder" : "codicon-star-full"
-													} ${isSelected ? "text-button-background" : ""}`}
+													className={`codicon codicon-star-full ${isSelected ? "text-button-background" : ""}`}
 												/>
 											)}
 											{value}

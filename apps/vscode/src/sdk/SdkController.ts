@@ -26,7 +26,13 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import {
+	DeleteAllTaskHistoryCount,
+	type GetTaskHistoryRequest,
+	WorkspaceHistoryScope as ProtoWorkspaceHistoryScope,
+	TaskHistoryArray,
+	TaskResponse,
+} from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -107,13 +113,38 @@ import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
+import {
+	matchesWorkspaceHistoryScope,
+	resolveWorkspaceHierarchyInfo,
+	type WorkspaceHierarchyInfo,
+	type WorkspaceHistoryScope,
+} from "./workspace-hierarchy"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
+import { initializeWorkspaceLayout } from "./workspace-scaffold"
 
 /**
  * Log a stub warning and return undefined.
  */
 function stubWarn(name: string): void {
 	Logger.warn(`[SdkController] STUB: ${name} not yet implemented`)
+}
+
+/**
+ * Map the proto history-scope enum onto the SDK's scope names. `undefined` means
+ * the caller predates RFC 0001 scoping, so the legacy `currentWorkspaceOnly`
+ * boolean keeps deciding.
+ */
+function toWorkspaceHistoryScope(scope: ProtoWorkspaceHistoryScope | undefined): WorkspaceHistoryScope | undefined {
+	switch (scope) {
+		case ProtoWorkspaceHistoryScope.WORKSPACE_HISTORY_SCOPE_CURRENT:
+			return "current"
+		case ProtoWorkspaceHistoryScope.WORKSPACE_HISTORY_SCOPE_INCLUDE_PARENT:
+			return "hierarchical"
+		case ProtoWorkspaceHistoryScope.WORKSPACE_HISTORY_SCOPE_ALL:
+			return "all"
+		default:
+			return undefined
+	}
 }
 
 function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
@@ -1136,6 +1167,98 @@ export class Controller {
 		return this.noWorkspaceFallbackPromise
 	}
 
+	// ---- Hierarchical workspace (RFC 0001) ----
+
+	/** First real workspace folder, or undefined when the window has none open. */
+	private async getActiveWorkspaceFolder(): Promise<string | undefined> {
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			return paths?.find((workspacePath) => workspacePath.trim().length > 0)
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to read workspace folders:", error)
+			return undefined
+		}
+	}
+
+	private workspaceHierarchyCache?: { targetPath: string; info: WorkspaceHierarchyInfo }
+
+	/**
+	 * Resolve the RFC 0001 hierarchy for the active workspace folder, cached per
+	 * target path so the status bar, the webview state payload, and history
+	 * scoping share one filesystem walk. Falls back to the no-workspace directory
+	 * when no folder is open, so callers always get a usable anchor.
+	 */
+	async getWorkspaceHierarchy(): Promise<WorkspaceHierarchyInfo> {
+		const targetPath = (await this.getActiveWorkspaceFolder()) ?? (await this.getWorkspaceRoot())
+		if (this.workspaceHierarchyCache?.targetPath === targetPath) {
+			return this.workspaceHierarchyCache.info
+		}
+		const info = resolveWorkspaceHierarchyInfo(targetPath)
+		this.workspaceHierarchyCache = { targetPath, info }
+		return info
+	}
+
+	/** Drop the cached hierarchy once it may have changed on disk. */
+	private invalidateWorkspaceHierarchy(): void {
+		this.workspaceHierarchyCache = undefined
+	}
+
+	/**
+	 * Whether the webview onboarding card should be offered: a folder is open, no
+	 * workspace exists at or above it, and the user has not dismissed the card for
+	 * that folder.
+	 */
+	shouldShowWorkspaceOnboarding(info: WorkspaceHierarchyInfo, hasWorkspaceFolder: boolean): boolean {
+		if (!hasWorkspaceFolder || info.isInitialized) {
+			return false
+		}
+		return this.stateManager.getGlobalStateKey("dismissedWorkspaceOnboardingPath") !== info.targetPath
+	}
+
+	/**
+	 * Scaffold `.cline/` in the workspace folder and re-resolve, so onboarding, the
+	 * status bar, and rule discovery all observe the new workspace without a reload.
+	 */
+	async initializeWorkspace(): Promise<void> {
+		const folder = await this.getActiveWorkspaceFolder()
+		if (!folder) {
+			return
+		}
+		initializeWorkspaceLayout({ targetDir: folder })
+		this.invalidateWorkspaceHierarchy()
+		this.stateManager.setGlobalState("dismissedWorkspaceOnboardingPath", undefined)
+		await this.postStateToWebview()
+	}
+
+	/** Silence the onboarding card for the active workspace folder. */
+	async dismissWorkspaceOnboarding(): Promise<void> {
+		const folder = await this.getActiveWorkspaceFolder()
+		if (!folder) {
+			return
+		}
+		this.stateManager.setGlobalState("dismissedWorkspaceOnboardingPath", folder)
+		await this.postStateToWebview()
+	}
+
+	/**
+	 * Everything the webview needs about the active workspace in one resolution:
+	 * the hierarchy (for scope labels) and whether to offer onboarding.
+	 */
+	async getWorkspaceSurfaceState(): Promise<{
+		hierarchy: WorkspaceHierarchyInfo
+		onboarding: { show: boolean; workspacePath: string }
+	}> {
+		const folder = await this.getActiveWorkspaceFolder()
+		const hierarchy = await this.getWorkspaceHierarchy()
+		return {
+			hierarchy,
+			onboarding: {
+				show: this.shouldShowWorkspaceOnboarding(hierarchy, folder !== undefined),
+				workspacePath: hierarchy.targetPath,
+			},
+		}
+	}
+
 	private async getRemoteConfigWorkspacePath(): Promise<string | undefined> {
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
@@ -1968,45 +2091,61 @@ export class Controller {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
-		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		const historyScope = toWorkspaceHistoryScope(request.historyScope)
+		// RFC 0001 scoping: the resolved hierarchy (not the raw folder) decides what
+		// "this workspace" means, so resolve it once for the whole query.
+		const hierarchy = historyScope && historyScope !== "all" ? await this.getWorkspaceHierarchy() : undefined
+		const workspacePath = !historyScope && currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		// Scope, favorites, and search are applied *before* pagination (inside
+		// SdkTaskHistory) so a filtered view returns a full page and `hasMore`
+		// reflects the filtered result set rather than the raw page.
+		const searchNeedle = searchQuery?.toLowerCase()
+		const filterKey = [
+			`scope=${historyScope ?? (currentWorkspaceOnly ? "current_workspace_only" : "all")}`,
+			`fav=${favoritesOnly ? 1 : 0}`,
+			`q=${searchQuery ?? ""}`,
+		].join("|")
 		const sessionHistory = await this.taskHistory.listHistory({
 			hydrate: false,
 			limit: limit + 1,
 			offset,
-		})
+			filterKey,
+			filter: (item) => {
+				const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
+				const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
 
-		let filteredTasks = sessionHistory.filter((item) => {
-			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
-			const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
-
-			if (!ts || !task) {
-				return false
-			}
-
-			const isFavorited =
-				metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
-			if (favoritesOnly && !isFavorited) {
-				return false
-			}
-
-			if (currentWorkspaceOnly && workspacePath) {
-				const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
-				if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
+				if (!ts || !task) {
 					return false
 				}
-			}
 
-			return true
+				const isFavorited =
+					metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
+				if (favoritesOnly && !isFavorited) {
+					return false
+				}
+
+				if (historyScope && hierarchy) {
+					if (!matchesWorkspaceHistoryScope(item, historyScope, hierarchy)) {
+						return false
+					}
+				} else if (currentWorkspaceOnly && workspacePath) {
+					const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
+					if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
+						return false
+					}
+				}
+
+				if (searchNeedle && !task.toLowerCase().includes(searchNeedle)) {
+					return false
+				}
+
+				return true
+			},
 		})
 
-		if (searchQuery) {
-			const query = searchQuery.toLowerCase()
-			filteredTasks = filteredTasks.filter((item) => {
-				const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
-				return task.toLowerCase().includes(query)
-			})
-		}
-
+		// `sessionHistory` is already filtered and paged to at most `limit + 1`
+		// rows, so the sort + `hasMore` below operate on the active view.
+		const filteredTasks = [...sessionHistory]
 		filteredTasks.sort((a, b) => {
 			switch (sortBy) {
 				case "oldest":
