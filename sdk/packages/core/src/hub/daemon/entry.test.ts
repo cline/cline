@@ -337,12 +337,29 @@ describe("hub daemon entry", () => {
 		});
 		onUnhandledRejection?.(nodeAbort);
 		expect(exitSpy).not.toHaveBeenCalled();
+		expect(mockDaemonTelemetryService.capture).not.toHaveBeenCalled();
 
-		// Anything else is still fatal.
+		// Anything else is still fatal, and is recorded before telemetry is
+		// flushed on the way out: clients only ever see the resulting socket
+		// close, so this event is the one record of why the daemon died.
 		onUnhandledRejection?.(new Error("boom"));
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "hub",
+				operation: "hub.daemon.fatal",
+				severity: "fatal",
+				handled: false,
+				trigger: "unhandledRejection",
+				error_message: "boom",
+			}),
+		});
+		expect(
+			mockDaemonTelemetryService.capture.mock.invocationCallOrder[0],
+		).toBeLessThan(mockDaemonTelemetryDispose.mock.invocationCallOrder[0]);
 	});
 
 	it("routes HTTP and signal shutdown through one cleanup", async () => {
@@ -423,6 +440,14 @@ describe("hub daemon entry", () => {
 		expect(server.beginClose).toHaveBeenCalledOnce();
 		expect(mockDaemonTelemetryDispose).toHaveBeenCalledOnce();
 		expect(exitSpy).toHaveBeenCalledOnce();
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "hub.daemon.fatal",
+				trigger: "uncaughtException",
+				error_message: "fatal during shutdown",
+			}),
+		});
 	});
 
 	it("keeps telemetry active until runtime teardown settles", async () => {

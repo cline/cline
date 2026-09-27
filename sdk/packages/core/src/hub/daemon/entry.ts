@@ -209,6 +209,17 @@ async function main(): Promise<void> {
 		}
 		fatalShutdownStarted = true;
 		process.stderr.write(`[hub-daemon] ${label}: ${formatError(error)}\n`);
+		// Every client of this daemon sees a fatal exit only as an abnormal
+		// socket close (code 1006), so the cause has to be recorded from here.
+		// The shutdown cleanup below flushes telemetry before the process exits.
+		captureSdkError(daemonTelemetry.telemetry, {
+			component: "hub",
+			operation: "hub.daemon.fatal",
+			error,
+			handled: false,
+			severity: "fatal",
+			context: { trigger: label },
+		});
 		void requestOrQueueShutdown({ reason: label, exitCode: 1 });
 	};
 
