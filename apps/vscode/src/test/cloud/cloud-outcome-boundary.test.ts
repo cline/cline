@@ -27,9 +27,12 @@ describe("cloud outcome → History and notifications through a real Hub", () =>
 	let environment: LocalCloudEnvironment | undefined
 	let coordinator: SdkCloudSessionCoordinator | undefined
 	let release: (() => void) | undefined
+	let unsubscribeEnded: (() => void) | undefined
 
 	afterEach(async () => {
 		release?.()
+		unsubscribeEnded?.()
+		unsubscribeEnded = undefined
 		await coordinator?.dispose()
 		await environment?.dispose()
 		vi.restoreAllMocks()
@@ -120,6 +123,10 @@ describe("cloud outcome → History and notifications through a real Hub", () =>
 				workspaceRoot: owned.root,
 			},
 		})
+		const ended = deferred<void>()
+		unsubscribeEnded = host.subscribe((event) => {
+			if (event.type === "ended" && event.payload.sessionId === record.id) ended.resolve()
+		})
 		options.setTask(undefined)
 		const sending = host.send({ sessionId: record.id, prompt: "wait for the barrier" })
 		// Attach rejection handling before deliberately severing the transport.
@@ -158,6 +165,8 @@ describe("cloud outcome → History and notifications through a real Hub", () =>
 			await completed.promise
 			expect(host.status).toBe("completed")
 			expect(statuses).toContain("unknown")
+			// The UI completion event precedes server persistence and workspace cleanup.
+			await ended.promise
 		}
 	})
 })
