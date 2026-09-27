@@ -37,6 +37,10 @@ service StateService {
   rpc refreshRemoteConfig(EmptyRequest) returns (Empty);
   rpc testOtelConnection(EmptyRequest) returns (TestConnectionResult);
   rpc testPromptUploading(EmptyRequest) returns (TestConnectionResult);
+  // RFC 0001: scaffold a .cline workspace in the current workspace folder.
+  rpc initializeWorkspace(EmptyRequest) returns (Empty);
+  // RFC 0001: silence the workspace onboarding card for the current folder.
+  rpc dismissWorkspaceOnboarding(EmptyRequest) returns (Empty);
 }
 
 message AutoApprovalActions {
@@ -286,6 +290,7 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional string open_telemetry_traces_exporter = 187;
 }
 
 message State {

@@ -88,6 +88,21 @@ message GetTaskHistoryRequest {
   bool current_workspace_only = 5;
   int32 limit = 6;
   int32 offset = 7;
+  // RFC 0001 hierarchical workspace scoping. When present it supersedes
+  // `current_workspace_only` with hierarchy-aware filtering (the anchor plus any
+  // inherited parent layers). Left unset by older webviews so their boolean
+  // behaviour is unchanged.
+  optional WorkspaceHistoryScope history_scope = 8;
+}
+
+// Workspace scope for task history queries (RFC 0001 Section 3.3).
+enum WorkspaceHistoryScope {
+  // Sessions anchored to the nearest active workspace root.
+  WORKSPACE_HISTORY_SCOPE_CURRENT = 0;
+  // Sessions anchored to the workspace root or any inherited parent layer.
+  WORKSPACE_HISTORY_SCOPE_INCLUDE_PARENT = 1;
+  // Unfiltered history across every project.
+  WORKSPACE_HISTORY_SCOPE_ALL = 2;
 }
 
 // Response for task history

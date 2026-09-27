@@ -36,6 +36,37 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 export const DEFAULT_PLATFORM = "unknown"
 
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+/** One resolved `.cline` layer of the RFC 0001 workspace hierarchy. */
+export interface WorkspaceHierarchyLayerState {
+	path: string
+	/** `.cline/workspace.json` `name` when set, else the folder basename. */
+	displayName: string
+	/** True for the nearest (primary) workspace root. */
+	isPrimary: boolean
+}
+
+/** RFC 0001 hierarchical workspace, as resolved for the open workspace folder. */
+export interface WorkspaceHierarchyState {
+	/** Folder the resolution started from. */
+	targetPath: string
+	/** Nearest active workspace root (the session anchor). */
+	primaryRoot: string
+	/** Whether a `.cline`/`.clinerules` workspace was found at or above the folder. */
+	isInitialized: boolean
+	/** Path of the inherited parent layer, when the primary root inherits one. */
+	inheritedFromPath?: string
+	/** Layers root-most first, primary root last. */
+	layers: WorkspaceHierarchyLayerState[]
+}
+
+/** RFC 0001 §3.2 onboarding card state. */
+export interface WorkspaceOnboardingState {
+	/** Show the card: uninitialized folder the user has not dismissed. */
+	show: boolean
+	/** Folder that would receive `.cline/`. */
+	workspacePath: string
+}
+
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
@@ -128,6 +159,14 @@ export interface ExtensionState {
 	primaryRootIndex: number
 	isMultiRootWorkspace: boolean
 	multiRootSetting: ClineFeatureSetting
+	/**
+	 * RFC 0001 hierarchical workspace: the resolved anchor, its inherited parent
+	 * layers, and whether a workspace was found at or above the open folder.
+	 * Absent when the hierarchy could not be resolved.
+	 */
+	workspaceHierarchy?: WorkspaceHierarchyState
+	/** RFC 0001 onboarding card visibility for the active folder. */
+	workspaceOnboarding?: WorkspaceOnboardingState
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
