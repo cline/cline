@@ -8,6 +8,7 @@ import {
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { FramedMessageParser } from "./framed-message-parser";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
@@ -137,43 +138,6 @@ function encodeFramedMessage(message: Record<string, unknown>): Buffer {
 }
 
 type StdioProtocolMode = "newline" | "framed";
-
-class FramedMessageParser {
-	// Content-Length counts bytes, so buffer raw bytes and only decode
-	// complete bodies; slicing a decoded string would miscount multibyte text.
-	private buffer = Buffer.alloc(0);
-
-	push(chunk: Buffer): string[] {
-		this.buffer = Buffer.concat([this.buffer, chunk]);
-		const messages: string[] = [];
-		while (true) {
-			const separatorIndex = this.buffer.indexOf("\r\n\r\n");
-			if (separatorIndex < 0) {
-				break;
-			}
-			const headerText = this.buffer
-				.subarray(0, separatorIndex)
-				.toString("utf8");
-			const contentLengthMatch = headerText.match(
-				/(?:^|\r\n)Content-Length:\s*(\d+)(?:\r\n|$)/i,
-			);
-			if (!contentLengthMatch) {
-				throw new Error(
-					"Invalid MCP stdio frame: missing Content-Length header.",
-				);
-			}
-			const contentLength = Number.parseInt(contentLengthMatch[1], 10);
-			const bodyStart = separatorIndex + 4;
-			const bodyEnd = bodyStart + contentLength;
-			if (this.buffer.length < bodyEnd) {
-				break;
-			}
-			messages.push(this.buffer.subarray(bodyStart, bodyEnd).toString("utf8"));
-			this.buffer = this.buffer.subarray(bodyEnd);
-		}
-		return messages;
-	}
-}
 
 class NewlineMessageParser {
 	private buffer = "";
