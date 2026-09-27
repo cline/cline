@@ -203,3 +203,56 @@ Other harness notes confirmed in practice:
   some fields; focus the inner shadow `input` then use real keystrokes (`ui.type` +
   `ui.press Tab`, or click the dropdown option) to make the value persist.
 
+## Committing: the pre-commit hook needs gitleaks >= 8.19
+
+`.husky/pre-commit` runs `gitleaks git --pre-commit --redact --staged --verbose`. The
+`git` subcommand only exists in gitleaks 8.19+; older installs (e.g. 8.18.x) abort with:
+
+```
+Error: unknown command "git" for "gitleaks"
+husky - pre-commit script failed (code 1)
+```
+
+The hook dies before `bunx lint-staged` runs, so nothing commits until gitleaks is
+upgraded (or the hook is bypassed). Check first with `gitleaks version`. If you cannot
+upgrade, run the equivalent scan yourself and bypass only the broken hook:
+
+```bash
+TMP=$(mktemp -d)
+git diff --cached --name-only -z | xargs -0 git checkout-index -f --prefix="$TMP/"
+gitleaks detect --no-git --source "$TMP" --redact -v   # must print "no leaks found"
+rm -rf "$TMP"
+HUSKY=0 git commit ...   # HUSKY=0 disables husky hooks for this command
+```
+
+Never reach for `--no-verify`/`HUSKY=0` without running that scan first: it is the only
+secret scan in the loop.
+
+## CLI TUI verification: only one interactive harness runs on Linux dev boxes
+
+`apps/cli` has three interactive suites, and two of them fail *before the CLI starts* in
+a typical Linux container. Confirm the failure mode before assuming your change broke it:
+
+| Command | Harness | Failure mode to expect |
+|---|---|---|
+| `bun -F @cline/cli test:e2e:tuistory` | `tuistory` (real PTY + Ghostty emulator) | Works headless; reactive `waitForText` instead of fixed sleeps. Prefer it. |
+| `bun -F @cline/cli test:e2e:interactive` | `script` + timed `printf` | Needs a **BSD-style `script`**. util-linux 2.39 rejects `script -q /dev/null -- cmd` with `script: unexpected number of arguments`, so all tests fail. |
+| `bun -F @cline/cli test:e2e:cli:tui` | `@microsoft/tui-test` | Can fail to boot with the hoisted `@vitest/expect@4.x`: `TypeError: Cannot redefine property: Symbol($$jest-matchers-object)`. |
+
+Gotchas that otherwise cost a debugging round:
+
+- **TUI suites must suppress launch dialogs.** The workspace onboarding/inheritance
+  dialogs (`CLINE_DISABLE_WORKSPACE_PROMPT`, RFC 0001 Phase 4) render over the chat view
+  at startup and swallow scripted keystrokes. `src/tests/helpers/env.ts` (`clineEnv`) and
+  the `createCliEnv` helpers in `cli.tuistory.e2e.test.ts` / `cli.interactive.e2e.test.ts`
+  set `CLINE_DISABLE_WORKSPACE_PROMPT=1`; workspace-prompt tests override it with
+  `{ CLINE_DISABLE_WORKSPACE_PROMPT: undefined }`. Set the same key in any new TUI suite,
+  the same way `CLINE_DISABLE_CLINE_PASS_NOTICE=1` is set.
+- **tui-test drives the built bundle.** `CLINE_BIN` resolves to `apps/cli/dist/index.js`
+  (`bun -F @cline/cli build` first). That artifact is bun-targeted (`#!/usr/bin/env bun`
+  plus `// @bun`): exec it directly (`./dist/index.js version`) because
+  `node dist/index.js` dies with
+  `ERR_MODULE_NOT_FOUND ... react-reconciler/constants` from `@opentui/react`.
+- **The suites sandbox their own state**: each env helper mints fresh
+  `HOME`/`CLINE_DATA_DIR`/`CLINE_SESSION_DATA_DIR` temp dirs, so history, hub discovery
+  and sessions start empty — assert against empty-state UI when a test needs determinism.
