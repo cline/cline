@@ -74,6 +74,9 @@ function createCliEnv(): NodeJS.ProcessEnv {
 			"providers.json",
 		),
 		CLINE_HOOKS_LOG_PATH: path.join(dataDir, "logs", "hooks.jsonl"),
+		// Phase 4 workspace onboarding/inheritance dialogs stack over the chat
+		// view and consume keystrokes from the scripted-input interactive suite.
+		CLINE_DISABLE_WORKSPACE_PROMPT: "1",
 	};
 }
 

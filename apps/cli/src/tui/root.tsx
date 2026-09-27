@@ -1,3 +1,4 @@
+import { basename, normalize, relative } from "node:path";
 import {
 	getCurrentContextSize,
 	type ManagedHubBuildMismatchEvent,
@@ -6,6 +7,10 @@ import {
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { formatDisplayUserInput } from "@cline/shared";
+import {
+	findWorkspaceHierarchySync,
+	type ResolvedHierarchicalWorkspace,
+} from "@cline/shared/storage";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -25,6 +30,7 @@ import {
 	type RepoStatus,
 	readRepoStatus,
 } from "../utils/repo-status";
+import { initializeWorkspace } from "../utils/workspace-init";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import { DialogThemeSync } from "./components/dialog-theme-sync";
@@ -55,6 +61,12 @@ import {
 	SkillsPickerContent,
 } from "./components/dialogs/skills-picker";
 import { ThemePickerContent } from "./components/dialogs/theme-picker";
+import {
+	type WorkspaceInheritanceChoice,
+	WorkspaceInheritanceDialogContent,
+	type WorkspaceOnboardingChoice,
+	WorkspaceOnboardingDialogContent,
+} from "./components/dialogs/workspace-onboarding";
 import { Toast, type ToastState, type ToastVariant } from "./components/toast";
 import { EventBridgeProvider } from "./contexts/event-bridge-context";
 import { SessionProvider, useSession } from "./contexts/session-context";
@@ -90,6 +102,20 @@ function isChatBackedStartupTarget(
 	return target === "chat" || target === "history";
 }
 
+/**
+ * Resolve the hierarchical workspace for a directory, tolerating filesystem
+ * errors (unreadable parents, racing deletions) by falling back to no layers.
+ */
+function readWorkspaceHierarchy(
+	cwd: string,
+): ResolvedHierarchicalWorkspace | null {
+	try {
+		return findWorkspaceHierarchySync(cwd);
+	} catch {
+		return null;
+	}
+}
+
 function App(props: TuiProps) {
 	const session = useSession();
 	const renderer = useRenderer();
@@ -123,6 +149,39 @@ function App(props: TuiProps) {
 	const checkpointRestoreInFlightRef = useRef(false);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
+	const [hierarchy, setHierarchy] =
+		useState<ResolvedHierarchicalWorkspace | null>(() =>
+			readWorkspaceHierarchy(props.config.cwd),
+		);
+
+	const refreshWorkspaceHierarchy = useCallback(() => {
+		setHierarchy(readWorkspaceHierarchy(props.config.cwd));
+	}, [props.config.cwd]);
+
+	const anchorPath = hierarchy?.primaryRoot ?? workspaceRoot;
+	const rootAnchorPath = hierarchy?.layers[0]?.path ?? workspaceRoot;
+	const displayPath = useMemo(() => {
+		if (
+			rootAnchorPath &&
+			props.config.cwd &&
+			normalize(rootAnchorPath) !== normalize(props.config.cwd)
+		) {
+			const relPath = relative(rootAnchorPath, props.config.cwd).replace(
+				/\\/g,
+				"/",
+			);
+			if (relPath && !relPath.startsWith("..")) {
+				return `${basename(rootAnchorPath)}/${relPath}`;
+			}
+		}
+		return basename(anchorPath);
+	}, [anchorPath, props.config.cwd, rootAnchorPath]);
+	const isSubWorkspace = Boolean(
+		hierarchy &&
+			(hierarchy.layers.length > 1 ||
+				normalize(props.config.cwd) !== normalize(anchorPath)),
+	);
+
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
 	const terminalTitle = useMemo(
 		() =>
@@ -578,6 +637,97 @@ function App(props: TuiProps) {
 		return () => clearTimeout(timeout);
 	}, [appView, currentProviderId, dialog, notice, onInitialNoticeShown]);
 
+	const workspacePromptEnabled =
+		process.env.CLINE_DISABLE_WORKSPACE_PROMPT !== "1";
+	const workspacePromptedRef = useRef(false);
+	const workspaceCwd = props.config.cwd;
+	const onWorkspaceInitialized = props.onWorkspaceInitialized;
+	const scaffoldWorkspace = useCallback(async () => {
+		try {
+			initializeWorkspace({ targetDir: workspaceCwd });
+		} catch (error) {
+			showToast(
+				error instanceof Error && error.message
+					? error.message
+					: "Could not initialize the Cline workspace.",
+				"error",
+			);
+			return;
+		}
+		refreshWorkspaceHierarchy();
+		showToast("Initialized .cline/ workspace", "success");
+		try {
+			await onWorkspaceInitialized?.();
+		} catch {
+			// Instruction refresh is best-effort; the files are already on disk.
+		}
+	}, [
+		onWorkspaceInitialized,
+		refreshWorkspaceHierarchy,
+		showToast,
+		workspaceCwd,
+	]);
+
+	const promptWorkspaceSetup = useCallback(
+		async (resolved: ResolvedHierarchicalWorkspace) => {
+			if (!resolved.isInitialized) {
+				const choice = await dialog.choice<WorkspaceOnboardingChoice>({
+					content: (ctx: ChoiceContext<WorkspaceOnboardingChoice>) => (
+						<WorkspaceOnboardingDialogContent {...ctx} cwd={workspaceCwd} />
+					),
+				});
+				if (choice === "initialize") {
+					await scaffoldWorkspace();
+				}
+				return;
+			}
+
+			const inheritsParent =
+				resolved.layers.length > 1 ||
+				normalize(resolved.primaryRoot) !== normalize(workspaceCwd);
+			if (!inheritsParent) return;
+
+			const choice = await dialog.choice<WorkspaceInheritanceChoice>({
+				content: (ctx: ChoiceContext<WorkspaceInheritanceChoice>) => (
+					<WorkspaceInheritanceDialogContent
+						{...ctx}
+						parentWorkspacePath={resolved.primaryRoot}
+						activeLayers={resolved.layers.map((layer) => basename(layer.path))}
+						cwd={workspaceCwd}
+					/>
+				),
+			});
+			if (choice === "create-sub-cline") {
+				await scaffoldWorkspace();
+			}
+		},
+		[dialog, scaffoldWorkspace, workspaceCwd],
+	);
+
+	useEffect(() => {
+		if (!workspacePromptEnabled) return;
+		if (workspacePromptedRef.current) return;
+		// Provider onboarding owns the screen until the user finishes it.
+		if (appView === "onboarding") return;
+		// Wait for transient startup dialogs (e.g. `cline history`) to close so
+		// the workspace prompt never stacks on top of another dialog.
+		if (isDialogOpen) return;
+		if (!hierarchy) return;
+		workspacePromptedRef.current = true;
+		const timeout = setTimeout(() => {
+			void promptWorkspaceSetup(hierarchy).finally(() => {
+				refocusTextareaRef.current();
+			});
+		}, 0);
+		return () => clearTimeout(timeout);
+	}, [
+		appView,
+		hierarchy,
+		isDialogOpen,
+		promptWorkspaceSetup,
+		workspacePromptEnabled,
+	]);
+
 	const [hubBuildMismatch, setHubBuildMismatch] =
 		useState<ManagedHubBuildMismatchEvent | null>(null);
 	const hubBuildWatchEnabled = shouldWatchManagedHubBuild(props.config);
@@ -777,6 +927,10 @@ function App(props: TuiProps) {
 		onFork: props.onFork,
 		onUndo: openCheckpointRestore,
 		onExit: exitCline,
+		anchorPath,
+		rootAnchorPath,
+		displayPath,
+		isSubWorkspace,
 	});
 
 	const startupActionsRef = useRef({ openConfig, openHistory });

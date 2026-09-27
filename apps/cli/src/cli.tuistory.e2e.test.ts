@@ -12,7 +12,13 @@
 // Run with: bun run test:e2e:tuistory
 // ---------------------------------------------------------------------------
 
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { launchTerminal, type Session } from "tuistory";
@@ -58,6 +64,10 @@ function createCliEnv(
 		// The stream-grepping interactive suite doesn't notice the overlay, but
 		// tuistory's screen snapshot reflects what the user actually sees.
 		CLINE_DISABLE_CLINE_PASS_NOTICE: "1",
+		// Phase 4 workspace onboarding/inheritance dialogs stack over the chat
+		// view and eat keystrokes. Dedicated workspace-prompt tests explicitly
+		// unset this variable.
+		CLINE_DISABLE_WORKSPACE_PROMPT: "1",
 		// The parent vitest process sets CI/VITEST; clear them so the spawned
 		// CLI renders as a real interactive terminal.
 		CI: undefined,
@@ -69,6 +79,7 @@ function createCliEnv(
 async function launchCli(
 	extraArgs: string[] = [],
 	env: Record<string, string | undefined> = createCliEnv(),
+	cwd?: string,
 ): Promise<Session> {
 	const session = await launchTerminal({
 		command: bunExec,
@@ -82,7 +93,7 @@ async function launchCli(
 			"test-key",
 			...extraArgs,
 		],
-		cwd: cliRoot,
+		cwd: cwd ?? cliRoot,
 		env,
 		cols: 120,
 		rows: 36,
@@ -240,5 +251,119 @@ describe("cli tuistory e2e", () => {
 		expect(readFileSync(markerPath, "utf8")).toContain(
 			'"cline-cli-cline-pass-intro": true',
 		);
+	});
+});
+
+// Phase 4: hierarchical workspace onboarding & inheritance notices.
+// These tests deliberately unset CLINE_DISABLE_WORKSPACE_PROMPT so the dialogs
+// render on launch; the other suites suppress them to stay deterministic.
+describe("cli workspace onboarding (Phase 4)", () => {
+	afterEach(async () => {
+		for (const session of sessions.splice(0)) {
+			try {
+				await session.press(["ctrl", "c"]);
+				await session.press(["ctrl", "c"]);
+				await session.waitIdle({ timeout: 3_000 });
+			} catch {
+				// Session may already be dead.
+			}
+			session.close();
+		}
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("initializes a .cline workspace when the user accepts the default option", async () => {
+		const cwd = mkdtempSync(path.join(os.tmpdir(), "cli-ws-onboard-"));
+		tempDirs.push(cwd);
+		const env = createCliEnv({ CLINE_DISABLE_WORKSPACE_PROMPT: undefined });
+		const session = await launchCli([], env, cwd);
+
+		await session.waitForText("No Cline workspace detected in this project.", {
+			timeout: LAUNCH_TIMEOUT_MS,
+		});
+		// The highlighted default option is "1. Initialize Cline workspace".
+		await session.press("enter");
+
+		await waitForChatView(session);
+		expect(existsSync(path.join(cwd, ".cline", "workspace.json"))).toBe(true);
+		expect(
+			existsSync(path.join(cwd, ".cline", "rules", "project-rules.md")),
+		).toBe(true);
+		expect(existsSync(path.join(cwd, ".cline", "skills"))).toBe(true);
+	});
+
+	it("creates a local sub-cline when the user presses 'c' on the inheritance notice", async () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cli-ws-inherit-"));
+		tempDirs.push(repo);
+		mkdirSync(path.join(repo, ".git"));
+		mkdirSync(path.join(repo, ".cline"));
+		const child = path.join(repo, "apps", "cli");
+		mkdirSync(child, { recursive: true });
+
+		const env = createCliEnv({ CLINE_DISABLE_WORKSPACE_PROMPT: undefined });
+		const session = await launchCli([], env, child);
+
+		await session.waitForText("Inherited parent workspace", {
+			timeout: LAUNCH_TIMEOUT_MS,
+		});
+		// 'c' is bound to "Create local sub-cline" in the inheritance dialog.
+		await session.type("c");
+
+		await waitForChatView(session);
+		expect(existsSync(path.join(child, ".cline", "workspace.json"))).toBe(true);
+		expect(
+			existsSync(path.join(child, ".cline", "rules", "project-rules.md")),
+		).toBe(true);
+	});
+
+	it("proceeds silently when the user accepts the parent workspace", async () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cli-ws-continue-"));
+		tempDirs.push(repo);
+		mkdirSync(path.join(repo, ".git"));
+		mkdirSync(path.join(repo, ".cline"));
+		const child = path.join(repo, "apps", "cli");
+		mkdirSync(child, { recursive: true });
+
+		const env = createCliEnv({ CLINE_DISABLE_WORKSPACE_PROMPT: undefined });
+		const session = await launchCli([], env, child);
+
+		await session.waitForText("Inherited parent workspace", {
+			timeout: LAUNCH_TIMEOUT_MS,
+		});
+		// Enter continues with the parent workspace and does NOT create a local
+		// .cline directory in the child.
+		await session.press("enter");
+
+		await waitForChatView(session);
+		expect(existsSync(path.join(child, ".cline"))).toBe(false);
+	});
+
+	it("cycles history scopes with Tab in the /history dialog", async () => {
+		// A clean cwd keeps the scope labels deterministic ("Current Workspace").
+		const cwd = mkdtempSync(path.join(os.tmpdir(), "cli-ws-history-"));
+		tempDirs.push(cwd);
+		const session = await launchCli([], createCliEnv(), cwd);
+		await waitForChatView(session);
+
+		await session.type("/history");
+		await session.waitForText("View session history", {
+			timeout: UI_TIMEOUT_MS,
+		});
+		await session.press("enter");
+		await session.waitForText("Scope: Current Workspace", {
+			timeout: UI_TIMEOUT_MS,
+		});
+
+		await session.press("tab");
+		await session.waitForText("Scope: Entire Monorepo", {
+			timeout: UI_TIMEOUT_MS,
+		});
+
+		await session.press("tab");
+		await session.waitForText("Scope: All Global Projects", {
+			timeout: UI_TIMEOUT_MS,
+		});
 	});
 });

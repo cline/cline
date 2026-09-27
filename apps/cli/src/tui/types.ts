@@ -246,6 +246,7 @@ export interface TuiProps {
 		handler: ((question: string, options: string[]) => Promise<string>) | null,
 	) => void;
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
+	onWorkspaceInitialized?: () => Promise<void> | void;
 }
 
 export type InlineStream = "text" | "reasoning" | undefined;

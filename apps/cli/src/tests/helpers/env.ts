@@ -125,6 +125,7 @@ export function clineEnv(
 		CLINE_SESSION_DATA_DIR: path.join(dataDir, "sessions"),
 		CLINE_TEAM_DATA_DIR: path.join(dataDir, "teams"),
 		CLINE_DISABLE_CLINE_PASS_NOTICE: "1",
+		CLINE_DISABLE_WORKSPACE_PROMPT: "1",
 		NO_UPDATE_NOTIFIER: "1",
 		CLINE_NO_AUTO_UPDATE: "1",
 		...extra,

@@ -34,6 +34,10 @@ export function useLocalCommandActions(input: {
 	onFork: TuiProps["onFork"];
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
+	anchorPath?: string;
+	rootAnchorPath?: string;
+	displayPath?: string;
+	isSubWorkspace?: boolean;
 }) {
 	const dialog = useDialog();
 	const session = useSession();
@@ -57,6 +61,10 @@ export function useLocalCommandActions(input: {
 		onFork,
 		onUndo,
 		onExit,
+		anchorPath,
+		rootAnchorPath,
+		displayPath,
+		isSubWorkspace,
 	} = input;
 
 	const openHistory = useCallback(async () => {
@@ -68,6 +76,10 @@ export function useLocalCommandActions(input: {
 					{...ctx}
 					onExport={onExportHistorySession}
 					onDelete={onDeleteHistorySession}
+					anchorPath={anchorPath}
+					rootAnchorPath={rootAnchorPath}
+					displayPath={displayPath}
+					isSubWorkspace={isSubWorkspace}
 				/>
 			),
 		});
@@ -107,11 +119,15 @@ export function useLocalCommandActions(input: {
 		}
 		refocusTextarea();
 	}, [
+		anchorPath,
 		dialog,
+		displayPath,
+		isSubWorkspace,
 		onDeleteHistorySession,
 		onExportHistorySession,
 		onResumeSession,
 		refocusTextarea,
+		rootAnchorPath,
 		session,
 		setAppView,
 		termHeight,

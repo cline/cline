@@ -22,6 +22,11 @@ import {
 	type HistoryExportPickerState,
 	resolveHistoryExportPickerAction,
 } from "./history-export-picker";
+import {
+	formatHistoryScopeLabel,
+	getNextHistoryScope,
+	type HistoryScope,
+} from "./history-scoping";
 
 function hasForkMetadata(row: SessionHistoryRecord): boolean {
 	const fork = row.metadata?.fork;
@@ -82,6 +87,10 @@ type HistoryListContentProps = HistoryListActions & {
 	registerKeyHandler?: (
 		handler: (key: HistoryKeyEvent | undefined) => void,
 	) => void;
+	anchorPath?: string;
+	rootAnchorPath?: string;
+	displayPath?: string;
+	isSubWorkspace?: boolean;
 };
 
 function HistoryListContent({
@@ -97,6 +106,10 @@ function HistoryListContent({
 	refreshRows,
 	refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
 	registerKeyHandler,
+	anchorPath,
+	rootAnchorPath,
+	displayPath,
+	isSubWorkspace,
 }: HistoryListContentProps) {
 	const palette = useDialogPalette();
 	const { width } = useTerminalDimensions();
@@ -107,6 +120,9 @@ function HistoryListContent({
 	const [loading, setLoading] = useState(loadRows);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
+	const [scope, setScope] = useState<HistoryScope>("current");
+	const scopeRef = useRef<HistoryScope>(scope);
+	scopeRef.current = scope;
 	const [exportPicker, setExportPickerState] =
 		useState<HistoryExportPickerState | null>(null);
 	const exportPickerRef = useRef(exportPicker);
@@ -118,15 +134,59 @@ function HistoryListContent({
 		setExportPickerState(next);
 	};
 
+	const loadRowsForScope = useCallback(
+		(targetScope: HistoryScope, hydrate: boolean) => {
+			const effectiveAnchor =
+				targetScope === "hierarchical"
+					? (rootAnchorPath ?? anchorPath)
+					: anchorPath;
+			return listSessions(50, {
+				hydrate,
+				anchorPath: effectiveAnchor,
+				scope: targetScope,
+			});
+		},
+		[anchorPath, rootAnchorPath],
+	);
+
+	const refresh = useCallback(
+		async (
+			showLoading: boolean,
+			load: () => Promise<SessionHistoryRecord[]>,
+		) => {
+			if (showLoading) {
+				setLoading(true);
+			}
+			try {
+				const refreshedRows = await load();
+				setRows((currentRows) =>
+					currentRows.length === 0
+						? refreshedRows
+						: mergeHistoryStatusRows(currentRows, refreshedRows),
+				);
+				setSelected((currentSelected) =>
+					Math.min(currentSelected, Math.max(0, refreshedRows.length - 1)),
+				);
+			} catch {
+				// Keep the last visible history snapshot when a background refresh fails.
+			} finally {
+				if (showLoading) {
+					setLoading(false);
+				}
+			}
+		},
+		[],
+	);
+
 	useEffect(() => {
-		const loadInitialRows = () => listSessions(50, { hydrate: true });
+		const loadInitialRows = () => loadRowsForScope(scopeRef.current, true);
 		const loadRefreshRows =
-			refreshRows ?? (() => listSessions(50, { hydrate: false }));
+			refreshRows ?? (() => loadRowsForScope(scopeRef.current, false));
 		let disposed = false;
 		let refreshInFlight = false;
 		let interval: ReturnType<typeof setInterval> | undefined;
 
-		const refresh = async (
+		const safeRefresh = async (
 			showLoading: boolean,
 			load: () => Promise<SessionHistoryRecord[]>,
 		) => {
@@ -167,7 +227,7 @@ function HistoryListContent({
 		}
 
 		if (loadRows) {
-			void refresh(true, loadInitialRows);
+			void safeRefresh(true, loadInitialRows);
 		} else {
 			setRows(initialRows ?? []);
 			setLoading(false);
@@ -175,7 +235,7 @@ function HistoryListContent({
 
 		if (refreshIntervalMs > 0) {
 			interval = setInterval(() => {
-				void refresh(false, loadRefreshRows);
+				void safeRefresh(false, loadRefreshRows);
 			}, refreshIntervalMs);
 		}
 
@@ -185,7 +245,7 @@ function HistoryListContent({
 				clearInterval(interval);
 			}
 		};
-	}, [initialRows, loadRows, refreshIntervalMs, refreshRows]);
+	}, [initialRows, loadRows, loadRowsForScope, refreshIntervalMs, refreshRows]);
 
 	const safeSelected = Math.min(selected, Math.max(0, rows.length - 1));
 	const titleMaxLen = Math.max(20, width - 44);
@@ -279,6 +339,16 @@ function HistoryListContent({
 			return;
 		}
 
+		if (key.name === "tab") {
+			setStatusMessage(null);
+			const nextScope = getNextHistoryScope(scopeRef.current);
+			setScope(nextScope);
+			scopeRef.current = nextScope;
+			setSelected(0);
+			void refresh(true, () => loadRowsForScope(nextScope, false));
+			return;
+		}
+
 		if (key.name === "escape") {
 			onDismiss();
 			return;
@@ -328,9 +398,17 @@ function HistoryListContent({
 		registerKeyHandler?.((key) => handlerRef.current(key));
 	}, [registerKeyHandler]);
 
+	const scopeLabel = formatHistoryScopeLabel(scope, rows.length, {
+		isSubWorkspace,
+	});
+
 	if (loading) {
 		return (
-			<box flexDirection="column" paddingX={1}>
+			<box flexDirection="column" paddingX={1} gap={1}>
+				{displayPath && (
+					<text fg="gray">Showing history for: {displayPath}</text>
+				)}
+				<text fg="cyan">Scope: {scopeLabel}</text>
 				<text fg="gray">Loading session history...</text>
 			</box>
 		);
@@ -387,9 +465,13 @@ function HistoryListContent({
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
 				<text>{title}</text>
+				{displayPath && (
+					<text fg="gray">Showing history for: {displayPath}</text>
+				)}
+				<text fg="cyan">Scope: {scopeLabel} (Tab to switch)</text>
 				<text fg="gray">{emptyMessage}</text>
 				<text fg="gray">
-					<em>Esc to close</em>
+					<em>Esc to close, Tab to toggle scope</em>
 				</text>
 			</box>
 		);
@@ -406,9 +488,15 @@ function HistoryListContent({
 
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<text fg={confirmDelete ? "red" : undefined}>
-				{confirmDelete ? "Delete this session? (y/n)" : title}
-			</text>
+			<box flexDirection="column">
+				<text fg={confirmDelete ? "red" : undefined}>
+					{confirmDelete ? "Delete this session? (y/n)" : title}
+				</text>
+				{displayPath && (
+					<text fg="gray">Showing history for: {displayPath}</text>
+				)}
+				<text fg="cyan">Scope: {scopeLabel} (Tab to switch)</text>
+			</box>
 
 			<box flexDirection="column" marginTop={1}>
 				{aboveCount > 0 && (
@@ -501,9 +589,24 @@ function HistoryListContent({
 
 export function HistoryDialogContent(
 	props: ChoiceContext<string> &
-		Pick<HistoryListActions, "onExport" | "onDelete">,
+		Pick<HistoryListActions, "onExport" | "onDelete"> & {
+			anchorPath?: string;
+			rootAnchorPath?: string;
+			displayPath?: string;
+			isSubWorkspace?: boolean;
+		},
 ) {
-	const { resolve, dismiss, dialogId, onExport, onDelete } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		onExport,
+		onDelete,
+		anchorPath,
+		rootAnchorPath,
+		displayPath,
+		isSubWorkspace,
+	} = props;
 	const [keyHandler, setKeyHandler] = useState<
 		((key: HistoryKeyEvent | undefined) => void) | undefined
 	>();
@@ -524,6 +627,10 @@ export function HistoryDialogContent(
 			onExport={onExport}
 			onDelete={onDelete}
 			registerKeyHandler={registerKeyHandler}
+			anchorPath={anchorPath}
+			rootAnchorPath={rootAnchorPath}
+			displayPath={displayPath}
+			isSubWorkspace={isSubWorkspace}
 		/>
 	);
 }
