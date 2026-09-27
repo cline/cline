@@ -264,6 +264,39 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(globalState.cloudSessionStatuses).toBeUndefined()
 		})
 
+		it.each([false, true])("invalidates a later record without restarting (retained host=%s)", async (retained) => {
+			vi.useFakeTimers()
+			vi.setSystemTime(100_000)
+			const globalState: Record<string, unknown> = {}
+			const host = {
+				status: "completed",
+				readMessages: async () => [],
+				dispose: vi.fn(async () => {}),
+				refreshStatus: vi.fn(async () => "running"),
+			}
+			const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host as unknown as CloudSessionHost)
+			const { coordinator, cloudSessions, options } = makeCoordinator({
+				stateManager: makeStateManager(globalState) as never,
+			})
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			await coordinator.listHistoryRecords()
+			if (retained) options.setTask({ taskId: finished.id } as never)
+			await coordinator.resolveStatuses([finished.id])
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("completed")
+			vi.setSystemTime(180_000)
+			cloudSessions.listSessions.mockResolvedValue([{ ...finished, updatedAt: new Date(170_000).toISOString() }])
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("unknown")
+			expect(globalState.cloudSessionStatuses).toEqual({ [finished.id]: { status: "completed", observedAt: 100_000 } })
+			if (!retained) connect.mockResolvedValue({ ...host, status: "running" } as unknown as CloudSessionHost)
+			expect(await coordinator.resolveStatuses([finished.id])).toEqual([{ sessionId: finished.id, status: "running" }])
+			if (retained) {
+				expect(host.refreshStatus).toHaveBeenCalledOnce()
+				expect(connect).toHaveBeenCalledOnce()
+				expect(host.dispose).not.toHaveBeenCalled()
+			} else expect(connect).toHaveBeenCalledTimes(2)
+			await coordinator.dispose()
+		})
+
 		it("drops remembered statuses for sessions the account no longer lists", async () => {
 			const globalState: Record<string, unknown> = {
 				cloudSessionStatuses: { "ses-gone": { status: "completed", observedAt: 5_000 } },
