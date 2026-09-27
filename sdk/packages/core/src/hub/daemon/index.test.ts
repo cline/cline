@@ -559,6 +559,90 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("leaves an older hub running and attaches to it when its activity query does not answer", async () => {
+		queryHubSessionActivity.mockRejectedValue(
+			Object.assign(new Error("session.list timed out"), {
+				name: "HubCommandError",
+				code: "hub_command_timeout",
+			}),
+		);
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+			pid: 12345,
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			pid: 12345,
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		const result = await ensureDetachedHubServer("/workspace");
+
+		expect(result).toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+		// The drain that preceded the busy check is lifted again.
+		expect(requestHubDrain).toHaveBeenLastCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub retirement deferred",
+			{ off: true },
+		);
+	});
+
+	it("still replaces an older hub that answers the activity query with a command error", async () => {
+		queryHubSessionActivity.mockRejectedValue(
+			Object.assign(new Error("Unknown command: session.list"), {
+				name: "HubCommandError",
+				code: "unknown_command",
+			}),
+		);
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValueOnce(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		const result = await ensureDetachedHubServer("/workspace");
+
+		expect(result).toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		expect(requestHubShutdown).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+		);
+		expect(spawn).toHaveBeenCalledOnce();
+	});
+
 	it("retires an existing hub with an empty discovery auth token before starting a replacement", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {

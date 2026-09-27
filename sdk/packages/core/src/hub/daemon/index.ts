@@ -276,9 +276,15 @@ export type HubRetirementOutcome =
  * Whether the Hub is currently serving sessions, and so must not be shut down
  * under them.
  *
- * Failing open (treating an unanswerable Hub as idle) preserves the existing
- * replacement path for a Hub that is wedged or too old to answer the query;
- * only a Hub that positively reports live sessions is spared.
+ * Fails closed: a Hub that does not answer the activity query in time is
+ * treated as busy, because a Hub mid-turn on a loaded machine is exactly the
+ * one that answers slowly, and retiring it kills that turn (desktop telemetry
+ * showed the replacement daemon booting seconds before "Hub connection
+ * closed (code=1006)" run failures). The caller then attaches to the older
+ * Hub and the build-mismatch prompt lets the user pick the swap moment.
+ * Only a Hub that answered with a command error (too old to serve
+ * `session.list`) is treated as idle, so pre-`session.list` builds still get
+ * replaced instead of stranding their clients.
  */
 export async function hubHasLiveSessions(
 	record: Pick<HubServerProbeRecord, "url" | "authToken">,
@@ -289,9 +295,18 @@ export async function hubHasLiveSessions(
 			record.authToken,
 		);
 		return activity.activeSessionCount > 0;
-	} catch {
-		return false;
+	} catch (error) {
+		return !isHubCommandRejection(error);
 	}
+}
+
+/** The Hub answered the command and rejected it, as opposed to not answering. */
+function isHubCommandRejection(error: unknown): boolean {
+	const candidate = error as { name?: unknown; code?: unknown } | undefined;
+	return (
+		candidate?.name === "HubCommandError" &&
+		candidate.code !== "hub_command_timeout"
+	);
 }
 
 /**

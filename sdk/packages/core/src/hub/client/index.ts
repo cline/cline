@@ -213,7 +213,10 @@ const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
 const RECOVERABLE_LOCAL_HUB_URLS = new Set<string>();
-const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 3_000;
+// Generous on purpose: the replacement path treats a timeout as "busy" and
+// leaves the Hub running, so a slow answer must be rare enough not to strand
+// users on an old Hub, while a Hub mid-turn still gets time to answer.
+const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 10_000;
 const HUB_RECOVERY_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RECOVERY_RETIRE_POLL_MS = 100;
 const DEFAULT_HUB_CLOSED_MESSAGE = "Hub connection closed";
