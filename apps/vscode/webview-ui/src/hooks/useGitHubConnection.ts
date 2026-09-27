@@ -1,57 +1,80 @@
 import type { GitHubConnection } from "@shared/proto/cline/cloud"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { CloudServiceClient } from "@/services/grpc-client"
 
 const DISCONNECTED_POLL_MS = 6_000
 
 /**
- * GitHub App connection status for cloud sessions. While the user is signed in
- * but GitHub is not connected (or grants no repositories), the status is
- * re-checked periodically and on window focus so finishing the connect flow in
- * the browser flips the UI on its own.
+ * GitHub App connection status for cloud sessions. The connection belongs to
+ * the active account (personal or organization), so it is re-read whenever
+ * that changes. While the user is signed in but GitHub is not connected (or
+ * grants no repositories), the status is re-checked periodically and on window
+ * focus so finishing the connect flow in the browser flips the UI on its own.
  */
 export function useGitHubConnection(enabled: boolean) {
-	const [connection, setConnection] = useState<GitHubConnection | undefined>()
+	const { clineUser, activeOrganization, accountSwitch } = useClineAuth()
+	const available = enabled && !!clineUser?.uid && !accountSwitch
+	const scope = useMemo(
+		() => ({ available, userId: clineUser?.uid, organizationId: activeOrganization?.organizationId }),
+		[available, clineUser?.uid, activeOrganization?.organizationId],
+	)
+	const [snapshot, setSnapshot] = useState<{ scope: object; connection: GitHubConnection }>()
+	const connection = available && snapshot?.scope === scope ? snapshot.connection : undefined
 	const [loading, setLoading] = useState(false)
-	const inFlight = useRef<Promise<void> | undefined>(undefined)
+	const inFlight = useRef<{ scope: object; promise: Promise<void> } | undefined>(undefined)
 
 	const refresh = useCallback(async () => {
-		if (!enabled) {
+		if (!available) {
 			return
 		}
-		if (inFlight.current) {
-			return inFlight.current
+		if (inFlight.current?.scope === scope) {
+			return inFlight.current.promise
 		}
 		setLoading(true)
-		inFlight.current = CloudServiceClient.getGitHubConnection(EmptyRequest.create())
-			.then((result) => setConnection(result))
-			.catch((error) => {
-				console.error("Failed to load GitHub connection:", error)
-				setConnection((previous) => ({
-					signedIn: previous?.signedIn ?? true,
-					connected: false,
-					connectUrl: previous?.connectUrl ?? "",
-					repositories: [],
-					error: error instanceof Error ? error.message : String(error),
-				}))
-			})
-			.finally(() => {
-				setLoading(false)
-				inFlight.current = undefined
-			})
-		return inFlight.current
-	}, [enabled])
+		const request = {
+			scope,
+			promise: CloudServiceClient.getGitHubConnection(EmptyRequest.create())
+				.then((result) => {
+					// A response for a previous account must not describe the current one.
+					if (inFlight.current === request) setSnapshot({ scope, connection: result })
+				})
+				.catch((error) => {
+					if (inFlight.current !== request) return
+					console.error("Failed to load GitHub connection:", error)
+					setSnapshot({
+						scope,
+						connection: {
+							signedIn: true,
+							connected: false,
+							connectUrl: "",
+							repositories: [],
+							error: error instanceof Error ? error.message : String(error),
+						},
+					})
+				})
+				.finally(() => {
+					if (inFlight.current === request) {
+						setLoading(false)
+						inFlight.current = undefined
+					}
+				}),
+		}
+		inFlight.current = request
+		return request.promise
+	}, [available, scope])
 
 	useEffect(() => {
-		if (!enabled) {
-			return
-		}
+		setLoading(false)
 		void refresh()
-	}, [enabled, refresh])
+		return () => {
+			inFlight.current = undefined
+		}
+	}, [refresh])
 
 	const needsPolling =
-		enabled &&
+		available &&
 		!!connection &&
 		connection.signedIn &&
 		(!connection.connected || connection.repositories.length === 0) &&

@@ -61,6 +61,7 @@ export class ClineAccountService {
 			throw new Error("No Cline account auth token found")
 		}
 		const requestConfig: AxiosRequestConfig = {
+			timeout: 10_000,
 			...config,
 			headers: {
 				Authorization: `Bearer ${clineAccountAuthToken}`,

@@ -17,6 +17,8 @@ const mockApiConfiguration = vi.hoisted(() => ({
 vi.mock("@/context/ClineAuthContext", () => ({
 	useClineAuth: () => ({
 		clineUser: null,
+		switchOrganization: mockSetUserOrganization,
+		accountSwitch: null,
 	}),
 	useClineSignIn: () => ({
 		isLoginLoading: false,
@@ -84,7 +86,7 @@ describe("ErrorRow", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-		mockSetUserOrganization.mockResolvedValue({})
+		mockSetUserOrganization.mockResolvedValue(true)
 		mockUpdateApiConfigurationProto.mockResolvedValue({})
 	})
 
@@ -261,7 +263,7 @@ describe("ErrorRow", () => {
 
 			fireEvent.click(screen.getByText("Switch to personal account"))
 
-			await waitFor(() => expect(mockSetUserOrganization).toHaveBeenCalledWith({}))
+			await waitFor(() => expect(mockSetUserOrganization).toHaveBeenCalledWith())
 			expect(screen.getByText("Switched to personal account")).toBeInTheDocument()
 		})
 

@@ -299,10 +299,11 @@ export class SdkCloudSessionCoordinator {
 
 	/** History rows for every cloud session in the active account scope (cached briefly). */
 	async listHistoryRecords(): Promise<SessionHistoryRecord[]> {
-		if (!this.isAvailable()) {
+		if (!this.isAvailable() || this.scopeTransition) {
 			return []
 		}
 		await this.refreshList()
+		if (this.scopeTransition) return []
 		const generation = this.scopeGeneration
 		const entries = [...this.entries.values()]
 		await this.refreshUsage(entries)
@@ -313,7 +314,7 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	async findHistoryRecord(sessionId: string): Promise<SessionHistoryRecord | undefined> {
-		if (!this.isAvailable()) {
+		if (!this.isAvailable() || this.scopeTransition) {
 			return undefined
 		}
 		let entry = this.entries.get(sessionId)
@@ -404,8 +405,11 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	private async refreshList(force = false): Promise<void> {
-		await this.scopeTransition
-		if (this.disposed) return
+		// The account mutation inside a scope transition posts state, which lists
+		// History and lands here. Waiting for the transition would deadlock it, and
+		// fetching would attribute old-account rows to the new scope. History
+		// omits cloud rows during the transition; reset refreshes them afterwards.
+		if (this.scopeTransition || this.disposed) return
 		if (!force && Date.now() - this.listFetchedAt < LIST_CACHE_TTL_MS) {
 			return
 		}
@@ -508,6 +512,12 @@ export class SdkCloudSessionCoordinator {
 		} finally {
 			if (this.scopeTransition === transition) {
 				this.scopeTransition = undefined
+				// Refresh even after failure: the server may have switched accounts
+				// before a later auth/config refresh failed.
+				if (!this.disposed) {
+					this.options.invalidateHistoryCache()
+					void this.options.postStateToWebview().catch(() => {})
+				}
 			}
 		}
 	}
