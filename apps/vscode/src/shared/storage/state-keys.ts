@@ -9,7 +9,7 @@ import {
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import type { CloudTaskTargetSelection } from "@shared/cloud/cloud-sessions"
+import type { CloudTaskTargetSelection, RememberedCloudStatuses } from "@shared/cloud/cloud-sessions"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
@@ -98,6 +98,8 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Last Local/Cloud choice (and repository) picked on the home screen for new tasks
 	cloudTaskTarget: { default: undefined as CloudTaskTargetSelection | undefined },
+	// Last agent status confirmed over a live connection, per cloud session id
+	cloudSessionStatuses: { default: {} as RememberedCloudStatuses },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions

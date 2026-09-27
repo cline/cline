@@ -81,7 +81,7 @@ describe("cloud outcome → History and notifications through a real Hub", () =>
 		let task: TaskProxy | undefined
 		const options = {
 			cloudSessions: service,
-			stateManager: { getGlobalSettingsKey: () => "act" },
+			stateManager: { getGlobalSettingsKey: () => "act", getGlobalStateKey: () => ({}), setGlobalState: vi.fn() },
 			sessionConfigBuilder: { build: vi.fn() },
 			sessions: { attachExistingSession: vi.fn() },
 			messages: { finalizeMessagesForSave: (messages: unknown) => messages },

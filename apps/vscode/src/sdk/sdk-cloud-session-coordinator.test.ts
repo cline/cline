@@ -1,3 +1,4 @@
+import type { CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { HostProvider } from "@/hosts/host-provider"
 import { CloudSessionError, type CloudSessionRecord, type CreateCloudSessionInput } from "@/services/cloud/CloudSessionsService"
@@ -34,6 +35,18 @@ const record: CloudSessionRecord = {
 	updatedAt: new Date(0).toISOString(),
 }
 
+/** In-memory global state shared by coordinators that stand in for one extension install. */
+function makeStateManager(globalState: Record<string, unknown> = {}) {
+	return {
+		getApiConfiguration: () => ({ actModeApiProvider: "cline", actModeClineModelId: "fixture-model" }),
+		getGlobalSettingsKey: () => "act",
+		getGlobalStateKey: (key: string) => globalState[key],
+		setGlobalState: (key: string, value: unknown) => {
+			globalState[key] = value
+		},
+	}
+}
+
 function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> = {}) {
 	let task: { taskId: string } | undefined
 	const cloudSessions = {
@@ -49,10 +62,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 	}
 	const options = {
 		cloudSessions,
-		stateManager: {
-			getApiConfiguration: () => ({ actModeApiProvider: "cline", actModeClineModelId: "fixture-model" }),
-			getGlobalSettingsKey: () => "act",
-		},
+		stateManager: makeStateManager(),
 		sessionConfigBuilder: {
 			build: vi.fn(async () => ({
 				providerId: "cline",
@@ -100,6 +110,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		const fireAndForgetSend = vi.fn()
 		const { coordinator, cloudSessions, options } = makeCoordinator({
 			stateManager: {
+				...makeStateManager(),
 				getApiConfiguration: () => ({
 					actModeApiProvider: "cline",
 					actModeClineModelId: "act-cloud-model",
@@ -175,11 +186,119 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.listHistoryRecords()
 		vi.mocked(options.postStateToWebview).mockClear()
 		statusChanged("running")
-		statusChanged("completed")
-		expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("unknown")
+		statusChanged("failed")
+		// The old host's events never reach the new-scope entry; it still shows the
+		// status the previous scope remembered for the same record.
+		expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("completed")
 		expect(options.postStateToWebview).not.toHaveBeenCalled()
 		expect(HostProvider.window.showMessage).not.toHaveBeenCalled()
 		await coordinator.dispose()
+	})
+
+	describe("remembered statuses", () => {
+		const finished = { ...record, updatedAt: new Date(1_000).toISOString() }
+
+		function connectReporting(status: CloudSessionStatus) {
+			vi.spyOn(CloudSessionHost, "connect").mockImplementation(async (options) => {
+				options.onStatusChange?.(status)
+				return {
+					status,
+					readMessages: async () => [],
+					dispose: vi.fn(async () => undefined),
+				} as unknown as CloudSessionHost
+			})
+		}
+
+		async function rememberCompleted(globalState: Record<string, unknown>) {
+			connectReporting("completed")
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			await coordinator.listHistoryRecords()
+			await coordinator.resolveStatuses([finished.id])
+			await coordinator.dispose()
+		}
+
+		it("shows a settled status after restart without reconnecting while the record is unchanged", async () => {
+			const globalState: Record<string, unknown> = {}
+			await rememberCompleted(globalState)
+
+			const connect = vi.spyOn(CloudSessionHost, "connect").mockClear()
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([finished])
+
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("completed")
+			expect(await coordinator.resolveStatuses([finished.id])).toEqual([{ sessionId: finished.id, status: "completed" }])
+			expect(connect).not.toHaveBeenCalled()
+		})
+
+		it("keeps a remembered status through the control plane's own connect touch", async () => {
+			const globalState: Record<string, unknown> = {}
+			await rememberCompleted(globalState)
+
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([{ ...finished, updatedAt: new Date(Date.now() + 2_000).toISOString() }])
+
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("completed")
+		})
+
+		it("forgets a remembered status once the record is updated well after the observation", async () => {
+			const globalState: Record<string, unknown> = {}
+			await rememberCompleted(globalState)
+
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([
+				{ ...finished, updatedAt: new Date(Date.now() + 10 * 60_000).toISOString() },
+			])
+
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("unknown")
+		})
+
+		it("does not remember an active status", async () => {
+			const globalState: Record<string, unknown> = {}
+			connectReporting("running")
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			await coordinator.listHistoryRecords()
+			await coordinator.resolveStatuses([finished.id])
+
+			expect(globalState.cloudSessionStatuses).toBeUndefined()
+		})
+
+		it("drops remembered statuses for sessions the account no longer lists", async () => {
+			const globalState: Record<string, unknown> = {
+				cloudSessionStatuses: { "ses-gone": { status: "completed", observedAt: 5_000 } },
+			}
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			await coordinator.listHistoryRecords()
+
+			expect(globalState.cloudSessionStatuses).toEqual({})
+		})
+	})
+
+	describe("History timestamps", () => {
+		it("keeps the control plane timestamp when a connection only learns the current status", async () => {
+			let statusChanged!: NonNullable<Parameters<typeof CloudSessionHost.connect>[0]["onStatusChange"]>
+			vi.spyOn(CloudSessionHost, "connect").mockImplementation(async (options) => {
+				statusChanged = options.onStatusChange!
+				statusChanged("completed")
+				return {
+					status: "completed",
+					readMessages: async () => [],
+					dispose: vi.fn(async () => undefined),
+				} as unknown as CloudSessionHost
+			})
+			const old = { ...record, updatedAt: new Date(1_000).toISOString() }
+			const { coordinator, cloudSessions } = makeCoordinator()
+			cloudSessions.listSessions.mockResolvedValue([old])
+			await coordinator.listHistoryRecords()
+			await coordinator.resolveStatuses([old.id])
+
+			expect((await coordinator.listHistoryRecords())[0].updatedAt).toBe(old.updatedAt)
+
+			statusChanged("running")
+			expect(Date.parse((await coordinator.listHistoryRecords())[0].updatedAt!)).toBeGreaterThan(1_000)
+		})
 	})
 
 	it.each([
