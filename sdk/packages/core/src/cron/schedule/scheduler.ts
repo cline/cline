@@ -1,9 +1,15 @@
+export interface ParsedCronField {
+	values: number[];
+	/** Vixie cron marks fields whose raw pattern starts with `*` as star fields. */
+	startsWithStar: boolean;
+}
+
 function parseCronField(
 	token: string,
 	min: number,
 	max: number,
 	names?: readonly string[],
-): number[] {
+): ParsedCronField {
 	const results = new Set<number>();
 
 	function resolveValue(raw: string): number {
@@ -72,7 +78,10 @@ function parseCronField(
 		results.add(resolveValue(part));
 	}
 
-	return [...results].sort((left, right) => left - right);
+	return {
+		values: [...results].sort((left, right) => left - right),
+		startsWithStar: token.startsWith("*"),
+	};
 }
 
 const MONTH_NAMES = [
@@ -93,16 +102,11 @@ const MONTH_NAMES = [
 const DOW_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 export interface ParsedCron {
-	minutes: number[];
-	hours: number[];
-	daysOfMonth: number[];
-	months: number[];
-	daysOfWeek: number[];
-	/**
-	 * True when both day fields are restricted (neither starts with `*`). Standard
-	 * cron then matches a day when EITHER field matches, not both.
-	 */
-	dayOfMonthOrDayOfWeek: boolean;
+	minutes: ParsedCronField;
+	hours: ParsedCronField;
+	daysOfMonth: ParsedCronField;
+	months: ParsedCronField;
+	daysOfWeek: ParsedCronField;
 }
 
 interface CronDateParts {
@@ -142,21 +146,22 @@ export function parseCron(pattern: string): ParsedCron {
 			`Invalid cron pattern "${pattern}": expected 5 fields, got ${fields.length}`,
 		);
 	}
-	const dayOfMonthField = getRequiredField(fields, 2, pattern);
-	const dayOfWeekField = getRequiredField(fields, 4, pattern);
 	return {
 		minutes: parseCronField(getRequiredField(fields, 0, pattern), 0, 59),
 		hours: parseCronField(getRequiredField(fields, 1, pattern), 0, 23),
-		daysOfMonth: parseCronField(dayOfMonthField, 1, 31),
+		daysOfMonth: parseCronField(getRequiredField(fields, 2, pattern), 1, 31),
 		months: parseCronField(
 			getRequiredField(fields, 3, pattern),
 			1,
 			12,
 			MONTH_NAMES,
 		),
-		daysOfWeek: parseCronField(dayOfWeekField, 0, 6, DOW_NAMES),
-		dayOfMonthOrDayOfWeek:
-			!dayOfMonthField.startsWith("*") && !dayOfWeekField.startsWith("*"),
+		daysOfWeek: parseCronField(
+			getRequiredField(fields, 4, pattern),
+			0,
+			6,
+			DOW_NAMES,
+		),
 	};
 }
 
@@ -247,19 +252,19 @@ function cronMatchesDay(
 	dayOfMonth: number,
 	dayOfWeek: number,
 ): boolean {
-	const dayOfMonthMatches = cron.daysOfMonth.includes(dayOfMonth);
-	const dayOfWeekMatches = cron.daysOfWeek.includes(dayOfWeek);
-	return cron.dayOfMonthOrDayOfWeek
+	const dayOfMonthMatches = cron.daysOfMonth.values.includes(dayOfMonth);
+	const dayOfWeekMatches = cron.daysOfWeek.values.includes(dayOfWeek);
+	return !cron.daysOfMonth.startsWithStar && !cron.daysOfWeek.startsWithStar
 		? dayOfMonthMatches || dayOfWeekMatches
 		: dayOfMonthMatches && dayOfWeekMatches;
 }
 
 function cronMatchesParts(cron: ParsedCron, parts: CronDateParts): boolean {
 	return (
-		cron.months.includes(parts.month) &&
+		cron.months.values.includes(parts.month) &&
 		cronMatchesDay(cron, parts.dayOfMonth, parts.dayOfWeek) &&
-		cron.hours.includes(parts.hour) &&
-		cron.minutes.includes(parts.minute)
+		cron.hours.values.includes(parts.hour) &&
+		cron.minutes.values.includes(parts.minute)
 	);
 }
 
@@ -312,10 +317,10 @@ export function getNextCronTime(
 		const { month, dayOfMonth, dayOfWeek, hour, minute } =
 			getLocalCronDateParts(next.getTime());
 
-		if (!cron.months.includes(month)) {
+		if (!cron.months.values.includes(month)) {
 			const targetMonth =
-				cron.months.find((value) => value > month) ??
-				getFirstCronValue(cron.months, "months");
+				cron.months.values.find((value) => value > month) ??
+				getFirstCronValue(cron.months.values, "months");
 			const yearDelta = targetMonth <= month ? 1 : 0;
 			next = new Date(
 				next.getFullYear() + yearDelta,
@@ -342,10 +347,10 @@ export function getNextCronTime(
 			continue;
 		}
 
-		if (!cron.hours.includes(hour)) {
+		if (!cron.hours.values.includes(hour)) {
 			const targetHour =
-				cron.hours.find((value) => value > hour) ??
-				getFirstCronValue(cron.hours, "hours");
+				cron.hours.values.find((value) => value > hour) ??
+				getFirstCronValue(cron.hours.values, "hours");
 			const dayDelta = targetHour <= hour ? 1 : 0;
 			next = new Date(
 				next.getFullYear(),
@@ -359,10 +364,10 @@ export function getNextCronTime(
 			continue;
 		}
 
-		if (!cron.minutes.includes(minute)) {
+		if (!cron.minutes.values.includes(minute)) {
 			const targetMinute =
-				cron.minutes.find((value) => value > minute) ??
-				getFirstCronValue(cron.minutes, "minutes");
+				cron.minutes.values.find((value) => value > minute) ??
+				getFirstCronValue(cron.minutes.values, "minutes");
 			const hourDelta = targetMinute <= minute ? 1 : 0;
 			next = new Date(
 				next.getFullYear(),
