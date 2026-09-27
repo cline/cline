@@ -1,6 +1,6 @@
 import type { AuthState, UserOrganizationsResponse } from "@shared/proto/cline/account"
-import { act, render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { act, fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ClineAuthProvider, useClineAuth } from "./ClineAuthContext"
 
 type AuthStatusCallbacks = {
@@ -10,6 +10,7 @@ type AuthStatusCallbacks = {
 const grpcMocks = vi.hoisted(() => ({
 	getUserOrganizations: vi.fn(),
 	subscribeToAuthStatusUpdate: vi.fn(),
+	setUserOrganization: vi.fn(),
 	authStatusCallbacks: undefined as AuthStatusCallbacks | undefined,
 }))
 
@@ -17,6 +18,7 @@ vi.mock("@/services/grpc-client", () => ({
 	AccountServiceClient: {
 		getUserOrganizations: grpcMocks.getUserOrganizations,
 		subscribeToAuthStatusUpdate: grpcMocks.subscribeToAuthStatusUpdate,
+		setUserOrganization: grpcMocks.setUserOrganization,
 	},
 }))
 
@@ -29,10 +31,14 @@ function createDeferred<T>() {
 }
 
 function AuthStateProbe() {
-	const { clineUser, organizations } = useClineAuth()
+	const { clineUser, organizations, switchOrganization, accountSwitch } = useClineAuth()
 	return (
 		<>
 			<div data-testid="user-state">{clineUser?.uid ?? "signed-out"}</div>
+			<button onClick={() => void switchOrganization("org-next")} type="button">
+				Switch
+			</button>
+			<div data-testid="switch-state">{accountSwitch ? (accountSwitch.slow ? "slow" : "pending") : "settled"}</div>
 			<div data-testid="organizations-state">
 				{organizations?.map((organization) => organization.organizationId).join(",") ?? "none"}
 			</div>
@@ -41,6 +47,7 @@ function AuthStateProbe() {
 }
 
 describe("ClineAuthProvider", () => {
+	afterEach(() => vi.useRealTimers())
 	beforeEach(() => {
 		vi.clearAllMocks()
 		grpcMocks.authStatusCallbacks = undefined
@@ -80,5 +87,67 @@ describe("ClineAuthProvider", () => {
 
 		expect(screen.getByTestId("user-state")).toHaveTextContent("signed-out")
 		expect(screen.getByTestId("organizations-state")).toHaveTextContent("none")
+	})
+
+	it("keeps a slow switch owned and ignores its completion after sign-out", async () => {
+		vi.useFakeTimers()
+		const switching = createDeferred<Record<string, never>>()
+		grpcMocks.setUserOrganization.mockReturnValue(switching.promise)
+		grpcMocks.getUserOrganizations.mockResolvedValue({ organizations: [] })
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		fireEvent.click(screen.getByText("Switch"))
+		fireEvent.click(screen.getByText("Switch"))
+		expect(grpcMocks.setUserOrganization).toHaveBeenCalledOnce()
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(10_000)
+		})
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("slow")
+		act(() => {
+			grpcMocks.authStatusCallbacks?.onResponse({})
+		})
+		grpcMocks.getUserOrganizations.mockClear()
+		await act(async () => {
+			switching.resolve({})
+		})
+		expect(grpcMocks.getUserOrganizations).not.toHaveBeenCalled()
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
+		expect(screen.getByTestId("user-state")).toHaveTextContent("signed-out")
+	})
+
+	it("gives a replacement user a separate switch owner", async () => {
+		const first = createDeferred<Record<string, never>>()
+		const second = createDeferred<Record<string, never>>()
+		grpcMocks.setUserOrganization.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+		grpcMocks.getUserOrganizations.mockResolvedValue({ organizations: [] })
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-a" } })
+		})
+		fireEvent.click(screen.getByText("Switch"))
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-b" } })
+		})
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
+		fireEvent.click(screen.getByText("Switch"))
+		await act(async () => {
+			first.resolve({})
+		})
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("pending")
+		await act(async () => {
+			second.resolve({})
+		})
+		expect(grpcMocks.setUserOrganization).toHaveBeenCalledTimes(2)
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
 	})
 })
