@@ -167,7 +167,14 @@ function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
 	const targetOs = item.os === "win32" ? "windows" : item.os;
-	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
+	// Bun's default x64 runtime requires AVX2 and dies with an illegal
+	// instruction / access violation on CPUs without it (pre-Haswell, some
+	// budget Pentiums, some VMs). The baseline runtime only needs SSE4.2.
+	// Intel Macs without AVX2 can't run a supported macOS, so darwin is left
+	// on the default runtime.
+	const baseline =
+		item.arch === "x64" && item.os !== "darwin" ? "-baseline" : "";
+	return `bun-${targetOs}-${item.arch}${baseline}` as Bun.Build.CompileTarget;
 }
 
 async function buildCompiledBinary(input: {

@@ -27,9 +27,11 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 	if (targetTriple.startsWith("aarch64-apple-darwin"))
 		return "bun-darwin-arm64";
 	if (targetTriple.startsWith("x86_64-apple-darwin")) return "bun-darwin-x64";
-	if (targetTriple.startsWith("x86_64-pc-windows")) return "bun-windows-x64";
-	// SSH hosts may predate AVX2 (e.g. Ivy Bridge Xeons). The default Bun
-	// x64 runtime can SIGILL before our entrypoint runs on those CPUs.
+	// Bun's default x64 runtime requires AVX2 and crashes before our entrypoint
+	// runs on CPUs that lack it (pre-Haswell desktops, Ivy Bridge Xeon SSH
+	// hosts, some budget Pentiums). The baseline runtime only needs SSE4.2.
+	if (targetTriple.startsWith("x86_64-pc-windows"))
+		return "bun-windows-x64-baseline";
 	if (targetTriple.startsWith("x86_64-unknown-linux"))
 		return "bun-linux-x64-baseline";
 	if (targetTriple.startsWith("aarch64-unknown-linux"))
