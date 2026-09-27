@@ -25,6 +25,7 @@ import {
 	type CurrentCloudTaskInfo,
 	isCloudSessionId,
 	isPersistedCloudSessionId,
+	type RememberedCloudStatuses,
 } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -52,6 +53,22 @@ import { createTaskProxy, type TaskProxy } from "./task-proxy"
 const LIST_CACHE_TTL_MS = 10_000
 const ACTIVE_POLL_INTERVAL_MS = 15_000
 const IDLE_CONNECTION_TTL_MS = 5 * 60_000
+
+/**
+ * The control plane stamps a record's `updatedAt` when a client connects to
+ * its sandbox, a moment after the socket has reported the agent status. A
+ * touch this soon after an observation is attributed to the connection that
+ * made the observation, not to activity elsewhere.
+ */
+const CONNECT_TOUCH_GRACE_MS = 60_000
+
+/**
+ * Whether a status is worth remembering across restarts. An active status is
+ * re-learned live, because only rows still unknown are re-resolved on launch.
+ */
+function isSettled(status: CloudSessionStatus): boolean {
+	return status !== "unknown" && !ACTIVE_CLOUD_STATUSES.has(status)
+}
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
@@ -129,7 +146,11 @@ interface CloudSessionEntry {
 	 * host. Status resolution and the idle sweep leave a pinned host open.
 	 */
 	pinned: number
-	/** Last agent status observed over the connection, kept after it is dropped. */
+	/**
+	 * Last agent status observed over a live connection, kept after the
+	 * connection is dropped and remembered across restarts while the control
+	 * plane record has not changed since (see rememberedStatusOf).
+	 */
 	agentStatus?: CloudSessionStatus
 	/** Usage snapshot from this entry's live host. REST-only records do not expose usage. */
 	usage?: SessionAccumulatedUsage
@@ -175,6 +196,44 @@ export class SdkCloudSessionCoordinator {
 			return "failed"
 		}
 		return entry.host?.status ?? entry.agentStatus ?? "unknown"
+	}
+
+	/**
+	 * The status remembered for a record from a previous connection, if the
+	 * control plane has not updated the record since it was observed. A later
+	 * `updatedAt` means another client connected while nothing here watched,
+	 * so the agent may have run again.
+	 */
+	private rememberedStatusOf(record: CloudSessionRecord): CloudSessionStatus | undefined {
+		const remembered = this.rememberedStatuses()[record.id]
+		if (!remembered) {
+			return undefined
+		}
+		const updatedAt = Date.parse(record.updatedAt)
+		return Number.isFinite(updatedAt) && updatedAt <= remembered.observedAt + CONNECT_TOUCH_GRACE_MS
+			? remembered.status
+			: undefined
+	}
+
+	/** Global state does not apply declared defaults on read; an install that never remembered anything has no key. */
+	private rememberedStatuses(): RememberedCloudStatuses {
+		return this.options.stateManager.getGlobalStateKey("cloudSessionStatuses") ?? {}
+	}
+
+	private rememberStatus(record: CloudSessionRecord, status: CloudSessionStatus, observedAt: number): void {
+		this.options.stateManager.setGlobalState("cloudSessionStatuses", {
+			...this.rememberedStatuses(),
+			[record.id]: { status, observedAt },
+		})
+	}
+
+	/** Drops remembered statuses for sessions the account's list no longer contains. */
+	private pruneRememberedStatuses(liveIds: ReadonlySet<string>): void {
+		const statuses = this.rememberedStatuses()
+		const kept = Object.fromEntries(Object.entries(statuses).filter(([id]) => liveIds.has(id)))
+		if (Object.keys(kept).length !== Object.keys(statuses).length) {
+			this.options.stateManager.setGlobalState("cloudSessionStatuses", kept)
+		}
 	}
 
 	getCurrentTaskInfo(): CurrentCloudTaskInfo | undefined {
@@ -372,6 +431,7 @@ export class SdkCloudSessionCoordinator {
 						this.statusResolutionAttempts.delete(id)
 					}
 				}
+				this.pruneRememberedStatuses(seen)
 				this.listFetchedAt = Date.now()
 			} catch (error) {
 				// Reset invalidates both successful responses and failed requests.
@@ -396,9 +456,19 @@ export class SdkCloudSessionCoordinator {
 		const existing = this.entries.get(record.id)
 		if (existing) {
 			existing.record = record
+			// While a connection is open, its status is confirmed against every
+			// record version seen, whatever touched the record.
+			if (existing.host && isSettled(existing.host.status)) {
+				this.rememberStatus(record, existing.host.status, Date.now())
+			}
 			return existing
 		}
-		const entry: CloudSessionEntry = { record, pinned: 0, lastActivityAt: Date.parse(record.updatedAt) || Date.now() }
+		const entry: CloudSessionEntry = {
+			record,
+			pinned: 0,
+			agentStatus: this.rememberedStatusOf(record),
+			lastActivityAt: Date.parse(record.updatedAt) || Date.now(),
+		}
 		this.entries.set(record.id, entry)
 		return entry
 	}
@@ -524,8 +594,16 @@ export class SdkCloudSessionCoordinator {
 			return
 		}
 		const previous = entry.agentStatus
+		const now = Date.now()
 		entry.agentStatus = status
-		entry.lastActivityAt = Date.now()
+		if (isSettled(status)) {
+			this.rememberStatus(entry.record, status, now)
+		}
+		// Learning the current status on connect is not agent activity; only a
+		// change observed while connected moves the task up in History.
+		if (previous !== undefined && previous !== status) {
+			entry.lastActivityAt = now
+		}
 		this.options.invalidateHistoryCache()
 		const isDisplayed = this.options.getTask()?.taskId === sessionId
 		if (!isDisplayed && previous !== undefined && previous !== status && (status === "completed" || status === "failed")) {

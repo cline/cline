@@ -20,6 +20,21 @@ export type CloudSessionStatus =
 	| "unknown"
 	| "expired"
 
+/**
+ * The last settled agent status confirmed over a live sandbox connection,
+ * remembered across restarts so History does not show every finished cloud
+ * task as unconfirmed until a socket re-learns it. `observedAt` is compared
+ * with the control plane's `updatedAt`: a record updated well after the
+ * observation invalidates it. Active statuses are never remembered.
+ */
+export interface RememberedCloudStatus {
+	status: CloudSessionStatus
+	observedAt: number
+}
+
+/** Remembered statuses keyed by outer cloud session id. */
+export type RememberedCloudStatuses = Record<string, RememberedCloudStatus>
+
 /** The user's persisted Local/Cloud choice for new tasks. */
 export interface CloudTaskTargetSelection {
 	target: CloudExecutionTarget
