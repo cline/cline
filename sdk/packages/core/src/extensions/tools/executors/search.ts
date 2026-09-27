@@ -102,6 +102,7 @@ const DEFAULT_INCLUDE_EXTENSIONS = [
 
 const DEFAULT_EXCLUDE_DIRS = [
 	"node_modules",
+	"vendor",
 	".git",
 	"dist",
 	"build",
@@ -166,18 +167,41 @@ function checkRipgrepAvailable(): Promise<boolean> {
 	});
 }
 
+/**
+ * Build `-g '!dir/'` exclusion globs for ripgrep. Ripgrep only applies
+ * .gitignore rules inside git repositories, and dependency/build directories
+ * (vendored deps, .NET bin/obj, etc.) are often committed or not gitignored,
+ * so the default excludes must be passed explicitly to keep them out of
+ * results — mirroring the filtering the non-ripgrep fallback already does.
+ */
+function buildRipgrepExcludeGlobs(excludeDirs: Iterable<string>): string[] {
+	const args: string[] = [];
+	for (const dir of excludeDirs) {
+		args.push("-g", `!${dir}/`);
+	}
+	return args;
+}
+
 function searchWithRipgrep(
 	query: string,
 	cwd: string,
 	maxResults: number,
 	contextLines: number,
+	excludeDirs: Iterable<string>,
 	timeoutMs: number = 5000,
 	abortSignal?: AbortSignal,
 ): Promise<SearchMatch[] | null> {
 	return new Promise((resolve) => {
 		const child = spawn(
 			"rg",
-			["--json", `--context=${contextLines}`, "--max-count=1", "-i", query],
+			[
+				"--json",
+				`--context=${contextLines}`,
+				"--max-count=1",
+				"-i",
+				...buildRipgrepExcludeGlobs(excludeDirs),
+				query,
+			],
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
@@ -358,6 +382,7 @@ export function createSearchExecutor(
 				cwd,
 				maxResults,
 				contextLines,
+				excludeDirsSet,
 				5000,
 				context.signal,
 			);
