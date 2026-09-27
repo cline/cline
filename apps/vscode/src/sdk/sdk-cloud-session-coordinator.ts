@@ -247,7 +247,6 @@ export class SdkCloudSessionCoordinator {
 			repoUrl: entry?.record.repoContext.repoUrl,
 			branch: entry?.record.repoContext.branch,
 			status: entry ? this.statusOf(entry) : "unknown",
-			dashboardUrl: this.options.cloudSessions.dashboardUrl(taskId),
 		}
 	}
 

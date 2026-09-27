@@ -33,7 +33,6 @@ describe("CloudTaskBadge", () => {
 				cloudTask={{
 					sessionId: "cloud-provisioning-1",
 					status: "provisioning",
-					dashboardUrl: "",
 				}}
 			/>,
 		)
@@ -50,7 +49,6 @@ describe("CloudTaskBadge", () => {
 				cloudTask={{
 					sessionId: "ses-ready",
 					status: "running",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=ses-ready",
 				}}
 			/>,
 		)
@@ -63,9 +61,7 @@ describe("CloudTaskBadge", () => {
 
 	it("does not present an unconfirmed status as an ongoing check", () => {
 		mocks.resolveCloudSessionStatuses.mockReturnValue(new Promise(() => {}))
-		const { container } = render(
-			<CloudTaskBadge cloudTask={{ sessionId: "ses-checking", status: "unknown", dashboardUrl: "" }} />,
-		)
+		const { container } = render(<CloudTaskBadge cloudTask={{ sessionId: "ses-checking", status: "unknown" }} />)
 
 		expect(container.querySelector(".animate-spin")).not.toBeInTheDocument()
 		expect(screen.getByText(/status could not be confirmed/)).toBeInTheDocument()

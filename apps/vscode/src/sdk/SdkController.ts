@@ -24,7 +24,7 @@ import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } fr
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
-import { CLOUD_SESSION_MODE, type CurrentCloudTaskInfo, isCloudSessionId } from "@shared/cloud/cloud-sessions"
+import { CLOUD_SESSION_MODE, isCloudSessionId } from "@shared/cloud/cloud-sessions"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -1483,11 +1483,6 @@ export class Controller {
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
-	}
-
-	/** Cloud-specific details of the displayed task, when it runs in Cline Cloud. */
-	getCurrentCloudTask(): CurrentCloudTaskInfo | undefined {
-		return this.cloud.getCurrentTaskInfo()
 	}
 
 	/**

@@ -26,34 +26,33 @@ roughly in the order they should be done.
 
 ## Consolidate with the desktop app (JC's PR stacks)
 
-1. Land #13519 first, then drop the copy of `resolveConnectionHeaders` from this
-   branch's `sdk/packages/core/src/hub/client/index.ts` (it is the same diff).
-2. Move the REST client into `@cline/core` as `services/cloud-sessions/`
+1. Consolidate the REST client with `@cline/core`'s cloud API
    (`CloudSessionApi`, `CloudSessionRecord`, `CloudRepository`,
    `CloudSessionError`) and have both `apps/examples/desktop-app/sidecar/
    cloud-sessions.ts` and `CloudSessionsService.ts` import it. The desktop
    version also has create-timeout recovery (adopt an already-provisioned
    record after a timed-out POST) which the extension version does not.
-3. Consider replacing the desktop sidecar's hand-rolled `CloudSessionManager`
+2. Consider replacing the desktop sidecar's hand-rolled `CloudSessionManager`
    (raw `NodeHubClient`, event buffering, approval relay) with the
    `RemoteRuntimeHost`-based approach used here. It removes roughly 3k lines of
    sidecar code and both apps would share one connection/attach strategy.
-4. Share `normalizeGitHubRemoteUrl` (duplicated in
+3. Share `normalizeGitHubRemoteUrl` (duplicated in
    `src/shared/cloud/cloud-sessions.ts` and the SDK's `cloud-handoff/
    git-preflight.ts` on the desktop branch) once #13574 lands.
-5. Land #13557 (`approval.list_pending`) and have `CloudSessionHost` reconcile
+4. Have `CloudSessionHost` reconcile
    pending approvals on reconnect. Today cloud sessions auto-approve every tool
    (same as the desktop and the dashboard), so this only matters if we ever
    let cloud sessions ask for approval.
 
 ## Backend asks
 
-- `GET /api/v1/session` only says whether the sandbox is up (`active`), not
-  whether the agent is running. The extension knows the real state only for
-  sessions it is connected to; other rows fall back to a neutral "Cloud" pill.
-  Exposing agent activity (running / idle / awaiting input) and the last
-  assistant message time on the list record would make the History indicators
-  and the "Running in the cloud" strip accurate across devices and restarts.
+- `GET /api/v1/session` describes sandbox availability, not authoritative agent
+  activity. The extension remembers settled outcomes and resolves unknown visible
+  rows over live connections. Unresolved rows show Unconfirmed. A record update
+  more than 60 seconds after an observation invalidates that outcome; the grace
+  window tolerates this client's connect touch but can also hide a quick external
+  resume. Exposing an agent revision, activity and last-message time would remove
+  that heuristic and improve cross-device status and timestamps.
 - A typed error code for billing/limit failures on `POST /api/v1/session`, so
   the start error can offer "Add credits" like local tasks do.
 - Include `title` in the create response and accept it in the create body, so
@@ -70,10 +69,9 @@ roughly in the order they should be done.
   in editor", which resolves against the local workspace. Either hide the
   affordance for cloud tasks or open a read-only virtual document fetched from
   the sandbox.
-- Keep a cloud session's connection across window reloads: after a reload the
-  registry is empty, so a task that was running shows as "Status unknown" until it is
-  reopened. Persisting the ids of sessions started from this window and
-  reattaching on activation would restore the status without user action.
+- Restore notification monitoring for offscreen running tasks after a reload.
+  Visible unknown tasks reconnect automatically, but offscreen tasks have no
+  persistent notification subscription.
 - Favorites and rename for cloud rows in History (favorites are local-history
   metadata today; rename exists in the API but has no UI in the extension).
 - Model picker for cloud tasks: the sandbox runs the user's Act-mode Cline
@@ -85,11 +83,6 @@ roughly in the order they should be done.
   The SDK runtime fixes the tool set and Plan command guard when a session is
   built, so supporting a mid-task switch means rebuilding the sandbox
   conversation with `initialMessages`, the way local tasks do.
-- Corporate proxy support for the live WebSocket: the REST client uses the
-  repository's proxy-aware fetch path, but the SDK's header-authenticated
-  `ws` transport does not accept a proxy agent. Keep the feature disabled for
-  cohorts that require a corporate proxy until REST and WSS share the same
-  proxy resolution, authentication, bypass and certificate-trust policy.
 - Multi-root workspaces: the repository is prefilled from the primary root's
   `origin`; a root picker would help users with several GitHub repos open.
 - Telemetry: `cloud_task_started`, `cloud_task_completed`, `cloud_task_failed`,

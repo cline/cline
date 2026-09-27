@@ -49,7 +49,6 @@ export interface CurrentCloudTaskInfo {
 	repoUrl?: string
 	branch?: string
 	status: CloudSessionStatus
-	dashboardUrl: string
 }
 
 export const CLOUD_WORKSPACE_ROOT = "/workspace"
@@ -86,10 +85,6 @@ export function isCloudSessionId(id: string | undefined): boolean {
 	}
 	const trimmed = id.trim()
 	return isPersistedCloudSessionId(trimmed) || trimmed.startsWith(CLOUD_PROVISIONING_ID_PREFIX)
-}
-
-export function isGitHubRepositoryUrl(url: string | undefined): boolean {
-	return !!normalizeGitHubRemoteUrl(url ?? "")
 }
 
 /** Formats https://github.com/owner/repo as owner/repo for compact display. */

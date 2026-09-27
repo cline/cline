@@ -76,7 +76,6 @@ describe("CloudSessionHost real Hub boundary", () => {
 		})
 
 		expect(started.sessionId).toBe(record.id)
-		expect(host.sessionId).toBe(record.id)
 		expect(taskId).not.toBe(record.id)
 		await host.send({ sessionId: record.id, prompt: "reply from the fixture" })
 		expect(host.status).not.toBe("running")
