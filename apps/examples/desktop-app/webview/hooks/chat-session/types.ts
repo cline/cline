@@ -1,11 +1,23 @@
 import type { SessionHookEvent } from "@/lib/session-diff";
 
 export type ProcessContext = {
+	environmentId: string;
 	workspaceRoot: string;
 	cwd: string;
 	homeDir?: string;
+	/** Where the sidecar creates task worktrees (`<root>/<id>/<repo>`). */
+	taskWorktreeRoot?: string;
 	platform?: string;
 	appVersion?: string;
+	activeEnvironmentId?: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+		workspaceRoot?: string;
+		platform?: string;
+		arch?: string;
+	} | null;
 };
 
 export type AgentChunkEvent = {
@@ -14,6 +26,12 @@ export type AgentChunkEvent = {
 	chunk: string;
 	ts: number;
 	index?: number;
+	/**
+	 * Identifies the sidecar process that numbered this chunk. `index` restarts
+	 * whenever the sidecar does, so a changed `boot` means the counter reset
+	 * rather than the stream replaying.
+	 */
+	boot?: string;
 };
 
 export type ReasoningDeltaEvent = {
@@ -83,9 +101,11 @@ export type ChatApiResult = {
 	text: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cacheReadTokens?: number;
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
+		cacheReadTokens?: number;
 		totalCost?: number;
 	};
 	iterations?: number;
@@ -106,12 +126,17 @@ export type ChatApiResult = {
 };
 
 export type ChatSessionCommandResponse = {
+	environmentId?: string;
 	sessionId?: string;
 	cwd?: string;
 	workspaceRoot?: string;
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	/** A plugin slash command ran in the sidecar and no turn was started. */
+	commandHandled?: boolean;
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
 	promptsInQueue?: PromptInQueue[];
 	prompt?: PromptInQueue;
 	updated?: boolean;

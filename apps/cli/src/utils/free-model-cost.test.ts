@@ -1,5 +1,7 @@
 import type { AgentEvent } from "@cline/core";
+import { setClineClientIdentity } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { registerClineClientIdentity } from "./cline-client-identity";
 import {
 	clearClineFreeModelCostCache,
 	shouldZeroClineFreeModelCost,
@@ -9,6 +11,7 @@ import {
 
 afterEach(() => {
 	clearClineFreeModelCostCache();
+	setClineClientIdentity(undefined);
 	vi.unstubAllGlobals();
 });
 
@@ -37,6 +40,29 @@ describe("shouldZeroClineFreeModelCost", () => {
 		expect(fetchMock.mock.calls[0]?.[0]).toBe(
 			"https://cline.test/api/v1/ai/cline/recommended-models",
 		);
+	});
+
+	it("identifies the CLI client on the free model request", async () => {
+		const fetchMock = vi.fn(
+			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) => {
+				return new Response(JSON.stringify({ free: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			},
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		registerClineClientIdentity("cline-cli");
+
+		await shouldZeroClineFreeModelCost({
+			providerId: "cline",
+			modelId: "deepseek/deepseek-v4-flash",
+			baseUrl: "https://cline.test/api/v1",
+		});
+
+		expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+			"X-CLIENT-TYPE": "cline-cli",
+		});
 	});
 
 	it("matches cline-free model ids from the free endpoint bucket exactly", async () => {

@@ -167,6 +167,8 @@ export interface AgentUsageEvent extends AgentEventMetadata {
 	cacheWriteTokens?: number;
 	/** Cost for this turn */
 	cost?: number;
+	/** Reasoning/thinking tokens for this turn, already excluded from outputTokens */
+	reasoningTokenCount?: number;
 
 	/** Accumulated totals */
 	totalInputTokens: number;
@@ -614,6 +616,13 @@ export interface AgentPrepareTurnContext {
 	 * compaction rather than trust its token estimates.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Input tokens the provider actually counted for the previous request this
+	 * run, when available. Compaction uses it as a floor on its own char-based
+	 * estimate, which under-counts dense content (disassembly, pixel dumps) and
+	 * can otherwise let the real context grow past the window without triggering.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,

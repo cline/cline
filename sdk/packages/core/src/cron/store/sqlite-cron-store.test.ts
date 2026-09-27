@@ -425,7 +425,10 @@ describe("SqliteCronStore: runs", () => {
 		expect(runs[0]?.status).toBe("cancelled");
 	});
 
-	it("requeues a claimed run when ownership matches", () => {
+	it.each([
+		false,
+		true,
+	])("requeues a claimed run when ownership matches (release attempt: %s)", (releaseAttempt) => {
 		const spec = seedOneOff();
 		const queued = store.enqueueRun({
 			specId: spec.specId,
@@ -441,14 +444,27 @@ describe("SqliteCronStore: runs", () => {
 			store.requeueRun({
 				runId: claim?.run.runId,
 				claimToken: claim?.claimToken,
-				error: "retry later",
+				error: releaseAttempt ? undefined : "retry later",
+				releaseAttempt,
 			}),
 		).toBe(true);
 		const run = store.getRun(queued.runId);
 		expect(run?.status).toBe("queued");
 		expect(run?.claimToken).toBeUndefined();
 		expect(run?.startedAt).toBeUndefined();
-		expect(run?.error).toBe("retry later");
+		expect(run?.error).toBe(releaseAttempt ? undefined : "retry later");
+		expect(run?.attemptCount).toBe(releaseAttempt ? 0 : 1);
+		// A stale owner cannot decrement again after its claim has been released.
+		expect(
+			store.requeueRun({
+				runId: queued.runId,
+				claimToken: claim?.claimToken,
+				releaseAttempt: true,
+			}),
+		).toBe(false);
+		expect(store.getRun(queued.runId)?.attemptCount).toBe(
+			releaseAttempt ? 0 : 1,
+		);
 	});
 });
 

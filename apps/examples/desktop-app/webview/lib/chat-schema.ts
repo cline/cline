@@ -3,8 +3,12 @@ import { z } from "zod";
 
 export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
+	executionTarget: z.enum(["local", "cloud"]).default("local"),
+	repoUrl: z.string().optional(),
+	branch: z.string().optional(),
 	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
+	environmentId: z.string().trim().min(1),
 	provider: z.string().min(1),
 	model: z.string().min(1),
 	mode: z.enum(["act", "plan"]).default("act"),

@@ -10,12 +10,75 @@ From `apps/examples/desktop-app/`:
 - `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
-- `bun run build` - build web assets
+- `bun run build:web` - build production web assets only (includes the shared UI build)
+- `bun run build` - build web assets and the sidecar binary
 - `bun run build:sidecar` - build the Bun sidecar bundle
 - `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+### Checking webview changes
+
+Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
+
+## Pull Requests
+
+The composer shows the current branch's GitHub pull request, merge status,
+changed-line totals, and CI checks. Click the PR number to open it in your
+browser, or expand CI to inspect individual checks and their logs. Status
+refreshes every 30 seconds while visible, when the app regains focus, and
+when you click refresh.
+
+This requires GitHub CLI (`gh`) installed and authenticated with `gh auth login`,
+and a GitHub.com `origin` remote (HTTPS or SSH). The row is hidden for the
+default branch, detached HEAD, and unsupported repositories. If the branch
+has no PR, **Create PR** opens GitHub's comparison form; push your commits
+before submitting the form. The app does not push commits or submit PRs itself.
+
+Missing or unauthenticated GitHub CLI also hides the row. Availability checks
+are shared across workspaces and cached for five minutes, so unavailable CLI
+installs do not spawn a failing process on every poll or window focus. After
+installing or signing into `gh`, the feature becomes available on the first
+refresh after the cache expires (or after restarting the desktop backend).
+Initial lookup failures stay hidden. Errors after a successful status load
+can be dismissed and remain dismissed through retries until a load succeeds.
+
+### Pull request telemetry
+
+These events use the desktop telemetry service and respect telemetry opt-out:
+
+| Event | Trigger |
+| --- | --- |
+| `desktop.pull_request.shown` | First visible PR/create row per mounted workspace and branch |
+| `desktop.pull_request.open_clicked` | Click the PR link |
+| `desktop.pull_request.create_clicked` | Click Create PR (intent only, not PR submission) |
+| `desktop.pull_request.checks_expanded` | Open the CI popover |
+| `desktop.pull_request.check_clicked` | Click a check's details link |
+| `desktop.pull_request.refresh_clicked` | Click manual refresh |
+
+Each event contains only `prState`, `ciState`, and `mergeTone` categories.
+The sidecar validates these values and strips extra fields. Repository/branch
+names, paths, PR numbers/titles, check names, and URLs are not included.
+Automatic polling does not emit additional impressions. Telemetry delivery
+does not block interactions, and failures do not interrupt the feature.
+
+## App Icons
+
+`src-tauri/app-icon.png` (1024x1024, edge-to-edge) is the source for
+`bun tauri icon`, which generates the Windows `.ico` and Linux PNGs in
+`src-tauri/icons/`. macOS is the exception: Dock icons are expected to have a
+transparent margin, with the artwork filling 824 of the 1024 canvas, so the
+committed `icons/icon.icns` is built from a padded copy of the source, and the
+selectable runtime icons in `icons/app/macos/` are padded copies of the
+Windows ones in `icons/app/`. To regenerate the macOS icon after changing the
+artwork:
+
+```bash
+cd src-tauri
+magick app-icon.png -resize 824x824 -background none -gravity center -extent 1024x1024 /tmp/app-icon-macos.png
+bun tauri icon /tmp/app-icon-macos.png -o /tmp/icons-macos && cp /tmp/icons-macos/icon.icns icons/icon.icns
+```
 
 ## Customizing the macOS Install Window
 
@@ -61,7 +124,67 @@ agent-spawned child (run_commands, MCP servers) inherits. Only `PATH` is
 imported, deliberately; other login-environment variables (`SSH_AUTH_SOCK`,
 API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
 `CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
-[`sidecar/shell-path.ts`](./sidecar/shell-path.ts).
+[`core shell-path.ts`](../../../sdk/packages/core/src/remote/shell-path.ts).
+
+## SSH Remote Environments
+
+Open **Settings → Remote** to add and test an SSH host. Saving or testing a
+profile does not activate it. From the welcome chat, open the environment
+selector beside the workspace picker and choose the saved host; that selection
+starts the SSH connection at the remote user's home directory. Choose **Add
+project…** from the normal workspace selector to browse that machine and select
+a project, or choose **Local** in the environment selector to disconnect. Recent
+and last-used workspaces are remembered separately for each SSH host and for
+the local machine.
+
+SSH config aliases are supported. Leave **Port** blank to use the alias's SSH
+configuration (including its configured port), or enter a port to override it.
+The desktop keeps its webview and native integration local; only the
+authenticated Cline Hub protocol is forwarded through SSH. Agent tools,
+workspace discovery, Git metadata, and session persistence therefore run on the
+SSH host, while approvals and live session events return to the desktop.
+
+The shared `@cline/core` `RemoteEnvironmentService` owns this feature; other
+clients can use the same service and `ClineCore` remote backend (see `sdk/DOC.md`).
+Desktop owns the settings UI and packaged helper resource lookup.
+
+The service stores host metadata at
+`~/.cline/data/settings/remote-environments.json` with mode `0600`. It stores an
+identity-file path, never private-key contents. On first connect it uploads a
+content-addressed, branch-matched, self-contained Hub helper under
+`~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
+random local loopback port. Linux x64 and arm64 helpers are bundled by
+`bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
+supported. A macOS desktop reaches macOS SSH hosts with its own signed
+universal sidecar, which runs the same helper entrypoint; Windows and Linux
+desktops need a locally built darwin helper passed through
+`CLINE_REMOTE_HELPER_BINARY`. The helper includes its own runtime and is UPX-compressed at
+build time (about 27 MB instead of 115 MB per helper; install `upx` locally to
+match the packaged size). It is copied once per matching desktop build and cached, with no
+`apt`, `npm`, root access,
+global CLI install, or public Hub port. Disconnecting stops the desktop-owned
+remote Hub but leaves the helper cached for a faster reconnect. The helper
+imports the remote login-shell `PATH`, so user-installed Git, GitHub CLI, and
+MCP executables remain visible.
+
+Each service instance uses its own discovery record, so an existing Cline CLI/Hub on the
+same account is neither replaced nor stopped. Both Hub processes can coexist
+while the desktop is connected; this isolation keeps the remote helper separate from the default CLI Hub.
+
+The desktop currently leaves file attachments and opening a remote file in a local
+editor disabled. Text, images, file mentions/search, Git branch operations,
+session history, and remote agent tools are supported. The current desktop
+provider access/API token is sent through the authenticated tunnel for the
+session; reusable OAuth refresh credentials are not copied into remote provider
+settings.
+
+For a real SSH acceptance run, `scripts/verify-ssh-poc.ts` accepts
+`CLINE_SSH_TEST_HOST`, `CLINE_SSH_TEST_USER`, `CLINE_SSH_TEST_KEY`,
+`CLINE_SSH_TEST_WORKSPACE`, and `CLINE_SSH_TEST_HELPER`. It starts a remote
+connection at the SSH user's home, starts an agent session in the test
+workspace with the selected desktop provider, asks the agent to read
+`REMOTE_MARKER.txt`, then verifies the session appears in remote history and
+that its messages can be read back.
 
 ## Web Visual System
 
@@ -77,16 +200,47 @@ desktop integration notes.
 Releases are built, signed, notarized, and published by the `desktop-publish`
 GitHub workflow as a single universal macOS DMG — one download that runs
 natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture). The step-by-step flow (version
-bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
-(`.cline/skills/publish-desktop/SKILL.md`).
+launch, so users never choose an architecture) — plus a Windows x64 NSIS
+installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
+(version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
+skill (`.cline/skills/publish-desktop/SKILL.md`).
+
+Individual releases are not announced in-app; Settings → About lists the
+bundled release notes. Every so often a one-time "What's new" dialog catches
+users up on accumulated features — see the `desktop-whats-new` skill
+(`.cline/skills/desktop-whats-new/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling
-`desktop-latest` release's `latest.json` on launch and every 2 hours, install
-updates in the background, and prompt for a restart. Two things must never be
-lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
-apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
-shipped apps can't verify new updates).
+`desktop-latest` release's `latest.json` on launch and every 2 hours, download
+updates in the background, and prompt for a restart. macOS installs the update
+in the background too; Windows and Linux install it when the user restarts
+(the NSIS installer on Windows, `pkexec dpkg -i` / `rpm -U` on Linux, which
+asks for the user's password). Two things must never be lost: the
+`desktop-latest` release/tag (its feed URL is baked into shipped apps) and the
+updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it, shipped apps
+can't verify new updates).
+
+### Linux
+
+Linux ships as `.deb` (Debian, Ubuntu and derivatives) and `.rpm` (Fedora,
+RHEL, openSUSE) packages for x86_64, built on Ubuntu 22.04 so they run on
+distros with at least that era's glibc and WebKitGTK 4.1. Install from the
+release page with the system package manager so the runtime dependencies
+(`libwebkit2gtk-4.1-0`, `libgtk-3-0`, `libayatana-appindicator3-1`) resolve:
+
+```bash
+sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu
+sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL
+```
+
+The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
+sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
+`/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
+GNOME with the AppIndicator extension); without one the app still runs but the
+tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
+Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
+AppImage target is excluded from `tauri build` on Linux. A Linux desktop
+cannot use a Mac as an SSH remote host (see the changelog).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -212,17 +366,22 @@ credentials, request headers, recorded audio, or transcript contents.
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
-- Speech input requires an enabled provider whose models.dev metadata identifies
-  a dedicated `audio`-to-`text` model, or the built-in ElevenLabs provider with
-  its Scribe v2 model. Choose the voice input provider and model explicitly under
-  **Settings → Models → Voice input**. That selection is stored separately from
-  the chat model as `modes.voiceInput` in
-  `~/.cline/data/settings/providers.json`; provider credentials remain in their
-  existing provider entry and never enter the webview. ElevenLabs uses its native
-  `/v1/speech-to-text` API. Text-to-speech models with `output: ["audio"]` are
-  not used for microphone transcription.
-- Streaming transcription models, such as Vercel AI Gateway's
-  `openai/gpt-realtime-whisper`, update the composer while the user speaks.
-  The sidecar mints a short-lived transcription token; the long-lived gateway
-  credential is never sent to the webview. Batch models such as
-  `openai/whisper-1` continue to transcribe after recording stops.
+- Voice input requires a configured streaming transcription model. Choose one
+  under **Settings → Models → Voice input**, such as Vercel AI Gateway's
+  `openai/gpt-realtime-whisper`, native OpenAI `gpt-realtime-whisper`, or
+  ElevenLabs `scribe_v2_realtime`.
+  Gateway and native OpenAI audio flow through the AI SDK’s `experimental_streamTranscribe`
+  with continuous PCM input and partial transcript updates. Text updates while
+  you speak; Stop closes the audio stream and waits for final text. Batch-only models are
+  excluded from Voice settings and rejected when saving a voice selection.
+- The voice selection is stored separately from the chat model as
+  `modes.voiceInput` in `~/.cline/data/settings/providers.json`. The sidecar
+  mints a short-lived token, keeping long-lived provider credentials out of the
+  webview.
+- If a recognized network failure interrupts transcription, the mic switches
+  to browser speech recognition when available. Click it again and repeat any
+  missing speech. Browser recognition may also need internet access. An online
+  event restores the configured provider after the current recording ends;
+  authentication, model, and microphone-permission errors remain visible.
+
+SSH requires an already-trusted host key. Before first connection, verify the server fingerprint through a trusted channel and enroll it with your SSH client. Unknown or changed keys are rejected.

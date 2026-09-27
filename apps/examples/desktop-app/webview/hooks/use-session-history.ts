@@ -4,6 +4,7 @@ import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
+import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	SessionHistoryItem,
@@ -19,6 +20,8 @@ import {
 	getSessionSource,
 	PINNED_METADATA_KEY,
 } from "@/lib/session-history";
+import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 	status: string;
@@ -26,6 +29,8 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 
 export interface SessionThread {
 	id: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	title: string;
 	source?: string;
 	codebase: string;
@@ -75,21 +80,31 @@ type SessionMessage = {
 	meta?: SessionMessageMeta;
 };
 
+type SessionUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	totalCostUsd: number;
+};
+
 type SessionTitleUpdatedEvent = CustomEvent<{
+	environmentId?: string;
 	sessionId: string;
 	title: string;
 }>;
 
 type SessionDeletedEvent = CustomEvent<{
+	environmentId?: string;
 	sessionId: string;
 }>;
 
 type SidecarSessionStateEvent = {
+	environmentId?: string;
 	sessionId?: string;
 	status?: string;
 };
 
 type SidecarChatEvent = {
+	environmentId?: string;
 	sessionId?: string;
 	stream?: string;
 };
@@ -102,10 +117,11 @@ export type SessionPendingAction = {
 export type UseSessionHistoryOptions = {
 	activeSessionId?: string | null;
 	onOpenSession?: (session: SessionHistoryItem) => void;
-	onDeleteSession?: (sessionId: string) => void;
+	onDeleteSession?: (sessionId: string, environmentId: string) => void;
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
+		environmentId?: string,
 	) => void;
 };
 
@@ -113,6 +129,15 @@ export type UseSessionHistoryOptions = {
 // pages 10 at a time, so the mount fetch (and every 12s poll after it) only
 // needs enough rows for the first few pages. Older pages are fetched on demand.
 const INITIAL_HISTORY_FETCH_LIMIT = 50;
+// Discovery rows carry no token or cost totals; those are summed from each
+// session's transcript in a second round trip. Only the rows that are on
+// screen get that read: the first page of the sessions view (and the
+// sidebar's first threads) by default, plus whatever page a view asks for
+// via requestUsage as the user moves through older sessions.
+const USAGE_HYDRATION_WINDOW = 10;
+// Each usage read parses a whole transcript in the sidecar, so a page of rows
+// is drained a few at a time instead of all at once.
+const MAX_CONCURRENT_USAGE_FETCHES = 4;
 const HISTORY_REFRESH_INTERVAL_MS = 12_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
@@ -134,9 +159,10 @@ export function parseTimestamp(value?: string): number {
 }
 
 export function sessionActivityTimestamp(session: SessionHistoryItem): number {
+	const lastActivityAt = parseTimestamp(session.lastActivityAt);
 	const endedAt = parseTimestamp(session.endedAt);
 	const startedAt = parseTimestamp(session.startedAt);
-	return Math.max(endedAt, startedAt);
+	return Math.max(lastActivityAt, endedAt, startedAt);
 }
 
 // Order by last activity, not by start time: a long-running session that was
@@ -160,7 +186,12 @@ export function normalizeDiscoveredStatus(
 ): SessionHistoryStatus {
 	const normalized = (status || "").toLowerCase();
 	const hasPrompt = Boolean(prompt?.trim());
-	if (normalized.includes("complete") || normalized.includes("done")) {
+	if (
+		normalized === "ended" ||
+		normalized === "expired" ||
+		normalized.includes("complete") ||
+		normalized.includes("done")
+	) {
 		return "completed";
 	}
 	if (
@@ -169,6 +200,9 @@ export function normalizeDiscoveredStatus(
 		normalized.includes("interrupt")
 	) {
 		return "cancelled";
+	}
+	if (normalized.includes("provision")) {
+		return "provisioning";
 	}
 	if (normalized.includes("fail") || normalized.includes("error")) {
 		return "failed";
@@ -253,7 +287,11 @@ function inferStatusFromMessages(
 		return content.trim().length > 0;
 	});
 	if (meaningfulMessages.length === 0) {
-		return status === "running" ? "running" : "idle";
+		// Empty provisioning history must not reset the status to idle.
+		if (status === "running" || status === "provisioning") {
+			return status;
+		}
+		return "idle";
 	}
 	const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
 	if (status === "failed" && lastMeaningful.role === "assistant") {
@@ -263,15 +301,22 @@ function inferStatusFromMessages(
 }
 
 function toThread(session: SessionHistoryItem): SessionThread {
-	const workspacePath = (session.workspaceRoot || session.cwd).trim();
+	const workspacePath =
+		session.origin === "cloud" && session.repoUrl?.trim()
+			? session.repoUrl.trim()
+			: (session.workspaceRoot || session.cwd).trim();
 	const schedule = getSessionMetadataSchedule(session.metadata);
 	return {
-		id: session.sessionId,
+		id: sessionKey(session),
+		origin: session.origin,
+		repoUrl: session.repoUrl,
 		title: toTitle(session),
 		source: getSessionSource(session) || undefined,
 		codebase: basenamePath(workspacePath),
 		workspacePath,
-		time: formatRelativeTime(session.endedAt || session.startedAt),
+		time: formatRelativeTime(
+			session.lastActivityAt || session.endedAt || session.startedAt,
+		),
 		provider: session.provider || "",
 		model: session.model || "",
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
@@ -385,10 +430,13 @@ function areSessionsEquivalent(
 		const b = next[i];
 		if (
 			a.sessionId !== b.sessionId ||
+			a.origin !== b.origin ||
+			a.repoUrl !== b.repoUrl ||
 			getSessionSource(a) !== getSessionSource(b) ||
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
+			a.lastActivityAt !== b.lastActivityAt ||
 			a.prompt !== b.prompt ||
 			getSessionMetadataIsScheduled(a.metadata) !==
 				getSessionMetadataIsScheduled(b.metadata) ||
@@ -398,10 +446,12 @@ function areSessionsEquivalent(
 				getSessionMetadataTitle(b.metadata) ||
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
+			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
 			!areScheduleInfosEqual(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),
 			) ||
+			a.environmentId !== b.environmentId ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -425,6 +475,8 @@ function areThreadsEquivalent(
 		const b = next[i];
 		if (
 			a.id !== b.id ||
+			a.origin !== b.origin ||
+			a.repoUrl !== b.repoUrl ||
 			a.title !== b.title ||
 			a.source !== b.source ||
 			a.codebase !== b.codebase ||
@@ -476,7 +528,7 @@ function updateSessionById(
 ): SessionHistoryItem[] {
 	let changed = false;
 	const next = current.map((session) => {
-		if (session.sessionId !== sessionId) {
+		if (sessionKey(session) !== sessionId) {
 			return session;
 		}
 		const updated = updater(session);
@@ -496,10 +548,10 @@ function mergeDiscoveredSessions(
 		return discovered;
 	}
 	const currentById = new Map(
-		current.map((session) => [session.sessionId, session]),
+		current.map((session) => [sessionKey(session), session]),
 	);
 	return discovered.map((session) => {
-		const existing = currentById.get(session.sessionId);
+		const existing = currentById.get(sessionKey(session));
 		if (!existing) {
 			return session;
 		}
@@ -541,6 +593,14 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Rows a view currently has on screen beyond the default window (the
+	// sessions view reports its visible page and clears it on unmount). Each
+	// call replaces the previous set rather than adding to it, so the set is
+	// bounded by one page and a running session the user has paged away from
+	// is not re-read on every refresh.
+	const [requestedUsageIds, setRequestedUsageIds] = useState<Set<string>>(
+		() => new Set(),
+	);
 	// Sessions that schedule executions report as their own, keyed by session
 	// id. Scheduled runs executed by the local hub do not reliably carry the
 	// "hub-schedule" origin trigger in their session metadata (the runtime
@@ -557,7 +617,19 @@ export function useSessionHistory({
 	// may itself name a batch that was never fetched.
 	const loadedLimitRef = useRef(0);
 	const mayHaveMoreSessionsRef = useRef(false);
-	const usageLoadingRef = useRef<Set<string>>(new Set());
+	// Every usage read in flight, across effect runs, with the status the read
+	// was started under. Its size is the gauge the concurrency cap is enforced
+	// on; the status tells a restarted run whether the pending read already
+	// covers the row's current status or the row must be read again after it.
+	const usageLoadingRef = useRef<Map<string, SessionHistoryStatus>>(new Map());
+	// Queue drainer of the current hydration run. Finished reads call it so a
+	// freed slot goes to the newest run, not to the run that started the read.
+	const usagePumpRef = useRef<(() => void) | null>(null);
+	// Usage each row was last hydrated with, written the moment a read settles.
+	// threadsRef only catches up after React commits, so the queue consults
+	// this to tell "hydrated" from "not yet" without a stale window in between.
+	// Refreshes also rebuild threads from it, so a row keeps its totals.
+	const usageByIdRef = useRef<Map<string, SessionUsage>>(new Map());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
 	);
@@ -571,6 +643,7 @@ export function useSessionHistory({
 	const scheduledRefreshAtRef = useRef<number | null>(null);
 	const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 	const refreshLimitRef = useRef(0);
+	const cloudScopeInvalidatedRef = useRef(false);
 	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
 	// Guards scheduleRefresh against continuations that settle after unmount
@@ -647,7 +720,7 @@ export function useSessionHistory({
 					typeof execution?.scheduleId === "string"
 						? execution.scheduleId.trim()
 						: "";
-				links.set(sessionId, {
+				links.set(sessionKey({ sessionId }), {
 					...(scheduleId ? { scheduleId } : {}),
 					...(scheduleId && scheduleNames.has(scheduleId)
 						? { scheduleName: scheduleNames.get(scheduleId) }
@@ -690,14 +763,20 @@ export function useSessionHistory({
 		// many sessions as we need now. "Load more" raises the limit and then
 		// awaits a refresh; sharing a request that captured the smaller limit
 		// would resolve without the larger batch ever being fetched.
+		// Account changes must also wait for a fresh request in the new scope.
 		while (refreshPromiseRef.current) {
 			const pending = refreshPromiseRef.current;
-			if (refreshLimitRef.current >= fetchLimitRef.current) {
+			if (
+				refreshLimitRef.current >= fetchLimitRef.current &&
+				!cloudScopeInvalidatedRef.current
+			) {
 				return pending;
 			}
 			await pending;
 		}
 
+		if (disposedRef.current) return false;
+		cloudScopeInvalidatedRef.current = false;
 		const refreshPromise = (async (): Promise<boolean> => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
@@ -706,6 +785,9 @@ export function useSessionHistory({
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
 					.catch(() => null);
+				// A scope change queues a fresh request after this one settles.
+				// Its old-account rows must not be applied in the meantime.
+				if (cloudScopeInvalidatedRef.current) return false;
 				// A rejected request is not an empty history. Treating it as one
 				// would blank the list (the merge below is keyed off the response)
 				// and mark the backend exhausted, hiding sessions that still exist
@@ -754,23 +836,13 @@ export function useSessionHistory({
 				const mapped = mergedSessions.map(toThread);
 				const metadataTitleById = new Map(
 					mergedSessions.map((session) => [
-						session.sessionId,
+						sessionKey(session),
 						getSessionMetadataTitle(session.metadata),
 					]),
 				);
 				setThreads((current) => {
 					const existingById = new Map(
 						current.map((thread) => [thread.id, thread]),
-					);
-					const usageById = new Map(
-						current.map((thread) => [
-							thread.id,
-							{
-								inputTokens: thread.inputTokens,
-								outputTokens: thread.outputTokens,
-								totalCostUsd: thread.totalCostUsd,
-							},
-						]),
 					);
 					const next = mapped.map((thread) => {
 						const existing = existingById.get(thread.id);
@@ -783,7 +855,7 @@ export function useSessionHistory({
 							...thread,
 							title:
 								keepExistingTitle && existing ? existing.title : thread.title,
-							...usageById.get(thread.id),
+							...usageByIdRef.current.get(thread.id),
 						};
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
@@ -882,51 +954,91 @@ export function useSessionHistory({
 		};
 	}, [scheduleRefresh]);
 
+	const requestUsage = useCallback((sessionIds: readonly string[]) => {
+		setRequestedUsageIds((current) => {
+			const next = new Set<string>();
+			for (const raw of sessionIds) {
+				const sessionId = raw?.trim();
+				if (sessionId) {
+					next.add(sessionId);
+				}
+			}
+			// Same members, same instance: the sessions view re-reports its
+			// page on every threads change, and a fresh Set would restart the
+			// hydration effect (and its 800ms delay) each time a row filled in.
+			if (
+				next.size === current.size &&
+				[...next].every((sessionId) => current.has(sessionId))
+			) {
+				return current;
+			}
+			return next;
+		});
+	}, []);
+
 	useEffect(() => {
-		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
-			.slice(0, 4);
+		// The active session is skipped: its transcript is still being written
+		// and the chat tracks its usage live.
+		const inactiveSessions = sessions.filter(
+			(session) =>
+				sessionKey(session) !== activeSessionId && session.origin !== "cloud",
+		);
+		const targets = inactiveSessions.slice(0, USAGE_HYDRATION_WINDOW);
+		if (requestedUsageIds.size > 0) {
+			const queued = new Set(targets.map(sessionKey));
+			for (const session of inactiveSessions) {
+				if (
+					requestedUsageIds.has(sessionKey(session)) &&
+					!queued.has(sessionKey(session))
+				) {
+					targets.push(session);
+					queued.add(sessionKey(session));
+				}
+			}
+		}
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
-			for (const session of recent) {
-				if (cancelled) {
-					return;
-				}
-				const sessionId = session.sessionId;
+			// "fetch": the row was never hydrated, is running (its totals keep
+			// moving), or was hydrated under a different status.
+			// "defer": a read is in flight, but it was started under a different
+			// status than the row has now, so its result will already be stale;
+			// keep the row queued and read it again once that read finishes.
+			// "skip": nothing to do, drop the row from this run's queue.
+			const usageFetchVerdict = (
+				session: SessionHistoryItem,
+			): "fetch" | "defer" | "skip" => {
+				const sessionId = sessionKey(session);
 				if (!sessionId) {
-					continue;
+					return "skip";
 				}
-				if (usageLoadingRef.current.has(sessionId)) {
-					continue;
+				const inFlightStatus = usageLoadingRef.current.get(sessionId);
+				if (inFlightStatus !== undefined) {
+					return inFlightStatus === session.status ? "skip" : "defer";
 				}
-				const existing = threadsRef.current.find(
-					(item) => item.id === sessionId,
-				);
-				const hasUsage =
-					existing?.inputTokens !== undefined ||
-					existing?.outputTokens !== undefined;
-				const lastHydratedStatus =
-					usageHydratedStatusRef.current.get(sessionId);
-				const shouldFetch =
-					!hasUsage ||
+				const needsFetch =
+					!usageByIdRef.current.has(sessionId) ||
 					session.status === "running" ||
-					lastHydratedStatus !== session.status;
-				if (!shouldFetch) {
-					continue;
-				}
-				usageLoadingRef.current.add(sessionId);
+					usageHydratedStatusRef.current.get(sessionId) !== session.status;
+				return needsFetch ? "fetch" : "skip";
+			};
+
+			const startUsageFetch = (session: SessionHistoryItem): void => {
+				const sessionId = sessionKey(session);
+				usageLoadingRef.current.set(sessionId, session.status);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
-						sessionId,
+						environmentId: session.environmentId,
+						sessionId: session.sessionId,
 						maxMessages: 1200,
 					})
-					.then(async (sessionMessages) => {
+					.then(async (sessionMessages): Promise<SessionUsage> => {
 						const usage = summarizeUsageFromMessages(sessionMessages);
 						if (!usage) {
 							const events = await desktopClient.invoke<SessionHookEvent[]>(
 								"read_session_hooks",
 								{
-									sessionId,
+									environmentId: session.environmentId,
+									sessionId: session.sessionId,
 									limit: 1200,
 								},
 							);
@@ -947,57 +1059,108 @@ export function useSessionHistory({
 						}
 						return usage;
 					})
-					.then(({ inputTokens, outputTokens, totalCostUsd }) => {
+					.then((usage) => {
+						usageByIdRef.current.set(sessionId, usage);
 						setThreads((current) =>
 							updateThreadById(current, sessionId, (thread) => {
 								if (
-									thread.inputTokens === inputTokens &&
-									thread.outputTokens === outputTokens &&
-									thread.totalCostUsd === totalCostUsd
+									thread.inputTokens === usage.inputTokens &&
+									thread.outputTokens === usage.outputTokens &&
+									thread.totalCostUsd === usage.totalCostUsd
 								) {
 									return thread;
 								}
-								return { ...thread, inputTokens, outputTokens, totalCostUsd };
+								return { ...thread, ...usage };
 							}),
 						);
 					})
 					.catch(() => {
-						if (!hasUsage) {
-							setThreads((current) =>
-								updateThreadById(current, sessionId, (thread) => {
-									if (
-										thread.inputTokens === 0 &&
-										thread.outputTokens === 0 &&
-										(thread.totalCostUsd ?? 0) === 0
-									) {
-										return thread;
-									}
-									return {
-										...thread,
-										inputTokens: 0,
-										outputTokens: 0,
-										totalCostUsd: 0,
-									};
-								}),
-							);
+						// A failed read on a row that was never hydrated is recorded
+						// as zero usage so the row is not retried on every pass; a
+						// later status change reads it again. A row that already has
+						// totals keeps them.
+						if (usageByIdRef.current.has(sessionId)) {
+							return;
 						}
+						const usage: SessionUsage = {
+							inputTokens: 0,
+							outputTokens: 0,
+							totalCostUsd: 0,
+						};
+						usageByIdRef.current.set(sessionId, usage);
+						setThreads((current) =>
+							updateThreadById(current, sessionId, (thread) => {
+								if (
+									thread.inputTokens === 0 &&
+									thread.outputTokens === 0 &&
+									(thread.totalCostUsd ?? 0) === 0
+								) {
+									return thread;
+								}
+								return { ...thread, ...usage };
+							}),
+						);
 					})
 					.finally(() => {
+						// Record the status the read was started under, not the
+						// row's current one: if the status moved while the read was
+						// pending, the mismatch is what makes the row read again.
 						usageHydratedStatusRef.current.set(sessionId, session.status);
 						usageLoadingRef.current.delete(sessionId);
+						// Hand the freed slot to whichever run is current: this
+						// run may have been replaced while the read was pending.
+						usagePumpRef.current?.();
 					});
-			}
+			};
+
+			// The cap is checked against usageLoadingRef, which counts reads in
+			// flight across effect runs, not against a per-run counter. A refresh
+			// or page change restarts this effect while reads are still pending;
+			// a per-run counter would start at zero and let the new run add four
+			// more on top of them. Each pass walks the whole queue: rows that
+			// need nothing are dropped, rows waiting on a pending read that will
+			// be stale are kept for the next pass, and the rest start as slots
+			// allow, in order.
+			const queue = [...targets];
+			const pump = () => {
+				if (cancelled) {
+					return;
+				}
+				const remaining: SessionHistoryItem[] = [];
+				for (const session of queue) {
+					const verdict = usageFetchVerdict(session);
+					if (verdict === "skip") {
+						continue;
+					}
+					if (
+						verdict === "defer" ||
+						usageLoadingRef.current.size >= MAX_CONCURRENT_USAGE_FETCHES
+					) {
+						remaining.push(session);
+						continue;
+					}
+					startUsageFetch(session);
+				}
+				queue.splice(0, queue.length, ...remaining);
+			};
+			usagePumpRef.current = pump;
+			pump();
 		}, 800);
 		return () => {
+			// Rows still queued are picked up again by the next run; reads
+			// already in flight finish, land on their threads, and pump the run
+			// that is current by then.
 			cancelled = true;
 			window.clearTimeout(timer);
 		};
-	}, [activeSessionId, sessions]);
+	}, [activeSessionId, requestedUsageIds, sessions]);
 
 	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
 			const detail = (event as SessionTitleUpdatedEvent).detail;
-			const sessionId = detail?.sessionId?.trim();
+			const sessionId = detail?.sessionId?.trim()
+				? sessionKey(detail)
+				: undefined;
 			if (!sessionId) {
 				return;
 			}
@@ -1021,16 +1184,21 @@ export function useSessionHistory({
 
 		const handleSessionDeleted = (event: Event) => {
 			const detail = (event as SessionDeletedEvent).detail;
-			const sessionId = detail?.sessionId?.trim();
+			const sessionId = detail?.sessionId?.trim()
+				? sessionKey(detail)
+				: undefined;
 			if (!sessionId) {
 				return;
 			}
-			usageLoadingRef.current.delete(sessionId);
+			// usageLoadingRef is left to the pending read's own finally: it is
+			// the in-flight gauge for the read cap, so freeing the slot here would
+			// let a fifth read start while the deleted row's read is still running.
 			titleLoadingRef.current.delete(sessionId);
 			usageHydratedStatusRef.current.delete(sessionId);
+			usageByIdRef.current.delete(sessionId);
 			messageHydratedStatusRef.current.delete(sessionId);
 			setSessions((current) =>
-				current.filter((session) => session.sessionId !== sessionId),
+				current.filter((session) => sessionKey(session) !== sessionId),
 			);
 			setThreads((current) =>
 				current.filter((thread) => thread.id !== sessionId),
@@ -1061,7 +1229,7 @@ export function useSessionHistory({
 				}
 				handleSessionDeleted(
 					new CustomEvent("cline:session-deleted", {
-						detail: { sessionId },
+						detail: { sessionId, environmentId: eventEnvironmentId(payload) },
 					}),
 				);
 			},
@@ -1073,14 +1241,32 @@ export function useSessionHistory({
 					return;
 				}
 				const record = payload as SidecarSessionStateEvent;
-				const sessionId = record.sessionId?.trim();
+				const sessionId = record.sessionId?.trim()
+					? sessionKey({
+							sessionId: record.sessionId,
+							environmentId: record.environmentId,
+						})
+					: undefined;
 				if (!sessionId) {
 					return;
 				}
 				const known = sessionsRef.current.some(
-					(session) => session.sessionId === sessionId,
+					(session) => sessionKey(session) === sessionId,
 				);
-				const status = normalizeDiscoveredStatus(record.status);
+				const status = normalizeDiscoveredStatus(
+					record.status,
+					"active session",
+				);
+				setThreads((current) =>
+					updateThreadById(current, sessionId, (thread) =>
+						thread.status === status ? thread : { ...thread, status },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, sessionId, (session) =>
+						session.status === status ? session : { ...session, status },
+					),
+				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				} else if (isTerminalHistoryStatus(status)) {
@@ -1097,6 +1283,26 @@ export function useSessionHistory({
 				}
 			},
 		);
+		// Account/org switches must refresh the sidebar without waiting for polling.
+		const unsubscribeCloudScope = desktopClient.subscribe(
+			"cloud_sessions_changed",
+			() => {
+				cloudScopeInvalidatedRef.current = true;
+				sessionsRef.current = sessionsRef.current.filter(
+					(session) => session.origin !== "cloud",
+				);
+				threadsRef.current = threadsRef.current.filter(
+					(thread) => thread.origin !== "cloud",
+				);
+				setSessions((current) =>
+					current.filter((session) => session.origin !== "cloud"),
+				);
+				setThreads((current) =>
+					current.filter((thread) => thread.origin !== "cloud"),
+				);
+				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
+			},
+		);
 		const unsubscribeTransportEnded = desktopClient.subscribe(
 			"chat_session_ended",
 			(payload) => {
@@ -1108,7 +1314,10 @@ export function useSessionHistory({
 					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
 						force: true,
 					});
-					const sessionId = record.sessionId.trim();
+					const sessionId = sessionKey({
+						sessionId: record.sessionId.trim(),
+						environmentId: record.environmentId,
+					});
 					if (sessionId !== activeSessionId) {
 						setUnreadSessionIds((current) => {
 							const next = new Set(current);
@@ -1140,12 +1349,17 @@ export function useSessionHistory({
 					return;
 				}
 				const record = payload as SidecarChatEvent;
-				const sessionId = record.sessionId?.trim();
+				const sessionId = record.sessionId?.trim()
+					? sessionKey({
+							sessionId: record.sessionId,
+							environmentId: record.environmentId,
+						})
+					: undefined;
 				if (!sessionId) {
 					return;
 				}
 				const known = sessionsRef.current.some(
-					(session) => session.sessionId === sessionId,
+					(session) => sessionKey(session) === sessionId,
 				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
@@ -1170,6 +1384,7 @@ export function useSessionHistory({
 			);
 			unsubscribeTransportDelete();
 			unsubscribeTransportStatus();
+			unsubscribeCloudScope();
 			unsubscribeTransportEnded();
 			unsubscribeTransportImport();
 			unsubscribeTransportChatEvent();
@@ -1178,7 +1393,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					sessionKey(session) !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
@@ -1186,7 +1404,7 @@ export function useSessionHistory({
 				if (cancelled) {
 					return;
 				}
-				const sessionId = session.sessionId;
+				const sessionId = sessionKey(session);
 				if (!sessionId) {
 					continue;
 				}
@@ -1216,7 +1434,8 @@ export function useSessionHistory({
 				titleLoadingRef.current.add(sessionId);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
-						sessionId,
+						environmentId: session.environmentId,
+						sessionId: session.sessionId,
 						maxMessages: 80,
 					})
 					.then((messages) => {
@@ -1266,7 +1485,7 @@ export function useSessionHistory({
 
 	const getSessionByThreadId = useCallback(
 		(threadId: string) =>
-			sessionsRef.current.find((session) => session.sessionId === threadId),
+			sessionsRef.current.find((session) => sessionKey(session) === threadId),
 		[],
 	);
 
@@ -1301,20 +1520,28 @@ export function useSessionHistory({
 			}
 			setPendingAction({ sessionId: threadId, action: "rename" });
 			try {
+				const sourceSession = getSessionByThreadId(threadId);
+				if (!sourceSession) return false;
 				await desktopClient.invoke("update_chat_session_title", {
-					sessionId: threadId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					sessionId: sourceSession?.sessionId,
 					title: normalizedTitle,
 				});
-				const sourceSession = getSessionByThreadId(threadId);
 				const metadata = {
 					...(sourceSession?.metadata ?? {}),
 					title: normalizedTitle || undefined,
 				};
-				onUpdateSessionMetadata?.(threadId, metadata);
+				onUpdateSessionMetadata?.(
+					sourceSession.sessionId,
+					metadata,
+					sourceSession.environmentId,
+				);
 				window.dispatchEvent(
 					new CustomEvent("cline:session-title-updated", {
 						detail: {
-							sessionId: threadId,
+							sessionId: sourceSession.sessionId,
+							environmentId: sourceSession.environmentId,
 							title: normalizedTitle,
 						},
 					}),
@@ -1324,10 +1551,12 @@ export function useSessionHistory({
 				toast({
 					variant: "destructive",
 					title: "Rename failed",
-					description:
+					// Cloud failures arrive as a machine envelope; never show it raw.
+					description: humanizeCloudSessionError(
 						error instanceof Error
 							? error.message
 							: "The session title could not be updated.",
+					),
 				});
 				return false;
 			} finally {
@@ -1360,15 +1589,22 @@ export function useSessionHistory({
 			// if the write fails rather than blocking the row on a round trip.
 			applyPinned(pinned);
 			try {
+				const sourceSession = getSessionByThreadId(threadId);
+				if (!sourceSession) return false;
 				await desktopClient.invoke("update_chat_session_metadata", {
-					sessionId: threadId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					sessionId: sourceSession?.sessionId,
 					metadata: { [PINNED_METADATA_KEY]: pinned ? true : null },
 				});
-				const sourceSession = getSessionByThreadId(threadId);
-				onUpdateSessionMetadata?.(threadId, {
-					...(sourceSession?.metadata ?? {}),
-					[PINNED_METADATA_KEY]: pinned || undefined,
-				});
+				onUpdateSessionMetadata?.(
+					sourceSession.sessionId,
+					{
+						...(sourceSession?.metadata ?? {}),
+						[PINNED_METADATA_KEY]: pinned || undefined,
+					},
+					sourceSession.environmentId,
+				);
 				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS);
 				return true;
 			} catch (error) {
@@ -1394,6 +1630,7 @@ export function useSessionHistory({
 				return false;
 			}
 			const sourceSession = getSessionByThreadId(threadId);
+			if (!sourceSession) return false;
 			setPendingAction({ sessionId: threadId, action: "fork" });
 			try {
 				const payload = await desktopClient.invoke<{
@@ -1402,8 +1639,10 @@ export function useSessionHistory({
 				}>("chat_session_command", {
 					request: {
 						action: "fork",
-						sessionId: threadId,
+						sessionId: sourceSession?.sessionId,
 						config: {
+							environmentId:
+								sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 							provider: sourceSession?.provider || thread.provider,
 							model: sourceSession?.model || thread.model,
 							cwd: sourceSession?.cwd || sourceSession?.workspaceRoot || "",
@@ -1418,6 +1657,8 @@ export function useSessionHistory({
 				}
 				const forkedSession: SessionHistoryItem = {
 					sessionId: newSessionId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 					status: "completed",
 					provider: sourceSession?.provider || thread.provider,
 					model: sourceSession?.model || thread.model,
@@ -1454,12 +1695,16 @@ export function useSessionHistory({
 
 	const deleteThread = useCallback(
 		async (threadId: string) => {
+			const sourceSession = getSessionByThreadId(threadId);
+			if (!sourceSession) return false;
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
-					sessionId: threadId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					sessionId: sourceSession?.sessionId,
 				});
 				const deleted =
 					typeof deleteResult === "boolean"
@@ -1470,11 +1715,12 @@ export function useSessionHistory({
 						"The session could not be removed from local history.",
 					);
 				}
-				onDeleteSession?.(threadId);
+				onDeleteSession?.(sourceSession.sessionId, sourceSession.environmentId);
 				window.dispatchEvent(
 					new CustomEvent("cline:session-deleted", {
 						detail: {
-							sessionId: threadId,
+							sessionId: sourceSession.sessionId,
+							environmentId: sourceSession.environmentId,
 						},
 					}),
 				);
@@ -1483,17 +1729,18 @@ export function useSessionHistory({
 				toast({
 					variant: "destructive",
 					title: "Delete failed",
-					description:
+					description: humanizeCloudSessionError(
 						error instanceof Error
 							? error.message
 							: "The session could not be removed from local history.",
+					),
 				});
 				return false;
 			} finally {
 				setPendingAction(null);
 			}
 		},
-		[onDeleteSession],
+		[getSessionByThreadId, onDeleteSession],
 	);
 
 	const loadMoreSessions = useCallback(
@@ -1572,7 +1819,7 @@ export function useSessionHistory({
 	}, [loadMoreSessions, refreshSessions]);
 
 	const sessionById = useMemo(
-		() => new Map(sessions.map((session) => [session.sessionId, session])),
+		() => new Map(sessions.map((session) => [sessionKey(session), session])),
 		[sessions],
 	);
 
@@ -1617,6 +1864,7 @@ export function useSessionHistory({
 		pendingAction,
 		refreshSessions,
 		renameThread,
+		requestUsage,
 		setThreadPinned,
 		deleteThread,
 		forkThread,

@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import { nanoid } from "nanoid";
+import { codexHomeDir } from "./paths";
 import {
 	type ConvertedImportedSession,
 	type ImportableSessionSummary,
@@ -154,8 +154,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 	private readonly codexHome: string;
 
 	constructor(options: CodexAdapterOptions = {}) {
-		this.codexHome =
-			options.codexHome ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
+		this.codexHome = options.codexHome ?? codexHomeDir();
 	}
 
 	private get sessionsDir(): string {

@@ -418,6 +418,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const modelTools: ModelTool[] = [];
 		if (
 			normalized.enableTools &&
+			normalized.mode !== "yolo" &&
 			isModelToolEnabledGlobally("web_search") &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
@@ -667,8 +668,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 										)
 									: [],
 							hookErrorMode: config.hookErrorMode,
-							toolPolicies: effectiveToolPolicies,
-							requestToolApproval: input.requestToolApproval,
 							onSubAgentEvent: input.onSubAgentEvent,
 							onSubAgentStart: input.onSubAgentStart,
 							onSubAgentEnd: input.onSubAgentEnd,

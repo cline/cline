@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@cline/core";
+import { type AgentEvent, buildClineClientHeaders } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import type { Config } from "./types";
 
@@ -37,6 +37,7 @@ async function fetchClineFreeModelIds(
 	);
 	try {
 		const response = await fetch(resolveClineRecommendedModelsUrl(baseUrl), {
+			headers: buildClineClientHeaders(),
 			signal: controller.signal,
 		});
 		if (!response.ok) return undefined;

@@ -77,7 +77,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -189,6 +189,7 @@ export {
 	type ChatCompatibleModelDescriptor,
 	type ChatModelModalities,
 	isChatCompatibleModel,
+	isTranscriptionModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -252,6 +253,7 @@ export {
 	ToolCallRecordSchema,
 	USER_REJECTED_TOOL_REASON,
 } from "./llms/tools";
+export type { StreamingAudioTranscriptionSession } from "./llms/transcription";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
@@ -422,6 +424,11 @@ export {
 	TEAM_LIFECYCLE_EVENT_TYPE,
 	TEAM_PROGRESS_EVENT_TYPE,
 } from "./rpc/team-progress";
+export type { ClineClientIdentity } from "./runtime/cline-client-identity";
+export {
+	getClineClientIdentity,
+	setClineClientIdentity,
+} from "./runtime/cline-client-identity";
 export type {
 	ClineEnvironment,
 	ClineEnvironmentConfig,
@@ -461,6 +468,7 @@ export {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,

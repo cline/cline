@@ -1,4 +1,5 @@
 import { Readable, Writable } from "node:stream";
+import { registerClineClientIdentity } from "../utils/cline-client-identity";
 import { writeDiagnostic } from "../utils/output";
 
 export interface AcpModeOptions {
@@ -10,6 +11,8 @@ export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
 		"@agentclientprotocol/sdk"
 	);
 	const { AcpAgent } = await import("./acpAgent");
+
+	registerClineClientIdentity("cline-acp");
 
 	writeDiagnostic("[acp] starting ACP mode over stdio…");
 

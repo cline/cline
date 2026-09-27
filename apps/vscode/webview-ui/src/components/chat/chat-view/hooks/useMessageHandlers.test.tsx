@@ -48,6 +48,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 }))
 
 import type { ChatState } from "../types/chatTypes"
+import { useChatState } from "./useChatState"
 import { useMessageHandlers } from "./useMessageHandlers"
 
 // Minimal ChatState stub. clineAsk/lastMessage are the only derived values the send path reads.
@@ -64,6 +65,8 @@ function makeChatState(messages: ClineMessage[], overrides: Partial<ChatState> =
 		setSelectedImages: vi.fn(),
 		selectedFiles: [],
 		setSelectedFiles: vi.fn(),
+		getDraftSnapshot: vi.fn(() => ({ revision: 0, text: "", activeQuote: null, images: [], files: [] })),
+		consumeDraftSnapshot: vi.fn(),
 		sendingDisabled: false,
 		setSendingDisabled: vi.fn(),
 		enableButtons: false,
@@ -639,10 +642,11 @@ describe("useMessageHandlers — send routing", () => {
 		]
 		const setPendingUserMessage = vi.fn()
 		const setPendingResponse = vi.fn()
+		const setActiveQuote = vi.fn()
 		const { result } = renderHook(() =>
 			useMessageHandlers(
 				streamingConversation,
-				makeChatState(streamingConversation, { setPendingUserMessage, setPendingResponse }),
+				makeChatState(streamingConversation, { setActiveQuote, setPendingUserMessage, setPendingResponse }),
 			),
 		)
 
@@ -653,6 +657,108 @@ describe("useMessageHandlers — send routing", () => {
 		expect(clearTask).toHaveBeenCalledTimes(1)
 		expect(setPendingUserMessage).toHaveBeenCalledWith(undefined)
 		expect(setPendingResponse).toHaveBeenCalledWith(undefined)
+		expect(setActiveQuote).toHaveBeenCalledWith(null)
+	})
+
+	it("does not clear a quote selected while New Task is pending", async () => {
+		mockTurnState = { phase: "awaiting_followup", anchorTs: 2, seq: 3 }
+		const newTaskConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "new_task", text: "new task context" },
+		]
+		let resolveNewTask: (() => void) | undefined
+		newTask.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveNewTask = resolve)))
+		const { result } = renderHook(() => {
+			const chatState = useChatState(newTaskConversation)
+			return { chatState, handlers: useMessageHandlers(newTaskConversation, chatState) }
+		})
+		act(() => result.current.chatState.setActiveQuote("old task quote"))
+
+		let action: Promise<void> | undefined
+		act(() => {
+			action = result.current.handlers.executeButtonAction({ type: "new_task" })
+		})
+		act(() => result.current.chatState.setActiveQuote("new draft quote"))
+		await act(async () => {
+			resolveNewTask?.()
+			await action
+		})
+
+		expect(result.current.chatState.activeQuote).toBe("new draft quote")
+	})
+
+	it("retries a failed request without changing the unsent draft", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 3 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "server error" },
+		]
+		const setInputValue = vi.fn()
+		const setActiveQuote = vi.fn()
+		const setSelectedImages = vi.fn()
+		const setSelectedFiles = vi.fn()
+		const draft = {
+			revision: 7,
+			text: "First paragraph.\n\nSecond paragraph.",
+			activeQuote: null,
+			images: ["image.png"],
+			files: ["notes.md"],
+		}
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				failedConversation,
+				makeChatState(failedConversation, {
+					inputValue: draft.text,
+					selectedImages: draft.images,
+					selectedFiles: draft.files,
+					setInputValue,
+					setActiveQuote,
+					setSelectedImages,
+					setSelectedFiles,
+				}),
+			),
+		)
+
+		await act(async () => {
+			await result.current.executeButtonAction({ type: "retry" })
+		})
+
+		expect(askResponse).toHaveBeenCalledWith({ responseType: "yesButtonClicked" })
+		expect(setInputValue).not.toHaveBeenCalled()
+		expect(setActiveQuote).not.toHaveBeenCalled()
+		expect(setSelectedImages).not.toHaveBeenCalled()
+		expect(setSelectedFiles).not.toHaveBeenCalled()
+	})
+
+	it("clears only the draft snapshot submitted with an approval", async () => {
+		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 3 }
+		const approvalConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "tool", text: JSON.stringify({ tool: "newFileCreated", path: "notes.md" }) },
+		]
+		const consumeDraftSnapshot = vi.fn()
+		const draft = {
+			revision: 11,
+			text: "submitted feedback",
+			activeQuote: "selected context",
+			images: ["old.png"],
+			files: ["old.md"],
+		}
+		const { result } = renderHook(() =>
+			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { consumeDraftSnapshot })),
+		)
+
+		await act(async () => {
+			await result.current.executeButtonAction({ type: "approve", draft })
+		})
+
+		expect(askResponse).toHaveBeenCalledWith({
+			responseType: "yesButtonClicked",
+			text: `[context] \n>  ${draft.activeQuote} \n[/context] \n\n ${draft.text}`,
+			images: draft.images,
+			files: draft.files,
+		})
+		expect(consumeDraftSnapshot).toHaveBeenCalledWith(draft)
 	})
 
 	// The webview does not gate sends on provider usability: submission always

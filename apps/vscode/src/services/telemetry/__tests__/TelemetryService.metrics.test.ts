@@ -80,6 +80,49 @@ function createTelemetryService(provider: FakeProvider, overrides: Partial<Telem
 	} as TelemetryMetadata)
 }
 
+describe("TelemetryService provider removal", () => {
+	it("detaches all matching providers immediately and awaits disposal despite failures", async () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+		const failing = new FakeProvider()
+		let failingDisposed = false
+		failing.dispose = async () => {
+			failingDisposed = true
+			throw new Error("shutdown failed")
+		}
+		service.addProvider(failing)
+		const retained = new FakeProvider()
+		Object.defineProperty(retained, "name", { value: "retained" })
+		service.addProvider(retained)
+		let release!: () => void
+		let disposalCount = 0
+		provider.dispose = () => {
+			disposalCount++
+			return new Promise<void>((resolve) => {
+				release = resolve
+			})
+		}
+
+		let finished = false
+		const removal = service.removeProvider(provider.name).then(() => {
+			finished = true
+		})
+		const previousLogCount = provider.logs.length
+		service.captureButtonClick("test", "task")
+		assert.strictEqual(provider.logs.length, previousLogCount)
+		assert.strictEqual(failing.logs.length, 0)
+		assert.strictEqual(retained.logs.length, 1)
+		await Promise.resolve()
+		assert.strictEqual(finished, false)
+		assert.strictEqual(failingDisposed, true)
+		release()
+		await removal
+		await service.removeProvider(provider.name)
+		await service.dispose()
+		assert.strictEqual(disposalCount, 1)
+	})
+})
+
 describe("TelemetryService metrics", () => {
 	it("includes rollout metadata on traditional events and metrics", () => {
 		const provider = new FakeProvider()

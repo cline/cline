@@ -1,9 +1,10 @@
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import { loadSqliteDb, type SqliteDb } from "@cline/shared/db";
 import { nanoid } from "nanoid";
+import { opencodeDataDir } from "./paths";
 import {
 	type ConvertedImportedSession,
 	type ImportableSessionSummary,
@@ -52,12 +53,7 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 	private readonly dbPath: string;
 
 	constructor(options: OpencodeAdapterOptions = {}) {
-		const dataDir =
-			options.dataDir ??
-			join(
-				process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"),
-				"opencode",
-			);
+		const dataDir = options.dataDir ?? opencodeDataDir();
 		this.dbPath = join(dataDir, "opencode.db");
 	}
 
