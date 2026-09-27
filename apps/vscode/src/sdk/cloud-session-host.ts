@@ -155,16 +155,8 @@ export class CloudSessionHost implements SdkSessionHost {
 		return cloudHost
 	}
 
-	get sessionId(): string {
-		return this.outerSessionId
-	}
-
 	get status(): CloudSessionStatus {
 		return this.agentStatus
-	}
-
-	get hasInnerSession(): boolean {
-		return !!this.innerSessionId
 	}
 
 	get sessionModelId(): string | undefined {

@@ -120,7 +120,7 @@ message TaskItem {
   string api_provider = 13;
   // "cloud" for Cline Cloud sessions; empty/"local" otherwise
   string execution_target = 14;
-  // Cloud session status: provisioning | running | idle | completed | failed | expired
+  // Cloud session status: provisioning | running | idle | completed | failed | cancelled | unknown | expired
   string cloud_status = 15;
   string cloud_repo_url = 16;
   string cloud_branch = 17;
