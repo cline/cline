@@ -31,6 +31,21 @@ describe("useResolvedCloudStatuses", () => {
 		expect(mocks.resolveCloudSessionStatuses).toHaveBeenCalledWith(expect.objectContaining({ sessionIds: ["ses-visible"] }))
 	})
 
+	it("lets a newer history status replace the status it resolved earlier", async () => {
+		mocks.resolveCloudSessionStatuses.mockResolvedValue({
+			statuses: [{ sessionId: "ses-visible", status: "running" }],
+		})
+		const { result, rerender } = renderHook(
+			(tasks: Array<{ id: string; executionTarget: string; cloudStatus: string }>) => useResolvedCloudStatuses(tasks),
+			{ initialProps: [{ id: "ses-visible", executionTarget: "cloud", cloudStatus: "unknown" }] },
+		)
+		await waitFor(() => expect(result.current.get("ses-visible")).toBe("running"))
+
+		rerender([{ id: "ses-visible", executionTarget: "cloud", cloudStatus: "completed" }])
+
+		expect(result.current.has("ses-visible")).toBe(false)
+	})
+
 	it("retries while a displayed cloud status remains indeterminate", async () => {
 		vi.useFakeTimers()
 		mocks.resolveCloudSessionStatuses.mockResolvedValue({

@@ -83,6 +83,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
 		setTurnPhase: vi.fn(),
+		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => undefined),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: vi.fn(async (text: string) => text),
@@ -558,6 +559,38 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 				expect((await result.value).dispose).toHaveBeenCalledWith("statusResolved")
 			}
 		}
+	})
+
+	it("leaves the host open when status resolution overlaps opening the same task", async () => {
+		const attached = deferred<void>()
+		const attaching = deferred<void>()
+		const host = {
+			status: "completed",
+			readMessages: async () => [],
+			dispose: vi.fn(async () => undefined),
+		} as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions } = makeCoordinator({
+			sessions: {
+				attachExistingSession: async () => {
+					attaching.resolve()
+					await attached.promise
+				},
+			} as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.listHistoryRecords()
+
+		const opening = coordinator.openCloudTask(record.id)
+		await attaching.promise
+		const statuses = await coordinator.resolveStatuses([record.id])
+		expect(statuses).toEqual([{ sessionId: record.id, status: "completed" }])
+		expect(host.dispose).not.toHaveBeenCalled()
+
+		attached.resolve()
+		await opening
+		expect(host.dispose).not.toHaveBeenCalled()
+		await coordinator.dispose()
 	})
 
 	it("drops resolved statuses when the account changes during connection", async () => {
