@@ -31,7 +31,7 @@ function createDeferred<T>() {
 }
 
 function AuthStateProbe() {
-	const { clineUser, organizations, switchOrganization, accountSwitch } = useClineAuth()
+	const { clineUser, organizations, switchOrganization, accountSwitch, accountSwitchError } = useClineAuth()
 	return (
 		<>
 			<div data-testid="user-state">{clineUser?.uid ?? "signed-out"}</div>
@@ -39,6 +39,7 @@ function AuthStateProbe() {
 				Switch
 			</button>
 			<div data-testid="switch-state">{accountSwitch ? (accountSwitch.slow ? "slow" : "pending") : "settled"}</div>
+			<div data-testid="switch-error">{accountSwitchError ?? "none"}</div>
 			<div data-testid="organizations-state">
 				{organizations?.map((organization) => organization.organizationId).join(",") ?? "none"}
 			</div>
@@ -149,5 +150,18 @@ describe("ClineAuthProvider", () => {
 		})
 		expect(grpcMocks.setUserOrganization).toHaveBeenCalledTimes(2)
 		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
+	})
+
+	it("does not report a background profile read as a failed account switch", async () => {
+		grpcMocks.getUserOrganizations.mockRejectedValue(new Error("offline"))
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-a" } })
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("none")
 	})
 })
