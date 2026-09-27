@@ -67,3 +67,22 @@ export {
 	type TaskSpecsScope,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./paths";
+export {
+	CLINE_BOUNDARY_FILE_NAME,
+	CLINE_IGNORE_FILE_NAME,
+	findWorkspaceHierarchy,
+	findWorkspaceHierarchySync,
+	globToRegExp,
+	loadClineIgnorePatternsSync,
+	loadWorkspaceConfigSync,
+	matchesAnyGlob,
+	matchesGlob,
+	type ResolvedHierarchicalWorkspace,
+	type ResolveWorkspaceOptions,
+	resolveHierarchicalWorkspace,
+	resolveHierarchicalWorkspaceSync,
+	WORKSPACE_CONFIG_FILE_NAME,
+	type WorkspaceConfig,
+	WorkspaceConfigSchema,
+	type WorkspaceLayer,
+} from "./workspace";
