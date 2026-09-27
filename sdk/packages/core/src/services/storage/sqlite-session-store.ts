@@ -10,13 +10,19 @@ import {
 	type SqliteDb,
 	toBoolInt,
 } from "@cline/shared/db";
-import { resolveDbDataDir } from "@cline/shared/storage";
+import {
+	resolveDbDataDir,
+	resolveHierarchicalWorkspaceSync,
+} from "@cline/shared/storage";
 import {
 	isNonTerminalSessionStatus,
 	type SessionStatus,
 } from "../../types/common";
 import type { SessionRecord } from "../../types/sessions";
-import type { SessionStore } from "../../types/storage";
+import type {
+	SessionHistoryFilterOptions,
+	SessionStore,
+} from "../../types/storage";
 
 export interface SqliteSessionStoreOptions {
 	sessionsDir?: string;
@@ -32,6 +38,11 @@ export class SqliteSessionStore implements SessionStore {
 
 	init(): void {
 		this.getRawDb();
+		try {
+			this.backfillAnchorWorkspacePaths();
+		} catch {
+			// Best-effort lazy backfill
+		}
 	}
 
 	ensureSessionsDir(): string {
@@ -82,13 +93,27 @@ export class SqliteSessionStore implements SessionStore {
 
 	create(record: SessionRecord): void {
 		const now = nowIso();
+		let anchorWorkspacePath = record.anchorWorkspacePath;
+		if (!anchorWorkspacePath) {
+			const target = record.cwd || record.workspaceRoot;
+			if (target) {
+				try {
+					anchorWorkspacePath =
+						resolveHierarchicalWorkspaceSync(target).primaryRoot;
+				} catch {
+					anchorWorkspacePath = record.workspaceRoot || record.cwd;
+				}
+			} else {
+				anchorWorkspacePath = record.workspaceRoot || record.cwd;
+			}
+		}
 		this.run(
 			`INSERT OR REPLACE INTO sessions (
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				metadata_json, transcript_path, hook_path, messages_path, updated_at, anchor_workspace_path
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				record.sessionId,
 				record.source,
@@ -118,6 +143,7 @@ export class SqliteSessionStore implements SessionStore {
 				record.hookPath ?? "",
 				record.messagesPath ?? null,
 				now,
+				anchorWorkspacePath ?? null,
 			],
 		);
 	}
@@ -161,6 +187,10 @@ export class SqliteSessionStore implements SessionStore {
 			fields.push("conversation_id = ?");
 			params.push(record.conversationId);
 		}
+		if (record.anchorWorkspacePath !== undefined) {
+			fields.push("anchor_workspace_path = ?");
+			params.push(record.anchorWorkspacePath);
+		}
 		if (fields.length === 0) {
 			return;
 		}
@@ -194,7 +224,7 @@ export class SqliteSessionStore implements SessionStore {
 				provider, model, cwd, workspace_root, team_name,
 				enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent,
-				prompt, metadata_json, hook_path, messages_path, updated_at
+				prompt, metadata_json, hook_path, messages_path, updated_at, anchor_workspace_path
 			 FROM sessions WHERE session_id = ?`,
 			[sessionId],
 		);
@@ -214,6 +244,7 @@ export class SqliteSessionStore implements SessionStore {
 			model: asString(row.model),
 			cwd: asString(row.cwd),
 			workspaceRoot: asString(row.workspace_root),
+			anchorWorkspacePath: asOptionalString(row.anchor_workspace_path),
 			teamName: asOptionalString(row.team_name),
 			enableTools: asBool(row.enable_tools),
 			enableSpawn: asBool(row.enable_spawn),
@@ -245,10 +276,56 @@ export class SqliteSessionStore implements SessionStore {
 		};
 	}
 
-	list(limit = 200): SessionRecord[] {
+	list(
+		limitOrOptions?: number | SessionHistoryFilterOptions,
+		maybeOptions?: SessionHistoryFilterOptions,
+	): SessionRecord[] {
+		const options: SessionHistoryFilterOptions =
+			typeof limitOrOptions === "object"
+				? limitOrOptions
+				: { ...(maybeOptions ?? {}), limit: limitOrOptions };
+		return this.listHistory(options);
+	}
+
+	listHistory(options: SessionHistoryFilterOptions = {}): SessionRecord[] {
+		const limit = options.limit ?? 200;
+		const offset = options.offset;
+		const whereClauses: string[] = [];
+		const params: unknown[] = [];
+
+		if (options.anchorPath && options.scope && options.scope !== "all") {
+			const normalizedAnchor = options.anchorPath
+				.replace(/\\/g, "/")
+				.replace(/\/+$/, "");
+			if (options.scope === "current") {
+				whereClauses.push(
+					"(anchor_workspace_path = ? OR (anchor_workspace_path IS NULL AND (workspace_root = ? OR cwd = ?)))",
+				);
+				params.push(normalizedAnchor, normalizedAnchor, normalizedAnchor);
+			} else if (options.scope === "hierarchical") {
+				const prefix = `${normalizedAnchor}/%`;
+				whereClauses.push(
+					"(anchor_workspace_path = ? OR anchor_workspace_path LIKE ? OR (anchor_workspace_path IS NULL AND (workspace_root = ? OR workspace_root LIKE ? OR cwd = ? OR cwd LIKE ?)))",
+				);
+				params.push(
+					normalizedAnchor,
+					prefix,
+					normalizedAnchor,
+					prefix,
+					normalizedAnchor,
+					prefix,
+				);
+			}
+		}
+
+		const where =
+			whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+		const offsetClause =
+			offset !== undefined && offset > 0 ? ` OFFSET ${Math.floor(offset)}` : "";
+
 		const rows = this.queryAll<Record<string, unknown>>(
-			`SELECT session_id FROM sessions ORDER BY started_at DESC LIMIT ?`,
-			[limit],
+			`SELECT session_id FROM sessions ${where} ORDER BY started_at DESC LIMIT ?${offsetClause}`,
+			[...params, limit],
 		);
 		const result: SessionRecord[] = [];
 		for (const row of rows) {
@@ -258,6 +335,41 @@ export class SqliteSessionStore implements SessionStore {
 			}
 		}
 		return result;
+	}
+
+	backfillAnchorWorkspacePaths(): number {
+		const rows = this.queryAll<{
+			session_id: string;
+			cwd: string;
+			workspace_root: string;
+		}>(
+			`SELECT session_id, cwd, workspace_root FROM sessions
+			 WHERE anchor_workspace_path IS NULL OR anchor_workspace_path = ''`,
+		);
+		if (rows.length === 0) {
+			return 0;
+		}
+		let updatedCount = 0;
+		const updateStmt = this.getRawDb().prepare(
+			`UPDATE sessions SET anchor_workspace_path = ? WHERE session_id = ?`,
+		);
+		for (const row of rows) {
+			const target = row.cwd || row.workspace_root;
+			let anchor = row.workspace_root || row.cwd;
+			if (target) {
+				try {
+					const resolved = resolveHierarchicalWorkspaceSync(target);
+					if (resolved?.primaryRoot) {
+						anchor = resolved.primaryRoot;
+					}
+				} catch {
+					// Fall back to workspace_root or cwd
+				}
+			}
+			updateStmt.run(anchor, row.session_id);
+			updatedCount++;
+		}
+		return updatedCount;
 	}
 
 	/**

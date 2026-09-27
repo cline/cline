@@ -20,6 +20,7 @@ export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		model: session.config.modelId,
 		cwd: session.config.cwd,
 		workspaceRoot: resolveWorkspacePath(session.config),
+		anchorWorkspacePath: session.artifacts?.manifest?.anchor_workspace_path,
 		teamName: session.config.teamName?.trim() || undefined,
 		enableTools: session.config.enableTools,
 		enableSpawn: session.config.enableSpawnAgent,

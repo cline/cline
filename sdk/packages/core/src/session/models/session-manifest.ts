@@ -17,6 +17,7 @@ export const SessionManifestSchema = z.object({
 	model: z.string().min(1),
 	cwd: z.string().min(1),
 	workspace_root: z.string().min(1),
+	anchor_workspace_path: z.string().optional(),
 	team_name: z.string().min(1).optional(),
 	enable_tools: z.boolean(),
 	enable_spawn: z.boolean(),

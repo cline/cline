@@ -362,6 +362,9 @@ export interface RestoreSessionResult {
 export interface ListSessionsOptions {
 	/** Only root sessions: excludes subagent and team-task child rows. */
 	rootOnly?: boolean;
+	anchorPath?: string;
+	scope?: "current" | "hierarchical" | "all";
+	offset?: number;
 }
 
 /**

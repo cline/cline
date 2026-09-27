@@ -1144,4 +1144,9 @@ export type {
 	SessionRecord,
 	SessionRef,
 } from "./types/sessions";
-export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
+export type {
+	ArtifactStore,
+	SessionHistoryFilterOptions,
+	SessionStore,
+	TeamStore,
+} from "./types/storage";

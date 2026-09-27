@@ -3,6 +3,19 @@ import type { TeamEvent } from "../extensions/tools/team";
 import type { SessionStatus } from "./common";
 import type { SessionRecord } from "./sessions";
 
+export interface SessionHistoryFilterOptions {
+	/** The anchor path of the active workspace */
+	anchorPath?: string;
+	/**
+	 * - "current": Only sessions directly anchored to this workspace
+	 * - "hierarchical": Sessions anchored to this workspace OR any of its known sub-clines
+	 * - "all": Unfiltered global session history
+	 */
+	scope?: "current" | "hierarchical" | "all";
+	limit?: number;
+	offset?: number;
+}
+
 export interface SessionStore {
 	init(): Promise<void> | void;
 	create(record: SessionRecord): Promise<void> | void;
@@ -18,6 +31,9 @@ export interface SessionStore {
 		sessionId: string,
 	): Promise<SessionRecord | undefined> | SessionRecord | undefined;
 	list(limit?: number): Promise<SessionRecord[]> | SessionRecord[];
+	listHistory?(
+		options?: SessionHistoryFilterOptions,
+	): Promise<SessionRecord[]> | SessionRecord[];
 	delete(sessionId: string, cascade?: boolean): Promise<boolean> | boolean;
 }
 

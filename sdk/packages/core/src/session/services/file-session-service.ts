@@ -126,7 +126,14 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		parentSessionId?: string;
 		status?: string;
 		rootOnly?: boolean;
+		anchorPath?: string;
+		scope?: "current" | "hierarchical" | "all";
+		offset?: number;
 	}): Promise<SessionRow[]> {
+		const normAnchor = options.anchorPath
+			?.replace(/\\/g, "/")
+			.replace(/\/+$/, "");
+		const offset = Math.max(0, Math.floor(options.offset ?? 0));
 		return Object.values(this.readIndex().sessions)
 			.filter((row) =>
 				options.parentSessionId !== undefined
@@ -139,8 +146,31 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			.filter((row) =>
 				options.status !== undefined ? row.status === options.status : true,
 			)
+			.filter((row) => {
+				if (!normAnchor || !options.scope || options.scope === "all") {
+					return true;
+				}
+				const rowAnchor = (
+					row.anchorWorkspacePath ||
+					row.workspaceRoot ||
+					row.cwd ||
+					""
+				)
+					.replace(/\\/g, "/")
+					.replace(/\/+$/, "");
+				if (options.scope === "current") {
+					return rowAnchor === normAnchor;
+				}
+				if (options.scope === "hierarchical") {
+					return (
+						rowAnchor === normAnchor ||
+						rowAnchor.startsWith(`${normAnchor}/`)
+					);
+				}
+				return true;
+			})
 			.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
-			.slice(0, options.limit);
+			.slice(offset, offset + options.limit);
 	}
 
 	async updateSession(

@@ -599,4 +599,33 @@ describe("session history", () => {
 		});
 		expect(readSessionMessages).toHaveBeenCalledWith("sess_1700000000000");
 	});
+
+	it("passes anchorPath, scope, and offset to listSessions", async () => {
+		const listSessions = vi.fn().mockResolvedValue([
+			createRow({
+				sessionId: "sess_scoped",
+				anchorWorkspacePath: "/repo/apps/cli",
+			}),
+		]);
+		const readSessionMessages = vi.fn().mockResolvedValue([]);
+
+		const rows = await listSessionHistory(
+			{ listSessions, readSessionMessages },
+			{
+				limit: 10,
+				anchorPath: "/repo/apps/cli",
+				scope: "current",
+				offset: 5,
+			},
+		);
+
+		expect(listSessions).toHaveBeenCalledWith(20, {
+			rootOnly: true,
+			anchorPath: "/repo/apps/cli",
+			scope: "current",
+			offset: 5,
+		});
+		expect(rows.map((row) => row.sessionId)).toEqual(["sess_scoped"]);
+	});
 });
+
