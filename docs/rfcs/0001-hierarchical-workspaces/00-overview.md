@@ -5,7 +5,7 @@
 - **Author:** Antigravity (on behalf of Cline Community)
 - **Status:** Proposed (Draft)
 - **Created:** 2026-09-27
-- **Target Packages:** `@cline/shared`, `@cline/core`, `@cline/cli`, `@cline/vscode`
+- **Target Packages:** `@cline/shared`, `@cline/core`, `@cline/cli`, `apps/vscode` (package `claude-dev`; note the workspace package `@cline/vscode` is `apps/examples/vscode`)
 
 ---
 

@@ -1,7 +1,7 @@
 # RFC 0001: Onboarding & User Experience Specification
 
 - **Module:** Onboarding & Host UX
-- **Target Surfaces:** `@cline/cli`, `@cline/vscode`, `@cline/code` (Desktop)
+- **Target Surfaces:** `@cline/cli`, `apps/vscode` (package `claude-dev`; the workspace package `@cline/vscode` is `apps/examples/vscode`), `@cline/code` (Desktop)
 
 ---
 
