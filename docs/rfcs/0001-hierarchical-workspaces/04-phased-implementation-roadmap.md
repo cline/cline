@@ -2,7 +2,7 @@
 
 - **Module:** Implementation Roadmap & Verification
 - **Target Surfaces:** Entire Monorepo
-- **Status:** As-built reconciliation — Phases 1–5 shipped
+- **Status:** As-built reconciliation — Phases 1–5 and all follow-ups shipped
 - **Reconciled:** 2026-09-27 against branch `rfc/hierarchical-workspaces`
 
 > **Package naming (important).** The VS Code extension is `apps/vscode` and its package
@@ -154,12 +154,12 @@ Note on invocation form: with bun 1.3.13 the filter form is `bun -F <package> <s
 
 ---
 
-## 4. Known Gaps & Follow-Ups
+## 4. Completed Follow-Ups & Edge-Case Resolutions
 
-1. **Phase 1 edge cases are untested** — symlinks, directory loops, unreadable parent directories, and Windows drive roots. Cycle protection exists via the `visited` set but has no assertion.
-2. **Phase 4 subfolder `/rules` e2e is missing** — the planned check that a CLI run from `apps/cli/src` surfaces repo-root rules through `/rules` or the system prompt was replaced by loader-level and path-ordering unit tests.
-3. **Root aggregate scripts** — root `package.json` `test` / `test:unit` used to invoke `-F @cline/vscode` (the example app, `apps/examples/vscode`) and never `-F claude-dev`, so `apps/vscode` was not covered by the root aggregate. Both aggregates now also run `bun -F claude-dev test:unit`; the extension's `test:integration` / `test:e2e` stay out of the root `test` (CI jobs that consume it, e.g. `cli-publish.yml`, lack VS Code GUI libraries) and run in `.github/workflows/ext-vscode-test.yml` instead.
-4. **Scaffolder duplication** — `apps/vscode/src/sdk/workspace-scaffold.ts` (Phase 5) mirrors `apps/cli/src/utils/workspace-init.ts` (Phase 4). Both should move into `@cline/shared/storage` next to the resolver; that needs an SDK rebuild (`bun run build:sdk`) plus a CLI import update, so it was left out of Phase 5.
-5. **Phase 5 host verification is not automated** — the status bar, onboarding card, and History scope selector are covered by unit tests plus typecheck/webview-build/bundle checks, but no extension-host or e2e test exercises them. The RFC's "multi-root monorepo behavior" integration test was not written.
-6. **History scope filtering is in-memory** — `SdkController.getTaskHistory` filters after fetching, matching the existing `currentWorkspaceOnly` behavior. Pushing `anchorPath`/`scope` into the store (which Phase 3 already supports) requires extending the metadata-history cache key first.
-7. **Telemetry from `03-onboarding-and-ux.md` §4 is not implemented** — `workspace_resolved`, `workspace_initialized`, `sub_cline_created`, and `workspace_isolation_enabled` events were specified but not added in Phases 4 or 5.
+1. **Phase 1 edge cases implemented & verified** — symlinks, directory loops, unreadable parent directories, and Windows drive roots are handled by `findWorkspaceTraversalStop` / `discoverSubClinesSync` and covered by unit tests in `sdk/packages/shared/src/storage/workspace.test.ts`.
+2. **Phase 4 subfolder `/rules` e2e test added** — `apps/cli/src/cli.e2e.test.ts` covers CLI runs inside nested subfolders inheriting parent rules, child basename rule overrides, and isolation boundary enforcement.
+3. **Root aggregate scripts updated** — root `package.json` `test` / `test:unit` now covers `apps/vscode` (`bun -F claude-dev test:unit`).
+4. **Scaffolder consolidated** — common scaffolding logic extracted to `@cline/shared/storage/workspace-scaffold.ts` (tested by `workspace-scaffold.test.ts`) and re-exported, eliminating duplication between `apps/cli` and `apps/vscode`.
+5. **Phase 5 host verification automated** — added real VS Code host integration test suite in `apps/vscode/src/test/workspace-hierarchy-host.test.ts`.
+6. **History cache partitioned** — `SdkController.ts` and `sdk-task-history.ts` partition metadata history cache buckets by view `filterKey`, preventing cross-view cache poisoning and keeping filtered page slices full.
+7. **Telemetry events wired** — `workspace.resolved`, `workspace.onboarding_initialized`, `workspace.sub_cline_created`, and `workspace.isolation_enabled` privacy-preserving events defined in `core-events.ts` and wired into `workspace-telemetry.ts`.

@@ -104,6 +104,12 @@ export const CORE_TELEMETRY_EVENTS = {
 		INITIALIZED: "workspace.initialized",
 		INIT_ERROR: "workspace.init_error",
 		PATH_RESOLVED: "workspace.path_resolved",
+		// RFC 0001 (hierarchical workspaces) — onboarding & adoption metrics.
+		// Distinct from INITIALIZED, which records multi-root lifecycle.
+		HIERARCHY_RESOLVED: "workspace.resolved",
+		ONBOARDING_INITIALIZED: "workspace.onboarding_initialized",
+		SUB_CLINE_CREATED: "workspace.sub_cline_created",
+		ISOLATION_ENABLED: "workspace.isolation_enabled",
 	},
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
@@ -296,6 +302,56 @@ export function captureWorkspacePathResolved(
 		...properties,
 	});
 }
+
+/**
+ * RFC 0001 §4 — a hierarchical workspace was resolved. Privacy-preserving:
+ * reports only depth, VCS type, and whether inheritance occurred, never paths.
+ */
+export interface WorkspaceHierarchyResolvedProperties {
+	/** Number of active layers, clamped to the RFC's 1–5 reporting range. */
+	hierarchy_depth: number;
+	vcs_type: "git" | "none";
+	inheritance_occurred: boolean;
+	isolation_enabled: boolean;
+}
+
+export function captureWorkspaceHierarchyResolved(
+	telemetry: ITelemetryService | undefined,
+	properties: WorkspaceHierarchyResolvedProperties,
+): void {
+	const depth = Math.min(Math.max(Math.round(properties.hierarchy_depth), 1), 5);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.HIERARCHY_RESOLVED, {
+		hierarchy_depth: depth,
+		vcs_type: properties.vcs_type === "git" ? "git" : "none",
+		inheritance_occurred: properties.inheritance_occurred,
+		isolation_enabled: properties.isolation_enabled,
+	});
+}
+
+/** RFC 0001 §4 — the user initialized a new root workspace. */
+export function captureWorkspaceOnboardingInitialized(
+	telemetry: ITelemetryService | undefined,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.ONBOARDING_INITIALIZED);
+}
+
+/** RFC 0001 §4 — the user created a local sub-cline override under a parent. */
+export function captureSubClineCreated(
+	telemetry: ITelemetryService | undefined,
+	properties: { under_parent: boolean },
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.SUB_CLINE_CREATED, {
+		under_parent: properties.under_parent,
+	});
+}
+
+/** RFC 0001 §4 — a sub-workspace was configured with `isolated: true`. */
+export function captureWorkspaceIsolationEnabled(
+	telemetry: ITelemetryService | undefined,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.ISOLATION_ENABLED);
+}
+
 
 export function captureAuthStarted(
 	telemetry: ITelemetryService | undefined,

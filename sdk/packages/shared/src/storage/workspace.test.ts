@@ -1,12 +1,22 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path, { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	CLINE_BOUNDARY_FILE_NAME,
 	CLINE_IGNORE_FILE_NAME,
 	findWorkspaceHierarchy,
 	findWorkspaceHierarchySync,
+	findWorkspaceTraversalStop,
+	isFileSystemRoot,
 	loadClineIgnorePatternsSync,
 	loadWorkspaceConfigSync,
 	matchesAnyGlob,
@@ -14,6 +24,7 @@ import {
 	resolveHierarchicalWorkspace,
 	resolveHierarchicalWorkspaceSync,
 	WorkspaceConfigSchema,
+	type WorkspaceConfig,
 } from "./workspace";
 
 describe("WorkspaceConfigSchema", () => {
@@ -347,3 +358,243 @@ describe("Hierarchical Workspace Resolution", () => {
 		expect(asyncHierarchy).toEqual(syncHierarchy);
 	});
 });
+
+describe("Workspace traversal boundary rules", () => {
+	const config = (overrides: Partial<WorkspaceConfig> = {}): WorkspaceConfig =>
+		WorkspaceConfigSchema.parse(overrides);
+
+	it("detects POSIX and Windows filesystem roots", () => {
+		expect(isFileSystemRoot("/", path.posix)).toBe(true);
+		expect(isFileSystemRoot("/home/dev", path.posix)).toBe(false);
+		// A drive root is its own parent under win32 path semantics, which is the
+		// only way to assert the Windows stop without a Windows host.
+		expect(isFileSystemRoot("C:\\", path.win32)).toBe(true);
+		expect(isFileSystemRoot("C:\\Users\\dev", path.win32)).toBe(false);
+	});
+
+	it("stops on an isolation boundary declared in workspace.json", () => {
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/repo",
+				config: config({ isolated: true }),
+				hasBoundaryMarker: false,
+			}),
+		).toBe("isolated");
+	});
+
+	it("stops on a .cline-boundary marker even when isolated is false", () => {
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/repo",
+				config: config({ isolated: false }),
+				hasBoundaryMarker: true,
+			}),
+		).toBe("isolated");
+	});
+
+	it("ignores isolation for directories that are not workspace layers", () => {
+		// No config means no `.cline`/`.clinerules`, so the isolation rule cannot
+		// fire for a plain ancestor directory.
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/repo/packages",
+				hasBoundaryMarker: true,
+				hasGitDir: false,
+			}),
+		).toBeUndefined();
+	});
+
+	it("prefers isolation over the git root stop", () => {
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/repo",
+				config: config({ isolated: true }),
+				hasGitDir: true,
+				hasBoundaryMarker: false,
+			}),
+		).toBe("isolated");
+	});
+
+	it("stops at the git root only when stopAtGitRoot is enabled", () => {
+		expect(findWorkspaceTraversalStop({ dir: "/repo", hasGitDir: true })).toBe(
+			"git-root",
+		);
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/repo",
+				hasGitDir: true,
+				stopAtGitRoot: false,
+			}),
+		).toBeUndefined();
+	});
+
+	it("stops at the user home directory", () => {
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/home/dev",
+				userHome: "/home/dev",
+				hasGitDir: false,
+			}),
+		).toBe("user-home");
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "/home/dev/project",
+				userHome: "/home/dev",
+				hasGitDir: false,
+			}),
+		).toBeUndefined();
+	});
+
+	it("stops at a Windows drive root using win32 path semantics", () => {
+		expect(
+			findWorkspaceTraversalStop({
+				dir: "C:\\",
+				pathApi: path.win32,
+				userHome: "C:\\Users\\dev",
+				hasGitDir: false,
+				hasBoundaryMarker: false,
+			}),
+		).toBe("filesystem-root");
+	});
+});
+
+
+describe("Hierarchical workspace edge cases", () => {
+	let testDir: string;
+	// chmod-based assertions are meaningless (permissions are ignored) as root.
+	const isRootUser =
+		typeof process.geteuid === "function" && process.geteuid() === 0;
+
+	beforeEach(() => {
+		testDir = mkdtempSync(join(tmpdir(), "cline-workspace-edge-"));
+	});
+
+	afterEach(() => {
+		try {
+			// Restore modes that would otherwise block recursive cleanup.
+			const locked = join(testDir, "apps");
+			if (existsSync(locked)) {
+				chmodSync(locked, 0o755);
+			}
+			rmSync(testDir, { recursive: true, force: true });
+		} catch {
+			// ignore cleanup errors
+		}
+	});
+
+	it("resolves a symlinked start path lexically, without following the link", () => {
+		mkdirSync(join(testDir, ".cline", "rules"), { recursive: true });
+		mkdirSync(join(testDir, "apps", "cli"), { recursive: true });
+		symlinkSync(join(testDir, "apps"), join(testDir, "link-to-apps"), "dir");
+
+		const resolved = resolveHierarchicalWorkspaceSync(
+			join(testDir, "link-to-apps", "cli"),
+		);
+
+		expect(resolved.isInitialized).toBe(true);
+		expect(resolved.primaryRoot).toBe(testDir);
+		// The anchor comes from the lexical path the caller passed, not the
+		// realpath, so a linked working copy behaves like the directory it is in.
+		expect(resolved.targetPath).toBe(join(testDir, "link-to-apps", "cli"));
+		expect(resolved.layers.map((layer) => layer.path)).toEqual([testDir]);
+	});
+
+	it("collapses redundant segments and never yields duplicate layers", () => {
+		mkdirSync(join(testDir, ".cline"), { recursive: true });
+		const nested = join(testDir, "apps", "cli");
+		mkdirSync(nested, { recursive: true });
+		symlinkSync(join(testDir, "apps"), join(testDir, "alias-apps"), "dir");
+
+		for (const startPath of [
+			join(testDir, "apps", "..", "apps", "cli"),
+			join(testDir, "alias-apps", "cli"),
+			join(nested, "src", ".."),
+			`${nested}${path.sep}`,
+		]) {
+			const resolved = findWorkspaceHierarchySync(startPath);
+			const layerPaths = resolved.layers.map((layer) => layer.path);
+			// The traversal `visited` guard: each ancestor appears at most once.
+			expect(new Set(layerPaths).size).toBe(layerPaths.length);
+			expect(resolved.discoveredRoots).toEqual(
+				layerPaths.slice().reverse(),
+			);
+			expect(resolved.primaryRoot).toBe(testDir);
+		}
+	});
+
+	it("terminates on a symlink loop during sub-cline discovery", () => {
+		mkdirSync(join(testDir, ".cline"), { recursive: true });
+		writeFileSync(
+			join(testDir, ".cline", "workspace.json"),
+			JSON.stringify({ includes: ["packages/**"] }),
+		);
+		const packageA = join(testDir, "packages", "a");
+		mkdirSync(join(packageA, ".cline"), { recursive: true });
+		// `packages/self` points back at its own parent: an unbounded tree that the
+		// BFS visited set and depth cap must cut short.
+		symlinkSync(
+			join(testDir, "packages"),
+			join(testDir, "packages", "self"),
+			"dir",
+		);
+
+		const resolved = resolveHierarchicalWorkspaceSync(testDir);
+
+		expect(resolved.discoveredSubClines).toContain(packageA);
+		expect(resolved.discoveredSubClines.length).toBeLessThan(20);
+	});
+
+	it("deduplicates sub-clines matched by repeated includes patterns", () => {
+		mkdirSync(join(testDir, ".cline"), { recursive: true });
+		writeFileSync(
+			join(testDir, ".cline", "workspace.json"),
+			JSON.stringify({ includes: ["apps/*", "apps/**", "apps/cli"] }),
+		);
+		const app = join(testDir, "apps", "cli");
+		mkdirSync(join(app, ".cline"), { recursive: true });
+
+		const resolved = resolveHierarchicalWorkspaceSync(testDir);
+
+		expect(resolved.discoveredSubClines).toEqual([app]);
+	});
+
+	it.skipIf(isRootUser)(
+		"degrades gracefully when an ancestor directory is unreadable",
+		() => {
+			mkdirSync(join(testDir, ".cline", "rules"), { recursive: true });
+			const locked = join(testDir, "apps");
+			const startDir = join(locked, "cli");
+			mkdirSync(startDir, { recursive: true });
+			chmodSync(locked, 0o000);
+
+			try {
+				const resolved = resolveHierarchicalWorkspaceSync(startDir);
+				// Probes inside the unreadable directory read as "no .cline here"
+				// instead of throwing, so the workspace above it is still found.
+				expect(resolved.isInitialized).toBe(true);
+				expect(resolved.primaryRoot).toBe(testDir);
+				expect(resolved.layers.map((layer) => layer.path)).toEqual([testDir]);
+			} finally {
+				chmodSync(locked, 0o755);
+			}
+		},
+	);
+
+	it("terminates at the filesystem root instead of ascending past home", () => {
+		const missing = join(testDir, "no", "such", "workspace");
+		mkdirSync(missing, { recursive: true });
+
+		const resolved = resolveHierarchicalWorkspaceSync(missing, {
+			stopAtGitRoot: false,
+			// Pinning home to `/` makes the walk stop exactly at the filesystem
+			// root, so the result cannot depend on the developer's real home.
+			userHomeDir: path.sep,
+		});
+
+		expect(resolved.isInitialized).toBe(false);
+		expect(resolved.layers).toEqual([]);
+		expect(resolved.primaryRoot).toBe(missing);
+		expect(resolved.targetPath).toBe(missing);
+	});
+});
+

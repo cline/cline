@@ -2096,48 +2096,56 @@ export class Controller {
 		// "this workspace" means, so resolve it once for the whole query.
 		const hierarchy = historyScope && historyScope !== "all" ? await this.getWorkspaceHierarchy() : undefined
 		const workspacePath = !historyScope && currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		// Scope, favorites, and search are applied *before* pagination (inside
+		// SdkTaskHistory) so a filtered view returns a full page and `hasMore`
+		// reflects the filtered result set rather than the raw page.
+		const searchNeedle = searchQuery?.toLowerCase()
+		const filterKey = [
+			`scope=${historyScope ?? (currentWorkspaceOnly ? "current_workspace_only" : "all")}`,
+			`fav=${favoritesOnly ? 1 : 0}`,
+			`q=${searchQuery ?? ""}`,
+		].join("|")
 		const sessionHistory = await this.taskHistory.listHistory({
 			hydrate: false,
 			limit: limit + 1,
 			offset,
-		})
-
-		let filteredTasks = sessionHistory.filter((item) => {
-			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
-			const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
-
-			if (!ts || !task) {
-				return false
-			}
-
-			const isFavorited =
-				metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
-			if (favoritesOnly && !isFavorited) {
-				return false
-			}
-
-			if (historyScope && hierarchy) {
-				if (!matchesWorkspaceHistoryScope(item, historyScope, hierarchy)) {
-					return false
-				}
-			} else if (currentWorkspaceOnly && workspacePath) {
-				const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
-				if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
-					return false
-				}
-			}
-
-			return true
-		})
-
-		if (searchQuery) {
-			const query = searchQuery.toLowerCase()
-			filteredTasks = filteredTasks.filter((item) => {
+			filterKey,
+			filter: (item) => {
+				const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
 				const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
-				return task.toLowerCase().includes(query)
-			})
-		}
 
+				if (!ts || !task) {
+					return false
+				}
+
+				const isFavorited =
+					metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
+				if (favoritesOnly && !isFavorited) {
+					return false
+				}
+
+				if (historyScope && hierarchy) {
+					if (!matchesWorkspaceHistoryScope(item, historyScope, hierarchy)) {
+						return false
+					}
+				} else if (currentWorkspaceOnly && workspacePath) {
+					const sessionWorkspacePath = item.cwd ?? item.workspaceRoot
+					if (!sessionWorkspacePath || !arePathsEqual(sessionWorkspacePath, workspacePath)) {
+						return false
+					}
+				}
+
+				if (searchNeedle && !task.toLowerCase().includes(searchNeedle)) {
+					return false
+				}
+
+				return true
+			},
+		})
+
+		// `sessionHistory` is already filtered and paged to at most `limit + 1`
+		// rows, so the sort + `hasMore` below operate on the active view.
+		const filteredTasks = [...sessionHistory]
 		filteredTasks.sort((a, b) => {
 			switch (sortBy) {
 				case "oldest":

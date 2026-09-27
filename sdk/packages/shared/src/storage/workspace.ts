@@ -107,15 +107,114 @@ function inspectLayerCapabilities(
 }
 
 /**
+ * True when `dir` carries a `.cline-boundary` marker file, either at the
+ * workspace root itself or inside its `.cline/` directory.
+ */
+export function hasBoundaryMarkerFile(dir: string): boolean {
+	return (
+		existsSync(join(dir, CLINE_BOUNDARY_FILE_NAME)) ||
+		existsSync(join(dir, CLINE_DIR_NAME, CLINE_BOUNDARY_FILE_NAME))
+	);
+}
+
+/**
  * Check if a directory marks an isolation boundary.
  */
-function isIsolationBoundary(dir: string, config: WorkspaceConfig): boolean {
-	if (config.isolated) {
-		return true;
+export function hasIsolationBoundary(
+	dir: string,
+	config: WorkspaceConfig,
+): boolean {
+	return config.isolated || hasBoundaryMarkerFile(dir);
+}
+
+/**
+ * Why upward hierarchy traversal must not ascend past a directory.
+ */
+export type WorkspaceTraversalStop =
+	| "isolated"
+	| "git-root"
+	| "user-home"
+	| "filesystem-root";
+
+/**
+ * The only path operation the boundary rules need. Injectable so the
+ * platform-specific filesystem-root check is assertable off-platform.
+ */
+export interface PathDirName {
+	dirname: (value: string) => string;
+}
+
+export interface WorkspaceTraversalStopInput {
+	/** Normalized absolute directory currently being inspected. */
+	dir: string;
+	/**
+	 * Config for a directory that is a workspace layer (`.cline/` or
+	 * `.clinerules` present); undefined for a plain ancestor directory, in which
+	 * case isolation is not considered.
+	 */
+	config?: WorkspaceConfig;
+	/** Override the `.git` probe. */
+	hasGitDir?: boolean;
+	/** Override the `.cline-boundary` marker probe. */
+	hasBoundaryMarker?: boolean;
+	/** Resolved user home boundary; traversal never ascends above it. */
+	userHome?: string;
+	/** Defaults to true, matching `ResolveWorkspaceOptions.stopAtGitRoot`. */
+	stopAtGitRoot?: boolean;
+	/** Path implementation used for the filesystem-root check. */
+	pathApi?: PathDirName;
+}
+
+const DEFAULT_PATH_API: PathDirName = { dirname };
+
+/**
+ * True when `dir` is its own parent, i.e. a filesystem root (`/`, `C:\`).
+ */
+export function isFileSystemRoot(
+	dir: string,
+	pathApi: PathDirName = DEFAULT_PATH_API,
+): boolean {
+	return pathApi.dirname(dir) === dir;
+}
+
+/**
+ * Decide whether upward traversal stops at `dir`, and why.
+ *
+ * Extracted from {@link findWorkspaceHierarchySync} so every boundary rule —
+ * including the filesystem-root stop that also covers Windows drive roots —
+ * can be asserted without a win32 host or a permission-restricted filesystem.
+ * Evaluation order is the RFC 0001 §2 order: isolation, Git root, user home,
+ * filesystem root.
+ */
+export function findWorkspaceTraversalStop(
+	input: WorkspaceTraversalStopInput,
+): WorkspaceTraversalStop | undefined {
+	const pathApi = input.pathApi ?? DEFAULT_PATH_API;
+
+	if (
+		input.config &&
+		(input.config.isolated ||
+			(input.hasBoundaryMarker ?? hasBoundaryMarkerFile(input.dir)))
+	) {
+		return "isolated";
 	}
-	const boundaryFile = join(dir, CLINE_BOUNDARY_FILE_NAME);
-	const clineBoundaryFile = join(dir, CLINE_DIR_NAME, CLINE_BOUNDARY_FILE_NAME);
-	return existsSync(boundaryFile) || existsSync(clineBoundaryFile);
+
+	if (
+		input.stopAtGitRoot !== false &&
+		(input.hasGitDir ?? existsSync(join(input.dir, ".git")))
+	) {
+		return "git-root";
+	}
+
+	if (input.userHome && input.dir === input.userHome) {
+		return "user-home";
+	}
+
+	if (isFileSystemRoot(input.dir, pathApi)) {
+		return "filesystem-root";
+	}
+
+	return undefined;
 }
 
 /**
@@ -144,6 +243,11 @@ function discoverSubClinesSync(
 			continue;
 		}
 
+		// Symlinked directories are scanned (a sub-cline reached through a link is
+		// still a real workspace), which makes a link loop possible. `visitedDirs`
+		// keeps each directory to a single scan per pattern; the depth cap bounds
+		// the walk even when links point at lexically distinct paths.
+		const visitedDirs = new Set<string>();
 		const queue: { dir: string; depth: number }[] = [
 			{ dir: startScanDir, depth: 0 },
 		];
@@ -154,6 +258,11 @@ function discoverSubClinesSync(
 				break;
 			}
 			const { dir: currentDir, depth } = item;
+			const normalizedDir = normalize(currentDir);
+			if (visitedDirs.has(normalizedDir)) {
+				continue;
+			}
+			visitedDirs.add(normalizedDir);
 
 			let entries: import("node:fs").Dirent[] = [];
 			try {
@@ -252,42 +361,33 @@ export function findWorkspaceHierarchySync(
 			existsSync(join(normalizedCurrent, CLINE_DIR_NAME)) ||
 			existsSync(join(normalizedCurrent, LEGACY_CLINE_RULES_NAME));
 
-		let isIsolated = false;
-
+		let config: WorkspaceConfig | undefined;
 		if (hasCline) {
 			discoveredRoots.push(normalizedCurrent);
 			if (!nearestRoot) {
 				nearestRoot = normalizedCurrent;
 			}
 
-			const config = loadWorkspaceConfigSync(normalizedCurrent);
+			config = loadWorkspaceConfigSync(normalizedCurrent);
 			layerConfigs.set(normalizedCurrent, config);
-			isIsolated = isIsolationBoundary(normalizedCurrent, config);
-
-			// If the workspace is isolated, halt upward traversal immediately
-			if (isIsolated) {
-				break;
-			}
 		}
 
-		// Boundary Check 1: Git Root
-		const isGitRoot = existsSync(join(normalizedCurrent, ".git"));
-		if (stopAtGit && isGitRoot) {
+		// Boundary stops (isolation, Git root, user home, filesystem root) are
+		// decided by findWorkspaceTraversalStop so each rule is individually
+		// assertable, including the drive-root case that cannot be exercised on a
+		// POSIX host.
+		if (
+			findWorkspaceTraversalStop({
+				dir: normalizedCurrent,
+				config,
+				userHome,
+				stopAtGitRoot: stopAtGit,
+			})
+		) {
 			break;
 		}
 
-		// Boundary Check 2: User Home Directory (do not ascend above home)
-		if (normalizedCurrent === userHome) {
-			break;
-		}
-
-		// Boundary Check 3: Filesystem Root
-		const parentDir = dirname(normalizedCurrent);
-		if (parentDir === normalizedCurrent) {
-			break;
-		}
-
-		currentDir = parentDir;
+		currentDir = dirname(normalizedCurrent);
 	}
 
 	const isInitialized = nearestRoot !== undefined;

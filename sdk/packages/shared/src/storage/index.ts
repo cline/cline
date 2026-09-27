@@ -70,15 +70,26 @@ export {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./paths";
 export {
+	DEFAULT_WORKSPACE_PROJECT_RULES,
+	initializeWorkspaceLayout,
+	type InitializeWorkspaceLayoutOptions,
+	type InitializeWorkspaceLayoutResult,
+} from "./workspace-scaffold";
+export {
 	CLINE_BOUNDARY_FILE_NAME,
 	CLINE_IGNORE_FILE_NAME,
 	findWorkspaceHierarchy,
 	findWorkspaceHierarchySync,
+	findWorkspaceTraversalStop,
 	globToRegExp,
+	hasBoundaryMarkerFile,
+	hasIsolationBoundary,
+	isFileSystemRoot,
 	loadClineIgnorePatternsSync,
 	loadWorkspaceConfigSync,
 	matchesAnyGlob,
 	matchesGlob,
+	type PathDirName,
 	type ResolvedHierarchicalWorkspace,
 	type ResolveWorkspaceOptions,
 	resolveHierarchicalWorkspace,
@@ -87,4 +98,6 @@ export {
 	type WorkspaceConfig,
 	WorkspaceConfigSchema,
 	type WorkspaceLayer,
+	type WorkspaceTraversalStop,
+	type WorkspaceTraversalStopInput,
 } from "./workspace";

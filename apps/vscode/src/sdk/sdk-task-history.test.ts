@@ -879,6 +879,58 @@ describe("SdkTaskHistory", () => {
 		expect(record?.prompt).toBe("original")
 		expect(record?.updatedAt).toBe("2026-01-01T00:00:00.000Z")
 	})
+	it("applies the filter before pagination so a filtered page stays full", async () => {
+		// 30 records; only the 'keep' ones match. By recency the newest 10 contain
+		// just two matches, so filtering *after* slicing the page would return a
+		// sparse result. Filtering *before* the slice keeps the page full.
+		const records = Array.from({ length: 30 }, (_, i) =>
+			makeSessionRecord(`task-${i}`, {
+				updatedAt: new Date(Date.UTC(2026, 0, 1, 0, i, 0)).toISOString(),
+				metadata: i % 3 === 0 ? { title: `keep-${i}` } : { title: `drop-${i}` },
+			}),
+		)
+		const { history } = makeHistory(records, makeTelemetry())
+
+		const page = await history.listHistory({
+			hydrate: false,
+			limit: 10,
+			filterKey: "keep",
+			filter: (r) => (r.metadata as { title?: string }).title?.startsWith("keep-") === true,
+		})
+
+		expect(page).toHaveLength(10)
+		for (const r of page) {
+			expect((r.metadata as { title?: string }).title).toMatch(/^keep-/)
+		}
+		// The oldest matching record (index 0) is only reachable when the filter
+		// ran before the page was sliced.
+		expect(page.map((r) => r.sessionId)).toContain("task-0")
+	})
+
+	it("partitions the metadata cache by filter key so views don't poison each other", async () => {
+		const records = Array.from({ length: 6 }, (_, i) =>
+			makeSessionRecord(`task-${i}`, {
+				metadata: i < 3 ? { title: `keep-${i}` } : { title: `drop-${i}` },
+			}),
+		)
+		const { history, listHistory } = makeHistory(records, makeTelemetry())
+
+		const filtered = await history.listHistory({
+			hydrate: false,
+			limit: 100,
+			filterKey: "fav",
+			filter: (r) => (r.metadata as { title?: string }).title?.startsWith("keep-") === true,
+		})
+		expect(filtered).toHaveLength(3)
+
+		// A different view key must not be served the filtered bucket.
+		const unfiltered = await history.listHistory({ hydrate: false, limit: 100, filterKey: "all" })
+		expect(unfiltered).toHaveLength(6)
+
+		// Both view keys required their own fetch (the mock returns every record),
+		// proving the "all" read did not reuse the "fav" cache bucket.
+		expect(listHistory).toHaveBeenCalledTimes(2)
+	})
 })
 
 function makeHistoryItem(id: string, overrides: Partial<HistoryItem> = {}): HistoryItem {

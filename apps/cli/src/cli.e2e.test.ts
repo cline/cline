@@ -437,6 +437,105 @@ Do not force push.`,
 		expect(asText(result.stdout)).toContain(path.join(rulesDir, "rule.md"));
 	});
 
+	it("inherits ancestor workspace rules when run from a nested subfolder", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-rules-inherit-"));
+		tempDirs.push(repo);
+		// A git root so the hierarchy resolver stops at the repo boundary instead of
+		// ascending into the tmp parent.
+		spawnSync("git", ["init"], { cwd: repo, encoding: "utf8" });
+		const repoRulesDir = path.join(repo, ".cline", "rules");
+		mkdirSync(repoRulesDir, { recursive: true });
+		writeFileSync(
+			path.join(repoRulesDir, "root-rule.md"),
+			`---
+name: monorepo-standards
+---
+Repo-wide standards.`,
+			"utf8",
+		);
+		const subfolder = path.join(repo, "apps", "cli", "src");
+		mkdirSync(subfolder, { recursive: true });
+
+		const result = runCli(["config", "rules"], {
+			cwd: subfolder,
+			env: createIsolatedEnv(),
+		});
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).toContain("Enabled rules:");
+		expect(asText(result.stdout)).toContain("monorepo-standards");
+		expect(asText(result.stdout)).toContain(path.join(repoRulesDir, "root-rule.md"));
+	});
+
+	it("lets a child workspace override a same-named ancestor rule", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-rules-override-"));
+		tempDirs.push(repo);
+		spawnSync("git", ["init"], { cwd: repo, encoding: "utf8" });
+		const repoRulesDir = path.join(repo, ".cline", "rules");
+		mkdirSync(repoRulesDir, { recursive: true });
+		writeFileSync(
+			path.join(repoRulesDir, "formatting.md"),
+			`---
+name: formatting
+---
+Root formatting rule.`,
+			"utf8",
+		);
+		const child = path.join(repo, "apps", "cli");
+		const childRulesDir = path.join(child, ".cline", "rules");
+		mkdirSync(childRulesDir, { recursive: true });
+		writeFileSync(
+			path.join(childRulesDir, "formatting.md"),
+			`---
+name: formatting
+---
+Child formatting rule.`,
+			"utf8",
+		);
+
+		const result = runCli(["config", "rules"], {
+			cwd: child,
+			env: createIsolatedEnv(),
+		});
+		expect(result.status).toBe(0);
+		// Same filename means the child entry wins by basename override.
+		expect(asText(result.stdout)).toContain(
+			path.join(childRulesDir, "formatting.md"),
+		);
+		expect(asText(result.stdout)).not.toContain(
+			path.join(repoRulesDir, "formatting.md"),
+		);
+	});
+
+	it("does not inherit ancestor rules across an isolated boundary", () => {
+		const repo = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-rules-isolated-"));
+		tempDirs.push(repo);
+		spawnSync("git", ["init"], { cwd: repo, encoding: "utf8" });
+		const repoRulesDir = path.join(repo, ".cline", "rules");
+		mkdirSync(repoRulesDir, { recursive: true });
+		writeFileSync(
+			path.join(repoRulesDir, "root-rule.md"),
+			`---
+name: monorepo-standards
+---
+Repo-wide standards.`,
+			"utf8",
+		);
+		const child = path.join(repo, "apps", "cli");
+		mkdirSync(path.join(child, ".cline", "rules"), { recursive: true });
+		writeFileSync(
+			path.join(child, ".cline", "workspace.json"),
+			JSON.stringify({ isolated: true }),
+			"utf8",
+		);
+
+		const result = runCli(["config", "rules"], {
+			cwd: child,
+			env: createIsolatedEnv(),
+		});
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).not.toContain("monorepo-standards");
+	});
+
 	it("lists enabled skills", () => {
 		const workspace = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-skills-"));
 		tempDirs.push(workspace);
