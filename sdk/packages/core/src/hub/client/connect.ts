@@ -145,7 +145,15 @@ export async function connectToHub(url: string): Promise<HubConnection> {
 			});
 
 			ws.addEventListener("message", (event) => {
-				const frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				let frame: HubTransportFrame;
+				try {
+					frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				} catch {
+					// Unparseable frame: fail the connection rather than the process
+					// (an exception here is uncaught). Pending sends reject on close.
+					ws.close();
+					return;
+				}
 				if (frame.kind === "reply" && frame.envelope.requestId) {
 					const entry = pending.get(frame.envelope.requestId);
 					if (entry) {
