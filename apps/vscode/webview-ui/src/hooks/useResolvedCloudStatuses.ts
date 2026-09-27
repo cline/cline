@@ -1,5 +1,5 @@
 import { CloudSessionStatusRequest } from "@shared/proto/cline/cloud"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { CloudServiceClient } from "@/services/grpc-client"
 
 const STATUS_RETRY_MS = 30_000
@@ -10,6 +10,11 @@ interface CloudStatusTask {
 	cloudStatus?: string
 }
 
+/**
+ * Live statuses for the displayed cloud tasks whose history status is still
+ * `unknown`. Once history itself reports a status for a task, that newer
+ * value wins: the task drops out of the returned map.
+ */
 export function useResolvedCloudStatuses(tasks: CloudStatusTask[]): ReadonlyMap<string, string> {
 	const [resolved, setResolved] = useState<ReadonlyMap<string, string>>(() => new Map())
 	const [retry, setRetry] = useState(0)
@@ -17,6 +22,10 @@ export function useResolvedCloudStatuses(tasks: CloudStatusTask[]): ReadonlyMap<
 		.filter((task) => task.executionTarget === "cloud" && task.cloudStatus === "unknown")
 		.map((task) => task.id)
 		.join("\n")
+	const statuses = useMemo(() => {
+		const unknown = new Set(unknownIds ? unknownIds.split("\n") : [])
+		return new Map([...resolved].filter(([sessionId]) => unknown.has(sessionId)))
+	}, [resolved, unknownIds])
 
 	useEffect(() => {
 		if (!unknownIds) return
@@ -40,5 +49,5 @@ export function useResolvedCloudStatuses(tasks: CloudStatusTask[]): ReadonlyMap<
 			clearTimeout(retryTimer)
 		}
 	}, [retry, unknownIds])
-	return resolved
+	return statuses
 }

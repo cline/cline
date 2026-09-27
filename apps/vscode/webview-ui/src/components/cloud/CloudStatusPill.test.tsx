@@ -5,12 +5,13 @@ import { CloudStatusPill, isCloudStatusActive } from "./CloudStatusPill"
 describe("cloud outcome labels", () => {
 	it.each([
 		["cancelled", "Cancelled"],
-		["unknown", "Checking"],
+		["unknown", "Unconfirmed"],
 		["idle", "Cloud"],
 	] as const)("does not present %s as successful or running", (status, label) => {
-		render(<CloudStatusPill status={status} />)
+		const { container } = render(<CloudStatusPill status={status} />)
 		expect(screen.getByText(label)).toBeInTheDocument()
 		expect(screen.queryByText("Done")).not.toBeInTheDocument()
+		expect(container.querySelector(".animate-spin")).not.toBeInTheDocument()
 		expect(isCloudStatusActive(status)).toBe(false)
 	})
 
@@ -19,9 +20,8 @@ describe("cloud outcome labels", () => {
 		expect(screen.getByText("Done")).toBeInTheDocument()
 	})
 
-	it("shows indeterminate status with a spinner", () => {
-		const { container } = render(<CloudStatusPill status="unknown" />)
-		expect(screen.getByText("Checking")).toBeInTheDocument()
+	it("animates only while the sandbox is starting or the agent is working", () => {
+		const { container } = render(<CloudStatusPill status="running" />)
 		expect(container.querySelector(".animate-spin")).toBeInTheDocument()
 	})
 })

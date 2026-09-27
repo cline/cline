@@ -18,16 +18,15 @@ const RunningCloudTasks = () => {
 		[taskHistory],
 	)
 	const resolvedCloudStatuses = useResolvedCloudStatuses(unknown)
+	// A task stays listed while it is active or its status is still unconfirmed;
+	// a resolved terminal status removes it before history refreshes.
 	const running = useMemo(
 		() =>
 			taskHistory
-				.filter((item) => {
-					if (item.executionTarget !== "cloud") return false
-					const status = resolvedCloudStatuses.get(item.id) ?? item.cloudStatus
-					return isCloudStatusActive(status) || unknown.some((candidate) => candidate.id === item.id)
-				})
-				.map((item) => ({ ...item, cloudStatus: resolvedCloudStatuses.get(item.id) ?? item.cloudStatus })),
-		[resolvedCloudStatuses, taskHistory, unknown],
+				.filter((item) => item.executionTarget === "cloud")
+				.map((item) => ({ ...item, cloudStatus: resolvedCloudStatuses.get(item.id) ?? item.cloudStatus }))
+				.filter((item) => isCloudStatusActive(item.cloudStatus) || item.cloudStatus === "unknown"),
+		[resolvedCloudStatuses, taskHistory],
 	)
 	if (running.length === 0) {
 		return null
@@ -52,12 +51,16 @@ const RunningCloudTasks = () => {
 							)
 						}
 						type="button">
-						<LoaderCircleIcon className="size-3.5 shrink-0 animate-spin text-[var(--vscode-charts-green)]" />
+						{item.cloudStatus === "unknown" ? (
+							<CloudIcon className="size-3.5 shrink-0 text-description" />
+						) : (
+							<LoaderCircleIcon className="size-3.5 shrink-0 animate-spin text-[var(--vscode-charts-green)]" />
+						)}
 						<div className="flex min-w-0 flex-1 flex-col gap-0.5">
 							<span className="ph-no-capture line-clamp-1 text-foreground">{item.task}</span>
 							<span className="truncate text-xs text-description">
 								{item.cloudStatus === "unknown"
-									? "Checking status"
+									? "Status unconfirmed"
 									: item.cloudStatus === "provisioning"
 										? "Starting sandbox"
 										: "Working"}

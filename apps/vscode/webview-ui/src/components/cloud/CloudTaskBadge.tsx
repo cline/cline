@@ -12,7 +12,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 	])
 	const status = resolvedStatuses.get(cloudTask.sessionId) ?? cloudTask.status
 	const active = status === "running" || status === "provisioning"
-	const pending = status === "unknown"
+	const unconfirmed = status === "unknown"
 	const canOpenDashboard = isPersistedCloudSessionId(cloudTask.sessionId)
 	const repo = formatRepoLabel(cloudTask.repoUrl)
 	return (
@@ -28,7 +28,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 						)
 					}}
 					type="button">
-					{active || pending ? (
+					{active ? (
 						<LoaderCircleIcon className="size-3 shrink-0 animate-spin" />
 					) : (
 						<CloudIcon className="size-3 shrink-0" />
@@ -38,7 +38,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 				</button>
 			</TooltipTrigger>
 			<TooltipContent className="text-xs" side="bottom">
-				{pending ? "Checking Cline Cloud status" : "Running in Cline Cloud"}
+				{unconfirmed ? "Cline Cloud status could not be confirmed" : "Running in Cline Cloud"}
 				{repo ? ` on ${repo}` : ""}.{cloudTask.branch ? ` (${cloudTask.branch})` : ""}.
 				{canOpenDashboard
 					? " Click to open in the dashboard."
