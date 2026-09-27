@@ -111,6 +111,8 @@ export interface SdkCloudSessionCoordinatorOptions {
 	isEnabled: () => boolean
 	resetMessageTranslator: () => void
 	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
+	/** Forgets the previous turn's completion signal so a new cloud turn's phase is computed fresh. */
+	clearTurnOutcome: () => void
 	postStateToWebview: () => Promise<void>
 	invalidateHistoryCache: () => void
 	resolveContextMentions: (text: string) => Promise<string>
@@ -122,6 +124,11 @@ interface CloudSessionEntry {
 	/** Live connection, when this extension instance is attached to the sandbox. */
 	host?: CloudSessionHost
 	connection?: Promise<CloudSessionHost>
+	/**
+	 * Number of openCloudTask calls currently reading from or attaching to the
+	 * host. Status resolution and the idle sweep leave a pinned host open.
+	 */
+	pinned: number
 	/** Last agent status observed over the connection, kept after it is dropped. */
 	agentStatus?: CloudSessionStatus
 	/** Usage snapshot from this entry's live host. REST-only records do not expose usage. */
@@ -290,7 +297,7 @@ export class SdkCloudSessionCoordinator {
 					const host = await this.connect(entry)
 					this.statusResolutionAttempts.delete(sessionId)
 					changed = true
-					if (!ACTIVE_CLOUD_STATUSES.has(this.statusOf(entry))) {
+					if (!ACTIVE_CLOUD_STATUSES.has(this.statusOf(entry)) && !this.isHostInUse(entry)) {
 						await host.dispose("statusResolved").catch(() => undefined)
 						if (entry.host === host) entry.host = undefined
 					}
@@ -311,6 +318,11 @@ export class SdkCloudSessionCoordinator {
 			const entry = this.entries.get(sessionId)
 			return entry ? [{ sessionId, status: this.statusOf(entry) }] : []
 		})
+	}
+
+	/** Whether the displayed task or an openCloudTask in progress relies on this entry's host. */
+	private isHostInUse(entry: CloudSessionEntry): boolean {
+		return entry.pinned > 0 || this.options.getTask()?.taskId === entry.record.id
 	}
 
 	private async refreshUsage(entries: CloudSessionEntry[]): Promise<void> {
@@ -386,7 +398,7 @@ export class SdkCloudSessionCoordinator {
 			existing.record = record
 			return existing
 		}
-		const entry: CloudSessionEntry = { record, lastActivityAt: Date.parse(record.updatedAt) || Date.now() }
+		const entry: CloudSessionEntry = { record, pinned: 0, lastActivityAt: Date.parse(record.updatedAt) || Date.now() }
 		this.entries.set(record.id, entry)
 		return entry
 	}
@@ -552,13 +564,12 @@ export class SdkCloudSessionCoordinator {
 		if (this.disposed) {
 			return
 		}
-		const displayedId = this.options.getTask()?.taskId
 		const now = Date.now()
 		for (const entry of this.entries.values()) {
 			const status = this.statusOf(entry)
 			if (
 				entry.host &&
-				entry.record.id !== displayedId &&
+				!this.isHostInUse(entry) &&
 				!ACTIVE_CLOUD_STATUSES.has(status) &&
 				// Loss of observation is not evidence that the sandbox stopped.
 				status !== "unknown" &&
@@ -678,6 +689,7 @@ export class SdkCloudSessionCoordinator {
 			],
 			{ type: "status", payload: { sessionId: provisionalId, status: "running" } },
 		)
+		this.options.clearTurnOutcome()
 		this.options.setTurnPhase("streaming")
 		this.options.postStateToWebview().catch(() => {})
 
@@ -822,6 +834,9 @@ export class SdkCloudSessionCoordinator {
 		const isStale = () =>
 			this.disposed || isSuperseded() || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry
 
+		// Pin the host so a concurrent status resolution or idle sweep does not
+		// close it between connecting and installing the task that owns it.
+		entry.pinned++
 		try {
 			this.options.resetMessageTranslator()
 			const status = this.statusOf(entry)
@@ -909,6 +924,8 @@ export class SdkCloudSessionCoordinator {
 			])
 			this.options.setTurnPhase("idle")
 			await this.options.postStateToWebview().catch(() => {})
+		} finally {
+			entry.pinned--
 		}
 		return historyItem
 	}

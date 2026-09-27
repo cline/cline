@@ -690,6 +690,7 @@ export class Controller {
 			isEnabled: () => isCloudSessionsFeatureEnabled(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),
 			invalidateHistoryCache: () => this.taskHistory.invalidateCache(),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
@@ -1464,6 +1465,8 @@ export class Controller {
 		if (cloudTarget) {
 			// Register the cloud start before the first await so a Cancel that
 			// arrives while remote config is still loading finds it and stops it.
+			// The coordinator moves the turn phase to streaming only once the
+			// start is still current and its task view is installed.
 			const startCloudTask = this.cloud.beginCloudTask({
 				prompt: prompt ?? "",
 				images,
@@ -1471,8 +1474,6 @@ export class Controller {
 				branch: cloudTarget.branch,
 			})
 			await this.waitForInitialRemoteConfig()
-			this.turnStateTracker.set("streaming")
-			this.messageTranslatorState.clearTurnOutcome()
 			this.pendingClineAuthRetryPrompt = undefined
 			return startCloudTask()
 		}

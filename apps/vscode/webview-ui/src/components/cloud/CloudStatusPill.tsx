@@ -9,7 +9,7 @@ const LABELS: Record<CloudSessionStatus, string> = {
 	completed: "Done",
 	failed: "Failed",
 	cancelled: "Cancelled",
-	unknown: "Checking",
+	unknown: "Unconfirmed",
 	expired: "Expired",
 }
 
@@ -23,11 +23,11 @@ function labelFor(status: string | undefined): string {
 
 /**
  * Compact cloud marker for history rows: a cloud icon plus the session's state.
- * Active states animate so running work is easy to spot in a long list.
+ * Only active states animate; a status the extension could not confirm is
+ * shown as Unconfirmed rather than as a check that never ends.
  */
 export function CloudStatusPill({ status, className }: { status: string | undefined; className?: string }) {
 	const active = isCloudStatusActive(status)
-	const pending = status === "unknown"
 	const label = labelFor(status)
 	return (
 		<span
@@ -38,8 +38,10 @@ export function CloudStatusPill({ status, className }: { status: string | undefi
 				!active && status !== "failed" && "bg-badge-background text-badge-foreground",
 				className,
 			)}
-			title={`Cloud session: ${label.toLowerCase()}`}>
-			{active || pending ? <LoaderCircleIcon className="size-2.5 animate-spin" /> : <CloudIcon className="size-2.5" />}
+			title={
+				status === "unknown" ? "Cloud session: status could not be confirmed" : `Cloud session: ${label.toLowerCase()}`
+			}>
+			{active ? <LoaderCircleIcon className="size-2.5 animate-spin" /> : <CloudIcon className="size-2.5" />}
 			{label}
 		</span>
 	)

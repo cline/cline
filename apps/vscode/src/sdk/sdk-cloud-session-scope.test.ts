@@ -152,6 +152,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
 		setTurnPhase: vi.fn(),
+		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: async (prompt: string) => {
