@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { createPrivateKey } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { type AddressInfo, connect as connectTcp, type Socket } from "node:net";
+import { delimiter, join } from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -99,6 +100,30 @@ async function startHubServer(options?: {
 	return { server, url: `ws://127.0.0.1:${port}/hub` };
 }
 
+/**
+ * A real Node.js executable for the proxy fixture. When Bun runs vitest it
+ * puts a Bun-backed `node` shim first on PATH and reports it as execPath;
+ * that runtime neither honors NODE_EXTRA_CA_CERTS nor exercises the Node
+ * client, so look past the shim for an installed Node.
+ */
+function resolveNodeExecutable(): string | undefined {
+	if (!process.versions.bun) {
+		return process.execPath;
+	}
+	const names =
+		process.platform === "win32" ? ["node.exe", "node.cmd"] : ["node"];
+	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+		if (!dir || dir.includes("bun-node-")) continue;
+		for (const name of names) {
+			const candidate = join(dir, name);
+			if (existsSync(candidate)) return candidate;
+		}
+	}
+	return undefined;
+}
+
+const nodeExecutable = resolveNodeExecutable();
+
 async function listen(server: Server): Promise<number> {
 	networkServers.push(server);
 	server.listen(0, "127.0.0.1");
@@ -133,91 +158,94 @@ afterEach(async () => {
 });
 
 describe("NodeHubClient connection headers", () => {
-	it("tunnels WSS through HTTPS_PROXY without leaking origin authorization to the proxy", async () => {
-		const certificateUrl = new URL(
-			"./__fixtures__/localhost-cert.pem",
-			import.meta.url,
-		);
-		const certificatePath = fileURLToPath(certificateUrl);
-		const certificate = readFileSync(certificateUrl, "utf8");
-		const key = createPrivateKey({
-			key: readFileSync(
-				new URL("./__fixtures__/localhost-key.der", import.meta.url),
-			),
-			format: "der",
-			type: "pkcs8",
-		}).export({ format: "pem", type: "pkcs8" });
-		const destinationUpgrades: IncomingMessage[] = [];
-		const destinationServer = createHttpsServer({ cert: certificate, key });
-		const hubServer = new WebSocketServer({ server: destinationServer });
-		servers.push(hubServer);
-		configureHubServer(hubServer, {
-			onConnection: (request) => destinationUpgrades.push(request),
-		});
-		const destinationPort = await listen(destinationServer);
-
-		const proxyConnects: IncomingMessage[] = [];
-		const proxyServer = createServer();
-		proxyServer.on("connect", (request, clientSocket, head) => {
-			proxyConnects.push(request);
-			tunnelSockets.add(clientSocket);
-			const separator = request.url?.lastIndexOf(":") ?? -1;
-			const host = request.url?.slice(0, separator);
-			const port = Number(request.url?.slice(separator + 1));
-			const upstream = connectTcp({ host, port });
-			tunnelSockets.add(upstream);
-			upstream.once("connect", () => {
-				clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-				if (head.length > 0) upstream.write(head);
-				clientSocket.pipe(upstream);
-				upstream.pipe(clientSocket);
-			});
-		});
-		const proxyPort = await listen(proxyServer);
-
-		process.env.HTTPS_PROXY = `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`;
-
-		const url = `wss://127.0.0.1:${destinationPort}/hub`;
-		const nodeFixture = fileURLToPath(
-			new URL("./__fixtures__/node-proxy-client.mjs", import.meta.url),
-		);
-		const node = spawn(process.execPath, [nodeFixture], {
-			env: {
-				...process.env,
-				CLINE_TEST_HUB_URL: url,
-				CLINE_TEST_HUB_AUTHORIZATION: "Bearer workos:destination-token",
-				NODE_EXTRA_CA_CERTS: certificatePath,
-			},
-			stdio: ["ignore", "pipe", "pipe"],
-		});
-		const stdout: Buffer[] = [];
-		const stderr: Buffer[] = [];
-		node.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-		node.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-		const exitCode = await new Promise<number | null>((resolve, reject) => {
-			node.once("error", reject);
-			node.once("exit", resolve);
-		});
-		expect(exitCode, Buffer.concat(stderr).toString()).toBe(0);
-		expect(Buffer.concat(stdout).toString()).toContain("connected");
-
-		expect(proxyConnects).toHaveLength(1);
-		expect(proxyConnects[0].url).toBe(`127.0.0.1:${destinationPort}`);
-		for (const request of proxyConnects) {
-			expect(request.headers.authorization).toBeUndefined();
-			expect(request.headers["proxy-authorization"]).toBe(
-				`Basic ${Buffer.from("proxy-user:proxy-pass").toString("base64")}`,
+	it.skipIf(!nodeExecutable)(
+		"tunnels WSS through HTTPS_PROXY without leaking origin authorization to the proxy",
+		async () => {
+			const certificateUrl = new URL(
+				"./__fixtures__/localhost-cert.pem",
+				import.meta.url,
 			);
-		}
-		expect(destinationUpgrades).toHaveLength(1);
-		expect(destinationUpgrades[0].url).toBe("/hub");
-		expect(destinationUpgrades[0].headers.authorization).toBe(
-			"Bearer workos:destination-token",
-		);
-		expect(
-			destinationUpgrades[0].headers["proxy-authorization"],
-		).toBeUndefined();
-	});
+			const certificatePath = fileURLToPath(certificateUrl);
+			const certificate = readFileSync(certificateUrl, "utf8");
+			const key = createPrivateKey({
+				key: readFileSync(
+					new URL("./__fixtures__/localhost-key.der", import.meta.url),
+				),
+				format: "der",
+				type: "pkcs8",
+			}).export({ format: "pem", type: "pkcs8" });
+			const destinationUpgrades: IncomingMessage[] = [];
+			const destinationServer = createHttpsServer({ cert: certificate, key });
+			const hubServer = new WebSocketServer({ server: destinationServer });
+			servers.push(hubServer);
+			configureHubServer(hubServer, {
+				onConnection: (request) => destinationUpgrades.push(request),
+			});
+			const destinationPort = await listen(destinationServer);
+
+			const proxyConnects: IncomingMessage[] = [];
+			const proxyServer = createServer();
+			proxyServer.on("connect", (request, clientSocket, head) => {
+				proxyConnects.push(request);
+				tunnelSockets.add(clientSocket);
+				const separator = request.url?.lastIndexOf(":") ?? -1;
+				const host = request.url?.slice(0, separator);
+				const port = Number(request.url?.slice(separator + 1));
+				const upstream = connectTcp({ host, port });
+				tunnelSockets.add(upstream);
+				upstream.once("connect", () => {
+					clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+					if (head.length > 0) upstream.write(head);
+					clientSocket.pipe(upstream);
+					upstream.pipe(clientSocket);
+				});
+			});
+			const proxyPort = await listen(proxyServer);
+
+			process.env.HTTPS_PROXY = `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`;
+
+			const url = `wss://127.0.0.1:${destinationPort}/hub`;
+			const nodeFixture = fileURLToPath(
+				new URL("./__fixtures__/node-proxy-client.mjs", import.meta.url),
+			);
+			const node = spawn(nodeExecutable as string, [nodeFixture], {
+				env: {
+					...process.env,
+					CLINE_TEST_HUB_URL: url,
+					CLINE_TEST_HUB_AUTHORIZATION: "Bearer workos:destination-token",
+					NODE_EXTRA_CA_CERTS: certificatePath,
+				},
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			const stdout: Buffer[] = [];
+			const stderr: Buffer[] = [];
+			node.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+			node.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+			const exitCode = await new Promise<number | null>((resolve, reject) => {
+				node.once("error", reject);
+				node.once("exit", resolve);
+			});
+			expect(exitCode, Buffer.concat(stderr).toString()).toBe(0);
+			expect(Buffer.concat(stdout).toString()).toContain("connected");
+
+			expect(proxyConnects).toHaveLength(1);
+			expect(proxyConnects[0].url).toBe(`127.0.0.1:${destinationPort}`);
+			for (const request of proxyConnects) {
+				expect(request.headers.authorization).toBeUndefined();
+				expect(request.headers["proxy-authorization"]).toBe(
+					`Basic ${Buffer.from("proxy-user:proxy-pass").toString("base64")}`,
+				);
+			}
+			expect(destinationUpgrades).toHaveLength(1);
+			expect(destinationUpgrades[0].url).toBe("/hub");
+			expect(destinationUpgrades[0].headers.authorization).toBe(
+				"Bearer workos:destination-token",
+			);
+			expect(
+				destinationUpgrades[0].headers["proxy-authorization"],
+			).toBeUndefined();
+		},
+	);
 
 	it("keeps concurrent connects pending until registration finishes", async () => {
 		let acknowledgeRegistration: (() => void) | undefined;
