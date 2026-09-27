@@ -11,6 +11,7 @@ import {
 import { stripUtf8Bom } from "@cline/shared";
 import {
 	AGENTS_RULES_FILE_NAME,
+	extractWorkspaceLayerPaths,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveGlobalAgentsRulesPath,
 	resolveRulesConfigSearchPaths as resolveRulesConfigSearchPathsFromShared,
@@ -18,6 +19,7 @@ import {
 	resolveWorkflowsConfigSearchPaths as resolveWorkflowsConfigSearchPathsFromShared,
 	SKILLS_CONFIG_DIRECTORY_NAME,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
+	type WorkspacePathOrLayers,
 } from "@cline/shared/storage";
 import YAML from "yaml";
 import {
@@ -102,7 +104,7 @@ export interface CreateInstructionWatcherOptions {
 
 export interface CreateSkillsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
-	workspacePath?: string;
+	workspacePath?: WorkspacePathOrLayers;
 	includePluginSkills?: boolean;
 	pluginSkillDirectories?: ReadonlyArray<string>;
 	agentPluginSkills?: ReadonlyArray<AgentPluginPackageSkill>;
@@ -112,16 +114,29 @@ export interface CreateSkillsConfigDefinitionOptions {
 
 export interface CreateRulesConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
-	workspacePath?: string;
+	workspacePath?: WorkspacePathOrLayers;
 }
 
 export interface CreateWorkflowsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
-	workspacePath?: string;
+	workspacePath?: WorkspacePathOrLayers;
 }
 
 function normalizeName(name: string): string {
 	return name.trim().toLowerCase();
+}
+
+function toPrimaryWorkspacePath(
+	workspace?: WorkspacePathOrLayers,
+): string | undefined {
+	if (!workspace) {
+		return undefined;
+	}
+	if (typeof workspace === "string") {
+		return workspace;
+	}
+	const layerPaths = extractWorkspaceLayerPaths(workspace);
+	return layerPaths.length > 0 ? layerPaths[layerPaths.length - 1] : undefined;
 }
 
 function isIgnorableDirectoryError(error: unknown): boolean {
@@ -166,11 +181,12 @@ function resolveSkillDirectories(
 	if (options?.pluginSkillDirectories) {
 		directories.push(...options.pluginSkillDirectories);
 	} else if (options?.includePluginSkills) {
+		const primaryWorkspace = toPrimaryWorkspacePath(options?.workspacePath);
 		directories.push(
 			...resolveAgentPluginSkillDirectories({
 				pluginPaths: options.pluginPaths,
-				workspacePath: options.workspacePath,
-				cwd: options.cwd ?? options.workspacePath,
+				workspacePath: primaryWorkspace,
+				cwd: options.cwd ?? primaryWorkspace,
 			}),
 		);
 	}
@@ -330,18 +346,33 @@ function parseBooleanField(
 
 function resolveRuleFallbackName(
 	context: UnifiedConfigFileContext<"rule">,
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string {
 	const fileName = basename(context.filePath);
 	if (fileName.toLowerCase() !== AGENTS_RULES_FILE_NAME.toLowerCase()) {
 		return basename(context.filePath, extname(context.filePath));
 	}
 
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
+	const primaryRoot =
+		layerPaths.length > 0 ? layerPaths[layerPaths.length - 1] : undefined;
+
 	if (
-		workspacePath &&
-		resolve(context.filePath) === resolve(workspacePath, AGENTS_RULES_FILE_NAME)
+		primaryRoot &&
+		resolve(context.filePath) === resolve(primaryRoot, AGENTS_RULES_FILE_NAME)
 	) {
 		return "Workspace AGENTS.md";
+	}
+
+	if (layerPaths.length > 1) {
+		const ancestorLayers = layerPaths.slice(0, -1);
+		for (const ancestor of ancestorLayers) {
+			if (
+				resolve(context.filePath) === resolve(ancestor, AGENTS_RULES_FILE_NAME)
+			) {
+				return `Ancestor AGENTS.md (${basename(ancestor)})`;
+			}
+		}
 	}
 
 	if (resolve(context.filePath) === resolve(resolveGlobalAgentsRulesPath())) {
@@ -435,19 +466,19 @@ export function parseWorkflowConfigFromMarkdown(
 }
 
 export function resolveSkillsConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
 	return resolveSkillsConfigSearchPathsFromShared(workspacePath);
 }
 
 export function resolveRulesConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
 	return resolveRulesConfigSearchPathsFromShared(workspacePath);
 }
 
 export function resolveWorkflowsConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
 	return resolveWorkflowsConfigSearchPathsFromShared(workspacePath);
 }
@@ -603,15 +634,12 @@ export function createSkillsConfigDefinition(
 			skill,
 		]),
 	);
-	const managedRoot = options?.workspacePath
-		? join(options.workspacePath, ".cline")
-		: undefined;
+	const layerPaths = extractWorkspaceLayerPaths(options?.workspacePath);
+	const managedRoots = layerPaths.map((p) => join(p, ".cline"));
 
 	return {
 		type: "skill",
-		directories: managedRoot
-			? dedupeDirectoryPaths([...directories, managedRoot])
-			: directories,
+		directories: dedupeDirectoryPaths([...directories, ...managedRoots]),
 		discoverFiles: (directoryPath) => {
 			const agentPluginSkill = agentPluginSkillsByDirectory.get(
 				resolve(directoryPath),
@@ -662,13 +690,12 @@ export function createRulesConfigDefinition(
 	const directories =
 		options?.directories ??
 		resolveRulesConfigSearchPaths(options?.workspacePath);
-	const managedRoot = options?.workspacePath
-		? join(options.workspacePath, ".cline")
-		: undefined;
+	const layerPaths = extractWorkspaceLayerPaths(options?.workspacePath);
+	const managedRoots = layerPaths.map((p) => join(p, ".cline"));
 
 	return {
 		type: "rule",
-		directories: managedRoot ? [...directories, managedRoot] : directories,
+		directories: dedupeDirectoryPaths([...directories, ...managedRoots]),
 		discoverFiles: discoverRulesLikeFiles,
 		includeFile: (fileName, filePath) =>
 			fileName === ".clinerules" ||
@@ -679,7 +706,24 @@ export function createRulesConfigDefinition(
 				context.content,
 				resolveRuleFallbackName(context, options?.workspacePath),
 			),
-		resolveId: (rule) => normalizeName(rule.name),
+		resolveId: (rule, context) => {
+			const fileName = basename(context.filePath);
+			// For AGENTS.md, keep distinct IDs for workspace, ancestor, global
+			if (fileName.toLowerCase() === AGENTS_RULES_FILE_NAME.toLowerCase()) {
+				return normalizeName(rule.name);
+			}
+			// For managed enterprise plugins (.cline/<plugin>/rules.md), namespace by plugin or rule name
+			if (fileName.toLowerCase() === "rules.md") {
+				const parentDir = basename(dirname(context.filePath));
+				if (parentDir !== ".cline" && parentDir !== "rules") {
+					return `${normalizeName(parentDir)}:${normalizeName(rule.name)}`;
+				}
+			}
+			// For standard rule files, deduplicate and override by file base name
+			// e.g. formatting.md -> "formatting", .clinerules -> ".clinerules"
+			const baseName = basename(context.filePath, extname(context.filePath));
+			return normalizeName(baseName);
+		},
 	};
 }
 
@@ -689,13 +733,12 @@ export function createWorkflowsConfigDefinition(
 	const directories =
 		options?.directories ??
 		resolveWorkflowsConfigSearchPaths(options?.workspacePath);
-	const managedRoot = options?.workspacePath
-		? join(options.workspacePath, ".cline")
-		: undefined;
+	const layerPaths = extractWorkspaceLayerPaths(options?.workspacePath);
+	const managedRoots = layerPaths.map((p) => join(p, ".cline"));
 
 	return {
 		type: "workflow",
-		directories: managedRoot ? [...directories, managedRoot] : directories,
+		directories: dedupeDirectoryPaths([...directories, ...managedRoots]),
 		discoverFiles: discoverManagedWorkflowFiles,
 		includeFile: (fileName) => isMarkdownFile(fileName),
 		parseFile: (context) =>

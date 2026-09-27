@@ -545,4 +545,253 @@ New release workflow.`,
 			join(tempRoot, ".cline", "workflows", "release.md"),
 		);
 	});
+
+	it("inherits ancestor rules and overrides matching filename in child workspace", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-hierarchical-rules-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const repoDir = join(tempRoot, "repo");
+		const childDir = join(repoDir, "apps", "cli");
+		const parentRulesDir = join(repoDir, ".cline", "rules");
+		const childRulesDir = join(childDir, ".cline", "rules");
+
+		await mkdir(parentRulesDir, { recursive: true });
+		await mkdir(childRulesDir, { recursive: true });
+
+		// Ancestor rules
+		await writeFile(
+			join(parentRulesDir, "security.md"),
+			`---
+name: Monorepo Security Standards
+---
+Never commit raw credentials.`,
+		);
+		await writeFile(
+			join(parentRulesDir, "formatting.md"),
+			`---
+name: Monorepo Formatting
+---
+Use 2 spaces and semicolons.`,
+		);
+
+		// Child rule overrides formatting.md with different frontmatter name
+		await writeFile(
+			join(childRulesDir, "formatting.md"),
+			`---
+name: CLI Formatting Rules
+---
+Use tabs and no semicolons.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: { workspacePath: [repoDir, childDir] },
+		});
+
+		await watcher.refreshAll();
+		const rules = watcher.getSnapshot("rule");
+
+		// Inherited ancestor rule
+		expect(rules.get("security")?.item.instructions).toBe(
+			"Never commit raw credentials.",
+		);
+		// Overridden rule by filename
+		expect(rules.get("formatting")?.item.instructions).toBe(
+			"Use tabs and no semicolons.",
+		);
+		expect(rules.get("formatting")?.filePath).toBe(
+			join(childRulesDir, "formatting.md"),
+		);
+	});
+
+	it("hot-reloads when adding or editing a rule in parent workspace during active child session", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-hierarchical-watch-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const repoDir = join(tempRoot, "repo");
+		const childDir = join(repoDir, "apps", "cli");
+		const parentRulesDir = join(repoDir, ".cline", "rules");
+		const childRulesDir = join(childDir, ".cline", "rules");
+
+		await mkdir(parentRulesDir, { recursive: true });
+		await mkdir(childRulesDir, { recursive: true });
+
+		await writeFile(
+			join(parentRulesDir, "initial.md"),
+			"Initial parent rule.",
+		);
+		await writeFile(
+			join(childRulesDir, "formatting.md"),
+			"Child formatting rule.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: { workspacePath: [repoDir, childDir] },
+		});
+
+		const events: Array<UserInstructionConfigWatcherEvent> = [];
+		const unsubscribe = watcher.subscribe((event) => events.push(event));
+
+		try {
+			await watcher.start();
+
+			// Add a new rule to parent workspace
+			events.length = 0;
+			await writeFile(
+				join(parentRulesDir, "compliance.md"),
+				"Always review PR checklists.",
+			);
+
+			// Refresh/wait for watcher to pick up new parent rule
+			await watcher.refreshType("rule");
+			await waitForEvent(
+				events,
+				(event) => event.kind === "upsert" && event.record.id === "compliance",
+			);
+
+			let rules = watcher.getSnapshot("rule");
+			expect(rules.get("compliance")?.item.instructions).toBe(
+				"Always review PR checklists.",
+			);
+
+			// Edit inherited parent rule
+			events.length = 0;
+			await writeFile(
+				join(parentRulesDir, "compliance.md"),
+				"Always review PR checklists and run linter.",
+			);
+			await watcher.refreshType("rule");
+			await waitForEvent(
+				events,
+				(event) => event.kind === "upsert" && event.record.id === "compliance",
+			);
+
+			rules = watcher.getSnapshot("rule");
+			expect(rules.get("compliance")?.item.instructions).toBe(
+				"Always review PR checklists and run linter.",
+			);
+		} finally {
+			unsubscribe();
+			watcher.stop();
+		}
+	});
+
+	it("lets child skills and workflows override parent while inheriting non-conflicting ones", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-hierarchical-skills-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const repoDir = join(tempRoot, "repo");
+		const childDir = join(repoDir, "apps", "cli");
+		const parentSkillsDir = join(repoDir, ".cline", "skills");
+		const childSkillsDir = join(childDir, ".cline", "skills");
+		const parentWorkflowsDir = join(repoDir, ".cline", "workflows");
+		const childWorkflowsDir = join(childDir, ".cline", "workflows");
+
+		await mkdir(join(parentSkillsDir, "build"), { recursive: true });
+		await mkdir(join(parentSkillsDir, "deploy"), { recursive: true });
+		await mkdir(join(childSkillsDir, "build"), { recursive: true });
+		await mkdir(parentWorkflowsDir, { recursive: true });
+		await mkdir(childWorkflowsDir, { recursive: true });
+
+		await writeFile(
+			join(parentSkillsDir, "build", "SKILL.md"),
+			`---
+name: build
+description: Monorepo build
+---
+Run turbo build`,
+		);
+		await writeFile(
+			join(parentSkillsDir, "deploy", "SKILL.md"),
+			`---
+name: deploy
+description: Monorepo deploy
+---
+Run terraform apply`,
+		);
+		await writeFile(
+			join(childSkillsDir, "build", "SKILL.md"),
+			`---
+name: build
+description: CLI build
+---
+Run bun build`,
+		);
+
+		await writeFile(
+			join(parentWorkflowsDir, "release.md"),
+			"Parent release workflow.",
+		);
+		await writeFile(
+			join(childWorkflowsDir, "release.md"),
+			"Child release workflow.",
+		);
+		await writeFile(
+			join(parentWorkflowsDir, "triage.md"),
+			"Parent triage workflow.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: [repoDir, childDir] },
+			workflows: { workspacePath: [repoDir, childDir] },
+		});
+
+		await watcher.refreshAll();
+		const skills = watcher.getSnapshot("skill");
+		const workflows = watcher.getSnapshot("workflow");
+
+		// Child skill overrides parent skill
+		expect(skills.get("build")?.item.instructions).toBe("Run bun build");
+		expect(skills.get("build")?.item.description).toBe("CLI build");
+		// Parent skill is inherited
+		expect(skills.get("deploy")?.item.instructions).toBe("Run terraform apply");
+
+		// Child workflow overrides parent workflow
+		expect(workflows.get("release")?.item.instructions).toBe(
+			"Child release workflow.",
+		);
+		// Parent workflow is inherited
+		expect(workflows.get("triage")?.item.instructions).toBe(
+			"Parent triage workflow.",
+		);
+	});
+
+	it("preserves both primary and ancestor AGENTS.md rules without collision", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-hierarchical-agents-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const repoDir = join(tempRoot, "repo");
+		const childDir = join(repoDir, "apps", "cli");
+		await mkdir(childDir, { recursive: true });
+
+		await writeFile(
+			join(repoDir, "AGENTS.md"),
+			"Repo-wide AGENTS instructions.",
+		);
+		await writeFile(
+			join(childDir, "AGENTS.md"),
+			"CLI-specific AGENTS instructions.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: { workspacePath: [repoDir, childDir] },
+		});
+
+		await watcher.refreshAll();
+		const rules = watcher.getSnapshot("rule");
+
+		expect(rules.get("workspace agents.md")?.item.instructions).toBe(
+			"CLI-specific AGENTS instructions.",
+		);
+		expect(rules.get("ancestor agents.md (repo)")?.item.instructions).toBe(
+			"Repo-wide AGENTS instructions.",
+		);
+	});
 });

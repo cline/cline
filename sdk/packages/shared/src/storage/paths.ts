@@ -22,6 +22,11 @@ import {
 	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
 	CLINE_WORKSPACES_DIRECTORY_NAME,
 } from "./chat-workspace-paths";
+import {
+	findWorkspaceHierarchySync,
+	type ResolvedHierarchicalWorkspace,
+	type WorkspaceLayer,
+} from "./workspace";
 
 // Keep the structural pieces browser-safe while exposing them through the
 // canonical Node storage-path module alongside the data-dir resolver.
@@ -458,6 +463,71 @@ function dedupePaths(paths: ReadonlyArray<string>): string[] {
 	return deduped;
 }
 
+export type WorkspacePathOrLayers =
+	| string
+	| ReadonlyArray<string | WorkspaceLayer>
+	| ResolvedHierarchicalWorkspace;
+
+export function extractWorkspaceLayerPaths(
+	workspace?: WorkspacePathOrLayers,
+): string[] {
+	if (!workspace) {
+		return [];
+	}
+	if (typeof workspace === "string") {
+		const trimmed = workspace.trim();
+		if (!trimmed) {
+			return [];
+		}
+		if (existsSync(trimmed)) {
+			try {
+				const hierarchy = findWorkspaceHierarchySync(trimmed);
+				if (hierarchy.layers.length > 0) {
+					return hierarchy.layers.map((l) => l.path);
+				}
+			} catch {
+				// Fallback to single path
+			}
+		}
+		return [trimmed];
+	}
+	if (Array.isArray(workspace)) {
+		const paths: string[] = [];
+		for (const item of workspace) {
+			if (typeof item === "string") {
+				const trimmed = item.trim();
+				if (trimmed) paths.push(trimmed);
+			} else if (
+				item &&
+				typeof item === "object" &&
+				"path" in item &&
+				typeof item.path === "string"
+			) {
+				const trimmed = item.path.trim();
+				if (trimmed) paths.push(trimmed);
+			}
+		}
+		return dedupePaths(paths);
+	}
+	if (
+		typeof workspace === "object" &&
+		"layers" in workspace &&
+		Array.isArray(workspace.layers)
+	) {
+		if (workspace.layers.length > 0) {
+			return dedupePaths(
+				workspace.layers
+					.map((l) => (typeof l === "string" ? l : l.path)?.trim())
+					.filter(Boolean),
+			);
+		}
+		if (workspace.primaryRoot) {
+			return [workspace.primaryRoot.trim()].filter(Boolean);
+		}
+	}
+	return [];
+}
+
 function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 	if (!workspacePath) {
 		return [];
@@ -474,43 +544,48 @@ export function resolveAgentsConfigDirPath(): string {
 }
 
 export function resolveAgentConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
-	return dedupePaths([
-		workspacePath
-			? join(workspacePath, CLINE_CONFIG_DIR, AGENT_CONFIG_DIRECTORY_NAME)
-			: "",
-		resolveAgentsConfigDirPath(),
-	]);
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
+	// For agent configs, leaf (primary root) has highest precedence, so leaf comes first
+	const workspaceDirs = [...layerPaths]
+		.reverse()
+		.map((dir) => join(dir, CLINE_CONFIG_DIR, AGENT_CONFIG_DIRECTORY_NAME));
+	return dedupePaths([...workspaceDirs, resolveAgentsConfigDirPath()]);
 }
 
 export function resolveHooksConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
 	const hooks = [
 		resolveDocumentsExtensionPath("Hooks"),
 		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
 	];
-	if (workspacePath) {
+	for (const dir of layerPaths) {
 		hooks.push(
-			join(workspacePath, DEPRECATED_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
-			join(workspacePath, CLINE_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
+			join(dir, DEPRECATED_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
+			join(dir, CLINE_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
 		);
 	}
 	return dedupePaths(hooks);
 }
 
 export function resolveSkillsConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
+	const workspaceSkillDirs = layerPaths.flatMap((dir) =>
+		getWorkspaceSkillDirectories(dir),
+	);
 	return dedupePaths([
-		...getWorkspaceSkillDirectories(workspacePath),
 		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
 		join(
 			HOME_DIR,
 			LEGACY_AGENT_SKILLS_CONFIG_DIR,
 			SKILLS_CONFIG_DIRECTORY_NAME,
 		),
+		...workspaceSkillDirs,
 	]);
 }
 
@@ -576,42 +651,56 @@ export function resolveGlobalRulesConfigPaths(): string[] {
 }
 
 export function resolveRulesConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
-	const wsPaths = workspacePath
-		? resolveWorkspaceRulesConfigPaths(workspacePath)
-		: [];
-	const workspaceAgentsFile = workspacePath
-		? [join(workspacePath, AGENTS_RULES_FILE_NAME)]
-		: [];
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
+	const workspaceRulesPaths: string[] = [];
+	for (const dir of layerPaths) {
+		workspaceRulesPaths.push(
+			join(dir, AGENTS_RULES_FILE_NAME),
+			...resolveWorkspaceRulesConfigPaths(dir),
+		);
+	}
 	return dedupePaths([
-		...workspaceAgentsFile,
-		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
 		...resolveGlobalRulesConfigPaths(),
+		...workspaceRulesPaths,
 	]);
 }
 
 export function resolveWorkflowsConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
-	return dedupePaths([
-		workspacePath
-			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
-			: "",
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
+	if (layerPaths.length === 0) {
+		return dedupePaths([
+			resolveDocumentsExtensionPath("Workflows"),
+			join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
+		]);
+	}
+	const paths: string[] = [];
+	for (const dir of layerPaths) {
+		paths.push(join(dir, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME));
+	}
+	paths.push(
 		resolveDocumentsExtensionPath("Workflows"),
 		join(resolveClineDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
-		workspacePath
-			? join(workspacePath, ".cline", WORKFLOWS_CONFIG_DIRECTORY_NAME)
-			: "",
-	]);
+	);
+	for (const dir of layerPaths) {
+		paths.push(join(dir, ".cline", WORKFLOWS_CONFIG_DIRECTORY_NAME));
+	}
+	return dedupePaths(paths);
 }
 
 export function resolvePluginConfigSearchPaths(
-	workspacePath?: string,
+	workspacePath?: WorkspacePathOrLayers,
 ): string[] {
+	const layerPaths = extractWorkspaceLayerPaths(workspacePath);
+	const workspacePluginDirs = layerPaths.map((dir) =>
+		join(dir, ".cline", PLUGINS_DIRECTORY_NAME),
+	);
 	return dedupePaths([
-		workspacePath ? join(workspacePath, ".cline", PLUGINS_DIRECTORY_NAME) : "",
+		...workspacePluginDirs,
 		join(resolveClineDir(), PLUGINS_DIRECTORY_NAME),
 		resolveDocumentsExtensionPath("Plugins"),
 	]);

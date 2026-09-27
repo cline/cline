@@ -14,6 +14,8 @@ import {
 	isAgentPluginDirectory,
 	isChatWorkspacePath,
 	RULES_CONFIG_DIRECTORY_NAME,
+	extractWorkspaceLayerPaths,
+	resolveAgentConfigSearchPaths,
 	resolveAgentPluginSearchPaths,
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
@@ -31,6 +33,7 @@ import {
 	resolveProviderSettingsPath,
 	resolveRulesConfigSearchPaths,
 	resolveSessionDataDir,
+	resolveSkillsConfigSearchPaths,
 	resolveTeamDataDir,
 	resolveWorkflowsConfigSearchPaths,
 	resolveWorkspaceRulesConfigPaths,
@@ -615,5 +618,110 @@ describe("Cline plugin discovery boundary", () => {
 		rmSync(join(root, "plugin.json"), { recursive: true, force: true });
 		writeFileSync(join(root, "plugin.json"), "{}");
 		expect(isAgentPluginDirectory(root)).toBe(true);
+	});
+});
+
+describe("hierarchical workspace paths", () => {
+	it("extracts layers from various input formats", () => {
+		expect(extractWorkspaceLayerPaths(undefined)).toEqual([]);
+		expect(extractWorkspaceLayerPaths("")).toEqual([]);
+		expect(extractWorkspaceLayerPaths(["/repo", "/repo/apps/cli"])).toEqual([
+			"/repo",
+			"/repo/apps/cli",
+		]);
+
+		const mockLayers = [
+			{
+				path: "/repo",
+				config: {},
+				hasRules: true,
+				hasSkills: true,
+				hasAgents: true,
+				hasWorkflows: true,
+				isGitRoot: true,
+			},
+			{
+				path: "/repo/apps/cli",
+				config: {},
+				hasRules: true,
+				hasSkills: false,
+				hasAgents: true,
+				hasWorkflows: false,
+				isGitRoot: false,
+			},
+		];
+		expect(extractWorkspaceLayerPaths(mockLayers)).toEqual([
+			"/repo",
+			"/repo/apps/cli",
+		]);
+
+		expect(
+			extractWorkspaceLayerPaths({
+				primaryRoot: "/repo/apps/cli",
+				targetPath: "/repo/apps/cli/src",
+				layers: mockLayers,
+				isInitialized: true,
+				discoveredSubClines: [],
+			}),
+		).toEqual(["/repo", "/repo/apps/cli"]);
+	});
+
+	it("resolves multi-layer rules config search paths with ancestor before leaf", () => {
+		const layers = ["/repo", "/repo/apps/cli"];
+		const paths = resolveRulesConfigSearchPaths(layers);
+
+		expect(paths).toContain(join("/repo", "AGENTS.md"));
+		expect(paths).toContain(join("/repo", ".clinerules"));
+		expect(paths).toContain(join("/repo", ".cline", "rules"));
+		expect(paths).toContain(join("/repo/apps/cli", "AGENTS.md"));
+		expect(paths).toContain(join("/repo/apps/cli", ".clinerules"));
+		expect(paths).toContain(join("/repo/apps/cli", ".cline", "rules"));
+
+		// Ancestor rules come before child rules for override ordering
+		const ancestorRulesIndex = paths.indexOf(
+			join("/repo", ".cline", "rules"),
+		);
+		const childRulesIndex = paths.indexOf(
+			join("/repo/apps/cli", ".cline", "rules"),
+		);
+		expect(ancestorRulesIndex).toBeLessThan(childRulesIndex);
+	});
+
+	it("resolves multi-layer skills config search paths with ancestor before leaf", () => {
+		const layers = ["/repo", "/repo/apps/cli"];
+		const paths = resolveSkillsConfigSearchPaths(layers);
+
+		expect(paths).toContain(join("/repo", ".cline", "skills"));
+		expect(paths).toContain(join("/repo/apps/cli", ".cline", "skills"));
+
+		const ancestorSkillsIndex = paths.indexOf(
+			join("/repo", ".cline", "skills"),
+		);
+		const childSkillsIndex = paths.indexOf(
+			join("/repo/apps/cli", ".cline", "skills"),
+		);
+		expect(ancestorSkillsIndex).toBeLessThan(childSkillsIndex);
+	});
+
+	it("resolves multi-layer agent config search paths with leaf first for first-match precedence", () => {
+		const layers = ["/repo", "/repo/apps/cli"];
+		const paths = resolveAgentConfigSearchPaths(layers);
+
+		expect(paths[0]).toBe(join("/repo/apps/cli", ".cline", "agents"));
+		expect(paths[1]).toBe(join("/repo", ".cline", "agents"));
+	});
+
+	it("resolves multi-layer workflows config search paths with leaf .cline workflows last", () => {
+		const layers = ["/repo", "/repo/apps/cli"];
+		const paths = resolveWorkflowsConfigSearchPaths(layers);
+
+		expect(paths).toContain(join("/repo", ".cline", "workflows"));
+		expect(paths).toContain(join("/repo/apps/cli", ".cline", "workflows"));
+
+		const ancestorIndex = paths.indexOf(join("/repo", ".cline", "workflows"));
+		const childIndex = paths.indexOf(
+			join("/repo/apps/cli", ".cline", "workflows"),
+		);
+		expect(ancestorIndex).toBeLessThan(childIndex);
 	});
 });
