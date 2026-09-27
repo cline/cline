@@ -109,6 +109,7 @@ export class CloudSessionHost implements SdkSessionHost {
 	private readonly host: RemoteRuntimeHost
 	private readonly statusUnsubscribe: () => void
 	private disposed = false
+	private statusObservation = {}
 
 	private constructor(
 		private readonly options: CloudSessionHostOptions,
@@ -145,7 +146,12 @@ export class CloudSessionHost implements SdkSessionHost {
 		})
 		await host.connect()
 		const cloudHost = new CloudSessionHost(options, host)
-		await cloudHost.discoverInnerSession()
+		try {
+			await cloudHost.discoverInnerSession()
+		} catch (error) {
+			await cloudHost.dispose("discoveryFailed").catch(() => {})
+			throw error
+		}
 		return cloudHost
 	}
 
@@ -167,22 +173,39 @@ export class CloudSessionHost implements SdkSessionHost {
 
 	/** Attach only to the canonical conversation named by the control plane. */
 	private async discoverInnerSession(): Promise<void> {
+		const observation = this.statusObservation
 		const sessions = await this.host.listSessions(100)
+		if (this.disposed || this.statusObservation !== observation) return
 		const task = sessions.find((session) => session.sessionId === this.taskId)
 		if (task) {
 			this.innerSessionId = task.sessionId
 			this.modelId = typeof task.model === "string" ? task.model : undefined
 			const mapped = mapAgentStatus(String(task.status ?? ""))
-			if (mapped) {
-				this.setStatus(mapped)
-			}
+			this.setStatus(mapped ?? "unknown", false)
+		} else if (this.innerSessionId) {
+			this.setStatus("unknown", false)
 		}
+	}
+
+	/** Re-read a retained connection after its control-plane record changed. */
+	async refreshStatus(): Promise<CloudSessionStatus> {
+		const observation = this.statusObservation
+		try {
+			// The coordinator applies this snapshot only while its record is still
+			// current; a snapshot is not a new activity/completion event.
+			await this.discoverInnerSession()
+		} catch (error) {
+			if (!this.disposed && this.statusObservation === observation) this.setStatus("unknown", false)
+			throw error
+		}
+		return this.status
 	}
 
 	private trackStatus(event: CoreSessionEvent): void {
 		if (!this.innerSessionId || event.payload.sessionId !== this.innerSessionId) {
 			return
 		}
+		this.statusObservation = {}
 		if (event.type === "status") {
 			const mapped = mapAgentStatus(event.payload.status)
 			// "idle" is the resting state after any turn; keep the more specific
@@ -206,12 +229,13 @@ export class CloudSessionHost implements SdkSessionHost {
 		}
 	}
 
-	private setStatus(status: CloudSessionStatus): void {
+	private setStatus(status: CloudSessionStatus, notify = true): void {
+		this.statusObservation = {}
 		if (this.agentStatus === status) {
 			return
 		}
 		this.agentStatus = status
-		this.options.onStatusChange?.(status)
+		if (notify) this.options.onStatusChange?.(status)
 	}
 
 	private toInner(sessionId: string): string {

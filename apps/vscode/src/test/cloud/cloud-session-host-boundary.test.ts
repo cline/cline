@@ -16,7 +16,23 @@ describe("CloudSessionHost real Hub boundary", () => {
 	})
 
 	it("authenticates, maps the outer id, and runs a turn through the real Hub", async () => {
-		environment = await startLocalCloudEnvironment()
+		let releaseSecondTurn!: () => void
+		let secondTurnEntered!: () => void
+		const entered = new Promise<void>((resolve) => {
+			secondTurnEntered = resolve
+		})
+		const released = new Promise<void>((resolve) => {
+			releaseSecondTurn = resolve
+		})
+		let turns = 0
+		environment = await startLocalCloudEnvironment({
+			beforeModelResponse: async () => {
+				if (++turns === 2) {
+					secondTurnEntered()
+					await released
+				}
+			},
+		})
 		const service = new CloudSessionsService({
 			apiBaseUrl: environment.apiBaseUrl,
 			appBaseUrl: environment.apiBaseUrl,
@@ -44,6 +60,7 @@ describe("CloudSessionHost real Hub boundary", () => {
 
 		const started = await host.start({
 			source: SessionSource.CORE,
+			interactive: true,
 			prompt: undefined,
 			config: {
 				providerId: "cline",
@@ -69,6 +86,34 @@ describe("CloudSessionHost real Hub boundary", () => {
 		expect(JSON.stringify(messages)).toContain("cloud fixture reply")
 		expect(JSON.stringify(messages)).toContain("reply from the fixture")
 		expect(CLOUD_GITHUB_AUTH_SYSTEM_PROMPT).toContain("GitHub API authentication")
+
+		// A status-only connection has no turn subscription. Re-read its snapshot
+		// when another client resumes the same canonical task.
+		const observer = await CloudSessionHost.connect({
+			outerSessionId: record.id,
+			taskId,
+			socketUrl: service.sessionSocketUrl(record.id),
+			workspaceRoot: owned.root,
+			getAuthToken: async () => environment?.accessToken,
+		})
+		const sending = host.send({ sessionId: record.id, prompt: "resume from another client" })
+		void sending.catch(() => {})
+		try {
+			await Promise.race([
+				entered,
+				sending.then(() => {
+					throw new Error("Second turn ended before reaching the model")
+				}),
+			])
+			expect(await observer.refreshStatus()).toBe("running")
+			releaseSecondTurn()
+			await sending
+			expect(await observer.refreshStatus()).not.toBe("running")
+		} finally {
+			releaseSecondTurn()
+			await sending.catch(() => {})
+			await observer.dispose()
+		}
 	})
 
 	it("rejects the WebSocket connection when the cloud credential is wrong", async () => {

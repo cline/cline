@@ -195,7 +195,7 @@ export class SdkCloudSessionCoordinator {
 		if (rest === "failed") {
 			return "failed"
 		}
-		return entry.host?.status ?? entry.agentStatus ?? "unknown"
+		return entry.agentStatus ?? "unknown"
 	}
 
 	/**
@@ -344,7 +344,7 @@ export class SdkCloudSessionCoordinator {
 		const resolveNext = async (): Promise<void> => {
 			for (let sessionId = pendingIds.shift(); sessionId; sessionId = pendingIds.shift()) {
 				const entry = this.entries.get(sessionId)
-				if (!entry || this.statusOf(entry) !== "unknown" || entry.host) continue
+				if (!entry || this.statusOf(entry) !== "unknown") continue
 				try {
 					if (entry.connection) {
 						await entry.connection
@@ -460,10 +460,10 @@ export class SdkCloudSessionCoordinator {
 		const existing = this.entries.get(record.id)
 		if (existing) {
 			existing.record = record
-			// While a connection is open, its status is confirmed against every
-			// record version seen, whatever touched the record.
-			if (existing.host && isSettled(existing.host.status)) {
-				this.rememberStatus(record, existing.host.status, Date.now())
+			// A retained host is not proof of continuous observation. Revalidate
+			// settled outcomes against the record just as we do after restart.
+			if (existing.agentStatus && isSettled(existing.agentStatus)) {
+				existing.agentStatus = this.rememberedStatusOf(record)
 			}
 			return existing
 		}
@@ -554,39 +554,46 @@ export class SdkCloudSessionCoordinator {
 	// ---- Connections ----
 
 	private async connect(entry: CloudSessionEntry): Promise<CloudSessionHost> {
-		if (entry.host) {
-			return entry.host
-		}
 		if (entry.connection) {
 			return entry.connection
 		}
+		if (entry.host && this.statusOf(entry) !== "unknown") return entry.host
 		const sessionId = entry.record.id
 		const taskId = entry.record.metadata.taskId?.trim()
 		if (!taskId) {
 			throw new Error(`Cloud session ${sessionId} has no canonical task id.`)
 		}
 		const generation = this.scopeGeneration
+		const record = entry.record
 		const connection = (async () => {
-			const host = await CloudSessionHost.connect({
-				outerSessionId: sessionId,
-				taskId,
-				socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
-				getAuthToken: this.options.getAuthToken,
-				requestToolApproval: this.options.requestToolApproval,
-				telemetry: this.options.telemetry,
-				onStatusChange: (status) => {
-					// A replaced account entry must never receive its predecessor's events.
-					if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
-						this.handleStatusChange(sessionId, status)
-					}
-				},
-			})
+			const retainedHost = entry.host
+			const host =
+				retainedHost ??
+				(await CloudSessionHost.connect({
+					outerSessionId: sessionId,
+					taskId,
+					socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
+					getAuthToken: this.options.getAuthToken,
+					requestToolApproval: this.options.requestToolApproval,
+					telemetry: this.options.telemetry,
+					onStatusChange: (status) => {
+						// A replaced account entry must never receive its predecessor's events.
+						if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
+							this.handleStatusChange(sessionId, status)
+						}
+					},
+				}))
+			const status = retainedHost ? await retainedHost.refreshStatus() : host.status
 			if (this.disposed || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry) {
 				await host.dispose("accountScopeChanged").catch(() => undefined)
 				throw new Error("Cloud session connection was superseded")
 			}
 			entry.host = host
-			entry.agentStatus = host.status
+			// A later list may invalidate the snapshot while the RPC is pending.
+			if (entry.record === record) {
+				entry.agentStatus = status
+				if (isSettled(status)) this.rememberStatus(record, status, Date.now())
+			}
 			this.ensurePolling()
 			return host
 		})()

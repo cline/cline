@@ -5,13 +5,14 @@ const runtime = vi.hoisted(() => ({
 	runTurn: vi.fn(),
 	pendingUpdate: vi.fn(),
 	pendingDelete: vi.fn(),
+	listSessions: vi.fn(),
 }))
 
 vi.mock("@cline/core", () => ({
 	RemoteRuntimeHost: class {
 		pendingPrompts = { update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = vi.fn(async () => undefined)
-		listSessions = vi.fn(async () => [{ sessionId: "inner-session", updatedAt: new Date().toISOString(), status: "idle" }])
+		listSessions = runtime.listSessions
 		subscribe(listener: (event: unknown) => void) {
 			runtime.listeners.push(listener)
 			return vi.fn()
@@ -29,6 +30,7 @@ describe("CloudSessionHost status", () => {
 		runtime.runTurn.mockReset()
 		runtime.pendingUpdate.mockReset()
 		runtime.pendingDelete.mockReset()
+		runtime.listSessions.mockReset().mockResolvedValue([{ sessionId: "inner-session", status: "idle" }])
 	})
 
 	it.each([
@@ -53,6 +55,33 @@ describe("CloudSessionHost status", () => {
 		await host.send({ sessionId: "ses-outer", prompt: "continue", mode: "plan" })
 
 		expect(runtime.runTurn).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "inner-session", mode: "act" }))
+	})
+
+	it("refreshes a retained host without letting an older snapshot overwrite a live event", async () => {
+		runtime.listSessions.mockResolvedValueOnce([{ sessionId: "inner-session", status: "completed" }])
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1",
+			getAuthToken: async () => "token",
+		})
+		let resolve!: (sessions: unknown[]) => void
+		runtime.listSessions.mockReturnValueOnce(
+			new Promise((done) => {
+				resolve = done
+			}),
+		)
+		const refreshing = host.refreshStatus()
+		for (const listener of runtime.listeners)
+			listener({ type: "status", payload: { sessionId: "inner-session", status: "running" } })
+		resolve([{ sessionId: "inner-session", status: "completed" }])
+		expect(await refreshing).toBe("running")
+		runtime.listSessions.mockResolvedValueOnce([{ sessionId: "inner-session", status: "completed" }])
+		expect(await host.refreshStatus()).toBe("completed")
+		runtime.listSessions.mockRejectedValueOnce(new Error("offline"))
+		await expect(host.refreshStatus()).rejects.toThrow("offline")
+		expect(host.status).toBe("unknown")
+		await host.dispose()
 	})
 
 	it("leaves running state when runTurn rejects without a terminal event", async () => {
