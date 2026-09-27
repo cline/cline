@@ -2,7 +2,7 @@
 
 - **Module:** Implementation Roadmap & Verification
 - **Target Surfaces:** Entire Monorepo
-- **Status:** As-built reconciliation — Phases 1–4 shipped, Phase 5 not started
+- **Status:** As-built reconciliation — Phases 1–5 shipped
 - **Reconciled:** 2026-09-27 against branch `rfc/hierarchical-workspaces`
 
 > **Package naming (important).** The VS Code extension is `apps/vscode` and its package
@@ -24,16 +24,16 @@ The implementation is broken down into 5 decoupled phases following our architec
 | 2 | Layered storage paths & config watching (`@cline/shared`, `@cline/core`) | ✅ Shipped | `b75af8192` |
 | 3 | SQLite session history partitioning (`@cline/shared`, `@cline/core`) | ✅ Shipped | `29f8fbfd1` |
 | 4 | CLI surface integration (`@cline/cli`) | ✅ Shipped | `5c6abc955` |
-| 5 | VS Code extension integration (`apps/vscode`, package `claude-dev`) | ⏳ Not started | — |
+| 5 | VS Code extension integration (`apps/vscode`, package `claude-dev`) | ✅ Shipped | `807035239` |
 
-Phases 1–4 each landed as one self-contained commit whose tests pass independently of the later phases.
+Phases 1–5 each landed as one self-contained commit whose tests pass independently of the later phases.
 
 ```mermaid
 flowchart LR
     P1["Phase 1 ✅<br/>shared: resolver + schema"] --> P2["Phase 2 ✅<br/>shared+core: layered paths"]
     P2 --> P3["Phase 3 ✅<br/>shared+core: anchor column"]
     P3 --> P4["Phase 4 ✅<br/>cli: onboarding + history scope"]
-    P4 --> P5["Phase 5 ⏳<br/>apps/vscode: status bar + history UI"]
+    P4 --> P5["Phase 5 ✅<br/>apps/vscode: status bar + card + history scope"]
 ```
 
 ### Phase 1: Core Hierarchy Resolution (`@cline/shared`) — ✅ Shipped (`dfd31c2cf`)
@@ -105,18 +105,25 @@ flowchart LR
   - E2E: `apps/cli/src/cli.tuistory.e2e.test.ts` → `describe("cli workspace onboarding (Phase 4)")`: initialize via the default option, create a sub-cline with `c`, continue silently with the parent, and cycle `/history` scopes with `Tab`.
   - **Divergence:** the planned e2e assertion "CLI execution from subfolder verifying parent rules appear in `/rules` or system prompt" was **not** written. Subfolder inheritance is covered instead by the `@cline/core` loader test "inherits ancestor rules and overrides matching filename in child workspace" and by the `paths.test.ts` ordering assertions.
 
-### Phase 5: VS Code Extension Integration (`apps/vscode`, package `claude-dev`) — ⏳ Not started
+### Phase 5: VS Code Extension Integration (`apps/vscode`, package `claude-dev`) — ✅ Shipped (`807035239`)
 
-The target is `apps/vscode` (package `claude-dev`), **not** `@cline/vscode` (`apps/examples/vscode`). None of the following exists yet:
+Target is `apps/vscode` (package `claude-dev`), **not** `@cline/vscode` (`apps/examples/vscode`).
 
-- **Deliverables** (intent unchanged, paths corrected):
-  - Initialize through the resolver. `SdkController.ensureWorkspaceManager()` (`apps/vscode/src/sdk/SdkController.ts`) seeds from host workspace folder paths only, via `resolveWorkspaceManagerPaths()` (`apps/vscode/src/sdk/workspace-root.ts`) into `WorkspaceRootManager.fromPaths()` (`apps/vscode/src/core/workspace/WorkspaceRootManager.ts`, which also offers `fromLegacyCwd`). Phase 5 wires `resolveHierarchicalWorkspaceSync()` in front of that seeding.
-  - Status bar indicator: `$(folder) Cline: apps/cli` for a direct workspace, `$(repo) Cline: apps/cli (inherited from my-monorepo)` when inheriting, with a quick-pick offering `View Workspace Hierarchy`, `Create Local Sub-Cline Override`, and `Open .cline/workspace.json`. There is no `createStatusBarItem` call anywhere in `apps/vscode/src` today — only the test mock in `src/test/vscode-mock.ts`.
-  - Webview onboarding card for uninitialized folders.
-  - History tab scope dropdown (`Current Workspace` / `Include Parent` / `All`) on top of the Phase 3 API `listSessions({ anchorPath, scope })`. Today `SdkSessionHistoryLoader` (`apps/vscode/src/sdk/sdk-session-history-loader.ts`) passes neither anchor nor scope.
-- **Testing**:
-  - `bun -F claude-dev test:unit` — the bun-side unit suites (`apps/vscode/scripts/run-bun-unit-tests.ts`, 81 files at time of writing); the correct home for `apps/vscode/src/sdk` tests.
-  - `bun -F claude-dev test:integration` — a real extension host (`compile-tests && vscode-test`) for multi-root monorepo behavior.
+- **Deliverables (as built)**:
+  - **One hierarchy resolution for every host surface** — `apps/vscode/src/sdk/workspace-hierarchy.ts` wraps `resolveHierarchicalWorkspaceSync()` into `resolveWorkspaceHierarchyInfo(targetPath)`, and derives the status bar copy (`formatWorkspaceStatusBar`), the human-readable layer list (`describeWorkspaceHierarchy`), and history scope membership (`matchesWorkspaceHistoryScope`). It imports no `vscode` API, so it is unit-testable outside the extension host, and the traversal itself is never re-implemented in the host.
+  - **Status bar indicator** — `apps/vscode/src/hosts/vscode/VscodeWorkspaceStatusBar.ts`, created in `extension.ts` activation and refreshed on `onDidChangeWorkspaceFolders`. Renders `$(folder) Cline: apps-cli` directly and `$(repo) Cline: apps-cli (inherited from monorepo)` when the primary root inherits, with a click quick pick offering `View Workspace Hierarchy`, `Create Local Sub-Cline Override`, and `Open .cline/workspace.json`. It lives in the host layer because the biome `vscode-api` rule forbids direct `vscode` API use in `src/core`.
+  - **Webview onboarding card** — `webview-ui/src/components/chat/WorkspaceOnboardingCard.tsx` renders above the chat prompt (first child of `ChatView`'s footer) when `workspaceOnboarding.show` is true, i.e. a folder is open, no workspace exists at or above it, and it has not been dismissed. Backed by the new `initializeWorkspace` / `dismissWorkspaceOnboarding` RPCs (`proto/cline/state.proto`, handlers in `src/core/controller/state/`) and the idempotent scaffolder `apps/vscode/src/sdk/workspace-scaffold.ts`.
+  - **History tab scope selector** — `HistoryView.tsx` gains a `Current Project` / `Include Parent` / `All Recent Projects` dropdown (default `All`, matching the previous behavior) that replaces the old `Workspace Only` toggle. It drives a new `optional WorkspaceHistoryScope history_scope` field on `GetTaskHistoryRequest`; `SdkController.getTaskHistory` resolves the hierarchy once per query, filters with `matchesWorkspaceHistoryScope`, and keeps the legacy `current_workspace_only` boolean for callers that leave the field unset.
+  - **Webview state** — `ExtensionState` gains `workspaceHierarchy` and `workspaceOnboarding`, computed by `SdkController.getWorkspaceSurfaceState()` and attached in `getStateToPostToWebview()`. The state payload is `State { string state_json }`, so no proto field was needed for these.
+  - Dismissals persist in the new global-state key `dismissedWorkspaceOnboardingPath` (backend-only, so the webview only ever sees the computed `show` flag).
+- **Testing (as built)**:
+  - `bun -F claude-dev test:vitest` — 19 new unit tests in `src/sdk/workspace-hierarchy.test.ts` and `src/sdk/workspace-scaffold.test.ts` (nearest-root-first ordering, inheritance anchors, isolation boundaries, status bar copy, current/hierarchical/all scope matching incl. legacy `cwd` fallback, scaffold idempotency). `vitest.config.ts` owns `src/sdk/**`, in line with the neighbouring SDK-adapter suites; the full `bun -F claude-dev test:vitest` run is 72 files / 1180 tests.
+  - `bun -F claude-dev test:unit` — the bun-side suites (`apps/vscode/scripts/run-bun-unit-tests.ts`, 81 files) still pass, since they are untouched by this phase.
+  - `bun -F claude-dev test:integration` — a real extension host (`compile-tests && vscode-test`) for multi-root monorepo behavior. Not run in this environment.
+- **Divergences from the original plan**:
+  - `WorkspaceRootManager` was intentionally **not** rewired to resolve hierarchies. Its `roots` seed `@`-mention/file search and must stay the folders the user actually opened; replacing them with ancestor layers would change search scope. The resolved anchor is tracked as a sibling concept in `SdkController` instead, which is the only thing the status bar, onboarding card, and history scoping need.
+  - No extension-side anchor stamping was needed: `SqliteSessionStore.create()` already resolves `anchor_workspace_path` from the session cwd via the Phase 3 resolver, so VS Code sessions are partitioned hierarchically without host changes.
+  - History scope filtering happens in `SdkController.getTaskHistory` (in-memory, alongside the existing `currentWorkspaceOnly` filter) rather than as a SQL push-down, because the metadata-history cache is keyed only on `hydrate === false`. Pushing scopes into the store would require extending that cache key first.
 
 ---
 
@@ -131,8 +138,9 @@ The target is `apps/vscode` (package `claude-dev`), **not** `@cline/vscode` (`ap
 | **Unit** | `@cline/core` | Scoped history querying (`current` / `hierarchical` / `all`) | `bun -F @cline/core test:unit` |
 | **Unit** | `@cline/cli` | `resolveWorkspaceRoot`, scaffolding, onboarding keys, history filters | `bun -F @cline/cli test:unit` |
 | **E2E** | `@cline/cli` | Tuistory TUI onboarding, sub-cline creation, `/history` Tab | `bun -F @cline/cli test:e2e:tuistory` |
-| **Unit** | `claude-dev` (`apps/vscode`) | `src/sdk` workspace resolution & history loader *(Phase 5)* | `bun -F claude-dev test:unit` |
-| **Integration** | `claude-dev` (`apps/vscode`) | Host workspace resolution in a multi-root monorepo *(Phase 5)* | `bun -F claude-dev test:integration` |
+| **Unit** | `claude-dev` (`apps/vscode`) | `src/sdk` hierarchy, status bar copy, scaffold idempotency, history scope matching | `bun -F claude-dev test:vitest` |
+| **Unit** | `claude-dev` (`apps/vscode`) | bun-side suites (`scripts/run-bun-unit-tests.ts`) | `bun -F claude-dev test:unit` |
+| **Integration** | `claude-dev` (`apps/vscode`) | Host workspace resolution in a multi-root monorepo | `bun -F claude-dev test:integration` |
 
 Note on invocation form: with bun 1.3.13 the filter form is `bun -F <package> <script>`. Inserting `run` (`bun -F @cline/shared run test:unit`) fails with `error: No packages matched the filter`, and the same error appears for a package that simply lacks the requested script — which is what `bun -F @cline/vscode test:unit` produced, since that package only defines `test`.
 
@@ -148,7 +156,10 @@ Note on invocation form: with bun 1.3.13 the filter form is `bun -F <package> <s
 
 ## 4. Known Gaps & Follow-Ups
 
-1. **Phase 5 is unimplemented** — status bar, webview onboarding card, hierarchical seeding, and the History tab scope selector are all still outstanding for `apps/vscode` (`claude-dev`).
-2. **Phase 1 edge cases are untested** — symlinks, directory loops, unreadable parent directories, and Windows drive roots. Cycle protection exists via the `visited` set but has no assertion.
-3. **Phase 4 subfolder `/rules` e2e is missing** — the planned check that a CLI run from `apps/cli/src` surfaces repo-root rules through `/rules` or the system prompt was replaced by loader-level and path-ordering unit tests.
-4. **Root aggregate scripts** — root `package.json` `test` / `test:unit` used to invoke `-F @cline/vscode` (the example app, `apps/examples/vscode`) and never `-F claude-dev`, so `apps/vscode` was not covered by the root aggregate. Both aggregates now also run `bun -F claude-dev test:unit`; the extension's `test:integration` / `test:e2e` stay out of the root `test` (CI jobs that consume it, e.g. `cli-publish.yml`, lack VS Code GUI libraries) and run in `.github/workflows/ext-vscode-test.yml` instead.
+1. **Phase 1 edge cases are untested** — symlinks, directory loops, unreadable parent directories, and Windows drive roots. Cycle protection exists via the `visited` set but has no assertion.
+2. **Phase 4 subfolder `/rules` e2e is missing** — the planned check that a CLI run from `apps/cli/src` surfaces repo-root rules through `/rules` or the system prompt was replaced by loader-level and path-ordering unit tests.
+3. **Root aggregate scripts** — root `package.json` `test` / `test:unit` used to invoke `-F @cline/vscode` (the example app, `apps/examples/vscode`) and never `-F claude-dev`, so `apps/vscode` was not covered by the root aggregate. Both aggregates now also run `bun -F claude-dev test:unit`; the extension's `test:integration` / `test:e2e` stay out of the root `test` (CI jobs that consume it, e.g. `cli-publish.yml`, lack VS Code GUI libraries) and run in `.github/workflows/ext-vscode-test.yml` instead.
+4. **Scaffolder duplication** — `apps/vscode/src/sdk/workspace-scaffold.ts` (Phase 5) mirrors `apps/cli/src/utils/workspace-init.ts` (Phase 4). Both should move into `@cline/shared/storage` next to the resolver; that needs an SDK rebuild (`bun run build:sdk`) plus a CLI import update, so it was left out of Phase 5.
+5. **Phase 5 host verification is not automated** — the status bar, onboarding card, and History scope selector are covered by unit tests plus typecheck/webview-build/bundle checks, but no extension-host or e2e test exercises them. The RFC's "multi-root monorepo behavior" integration test was not written.
+6. **History scope filtering is in-memory** — `SdkController.getTaskHistory` filters after fetching, matching the existing `currentWorkspaceOnly` behavior. Pushing `anchorPath`/`scope` into the store (which Phase 3 already supports) requires extending the metadata-history cache key first.
+7. **Telemetry from `03-onboarding-and-ux.md` §4 is not implemented** — `workspace_resolved`, `workspace_initialized`, `sub_cline_created`, and `workspace_isolation_enabled` events were specified but not added in Phases 4 or 5.
