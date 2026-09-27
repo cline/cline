@@ -2,10 +2,20 @@ import { fileExistsAtPath } from "@utils/fs"
 import chokidar, { FSWatcher } from "chokidar"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
+import os from "os"
 import path from "path"
 import { Logger } from "@/shared/services/Logger"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
+
+export interface ClineIgnoreOptions {
+	/** Enable sandboxed execution mode and sensitive file protections. */
+	sandboxMode?: boolean
+	/** Restrict file operations strictly to workspace cwd (except essential system runtimes). */
+	strictContainment?: boolean
+	/** Additional sensitive patterns or paths to deny. */
+	blockedSensitivePatterns?: string[]
+}
 
 /**
  * Controls LLM access to files by enforcing ignore patterns.
@@ -17,11 +27,32 @@ export class ClineIgnoreController {
 	private ignoreInstance: Ignore
 	private fileWatcher?: FSWatcher
 	clineIgnoreContent: string | undefined
+	private sandboxMode: boolean = false
+	private strictContainment: boolean = false
+	private customBlockedPatterns: string[] = []
 
-	constructor(cwd: string) {
+	constructor(cwd: string, options?: ClineIgnoreOptions) {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
 		this.clineIgnoreContent = undefined
+		if (options) {
+			this.sandboxMode = !!options.sandboxMode
+			this.strictContainment = !!options.strictContainment
+			this.customBlockedPatterns = options.blockedSensitivePatterns || []
+		}
+	}
+
+	setSandboxMode(enabled: boolean, strictContainment: boolean = false): void {
+		this.sandboxMode = enabled
+		this.strictContainment = strictContainment
+	}
+
+	isSandboxMode(): boolean {
+		return this.sandboxMode
+	}
+
+	isStrictContainment(): boolean {
+		return this.strictContainment
 	}
 
 	/**
@@ -148,43 +179,173 @@ export class ClineIgnoreController {
 	}
 
 	/**
+	 * Checks if a path targets sensitive credentials, tokens, or system secrets.
+	 *
+	 * @param filePath - Path to inspect (relative or absolute)
+	 * @returns true if the path targets a sensitive file/directory
+	 */
+	isSensitivePath(filePath: string): boolean {
+		if (!filePath || typeof filePath !== "string") {
+			return false
+		}
+
+		const homedir = os.homedir()
+		let resolvedPath: string
+		if (filePath.startsWith("~")) {
+			resolvedPath = path.join(homedir, filePath.slice(1))
+		} else {
+			resolvedPath = path.resolve(this.cwd, filePath)
+		}
+
+		const normalized = resolvedPath.replace(/\\/g, "/").toLowerCase()
+		const basename = path.basename(resolvedPath).toLowerCase()
+
+		// 1. Sensitive environment files (.env, .env.* except .env.example / .sample / .template)
+		if (
+			basename === ".env" ||
+			(basename.startsWith(".env.") &&
+				!basename.endsWith(".example") &&
+				!basename.endsWith(".sample") &&
+				!basename.endsWith(".template"))
+		) {
+			return true
+		}
+
+		// 2. Private cryptographic keys, certs, and keystores
+		const sensitiveExtensions = [".pem", ".key", ".pfx", ".p12", ".pkcs12"]
+		if (sensitiveExtensions.some((ext) => basename.endsWith(ext))) {
+			return true
+		}
+		const sensitiveKeyNames = ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"]
+		if (sensitiveKeyNames.some((k) => basename === k || basename === `${k}.pub`)) {
+			return true
+		}
+
+		// 3. User credential directories in home directory
+		const normalizedHome = homedir.replace(/\\/g, "/").toLowerCase()
+		const sensitiveHomeDirs = [
+			"/.ssh",
+			"/.aws",
+			"/.gnupg",
+			"/.azure",
+			"/.kube",
+			"/.config/gcloud",
+		]
+		for (const dir of sensitiveHomeDirs) {
+			const targetDir = `${normalizedHome}${dir}`
+			if (normalized === targetDir || normalized.startsWith(`${targetDir}/`)) {
+				return true
+			}
+		}
+
+		// 4. Sensitive credential and history files in home directory
+		const sensitiveHomeFiles = [
+			"/.git-credentials",
+			"/.netrc",
+			"/.docker/config.json",
+			"/.bash_history",
+			"/.zsh_history",
+		]
+		for (const file of sensitiveHomeFiles) {
+			const targetFile = `${normalizedHome}${file}`
+			if (normalized === targetFile) {
+				return true
+			}
+		}
+
+		// 5. System secret files
+		const systemSecrets = ["/etc/shadow", "/etc/sudoers", "/etc/master.passwd"]
+		if (systemSecrets.some((sec) => normalized === sec || normalized.startsWith(`${sec}/`))) {
+			return true
+		}
+
+		// 6. Custom blocked patterns if configured
+		for (const pattern of this.customBlockedPatterns) {
+			if (normalized.includes(pattern.toLowerCase())) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	/**
 	 * Check if a file should be accessible to the LLM
-	 * @param filePath - Path to check (relative to cwd)
-	 * @returns true if file is accessible, false if ignored
+	 * @param filePath - Path to check (relative to cwd or absolute)
+	 * @returns true if file is accessible, false if ignored or sensitive
 	 */
 	validateAccess(filePath: string): boolean {
-		// Always allow access if .clineignore does not exist
+		const absolutePath = filePath.startsWith("~")
+			? path.join(os.homedir(), filePath.slice(1))
+			: path.resolve(this.cwd, filePath)
+
+		// Fail-closed protection for sensitive files in sandbox mode or if .clineignore is present
+		if (this.sandboxMode || this.clineIgnoreContent) {
+			if (this.isSensitivePath(absolutePath)) {
+				return false
+			}
+		}
+
+		// Strict containment: block access to paths outside cwd (except essential system runtimes)
+		if (this.sandboxMode && this.strictContainment) {
+			const relative = path.relative(this.cwd, absolutePath)
+			const isOutside = relative.startsWith("..") || path.isAbsolute(relative)
+			if (isOutside) {
+				const posixAbs = absolutePath.replace(/\\/g, "/")
+				const allowedPrefixes = ["/usr", "/bin", "/lib", "/lib64", "/opt", "/etc/ssl", "/etc/resolv.conf"]
+				const isAllowedSystem = allowedPrefixes.some((p) => posixAbs === p || posixAbs.startsWith(`${p}/`))
+				if (!isAllowedSystem) {
+					return false
+				}
+			}
+		}
+
+		// Always allow access if .clineignore does not exist and not blocked by sensitive checks above
 		if (!this.clineIgnoreContent) {
 			return true
 		}
+
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
-			const absolutePath = path.resolve(this.cwd, filePath)
 			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
 
 			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)
 		} catch (_error) {
-			// Logger.error(`Error validating access for ${filePath}:`, error)
-			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
+			// Ignore is designed to work with relative file paths, so throws error for paths outside cwd.
+			// In sandbox mode, never allow sensitive paths outside cwd.
+			if (this.sandboxMode && this.isSensitivePath(absolutePath)) {
+				return false
+			}
 			return true
 		}
 	}
 
 	/**
 	 * Check if a terminal command should be allowed to execute based on file access patterns
+	 * and destructive out-of-tree modifications.
+	 *
 	 * @param command - Terminal command to validate
 	 * @returns path of file that is being accessed if it is being accessed, undefined if command is allowed
 	 */
 	validateCommand(command: string): string | undefined {
-		// Always allow if no .clineignore exists
-		if (!this.clineIgnoreContent) {
+		// Always allow if neither .clineignore nor sandboxMode exists
+		if (!this.clineIgnoreContent && !this.sandboxMode) {
 			return undefined
 		}
 
-		// Split command into parts and get the base command
-		const parts = command.trim().split(/\s+/)
-		const baseCommand = parts[0].toLowerCase()
+		// Check for inline interpreters or subshells reading/executing sensitive commands
+		// e.g. python3 -c "print(open('.env').read())" or sh -c "cat .env"
+		const interpreterMatch = command.match(/\b(?:python|python3|node|perl|ruby|bash|sh|zsh)\s+(?:-c|-e)\s+["']([^"']+)["']/i)
+		if (interpreterMatch && interpreterMatch[1]) {
+			const innerResult = this.validateCommand(interpreterMatch[1])
+			if (innerResult) {
+				return innerResult
+			}
+		}
+
+		// Split compound commands by &&, ||, ;, and |
+		const subCommands = command.split(/&&|\|\||;|\|/)
 
 		// Commands that read file contents
 		const fileReadingCommands = [
@@ -197,6 +358,8 @@ export class ClineIgnoreController {
 			"grep",
 			"awk",
 			"sed",
+			"curl",
+			"wget",
 			// PowerShell commands and aliases
 			"get-content",
 			"gc",
@@ -205,21 +368,92 @@ export class ClineIgnoreController {
 			"sls",
 		]
 
-		if (fileReadingCommands.includes(baseCommand)) {
-			// Check each argument that could be a file path
-			for (let i = 1; i < parts.length; i++) {
-				const arg = parts[i]
-				// Skip command flags/options (both Unix and PowerShell style)
-				if (arg.startsWith("-") || arg.startsWith("/")) {
-					continue
+		// Commands that delete or destroy files
+		const destructiveCommands = [
+			// Unix commands
+			"rm",
+			"rmdir",
+			"unlink",
+			"shred",
+			"truncate",
+			"dd",
+			// PowerShell commands and aliases
+			"remove-item",
+			"ri",
+			"del",
+			"erase",
+			"rd",
+		]
+
+		for (const subCmd of subCommands) {
+			const trimmed = subCmd.trim()
+			if (!trimmed) continue
+
+			const parts = trimmed.split(/\s+/)
+			const baseCommand = parts[0].toLowerCase()
+
+			// Check destructive commands
+			if (destructiveCommands.includes(baseCommand)) {
+				for (let i = 1; i < parts.length; i++) {
+					const arg = parts[i]
+					// Skip command flags (e.g. -f, -rf, --recursive, or Windows single-character switches /y)
+					if (arg.startsWith("-") || (process.platform === "win32" && /^\/[a-zA-Z?]$/.test(arg))) {
+						continue
+					}
+					// Root and home destruction protection: rm -rf / or rm -rf ~ or rm -rf ..
+					const cleanArg = arg.replace(/^["']|["']$/g, "")
+					if (
+						cleanArg === "/" ||
+						cleanArg === "/*" ||
+						cleanArg === "~" ||
+						cleanArg === "~/*" ||
+						cleanArg === "$HOME" ||
+						cleanArg === "%USERPROFILE%" ||
+						cleanArg.startsWith("/etc") ||
+						cleanArg.startsWith("/var") ||
+						cleanArg.startsWith("/usr") ||
+						cleanArg.startsWith("/boot")
+					) {
+						return cleanArg
+					}
+					if (cleanArg === ".." || cleanArg.startsWith("../") || cleanArg.startsWith("..\\")) {
+						return cleanArg
+					}
+					// Check if deleting a sensitive file (e.g. rm .env, rm -rf ~/.ssh)
+					if (this.isSensitivePath(cleanArg)) {
+						return cleanArg
+					}
 				}
-				// Ignore PowerShell parameter names
-				if (arg.includes(":")) {
-					continue
+			}
+
+			// Check file reading commands
+			if (fileReadingCommands.includes(baseCommand)) {
+				for (let i = 1; i < parts.length; i++) {
+					const arg = parts[i]
+					// Skip command flags (e.g. -n, -v, or Windows single-character switches /s)
+					if (arg.startsWith("-") || (process.platform === "win32" && /^\/[a-zA-Z?]$/.test(arg))) {
+						continue
+					}
+					// Ignore PowerShell parameter names (e.g. -Path:foo), but keep Windows drive letters (C:\)
+					if (arg.includes(":") && !arg.startsWith("C:") && !arg.startsWith("c:") && !arg.startsWith("D:") && !arg.startsWith("d:")) {
+						continue
+					}
+					const cleanArg = arg.replace(/^["']|["']$/g, "")
+					// Validate file access: checks ignore patterns, sensitive paths, and containment
+					if (!this.validateAccess(cleanArg)) {
+						return cleanArg
+					}
 				}
-				// Validate file access
-				if (!this.validateAccess(arg)) {
-					return arg
+			}
+
+			// If in sandbox mode, check arguments of ANY command for sensitive targets (.env, ~/.ssh, etc.)
+			if (this.sandboxMode) {
+				for (let i = 1; i < parts.length; i++) {
+					const cleanArg = parts[i].replace(/^["']|["']$/g, "")
+					if (cleanArg.startsWith("-")) continue
+					if (this.isSensitivePath(cleanArg)) {
+						return cleanArg
+					}
 				}
 			}
 		}

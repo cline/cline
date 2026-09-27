@@ -497,4 +497,110 @@ describe("VscodeTerminalManager", () => {
 			TerminalRegistry.removeTerminal(terminalInfo.id)
 		}
 	})
+
+	describe("Sandboxed Execution Mode", () => {
+		it("defaults to sandboxed execution disabled", () => {
+			const config = manager.getSandboxedExecution()
+			assert.equal(config.enabled, false)
+		})
+
+		it("enables sandboxed execution and updates options", () => {
+			manager.setSandboxedExecution(true, {
+				containment: "strict",
+				backend: "shell-guard",
+				blockedPaths: ["/secret"],
+			})
+			const config = manager.getSandboxedExecution()
+			assert.equal(config.enabled, true)
+			assert.equal(config.containment, "strict")
+			assert.equal(config.backend, "shell-guard")
+			assert.deepEqual(config.blockedPaths, ["/secret"])
+		})
+
+		it("wraps commands when sandboxed execution is enabled", async () => {
+			setVscodeHostProviderMock()
+			const terminalInfo = TerminalRegistry.createTerminal("/tmp/cline-sandbox")
+			const executeCommandStub = sandbox.stub().returns({
+				read: () => createNeverEndingStream(),
+			})
+			sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => ({
+				cwd: vscode.Uri.file("/tmp/cline-sandbox"),
+				executeCommand: executeCommandStub,
+			}))
+
+			manager.setSandboxedExecution(true, { backend: "shell-guard" })
+
+			try {
+				manager.runCommand(
+					terminalInfo as unknown as Parameters<VscodeTerminalManager["runCommand"]>[0],
+					"npm test",
+				)
+				assert.equal(executeCommandStub.calledOnce, true)
+				const executedCmd = executeCommandStub.firstCall.args[0]
+				assert.equal(executedCmd.includes("CLINE_SANDBOX_ACTIVE=1"), true)
+				assert.equal(executedCmd.includes("npm test"), true)
+			} finally {
+				terminalInfo.terminal.dispose()
+				TerminalRegistry.removeTerminal(terminalInfo.id)
+			}
+		})
+
+		it("applies custom sandbox wrapper if provided", async () => {
+			setVscodeHostProviderMock()
+			const terminalInfo = TerminalRegistry.createTerminal("/tmp/cline-sandbox")
+			const executeCommandStub = sandbox.stub().returns({
+				read: () => createNeverEndingStream(),
+			})
+			sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => ({
+				cwd: vscode.Uri.file("/tmp/cline-sandbox"),
+				executeCommand: executeCommandStub,
+			}))
+
+			manager.setSandboxedExecution(true, {
+				customWrapper: "sandbox-tool --workdir {cwd} -- {command}",
+			})
+
+			try {
+				manager.runCommand(
+					terminalInfo as unknown as Parameters<VscodeTerminalManager["runCommand"]>[0],
+					"cargo check",
+				)
+				assert.equal(executeCommandStub.calledOnce, true)
+				const executedCmd = executeCommandStub.firstCall.args[0]
+				assert.equal(executedCmd.includes("sandbox-tool --workdir"), true)
+				assert.equal(executedCmd.includes("cargo check"), true)
+			} finally {
+				terminalInfo.terminal.dispose()
+				TerminalRegistry.removeTerminal(terminalInfo.id)
+			}
+		})
+
+		it("blocks commands targeting protected paths when ClineIgnoreController is attached", () => {
+			setVscodeHostProviderMock()
+			const terminalInfo = TerminalRegistry.createTerminal("/tmp/cline-sandbox")
+			const fakeIgnoreController = {
+				validateCommand: sandbox.stub().returns(".env"),
+			}
+			manager.setClineIgnoreController(fakeIgnoreController as unknown as import("@/core/ignore/ClineIgnoreController").ClineIgnoreController)
+			manager.setSandboxedExecution(true)
+
+			try {
+				assert.throws(
+					() => {
+						manager.runCommand(
+							terminalInfo as unknown as Parameters<VscodeTerminalManager["runCommand"]>[0],
+							"cat .env",
+						)
+					},
+					(err: Error) => {
+						return err.message.includes('[Sandbox] Command blocked: attempted to access or modify protected path ".env"')
+					},
+				)
+			} finally {
+				terminalInfo.terminal.dispose()
+				TerminalRegistry.removeTerminal(terminalInfo.id)
+			}
+		})
+	})
 })
+
