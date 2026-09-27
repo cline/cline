@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ClineEndpoint, ClineEnv, Environment } from "@/config"
 import { startLocalCloudDevelopment } from "@/dev/local-cloud-development"
 import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
+import type { UserResponse } from "@/shared/ClineAccount"
 import { startLocalCloudEnvironment } from "./local-cloud-environment"
 
 vi.mock("node:fs/promises", async (original) => {
@@ -109,6 +110,152 @@ describe("local cloud development ownership", () => {
 			})
 		} finally {
 			await development.dispose()
+		}
+	})
+
+	it("switches the fixture account over HTTP and keeps repositories and session lists scoped", async () => {
+		const development = await startLocalCloudDevelopment({ port: 0 })
+		const { environment } = development
+		const headers = { Authorization: `Bearer workos:${environment.accessToken}`, "Content-Type": "application/json" }
+		let activeOrganizationId: string | null = null
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			appBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => `workos:${environment.accessToken}`,
+			getActiveOrganizationId: () => activeOrganizationId,
+		})
+		const refreshUser = async () => {
+			const response = await fetch(`${environment.apiBaseUrl}/api/v1/users/me`, { headers })
+			expect(response.status).toBe(200)
+			const { data } = (await response.json()) as { data: UserResponse }
+			activeOrganizationId = data.organizations.find((organization) => organization.active)?.organizationId ?? null
+			return data
+		}
+		const switchAccount = async (organizationId: string | null) => {
+			const response = await fetch(`${environment.apiBaseUrl}/api/v1/users/active-account`, {
+				method: "PUT",
+				headers,
+				body: JSON.stringify({ organizationId }),
+			})
+			expect(response.status).toBe(200)
+			expect(await response.json()).toEqual({ success: true, data: expect.any(String) })
+			await refreshUser()
+			expect(activeOrganizationId).toBe(organizationId)
+		}
+		try {
+			const user = await refreshUser()
+			expect(user.organizations).toEqual([
+				{
+					active: false,
+					memberId: "local-cloud-member",
+					name: "Local Cloud QA",
+					organizationId: "local-cloud-organization",
+					roles: ["owner"],
+				},
+			])
+			const personal = await service.getGitHubConnection()
+			expect(personal.repositories).toMatchObject([{ id: 1, fullName: "cline/fixture" }])
+			expect(await service.listBranches(1)).toEqual(["main", "fixture"])
+			const personalSession = await service.createSession({
+				modelId: "fixture-model",
+				repoUrl: personal.repositories[0].url,
+			})
+			await service.renameSession(personalSession.id, "Personal history")
+
+			await switchAccount(user.organizations[0].organizationId)
+			const organization = await service.getGitHubConnection()
+			expect(organization).toMatchObject({
+				connected: true,
+				connectUrl: `${environment.apiBaseUrl}/dashboard/organization/integrations`,
+				repositories: [{ id: 2, fullName: "cline/organization-fixture" }],
+			})
+			expect(await service.listBranches(2)).toEqual(["main", "organization-fixture"])
+			await expect(service.listBranches(1)).rejects.toMatchObject({ status: 404 })
+			expect(await service.listSessions()).toEqual([])
+			expect(await service.getSession(personalSession.id)).toBeUndefined()
+			const organizationSession = await service.createSession({
+				modelId: "fixture-model",
+				repoUrl: organization.repositories[0].url,
+			})
+			await service.renameSession(organizationSession.id, "Organization history")
+			expect(await service.listSessions()).toEqual([
+				expect.objectContaining({ id: organizationSession.id, title: "Organization history" }),
+			])
+			// An omitted organizationId remains Personal even while the profile selects an org.
+			const personalList = await fetch(`${environment.apiBaseUrl}/api/v1/session`, { headers })
+			expect(await personalList.json()).toMatchObject({ data: [{ id: personalSession.id }] })
+
+			await switchAccount(null)
+			expect(await service.getGitHubConnection()).toEqual(personal)
+			await expect(service.listBranches(2)).rejects.toMatchObject({ status: 404 })
+			expect(await service.listSessions()).toEqual([
+				expect.objectContaining({ id: personalSession.id, title: "Personal history" }),
+			])
+			expect(await service.getSession(organizationSession.id)).toBeUndefined()
+			await switchAccount(user.organizations[0].organizationId)
+			expect(await service.listSessions()).toEqual([
+				expect.objectContaining({ id: organizationSession.id, title: "Organization history" }),
+			])
+		} finally {
+			await development.dispose()
+		}
+	})
+
+	it("serves fixture credit and disabled remote config contracts without external requests", async () => {
+		const environment = await startLocalCloudEnvironment()
+		const headers = { Authorization: `Bearer ${environment.accessToken}` }
+		try {
+			const profile = await fetch(`${environment.apiBaseUrl}/api/v1/users/me`, { headers })
+			const { data: user } = (await profile.json()) as { data: UserResponse }
+			const [organization] = user.organizations
+			const userPath = `/api/v1/users/${user.id}`
+			const organizationPath = `/api/v1/organizations/${organization.organizationId}`
+			const responses = [
+				[`${userPath}/balance`, { balance: 100, userId: user.id }],
+				[`${userPath}/usages`, { items: [] }],
+				[`${userPath}/payments`, { paymentTransactions: [] }],
+				[`${organizationPath}/balance`, { balance: 250, organizationId: organization.organizationId }],
+				[`${organizationPath}/members/${organization.memberId}/usages`, { items: [] }],
+				["/api/v1/users/me/remote-config", null],
+				[`${organizationPath}/remote-config`, { enabled: false, value: "{}" }],
+			] as const
+			for (const [endpoint, data] of responses) {
+				const response = await fetch(`${environment.apiBaseUrl}${endpoint}`, { headers })
+				expect(response.status, endpoint).toBe(200)
+				expect(await response.json(), endpoint).toEqual({ success: true, data })
+			}
+		} finally {
+			await environment.dispose()
+		}
+	})
+
+	it("rejects unauthorized switches and unknown organization scopes without changing fixture state", async () => {
+		const environment = await startLocalCloudEnvironment()
+		const headers = { Authorization: `Bearer ${environment.accessToken}`, "Content-Type": "application/json" }
+		try {
+			const unauthorized = await fetch(`${environment.apiBaseUrl}/api/v1/users/active-account`, {
+				method: "PUT",
+				body: JSON.stringify({ organizationId: "local-cloud-organization" }),
+			})
+			expect(unauthorized.status).toBe(401)
+			for (const [endpoint, method] of [
+				["/api/v1/users/active-account", "PUT"],
+				["/api/v1/session", "POST"],
+				["/api/v1/session?organizationId=unknown", "GET"],
+				["/api/v1/organizations/unknown/integrations/github/repositories", "GET"],
+			] as const) {
+				const response = await fetch(`${environment.apiBaseUrl}${endpoint}`, {
+					method,
+					headers,
+					...(method !== "GET" ? { body: JSON.stringify({ organizationId: "unknown" }) } : {}),
+				})
+				expect(response.status, endpoint).toBe(403)
+			}
+			const profile = await fetch(`${environment.apiBaseUrl}/api/v1/users/me`, { headers })
+			expect(await profile.json()).toMatchObject({ data: { organizations: [{ active: false }] } })
+			expect(environment.sessions.size).toBe(0)
+		} finally {
+			await environment.dispose()
 		}
 	})
 

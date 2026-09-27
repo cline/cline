@@ -349,6 +349,50 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(cloudSessions.listSessions).toHaveBeenCalledTimes(2)
 	})
 
+	it("answers History listed by the account mutation without waiting on the transition", async () => {
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.listHistoryRecords()
+		let listedDuringSwitch: unknown
+		const changeScope = vi.fn(async () => {
+			// Refreshing auth posts state, which lists History (and so cloud rows).
+			listedDuringSwitch = await coordinator.listHistoryRecords()
+		})
+		vi.mocked(options.postStateToWebview).mockClear()
+
+		await coordinator.reset(changeScope)
+
+		expect(changeScope).toHaveBeenCalledOnce()
+		expect(listedDuringSwitch).toEqual([])
+		expect(options.postStateToWebview).toHaveBeenCalled()
+		expect(await coordinator.listHistoryRecords()).toMatchObject([{ sessionId: record.id }])
+		expect(cloudSessions.listSessions).toHaveBeenCalledTimes(2)
+	})
+
+	it("omits old rows immediately while task teardown posts History", async () => {
+		const clearing = deferred<void>()
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.listHistoryRecords()
+		options.setTask({ taskId: record.id } as never)
+		vi.mocked(options.clearTask).mockReturnValue(clearing.promise)
+		const switching = coordinator.reset()
+		expect(await coordinator.listHistoryRecords()).toEqual([])
+		expect(await coordinator.findHistoryRecord(record.id)).toBeUndefined()
+		clearing.resolve()
+		await switching
+	})
+
+	it("refreshes History after an account mutation fails", async () => {
+		const { coordinator, options } = makeCoordinator()
+		await expect(
+			coordinator.reset(async () => {
+				throw new Error("refresh failed")
+			}),
+		).rejects.toThrow("refresh failed")
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
 	it("does not stamp a fresh cache timestamp when an old request fails after reset", async () => {
 		const oldList = deferred<CloudSessionRecord[]>()
 		const entered = deferred<void>()

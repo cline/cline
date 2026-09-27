@@ -18,6 +18,9 @@ export interface ClineAuthContextType {
 	clineUser: ClineUser | null
 	organizations: UserOrganization[] | null
 	activeOrganization: UserOrganization | null
+	accountSwitch: { organizationId: string | undefined; slow: boolean } | null
+	accountSwitchError: string | null
+	switchOrganization: (organizationId?: string) => Promise<boolean>
 }
 
 export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
@@ -26,13 +29,17 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const [user, setUser] = useState<ClineUser | null>(null)
 	const [userOrganizations, setUserOrganizations] = useState<UserOrganization[] | null>(null)
 	const organizationsRequestIdRef = useRef(0)
+	const userIdRef = useRef<string | undefined>(undefined)
+	const switchRequestRef = useRef<object | null>(null)
+	const [accountSwitch, setAccountSwitch] = useState<ClineAuthContextType["accountSwitch"]>(null)
+	const [accountSwitchError, setAccountSwitchError] = useState<string | null>(null)
 
 	const getUserOrganizations = useCallback(async () => {
 		const requestId = ++organizationsRequestIdRef.current
 		try {
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (requestId !== organizationsRequestIdRef.current) {
-				return
+				return undefined
 			}
 			setUserOrganizations((old) => {
 				if (!deepEqual(response.organizations, old)) {
@@ -41,10 +48,60 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 				return old
 			})
+			return response.organizations
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
+			if (requestId === organizationsRequestIdRef.current) {
+				setAccountSwitchError("Could not confirm the active account. Check your connection and reopen Account.")
+			}
+			return undefined
 		}
 	}, [])
+
+	// The provider outlives AccountView, including navigation from host-owned
+	// toolbar buttons. A switch remains owned until its RPC actually settles.
+	const switchOrganization = useCallback(
+		async (organizationId?: string) => {
+			if (switchRequestRef.current) return false
+			const request = {}
+			switchRequestRef.current = request
+			setAccountSwitch({ organizationId, slow: false })
+			setAccountSwitchError(null)
+			const timer = setTimeout(() => {
+				if (switchRequestRef.current === request) setAccountSwitch({ organizationId, slow: true })
+			}, 10_000)
+			let succeeded = false
+			try {
+				await AccountServiceClient.setUserOrganization({ organizationId })
+				succeeded = true
+			} catch (error) {
+				if (switchRequestRef.current === request) {
+					setAccountSwitchError(error instanceof Error ? error.message : String(error))
+				}
+			} finally {
+				if (switchRequestRef.current === request) {
+					// Failure does not imply rollback: the PUT may have succeeded before
+					// auth refresh failed. Re-read the server instead of assuming rollback.
+					const organizations = await getUserOrganizations()
+					succeeded =
+						succeeded &&
+						!!organizations &&
+						(organizations.find((org) => org.active)?.organizationId ?? undefined) === organizationId
+					if (switchRequestRef.current === request) {
+						switchRequestRef.current = null
+						setAccountSwitch(null)
+					} else {
+						succeeded = false
+					}
+				} else {
+					succeeded = false
+				}
+				clearTimeout(timer)
+			}
+			return succeeded
+		},
+		[getUserOrganizations],
+	)
 
 	const activeOrganization = useMemo(() => {
 		return userOrganizations?.find((org) => org.active) ?? null
@@ -59,8 +116,18 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
 			onResponse: (response: AuthState) => {
 				const responseUser = response.user
+				if (userIdRef.current !== responseUser?.uid) {
+					userIdRef.current = responseUser?.uid
+					switchRequestRef.current = null
+					setAccountSwitch(null)
+					setAccountSwitchError(null)
+					setUserOrganizations(null)
+				}
 				if (!responseUser?.uid) {
 					organizationsRequestIdRef.current++
+					switchRequestRef.current = null
+					setAccountSwitch(null)
+					setAccountSwitchError(null)
 					setUser(null)
 					setUserOrganizations(null)
 					return
@@ -86,6 +153,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		// Cleanup function to cancel subscription when component unmounts
 		return () => {
 			organizationsRequestIdRef.current++
+			switchRequestRef.current = null
 			cancelSubscription()
 		}
 	}, [getUserOrganizations])
@@ -96,6 +164,9 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				clineUser: user,
 				organizations: userOrganizations,
 				activeOrganization,
+				accountSwitch,
+				accountSwitchError,
+				switchOrganization,
 			}}>
 			{children}
 		</ClineAuthContext.Provider>

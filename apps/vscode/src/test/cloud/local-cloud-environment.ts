@@ -13,9 +13,31 @@ import {
 	startHubWebSocketServer,
 } from "@cline/core"
 import WebSocket, { type RawData, WebSocketServer } from "ws"
+import type { UserResponse } from "@/shared/ClineAccount"
 
 const LOOPBACK_HOST = "127.0.0.1"
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth."
+const FIXTURE_USER_ID = "local-cloud-user"
+const FIXTURE_ORGANIZATION = {
+	organizationId: "local-cloud-organization",
+	memberId: "local-cloud-member",
+	name: "Local Cloud QA",
+	roles: ["owner"],
+} satisfies Omit<UserResponse["organizations"][number], "active">
+const PERSONAL_REPOSITORY = {
+	id: 1,
+	name: "fixture",
+	full_name: "cline/fixture",
+	html_url: "https://github.com/cline/fixture",
+	default_branch: "main",
+}
+const ORGANIZATION_REPOSITORY = {
+	id: 2,
+	name: "organization-fixture",
+	full_name: "cline/organization-fixture",
+	html_url: "https://github.com/cline/organization-fixture",
+	default_branch: "main",
+}
 
 export interface LocalCloudSessionRecord {
 	id: string
@@ -31,6 +53,7 @@ export interface LocalCloudSessionRecord {
 
 interface OwnedSandbox {
 	record: LocalCloudSessionRecord
+	organizationId: string | null
 	root: string
 	hub?: HubWebSocketServer
 	sessionStore?: SqliteSessionStore
@@ -98,6 +121,7 @@ export async function startLocalCloudEnvironment(
 	const provisioningDelayMs = options.provisioningDelayMs ?? 0
 	const root = await mkdtemp(path.join(options.tempDir ?? tmpdir(), "cline-local-cloud-"))
 	const sessions = new Map<string, OwnedSandbox>()
+	let activeOrganizationId: string | null = null
 	const sockets = new Set<Socket>()
 	const bridgedSockets = new Set<WebSocket>()
 	const activations = new Map<string, Promise<OwnedSandbox>>()
@@ -162,43 +186,97 @@ export async function startLocalCloudEnvironment(
 				return json(res, 200, {
 					success: true,
 					data: {
-						id: "local-cloud-user",
+						id: FIXTURE_USER_ID,
 						email: "local-cloud@example.test",
 						displayName: "Local Cloud Developer",
-						organizations: [],
+						photoUrl: "",
+						organizations: [{ ...FIXTURE_ORGANIZATION, active: activeOrganizationId !== null }],
 						createdAt: now,
 						updatedAt: now,
-					},
+					} satisfies UserResponse,
 				})
 			}
+			if (url.pathname === "/api/v1/users/active-account" && req.method === "PUT") {
+				const input = await readJson(req)
+				const organizationId = input.organizationId ?? null
+				if (organizationId !== null && organizationId !== FIXTURE_ORGANIZATION.organizationId) {
+					return json(res, 403, { error: "Unknown fixture organization" })
+				}
+				// The switch commits before the response; subsequent profile reads see it.
+				activeOrganizationId = organizationId
+				return json(res, 200, { success: true, data: "Active account updated" })
+			}
+			if (url.pathname === "/api/v1/users/me/remote-config" && req.method === "GET") {
+				return json(res, 200, { success: true, data: null })
+			}
+			if (req.method === "GET") {
+				const userPath = `/api/v1/users/${FIXTURE_USER_ID}`
+				const organizationPath = `/api/v1/organizations/${FIXTURE_ORGANIZATION.organizationId}`
+				if (url.pathname === `${userPath}/balance`) {
+					return json(res, 200, { success: true, data: { balance: 100, userId: FIXTURE_USER_ID } })
+				}
+				if (url.pathname === `${organizationPath}/balance`) {
+					return json(res, 200, {
+						success: true,
+						data: { balance: 250, organizationId: FIXTURE_ORGANIZATION.organizationId },
+					})
+				}
+				if (
+					url.pathname === `${userPath}/usages` ||
+					url.pathname === `${organizationPath}/members/${FIXTURE_ORGANIZATION.memberId}/usages`
+				) {
+					return json(res, 200, { success: true, data: { items: [] } })
+				}
+				if (url.pathname === `${userPath}/payments`) {
+					return json(res, 200, { success: true, data: { paymentTransactions: [] } })
+				}
+				if (url.pathname === `${organizationPath}/remote-config`) {
+					return json(res, 200, { success: true, data: { enabled: false, value: "{}" } })
+				}
+			}
 
-			if (url.pathname === "/api/v1/integrations/github/repositories" && req.method === "GET") {
+			const repositoryPath = url.pathname.match(
+				/^\/api\/v1(?:\/organizations\/([^/]+))?\/integrations\/github\/repositories(?:\/(\d+)\/branches)?$/,
+			)
+			if (repositoryPath && req.method === "GET") {
+				const organizationId = repositoryPath[1] ? decodeURIComponent(repositoryPath[1]) : null
+				if (organizationId !== null && organizationId !== FIXTURE_ORGANIZATION.organizationId) {
+					return json(res, 403, { error: "Unknown fixture organization" })
+				}
+				const repository = organizationId ? ORGANIZATION_REPOSITORY : PERSONAL_REPOSITORY
+				if (repositoryPath[2]) {
+					if (Number(repositoryPath[2]) !== repository.id) return json(res, 404, { error: "Repository not found" })
+					return json(res, 200, {
+						success: true,
+						data: [{ name: repository.default_branch }, { name: repository.name }],
+					})
+				}
 				// CLINE_LOCAL_CLOUD_NO_REPOSITORIES=1 reproduces a connected GitHub App with
 				// no accessible repositories, so Cloud can be selected without a repository.
 				if (process.env.CLINE_LOCAL_CLOUD_NO_REPOSITORIES === "1") {
 					return json(res, 200, { success: true, data: [] })
 				}
-				return json(res, 200, {
-					success: true,
-					data: [
-						{
-							id: 1,
-							name: "fixture",
-							full_name: "cline/fixture",
-							html_url: "https://github.com/cline/fixture",
-							default_branch: "main",
-						},
-					],
-				})
-			}
-			if (url.pathname === "/api/v1/integrations/github/repositories/1/branches" && req.method === "GET") {
-				return json(res, 200, { success: true, data: [{ name: "main" }, { name: "fixture" }] })
+				return json(res, 200, { success: true, data: [repository] })
 			}
 			if (url.pathname === "/api/v1/session" && req.method === "GET") {
-				return json(res, 200, { success: true, data: [...sessions.values()].map(({ record }) => record) })
+				const organizationId = url.searchParams.get("organizationId")
+				if (organizationId !== null && organizationId !== FIXTURE_ORGANIZATION.organizationId) {
+					return json(res, 403, { error: "Unknown fixture organization" })
+				}
+				return json(res, 200, {
+					success: true,
+					data: [...sessions.values()]
+						.filter((owned) => owned.organizationId === organizationId)
+						.map(({ record }) => record),
+				})
 			}
 			if (url.pathname === "/api/v1/session" && req.method === "POST") {
 				const input = await readJson(req)
+				// Scope belongs to the create request, even if the account switches during provisioning.
+				const organizationId = input.organizationId ?? null
+				if (organizationId !== null && organizationId !== FIXTURE_ORGANIZATION.organizationId) {
+					return json(res, 403, { error: "Unknown fixture organization" })
+				}
 				const id = `ses-${randomUUID()}`
 				const taskId = `tsk-${randomUUID()}`
 				const sandboxRoot = await mkdtemp(path.join(root, "sandbox-"))
@@ -219,7 +297,7 @@ export async function startLocalCloudEnvironment(
 					createdAt: now,
 					updatedAt: now,
 				}
-				const owned: OwnedSandbox = { record, root: sandboxRoot }
+				const owned: OwnedSandbox = { record, organizationId, root: sandboxRoot }
 				sessions.set(id, owned)
 				if (provisioning) {
 					owned.readyTimer = setTimeout(() => {
