@@ -51,7 +51,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			return response.organizations
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
-			if (requestId === organizationsRequestIdRef.current) {
+			if (requestId === organizationsRequestIdRef.current && switchRequestRef.current) {
 				setAccountSwitchError("Could not confirm the active account. Check your connection and reopen Account.")
 			}
 			return undefined
