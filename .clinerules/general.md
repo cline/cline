@@ -21,6 +21,11 @@ This file is the secret sauce for working effectively in this codebase. It captu
 - When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 - Additional instructions about making requests: @.clinerules/network.md
 
+## Workspace package names & the `bun -F` filter
+
+- **`@cline/vscode` is NOT the extension.** In the workspace, `@cline/vscode` = `apps/examples/vscode` (an example app whose scripts are only `build`/`watch`/`typecheck`/`test`/`dev` — no `test:unit`). The real VS Code extension is `apps/vscode`, whose package name is **`claude-dev`** (publisher `saoudrizwan`), so extension unit tests are `bun -F claude-dev test:unit` (integration: `test:integration`). Conversely `@cline/code` genuinely is the desktop app (`apps/examples/desktop-app`). The root `test`/`test:unit` aggregates now additionally run `bun -F claude-dev test:unit`; the extension's `test:integration`/`test:e2e` stay out of the root `test` because CI jobs that consume it (e.g. `cli-publish.yml`) lack VS Code GUI libraries — those run in `.github/workflows/ext-vscode-test.yml` instead.
+- **`bun -F` form:** `bun -F <package> <script>` (e.g. `bun -F @cline/shared test:unit`). Do not insert `run` — `bun -F <package> run <script>` fails with `error: No packages matched the filter`. That *same* error is also emitted when the package exists but lacks the named script (which is what `-F @cline/vscode test:unit` does), so when you see it, check the target package's `name` and `scripts` before assuming the filter is wrong. Verified on bun 1.3.13.
+
 ## Searching the Codebase — Avoiding Build Output
 
 Several directories contain build output or generated code that produces
