@@ -1,25 +1,106 @@
-function parseModelIdList(input: unknown): string[] {
+export interface ModelSourceEntry {
+	id: string;
+	/**
+	 * `context_length` reported by the source payload, when present. Model
+	 * catalogs built from these entries would otherwise fall back to the
+	 * 128K default input budget, and auto-compaction would trigger far below
+	 * what the backend actually accepts.
+	 */
+	contextLength?: number;
+	/** `max_completion_tokens` reported by the source payload, when present. */
+	maxCompletionTokens?: number;
+}
+
+function parseOptionalCount(value: unknown): number | undefined {
+	if (typeof value !== "number" && typeof value !== "string") {
+		return undefined;
+	}
+	const parsed = Number(value);
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/**
+ * Collapse entries that share an id, keeping the first position and the first
+ * defined limit per field. Sources occasionally repeat an id (a bare entry
+ * after a full record, or a provider overlap); a repeat without limits must
+ * not erase a budget the same payload already reported.
+ */
+export function mergeModelEntries(
+	entries: ModelSourceEntry[],
+): ModelSourceEntry[] {
+	const byId = new Map<string, ModelSourceEntry>();
+	for (const entry of entries) {
+		const existing = byId.get(entry.id);
+		byId.set(
+			entry.id,
+			existing
+				? {
+						id: entry.id,
+						contextLength: existing.contextLength ?? entry.contextLength,
+						maxCompletionTokens:
+							existing.maxCompletionTokens ?? entry.maxCompletionTokens,
+					}
+				: entry,
+		);
+	}
+	return [...byId.values()];
+}
+
+function parseModelRecordMap(
+	input: Record<string, unknown>,
+): ModelSourceEntry[] {
+	return Object.entries(input)
+		.filter(([key]) => key.trim().length > 0)
+		.map(([key, value]) => {
+			const record =
+				value && typeof value === "object" && !Array.isArray(value)
+					? (value as {
+							context_length?: unknown;
+							max_completion_tokens?: unknown;
+						})
+					: undefined;
+			return {
+				id: key.trim(),
+				contextLength: parseOptionalCount(record?.context_length),
+				maxCompletionTokens: parseOptionalCount(record?.max_completion_tokens),
+			};
+		});
+}
+
+function parseModelIdList(input: unknown): ModelSourceEntry[] {
 	if (!Array.isArray(input)) return [];
 	return input
 		.map((item) => {
-			if (typeof item === "string") return item.trim();
+			if (typeof item === "string") return { id: item.trim() };
 			if (item && typeof item === "object") {
-				const entry = item as { id?: unknown; name?: unknown; model?: unknown };
+				const entry = item as {
+					id?: unknown;
+					name?: unknown;
+					model?: unknown;
+					context_length?: unknown;
+					max_completion_tokens?: unknown;
+				};
 				for (const value of [entry.id, entry.name, entry.model]) {
 					if (typeof value === "string" && value.trim()) {
-						return value.trim();
+						return {
+							id: value.trim(),
+							contextLength: parseOptionalCount(entry.context_length),
+							maxCompletionTokens: parseOptionalCount(
+								entry.max_completion_tokens,
+							),
+						};
 					}
 				}
 			}
-			return "";
+			return { id: "" };
 		})
-		.filter((id) => id.length > 0);
+		.filter((entry) => entry.id.length > 0);
 }
 
-export function extractModelIdsFromPayload(
+export function extractModelEntriesFromPayload(
 	payload: unknown,
 	providerId: string,
-): string[] {
+): ModelSourceEntry[] {
 	const rootArray = parseModelIdList(payload);
 	if (rootArray.length > 0) return rootArray;
 	if (!payload || typeof payload !== "object") return [];
@@ -38,24 +119,42 @@ export function extractModelIdsFromPayload(
 		typeof data.models === "object" &&
 		!Array.isArray(data.models)
 	) {
-		const keys = Object.keys(data.models).filter((k) => k.trim().length > 0);
-		if (keys.length > 0) return keys;
+		const entries = parseModelRecordMap(data.models as Record<string, unknown>);
+		if (entries.length > 0) return entries;
 	}
 
 	const scoped = data.providers?.[providerId];
 	if (scoped && typeof scoped === "object") {
-		const nested = scoped as { models?: unknown };
-		const list = parseModelIdList(nested.models ?? scoped);
-		if (list.length > 0) return list;
+		// The scoped entry itself can be a bare array of ids.
+		if (Array.isArray(scoped)) {
+			const list = parseModelIdList(scoped);
+			if (list.length > 0) return list;
+		} else {
+			const nested = scoped as { models?: unknown };
+			if (Array.isArray(nested.models)) {
+				const list = parseModelIdList(nested.models);
+				if (list.length > 0) return list;
+			}
+			if (
+				nested.models &&
+				typeof nested.models === "object" &&
+				!Array.isArray(nested.models)
+			) {
+				const entries = parseModelRecordMap(
+					nested.models as Record<string, unknown>,
+				);
+				if (entries.length > 0) return entries;
+			}
+		}
 	}
 
 	return [];
 }
 
-export async function fetchModelIdsFromSource(
+export async function fetchModelEntriesFromSource(
 	url: string,
 	providerId: string,
-): Promise<string[]> {
+): Promise<ModelSourceEntry[]> {
 	const response = await fetch(url, {
 		method: "GET",
 		signal: AbortSignal.timeout(5_000),
@@ -65,7 +164,7 @@ export async function fetchModelIdsFromSource(
 			`failed to fetch models from ${url}: HTTP ${response.status}`,
 		);
 	}
-	return extractModelIdsFromPayload(
+	return extractModelEntriesFromPayload(
 		(await response.json()) as unknown,
 		providerId,
 	);
