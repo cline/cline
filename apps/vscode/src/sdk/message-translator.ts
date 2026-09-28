@@ -1301,6 +1301,33 @@ function finalizeDanglingCompaction(
 	messages.push(buildCompactionMessage({ status, mode: "auto" }, ts))
 }
 
+/**
+ * Renders a turn failure: an api_req_started carrying the error, so the
+ * request row shows it via ErrorRow instead of a spinner, then
+ * ask:"api_req_failed" as the last message, so the webview offers recovery
+ * (Retry, Buy Credits, Sign In). The error text is reshaped into the
+ * ClineError JSON that ErrorRow parses to pick a special card, e.g. the
+ * Cline provider's 402 `insufficient_credits` body.
+ */
+function pushTurnErrorRows(
+	messages: ClineMessage[],
+	state: MessageTranslatorState,
+	error: { message?: string; status?: number; code?: string },
+	errorClass?: ProviderErrorClass,
+): void {
+	const errorPayload = reshapeErrorForWebview(error, state.activeProviderId(), state.activeModelId(), errorClass)
+	messages.push(
+		{
+			ts: state.nextTs(),
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({ streamingFailedMessage: errorPayload } satisfies ClineApiReqInfo),
+			partial: false,
+		},
+		{ ts: state.nextTs(), type: "ask", ask: "api_req_failed", text: errorPayload, partial: false },
+	)
+}
+
 function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
 	const messages: ClineMessage[] = []
 
@@ -1929,9 +1956,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			finalizeDanglingCompaction(state, messages, "cancelled")
 
 			// A turn can terminate with done(reason:"error") without a separate
-			// "error" event — record the error outcome here too so turn end still
-			// resolves to the "error" phase (Retry / Start New Task).
-			if (event.reason === "error") {
+			// "error" event: a Hub-hosted (cloud) session forwards only the run's
+			// terminal result, whose text is the failure message. Record the
+			// error outcome so turn end resolves to the "error" phase (Retry /
+			// Start New Task), and render the failure unless an "error" event
+			// already did.
+			if (event.reason === "error" && !state.wasErrorSeen() && !state.isSuppressedToolApprovalDenial(event.text)) {
+				state.clearTurnFinalText()
+				state.setErrorSeen()
+				pushTurnErrorRows(messages, state, { message: event.text || undefined })
+			} else if (event.reason === "error") {
 				state.setErrorSeen()
 			}
 
@@ -1988,46 +2022,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// (footer shows Retry / Start New Task) instead of awaiting_followup.
 			state.setErrorSeen()
 
-			// Serialize the error message for the webview's ErrorRow to parse.
-			// The webview uses ClineError.parse() on the `api_req_failed` text to
-			// detect special error types (insufficient credits, spend limit, auth,
-			// quota exceeded) and render appropriate UI (e.g. "Add Credits" button).
-			//
-			// The error object from the SDK is a standard JS Error. Its `message`
-			// may contain JSON from the API (e.g. Cline provider's 402 response with
-			// `code: "insufficient_credits"`). We try to reshape it into the
-			// ClineError-serialized format the webview expects so that ErrorRow
-			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(
-				event.error,
-				state.activeProviderId(),
-				state.activeModelId(),
-				event.errorClass,
-			)
-
-			// Emit an api_req_started with streamingFailedMessage so the
-			// RequestStartRow renders the error via ErrorRow. This replaces
-			// the spinner on the last API request row.
-			messages.push({
-				ts: state.nextTs(),
-				type: "say",
-				say: "api_req_started",
-				text: JSON.stringify({
-					streamingFailedMessage: errorPayload,
-				} satisfies ClineApiReqInfo),
-				partial: false,
-			})
-
-			// Emit ask:"api_req_failed" as the LAST message so the webview
-			// shows error recovery UI (Retry button, Add Credits button,
-			// Sign In button, etc.) instead of a stuck "Thinking..." spinner.
-			messages.push({
-				ts: state.nextTs(),
-				type: "ask",
-				ask: "api_req_failed",
-				text: errorPayload,
-				partial: false,
-			})
+			pushTurnErrorRows(messages, state, event.error, event.errorClass)
 			break
 		}
 
