@@ -201,7 +201,11 @@ export async function refreshClineRulesToggles(
 	const localClineRulesToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 	const localRuleDirectories = resolveWorkspaceRulesConfigPaths(workingDirectory)
 	const updatedLocalToggles = await reconcileRuleTogglesWithFrontmatter(
-		await synchronizeRuleTogglesAcrossDirectories(localRuleDirectories, localClineRulesToggles, CLINERULES_EXCLUDED_SUBDIRECTORIES),
+		await synchronizeRuleTogglesAcrossDirectories(
+			localRuleDirectories,
+			localClineRulesToggles,
+			CLINERULES_EXCLUDED_SUBDIRECTORIES,
+		),
 		localRuleDirectories,
 	)
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)

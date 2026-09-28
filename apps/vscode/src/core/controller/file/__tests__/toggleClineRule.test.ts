@@ -71,7 +71,21 @@ describe("toggleClineRule", () => {
 		expect(await fs.readFile(rulePath, "utf-8")).toBe("Follow this rule")
 	})
 
-	it("updates state but leaves the file alone when the path is outside the workspace .clinerules", async () => {
+	it("also writes rules under the .cline/rules layout", async () => {
+		const rulePath = path.join(workspace, ".cline", "rules", "new-layout.md")
+		await fs.mkdir(path.dirname(rulePath), { recursive: true })
+		await fs.writeFile(rulePath, "New layout rule")
+		const { controller } = createController()
+
+		await toggleClineRule(
+			controller as never,
+			ToggleClineRuleRequest.create({ scope: RuleScope.LOCAL, rulePath, enabled: false }),
+		)
+
+		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).toBe(true)
+	})
+
+	it("updates state but leaves the file alone when the path is outside the workspace rule directories", async () => {
 		const rulePath = path.join(workspace, "README.md")
 		await fs.writeFile(rulePath, "Not a rule")
 		const { controller, localToggles } = createController()
