@@ -12,6 +12,7 @@ import {
 	SqliteSessionStore,
 	startHubWebSocketServer,
 } from "@cline/core"
+import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import WebSocket, { type RawData, WebSocketServer } from "ws"
 import type { UserResponse } from "@/shared/ClineAccount"
 
@@ -59,11 +60,15 @@ interface OwnedSandbox {
 	sessionStore?: SqliteSessionStore
 	/** Pending flip from `provisioning` to `ready`. */
 	readyTimer?: ReturnType<typeof setTimeout>
+	/** Transcript snapshot served by GET /history once the sandbox is gone. */
+	archive?: SdkMessage[]
 }
 
 export interface LocalCloudEnvironment {
 	readonly apiBaseUrl: string
 	readonly accessToken: string
+	/** The fetch every sandbox uses for model requests; scripted, never leaves the process. */
+	readonly modelFetch: typeof fetch
 	readonly sessions: ReadonlyMap<string, OwnedSandbox>
 	activateSession(sessionId: string): Promise<OwnedSandbox>
 	/** Drop only the client transport; the sandbox continues running. */
@@ -88,15 +93,60 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 	return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>
 }
 
-function scriptedModelFetch(beforeResponse?: (signal?: AbortSignal | null) => Promise<void>): typeof fetch {
+/** The 402 body the hosted chat router sends when the account runs out of credits. */
+const INSUFFICIENT_CREDITS_RESPONSE = {
+	error: {
+		code: "insufficient_credits",
+		message: "Not enough credits available",
+		current_balance: 0.01,
+		total_spent: 4.99,
+		total_promotions: 0,
+		buy_credits_url: "http://127.0.0.1/credits",
+	},
+}
+
+function isExpired(record: LocalCloudSessionRecord): boolean {
+	return typeof record.expiredAt === "string" && Date.parse(record.expiredAt) <= Date.now()
+}
+
+/** The archived transcript captured from a sandbox before it expired. */
+function archivedTranscript(taskId: string, capturedAt: number): SdkMessage[] {
+	return [
+		{
+			role: "user",
+			content: '<user_input mode="act">Summarize the fixture repository.</user_input>',
+			sessionId: taskId,
+			ts: capturedAt,
+		},
+		{
+			role: "assistant",
+			content: [{ type: "text", text: "cloud fixture reply" }],
+			sessionId: taskId,
+			modelInfo: { id: "fixture-model", provider: "cline" },
+			metrics: { inputTokens: 1, outputTokens: 3 },
+			ts: capturedAt + 1_000,
+		},
+	]
+}
+
+function scriptedModelFetch(options: {
+	beforeResponse?: (signal?: AbortSignal | null) => Promise<void>
+	insufficientCredits?: boolean
+}): typeof fetch {
 	const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
 		const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url)
 		if (url.hostname !== "api.cline.bot" || url.pathname !== "/api/v1/chat/completions") {
 			throw new Error(`Local cloud fixture blocked unexpected model request to ${url.toString()}`)
 		}
 		if (init?.signal?.aborted) throw init.signal.reason
-		await beforeResponse?.(init?.signal)
+		await options.beforeResponse?.(init?.signal)
 		if (init?.signal?.aborted) throw init.signal.reason
+		if (options.insufficientCredits) {
+			return new Response(JSON.stringify(INSUFFICIENT_CREDITS_RESPONSE), {
+				status: 402,
+				headers: { "content-type": "application/json" },
+			})
+		}
 		const body = [
 			`data: ${JSON.stringify({ choices: [{ index: 0, delta: { role: "assistant", content: "cloud fixture reply" }, finish_reason: null }] })}\n\n`,
 			`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 3, total_tokens: 4 } })}\n\n`,
@@ -115,12 +165,48 @@ export async function startLocalCloudEnvironment(
 		beforeModelResponse?: (signal?: AbortSignal | null) => Promise<void>
 		/** How long a new sandbox reports `provisioning` before `ready`. Default: ready at once. */
 		provisioningDelayMs?: number
+		/** Seed two Personal sessions whose sandboxes expired an hour ago: one with an archived transcript, one without. */
+		seedExpiredSessions?: boolean
+		/** Every scripted model reply is the hosted API's 402 insufficient-credits response. */
+		insufficientCredits?: boolean
 	} = {},
 ): Promise<LocalCloudEnvironment> {
 	const accessToken = options.accessToken ?? `local-cloud-${randomUUID()}`
 	const provisioningDelayMs = options.provisioningDelayMs ?? 0
+	const modelFetch = scriptedModelFetch({
+		beforeResponse: options.beforeModelResponse,
+		insufficientCredits: options.insufficientCredits,
+	})
 	const root = await mkdtemp(path.join(options.tempDir ?? tmpdir(), "cline-local-cloud-"))
 	const sessions = new Map<string, OwnedSandbox>()
+	if (options.seedExpiredSessions) {
+		// The hosted control plane leaves an expired session's stored status as it
+		// was ("active") and lets expiredAt decide; readers compare it with now.
+		const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000
+		const expiredAt = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+		for (const [title, archived] of [
+			["Archived fixture task", true],
+			["Unarchived fixture task", false],
+		] as const) {
+			const id = `ses-${randomUUID()}`
+			const taskId = `tsk-${randomUUID()}`
+			sessions.set(id, {
+				record: {
+					id,
+					status: "active",
+					title,
+					repoContext: { repoUrl: PERSONAL_REPOSITORY.html_url, branch: PERSONAL_REPOSITORY.default_branch },
+					metadata: { modelId: "fixture-model", taskId },
+					expiredAt,
+					createdAt: new Date(twoDaysAgo).toISOString(),
+					updatedAt: new Date(twoDaysAgo).toISOString(),
+				},
+				organizationId: null,
+				root: await mkdtemp(path.join(root, "sandbox-")),
+				archive: archived ? archivedTranscript(taskId, twoDaysAgo) : undefined,
+			})
+		}
+	}
 	let activeOrganizationId: string | null = null
 	const sockets = new Set<Socket>()
 	const bridgedSockets = new Set<WebSocket>()
@@ -141,7 +227,7 @@ export async function startLocalCloudEnvironment(
 					sessionService: new CoreSessionService(sessionStore, {
 						sessionArtifactsDir: path.join(owned.root, "sessions"),
 					}),
-					fetch: scriptedModelFetch(options.beforeModelResponse),
+					fetch: modelFetch,
 				})
 				const hub = await startHubWebSocketServer({
 					host: LOOPBACK_HOST,
@@ -151,9 +237,7 @@ export async function startLocalCloudEnvironment(
 					eventLog: false,
 					runQueue: false,
 					sessionHost,
-					runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
-						fetch: scriptedModelFetch(options.beforeModelResponse),
-					}),
+					runtimeHandlers: createLocalHubScheduleRuntimeHandlers({ fetch: modelFetch }),
 				})
 				owned.hub = hub
 				owned.sessionStore = sessionStore
@@ -322,9 +406,28 @@ export async function startLocalCloudEnvironment(
 			if (!match) return json(res, 404, { error: "Not found" })
 			const owned = sessions.get(decodeURIComponent(match[1]))
 			if (!owned) return json(res, 404, { error: "Session not found" })
-			if (match[2] === "status" && req.method === "GET")
-				return json(res, 200, { success: true, data: { status: owned.record.status } })
-			if (match[2] === "history" && req.method === "GET") return json(res, 200, { success: true, data: { messages: [] } })
+			if (match[2] === "status" && req.method === "GET") {
+				return json(res, 200, {
+					success: true,
+					data: { status: isExpired(owned.record) ? "expired" : owned.record.status },
+				})
+			}
+			if (match[2] === "history" && req.method === "GET") {
+				// Live sandboxes have no snapshot yet; the hosted API only stores one
+				// when the client disconnects. Expired sessions serve the snapshot
+				// they captured, or answer 404 when the sandbox never produced one.
+				if (!isExpired(owned.record)) return json(res, 200, { success: true, data: { messages: [] } })
+				if (!owned.archive) return json(res, 404, { error: "no history captured for this session" })
+				return json(res, 200, {
+					success: true,
+					data: {
+						version: 1,
+						updated_at: owned.record.expiredAt,
+						sessionId: owned.record.metadata.taskId,
+						messages: owned.archive,
+					},
+				})
+			}
 			if (req.method === "GET") return json(res, 200, { success: true, data: owned.record })
 			if (req.method === "PATCH") {
 				const input = await readJson(req)
@@ -358,6 +461,13 @@ export async function startLocalCloudEnvironment(
 		if (!owned || presentedToken !== accessToken) {
 			socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n")
 			socket.destroy()
+			return
+		}
+		if (isExpired(owned.record)) {
+			const body = JSON.stringify({ error: "session expired", success: false })
+			socket.end(
+				`HTTP/1.1 410 Gone\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+			)
 			return
 		}
 		void activateSession(owned.record.id)
@@ -434,6 +544,7 @@ export async function startLocalCloudEnvironment(
 	return {
 		apiBaseUrl,
 		accessToken,
+		modelFetch,
 		sessions,
 		activateSession,
 		disconnectClients,
