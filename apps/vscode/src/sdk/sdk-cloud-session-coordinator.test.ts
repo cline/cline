@@ -1,7 +1,11 @@
+import * as sdkCore from "@cline/core"
 import type { CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { ClineEnv } from "@/config"
+import { resetClineRecommendedModelsCacheForTests } from "@/core/controller/models/refreshClineRecommendedModels"
 import { HostProvider } from "@/hosts/host-provider"
 import { CloudSessionError, type CloudSessionRecord, type CreateCloudSessionInput } from "@/services/cloud/CloudSessionsService"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
@@ -140,6 +144,49 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
+	it("starts the sandbox on the model the composer showed, even when a fresher recommendation lands first", async () => {
+		resetClineRecommendedModelsCacheForTests()
+		vi.spyOn(ClineEnv, "config").mockReturnValue({ apiBaseUrl: "https://api.cline-test.bot" } as ReturnType<
+			typeof ClineEnv.config
+		>)
+		const fetched = deferred<Awaited<ReturnType<typeof sdkCore.fetchClineRecommendedModels>>>()
+		vi.spyOn(sdkCore, "fetchClineRecommendedModels").mockReturnValue(fetched.promise)
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			stateManager: {
+				...makeStateManager(),
+				getApiConfiguration: () => ({ actModeApiProvider: "anthropic" }),
+			} as never,
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+
+		const shown = coordinator.getCloudModelId()
+		expect(shown).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		fetched.resolve({
+			recommended: [{ id: "fresh/model", name: "Fresh", description: "", tags: [] }],
+			free: [],
+			clinePass: [],
+		})
+		expect(await start).toBe(record.id)
+
+		expect(cloudSessions.createSession).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: shown }),
+			expect.any(Function),
+			expect.any(AbortSignal),
+		)
+		// The fresh list is for the next task: once the displayed task is gone the composer offers it.
+		await fetched.promise
+		options.setTask(undefined)
+		expect(coordinator.getCloudModelId()).toBe("fresh/model")
+		await coordinator.dispose()
+		resetClineRecommendedModelsCacheForTests()
+	})
+
 	it("refuses to connect when the control plane omits the canonical task id", async () => {
 		const withoutTaskId = { ...record, metadata: { modelId: "fixture-model" } }
 		const { coordinator, cloudSessions, options } = makeCoordinator()
@@ -180,12 +227,29 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(notice.text).toContain("start a new cloud task on cline/fixture (main)")
 		})
 
-		it("says when no conversation was archived", async () => {
-			const messages = await openExpired(async () => null)
-			expect(messages).toHaveLength(1)
-			expect(messages[0].say).toBe("info")
-			expect(messages[0].text).toContain("No conversation was saved")
+		it("does not present the last archived response as a completed task", async () => {
+			const assistantTurn = {
+				role: "assistant",
+				content: [{ type: "text", text: "archived reply" }],
+				timestamp: 600,
+			}
+			const messages = await openExpired(async () => [userTurn, assistantTurn])
+			const reply = messages.find((message) => message.text === "archived reply")!
+			expect(reply.say).toBe("text")
+			expect(messages.some((message) => message.say === "completion_result")).toBe(false)
 		})
+
+		for (const [archive, getHistory] of [
+			["no archive", async () => null],
+			["an empty archive", async () => []],
+		] as const) {
+			it(`says when no conversation was archived given ${archive}`, async () => {
+				const messages = await openExpired(getHistory)
+				expect(messages).toHaveLength(1)
+				expect(messages[0].say).toBe("info")
+				expect(messages[0].text).toContain("No conversation was saved")
+			})
+		}
 
 		it("says when the archive could not be loaded", async () => {
 			const messages = await openExpired(async () => {
