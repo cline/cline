@@ -2,6 +2,13 @@ export const HUB_THEME_STORAGE_KEY = "cline-hub-theme";
 
 export type HubTheme = "light" | "dark";
 
+/**
+ * The theme choice shown in Settings. "system" is stored as the absence of a
+ * saved theme, which the bootstrap script and watchSystemHubTheme already
+ * treat as "follow the OS".
+ */
+export type HubThemePreference = HubTheme | "system";
+
 export const DEFAULT_HUB_THEME: HubTheme = "dark";
 
 /**
@@ -87,6 +94,26 @@ export function setStoredHubTheme(theme: HubTheme): HubTheme {
 	return applyHubTheme(theme);
 }
 
+export function readHubThemePreference(): HubThemePreference {
+	return readStoredHubTheme() ?? "system";
+}
+
+export function setHubThemePreference(
+	preference: HubThemePreference,
+): HubThemePreference {
+	if (preference !== "system") {
+		setStoredHubTheme(preference);
+		return preference;
+	}
+	try {
+		window.localStorage.removeItem(HUB_THEME_STORAGE_KEY);
+	} catch {
+		// Following the system still works for this session.
+	}
+	applyHubTheme(readSystemHubTheme());
+	return preference;
+}
+
 export const HUB_ACCENT_STORAGE_KEY = "cline.code.accent.v1";
 
 /**
@@ -160,7 +187,10 @@ export function watchSystemHubTheme(
 		if (readStoredHubTheme() !== null) {
 			return;
 		}
-		onChange?.(applyHubTheme(readSystemHubTheme()));
+		// Apply before the optional call: `onChange?.(apply())` skips its
+		// arguments when there is no callback, so the theme would never change.
+		const theme = applyHubTheme(readSystemHubTheme());
+		onChange?.(theme);
 	};
 	media.addEventListener("change", handle);
 	return () => media.removeEventListener("change", handle);

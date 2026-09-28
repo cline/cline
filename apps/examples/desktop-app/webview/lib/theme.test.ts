@@ -10,12 +10,15 @@ import {
 	HUB_THEME_BOOTSTRAP_SCRIPT,
 	HUB_THEME_STORAGE_KEY,
 	isHubAccent,
+	readHubThemePreference,
 	readStoredHubAccent,
 	readStoredHubTheme,
 	readSystemHubTheme,
+	setHubThemePreference,
 	setStoredHubAccent,
 	syncHubAccent,
 	syncHubTheme,
+	watchSystemHubTheme,
 } from "./theme";
 
 afterEach(() => {
@@ -73,6 +76,69 @@ describe("hub theme", () => {
 
 		expect(document.documentElement.classList.contains("dark")).toBe(true);
 		expect(document.documentElement.dataset.clineHubTheme).toBe("dark");
+	});
+});
+
+describe("hub theme preference", () => {
+	it("reports system until a theme is saved", () => {
+		expect(readHubThemePreference()).toBe("system");
+
+		window.localStorage.setItem(HUB_THEME_STORAGE_KEY, "light");
+
+		expect(readHubThemePreference()).toBe("light");
+	});
+
+	it("saves and applies an explicit light or dark choice", () => {
+		setSystemTheme("dark");
+
+		expect(setHubThemePreference("light")).toBe("light");
+
+		expect(readStoredHubTheme()).toBe("light");
+		expect(document.documentElement.classList.contains("dark")).toBe(false);
+	});
+
+	it("clears the saved theme and applies the system one for system", () => {
+		setSystemTheme("light");
+		window.localStorage.setItem(HUB_THEME_STORAGE_KEY, "dark");
+		syncHubTheme();
+
+		expect(setHubThemePreference("system")).toBe("system");
+
+		expect(readStoredHubTheme()).toBeNull();
+		expect(document.documentElement.dataset.clineHubTheme).toBe("light");
+	});
+
+	it("follows OS changes again after switching back to system", () => {
+		let systemTheme: "light" | "dark" = "light";
+		const listeners = new Set<() => void>();
+		window.matchMedia = ((query: string) =>
+			({
+				get matches() {
+					return query === `(prefers-color-scheme: ${systemTheme})`;
+				},
+				media: query,
+				addEventListener: (_type: string, listener: () => void) =>
+					listeners.add(listener),
+				removeEventListener: (_type: string, listener: () => void) =>
+					listeners.delete(listener),
+			}) as unknown as MediaQueryList) as typeof window.matchMedia;
+		const changeSystemTheme = (next: "light" | "dark") => {
+			systemTheme = next;
+			for (const listener of listeners) listener();
+		};
+		// No callback, matching how the app shell calls it.
+		const stopWatching = watchSystemHubTheme();
+
+		setHubThemePreference("light");
+		changeSystemTheme("dark");
+		expect(document.documentElement.dataset.clineHubTheme).toBe("light");
+
+		setHubThemePreference("system");
+		expect(document.documentElement.dataset.clineHubTheme).toBe("dark");
+		changeSystemTheme("light");
+		expect(document.documentElement.dataset.clineHubTheme).toBe("light");
+
+		stopWatching();
 	});
 });
 
