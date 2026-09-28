@@ -2658,6 +2658,159 @@ describe("createContextCompactionPrepareTurn", () => {
 		assertBasicCompactionResult(result);
 	});
 
+	it("budgets canonical messages at their API size during basic compaction", async () => {
+		// The provider request carries message-builder-truncated tool results
+		// (8k chars), while the canonical transcript keeps the full output. Basic
+		// compaction must cost each message at the size the model actually
+		// sees, otherwise one canonical read already exceeds the target and the
+		// whole tool loop collapses to the bare prompt.
+		const canonicalResult = "x".repeat(80_000);
+		const apiResult = "x".repeat(8_000);
+		const transcript = (toolOutput: string): MessageWithMetadata[] => {
+			const messages: MessageWithMetadata[] = [
+				{
+					id: "prompt",
+					role: "user",
+					content: "Count ERROR lines in every log file",
+				},
+			];
+			for (let index = 0; index < 4; index += 1) {
+				messages.push(
+					{
+						id: `assistant-${index}`,
+						role: "assistant",
+						content: [
+							{
+								type: "tool_use",
+								id: `tool-${index}`,
+								name: "read_files",
+								input: { file_paths: [`/tmp/chunk_${index}.log`] },
+							},
+						],
+					},
+					{
+						id: `result-${index}`,
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: `tool-${index}`,
+								name: "read_files",
+								content: toolOutput,
+							},
+						],
+					},
+				);
+			}
+			return messages;
+		};
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic" },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 5,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			// Realistic request overhead (system prompt + tool schemas).
+			systemPrompt: "You are helpful. ".repeat(1_500),
+			tools: [],
+			messages: transcript(canonicalResult),
+			apiMessages: transcript(apiResult),
+			model: {
+				id: "mock-model",
+				provider: "openrouter",
+				info: { id: "mock-model", maxInputTokens: 32_768 },
+			},
+		});
+
+		expect(result?.messages.length).toBeGreaterThan(1);
+		expect(
+			result?.messages.filter((message) =>
+				Array.isArray(message.content)
+					? message.content.some((block) => block.type === "tool_result")
+					: false,
+			).length,
+		).toBeGreaterThan(0);
+	});
+
+	it("shapes a projected transcript for the API before compacting", async () => {
+		const compact = vi.fn(async (_context: unknown) => undefined);
+		const sourceMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "first answer" },
+			{ role: "user", content: "second prompt" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-1",
+						name: "read_files",
+						input: { file_paths: ["/tmp/large.log"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-1",
+						name: "read_files",
+						content: "x".repeat(48_000),
+					},
+				],
+			},
+		];
+		const state = createSessionCompactionState({
+			sourceMessages: sourceMessages.slice(0, 2),
+			compactedMessages: [{ role: "user", content: "summary" }],
+		});
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => state,
+		});
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: sourceMessages,
+			apiMessages: sourceMessages,
+			model: { id: "mock-model", provider: "anthropic" },
+		});
+
+		const call = compact.mock.calls[0]?.[0] as {
+			messages: MessageWithMetadata[];
+			apiMessages: MessageWithMetadata[];
+		};
+		expect(call.messages).toEqual([
+			{ role: "user", content: "summary" },
+			...sourceMessages.slice(2),
+		]);
+		// The projection itself is canonical; the API view the trigger budgets
+		// against carries the message-builder-truncated tool result.
+		expect(call.apiMessages).toHaveLength(call.messages.length);
+		expect(JSON.stringify(call.apiMessages).length).toBeLessThan(
+			JSON.stringify(call.messages).length / 4,
+		);
+	});
+
 	it("skips overflow-recovery compaction when there is nothing to remove", async () => {
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({

@@ -11,6 +11,10 @@ import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
 } from "../../session/models/session-compaction";
+import {
+	getMessageBuilderOptionsFromEnv,
+	MessageBuilder,
+} from "../../session/services/message-builder";
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
@@ -74,6 +78,43 @@ export type ContextPipelinePrepareTurn = (
 ) => Promise<ContextPipelinePrepareTurnResult | undefined>;
 
 type EstimateMessageTokens = ReturnType<typeof createTokenEstimator>;
+
+/**
+ * Estimate messages at the size the provider request will carry. The
+ * strategies slice canonical messages, but the message builder truncates
+ * large tool results (and similar payloads) before every request, so a
+ * 48k-char read the model sees as 8k must not be budgeted at 6x its real
+ * weight: costed canonically, basic compaction drops everything but the
+ * prompt, and the agentic tail estimate reports the request as larger after
+ * compaction than before. Shaping is per message, so the estimate survives
+ * the clones and rewrites the strategies produce; the canonical size stays
+ * the ceiling because the builder can only add small repair blocks.
+ */
+function createApiShapeTokenEstimator(): EstimateMessageTokens {
+	const builder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
+	const estimateCanonical = createTokenEstimator();
+	const cache = new WeakMap<object, number>();
+	return (message) => {
+		const cached = cache.get(message);
+		if (typeof cached === "number") {
+			return cached;
+		}
+		const canonicalTokens = estimateCanonical(message);
+		let tokens = canonicalTokens;
+		try {
+			tokens = Math.min(
+				canonicalTokens,
+				builder
+					.buildForApi([message])
+					.reduce((total, shaped) => total + estimateCanonical(shaped), 0),
+			);
+		} catch {
+			// Fall back to the canonical size for content the builder rejects.
+		}
+		cache.set(message, tokens);
+		return tokens;
+	};
+}
 
 type BuiltinCompactionStrategyOptions = {
 	context: CoreCompactionContext;
@@ -292,7 +333,7 @@ export function createContextCompactionPrepareTurn(
 		return undefined;
 	}
 
-	const estimateMessageTokens = createTokenEstimator();
+	const estimateMessageTokens = createApiShapeTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 	const mode = options.mode ?? "auto";
@@ -757,6 +798,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 		sourceMessages: CoreCompactionContext["messages"],
 	) => void | Promise<void>;
 }): ContextPipelinePrepareTurn {
+	const apiShapeBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
 	return async (context) => {
 		const existingState = input.getState?.();
 		const projectedMessages = existingState
@@ -767,11 +809,14 @@ export function createCompactionStateAwarePrepareTurn(input: {
 			// canonical tail. This keeps automatic turns bounded without rebuilding a
 			// full-transcript summary every turn; manual `/compact` is the path for a
 			// fresh summary from canonical history.
+			// The trigger estimate must see the projection as the provider will:
+			// costed canonically, a tail of large tool results reads as several
+			// times the real request and re-triggers compaction on every turn.
 			const result = input.compact
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: projectedMessages,
+						apiMessages: apiShapeBuilder.buildForApi(projectedMessages),
 					})
 				: undefined;
 			if (result?.messages) {
