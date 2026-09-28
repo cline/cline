@@ -82,7 +82,9 @@ import {
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
 	readExecutionTargetSelectionFromWindow,
+	writeCloudBranchToWindow,
 	writeCloudModelToWindow,
+	writeCloudRepoUrlToWindow,
 	writeExecutionTargetToWindow,
 } from "@/lib/execution-target-selection";
 import {
@@ -2111,14 +2113,17 @@ function ChatThreadPane({
 						workspaceRoot: prev.workspaceRoot,
 						cwd: prev.cwd,
 					};
+					// Same model and repo a new Cloud thread would open on.
+					const remembered = readExecutionTargetSelectionFromWindow();
 					return {
 						...prev,
 						executionTarget: "cloud",
 						provider: "cline",
-						// Same model a new Cloud thread would open on.
 						model:
-							readExecutionTargetSelectionFromWindow().cloudModel ||
+							remembered.cloudModel ||
 							(prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID),
+						repoUrl: remembered.cloudRepoUrl || undefined,
+						branch: remembered.cloudBranch || undefined,
 						apiKey: providerCredentials.cline?.apiKey ?? "",
 						workspaceRoot: "",
 						cwd: "",
@@ -2196,6 +2201,7 @@ function ChatThreadPane({
 
 	const handleCloudRepoUrlChange = useCallback(
 		(repoUrl: string) => {
+			writeCloudRepoUrlToWindow(repoUrl);
 			setConfig((prev) =>
 				prev.repoUrl === repoUrl ? prev : { ...prev, repoUrl },
 			);
@@ -2205,6 +2211,7 @@ function ChatThreadPane({
 
 	const handleCloudBranchChange = useCallback(
 		(branch: string) => {
+			writeCloudBranchToWindow(branch);
 			setConfig((prev) =>
 				prev.branch === branch ? prev : { ...prev, branch },
 			);

@@ -6135,7 +6135,12 @@ describe("useChatSession", () => {
 		);
 		window.localStorage.setItem(
 			EXECUTION_TARGET_STORAGE_KEY,
-			JSON.stringify({ target: "cloud", cloudModel: "cloud-model" }),
+			JSON.stringify({
+				target: "cloud",
+				cloudModel: "cloud-model",
+				cloudRepoUrl: "https://github.com/cline/cline",
+				cloudBranch: "dev",
+			}),
 		);
 		const hydratedSessionId = "session-local-history";
 		invokeMock.mockImplementation(
@@ -6173,10 +6178,12 @@ describe("useChatSession", () => {
 			executionTarget: "cloud",
 			provider: "cline",
 			model: "cloud-model",
+			repoUrl: "https://github.com/cline/cline",
+			branch: "dev",
 		});
 
 		// Opening a local session from history flips the pane to Local; a reset
-		// (new chat) goes back to the remembered Cloud target and cloud model.
+		// (new chat) goes back to the remembered Cloud target, model and repo.
 		await act(async () => {
 			await current.hydrateSession({
 				sessionId: hydratedSessionId,
@@ -6200,7 +6207,8 @@ describe("useChatSession", () => {
 			executionTarget: "cloud",
 			provider: "cline",
 			model: "cloud-model",
-			repoUrl: undefined,
+			repoUrl: "https://github.com/cline/cline",
+			branch: "dev",
 		});
 	});
 

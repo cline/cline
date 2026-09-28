@@ -94,6 +94,8 @@ export function getInitialChatConfig(
 			(provider === DEFAULT_CHAT_CONFIG.provider
 				? model
 				: DEFAULT_CHAT_CONFIG.model),
+		repoUrl: remembered.cloudRepoUrl || undefined,
+		branch: remembered.cloudBranch || undefined,
 		workspaceRoot: "",
 		cwd: "",
 	};
