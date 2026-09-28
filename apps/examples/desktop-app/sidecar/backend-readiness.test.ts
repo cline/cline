@@ -18,7 +18,9 @@ describe("session service initialization", () => {
 			)
 			.mockResolvedValue(undefined);
 		const publish = vi.fn();
-		const lifecycle = new BackendInitialization(initialize, publish, 100);
+		const lifecycle = new BackendInitialization(initialize, publish, {
+			timeoutMs: 100,
+		});
 		const first = lifecycle.start();
 		expect(lifecycle.start()).toBe(first);
 		await vi.advanceTimersByTimeAsync(100);
@@ -55,7 +57,9 @@ describe("session service initialization", () => {
 					}),
 			)
 			.mockResolvedValue(undefined);
-		const lifecycle = new BackendInitialization(initialize, vi.fn(), 100);
+		const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+			timeoutMs: 100,
+		});
 		const first = lifecycle.start();
 		await vi.advanceTimersByTimeAsync(100);
 		expect(lifecycle.state.state).toBe("failed");
@@ -93,7 +97,9 @@ describe("session service initialization", () => {
 				}),
 		);
 		const publish = vi.fn();
-		const lifecycle = new BackendInitialization(initialize, publish, 100);
+		const lifecycle = new BackendInitialization(initialize, publish, {
+			timeoutMs: 100,
+		});
 		const first = lifecycle.start();
 		await vi.advanceTimersByTimeAsync(100);
 		const retry = lifecycle.start();
@@ -209,6 +215,97 @@ describe("session service initialization", () => {
 		expect(JSON.stringify(lifecycle.state)).not.toMatch(/secret|hunter2/);
 		lifecycle.stop();
 	});
+
+	it.each([
+		"throw",
+		"reject",
+		"hang",
+	] as const)("preserves recovery and backoff when reporting hooks %s", async (mode) => {
+		vi.useFakeTimers();
+		const initialize = vi.fn().mockRejectedValue(new Error("offline"));
+		const onFailure = vi.fn(() => {
+			if (mode === "throw") throw new Error("log destination closed");
+			if (mode === "reject")
+				return Promise.reject(new Error("telemetry failed"));
+			return new Promise<void>(() => {});
+		});
+		const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+			onFailure,
+		});
+		await expect(lifecycle.start()).resolves.toBeUndefined();
+		for (const [delay, calls] of [
+			[1000, 2],
+			[2000, 3],
+			[4000, 4],
+		]) {
+			await vi.advanceTimersByTimeAsync(delay - 1);
+			expect(initialize).toHaveBeenCalledTimes(calls - 1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(initialize).toHaveBeenCalledTimes(calls);
+		}
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(initialize).toHaveBeenCalledTimes(4);
+		expect(onFailure).toHaveBeenCalledTimes(4);
+		initialize.mockResolvedValue(undefined);
+		await lifecycle.start();
+		expect(lifecycle.state.state).toBe("ready");
+		lifecycle.stop();
+	});
+
+	it("does not let readiness observers stop initialization or recovery", async () => {
+		vi.useFakeTimers();
+		const initialize = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(undefined);
+		const lifecycle = new BackendInitialization(initialize, () => {
+			throw new Error("disconnected observer");
+		});
+		await expect(lifecycle.start()).resolves.toBeUndefined();
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(lifecycle.state).toMatchObject({ state: "ready", attempt: 2 });
+		lifecycle.stop();
+	});
+
+	it("reports the raw failure for logging and telemetry, but not shutdown aborts", async () => {
+		vi.useFakeTimers();
+		const error = new Error("hub refused");
+		const onFailure = vi.fn();
+		const initialize = vi
+			.fn()
+			.mockRejectedValueOnce(error)
+			.mockImplementation(
+				(signal: AbortSignal) =>
+					new Promise<void>((_, reject) => {
+						signal.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+					}),
+			);
+		const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+			timeoutMs: 100,
+			onFailure,
+		});
+		await lifecycle.start();
+		expect(onFailure).toHaveBeenCalledWith(
+			error,
+			expect.objectContaining({
+				state: "failed",
+				attempt: 1,
+				automaticRetry: true,
+			}),
+		);
+		await vi.advanceTimersByTimeAsync(1_100);
+		expect(onFailure).toHaveBeenCalledTimes(2);
+		expect(onFailure.mock.calls[1][0]).toMatchObject({
+			message: expect.stringContaining("timed out"),
+		});
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(initialize).toHaveBeenCalledTimes(3);
+		lifecycle.stop();
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(onFailure).toHaveBeenCalledTimes(2);
+	});
 });
 
 it("retains sanitized failure details after automatic recovery", async () => {
@@ -219,7 +316,9 @@ it("retains sanitized failure details after automatic recovery", async () => {
 			Object.assign(new Error("token=private-value"), { code: "EADDRINUSE" }),
 		)
 		.mockResolvedValue(undefined);
-	const lifecycle = new BackendInitialization(initialize, vi.fn(), 100);
+	const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+		timeoutMs: 100,
+	});
 	await lifecycle.start();
 	expect(lifecycle.state.lastFailure).toMatchObject({
 		code: "EADDRINUSE",

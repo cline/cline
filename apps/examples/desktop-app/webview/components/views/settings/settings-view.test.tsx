@@ -60,7 +60,11 @@ describe("SettingsView font size", () => {
 
 		await act(async () => {
 			root.render(
-				<SettingsView onNavigateSection={vi.fn()} section="General" />,
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="General"
+				/>,
 			);
 		});
 
@@ -141,7 +145,11 @@ describe("SettingsView cloud sessions rollout", () => {
 
 		await act(async () => {
 			root.render(
-				<SettingsView onNavigateSection={vi.fn()} section="General" />,
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="General"
+				/>,
 			);
 		});
 		await vi.waitFor(() =>

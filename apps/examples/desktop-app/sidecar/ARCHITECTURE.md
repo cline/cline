@@ -72,13 +72,27 @@ Manual retries retain exponential backoff capped at 30 seconds. Shutdown cancels
 pending initialization, scheduled automatic retries, and queued retries. The existing 90-second command-readiness timeout
 is unchanged.
 
+Readiness publication and failure reporting cannot interrupt the initialization
+lifecycle. Reporting is best effort and does not delay retries, even if a sink
+throws, rejects, or never settles. Startup errors are sanitized before logging
+or telemetry; potentially sensitive messages are omitted, and raw stacks, causes,
+and custom error fields are not forwarded. Native stdout/stderr forwarding uses
+the same guard as stored diagnostics and continues draining on output failure.
+Only local readiness errors suppress duplicate command telemetry; disconnected
+remote environments retain their command-failure reports.
+
 Tauri's `get_desktop_backend_status` and `retry_desktop_backend` commands work
 without the sidecar transport. They expose bounded, sanitized startup diagnostics
 and recovery for sidecar failures. `get_backend_readiness` and
 `retry_backend_initialization` run over the sidecar transport and manage the local
-session service. Remote environments connect on demand and do not delay sign-in
-or local settings. The full-screen loader gates the app shell on local readiness;
-remote connections are not part of this gate.
+session service. The full-screen loader requires both the desktop transport and
+local session service to be ready before exposing any app screens, including
+sign-in, settings, and remote environments. There is no bypass; failures retain
+startup diagnostics and Retry. The loader contains only a spinner and current
+status (or failure diagnostics), without workspace controls or an artificial delay.
+Previously mounted screens stay hidden and inert
+during recovery to preserve drafts and attachments. Remote connections happen
+on demand after this local readiness gate.
 
 ## Directory Structure
 

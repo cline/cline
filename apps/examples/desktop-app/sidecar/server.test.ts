@@ -296,3 +296,40 @@ describe("desktop error telemetry", () => {
 		expect(capture).not.toHaveBeenCalled();
 	});
 });
+
+describe("session-service readiness telemetry", () => {
+	it.each([
+		"local",
+		"ssh-review-host",
+	])("reports only remote missing-runtime failures (%s)", async (environmentId) => {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const capture = vi.fn();
+		ctx.telemetry = { capture } as never;
+		const send = vi.fn();
+		const handler = createWebSocketHandler(ctx);
+		await handler.message(
+			{ send },
+			JSON.stringify({
+				type: "request",
+				id: "readiness-review",
+				command: "get_git_branch",
+				args: { environmentId },
+			}),
+		);
+		const response = JSON.parse(send.mock.calls[0][0]);
+		expect(response.ok).toBe(false);
+		if (environmentId === "local") {
+			expect(response.errorCode).toBe("SESSION_SERVICE_NOT_READY");
+			expect(capture).not.toHaveBeenCalled();
+		} else {
+			expect(response.error).toContain("is not connected");
+			expect(response.errorCode).toBeUndefined();
+			expect(capture).toHaveBeenCalledWith(
+				expect.objectContaining({
+					properties: expect.objectContaining({ operation: "command.execute" }),
+				}),
+			);
+		}
+	});
+});

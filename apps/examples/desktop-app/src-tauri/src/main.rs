@@ -6,7 +6,7 @@ mod macos_notification;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
@@ -33,6 +33,8 @@ const TRAY_QUIT_MENU_ID: &str = "tray-quit";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
 #[cfg(any(target_os = "macos", test))]
+const EXPORT_DIAGNOSTICS_MENU_ID: &str = "export-diagnostics";
+#[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
@@ -45,6 +47,7 @@ enum DesktopAction {
     NewSession,
     OpenSettings,
     CheckForUpdates,
+    ExportDiagnostics,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -443,6 +446,11 @@ fn sanitize_startup_diagnostic(line: &str) -> String {
         .filter(|c| !c.is_control())
         .take(MAX_DIAGNOSTIC_LINE)
         .collect()
+}
+
+// Forward only sanitized output, and keep draining the pipe if the log sink fails.
+fn forward_backend_diagnostic(mut output: impl Write, stream: &str, line: &str) {
+    let _ = writeln!(output, "[{stream}] {}", sanitize_startup_diagnostic(line));
 }
 
 // Bound memory even when a failing process writes a huge unterminated line.
@@ -855,6 +863,7 @@ fn ensure_desktop_backend_started_locked(
                     return;
                 }
             }
+            forward_backend_diagnostic(std::io::stderr(), "desktop-backend", trimmed);
             state_for_stdout.record_diagnostic(trimmed);
         });
         // Only clear the endpoint if this thread's child is still the one
@@ -871,7 +880,14 @@ fn ensure_desktop_backend_started_locked(
 
     let state_for_stderr = state.clone();
     thread::spawn(move || {
-        read_diagnostic_lines(stderr, |line| state_for_stderr.record_diagnostic(&line));
+        read_diagnostic_lines(stderr, |line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return;
+            }
+            forward_backend_diagnostic(std::io::stderr(), "desktop-backend:err", trimmed);
+            state_for_stderr.record_diagnostic(trimmed);
+        });
     });
 
     *process_guard = Some(child);
@@ -1629,6 +1645,7 @@ fn show_session_notification(
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<DesktopAction> {
     match menu_id {
+        EXPORT_DIAGNOSTICS_MENU_ID => Some(DesktopAction::ExportDiagnostics),
         VIEW_ZOOM_IN_MENU_ID => Some(DesktopAction::ZoomIn),
         VIEW_ZOOM_OUT_MENU_ID => Some(DesktopAction::ZoomOut),
         VIEW_ZOOM_RESET_MENU_ID => Some(DesktopAction::ZoomReset),
@@ -1666,12 +1683,21 @@ fn setup_application_menu(
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
 
+    let export_diagnostics = MenuItem::with_id(
+        app,
+        EXPORT_DIAGNOSTICS_MENU_ID,
+        "Export Diagnostics…",
+        true,
+        None::<&str>,
+    )?;
+    let mut help_menu = None;
     let mut view_menu = None;
     for item in menu.items()? {
         if let MenuItemKind::Submenu(submenu) = item {
-            if submenu.text()? == "View" {
-                view_menu = Some(submenu);
-                break;
+            match submenu.text()?.as_str() {
+                "View" => view_menu = Some(submenu),
+                "Help" => help_menu = Some(submenu),
+                _ => {}
             }
         }
     }
@@ -1682,6 +1708,17 @@ fn setup_application_menu(
         let view_menu =
             Submenu::with_items(app, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
         menu.append(&view_menu)?;
+    }
+
+    if let Some(help_menu) = help_menu {
+        help_menu.append(&export_diagnostics)?;
+    } else {
+        menu.append(&Submenu::with_items(
+            app,
+            "Help",
+            true,
+            &[&export_diagnostics],
+        )?)?;
     }
 
     app.set_menu(menu)?;
@@ -2090,7 +2127,7 @@ mod tests {
     }
 
     #[test]
-    fn application_menu_ids_map_to_zoom_actions() {
+    fn application_menu_ids_map_to_desktop_actions() {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_IN_MENU_ID),
             Some(DesktopAction::ZoomIn)
@@ -2102,6 +2139,14 @@ mod tests {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_RESET_MENU_ID),
             Some(DesktopAction::ZoomReset)
+        );
+        assert_eq!(
+            application_menu_action(EXPORT_DIAGNOSTICS_MENU_ID),
+            Some(DesktopAction::ExportDiagnostics)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::ExportDiagnostics).unwrap(),
+            serde_json::json!({ "type": "export-diagnostics" })
         );
         assert_eq!(application_menu_action("unknown"), None);
     }
@@ -2209,6 +2254,28 @@ mod tests {
             .lines
             .iter()
             .any(|line| line.contains("startup failure 99")));
+    }
+
+    #[test]
+    fn forwarded_output_is_sanitized_and_broken_sinks_do_not_interrupt_readers() {
+        for stream in ["desktop-backend", "desktop-backend:err"] {
+            let mut output = Vec::new();
+            forward_backend_diagnostic(&mut output, stream, "Error: missing dependency");
+            forward_backend_diagnostic(&mut output, stream, "https://user:private-value@host/path");
+            forward_backend_diagnostic(&mut output, stream, "approval_token=private-value");
+            let text = String::from_utf8(output).unwrap();
+            assert!(text.contains("missing dependency"));
+            assert!(!text.contains("private-value"));
+            assert!(text.contains("Sensitive startup diagnostic omitted"));
+        }
+        struct BrokenSink;
+        impl Write for BrokenSink {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "closed"))
+            }
+            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+        }
+        forward_backend_diagnostic(BrokenSink, "desktop-backend", "still draining");
     }
 
     #[test]

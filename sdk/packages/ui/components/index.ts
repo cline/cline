@@ -22,11 +22,44 @@ export {
 	type AgentCommandOutputProps,
 } from "./agent-command-output.js";
 export {
+	AgentComposer,
+	AgentComposerActions,
+	type AgentComposerActionsProps,
+	AgentComposerAttachments,
+	type AgentComposerAttachmentsProps,
+	AgentComposerBody,
+	type AgentComposerBodyProps,
+	AgentComposerField,
+	type AgentComposerFieldProps,
+	type AgentComposerProps,
+	AgentComposerSendButton,
+	type AgentComposerSendButtonProps,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	type AgentComposerSettingsEndProps,
+	AgentComposerSettingsGroup,
+	type AgentComposerSettingsGroupProps,
+	type AgentComposerSettingsProps,
+	AgentComposerStopButton,
+	type AgentComposerStopButtonProps,
+	AgentComposerTextarea,
+	type AgentComposerTextareaProps,
+	type AgentComposerVariant,
+} from "./agent-composer.js";
+export {
 	AgentContextUsage,
 	type AgentContextUsageData,
 	type AgentContextUsagePresentation,
 	type AgentContextUsageProps,
 } from "./agent-context-usage.js";
+export {
+	AgentConversationHeader,
+	type AgentConversationHeaderProps,
+	AgentConversationLayout,
+	type AgentConversationLayoutProps,
+	AgentSessionContent,
+	type AgentSessionContentProps,
+} from "./agent-conversation-layout.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentImageLightboxContent,

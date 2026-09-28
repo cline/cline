@@ -34,7 +34,14 @@ export class BackendInitialization {
 	constructor(
 		private readonly initialize: (signal: AbortSignal) => Promise<void>,
 		private readonly publish: (state: BackendReadiness) => void,
-		private readonly timeoutMs = 30_000,
+		private readonly options: {
+			timeoutMs?: number;
+			/** Receives the raw error; `publish` only ever sees a sanitized message. */
+			onFailure?: (
+				error: unknown,
+				state: BackendReadiness,
+			) => void | Promise<void>;
+		} = {},
 	) {}
 
 	private update(state: BackendReadiness): void {
@@ -44,7 +51,11 @@ export class BackendInitialization {
 				? { lastFailure: this.state.lastFailure }
 				: {}),
 		};
-		this.publish(this.state);
+		try {
+			this.publish(this.state);
+		} catch {
+			// Observers must not interrupt initialization or its recovery schedule.
+		}
 	}
 
 	reportStep(step: NonNullable<BackendReadiness["step"]>): void {
@@ -119,7 +130,7 @@ export class BackendInitialization {
 									? "Session service startup timed out. Retrying automatically..."
 									: "Session service startup timed out. Retry to reconnect.",
 						});
-				}, this.timeoutMs);
+				}, this.options.timeoutMs ?? 30_000);
 				await this.initialize(controller.signal);
 				controller.signal.throwIfAborted();
 				if (!this.stopped) this.update({ state: "ready", attempt });
@@ -140,6 +151,17 @@ export class BackendInitialization {
 					});
 				this.retryAt =
 					Date.now() + Math.min(1_000 * 2 ** Math.min(attempt - 1, 5), 30_000);
+				if (!this.stopped) {
+					try {
+						// Reporting is best effort, including asynchronous sinks. Never
+						// wait for it or let it reject this lifecycle's promise.
+						void Promise.resolve(
+							this.options.onFailure?.(error, this.state),
+						).catch(() => {});
+					} catch {
+						// A broken log destination must not prevent recovery.
+					}
+				}
 			} finally {
 				clearTimeout(timer);
 			}

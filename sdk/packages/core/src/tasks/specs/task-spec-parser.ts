@@ -7,6 +7,7 @@ import type {
 	AgendaTaskType,
 	GatewayModelSelection,
 } from "@cline/shared";
+import { stripUtf8Bom } from "@cline/shared";
 import YAML from "yaml";
 import { normalizeAgendaTaskLocation } from "../task-location";
 
@@ -124,7 +125,9 @@ function splitFrontmatter(raw: string): {
 	frontmatter?: string;
 	body: string;
 } {
-	const normalized = raw.replace(/\r\n/g, "\n");
+	// Editors like Windows Notepad may save "UTF-8 with BOM"; the BOM would
+	// otherwise hide the opening `---` fence.
+	const normalized = stripUtf8Bom(raw).replace(/\r\n/g, "\n");
 	if (!normalized.startsWith("---\n")) {
 		return { body: normalized };
 	}
