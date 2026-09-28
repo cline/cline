@@ -923,6 +923,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				resumedArtifacts?.manifest.status ??
 				(startsWithoutTurn ? "idle" : "running"),
 			aborting: false,
+			shuttingDown: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
 			compactionState: initialCompactionState,
@@ -1010,7 +1011,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			}
 		} catch (error) {
-			if (active.interactive && active.aborting) {
+			if (active.interactive && (active.aborting || active.shuttingDown)) {
 				result = await this.completeAbortedInteractiveTurn(active);
 			} else {
 				captureSdkError(active.config.telemetry, {
@@ -1134,7 +1135,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 			return result;
 		} catch (error) {
-			if (session.interactive && session.aborting) {
+			if (session.interactive && (session.aborting || session.shuttingDown)) {
 				return await this.completeAbortedInteractiveTurn(session);
 			}
 			captureSdkError(session.config.telemetry, {
@@ -1777,6 +1778,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
+		// Teardown may have started during the awaits above. It only aborts a
+		// run that is already in progress, so this turn has to stop itself.
+		if (session.shuttingDown) {
+			throw new Error("session is shutting down");
+		}
 
 		try {
 			let result = await this.executeAgentTurn(
@@ -2332,6 +2338,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
+		this.beginTeardown(session);
 		// Fallback `task.completed` emission for completed sessions that did
 		// not observe an explicit `submit_and_exit` tool call, routed through
 		// the shared teardown choke point so it can neither double-fire nor
@@ -2414,10 +2421,22 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	/**
+	 * Teardown aborts any in-flight turn, and the abort settling resets
+	 * `aborting` and schedules a queue drain while teardown is still awaiting
+	 * I/O. Without this, a queued prompt would start a new run in a session
+	 * that is being torn down and whose events nobody receives any more.
+	 */
+	private beginTeardown(session: ActiveSession): void {
+		session.shuttingDown = true;
+		this.pendingPromptsController.discardQueue(session);
+	}
+
 	private async releaseSessionRuntime(
 		session: ActiveSession,
 		reason: string,
 	): Promise<void> {
+		this.beginTeardown(session);
 		// Releasing is a full session exit too: interactive sessions whose
 		// reported status is already terminal are stopped/disposed through
 		// this branch. The completion emission must happen here as well —
@@ -2489,6 +2508,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		exitCode?: number | null,
 	): Promise<void> {
 		if (!session.artifacts) return;
+		// Turns aborted by teardown settle concurrently with it; their idle or
+		// running transitions must not overwrite the status teardown persists.
+		if (session.shuttingDown && isNonTerminalSessionStatus(status)) return;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
