@@ -180,7 +180,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 							);
 							const summary = recorded?.[2] ?? output;
 							write(
-								`\n${c.bold}Summary${recorded ? ` (${recorded[1]})` : ""}${c.reset}\n${summary.trim()}\n`,
+								`\n${c.cyan}Summary${recorded ? ` (${recorded[1]})` : ""}${c.reset}\n${summary.trim()}\n`,
 							);
 						}
 						shouldPrefixNextTextWithBlankLine = false;

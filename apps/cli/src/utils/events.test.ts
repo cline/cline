@@ -206,7 +206,7 @@ describe("handleEvent text formatting", () => {
 			{} as Config,
 		);
 
-		expect(output).toContain(`Summary (verified)\x1b[0m\n${summary}`);
+		expect(output).toContain(`\x1b[36mSummary (verified)\x1b[0m\n${summary}`);
 		expect(output).not.toContain("[submit_and_exit]");
 		expect(output).not.toContain("⎿");
 	});
