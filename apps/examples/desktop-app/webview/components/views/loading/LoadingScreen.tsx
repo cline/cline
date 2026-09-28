@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
+import { StartupDiagnostics } from "./StartupDiagnostics";
 
 export function LoadingScreen({
 	readiness,
@@ -60,22 +61,25 @@ export function LoadingScreen({
 				</span>
 			</div>
 
+			<StartupDiagnostics report={readiness.diagnosticReport} />
 			{failed && (
 				<div className="flex w-full max-w-md flex-col items-center gap-3 text-center text-sm">
 					<p className="whitespace-pre-wrap text-muted-foreground">
 						{readiness.retryError ?? (connected ? hub.message : startup?.error)}
 					</p>
 					{!connected && startup?.exitStatus && <p>{startup.exitStatus}</p>}
-					{!connected && !!startup?.diagnostics.length && (
-						<details className="w-full text-left">
-							<summary className="cursor-pointer text-muted-foreground">
-								Startup diagnostics
-							</summary>
-							<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">
-								{startup.diagnostics.join("\n")}
-							</pre>
-						</details>
-					)}
+					{!readiness.diagnosticReport &&
+						!connected &&
+						!!startup?.diagnostics.length && (
+							<details className="w-full text-left">
+								<summary className="cursor-pointer text-muted-foreground">
+									Startup diagnostics
+								</summary>
+								<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">
+									{startup.diagnostics.join("\n")}
+								</pre>
+							</details>
+						)}
 					<button
 						type="button"
 						onClick={() => void readiness.retry()}

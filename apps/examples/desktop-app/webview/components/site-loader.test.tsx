@@ -18,6 +18,7 @@ afterEach(() => {
 });
 const readiness = (): ReturnType<typeof useDesktopReadiness> => ({
 	transport: "connecting",
+	diagnosticReport: null,
 	startup: null,
 	hub: { state: "starting", attempt: 1 },
 	retry: vi.fn(async () => {}),
@@ -47,6 +48,9 @@ it("distinguishes hub failure and allows retry", () => {
 it("shows actionable native startup diagnostics independently of authentication", () => {
 	const state = readiness();
 	state.startup = {
+		failures: [],
+		attempt: 1,
+		elapsedMs: 30000,
 		state: "failed",
 		error: "Sidecar exited",
 		exitStatus: "exit code 1",

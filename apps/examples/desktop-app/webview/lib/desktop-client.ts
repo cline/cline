@@ -280,6 +280,7 @@ export class DesktopCommandError extends Error {
 }
 
 const NATIVE_COMMANDS = new Set([
+	"save_startup_diagnostics",
 	"get_desktop_backend_status",
 	"retry_desktop_backend",
 	"pick_workspace_directory",
