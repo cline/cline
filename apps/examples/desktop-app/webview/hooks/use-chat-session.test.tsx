@@ -448,6 +448,7 @@ describe("useChatSession", () => {
 		);
 		const history = (sessionId: string) => ({
 			sessionId,
+			environmentId: "local",
 			status: "completed" as const,
 			provider: "cline",
 			model: "test-model",
