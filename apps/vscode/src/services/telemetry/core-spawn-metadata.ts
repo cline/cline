@@ -4,10 +4,10 @@
  * VS Code extension runs in-process and reports nothing, so the fields are
  * simply absent there, the way `host_plugin_version` is absent on the CLI.
  *
- * Same contract as `IS_DEV` -> `is_dev` and `CLINE_ROLLOUT_VARIANT`: the host
- * states a fact at spawn, core owns the telemetry. Without these, a core that
- * crash-restarted three times and a user with three project windows both look
- * like three `user.extension_activated` events.
+ * Same contract as `IS_DEV` -> `is_dev`: the host states a fact at spawn, and
+ * core owns the telemetry. Without these fields, a core that crash-restarted
+ * three times and a user with three project windows both look like three
+ * `user.extension_activated` events.
  */
 import { CORE_SPAWN_REASONS, type CoreSpawnReason } from "@cline/shared"
 
