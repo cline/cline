@@ -17,6 +17,7 @@ import {
 } from "@cline/core";
 import {
 	type AgentEvent,
+	captureSdkError,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	isGeneratedMedia,
 } from "@cline/shared";
@@ -62,6 +63,27 @@ export function getBackendInitialization(
 		initialization = new BackendInitialization(
 			(signal) => createLocalSessionRuntime(ctx, signal),
 			(state) => broadcastEvent(ctx, "backend_readiness", state),
+			{
+				// Startup no longer exits the process on failure, so the fatal
+				// `sidecar.startup` report from main() never fires for these.
+				onFailure: (error, state) => {
+					ctx.logger?.error?.("Session service initialization failed", {
+						error,
+						attempt: state.attempt,
+						automaticRetry: state.automaticRetry ?? false,
+					});
+					captureSdkError(ctx.telemetry, {
+						component: "desktop",
+						operation: "sidecar.session_service_init",
+						error,
+						handled: true,
+						context: {
+							attempt: state.attempt,
+							automatic_retry: state.automaticRetry ?? false,
+						},
+					});
+				},
+			},
 		);
 		backendInitializations.set(ctx, initialization);
 		if (stoppedContexts.has(ctx)) initialization.stop();

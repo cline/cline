@@ -18,7 +18,9 @@ describe("session service initialization", () => {
 			)
 			.mockResolvedValue(undefined);
 		const publish = vi.fn();
-		const lifecycle = new BackendInitialization(initialize, publish, 100);
+		const lifecycle = new BackendInitialization(initialize, publish, {
+			timeoutMs: 100,
+		});
 		const first = lifecycle.start();
 		expect(lifecycle.start()).toBe(first);
 		await vi.advanceTimersByTimeAsync(100);
@@ -51,7 +53,9 @@ describe("session service initialization", () => {
 					}),
 			)
 			.mockResolvedValue(undefined);
-		const lifecycle = new BackendInitialization(initialize, vi.fn(), 100);
+		const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+			timeoutMs: 100,
+		});
 		const first = lifecycle.start();
 		await vi.advanceTimersByTimeAsync(100);
 		expect(lifecycle.state.state).toBe("failed");
@@ -85,7 +89,9 @@ describe("session service initialization", () => {
 				}),
 		);
 		const publish = vi.fn();
-		const lifecycle = new BackendInitialization(initialize, publish, 100);
+		const lifecycle = new BackendInitialization(initialize, publish, {
+			timeoutMs: 100,
+		});
 		const first = lifecycle.start();
 		await vi.advanceTimersByTimeAsync(100);
 		const retry = lifecycle.start();
@@ -200,5 +206,45 @@ describe("session service initialization", () => {
 		expect(lifecycle.state.state).toBe("failed");
 		expect(JSON.stringify(lifecycle.state)).not.toMatch(/secret|hunter2/);
 		lifecycle.stop();
+	});
+
+	it("reports the raw failure for logging and telemetry, but not shutdown aborts", async () => {
+		vi.useFakeTimers();
+		const error = new Error("hub refused");
+		const onFailure = vi.fn();
+		const initialize = vi
+			.fn()
+			.mockRejectedValueOnce(error)
+			.mockImplementation(
+				(signal: AbortSignal) =>
+					new Promise<void>((_, reject) => {
+						signal.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+					}),
+			);
+		const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+			timeoutMs: 100,
+			onFailure,
+		});
+		await lifecycle.start();
+		expect(onFailure).toHaveBeenCalledWith(
+			error,
+			expect.objectContaining({
+				state: "failed",
+				attempt: 1,
+				automaticRetry: true,
+			}),
+		);
+		await vi.advanceTimersByTimeAsync(1_100);
+		expect(onFailure).toHaveBeenCalledTimes(2);
+		expect(onFailure.mock.calls[1][0]).toMatchObject({
+			message: expect.stringContaining("timed out"),
+		});
+		await vi.advanceTimersByTimeAsync(2_000);
+		expect(initialize).toHaveBeenCalledTimes(3);
+		lifecycle.stop();
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(onFailure).toHaveBeenCalledTimes(2);
 	});
 });

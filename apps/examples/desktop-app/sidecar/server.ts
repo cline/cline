@@ -400,9 +400,12 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 				ws.send(jsonResponse(request.id, true, result));
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				captureDesktopError(ctx, "command.execute", error, {
-					command: request.command,
-				});
+				// The root failure is already reported by the readiness lifecycle;
+				// every command rejected while it starts would only bury it.
+				if (!(error instanceof BackendReadinessError))
+					captureDesktopError(ctx, "command.execute", error, {
+						command: request.command,
+					});
 				ws.send(
 					JSON.stringify({
 						type: "response",

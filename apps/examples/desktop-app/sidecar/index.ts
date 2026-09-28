@@ -203,7 +203,7 @@ async function main() {
 			mode: SIDECAR_MODE,
 		})}\n`,
 	);
-	// The webview can now sign in and explain session-service failures.
+	// The webview can now display startup progress and recover from failures.
 	void initializeSessionManager(ctx);
 }
 

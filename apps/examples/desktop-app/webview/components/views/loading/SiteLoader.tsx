@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./LoadingScreen";
 
@@ -11,19 +11,10 @@ export function SiteLoader({
 	children: ReactNode;
 	readiness: ReturnType<typeof useDesktopReadiness>;
 }) {
-	const ready =
+	const showApp =
 		readiness.transport === "connected" && readiness.hub.state === "ready";
-	const [minimumElapsed, setMinimumElapsed] = useState(false);
-	useEffect(() => {
-		const timer = setTimeout(() => setMinimumElapsed(true), 5_000);
-		return () => clearTimeout(timer);
-	}, []);
-	const [finished, setFinished] = useState(false);
-	const finish = useCallback(() => setFinished(true), []);
-	useEffect(() => {
-		if (!ready) setFinished(false);
-	}, [ready]);
-	const showApp = ready && finished;
+	// Once shown, keep the app mounted through a transport blip so unsent
+	// drafts and attachments survive the reconnect.
 	const [hasLoaded, setHasLoaded] = useState(false);
 	useEffect(() => {
 		if (showApp) setHasLoaded(true);
@@ -35,13 +26,7 @@ export function SiteLoader({
 					{children}
 				</div>
 			)}
-			{!showApp && (
-				<LoadingScreen
-					readiness={readiness}
-					finishing={ready && minimumElapsed}
-					onComplete={finish}
-				/>
-			)}
+			{!showApp && <LoadingScreen readiness={readiness} />}
 		</>
 	);
 }
