@@ -6,7 +6,7 @@
       "name": "@cline/packages",
       "devDependencies": {
         "@biomejs/biome": "2.4.5",
-        "@types/bun": "^1.3.13",
+        "@types/bun": "^1.4.2",
         "@types/node": "^25.3.5",
         "husky": "^9.1.7",
         "lint-staged": "^16.3.2",
@@ -56,7 +56,7 @@
         "@cline/core": "workspace:*",
         "@cline/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
-        "@types/bun": "^1.3.10",
+        "@types/bun": "^1.4.2",
         "@types/react": "19.2.14",
         "tuistory": "^0.10.1",
         "vitest": "^4.0.18",
@@ -238,7 +238,7 @@
       "devDependencies": {
         "@tailwindcss/postcss": "^4.2.0",
         "@tauri-apps/cli": "^2.0.0",
-        "@types/bun": "^1.3.14",
+        "@types/bun": "^1.4.2",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
         "jsdom": "^26.0.0",
@@ -258,7 +258,7 @@
       },
       "devDependencies": {
         "@tauri-apps/cli": "^2.0.0",
-        "@types/bun": "^1.3.10",
+        "@types/bun": "^1.4.2",
         "@types/node": "^25.3.5",
         "typescript": "^5.9.3",
         "vitest": "^4.0.18",
@@ -620,7 +620,7 @@
         "@cline/core": "workspace:*",
       },
       "devDependencies": {
-        "@types/bun": "^1.3.10",
+        "@types/bun": "^1.4.2",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -773,7 +773,7 @@
         "@storybook/addon-docs": "^9.1.17",
         "@storybook/react-vite": "^9.1.6",
         "@tailwindcss/vite": "^4.2.0",
-        "@types/bun": "^1.3.13",
+        "@types/bun": "^1.4.2",
         "@types/node": "^25.3.5",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
@@ -2512,7 +2512,7 @@
 
     "@types/better-sqlite3": ["@types/better-sqlite3@7.6.13", "", { "dependencies": { "@types/node": "*" } }, "sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA=="],
 
-    "@types/bun": ["@types/bun@1.4.0", "", { "dependencies": { "bun-types": "1.4.0" } }, "sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ=="],
+    "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, "sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA=="],
 
@@ -2930,7 +2930,7 @@
 
     "bun-ffi-structs": ["bun-ffi-structs@0.2.4", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-AJzsqoVFs1KBbJbWHIYrVZLDC3NhTqqh25awRXqzoLzmBAKr5oqk6+CwuYHAekKx+VBCYVohBoKuRq40dV+TYg=="],
 
-    "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
+    "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "bundle-name": ["bundle-name@4.1.0", "", { "dependencies": { "run-applescript": "^7.0.0" } }, "sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q=="],
 

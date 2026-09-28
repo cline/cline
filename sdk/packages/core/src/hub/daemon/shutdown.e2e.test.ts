@@ -248,7 +248,7 @@ describe("hub daemon shutdown", () => {
 			expect(result).toEqual({ code: 0, signal: null });
 			expect(Date.now() - startedAt).toBeLessThan(5_000);
 			expect(daemon.stderr()).toContain(
-				"[shutdown-fixture] runtime: bun 1.3.13",
+				"[shutdown-fixture] runtime: bun 1.4.2",
 			);
 			expect(daemon.stderr()).toContain("[shutdown-fixture] forced exit:");
 			await expect(
@@ -283,7 +283,7 @@ describe("hub daemon shutdown", () => {
 				expect(result).toEqual({ code: 0, signal: null });
 				expect(Date.now() - startedAt).toBeLessThan(5_000);
 				expect(daemon.stderr()).toContain(
-					"[shutdown-fixture] runtime: bun 1.3.13",
+					"[shutdown-fixture] runtime: bun 1.4.2",
 				);
 				expect(daemon.stderr()).toContain("[shutdown-fixture] forced exit:");
 				await expect(
