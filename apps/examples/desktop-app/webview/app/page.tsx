@@ -2124,18 +2124,20 @@ function ChatThreadPane({
 						cwd: "",
 					};
 				}
+				const captured = localConfigRef.current;
 				const local =
-					localConfigRef.current ??
+					captured ??
 					getInitialChatConfig(environmentId, { executionTarget: "local" });
 				return {
 					...prev,
 					provider: local.provider,
 					model: local.model,
 					apiKey: local.apiKey,
-					// Workspace discovery already filled the cloud thread's
-					// workspace; only a captured local one overrides it.
-					workspaceRoot: local.workspaceRoot || prev.workspaceRoot,
-					cwd: local.cwd || prev.cwd,
+					// A thread that opened on Cloud never captured a local workspace;
+					// keep the one workspace discovery already validated rather than
+					// the raw remembered path, which may no longer exist.
+					workspaceRoot: captured?.workspaceRoot || prev.workspaceRoot,
+					cwd: captured?.cwd || prev.cwd,
 					executionTarget: "local",
 					repoUrl: undefined,
 					branch: undefined,
@@ -2641,7 +2643,14 @@ function ChatThreadPane({
 					cloudBranch={config.branch ?? ""}
 					onRepoUrlChange={handleCloudRepoUrlChange}
 					onCloudBranchChange={handleCloudBranchChange}
-					cloudAgentsEnabled={cloudAgentsEnabled}
+					// A composer remembered on Cloud keeps its cloud controls (not the
+					// local folder picker) while the flag is still unknown; if the
+					// flag settles false, the effect above moves it to Local.
+					cloudAgentsEnabled={
+						cloudAgentsEnabled ||
+						(cloudAgentsFlagEnabled === null &&
+							config.executionTarget === "cloud")
+					}
 					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 				/>

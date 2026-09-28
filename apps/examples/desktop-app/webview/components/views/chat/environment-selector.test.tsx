@@ -205,6 +205,34 @@ describe("EnvironmentSelector", () => {
 		expect(onSelectEnvironment).not.toHaveBeenCalled();
 	});
 
+	it("picking Local from an SSH host also selects the local execution target", async () => {
+		const onSelectExecutionTarget = vi.fn();
+		const onSelectEnvironment = vi.fn(async () => undefined);
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="pi-server"
+					executionTarget="local"
+					cloudEnabled
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		await pointerDown(trigger());
+		await click(menuItemContaining("Build box"));
+		// Another SSH host is not a Cloud/Local decision.
+		expect(onSelectExecutionTarget).not.toHaveBeenCalled();
+		expect(onSelectEnvironment).toHaveBeenCalledExactlyOnceWith("build-box");
+
+		await pointerDown(trigger());
+		await click(menuItemContaining("Local"));
+		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("local");
+		expect(onSelectEnvironment).toHaveBeenLastCalledWith("local");
+	});
+
 	it.each([
 		["Local", "local"],
 		["Build box", "build-box"],
