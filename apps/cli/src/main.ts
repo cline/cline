@@ -48,6 +48,7 @@ import {
 } from "./utils/provider-auth";
 import { resolveCliReasoning } from "./utils/reasoning";
 import {
+	resolveNonInteractiveMode,
 	resolveStartupCompactionMode,
 	resolveStartupMode,
 	resolveStartupToolAutoApprove,
@@ -900,7 +901,17 @@ export async function runCli(): Promise<void> {
 			autoApprove: effectiveToolAutoApprove,
 		},
 	};
-	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings);
+	const effectiveMode = resolveNonInteractiveMode(
+		args,
+		resolveStartupMode(args, persistedGlobalSettings),
+		{
+			interactive:
+				args.interactive ||
+				(!args.prompt?.trim() &&
+					(!!process.stdin.isTTY || !stdinHasPipedInput())),
+			autoApprove: effectiveToolAutoApprove,
+		},
+	);
 	const effectiveCompactionMode = resolveStartupCompactionMode(
 		args,
 		persistedGlobalSettings,

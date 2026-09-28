@@ -215,6 +215,19 @@ function formatToolParams(
 	}
 }
 
+function extractSubmitSummary(
+	rawInput: unknown,
+	outputSummary: string | undefined,
+): string {
+	if (rawInput && typeof rawInput === "object" && "summary" in rawInput) {
+		const summary = (rawInput as { summary: unknown }).summary;
+		if (typeof summary === "string" && summary.trim()) return summary.trim();
+	}
+	return (outputSummary ?? "")
+		.replace(/^Submission recorded \((?:verified|unverified)\):\s*/, "")
+		.trim();
+}
+
 function ToolCallView(props: {
 	toolName: string;
 	inputSummary: string;
@@ -233,6 +246,44 @@ function ToolCallView(props: {
 	const failed = result?.error != null;
 	const warningFailure = isWarningToolError(result?.error);
 	const params = formatToolParams(toolName, props.rawInput, inputSummary);
+
+	// Display the summary for the "submit_and_exit" tool if it hasn't failed.
+	if (toolName === "submit_and_exit" && !failed) {
+		const summary = extractSubmitSummary(props.rawInput, result?.outputSummary);
+		if (streaming || !summary) {
+			return (
+				<box flexDirection="row">
+					<box width={2}>
+						{streaming ? (
+							<spinner name="dots" color="gray" />
+						) : (
+							<text fg={accent}>*</text>
+						)}
+					</box>
+					<text fg={accent}>
+						<strong>Summary</strong>
+					</text>
+				</box>
+			);
+		}
+		return (
+			<box flexDirection="column">
+				<box flexDirection="row">
+					<box width={2}>
+						<text fg={accent}>*</text>
+					</box>
+					<text fg={accent}>
+						<strong>Summary</strong>
+					</text>
+				</box>
+				<box paddingLeft={2}>
+					<text fg={defaultFg} selectable>
+						{summary}
+					</text>
+				</box>
+			</box>
+		);
+	}
 
 	return (
 		<box flexDirection="column">
