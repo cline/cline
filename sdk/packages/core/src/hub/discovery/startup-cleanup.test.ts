@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
 import { probeHubServer, withHubStartupLock } from ".";
 
@@ -255,7 +256,7 @@ it("serializes separate processes reclaiming one abandoned lock", async () => {
 	const { spawn } = await import("node:child_process");
 	const dir = await mkdtemp(join(tmpdir(), "hub-process-lock-"));
 	const path = join(dir, "discovery.json");
-	const source = new URL("./index.ts", import.meta.url).pathname;
+	const source = fileURLToPath(new URL("./index.ts", import.meta.url));
 	try {
 		await mkdir(`${path}.lock`);
 		await writeFile(
@@ -330,7 +331,7 @@ it.each([
 	const { spawn } = await import("node:child_process");
 	const dir = await mkdtemp(join(tmpdir(), "hub-crashed-owner-"));
 	const path = join(dir, "discovery.json");
-	const source = new URL("./index.ts", import.meta.url).pathname;
+	const source = fileURLToPath(new URL("./index.ts", import.meta.url));
 	const child = spawn(
 		"bun",
 		[
