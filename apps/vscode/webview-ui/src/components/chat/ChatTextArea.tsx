@@ -229,6 +229,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			cloudSessionsEnabled,
 			cloudTaskTarget,
 			currentCloudTask,
+			cloudModelId,
 		} = useExtensionState()
 		// Cloud sessions are Act-only (like the desktop app and the cloud dashboard).
 		// While a cloud task is shown, or a new task is about to run in the cloud,
@@ -1155,6 +1156,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} = getModeSpecificFields(apiConfiguration, mode)
 			const unknownModel = "unknown"
 
+			// A cloud task runs on a Cline model in the sandbox, whatever the
+			// local provider is; the extension reports which one.
+			if (cloudActOnly) {
+				return `cline:${cloudModelId || unknownModel}`
+			}
 			if (!apiConfiguration) {
 				return unknownModel
 			}
@@ -1188,7 +1194,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
-		}, [apiConfiguration, mode, selectedProvider, selectedModelId])
+		}, [apiConfiguration, mode, selectedProvider, selectedModelId, cloudActOnly, cloudModelId])
 
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
