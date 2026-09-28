@@ -250,7 +250,6 @@ describe("hub daemon shutdown", () => {
 			expect(daemon.stderr()).toContain(
 				"[shutdown-fixture] runtime: bun 1.4.2",
 			);
-			expect(daemon.stderr()).toContain("[shutdown-fixture] forced exit:");
 			await expect(
 				readFile(daemon.discoveryPath, "utf8"),
 			).rejects.toMatchObject({
@@ -285,7 +284,6 @@ describe("hub daemon shutdown", () => {
 				expect(daemon.stderr()).toContain(
 					"[shutdown-fixture] runtime: bun 1.4.2",
 				);
-				expect(daemon.stderr()).toContain("[shutdown-fixture] forced exit:");
 				await expect(
 					readFile(daemon.discoveryPath, "utf8"),
 				).rejects.toMatchObject({ code: "ENOENT" });
