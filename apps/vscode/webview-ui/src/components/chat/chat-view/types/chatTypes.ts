@@ -4,7 +4,19 @@
 
 import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType } from "../shared/buttonConfig"
+import type { ButtonActionType, SubmittingButtonActionType } from "../shared/buttonConfig"
+
+export interface DraftSnapshot {
+	revision: number
+	text: string
+	activeQuote: string | null
+	images: string[]
+	files: string[]
+}
+
+export type ButtonActionInvocation =
+	| { type: SubmittingButtonActionType; draft: DraftSnapshot }
+	| { type: Exclude<ButtonActionType, SubmittingButtonActionType>; draft?: never }
 
 export interface PendingUserMessage {
 	message: ClineMessage
@@ -35,6 +47,8 @@ export interface ChatState {
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
 	selectedFiles: string[]
 	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
+	getDraftSnapshot: () => DraftSnapshot
+	consumeDraftSnapshot: (draft: DraftSnapshot) => void
 	sendingDisabled: boolean
 	setSendingDisabled: React.Dispatch<React.SetStateAction<boolean>>
 	enableButtons: boolean
@@ -73,7 +87,7 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
-	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
+	executeButtonAction: (invocation: ButtonActionInvocation) => Promise<void>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
 	startNewTask: () => Promise<void>

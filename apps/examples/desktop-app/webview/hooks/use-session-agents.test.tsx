@@ -18,15 +18,22 @@ let root: Root;
 let current: SessionAgentsHook;
 
 function HookHarness({
+	environmentId = "local",
 	sessionId,
 	panelOpen = false,
 	sessionActive = false,
 }: {
+	environmentId?: string;
 	sessionId: string | null;
 	panelOpen?: boolean;
 	sessionActive?: boolean;
 }) {
-	current = useSessionAgents({ sessionId, panelOpen, sessionActive });
+	current = useSessionAgents({
+		environmentId,
+		sessionId,
+		panelOpen,
+		sessionActive,
+	});
 	return null;
 }
 
@@ -76,6 +83,7 @@ describe("useSessionAgents", () => {
 		invokeMock.mockResolvedValue([agentRow("a", "one")]);
 		await render({ sessionId: "a" });
 		expect(invokeMock).toHaveBeenCalledWith("list_session_agents", {
+			environmentId: "local",
 			sessionId: "a",
 		});
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["one"]);
@@ -90,6 +98,7 @@ describe("useSessionAgents", () => {
 		invokeMock.mockResolvedValue([agentRow("a", "aged-out")]);
 		await render({ sessionId: "a", panelOpen: false, sessionActive: false });
 		expect(invokeMock).toHaveBeenCalledWith("list_session_agents", {
+			environmentId: "local",
 			sessionId: "a",
 		});
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["aged-out"]);

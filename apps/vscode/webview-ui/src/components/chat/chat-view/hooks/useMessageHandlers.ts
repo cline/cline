@@ -5,8 +5,14 @@ import { IntentEvent } from "@shared/proto/cline/ui"
 import { useCallback, useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
-import type { ButtonActionType } from "../shared/buttonConfig"
-import type { ChatState, MessageHandlers } from "../types/chatTypes"
+import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
+
+function formatDraftText(text: string, activeQuote: string | null): string {
+	if (!activeQuote) {
+		return text
+	}
+	return `[context] \n>  ${activeQuote} \n[/context] \n\n ${text}`
+}
 
 /**
  * Custom hook for managing message handlers
@@ -40,10 +46,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 			// Prepend the active quote if it exists
 			if (activeQuote && hasContent) {
-				const prefix = "[context] \n> "
-				const formattedQuote = activeQuote
-				const suffix = "\n[/context] \n\n"
-				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
+				messageToSend = formatDraftText(messageToSend, activeQuote)
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
@@ -325,8 +328,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		],
 	)
 
-	// Start a new task
-	const startNewTask = useCallback(async () => {
+	const clearTask = useCallback(async () => {
 		UiServiceClient.trackIntent(
 			IntentEvent.create({
 				action: "new_task_clicked",
@@ -334,7 +336,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				hasActiveTask: messages.length > 0,
 			}),
 		).catch((error) => console.error("Failed to track new task click:", error))
-		setActiveQuote(null)
 		// Drop any unconfirmed optimistic message: if it lingered past an explicit
 		// New Task, withPendingUserMessage would re-inject the old task (and its
 		// attachments) into the freshly cleared transcript, leaving the chat stuck
@@ -342,23 +343,20 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setPendingUserMessage(undefined)
 		setPendingResponse(undefined)
 		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [messages.length, setActiveQuote, setPendingUserMessage, setPendingResponse])
+	}, [messages.length, setPendingUserMessage, setPendingResponse])
 
-	// Clear input state helper
-	const clearInputState = useCallback(() => {
-		setInputValue("")
+	// Start a new task
+	const startNewTask = useCallback(async () => {
+		// Quotes refer to rows in the task being closed. Keep independent draft
+		// text and attachments, but do not carry stale task context forward.
 		setActiveQuote(null)
-		setSelectedImages([])
-		setSelectedFiles([])
-	}, [setInputValue, setActiveQuote, setSelectedImages, setSelectedFiles])
+		await clearTask()
+	}, [clearTask, setActiveQuote])
 
 	// Execute button action based on type
 	const executeButtonAction = useCallback(
-		async (actionType: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
-			const trimmedInput = text?.trim()
-			const hasContent = trimmedInput || (images && images.length > 0) || (files && files.length > 0)
-
-			switch (actionType) {
+		async (invocation: ButtonActionInvocation) => {
+			switch (invocation.type) {
 				case "retry":
 					// For API retry (api_req_failed), always send simple approval without content
 					await TaskServiceClient.askResponse(
@@ -366,67 +364,22 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							responseType: "yesButtonClicked",
 						}),
 					)
-					clearInputState()
 					break
 				case "approve":
-					if (hasContent) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-							}),
-						)
-					}
-					clearInputState()
-					break
-
 				case "reject":
-					if (hasContent) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-							}),
-						)
-					}
-					clearInputState()
+				case "proceed": {
+					const { draft } = invocation
+					const text = formatDraftText(draft.text.trim(), draft.activeQuote)
+					const hasContent = text || draft.images.length > 0 || draft.files.length > 0
+					const responseType = invocation.type === "reject" ? "noButtonClicked" : "yesButtonClicked"
+					await TaskServiceClient.askResponse(
+						AskResponseRequest.create(
+							hasContent ? { responseType, text, images: draft.images, files: draft.files } : { responseType },
+						),
+					)
+					chatState.consumeDraftSnapshot(draft)
 					break
-
-				case "proceed":
-					if (hasContent) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-							}),
-						)
-					}
-					clearInputState()
-					break
+				}
 
 				case "proceed_while_running":
 					// Detach the running foreground terminal command: the agent
@@ -438,6 +391,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "new_task":
+					// Reset context from the old task before the first await. A quote
+					// selected while New Task is in flight belongs to the new draft.
+					setActiveQuote(null)
 					if (clineAsk === "new_task") {
 						await TaskServiceClient.newTask(
 							NewTaskRequest.create({
@@ -447,7 +403,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							}),
 						)
 					} else {
-						await startNewTask()
+						await clearTask()
 					}
 					break
 
@@ -497,12 +453,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		[
 			clineAsk,
 			lastMessage,
-			messages,
-			clearInputState,
-			handleSendMessage,
-			startNewTask,
+			clearTask,
 			chatState,
 			backgroundCommandRunning,
+			setActiveQuote,
 			setSendingDisabled,
 			setEnableButtons,
 		],

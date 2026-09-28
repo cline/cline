@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createDesktopAppState, desktopAppReducer } from "./desktop-app-state";
 import type { SessionHistoryItem } from "./session-history";
+import { sessionKey } from "./session-identity";
 
 const settingsSection = "General" as const;
 
 function createSession(sessionId: string): SessionHistoryItem {
 	return {
 		sessionId,
+		environmentId: "local",
 		status: "completed",
 		provider: "test-provider",
 		model: "test-model",
@@ -17,50 +19,100 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it("keeps identical session IDs separate across environments", () => {
+		let state = createDesktopAppState("welcome", settingsSection, "local");
+		for (const environmentId of ["local", "remote"]) {
+			state = desktopAppReducer(state, {
+				type: "open-session",
+				session: { ...createSession("same-id"), environmentId },
+				environmentId,
+			});
+		}
+		expect(
+			state.threads.filter(
+				(thread) => thread.historySession?.sessionId === "same-id",
+			),
+		).toHaveLength(2);
+		state = desktopAppReducer(state, {
+			type: "update-session-metadata",
+			sessionId: "same-id",
+			environmentId: "remote",
+			metadata: { title: "Remote title" },
+		});
+		expect(
+			state.threads.find(
+				(thread) => thread.environmentId === "local" && thread.historySession,
+			)?.historySession?.metadata?.title,
+		).toBeUndefined();
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "same-id",
+			environmentId: "remote",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(
+			state.threads
+				.filter((thread) => thread.historySession?.sessionId === "same-id")
+				.map((thread) => thread.environmentId),
+		).toEqual(["local"]);
+	});
+
 	it("hands an edited prompt to a fork exactly once", () => {
-		let state = createDesktopAppState("welcome", settingsSection);
+		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("forked-session"),
+			environmentId: "local",
 			initialPromptDraft: "Revise this prompt",
 		});
 
 		expect(
-			state.threads.find((thread) => thread.id === "session_forked-session")
-				?.initialPromptDraft,
+			state.threads.find(
+				(thread) =>
+					thread.id ===
+					`session_${sessionKey({ sessionId: "forked-session", environmentId: "local" })}`,
+			)?.initialPromptDraft,
 		).toBe("Revise this prompt");
 
 		state = desktopAppReducer(state, {
 			type: "consume-initial-prompt-draft",
-			threadId: "session_forked-session",
+			threadId: `session_${sessionKey({ sessionId: "forked-session", environmentId: "local" })}`,
 		});
 
 		expect(
-			state.threads.find((thread) => thread.id === "session_forked-session")
-				?.initialPromptDraft,
+			state.threads.find(
+				(thread) =>
+					thread.id ===
+					`session_${sessionKey({ sessionId: "forked-session", environmentId: "local" })}`,
+			)?.initialPromptDraft,
 		).toBeUndefined();
 	});
 
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
-		let state = createDesktopAppState("welcome", settingsSection);
+		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("session-a"),
+			environmentId: "local",
 		});
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("session-b"),
+			environmentId: "local",
 		});
 
 		state = desktopAppReducer(state, {
 			type: "delete-session",
 			deletedSessionId: "session-a",
 			fallbackThreadId: "fallback-a",
+			fallbackEnvironmentId: "local",
 		});
 		state = desktopAppReducer(state, {
 			type: "delete-session",
 			deletedSessionId: "session-b",
 			fallbackThreadId: "fallback-b",
+			fallbackEnvironmentId: "local",
 		});
 
 		expect(state.threads.map((thread) => thread.id)).toEqual([
@@ -73,30 +125,176 @@ describe("desktopAppReducer", () => {
 			state.navigation.current,
 			...state.navigation.forward,
 		]).not.toContainEqual(
-			expect.objectContaining({ activeThreadId: "session_session-a" }),
+			expect.objectContaining({
+				activeThreadId: `session_${sessionKey({ sessionId: "session-a", environmentId: "local" })}`,
+			}),
 		);
 		expect([
 			...state.navigation.back,
 			state.navigation.current,
 			...state.navigation.forward,
 		]).not.toContainEqual(
-			expect.objectContaining({ activeThreadId: "session_session-b" }),
+			expect.objectContaining({
+				activeThreadId: `session_${sessionKey({ sessionId: "session-b", environmentId: "local" })}`,
+			}),
 		);
 	});
 
+	it("closes a thread started in-app when its session is deleted elsewhere", () => {
+		let state = createDesktopAppState("draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "draft",
+		});
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "draft",
+			sessionId: "live-session",
+		});
+		expect(state.threads[0]).toMatchObject({
+			id: "draft",
+			hasStarted: true,
+			sessionId: "live-session",
+		});
+
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "live-session",
+			environmentId: "local",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(state.threads.map((thread) => thread.id)).toEqual(["fallback"]);
+		expect(state.navigation.current).toMatchObject({
+			activeThreadId: "fallback",
+			view: "chat",
+		});
+	});
+
 	it("ignores a duplicate deletion after its thread and history are removed", () => {
-		let state = createDesktopAppState("welcome", settingsSection);
+		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("session-a"),
+			environmentId: "local",
 		});
 		const deletion = {
 			type: "delete-session" as const,
 			deletedSessionId: "session-a",
 			fallbackThreadId: "fallback-a",
+			fallbackEnvironmentId: "local",
 		};
 
 		state = desktopAppReducer(state, deletion);
 		expect(desktopAppReducer(state, deletion)).toBe(state);
+	});
+
+	it("binds drafts to an environment without rebinding started threads", () => {
+		let state = createDesktopAppState("welcome", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "bind-unstarted-thread",
+			threadId: "welcome",
+			environmentId: "pi-host",
+		});
+		expect(state.threads[0]?.environmentId).toBe("pi-host");
+
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "welcome",
+		});
+		state = desktopAppReducer(state, {
+			type: "bind-unstarted-thread",
+			threadId: "welcome",
+			environmentId: "other-host",
+		});
+		expect(state.threads[0]?.environmentId).toBe("pi-host");
+	});
+
+	it("carries environment identity through new and restored threads", () => {
+		let state = createDesktopAppState("welcome", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "remote-draft",
+			environmentId: "pi-host",
+		});
+		expect(state.threads.at(-1)).toMatchObject({
+			id: "remote-draft",
+			environmentId: "pi-host",
+		});
+
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: {
+				...createSession("remote-session"),
+				environmentId: "pi-host",
+				workspaceRoot: "/home/pi/project",
+				cwd: "/home/pi/project",
+			},
+			environmentId: "pi-host",
+		});
+		expect(state.threads.at(-1)).toMatchObject({
+			id: `session_${sessionKey({ sessionId: "remote-session", environmentId: "pi-host" })}`,
+			environmentId: "pi-host",
+			historySession: { environmentId: "pi-host" },
+		});
+	});
+
+	it("creates one draft per selected environment and reuses it", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "select-environment-draft",
+			environmentId: "pi-host",
+			threadId: "remote-draft",
+		});
+
+		expect(state.navigation.current).toMatchObject({
+			activeThreadId: "remote-draft",
+			view: "chat",
+		});
+		expect(state.threads).toContainEqual({
+			id: "remote-draft",
+			environmentId: "pi-host",
+		});
+
+		const selectedAgain = desktopAppReducer(state, {
+			type: "select-environment-draft",
+			environmentId: "pi-host",
+			threadId: "duplicate-remote-draft",
+		});
+		expect(selectedAgain).toBe(state);
+		expect(
+			selectedAgain.threads.filter(
+				(thread) => thread.environmentId === "pi-host" && !thread.hasStarted,
+			),
+		).toHaveLength(1);
+
+		state = desktopAppReducer(selectedAgain, {
+			type: "select-environment-draft",
+			environmentId: "local",
+			threadId: "duplicate-local-draft",
+		});
+		expect(state.navigation.current.activeThreadId).toBe("local-draft");
+		expect(
+			state.threads.some((thread) => thread.id === "duplicate-local-draft"),
+		).toBe(false);
+	});
+
+	it("does not reuse a started thread as an environment draft", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "local-draft",
+		});
+		state = desktopAppReducer(state, {
+			type: "select-environment-draft",
+			environmentId: "local",
+			threadId: "fresh-local-draft",
+		});
+
+		expect(state.navigation.current.activeThreadId).toBe("fresh-local-draft");
+		expect(state.threads.at(-1)).toEqual({
+			id: "fresh-local-draft",
+			environmentId: "local",
+		});
 	});
 });

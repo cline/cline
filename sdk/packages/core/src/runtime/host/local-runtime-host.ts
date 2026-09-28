@@ -329,6 +329,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
+			steerFirst: async (input) =>
+				this.pendingPromptsController.steerFirst(input.sessionId),
 			list: async (input) =>
 				this.pendingPromptsController.list(input.sessionId),
 			update: async (input) => this.pendingPromptsController.update(input),
@@ -1313,16 +1315,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
-		return { updated: result?.updated === true };
+		const result = await this.invokeOptionalValue<{
+			updated: boolean;
+			metadata?: SessionManifest["metadata"] | null;
+		}>("updateSession", {
+			sessionId,
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			title: updates.title,
+		});
+		const updated = result?.updated === true;
+		if (updated && result.metadata !== undefined) {
+			const active = this.sessions.get(sessionId.trim());
+			if (active) {
+				active.sessionMetadata = result.metadata ?? undefined;
+				if (active.artifacts)
+					active.artifacts.manifest.metadata = active.sessionMetadata;
+			}
+		}
+		return { updated };
 	}
 
 	async updateSessionCompactionState(

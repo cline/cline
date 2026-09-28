@@ -1,10 +1,59 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	resolveCredentialError,
+	resolveCredentialFailureAction,
 	resolveCredentialFailureHint,
 } from "./helpers";
+
+const CLOUD_CONFIG: ChatSessionConfig = {
+	executionTarget: "cloud",
+	provider: "cline",
+	model: "anthropic/claude-sonnet-5",
+	apiKey: "",
+	workspaceRoot: "",
+	cwd: "",
+	repoUrl: "https://github.com/cline/cline",
+} as ChatSessionConfig;
+
+describe("resolveCredentialError (cloud)", () => {
+	it("accepts a valid HTTPS GitHub URL for a new session", () => {
+		expect(resolveCredentialError(CLOUD_CONFIG)).toBeNull();
+	});
+
+	it("rejects invalid GitHub repository URLs", () => {
+		for (const repoUrl of [
+			"https://exa",
+			"git@github.com:cline/cline.git",
+			"https://gitlab.com/cline/cline",
+			"http://github.com/cline/cline",
+		]) {
+			expect(resolveCredentialError({ ...CLOUD_CONFIG, repoUrl })).toMatch(
+				/valid HTTPS GitHub repository URL/,
+			);
+		}
+	});
+
+	it("does not require a repo URL when sending into an existing session", () => {
+		expect(
+			resolveCredentialError(
+				{ ...CLOUD_CONFIG, repoUrl: "" },
+				{ hasActiveSession: true },
+			),
+		).toBeNull();
+	});
+
+	it("still requires the Cline provider for existing sessions", () => {
+		expect(
+			resolveCredentialError(
+				{ ...CLOUD_CONFIG, provider: "anthropic" },
+				{ hasActiveSession: true },
+			),
+		).toMatch(/Cline provider/);
+	});
+});
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 	return {
@@ -84,12 +133,35 @@ describe("resolveCredentialFailureHint", () => {
 		expect(resolveCredentialFailureHint("opencode")).toMatch(/`opencode` CLI/);
 	});
 
-	it("points everything else at Settings → Models", () => {
-		for (const providerId of ["anthropic", "cline", "openai-codex", ""]) {
+	it("points Cline at signing in again from Settings → Account", () => {
+		expect(resolveCredentialFailureHint("cline")).toBe(
+			"Sign in to Cline again in Settings → Account, then try again.",
+		);
+	});
+
+	it("points everything else at Settings → Providers", () => {
+		for (const providerId of ["anthropic", "openai-codex", ""]) {
 			expect(resolveCredentialFailureHint(providerId)).toMatch(
-				/Settings → Models/,
+				/Settings → Providers/,
 			);
 		}
+	});
+});
+
+describe("resolveCredentialFailureAction", () => {
+	it("offers no in-app action for local-auth providers", () => {
+		expect(resolveCredentialFailureAction("claude-code")).toBeNull();
+	});
+
+	it("sends Cline to the Account page and other providers to Models", () => {
+		expect(resolveCredentialFailureAction("cline")).toEqual({
+			label: "Sign in to Cline",
+			target: "account",
+		});
+		expect(resolveCredentialFailureAction("anthropic")).toEqual({
+			label: "Open API providers",
+			target: "models",
+		});
 	});
 });
 
@@ -117,5 +189,26 @@ describe("inferHydratedChatStatus", () => {
 				},
 			]),
 		).toBe("completed");
+	});
+});
+
+describe("extractAssistantTurnDataFromRpcMessages", () => {
+	it("does not render a display-only error as an assistant response", () => {
+		expect(
+			extractAssistantTurnDataFromRpcMessages([
+				{ role: "user", content: "hi" },
+				{
+					role: "assistant",
+					content: "API key expired.",
+					metadata: { displayOnly: true, displayRole: "error" },
+				},
+			]),
+		).toEqual({
+			text: "",
+			reasoning: "",
+			reasoningRedacted: false,
+			images: [],
+			media: [],
+		});
 	});
 });

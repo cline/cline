@@ -15,6 +15,8 @@ const context: AgentToolContext = {
 	iteration: 1,
 };
 
+const pwshExecutable = process.platform === "win32" ? "pwsh.exe" : "pwsh";
+
 function createSuccessfulChildProcess(): ChildProcessWithoutNullStreams {
 	const child = Object.assign(new EventEmitter(), {
 		stdout: new EventEmitter(),
@@ -62,10 +64,10 @@ describe("createBuiltinTools shell configuration", () => {
 				"Commands run through Windows PowerShell (powershell.exe)",
 		},
 		{
-			name: "Microsoft PowerShell executable",
+			name: "pwsh executable",
 			options: { shell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
 			expectedShell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-			expectedDescription: "Commands run through Microsoft PowerShell",
+			expectedDescription: `Commands run through PowerShell (${pwshExecutable})`,
 		},
 		{
 			name: "top-level shell precedence",

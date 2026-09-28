@@ -518,14 +518,68 @@ export function resolveGlobalAgentsRulesPath(): string {
 	return join(HOME_DIR, LEGACY_AGENT_SKILLS_CONFIG_DIR, AGENTS_RULES_FILE_NAME);
 }
 
+/**
+ * The workspace-local directories rule files may live in: the legacy
+ * `<workspace>/.clinerules` layout and the current
+ * `<workspace>/.cline/rules` layout. Every Cline surface (CLI, VS Code
+ * extension, desktop app) must honor both — hosts that hardcode one of them
+ * silently drop the other's rules (cline/cline#14186).
+ */
+export function resolveWorkspaceRulesConfigPaths(
+	workspacePath: string,
+): string[] {
+	return [
+		join(workspacePath, DEPRECATED_CONFIG_DIR),
+		join(workspacePath, CLINE_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME),
+	];
+}
+
+/**
+ * On Windows, the user's Documents folder is frequently redirected by
+ * OneDrive "Known Folder Move" to `%OneDrive%\Documents`. The VS Code
+ * extension resolves the real Documents folder through the OS (PowerShell
+ * `[Environment]::GetFolderPath(MyDocuments)`) and creates global rules
+ * there, so the plain `HOME/Documents` guess below never sees them on
+ * redirected machines (cline/cline#14144). Add the OneDrive candidates so
+ * discovery covers both locations; missing directories are skipped by the
+ * scanners.
+ */
+function resolveRedirectedDocumentsPaths(): string[] {
+	const paths: string[] = [];
+	for (const envKey of ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"]) {
+		const value = process.env[envKey]?.trim();
+		if (value) {
+			paths.push(join(value, "Documents"));
+		}
+	}
+	return paths;
+}
+
+/**
+ * Global (user-level) directories rule files may live in, ordered from the
+ * SDK-native location to the Documents locations used by the VS Code Rules
+ * tab.
+ */
+export function resolveGlobalRulesConfigPaths(): string[] {
+	return dedupePaths([
+		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
+		// The VS Code Rules tab resolves Documents via `xdg-user-dir DOCUMENTS`,
+		// which prints bare $HOME when unconfigured (WSL/headless), putting
+		// global rules at ~/Cline/Rules instead of ~/Documents/Cline/Rules
+		// (cline/cline#13542).
+		join(HOME_DIR, "Cline", "Rules"),
+		resolveDocumentsExtensionPath("Rules"),
+		...resolveRedirectedDocumentsPaths().map((documentsPath) =>
+			join(documentsPath, "Cline", "Rules"),
+		),
+	]);
+}
+
 export function resolveRulesConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	const wsPaths = workspacePath
-		? [
-				join(workspacePath, DEPRECATED_CONFIG_DIR),
-				join(workspacePath, CLINE_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME),
-			]
+		? resolveWorkspaceRulesConfigPaths(workspacePath)
 		: [];
 	const workspaceAgentsFile = workspacePath
 		? [join(workspacePath, AGENTS_RULES_FILE_NAME)]
@@ -534,13 +588,7 @@ export function resolveRulesConfigSearchPaths(
 		...workspaceAgentsFile,
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
-		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
-		// The VS Code Rules tab resolves Documents via `xdg-user-dir DOCUMENTS`,
-		// which prints bare $HOME when unconfigured (WSL/headless), putting
-		// global rules at ~/Cline/Rules instead of ~/Documents/Cline/Rules
-		// (cline/cline#13542).
-		join(HOME_DIR, "Cline", "Rules"),
-		resolveDocumentsExtensionPath("Rules"),
+		...resolveGlobalRulesConfigPaths(),
 	]);
 }
 

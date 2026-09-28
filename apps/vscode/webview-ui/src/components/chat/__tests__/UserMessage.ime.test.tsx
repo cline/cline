@@ -5,15 +5,18 @@
  * even if you confirm the IME conversion (Enter) in message re-edit mode.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const navigateToSettings = vi.fn()
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	__esModule: true,
 	useExtensionState: () => ({
 		state: {},
 		dispatch: vi.fn(),
+		navigateToSettings,
 	}),
 }))
 
@@ -86,7 +89,15 @@ describe("UserMessage – IME composition handling", () => {
 
 	it("labels reset actions and preserves their restore behavior", async () => {
 		const user = userEvent.setup()
-		render(<UserMessage files={["src/app.ts"]} images={["image.png"]} messageTs={123} text="Update this" />)
+		render(
+			<UserMessage
+				files={["src/app.ts"]}
+				images={["image.png"]}
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: true }}
+			/>,
+		)
 
 		await user.click(screen.getByText("Update this"))
 
@@ -117,6 +128,66 @@ describe("UserMessage – IME composition handling", () => {
 				restoreWorkspace: true,
 			}),
 		)
+	})
+
+	it("keeps Reset Chat enabled and disables Reset Code when checkpoints were off", async () => {
+		const user = userEvent.setup()
+		render(
+			<UserMessage
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: false, reason: "checkpoints_disabled" }}
+			/>,
+		)
+
+		await user.click(screen.getByText("Update this"))
+
+		expect(screen.getByRole("button", { name: "Reset Chat" })).toBeEnabled()
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.click(resetCode)
+		expect(await screen.findByText(/No checkpoint is available for this message/)).toBeInTheDocument()
+		await user.click(screen.getByText("Settings"))
+		expect(navigateToSettings).toHaveBeenCalledWith("checkpoints")
+	})
+
+	it("opens the disabled Reset Code explanation from the keyboard", async () => {
+		const user = userEvent.setup()
+		render(
+			<UserMessage
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: false, reason: "checkpoints_disabled" }}
+			/>,
+		)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		act(() => resetCode.focus())
+		expect(resetCode).toHaveFocus()
+		await user.keyboard("{Enter}")
+		expect(await screen.findByText(/No checkpoint is available for this message/)).toBeInTheDocument()
+		const settingsLink = screen.getByText("Settings")
+		expect(settingsLink).toHaveFocus()
+		await user.keyboard("{Enter}")
+		expect(navigateToSettings).toHaveBeenCalledWith("checkpoints")
+	})
+
+	it("explains when checkpoint creation was enabled but no checkpoint exists", async () => {
+		const user = userEvent.setup()
+		render(
+			<UserMessage
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: false, reason: "checkpoint_unavailable" }}
+			/>,
+		)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.hover(resetCode)
+		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()
 	})
 
 	it("removes an image before regenerating an edited message", async () => {

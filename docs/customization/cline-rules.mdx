@@ -23,7 +23,7 @@ Cline recognizes rules from multiple sources, so you can use existing rule files
 
 | Rule Type | Location | Description |
 |-----------|----------|-------------|
-| Cline Rules | `.clinerules/` | Primary rule format |
+| Cline Rules | `.clinerules/`, `.cline/rules/` | Supported workspace rule directories |
 | Cursor Rules | `.cursorrules` | Automatically detected |
 | Windsurf Rules | `.windsurfrules` | Automatically detected |
 | AGENTS.md | `AGENTS.md`, `~/.agents/AGENTS.md` | [Standard format](https://agents.md/) for cross-tool compatibility |
@@ -35,7 +35,7 @@ All detected rule types appear in the Rules panel, where you can toggle them ind
 
 Rules can be stored in two locations: your project workspace or globally on your system.
 
-**Workspace rules** go in `.clinerules/` at your project root. Use these for team standards, project-specific constraints, and anything you want to share with collaborators via version control.
+**Workspace rules** go in `.clinerules/` or `.cline/rules/` at your project root. Both layouts are supported by VS Code, Desktop, and the CLI. Use these for team standards, project-specific constraints, and anything you want to share with collaborators via version control.
 
 **Global rules** go in your system's Cline Rules directory. Use these for personal preferences that apply across all projects. Cline also reads cross-tool global AGENTS instructions from `~/.agents/AGENTS.md`.
 
@@ -49,7 +49,9 @@ your-project/
 └── ...
 ```
 
-Cline processes all `.md` and `.txt` files inside `.clinerules/`, combining them into a unified set of rules. Numeric prefixes (like `01-coding.md`) help organize files but are optional.
+The example uses `.clinerules/`; you can put the same rule files in `.cline/rules/` instead. Both directories are searched when present, so you do not need to copy rules into both locations. The VS Code Rules panel still creates new workspace rules in `.clinerules/`.
+
+Cline processes rule files inside either directory, combining them into a unified set of rules. Numeric prefixes (like `01-coding.md`) help organize files but are optional.
 
 When both workspace and global rules exist, Cline combines them. Workspace rules take precedence when they conflict with global rules. See [Storage Locations](/getting-started/config#storage-locations) for more guidance.
 
@@ -62,7 +64,7 @@ When both workspace and global rules exist, Cline combines them. Workspace rules
 | Linux/WSL | `~/Documents/Cline/Rules` |
 
 <Note>
-Linux/WSL users: If you don't find global rules in `~/Documents/Cline/Rules`, check `~/Cline/Rules`.
+Cline also searches `~/.cline/rules` and `~/Cline/Rules` for global rules. On Windows, it checks `Documents\Cline\Rules` under the OneDrive directories configured by `OneDrive`, `OneDriveConsumer`, and `OneDriveCommercial`.
 </Note>
 
 

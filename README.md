@@ -5,7 +5,7 @@
 <h1 align="center">Cline</h1>
 
 <p align="center">
-The open source coding agent in your IDE, terminal, and desktop.
+The open source coding agent in your IDE, terminal, & desktop.
 </p>
 
 <div align="center">
@@ -63,7 +63,7 @@ Cline as a native app for macOS and Windows.
 Run agent sessions in any folder, schedule
 routines, and manage models, plugins, and MCP servers.
 
-<a href="https://github.com/cline/cline/releases?q=desktop-v&expanded=true">Download for macOS and Windows</a>
+<a href="https://cline.bot/desktop">Download for macOS and Windows</a>
 <br><br>
 
 </td>
@@ -182,7 +182,7 @@ const deployTool = createTool({
 
 const agent = new Agent({ tools: [deployTool], /* ... */ })
 ```
-...or use [MCP servers](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`.
+...or use [MCPs](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`.
 
 ## Multi-Agent Teams
 

@@ -2,7 +2,10 @@ import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
-import { readWorkspaceSelectionFromWindow } from "@/lib/workspace-paths";
+import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+	readWorkspaceSelectionFromWindow,
+} from "@/lib/workspace-paths";
 
 export const CHAT_TRANSPORT_UNAVAILABLE_MESSAGE =
 	"Chat connection is unavailable. Reopen the app window to restore realtime chat.";
@@ -15,8 +18,11 @@ export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-co
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
+	executionTarget: "local",
+	repoUrl: undefined,
 	workspaceRoot: "",
 	cwd: "",
+	environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	provider: "cline",
 	model: CLINE_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY || "",
@@ -31,9 +37,9 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	missionTimeIntervalMs: undefined,
 };
 
-export function getInitialChatConfig(): ChatSessionConfig {
+export function getInitialChatConfig(environmentId: string): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
-	const workspaceSelection = readWorkspaceSelectionFromWindow();
+	const workspaceSelection = readWorkspaceSelectionFromWindow(environmentId);
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
 	const rememberedModelForProvider = rememberedProvider
 		? (selection.lastModelByProvider[rememberedProvider] ??
@@ -51,6 +57,7 @@ export function getInitialChatConfig(): ChatSessionConfig {
 
 	return {
 		...DEFAULT_CHAT_CONFIG,
+		environmentId,
 		provider,
 		model,
 		workspaceRoot: workspaceSelection.lastWorkspace,

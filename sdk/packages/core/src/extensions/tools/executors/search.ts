@@ -73,6 +73,9 @@ const DEFAULT_INCLUDE_EXTENSIONS = [
 	"toml",
 	"py",
 	"rb",
+	"php",
+	"phtml",
+	"inc",
 	"go",
 	"rs",
 	"java",
@@ -110,6 +113,7 @@ const DEFAULT_INCLUDE_EXTENSIONS = [
 	"html",
 	"vue",
 	"svelte",
+	"twig",
 	"sql",
 	"sh",
 	"bash",
@@ -124,6 +128,7 @@ const DEFAULT_INCLUDE_EXTENSIONS = [
 
 const DEFAULT_EXCLUDE_DIRS = [
 	"node_modules",
+	"vendor",
 	".git",
 	".vs",
 	"dist",
