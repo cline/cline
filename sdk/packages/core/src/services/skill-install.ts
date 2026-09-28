@@ -1,5 +1,6 @@
 import {
 	chmodSync,
+	existsSync,
 	mkdirSync,
 	renameSync,
 	rmSync,
@@ -31,6 +32,15 @@ export interface GitHubSkillInstallOptions {
 	skillsDir?: string;
 	fetch?: typeof fetch;
 	timeoutMs?: number;
+	/** Largest repository archive to download. Defaults to 100 MB. */
+	maxArchiveBytes?: number;
+	/**
+	 * Directory names the caller will look the skill up by afterwards. Cline
+	 * identifies a skill by its frontmatter name, not its directory, so when
+	 * that name isn't one of these the skill is installed under the first one
+	 * instead, keeping the caller's installed-check working.
+	 */
+	acceptedNames?: readonly string[];
 }
 
 export interface GitHubSkillInstallResult {
@@ -97,7 +107,7 @@ export function parseGitHubSkillSource(
 		skill ??= rest.slice(at + 1);
 		rest = rest.slice(0, at);
 	}
-	const segments = rest.replace(/\/+$/, "").split("/");
+	const segments = trimTrailing(rest, "/").split("/");
 	const [owner, rawRepo, marker, ref, ...subpathSegments] = segments;
 	const repo = rawRepo?.replace(/\.git$/i, "");
 	if (
@@ -127,13 +137,23 @@ export function parseGitHubSkillSource(
 
 /** Same rule the skills CLI uses to name the installed directory. */
 export function sanitizeSkillInstallName(name: string): string {
-	return (
-		name
-			.toLowerCase()
-			.replace(/[^a-z0-9._]+/g, "-")
-			.replace(/^[.-]+|[.-]+$/g, "")
-			.slice(0, 255) || "unnamed-skill"
-	);
+	const dashed = name.toLowerCase().replace(/[^a-z0-9._]+/g, "-");
+	let start = 0;
+	let end = dashed.length;
+	while (start < end && (dashed[start] === "." || dashed[start] === "-")) {
+		start++;
+	}
+	while (end > start && (dashed[end - 1] === "." || dashed[end - 1] === "-")) {
+		end--;
+	}
+	return dashed.slice(start, end).slice(0, 255) || "unnamed-skill";
+}
+
+// Loops instead of /x+$/ regexes, which backtrack polynomially on long runs.
+function trimTrailing(value: string, char: string): string {
+	let end = value.length;
+	while (end > 0 && value[end - 1] === char) end--;
+	return value.slice(0, end);
 }
 
 export async function installGitHubSkill(
@@ -143,7 +163,7 @@ export async function installGitHubSkill(
 	const archive = await downloadRepositoryArchive(source, options);
 	const tree = readTarGz(archive);
 	const skill = selectSkill(source, tree);
-	const name = sanitizeSkillInstallName(skill.name);
+	const name = resolveDirectoryName(skill.name, options.acceptedNames);
 	const skillsDir =
 		options.skillsDir ?? join(resolveHomeDir(), ".agents", "skills");
 	const { files, skippedPaths } = collectSkillFiles(skill.dir, tree);
@@ -152,10 +172,12 @@ export async function installGitHubSkill(
 	// Staged beside the skills directory, not inside it: the skills watcher
 	// would otherwise load the half-written copy as a second skill. Same parent,
 	// so the final rename stays on one volume.
+	const suffix = `${name}-${process.pid}-${Date.now()}`;
 	const stagingPath = join(
 		dirname(skillsDir),
-		`.cline-skill-staging-${name}-${process.pid}-${Date.now()}`,
+		`.cline-skill-staging-${suffix}`,
 	);
+	const backupPath = join(dirname(skillsDir), `.cline-skill-backup-${suffix}`);
 	try {
 		for (const file of files) {
 			const target = join(stagingPath, ...file.relativePath.split("/"));
@@ -166,13 +188,33 @@ export async function installGitHubSkill(
 			}
 		}
 		mkdirSync(skillsDir, { recursive: true });
-		rmSync(installPath, { ...RM_OPTIONS });
-		await renameWithRetry(stagingPath, installPath);
+		// Move any existing copy aside rather than deleting it, so a failed
+		// swap can put it back instead of leaving the user with no skill.
+		const hadExisting = existsSync(installPath);
+		if (hadExisting) await renameWithRetry(installPath, backupPath);
+		try {
+			await renameWithRetry(stagingPath, installPath);
+		} catch (error) {
+			if (hadExisting) await renameWithRetry(backupPath, installPath);
+			throw error;
+		}
+		rmSync(backupPath, { ...RM_OPTIONS });
 	} catch (error) {
 		rmSync(stagingPath, { ...RM_OPTIONS });
 		throw error;
 	}
 	return { name, installPath, fileCount: files.length, skippedPaths };
+}
+
+function resolveDirectoryName(
+	skillName: string,
+	acceptedNames: readonly string[] | undefined,
+): string {
+	const name = sanitizeSkillInstallName(skillName);
+	const accepted = (acceptedNames ?? []).map(sanitizeSkillInstallName);
+	return accepted.length === 0 || accepted.includes(name)
+		? name
+		: (accepted[0] ?? name);
 }
 
 // On Windows, antivirus and search indexers briefly lock freshly written
@@ -237,15 +279,30 @@ async function downloadRepositoryArchive(
 			`Could not download ${repoLabel(source)} from GitHub: HTTP ${response.status}`,
 		);
 	}
+	const maxBytes = options.maxArchiveBytes ?? MAX_ARCHIVE_BYTES;
 	const declaredLength = Number(response.headers.get("content-length"));
-	if (declaredLength > MAX_ARCHIVE_BYTES) {
+	if (declaredLength > maxBytes) {
 		throw new Error(`${repoLabel(source)} is too large to install as a skill.`);
 	}
-	const body = Buffer.from(await response.arrayBuffer());
-	if (body.length > MAX_ARCHIVE_BYTES) {
-		throw new Error(`${repoLabel(source)} is too large to install as a skill.`);
+	// Enforce the limit while reading: Content-Length is absent for chunked
+	// responses, and buffering the whole body first would defeat the cap.
+	const chunks: Uint8Array[] = [];
+	let received = 0;
+	const reader = response.body?.getReader();
+	if (!reader) return Buffer.alloc(0);
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		received += value.byteLength;
+		if (received > maxBytes) {
+			await reader.cancel();
+			throw new Error(
+				`${repoLabel(source)} is too large to install as a skill.`,
+			);
+		}
+		chunks.push(value);
 	}
-	return body;
+	return Buffer.concat(chunks);
 }
 
 type TarEntry =
@@ -362,7 +419,7 @@ function normalizeRelativePath(path: string): string | undefined {
 	) {
 		return undefined;
 	}
-	return normalized.replace(/\/+$/, "");
+	return trimTrailing(normalized, "/");
 }
 
 type SkillCandidate = { dir: string; name: string };
@@ -382,12 +439,16 @@ function selectSkill(
 		if (dir.split("/").some((segment) => SEARCH_SKIP_DIRS.has(segment))) {
 			continue;
 		}
-		const name = readFrontmatterName(entry.data.toString("utf8"));
-		if (name) candidates.push({ dir, name });
+		// Cline's skill loader falls back to the directory name when the
+		// frontmatter has none, so accept those skills the same way.
+		const name =
+			readFrontmatterName(entry.data.toString("utf8")) ??
+			(dir ? posix.basename(dir) : source.repo);
+		candidates.push({ dir, name });
 	}
 	const label = `${repoLabel(source)}${searchRoot ? `/${searchRoot}` : ""}`;
 	if (candidates.length === 0) {
-		throw new Error(`No skills (SKILL.md with a name) were found in ${label}.`);
+		throw new Error(`No skills (SKILL.md files) were found in ${label}.`);
 	}
 	if (source.skill) {
 		const wanted = sanitizeSkillInstallName(source.skill);
@@ -416,13 +477,19 @@ function selectSkill(
 }
 
 function readFrontmatterName(content: string): string | undefined {
-	const match = content
-		.replace(/^﻿/, "")
-		.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-	if (!match?.[1]) return undefined;
-	const line = match[1].match(/^name:[ \t]*(.+?)[ \t]*$/m);
-	const value = line?.[1]?.replace(/^(["'])(.*)\1$/, "$2").trim();
-	return value || undefined;
+	const lines = content.replace(/^﻿/, "").split("\n");
+	if (lines[0]?.trim() !== "---") return undefined;
+	for (const line of lines.slice(1)) {
+		if (line.trim() === "---") return undefined;
+		if (!line.startsWith("name:")) continue;
+		let value = line.slice("name:".length).trim();
+		const quote = value[0];
+		if ((quote === '"' || quote === "'") && value.endsWith(quote)) {
+			value = value.slice(1, -1).trim();
+		}
+		return value || undefined;
+	}
+	return undefined;
 }
 
 type SkillFile = { relativePath: string; mode: number; data: Buffer };

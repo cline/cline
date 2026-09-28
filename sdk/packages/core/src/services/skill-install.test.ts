@@ -1,3 +1,4 @@
+import * as fsModule from "node:fs";
 import {
 	existsSync,
 	mkdirSync,
@@ -10,8 +11,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installGitHubSkill, parseGitHubSkillSource } from "./skill-install";
+
+// Lets a test make one rename fail; every other call is the real one.
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return { ...actual, renameSync: vi.fn(actual.renameSync) };
+});
 
 type ArchiveEntry =
 	| { path: string; content: string; mode?: number }
@@ -345,5 +352,96 @@ describe("installGitHubSkill", () => {
 		).rejects.toThrow(
 			"Could not download o/r from GitHub: getaddrinfo ENOTFOUND codeload.github.com",
 		);
+	});
+	it("accepts skills whose SKILL.md has no name, like Cline's loader", async () => {
+		const nested = githubTarball([
+			{ path: "skills/plain/SKILL.md", content: "# Plain skill\n" },
+		]);
+		const nestedResult = await installGitHubSkill(
+			{ owner: "o", repo: "r", skill: "plain" },
+			{ skillsDir, fetch: fetchReturning(nested) },
+		);
+		expect(nestedResult.name).toBe("plain");
+
+		const root = githubTarball([
+			{ path: "SKILL.md", content: "---\ndescription: no name\n---\n" },
+		]);
+		const rootResult = await installGitHubSkill(
+			{ owner: "o", repo: "root-skill" },
+			{ skillsDir, fetch: fetchReturning(root) },
+		);
+		expect(rootResult.name).toBe("root-skill");
+		expect(listFiles(rootResult.installPath)).toEqual(["SKILL.md"]);
+	});
+
+	it("installs under a caller-accepted name when the frontmatter name differs", async () => {
+		const archive = githubTarball([
+			{ path: "skills/foo/SKILL.md", content: skillMd("bar") },
+		]);
+
+		const result = await installGitHubSkill(
+			{ owner: "o", repo: "r", skill: "foo" },
+			{
+				skillsDir,
+				fetch: fetchReturning(archive),
+				acceptedNames: ["foo", "Foo Skill"],
+			},
+		);
+
+		expect(result.installPath).toBe(join(skillsDir, "foo"));
+		expect(readdirSync(skillsDir)).toEqual(["foo"]);
+	});
+
+	it("keeps the existing skill when the final swap fails", async () => {
+		const existing = join(skillsDir, "review");
+		mkdirSync(existing, { recursive: true });
+		writeFileSync(join(existing, "SKILL.md"), "old");
+		const archive = githubTarball([
+			{ path: "SKILL.md", content: skillMd("review") },
+		]);
+		const rename = vi.mocked(fsModule.renameSync);
+		const realRename = rename.getMockImplementation();
+		rename.mockImplementation((from, to) => {
+			if (String(from).includes(".cline-skill-staging-")) {
+				throw Object.assign(new Error("disk full"), { code: "ENOSPC" });
+			}
+			return realRename?.(from, to);
+		});
+		try {
+			await expect(
+				installGitHubSkill(
+					{ owner: "o", repo: "review" },
+					{ skillsDir, fetch: fetchReturning(archive) },
+				),
+			).rejects.toThrow("disk full");
+		} finally {
+			rename.mockImplementation(realRename ?? (() => undefined));
+		}
+
+		expect(readFileSync(join(existing, "SKILL.md"), "utf8")).toBe("old");
+		expect(readdirSync(root)).toEqual(["skills"]);
+	});
+
+	it("stops reading an archive once it exceeds the size limit", async () => {
+		let pulls = 0;
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				pulls++;
+				controller.enqueue(new Uint8Array(1024));
+			},
+		});
+
+		await expect(
+			installGitHubSkill(
+				{ owner: "o", repo: "huge" },
+				{
+					skillsDir,
+					maxArchiveBytes: 4096,
+					fetch: (async () =>
+						new Response(body, { status: 200 })) as typeof fetch,
+				},
+			),
+		).rejects.toThrow("o/huge is too large to install as a skill.");
+		expect(pulls).toBeLessThan(10);
 	});
 });
