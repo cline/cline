@@ -620,7 +620,10 @@ export async function probeHubServer(
 	url: string,
 	options?: { authToken?: string; signal?: AbortSignal },
 ): Promise<HubServerProbeRecord | undefined> {
-	const signal = AbortSignal.timeout(3_000);
+	const timeout = AbortSignal.timeout(3_000);
+	const signal = options?.signal
+		? AbortSignal.any([options.signal, timeout])
+		: timeout;
 	// Idempotent; repeated here so every embedder of the hub client is covered.
 	ensureLoopbackProxyBypass();
 	try {
@@ -633,7 +636,6 @@ export async function probeHubServer(
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
 					: undefined,
-				signal: options?.signal,
 			},
 		);
 		if (!response.ok) {
@@ -684,7 +686,8 @@ export async function probeHubServer(
 				typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
 		};
 	} catch {
-		if (signal.aborted) throw new HubProbeTimeoutError();
+		options?.signal?.throwIfAborted();
+		if (timeout.aborted) throw new HubProbeTimeoutError();
 		return undefined;
 	}
 }

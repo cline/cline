@@ -58,7 +58,6 @@ export function LoadingScreen({
 				>
 					{status}
 				</span>
-
 			</div>
 
 			{failed && (

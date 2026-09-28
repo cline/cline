@@ -120,17 +120,22 @@ it("reveals the app as soon as the hub is ready and never before", () => {
 	expect(container.textContent).toBe("Sidebar");
 });
 
-it.each(["starting", "failed"] as const)("keeps workspace controls unmounted while the hub is %s", (hubState) => {
- const state = readiness();
- state.transport = "connected";
- state.hub = { state: hubState, attempt: 4 };
- act(() => root.render(
-  <SiteLoader readiness={state}>
-   <button>Workspace selector</button>
-  </SiteLoader>,
- ));
- expect(container.textContent).not.toContain("Workspace selector");
- expect(container.textContent).not.toContain("Continue to sign-in");
+it.each([
+	"starting",
+	"failed",
+] as const)("keeps workspace controls unmounted while the hub is %s", (hubState) => {
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: hubState, attempt: 4 };
+	act(() =>
+		root.render(
+			<SiteLoader readiness={state}>
+				<button type="button">Workspace selector</button>
+			</SiteLoader>,
+		),
+	);
+	expect(container.textContent).not.toContain("Workspace selector");
+	expect(container.textContent).not.toContain("Continue to sign-in");
 });
 
 it("keeps the mounted composer and attachments across transport recovery", () => {

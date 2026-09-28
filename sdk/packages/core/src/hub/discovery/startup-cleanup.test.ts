@@ -123,6 +123,26 @@ it.each([
 	}
 }, 10_000);
 
+it("preserves caller cancellation while bounding hub probes", async () => {
+	const controller = new AbortController();
+	const reason = new Error("Startup cancelled");
+	const server = createServer(() => controller.abort(reason));
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+	const address = server.address();
+	if (!address || typeof address === "string")
+		throw new Error("Missing address");
+	try {
+		await expect(
+			probeHubServer(`http://127.0.0.1:${address.port}`, {
+				signal: controller.signal,
+			}),
+		).rejects.toBe(reason);
+	} finally {
+		server.closeAllConnections();
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	}
+});
+
 it.each([
 	false,
 	true,

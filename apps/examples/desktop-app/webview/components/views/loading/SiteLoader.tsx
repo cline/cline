@@ -12,8 +12,7 @@ export function SiteLoader({
 	readiness: ReturnType<typeof useDesktopReadiness>;
 }) {
 	const showApp =
-		readiness.transport === "connected" &&
-		readiness.hub.state === "ready";
+		readiness.transport === "connected" && readiness.hub.state === "ready";
 	// Once shown, keep the app mounted through a transport blip so unsent
 	// drafts and attachments survive the reconnect.
 	const [hasLoaded, setHasLoaded] = useState(false);
@@ -27,12 +26,7 @@ export function SiteLoader({
 					{children}
 				</div>
 			)}
-			{!showApp && (
-				<LoadingScreen
-					readiness={readiness}
-
-				/>
-			)}
+			{!showApp && <LoadingScreen readiness={readiness} />}
 		</>
 	);
 }

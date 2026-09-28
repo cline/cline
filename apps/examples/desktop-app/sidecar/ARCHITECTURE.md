@@ -79,7 +79,9 @@ and recovery for sidecar failures. `get_backend_readiness` and
 session service. The full-screen loader requires both the desktop transport and
 local session service to be ready before exposing any app screens, including
 sign-in, settings, and remote environments. There is no bypass; failures retain
-startup diagnostics and Retry. Previously mounted screens stay hidden and inert
+startup diagnostics and Retry. The loader contains only a spinner and current
+status (or failure diagnostics), without workspace controls or an artificial delay.
+Previously mounted screens stay hidden and inert
 during recovery to preserve drafts and attachments. Remote connections happen
 on demand after this local readiness gate.
 

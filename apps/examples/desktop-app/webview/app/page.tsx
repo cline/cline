@@ -876,7 +876,6 @@ function HomeShell({
 		sessionHistory.threads,
 	]);
 
-
 	return (
 		<AccountProvider>
 			<SidebarProvider>
@@ -920,7 +919,6 @@ function HomeShell({
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-
 								{view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
