@@ -303,6 +303,100 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it.each([
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: undefined,
+			expected: "yolo",
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: true,
+			expected: "yolo",
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: false,
+			expected: undefined,
+		},
+		{
+			interactive: true,
+			mode: undefined,
+			autoApprove: undefined,
+			expected: undefined,
+		},
+		{
+			interactive: false,
+			mode: "act",
+			autoApprove: undefined,
+			expected: "act",
+		},
+		{
+			interactive: false,
+			mode: "plan",
+			autoApprove: undefined,
+			expected: "plan",
+		},
+	] as const)("resolves session mode: $interactive / $mode / $autoApprove", async ({
+		interactive,
+		mode,
+		autoApprove,
+		expected,
+	}) => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
+			getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			toolPolicies: { "*": { autoApprove: true } },
+			sessionService: new FileSessionService(sessionsDir),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		try {
+			await manager.startSession({
+				interactive,
+				config: {
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					cwd: isolatedHomeDir,
+					systemPrompt: "Test",
+					enableTools: true,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+					mode,
+					toolPolicies:
+						autoApprove === undefined ? undefined : { "*": { autoApprove } },
+				},
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({ mode: expected }),
+				}),
+			);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("stores git under metadata and refreshes it after an active turn", async () => {
 		const workspaceRoot = join(isolatedHomeDir, "workspace");
 		mkdirSync(workspaceRoot, { recursive: true });

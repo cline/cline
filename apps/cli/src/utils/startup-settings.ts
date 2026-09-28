@@ -18,33 +18,6 @@ export function resolveStartupMode(
 	return settings.planActMode ?? args.mode;
 }
 
-/**
- * Non-interactive runs (a prompt argument or piped stdin without --tui) that
- * auto-approve tools have no one to approve anything, so an implicit "act"
- * mode is promoted to "yolo". An explicit mode flag (e.g. --act, --plan)
- * or a persisted mode choice always wins.
- */
-export function resolveNonInteractiveMode(
-	args: Pick<ParsedArgs, "modeExplicitlySet">,
-	mode: CliAgentMode,
-	options: {
-		interactive: boolean;
-		autoApprove: boolean;
-		persistedMode?: GlobalSettings["planActMode"];
-	},
-): CliAgentMode {
-	if (
-		!options.interactive &&
-		options.autoApprove &&
-		mode === "act" &&
-		!args.modeExplicitlySet &&
-		!options.persistedMode
-	) {
-		return "yolo";
-	}
-	return mode;
-}
-
 export function resolveStartupToolAutoApprove(
 	args: Pick<ParsedArgs, "autoApproveOverride">,
 	settings: GlobalSettings,

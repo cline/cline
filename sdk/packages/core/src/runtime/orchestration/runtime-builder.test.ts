@@ -392,6 +392,8 @@ Use the review guidance.`,
 				...makeBaseConfig({
 					enableTools: false,
 					mode: "yolo",
+					enableSpawnAgent: undefined,
+					enableAgentTeams: undefined,
 				}),
 			} as CoreSessionConfig,
 			createSpawnTool: makeSpawnTool,

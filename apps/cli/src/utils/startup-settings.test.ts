@@ -1,7 +1,6 @@
 import type { GlobalSettings } from "@cline/core";
 import { describe, expect, it } from "vitest";
 import {
-	resolveNonInteractiveMode,
 	resolveStartupCompactionMode,
 	resolveStartupMode,
 	resolveStartupToolAutoApprove,
@@ -113,48 +112,5 @@ describe("resolveStartupCompactionMode", () => {
 				makeSettings({ compactionEnabled: false }),
 			),
 		).toBe("agentic");
-	});
-});
-
-describe("resolveNonInteractiveMode", () => {
-	const headless = { interactive: false, autoApprove: true };
-
-	it("promotes implicit act to yolo when non-interactive with auto-approve", () => {
-		expect(
-			resolveNonInteractiveMode({ modeExplicitlySet: false }, "act", headless),
-		).toBe("yolo");
-	});
-
-	it("keeps act when interactive or auto-approve is off", () => {
-		expect(
-			resolveNonInteractiveMode({ modeExplicitlySet: false }, "act", {
-				interactive: true,
-				autoApprove: true,
-			}),
-		).toBe("act");
-		expect(
-			resolveNonInteractiveMode({ modeExplicitlySet: false }, "act", {
-				interactive: false,
-				autoApprove: false,
-			}),
-		).toBe("act");
-	});
-
-	it("respects an explicit mode flag and non-act modes", () => {
-		expect(
-			resolveNonInteractiveMode({ modeExplicitlySet: true }, "act", headless),
-		).toBe("act");
-		expect(
-			resolveNonInteractiveMode({ modeExplicitlySet: false }, "plan", headless),
-		).toBe("plan");
-	});
-
-	it("keeps a persisted act choice in unattended runs", () => {
-		expect(
-			resolveNonInteractiveMode({ modeExplicitlySet: false }, "act", {
-				...headless,
-				persistedMode: "act",
-			}),
-		).toBe("act");
 	});
 });

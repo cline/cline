@@ -1,6 +1,24 @@
 import type { ToolPolicy } from "../llms/tools";
 
 export type AgentMode = "act" | "plan" | "yolo" | "zen";
+
+/**
+ * A non-interactive session that auto-approves tools has nobody to approve
+ * anything, so an unset mode resolves to "yolo" rather than the default "act".
+ * An explicitly chosen mode (including "act") is never overridden. Clients that
+ * build a mode-dependent system prompt should call this first so the prompt
+ * matches the mode the session runs in.
+ */
+export function resolveNonInteractiveMode(input: {
+	mode?: AgentMode;
+	interactive?: boolean;
+	autoApprove?: boolean;
+}): AgentMode | undefined {
+	if (input.mode === undefined && !input.interactive && input.autoApprove) {
+		return "yolo";
+	}
+	return input.mode;
+}
 export type RuntimeConfigExtensionKind =
 	| "rules"
 	| "skills"

@@ -12,6 +12,7 @@ import {
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	resolveNonInteractiveMode,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
@@ -403,9 +404,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 	}
 
+	private applyNonInteractiveMode(input: StartSessionInput): StartSessionInput {
+		const mode = resolveNonInteractiveMode({
+			mode: input.config.mode,
+			interactive: input.interactive === true,
+			autoApprove: (input.config.toolPolicies ?? this.defaultToolPolicies)?.[
+				"*"
+			]?.autoApprove,
+		});
+		return mode === input.config.mode
+			? input
+			: { ...input, config: { ...input.config, mode } };
+	}
+
 	// ── Public API ──────────────────────────────────────────────────────
 
-	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+	async startSession(rawInput: StartSessionInput): Promise<StartSessionResult> {
+		const input = this.applyNonInteractiveMode(rawInput);
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const isReadOnlyResumeStart =
