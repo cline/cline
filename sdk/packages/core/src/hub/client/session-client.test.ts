@@ -17,6 +17,7 @@ class MockWebSocket {
 		payload?: Record<string, unknown>;
 	}> = [];
 	static commandPayloads = new Map<string, Record<string, unknown>>();
+	static commandErrors = new Map<string, { code: string; message: string }>();
 
 	readyState = 0;
 	private readonly listeners = new Map<string, SocketListener[]>();
@@ -33,6 +34,7 @@ class MockWebSocket {
 		MockWebSocket.instances = [];
 		MockWebSocket.sentCommands = [];
 		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.commandErrors.clear();
 	}
 
 	send(data: string): void {
@@ -53,14 +55,18 @@ class MockWebSocket {
 			payload: frame.envelope.payload,
 		});
 		queueMicrotask(() => {
+			const error = MockWebSocket.commandErrors.get(command);
 			this.emitFrame({
 				kind: "reply",
 				envelope: {
 					version: "v1",
 					requestId: frame.envelope?.requestId,
 					command: frame.envelope?.command,
-					ok: true,
-					payload: MockWebSocket.commandPayloads.get(command) ?? {},
+					ok: !error,
+					payload: error
+						? undefined
+						: (MockWebSocket.commandPayloads.get(command) ?? {}),
+					...(error ? { error } : {}),
 				},
 			});
 		});
@@ -573,6 +579,42 @@ describe("HubSessionClient", () => {
 				payload: { policy: policyInput },
 			},
 		]);
+
+		client.close();
+	});
+
+	it("reads an empty transcript for a session the hub has never seen", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandErrors.set("session.messages", {
+			code: "session_not_found",
+			message: "Unknown session: session-fresh",
+		});
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+
+		await expect(client.readMessages("session-fresh")).resolves.toEqual([]);
+
+		client.close();
+	});
+
+	it("still surfaces non session_not_found failures from session.messages", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandErrors.set("session.messages", {
+			code: "session_messages_failed",
+			message: "history backend unavailable",
+		});
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+
+		await expect(client.readMessages("session-1")).rejects.toThrow(
+			/history backend unavailable/,
+		);
 
 		client.close();
 	});
