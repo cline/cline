@@ -684,12 +684,14 @@ export default function Home() {
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
-			handleNewThread();
-			return;
+			// Return to the not-yet-started draft for this environment (keeping
+			// any unsent prompt) rather than opening yet another empty one.
+			selectEnvironmentDraft(activeEnvironmentId);
+		} else {
+			navigateWith({ view: "chat" });
 		}
-		navigateWith({ view: "chat" });
 		requestPromptInputFocus();
-	}, [activeThread, handleNewThread, navigateWith]);
+	}, [activeEnvironmentId, activeThread, navigateWith, selectEnvironmentDraft]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
 			navigateWith({ view: nextView });
