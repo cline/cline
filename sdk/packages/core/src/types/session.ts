@@ -27,6 +27,8 @@ export type ActiveSession = {
 	aborting: boolean;
 	/** Epoch ms the last turn ended; labels the next input for stall analysis. */
 	lastTurnEndedAt?: number;
+	/** Set when teardown starts; the host drops the session once it finishes. */
+	shuttingDown: boolean;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
