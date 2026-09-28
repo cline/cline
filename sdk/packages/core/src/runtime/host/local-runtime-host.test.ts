@@ -303,7 +303,13 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it.each([
+	it.each<{
+		interactive: StartSessionInput["interactive"];
+		mode: CoreSessionConfig["mode"];
+		autoApprove: boolean | undefined;
+		toolPolicies: StartSessionInput["toolPolicies"];
+		expected: CoreSessionConfig["mode"];
+	}>([
 		{
 			interactive: false,
 			mode: undefined,
@@ -374,7 +380,7 @@ describe("LocalRuntimeHost", () => {
 			toolPolicies: { "*": { autoApprove: true } },
 			expected: "act",
 		},
-	] as const)("resolves session mode: $interactive / $mode / $autoApprove", async ({
+	])("resolves session mode: $interactive / $mode / $autoApprove", async ({
 		interactive,
 		toolPolicies,
 		mode,
