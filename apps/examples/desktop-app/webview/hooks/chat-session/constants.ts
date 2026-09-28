@@ -1,5 +1,9 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import {
+	type ExecutionTarget,
+	readExecutionTargetSelectionFromWindow,
+} from "@/lib/execution-target-selection";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
@@ -37,7 +41,14 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	missionTimeIntervalMs: undefined,
 };
 
-export function getInitialChatConfig(environmentId: string): ChatSessionConfig {
+/**
+ * Config for a fresh thread: the remembered provider/model/workspace, on the
+ * remembered execution target unless `options.executionTarget` pins one.
+ */
+export function getInitialChatConfig(
+	environmentId: string,
+	options?: { executionTarget?: ExecutionTarget },
+): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
 	const workspaceSelection = readWorkspaceSelectionFromWindow(environmentId);
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
@@ -55,12 +66,35 @@ export function getInitialChatConfig(environmentId: string): ChatSessionConfig {
 			: undefined) ||
 		DEFAULT_CHAT_CONFIG.model;
 
-	return {
+	const local: ChatSessionConfig = {
 		...DEFAULT_CHAT_CONFIG,
 		environmentId,
 		provider,
 		model,
 		workspaceRoot: workspaceSelection.lastWorkspace,
 		cwd: workspaceSelection.lastWorkspace,
+	};
+	// Cloud is only offered for the local environment; SSH hosts run locally.
+	const remembered = readExecutionTargetSelectionFromWindow();
+	const executionTarget =
+		options?.executionTarget ??
+		(environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? remembered.target
+			: "local");
+	if (executionTarget !== "cloud") {
+		return local;
+	}
+	// Same shape as the Local → Cloud switch: cloud runs on the Cline provider.
+	return {
+		...local,
+		executionTarget: "cloud",
+		provider: DEFAULT_CHAT_CONFIG.provider,
+		model:
+			remembered.cloudModel ||
+			(provider === DEFAULT_CHAT_CONFIG.provider
+				? model
+				: DEFAULT_CHAT_CONFIG.model),
+		workspaceRoot: "",
+		cwd: "",
 	};
 }

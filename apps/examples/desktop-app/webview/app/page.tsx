@@ -50,6 +50,7 @@ import {
 } from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -79,6 +80,10 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	writeCloudModelToWindow,
+	writeExecutionTargetToWindow,
+} from "@/lib/execution-target-selection";
 import {
 	cloudImageAttachmentError,
 	imageAttachmentMediaType,
@@ -1181,10 +1186,15 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
-	// Re-evaluate the account-targeted flag after sign-in changes.
-	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState(false);
+	// Re-evaluate the account-targeted flag after sign-in changes. Null until
+	// the first fetch settles so a thread remembered on Cloud is not bounced
+	// to Local before the flag is known.
+	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState<
+		boolean | null
+	>(null);
 	const cloudAgentsEnabled =
-		cloudAgentsFlagEnabled && environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+		cloudAgentsFlagEnabled === true &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
 	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
 	const openGitHubConnect = useCallback(
@@ -1214,8 +1224,13 @@ function ChatThreadPane({
 				})
 				.catch(() => {
 					attempts += 1;
-					if (!cancelled && attempts < 10) {
+					if (cancelled) {
+						return;
+					}
+					if (attempts < 10) {
 						retryTimer = window.setTimeout(fetchFlags, 2_000);
+					} else {
+						setCloudAgentsFlagEnabled(false);
 					}
 				});
 		};
@@ -1334,18 +1349,22 @@ function ChatThreadPane({
 	const activeWorkspaceCwd = isCloudSession
 		? ""
 		: (config.cwd || config.workspaceRoot || "").trim();
-	const localConfigRef = useRef<
-		Pick<
-			ChatSessionConfig,
-			"provider" | "model" | "apiKey" | "workspaceRoot" | "cwd"
-		>
-	>({
-		provider: config.provider,
-		model: config.model,
-		apiKey: config.apiKey,
-		workspaceRoot: config.workspaceRoot,
-		cwd: config.cwd,
-	});
+	// Local settings to restore on a Cloud → Local switch. A thread that opened
+	// on Cloud has none captured yet and falls back to the remembered ones.
+	const localConfigRef = useRef<Pick<
+		ChatSessionConfig,
+		"provider" | "model" | "apiKey" | "workspaceRoot" | "cwd"
+	> | null>(
+		config.executionTarget === "cloud"
+			? null
+			: {
+					provider: config.provider,
+					model: config.model,
+					apiKey: config.apiKey,
+					workspaceRoot: config.workspaceRoot,
+					cwd: config.cwd,
+				},
+	);
 
 	useEffect(() => {
 		setWorkspaces((current) => {
@@ -2102,9 +2121,18 @@ function ChatThreadPane({
 						cwd: "",
 					};
 				}
+				const local =
+					localConfigRef.current ??
+					getInitialChatConfig(environmentId, { executionTarget: "local" });
 				return {
 					...prev,
-					...localConfigRef.current,
+					provider: local.provider,
+					model: local.model,
+					apiKey: local.apiKey,
+					// Workspace discovery already filled the cloud thread's
+					// workspace; only a captured local one overrides it.
+					workspaceRoot: local.workspaceRoot || prev.workspaceRoot,
+					cwd: local.cwd || prev.cwd,
 					executionTarget: "local",
 					repoUrl: undefined,
 					branch: undefined,
@@ -2116,16 +2144,30 @@ function ChatThreadPane({
 			}
 		},
 		[
+			environmentId,
 			providerCredentials.cline?.apiKey,
 			setConfig,
 			cloudAgentsEnabled,
 			setPendingAttachments,
 		],
 	);
+	// Only the user's own pick is remembered; the flag-off fallback below
+	// must not overwrite it.
+	const handleSelectExecutionTarget = useCallback(
+		(target: "local" | "cloud") => {
+			if (target === "cloud" && !cloudAgentsEnabled) {
+				return;
+			}
+			writeExecutionTargetToWindow(target);
+			handleExecutionTargetChange(target);
+		},
+		[cloudAgentsEnabled, handleExecutionTargetChange],
+	);
 
 	// Reset only new composers when the flag turns off; existing sessions attach.
 	useEffect(() => {
 		if (
+			cloudAgentsFlagEnabled !== null &&
 			!cloudAgentsEnabled &&
 			config.executionTarget === "cloud" &&
 			!historySession &&
@@ -2135,6 +2177,7 @@ function ChatThreadPane({
 		}
 	}, [
 		cloudAgentsEnabled,
+		cloudAgentsFlagEnabled,
 		config.executionTarget,
 		historySession,
 		handleExecutionTargetChange,
@@ -2183,11 +2226,17 @@ function ChatThreadPane({
 		void abort();
 	}, [abort]);
 	const handleModelChange = useCallback(
-		(nextModel: string) =>
+		(nextModel: string) => {
+			// The model picker only persists local picks (the cloud catalog
+			// differs), so cloud picks are remembered here instead.
+			if (config.executionTarget === "cloud") {
+				writeCloudModelToWindow(nextModel);
+			}
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
-			),
-		[setConfig],
+			);
+		},
+		[config.executionTarget, setConfig],
 	);
 	const handleModeToggle = useCallback(
 		() =>
@@ -2562,7 +2611,7 @@ function ChatThreadPane({
 							activeEnvironmentId={environmentId}
 							cloudEnabled={cloudAgentsEnabled}
 							executionTarget={isCloudSession ? "cloud" : "local"}
-							onSelectExecutionTarget={handleExecutionTargetChange}
+							onSelectExecutionTarget={handleSelectExecutionTarget}
 							loading={environmentProfilesLoading}
 							onAddSshHost={onAddSshHost}
 							onSelectEnvironment={onSelectEnvironment}
