@@ -152,6 +152,51 @@ describe("ClineAuthProvider", () => {
 		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
 	})
 
+	it("confirms a switch whose confirmation read is overtaken by the switch's own auth-status update", async () => {
+		const confirmation = createDeferred<UserOrganizationsResponse>()
+		const activeNext = {
+			organizations: [{ organizationId: "org-next", active: true, memberId: "m", name: "Next", roles: [] }],
+		}
+		grpcMocks.getUserOrganizations
+			.mockResolvedValueOnce({ organizations: [] })
+			.mockReturnValueOnce(confirmation.promise)
+			.mockResolvedValue(activeNext)
+		grpcMocks.setUserOrganization.mockResolvedValue({})
+		let result: Promise<boolean> | undefined
+		function SwitchProbe() {
+			const { switchOrganization } = useClineAuth()
+			return (
+				<button
+					onClick={() => {
+						result = switchOrganization("org-next")
+					}}
+					type="button">
+					Switch next
+				</button>
+			)
+		}
+		render(
+			<ClineAuthProvider>
+				<SwitchProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch next"))
+		})
+		// The extension's auth refresh after the PUT starts a newer read before
+		// the switch's confirmation read has answered.
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			confirmation.resolve(activeNext)
+		})
+		expect(await result).toBe(true)
+	})
+
 	it("does not report a background profile read as a failed account switch", async () => {
 		grpcMocks.getUserOrganizations.mockRejectedValue(new Error("offline"))
 		render(
