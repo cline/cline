@@ -75,6 +75,10 @@ type ChatMessagesProps = {
 		answer: string,
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
+	onEditLastMessage?: (
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -121,6 +125,7 @@ function ChatMessagesImpl({
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
 	onEditMessage,
+	onEditLastMessage,
 	onForkSession,
 	startingLabel,
 	errorAction,
@@ -266,6 +271,18 @@ function ChatMessagesImpl({
 		() => buildUserRunCountMap(messages),
 		[messages],
 	);
+
+	const lastUserMessage = useMemo(() => {
+		let last: ChatMessage | undefined;
+		let lastRunCount = 0;
+		for (const [message, runCount] of userRunCountByMessage) {
+			if (runCount >= lastRunCount) {
+				last = message;
+				lastRunCount = runCount;
+			}
+		}
+		return last;
+	}, [userRunCountByMessage]);
 
 	useEffect(() => {
 		void sessionId;
@@ -462,6 +479,34 @@ function ChatMessagesImpl({
 		},
 		[onEditMessage],
 	);
+	const handleEditLastMessage = useCallback(
+		async (messageId: string, content: string, runCount: number) => {
+			if (!onEditLastMessage) {
+				return;
+			}
+			setEditingMessageId(messageId);
+			setEditErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(onEditLastMessage(content, runCount));
+			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "Could not edit this message.";
+				setEditErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setEditingMessageId((current) =>
+					current === messageId ? null : current,
+				);
+			}
+		},
+		[onEditLastMessage],
+	);
 	const requestEditMessage = useCallback(
 		(messageId: string, content: string, runCount: number) => {
 			setEditConfirmation({ messageId, content, runCount });
@@ -656,8 +701,13 @@ function ChatMessagesImpl({
 											onEditMessage={
 												onEditMessage ? requestEditMessage : undefined
 											}
+											onEditLastMessage={
+												onEditLastMessage && message === lastUserMessage
+													? handleEditLastMessage
+													: undefined
+											}
 											editDisabled={
-												!onEditMessage ||
+												(!onEditMessage && !onEditLastMessage) ||
 												status === "starting" ||
 												status === "running" ||
 												status === "stopping" ||
@@ -854,11 +904,11 @@ function ChatMessagesImpl({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogTitle>Fork from here?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This creates a new session and restores the workspace to its
-							checkpoint before placing this message in the composer. Workspace
-							and conversation changes after this point will be discarded.
+							This creates a new session with the conversation up to this
+							message and places the message in the composer. Your workspace
+							files are not changed; use revert to roll them back.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

@@ -467,7 +467,7 @@ describe("environment-bound session attach", () => {
 });
 
 describe("session forks", () => {
-	it("restores the selected workspace checkpoint before forking for message editing", async () => {
+	it("forks before the selected user run without restoring the workspace", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [
 			{ role: "user" as const, content: "first prompt" },
@@ -545,27 +545,18 @@ describe("session forks", () => {
 			},
 		})) as { sessionId: string; messages: unknown[] };
 
-		expect(restore).toHaveBeenCalledWith(
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({
-				sessionId: sourceSessionId,
-				checkpointRunCount: 2,
-				cwd: "/workspace/project",
-				restore: {
-					messages: true,
-					workspace: true,
-					omitCheckpointMessageFromSession: true,
-				},
-				start: expect.objectContaining({
-					sessionMetadata: expect.objectContaining({
-						fork: expect.objectContaining({
-							forkedFromSessionId: sourceSessionId,
-							beforeRunCount: 2,
-						}),
+				initialMessages: expectedMessages,
+				sessionMetadata: expect.objectContaining({
+					fork: expect.objectContaining({
+						forkedFromSessionId: sourceSessionId,
+						beforeRunCount: 2,
 					}),
 				}),
 			}),
 		);
-		expect(start).not.toHaveBeenCalled();
 		expect(readMessages).toHaveBeenCalledWith("edited-fork");
 		expect(result).toEqual({
 			sessionId: "edited-fork",
@@ -574,118 +565,6 @@ describe("session forks", () => {
 		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
 			expectedMessages,
 		);
-		expect(ctx.restoringWorkspacePaths.size).toBe(0);
-	});
-
-	it("holds the workspace lock for the full edit restore", async () => {
-		const sourceSessionId = `locking-source-${Date.now()}`;
-		const siblingSessionId = `locking-sibling-${Date.now()}`;
-		const sourceMessages = [
-			{ role: "user" as const, content: "first prompt" },
-			{ role: "assistant" as const, content: "first response" },
-		];
-		let releaseRestore = () => {};
-		const restoreGate = new Promise<void>((resolve) => {
-			releaseRestore = resolve;
-		});
-		let markRestoreStarted = () => {};
-		const restoreStarted = new Promise<void>((resolve) => {
-			markRestoreStarted = resolve;
-		});
-		const send = vi.fn();
-		const restore = vi.fn(async () => {
-			markRestoreStarted();
-			await restoreGate;
-			return {
-				sessionId: "locked-edited-fork",
-				messages: sourceMessages,
-				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-			};
-		});
-		const ctx = {
-			liveSessions: new Map([
-				[
-					sourceSessionId,
-					{
-						config: {
-							provider: "cline",
-							model: "anthropic/claude-sonnet-4.6",
-							cwd: "/workspace/project",
-						},
-						messages: sourceMessages,
-						promptsInQueue: [],
-						busy: false,
-						startedAt: Date.now(),
-						status: "idle",
-					},
-				],
-				[
-					siblingSessionId,
-					{
-						config: { workspaceRoot: "/workspace/project/." },
-						messages: [],
-						promptsInQueue: [],
-						busy: false,
-						startedAt: Date.now(),
-						status: "idle",
-					},
-				],
-			]),
-			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId: sourceSessionId,
-						source: "desktop",
-						status: "completed",
-						provider: "cline",
-						model: "anthropic/claude-sonnet-4.6",
-						cwd: "/workspace/project",
-						workspaceRoot: "/workspace/project",
-						metadata: {
-							checkpoint: {
-								latest: { ref: "first", createdAt: 1, runCount: 1 },
-								history: [{ ref: "first", createdAt: 1, runCount: 1 }],
-							},
-						},
-					})),
-					readMessages: vi.fn(async () => sourceMessages),
-					restore,
-					send,
-				},
-				{ sessionIds: [sourceSessionId, siblingSessionId] },
-			),
-			streamIndices: new Map(),
-			wsClients: new Set(),
-		} as unknown as SidecarContext;
-
-		const fork = handleChatSessionCommand(ctx, {
-			action: "fork",
-			sessionId: sourceSessionId,
-			forkBeforeRunCount: 1,
-		});
-		await restoreStarted;
-		try {
-			expect(ctx.restoringWorkspacePaths).toEqual(
-				new Set(["/workspace/project"]),
-			);
-			await expect(
-				handleChatSessionCommand(ctx, {
-					action: "send",
-					sessionId: siblingSessionId,
-					prompt: "race",
-				}),
-			).rejects.toThrow(
-				"Cannot send a prompt while the session workspace is being restored",
-			);
-			expect(send).not.toHaveBeenCalled();
-		} finally {
-			releaseRestore();
-		}
-
-		await expect(fork).resolves.toMatchObject({
-			sessionId: "locked-edited-fork",
-		});
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
@@ -906,61 +785,6 @@ describe("session forks", () => {
 					restore,
 				},
 				{ sessionIds: [sourceSessionId] },
-			),
-		} as unknown as SidecarContext;
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "fork",
-				sessionId: sourceSessionId,
-				forkBeforeRunCount: 1,
-			}),
-		).rejects.toThrow("Wait for all turns in this workspace to finish");
-		expect(restore).not.toHaveBeenCalled();
-		expect(ctx.restoringWorkspacePaths.size).toBe(0);
-	});
-
-	it("rejects an edit fork while a sibling session in the workspace is running", async () => {
-		const sourceSessionId = "idle-source-session";
-		const siblingSessionId = "busy-sibling-session";
-		const restore = vi.fn();
-		const ctx = {
-			liveSessions: new Map([
-				[
-					sourceSessionId,
-					{
-						config: { cwd: "/workspace/project" },
-						messages: [{ role: "user", content: "prompt" }],
-						promptsInQueue: [],
-						busy: false,
-						startedAt: Date.now(),
-						status: "idle",
-					},
-				],
-				[
-					siblingSessionId,
-					{
-						config: { workspaceRoot: "/workspace/project/." },
-						messages: [],
-						promptsInQueue: [],
-						busy: true,
-						startedAt: Date.now(),
-						status: "running",
-					},
-				],
-			]),
-			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId: sourceSessionId,
-						status: "completed",
-						cwd: "/workspace/project",
-						workspaceRoot: "/workspace/project",
-					})),
-					restore,
-				},
-				{ sessionIds: [sourceSessionId, siblingSessionId] },
 			),
 		} as unknown as SidecarContext;
 

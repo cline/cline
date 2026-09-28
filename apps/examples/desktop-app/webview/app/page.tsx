@@ -1139,6 +1139,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		editLastMessage,
 		proceedWhileRunning,
 		reset,
 		abort,
@@ -1992,6 +1993,14 @@ function ChatThreadPane({
 		[forkSession, openForkedSession],
 	);
 
+	const handleEditLastMessage = useCallback(
+		async (content: string, runCount: number) => {
+			await editLastMessage(runCount);
+			setPromptInput(content);
+		},
+		[editLastMessage, setPromptInput],
+	);
+
 	const visibleHistorySession =
 		historySession?.sessionId &&
 		historySession.sessionId === dismissedHistorySessionId
@@ -2530,6 +2539,9 @@ function ChatThreadPane({
 								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
+								onEditLastMessage={
+									isCloudSession ? undefined : handleEditLastMessage
+								}
 								onRestoreCheckpoint={
 									isCloudSession ? undefined : handleRestoreCheckpoint
 								}

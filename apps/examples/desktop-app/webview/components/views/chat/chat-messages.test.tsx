@@ -1094,12 +1094,12 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		const editButton = container.querySelectorAll<HTMLButtonElement>(
-			'button[aria-label="Edit user message"]',
+			'button[aria-label="Fork from user message"]',
 		)[1];
 		await act(async () => editButton?.click());
 
 		expect(onEditMessage).not.toHaveBeenCalled();
-		expect(document.body.textContent).toContain("Edit and restart from here?");
+		expect(document.body.textContent).toContain("Fork from here?");
 
 		const continueButton = [...document.body.querySelectorAll("button")].find(
 			(button) => button.textContent === "Continue",
@@ -1112,6 +1112,44 @@ describe("ChatMessages tool disclosures", () => {
 			"Original prompt",
 			2,
 		);
+	});
+
+	it("edits only the last user message in place", async () => {
+		const onEditLastMessage = vi.fn(async () => undefined);
+		await renderMessages(
+			[
+				{
+					id: "first-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "First prompt",
+					createdAt: 1,
+				},
+				{
+					id: "first-assistant",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "First response",
+					createdAt: 2,
+				},
+				{
+					id: "last-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "Last prompt",
+					createdAt: 3,
+				},
+			],
+			{ onEditLastMessage },
+		);
+
+		const editButtons = container.querySelectorAll<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		expect(editButtons).toHaveLength(1);
+		await act(async () => editButtons[0]?.click());
+
+		expect(onEditLastMessage).toHaveBeenCalledWith("Last prompt", 2);
 	});
 
 	it("copies a user message without its transport envelope", async () => {
@@ -1264,7 +1302,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		const editButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Edit user message"]',
+			'button[aria-label="Fork from user message"]',
 		);
 		await act(async () => editButton?.click());
 		const continueButton = [...document.body.querySelectorAll("button")].find(
@@ -1303,7 +1341,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		const editButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Edit user message"]',
+			'button[aria-label="Fork from user message"]',
 		);
 		await act(async () => editButton?.click());
 		const continueButton = [...document.body.querySelectorAll("button")].find(
@@ -1334,7 +1372,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		expect(
-			container.querySelector('button[aria-label="Edit user message"]'),
+			container.querySelector('button[aria-label="Fork from user message"]'),
 		).toBeNull();
 	});
 
