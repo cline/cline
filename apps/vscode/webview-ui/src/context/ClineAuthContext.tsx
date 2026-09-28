@@ -34,20 +34,16 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const [accountSwitch, setAccountSwitch] = useState<ClineAuthContextType["accountSwitch"]>(null)
 	const [accountSwitchError, setAccountSwitchError] = useState<string | null>(null)
 
+	// Only the newest read may write context state, but every read returns the
+	// server's answer: a switch confirms itself with a read that the switch's
+	// own auth-status update can overtake, and that answer is still current.
 	const getUserOrganizations = useCallback(async () => {
 		const requestId = ++organizationsRequestIdRef.current
 		try {
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
-			if (requestId !== organizationsRequestIdRef.current) {
-				return undefined
+			if (requestId === organizationsRequestIdRef.current) {
+				setUserOrganizations((old) => (deepEqual(response.organizations, old) ? old : response.organizations))
 			}
-			setUserOrganizations((old) => {
-				if (!deepEqual(response.organizations, old)) {
-					return response.organizations
-				}
-
-				return old
-			})
 			return response.organizations
 		} catch (error) {
 			console.error("Failed to fetch user organizations:", error)
