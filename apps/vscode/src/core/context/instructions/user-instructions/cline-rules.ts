@@ -209,16 +209,19 @@ export async function refreshClineRulesToggles(
 	// plus every global location the shared SDK resolver loads rules from
 	// (e.g. ~/.cline/rules), so the panel shows what actually reaches the model.
 	// Toggles saved before the toggle wrote frontmatter (cline/cline#13695) are
-	// pushed into the files once; from then on the files are the source of truth.
-	const backfillFromState = !controller.stateManager.getGlobalStateKey("clineRulesTogglesWrittenToFrontmatter")
-	const reconcileOptions = { backfillFromState }
+	// pushed into the files once per scope; from then on the files are the
+	// source of truth for that scope. Workspace toggles are stored per window,
+	// so each workspace carries its own marker.
+	const backfilledScopes = { ...controller.stateManager.getGlobalStateKey("clineRulesTogglesWrittenToFrontmatter") }
+	const globalScope = "global"
+	const workspaceScope = `workspace:${workingDirectory}`
 
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalRuleDirectories = await resolveGlobalRuleDirectories()
 	const updatedGlobalToggles = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(globalRuleDirectories, globalClineRulesToggles),
 		globalRuleDirectories,
-		reconcileOptions,
+		{ backfillFromState: !backfilledScopes[globalScope] },
 	)
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
 
@@ -234,15 +237,14 @@ export async function refreshClineRulesToggles(
 			CLINERULES_EXCLUDED_SUBDIRECTORIES,
 		),
 		localRuleDirectories,
-		reconcileOptions,
+		{ backfillFromState: !backfilledScopes[workspaceScope] },
 	)
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
 
-	// Workspace toggles are per window, so the back-fill covers this workspace
-	// and the global toggles; other workspaces' stale toggles are corrected from
-	// their files on their next refresh.
-	if (backfillFromState) {
-		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", true)
+	if (!backfilledScopes[globalScope] || !backfilledScopes[workspaceScope]) {
+		backfilledScopes[globalScope] = true
+		backfilledScopes[workspaceScope] = true
+		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", backfilledScopes)
 	}
 
 	return {

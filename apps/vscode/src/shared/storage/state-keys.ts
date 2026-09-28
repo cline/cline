@@ -81,9 +81,10 @@ const GLOBAL_STATE_FIELDS = {
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
-	// Set once the rule toggles saved before cline/cline#13695 were written into
-	// their rule files' frontmatter; afterwards the files are authoritative.
-	clineRulesTogglesWrittenToFrontmatter: { default: false as boolean },
+	// One entry per scope ("global", or "workspace:<path>") once the rule toggles
+	// saved before cline/cline#13695 were written into that scope's rule files'
+	// frontmatter; afterwards the files are authoritative for that scope.
+	clineRulesTogglesWrittenToFrontmatter: { default: {} as Record<string, boolean> },
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
 	multiRootEnabled: { default: true as boolean },
 	lastDismissedInfoBannerVersion: { default: 0 as number },

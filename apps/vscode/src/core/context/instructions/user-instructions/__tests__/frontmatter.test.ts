@@ -137,6 +137,15 @@ describe("updateUserInstructionMarkdownDisabledState preserves authored frontmat
 		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
 	})
 
+	it("removes enabled: false in any boolean spelling YAML accepts", () => {
+		for (const spelling of ["False", "FALSE"]) {
+			const input = ["---", `enabled: ${spelling}`, "paths:", "  - src/**", "---", "Body"].join("\n")
+			expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+				["---", "paths:", "  - src/**", "---", "Body"].join("\n"),
+			)
+		}
+	})
+
 	it("recognizes quoted keys", () => {
 		const disabledQuoted = ["---", '"disabled": true', "---", "Body"].join("\n")
 		expect(updateUserInstructionMarkdownDisabledState(disabledQuoted, true)).to.equal("Body")

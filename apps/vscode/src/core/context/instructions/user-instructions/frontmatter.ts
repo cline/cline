@@ -83,8 +83,9 @@ function isTopLevelKeyLine(line: string, key: string): boolean {
 	return new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*:`).test(line)
 }
 
+/** Matches a top-level `enabled: false` line in any boolean spelling YAML accepts (`false`, `False`, `FALSE`). */
 function isEnabledFalseLine(line: string): boolean {
-	return /^(?:enabled|"enabled"|'enabled')\s*:\s*false\s*(#.*)?$/.test(line)
+	return /^(?:enabled|"enabled"|'enabled')\s*:\s*(?:false|False|FALSE)\s*(#.*)?$/.test(line)
 }
 
 /**
