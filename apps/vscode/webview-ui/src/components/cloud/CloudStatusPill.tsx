@@ -10,7 +10,12 @@ const LABELS: Record<CloudSessionStatus, string> = {
 	failed: "Failed",
 	cancelled: "Cancelled",
 	unknown: "Unconfirmed",
-	expired: "Expired",
+	expired: "Archived",
+}
+
+const TITLES: Partial<Record<CloudSessionStatus, string>> = {
+	unknown: "Cloud session: status could not be confirmed",
+	expired: "Cloud session: the sandbox was retired after 24 hours without activity; the saved conversation can still be read",
 }
 
 export function isCloudStatusActive(status: string | undefined): boolean {
@@ -38,9 +43,7 @@ export function CloudStatusPill({ status, className }: { status: string | undefi
 				!active && status !== "failed" && "bg-badge-background text-badge-foreground",
 				className,
 			)}
-			title={
-				status === "unknown" ? "Cloud session: status could not be confirmed" : `Cloud session: ${label.toLowerCase()}`
-			}>
+			title={(status && TITLES[status as CloudSessionStatus]) || `Cloud session: ${label.toLowerCase()}`}>
 			{active ? <LoaderCircleIcon className="size-2.5 animate-spin" /> : <CloudIcon className="size-2.5" />}
 			{label}
 		</span>

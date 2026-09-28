@@ -69,6 +69,33 @@ const CONNECT_TOUCH_GRACE_MS = 60_000
 function isSettled(status: CloudSessionStatus): boolean {
 	return status !== "unknown" && !ACTIVE_CLOUD_STATUSES.has(status)
 }
+
+/** Idle time after which the control plane retires a standard sandbox. */
+const CLOUD_SANDBOX_IDLE_HOURS = 24
+
+/**
+ * Explains an expired session in the user's terms. The sandbox is retired by
+ * the control plane, not lost through anything the user did; whether a
+ * transcript survived depends on whether a viewer disconnected from the live
+ * sandbox before it was retired.
+ */
+export function describeExpiredCloudSession(
+	record: Pick<CloudSessionRecord, "repoContext">,
+	archived: unknown[] | null | undefined,
+	archiveError: string | undefined,
+): string {
+	const repo = record.repoContext.repoUrl?.replace(/^https:\/\/github\.com\//, "")
+	const where = repo ? ` on ${repo}${record.repoContext.branch ? ` (${record.repoContext.branch})` : ""}` : ""
+	const retired = `This cloud sandbox was retired after ${CLOUD_SANDBOX_IDLE_HOURS} hours without activity.`
+	const resume = `To keep working on this, start a new cloud task${where}.`
+	if (archiveError) {
+		return `${retired} Its saved conversation could not be loaded right now (${archiveError}). ${resume}`
+	}
+	if (archived === null) {
+		return `${retired} No conversation was saved for it: the sandbox was already gone when the last viewer disconnected. ${resume}`
+	}
+	return `${retired} The conversation above is saved here to read. ${resume}`
+}
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
@@ -938,14 +965,24 @@ export class SdkCloudSessionCoordinator {
 			let attachedRunning = false
 			let observedStatus = status
 			if (status === "expired") {
-				const archived = await this.options.cloudSessions.getHistory(sessionId).catch(() => null)
+				// The control plane archives a transcript only when a viewer disconnects
+				// from a live sandbox, so an old or never-viewed session may have none.
+				// Tell the three cases apart instead of showing an empty error.
+				let archived: unknown[] | null | undefined
+				let archiveError: string | undefined
+				try {
+					archived = await this.options.cloudSessions.getHistory(sessionId)
+				} catch (error) {
+					archiveError = error instanceof Error ? error.message : String(error)
+				}
 				if (isStale()) return historyItem
-				messages = this.renderTranscript((archived ?? []) as SdkMessage[], true)
+				// Rendering an empty transcript would still add a synthetic "Done" row.
+				messages = archived?.length ? this.renderTranscript(archived as SdkMessage[], true) : []
 				messages.push({
 					ts: Date.now(),
 					type: "say",
-					say: "error",
-					text: "This cloud session has expired and its sandbox is gone. The transcript is read-only; start a new cloud task to continue this work.",
+					say: "info",
+					text: describeExpiredCloudSession(entry.record, archived, archiveError),
 					partial: false,
 				})
 			} else if (status === "failed" && !entry.host) {
