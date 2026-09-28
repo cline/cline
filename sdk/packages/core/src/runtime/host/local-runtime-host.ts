@@ -408,9 +408,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const mode = resolveNonInteractiveMode({
 			mode: input.config.mode,
 			interactive: input.interactive === true,
-			autoApprove: (input.config.toolPolicies ?? this.defaultToolPolicies)?.[
-				"*"
-			]?.autoApprove,
+			// Match bootstrap policy precedence, including an explicitly empty map.
+			autoApprove: (input.toolPolicies ??
+				input.config.toolPolicies ??
+				this.defaultToolPolicies)?.["*"]?.autoApprove,
 		});
 		return mode === input.config.mode
 			? input
