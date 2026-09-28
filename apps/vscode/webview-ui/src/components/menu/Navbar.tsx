@@ -1,12 +1,14 @@
-import { IntentEvent } from "@shared/proto/cline/ui"
 import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
-export const Navbar = () => {
+interface NavbarProps {
+	startNewTask: (source: "navbar") => Promise<boolean>
+}
+
+export const Navbar = ({ startNewTask }: NavbarProps) => {
 	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMarketplace, navigateToChat } =
 		useExtensionState()
 
@@ -17,19 +19,14 @@ export const Navbar = () => {
 				name: "Chat",
 				tooltip: "New Task",
 				icon: PlusIcon,
-				navigate: () => {
-					UiServiceClient.trackIntent(
-						IntentEvent.create({
-							action: "new_task_clicked",
-							source: "navbar",
-						}),
-					).catch((error) => console.error("Failed to track new task click:", error))
-					// Close the current task, then navigate to the chat view
-					TaskServiceClient.clearTask({})
-						.catch((error) => {
-							console.error("Failed to clear task:", error)
-						})
-						.finally(() => navigateToChat())
+				navigate: async () => {
+					try {
+						if (await startNewTask("navbar")) {
+							navigateToChat()
+						}
+					} catch (error) {
+						console.error("Failed to clear task:", error)
+					}
 				},
 			},
 			{
@@ -61,7 +58,7 @@ export const Navbar = () => {
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings],
+		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings, startNewTask],
 	)
 
 	return (
