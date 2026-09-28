@@ -17,6 +17,7 @@ import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
+import { saveCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
 	CloudHandoffCreationRejectedError,
 	CloudHandoffSeedRejectedError,
@@ -779,6 +780,16 @@ async function handleHandoffOnce(
 			} else {
 				warningKind = "unqueued";
 				warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
+				try {
+					saveCloudHandoffFollowUp(outerSessionId, {
+						sourceSessionId,
+						command: nextCommand,
+						userImages: request.attachments?.userImages ?? [],
+					});
+				} catch {
+					warning +=
+						" The unsent follow-up could not be saved for restart recovery. Keep this window open until you recover it.";
+				}
 			}
 		}
 	}

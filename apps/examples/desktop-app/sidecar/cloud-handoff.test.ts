@@ -13,6 +13,7 @@ import {
 	shouldCleanupFailedHandoffVerification,
 	updateHandoffMetadataOrThrow,
 } from "./cloud-handoff";
+import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
 	CloudHandoffCreationRejectedError,
 	CloudHandoffSeedRejectedError,
@@ -1274,6 +1275,10 @@ describe("cloud handoff transaction", () => {
 			action: "handoff",
 			sessionId: sourceSessionId,
 			nextCommand: "continue in cloud",
+			attachments: {
+				userImages: ["data:image/png;base64,aW1hZ2U="],
+				userFiles: [],
+			},
 			fingerprint: {
 				repoUrl: "https://github.com/cline/test",
 				branch: "main",
@@ -1312,6 +1317,7 @@ describe("cloud handoff transaction", () => {
 		});
 		// ...but never prefill an unconfirmed command for resending.
 		expect(completeEvent).not.toHaveProperty("undeliveredCommand");
+		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
 	});
 
 	it("flags a definitively unqueued follow-up with its failure reason", async () => {
@@ -1320,6 +1326,11 @@ describe("cloud handoff transaction", () => {
 		);
 
 		expect(result.warningKind).toBe("unqueued");
+		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual({
+			sourceSessionId: "local-handoff-source",
+			command: "continue in cloud",
+			userImages: ["data:image/png;base64,aW1hZ2U="],
+		});
 		expect(result.warning).toContain(
 			"the follow-up command was not queued: boom",
 		);

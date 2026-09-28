@@ -88,6 +88,7 @@ import {
 	readPendingHandoffRecovery,
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
+import { openWithCloudHandoffFollowUp } from "@/lib/cloud-handoff-follow-up";
 import {
 	createHandoffLifecycle,
 	type HandoffLifecycle,
@@ -663,19 +664,56 @@ export default function Home() {
 		setShowOnboarding(true);
 	}, []);
 
+	const sessionOpenRevision = useRef(0);
 	const handleOpenSession = useCallback(
-		(
+		async (
 			session: SessionHistoryItem,
 			initialPromptDraft?: string,
 			initialAttachments?: File[],
-		) => {
-			dispatchApp({
-				type: "open-session",
-				session,
-				environmentId: session.environmentId,
-				initialPromptDraft,
-				initialAttachments,
-			});
+			expectedActiveThreadId?: string,
+		): Promise<boolean> => {
+			const revision = ++sessionOpenRevision.current;
+			const location = activeLocationRef.current;
+			const open = (
+				draft = initialPromptDraft,
+				attachments = initialAttachments,
+			) =>
+				dispatchApp({
+					type: "open-session",
+					session,
+					environmentId: session.environmentId,
+					initialPromptDraft: draft,
+					initialAttachments: attachments,
+				});
+			if (session.origin !== "cloud") {
+				open();
+				return true;
+			}
+			try {
+				return await openWithCloudHandoffFollowUp({
+					targetSessionId: session.sessionId,
+					initialPromptDraft,
+					initialAttachments,
+					canOpen: () =>
+						revision === sessionOpenRevision.current &&
+						location === activeLocationRef.current &&
+						isExpectedHandoffSourceActive(
+							expectedActiveThreadId,
+							activeLocationRef.current.activeThreadId,
+							activeLocationRef.current.view,
+						),
+					open,
+					delivered: (sourceSessionId) =>
+						dispatchHandoffUi({ type: "retry_delivered", sourceSessionId }),
+				});
+			} catch (error) {
+				toast({
+					title: "Unable to restore cloud follow-up",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+				return false;
+			}
 		},
 		[],
 	);
@@ -738,8 +776,8 @@ export default function Home() {
 		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
-	const activeLocationRef = useRef({ activeThreadId, view });
-	activeLocationRef.current = { activeThreadId, view };
+	const activeLocationRef = useRef(appState.navigation.current);
+	activeLocationRef.current = appState.navigation.current;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			handleNewThread();
@@ -849,12 +887,12 @@ export default function Home() {
 						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
-				handleOpenSession(
+				return await handleOpenSession(
 					cachedSession,
 					options.initialPromptDraft,
 					options.initialAttachments,
+					options.expectedActiveThreadId,
 				);
-				return true;
 			}
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
@@ -884,12 +922,12 @@ export default function Home() {
 						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
 					);
 				}
-				handleOpenSession(
+				return await handleOpenSession(
 					session,
 					options.initialPromptDraft,
 					options.initialAttachments,
+					options.expectedActiveThreadId,
 				);
-				return true;
 			} catch (error) {
 				if (!options.silent) {
 					toast({
