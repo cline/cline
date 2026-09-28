@@ -9,7 +9,6 @@ import type {
 import { NodeHubClient } from "../hub/client/index";
 import { isSessionNotFoundError } from "../runtime/host/runtime-host";
 import {
-	buildCloudHandoffSystemPrompt,
 	CloudHandoffTranscriptMismatchError,
 	cloudHandoffTranscriptsEqual,
 } from "../services/cloud-handoff";
@@ -21,6 +20,7 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
+import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -132,6 +132,19 @@ function sessionRowHandoffSourceSessionId(
 			: undefined;
 	return String(handoff?.sourceSessionId ?? "").trim();
 }
+/** The seed command was not dispatched; the host may clear its seed marker. */
+export class CloudHandoffSeedRejectedError extends Error {
+	constructor(cause: unknown) {
+		super(
+			cause instanceof Error
+				? cause.message
+				: "Cloud conversation creation was not dispatched.",
+			{ cause },
+		);
+		this.name = "CloudHandoffSeedRejectedError";
+	}
+}
+
 /** A queued prompt may have been accepted even when recovery also fails. */
 export class CloudQueueUnconfirmedError extends CloudSessionError {
 	constructor() {
@@ -788,6 +801,18 @@ export class CloudSessionController {
 		);
 	}
 
+	async listModels(): Promise<CloudModel[]> {
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
+		const organizationId = await this.resolveActiveOrganizationId({
+			fresh: true,
+		});
+		const models = await loadCloudModels(this.options.apiBaseUrl, {
+			isOrganizationSession: Boolean(organizationId),
+		});
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
+		return models;
+	}
+
 	/** Validates account auth and GitHub access before provisioning a handoff. */
 	async prepareHandoffRepository(repoUrl: string): Promise<{
 		organizationId?: string;
@@ -1051,7 +1076,21 @@ export class CloudSessionController {
 			input.organizationId === undefined
 				? await this.resolveActiveOrganizationId({ fresh: true })
 				: (input.organizationId ?? undefined);
-		const created = await this.options.api.create({ ...input, organizationId });
+		const handoff = input.handoff;
+		let ownsCreatedSession = !handoff;
+		const created = await this.options.api.create({
+			...input,
+			organizationId,
+			...(handoff && {
+				handoff: {
+					...handoff,
+					onOuterSessionCreated: async (sessionId, context) => {
+						ownsCreatedSession = context?.created === true;
+						await handoff.onOuterSessionCreated(sessionId, context);
+					},
+				},
+			}),
+		});
 		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
@@ -1059,7 +1098,10 @@ export class CloudSessionController {
 			);
 		}
 		if (this.disposed) {
-			if (this.options.lateCreateDisposition === "delete") {
+			if (
+				ownsCreatedSession &&
+				this.options.lateCreateDisposition === "delete"
+			) {
 				await this.deleteProvisionedSessionAfterDispose(
 					created.sessionId,
 					created.cleanupAuthToken,
@@ -1115,7 +1157,11 @@ export class CloudSessionController {
 				innerSessionId = seeded.innerSessionId;
 			}
 		} catch (error) {
-			if (this.disposed && this.options.lateCreateDisposition === "delete")
+			if (
+				this.disposed &&
+				ownsCreatedSession &&
+				this.options.lateCreateDisposition === "delete"
+			)
 				await this.deleteProvisionedSessionAfterDispose(
 					record.id,
 					created.cleanupAuthToken,
@@ -1403,7 +1449,8 @@ export class CloudSessionController {
 				}
 				throwIfCancelled();
 				// Matching queue/steer text cannot identify which concurrent input was accepted.
-				if (delivery === "queue" || delivery === "steer") {
+				if (delivery === "queue") throw new CloudQueueUnconfirmedError();
+				if (delivery === "steer") {
 					throw new CloudSessionError(
 						"request_failed",
 						"Cline could not confirm whether this message was accepted. Check the cloud session before resending it.",
@@ -2390,7 +2437,7 @@ export class CloudSessionController {
 			limit: 100,
 		});
 		this.assertSessionActive(connection.remote.id, connection);
-		const rows = readSessionRows(listed.payload);
+		const rows = readSessionRows(listed.payload).filter(isRootSessionRow);
 		const [only] = rows;
 		if (
 			rows.length !== 1 ||
@@ -2453,7 +2500,7 @@ export class CloudSessionController {
 			limit: 100,
 		});
 		this.assertSessionActive(connection.remote.id, connection);
-		const rows = readSessionRows(listed.payload);
+		const rows = readSessionRows(listed.payload).filter(isRootSessionRow);
 		if (rows.length === 0) return false;
 		const [only] = rows;
 		const innerSessionId = String(only?.sessionId ?? "").trim();
@@ -2485,8 +2532,13 @@ export class CloudSessionController {
 		const live = this.sessions.get(connection.remote.id);
 		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
 		const mode = handoffSeed?.mode ?? "act";
-		await handoffSeed?.onSeeding?.();
-		this.assertSessionActive(connection.remote.id, connection);
+		try {
+			await handoffSeed?.onSeeding?.();
+			this.assertSessionActive(connection.remote.id, connection);
+		} catch (error) {
+			if (handoffSeed) throw new CloudHandoffSeedRejectedError(error);
+			throw error;
+		}
 		const branch = `cline/${(connection.remote.metadata.taskId?.trim() || connection.remote.id).slice(-8).toLowerCase()}`;
 		const systemPrompt =
 			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
@@ -2497,6 +2549,7 @@ export class CloudSessionController {
 			"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
 			`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. ` +
 			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		let dispatched = false;
 		const pendingReply = connection.client.command(
 			"session.create",
 			{
@@ -2512,13 +2565,12 @@ export class CloudSessionController {
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
 					cwd,
 					systemPrompt: handoffSeed
-						? `${buildCloudHandoffSystemPrompt({
-								repoUrl:
-									connection.remote.repoContext.repoUrl ?? "the repository",
-								branch:
-									connection.remote.repoContext.branch ?? "the selected branch",
-								workspaceRoot: CLOUD_WORKSPACE_ROOT,
-							})}${cwd === CLOUD_WORKSPACE_ROOT ? "" : `\n\nContinue from the original repository subdirectory at ${cwd}.`}`
+						? `${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
+							`This session was handed off from a local workspace to a fresh Linux clone of ${connection.remote.repoContext.repoUrl ?? "the repository"}@${connection.remote.repoContext.branch ?? "the selected branch"} at ${CLOUD_WORKSPACE_ROOT}. ` +
+							"Earlier transcript references to the local OS, absolute paths, environment, and tool availability are stale." +
+							(cwd === CLOUD_WORKSPACE_ROOT
+								? ""
+								: `\n\nContinue from the original repository subdirectory at ${cwd}.`)
 						: systemPrompt,
 					mode,
 					enableTools: true,
@@ -2569,12 +2621,17 @@ export class CloudSessionController {
 			{
 				beforeDispatch: () =>
 					this.assertSessionActive(connection.remote.id, connection),
+				onDispatch: () => {
+					dispatched = true;
+				},
 			},
 		);
 		let reply: Awaited<typeof pendingReply>;
 		try {
 			reply = await pendingReply;
 		} catch (error) {
+			if (handoffSeed && !dispatched)
+				throw new CloudHandoffSeedRejectedError(error);
 			if (
 				handoffSeed &&
 				(isHubCommandTimeoutError(error, "session.create") ||
@@ -2890,14 +2947,12 @@ export class CloudSessionController {
 			if (live) live.config.cwd = cwd;
 		}
 		const live = this.sessions.get(connection.remote.id);
+		const mode = (row.runtimeOptions as JsonRecord | undefined)?.mode;
 		if (
 			live &&
-			(row.mode === "act" ||
-				row.mode === "plan" ||
-				row.mode === "yolo" ||
-				row.mode === "zen")
+			(mode === "act" || mode === "plan" || mode === "yolo" || mode === "zen")
 		)
-			live.config.mode = row.mode;
+			live.config.mode = mode;
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {

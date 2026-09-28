@@ -3859,61 +3859,108 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
-	it("reflects persisted metadata updates for an active session", async () => {
+	it.each([
+		{
+			name: "replacement",
+			updates: { metadata: { custom: { status: "complete" } } },
+			updated: true,
+		},
+		{ name: "clear", updates: { metadata: null }, updated: true },
+		{
+			name: "clear all",
+			updates: { metadata: null, title: null },
+			updated: true,
+		},
+		{ name: "missing manifest", updates: { metadata: null }, updated: true },
+		{ name: "invalid manifest", updates: { metadata: null }, updated: true },
+		{ name: "failed save", updates: { metadata: null }, updated: false },
+		{ name: "rename", updates: { title: "Renamed session" }, updated: true },
+		{ name: "derived title", updates: { prompt: "New prompt" }, updated: true },
+	])("keeps active metadata consistent with persistence after $name", async ({
+		name,
+		updates,
+		updated,
+	}) => {
 		const sessionId = "sess-active-metadata-update";
-		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = new FileSessionService(
+			join(isolatedHomeDir, "sessions"),
+		);
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
-			sessionService: {
-				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
-				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
-					manifestPath: "/tmp/manifest.json",
-					messagesPath: "/tmp/messages.json",
-					manifest: createManifest(sessionId),
-				}),
-				persistSessionMessages: vi.fn(),
-				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
-				updateSession,
-				writeSessionManifest: vi.fn(),
-				listSessions: vi.fn().mockResolvedValue([]),
-				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
-			} as never,
+			sessionService,
 			runtimeBuilder: {
-				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+				build: () => ({ tools: [], shutdown: () => {} }),
 			} as never,
 			createAgent: () =>
 				({
-					run: vi.fn().mockResolvedValue(createResult()),
-					continue: vi.fn().mockResolvedValue(createResult()),
-					getMessages: vi.fn().mockReturnValue([]),
-					getAgentId: vi.fn().mockReturnValue("agent-active-metadata"),
-					getConversationId: vi.fn().mockReturnValue("conv-active-metadata"),
-					abort: vi.fn(),
-					subscribeEvents: vi.fn().mockReturnValue(() => {}),
-					canStartRun: vi.fn().mockReturnValue(true),
-					shutdown: vi.fn().mockResolvedValue(undefined),
+					run: async () => createResult(),
+					getMessages: () => [],
+					getAgentId: () => "agent-active-metadata",
+					getConversationId: () => "conv-active-metadata",
+					subscribeEvents: () => () => {},
+					canStartRun: () => true,
+					shutdown: async () => {},
 				}) as never,
 		});
-		await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-				sessionMetadata: { before: true },
-			}),
-		);
-
-		const metadata = {
-			handoff: { status: "complete", toCloudSessionId: "cloud-1" },
-		};
-		await expect(
-			manager.updateSession(sessionId, { metadata }),
-		).resolves.toEqual({
-			updated: true,
-		});
-		expect(updateSession).toHaveBeenCalledWith({ sessionId, metadata });
-		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
-			metadata,
-		});
+		try {
+			const { manifestPath } = await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+					prompt: "Named session",
+					interactive: true,
+					sessionMetadata: { title: "Named session", before: true },
+				}),
+			);
+			if (updates.prompt) {
+				await manager.updateSession(sessionId, {
+					metadata: { before: true },
+					title: null,
+				});
+				expect(
+					(await manager.getSession(sessionId))?.metadata?.title,
+				).toBeUndefined();
+			}
+			const before = (await manager.getSession(sessionId))?.metadata;
+			const missingManifest =
+				name === "missing manifest" || name === "invalid manifest";
+			if (name === "missing manifest") rmSync(manifestPath);
+			if (name === "invalid manifest")
+				writeFileSync(manifestPath, "invalid JSON");
+			if (!updated)
+				vi.spyOn(sessionService, "updateSession").mockResolvedValueOnce({
+					updated: false,
+				});
+			const readManifest = vi.spyOn(sessionService, "readSessionManifest");
+			await expect(manager.updateSession(sessionId, updates)).resolves.toEqual({
+				updated,
+			});
+			expect(readManifest).not.toHaveBeenCalled();
+			const expected =
+				name === "clear all"
+					? undefined
+					: updated && !missingManifest
+						? {
+								...(updates.metadata !== undefined ? updates.metadata : before),
+								title: updates.title ?? updates.prompt ?? "Named session",
+							}
+						: before;
+			expect(sessionService.readSessionManifest(sessionId)?.metadata).toEqual(
+				missingManifest ? undefined : expected,
+			);
+			expect((await manager.getSession(sessionId))?.metadata).toEqual(expected);
+			if (updates.metadata?.custom) {
+				updates.metadata.custom.status = "mutated after save";
+				expect((await manager.getSession(sessionId))?.metadata?.custom).toEqual(
+					{ status: "complete" },
+				);
+			}
+		} finally {
+			await manager.dispose();
+		}
 	});
 
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {

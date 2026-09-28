@@ -93,6 +93,10 @@ import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	clearCloudHandoffFollowUp,
+	readCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
+import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
@@ -167,7 +171,10 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import { getPluginCommandService } from "./plugin-commands";
+import {
+	getPluginCommandService,
+	warmPluginCommandService,
+} from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -2459,6 +2466,17 @@ export async function handleCommand(
 		}
 		return hits.slice(0, limit);
 	}
+	if (
+		command === "get_cloud_handoff_follow_up" ||
+		command === "clear_cloud_handoff_follow_up"
+	) {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		if (command === "get_cloud_handoff_follow_up")
+			return readCloudHandoffFollowUp(sessionId);
+		clearCloudHandoffFollowUp(sessionId);
+		return true;
+	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -2618,6 +2636,14 @@ export async function handleCommand(
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
 			await cloud.delete(sessionId);
+			try {
+				clearCloudHandoffFollowUp(sessionId);
+			} catch (error) {
+				ctx.logger?.error?.(
+					"Failed to clear the deleted session's handoff follow-up",
+					{ error },
+				);
+			}
 			return true;
 		}
 		const { assertSessionDeleteAllowedDuringHandoff } = await import(
@@ -2906,10 +2932,24 @@ export async function handleCommand(
 			providerId === "cline" &&
 			args?.includeCloudModels === true &&
 			isCloudAgentsEnabled();
+		if (includeCloudModels) {
+			const models = await getCloudSessionManager(ctx).listModels();
+			const capabilities = await getLocalProviderModels(
+				providerId,
+				manager.getProviderConfig(providerId, { includeKnownModels: false }),
+				{ loadLatest: true },
+			).catch(() => undefined);
+			const byId = new Map(
+				capabilities?.models.map((model) => [model.id, model]),
+			);
+			return {
+				providerId,
+				models: models.map(({ id, name }) => ({ ...byId.get(id), id, name })),
+			};
+		}
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -3566,6 +3606,16 @@ export async function handleCommand(
 			undefined,
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
+	}
+	if (command === "warm_plugin_commands") {
+		// The webview reports whichever local workspace it has adopted so the
+		// plugin sandbox is loaded before the slash menu first needs it.
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const workspacePath = String(args?.workspacePath ?? "").trim();
+		if (binding.kind === "local" && workspacePath) {
+			warmPluginCommandService(ctx, workspacePath);
+		}
+		return { environmentId: binding.environmentId };
 	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu

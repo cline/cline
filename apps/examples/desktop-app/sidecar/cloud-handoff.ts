@@ -12,13 +12,15 @@ import {
 	mergeCloudHandoffMetadata,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
-	selectCloudHandoffModel,
 } from "@cline/core";
-import { loadCloudHandoffModels } from "@cline/core/cloud";
+import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
+import { saveCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
+	CloudHandoffCreationRejectedError,
+	CloudHandoffSeedRejectedError,
 	CloudHandoffSeedUnsupportedError,
 	CloudQueueUnconfirmedError,
 	CloudSessionError,
@@ -49,7 +51,6 @@ type PreparedCloudHandoff = {
 	branch: string;
 	headSha: string;
 	modelId: string;
-	modelFallback?: { from: string; to: string };
 };
 
 type CloudHandoffGitState = {
@@ -230,32 +231,26 @@ async function prepareCloudHandoff(
 	const localModelId = String(
 		config.model ?? config.modelId ?? persisted?.model ?? "",
 	).trim();
-	const models = await loadCloudHandoffModels(
-		getClineEnvironmentConfig().apiBaseUrl,
-	);
-	let selection = selectCloudHandoffModel({
-		localModelId: options.pinnedModelId ?? localModelId,
-		models,
+	if (options.pinnedModelId && options.pinnedModelId !== localModelId) {
+		throw new Error(
+			"The source model changed after handoff started. Run handoff preflight again before continuing.",
+		);
+	}
+	const models = await loadCloudModels(getClineEnvironmentConfig().apiBaseUrl, {
 		isOrganizationSession: Boolean(organizationId),
 	});
-	if (options.pinnedModelId) {
-		if (selection.modelId !== options.pinnedModelId) {
-			throw new Error(
-				`Cloud model ${options.pinnedModelId} is no longer available for this account. Run /cloud again to select an available model.`,
-			);
-		}
-		selection = {
-			modelId: options.pinnedModelId,
-			usedFallback: options.pinnedModelId !== localModelId,
-			catalogId: selection.catalogId,
-		};
+	const modelId = options.pinnedModelId ?? localModelId;
+	if (!modelId || !models.some((model) => model.id === modelId)) {
+		throw new Error(
+			`The selected model ${modelId || "(none)"} is not available in Cline Cloud for this account. Select a supported model before handing off.`,
+		);
 	}
 	const mode = readCloudHandoffMode(config.mode);
 	const fingerprint = createCloudHandoffFingerprint({
 		repoUrl: git.repoUrl,
 		branch: git.branch,
 		headSha: git.headSha,
-		modelId: selection.modelId,
+		modelId,
 		...(organizationId ? { organizationId } : {}),
 		...(git.workspaceRelativePath
 			? { workspaceRelativePath: git.workspaceRelativePath }
@@ -267,10 +262,7 @@ async function prepareCloudHandoff(
 		repoUrl: git.repoUrl,
 		branch: git.branch,
 		headSha: git.headSha,
-		modelId: selection.modelId,
-		...(selection.usedFallback && localModelId
-			? { modelFallback: { from: localModelId, to: selection.modelId } }
-			: {}),
+		modelId,
 	};
 }
 
@@ -388,6 +380,20 @@ async function handleHandoffOnce(
 		readSessionMetadata(sourceSessionId) ??
 		{};
 	const pending = readCloudHandoffMetadata(metadataBefore);
+	const creationIntent = metadataBefore.cloudHandoffIntent as
+		| { fingerprint?: CloudHandoffFingerprint }
+		| undefined;
+	if (
+		!pending &&
+		creationIntent &&
+		!cloudHandoffFingerprintsEqual(
+			creationIntent.fingerprint,
+			prepared.fingerprint,
+		)
+	)
+		throw new Error(
+			"An earlier cloud handoff is unconfirmed for different settings. Restore the original repository, commit, and model before retrying.",
+		);
 	await assertPendingCloudHandoffCompatible(cloud, {
 		pending,
 		fingerprint: prepared.fingerprint,
@@ -398,6 +404,7 @@ async function handleHandoffOnce(
 	let innerSessionId = pending?.innerSessionId ?? "";
 	let seededMessages: MessageWithMetadata[] | undefined;
 	let createdOuterSessionThisAttempt = false;
+	let savedCreationIntentThisAttempt = false;
 	const onSeeding = async (): Promise<void> => {
 		const current = await manager.get(sourceSessionId);
 		// Persist before dispatch so a restart cannot repeat an uncertain inner create.
@@ -418,13 +425,19 @@ async function handleHandoffOnce(
 		);
 	};
 	const handleSeedFailure = async (error: unknown): Promise<never> => {
+		if (
+			savedCreationIntentThisAttempt &&
+			error instanceof CloudHandoffCreationRejectedError
+		)
+			await clearPendingMetadata();
 		// These rejections precede the create handler; generic failures may follow persistence.
 		if (
-			error instanceof Error &&
-			error.name === "HubCommandError" &&
-			(error as HubCommandError).command === "session.create" &&
-			((error as HubCommandError).code === "client_authority_mismatch" ||
-				(error as HubCommandError).code === "hub_draining")
+			error instanceof CloudHandoffSeedRejectedError ||
+			(error instanceof Error &&
+				error.name === "HubCommandError" &&
+				(error as HubCommandError).command === "session.create" &&
+				((error as HubCommandError).code === "client_authority_mismatch" ||
+					(error as HubCommandError).code === "hub_draining"))
 		) {
 			const current = await manager.get(sourceSessionId);
 			const { cloudHandoffSeedDispatched: _dispatched, ...metadata } =
@@ -564,6 +577,11 @@ async function handleHandoffOnce(
 					error.code === "session_expired" ||
 					error.code === "session_failed")
 			) {
+				if (
+					error.code === "session_not_found" &&
+					(await cloud.handoffTargetExists(outerSessionId))
+				)
+					throw error;
 				await clearPendingTarget(outerSessionId);
 				outerSessionId = "";
 				innerSessionId = "";
@@ -590,6 +608,26 @@ async function handleHandoffOnce(
 				handoff: {
 					sourceSessionId,
 					resolveMessages: readSeedMessages,
+					onCreating: async () => {
+						const current = await manager.get(sourceSessionId);
+						const metadata =
+							(current?.metadata as JsonRecord | null | undefined) ??
+							metadataBefore;
+						if (metadata.cloudHandoffIntent)
+							throw new Error(
+								"The earlier cloud creation is still unconfirmed. Retry later or check Cline Cloud; no new workspace was created.",
+							);
+						await updateHandoffMetadataOrThrow(
+							manager,
+							sourceSessionId,
+							{
+								...metadata,
+								cloudHandoffIntent: { fingerprint: prepared.fingerprint },
+							},
+							"The cloud workspace could not be created because its recovery state could not be saved locally.",
+						);
+						savedCreationIntentThisAttempt = true;
+					},
 					onOuterSessionCreated: async (createdSessionId, info) => {
 						outerSessionId = createdSessionId;
 						const dashboardUrl = buildCloudHandoffDashboardUrl(
@@ -742,6 +780,16 @@ async function handleHandoffOnce(
 			} else {
 				warningKind = "unqueued";
 				warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
+				try {
+					saveCloudHandoffFollowUp(outerSessionId, {
+						sourceSessionId,
+						command: nextCommand,
+						userImages: request.attachments?.userImages ?? [],
+					});
+				} catch {
+					warning +=
+						" The unsent follow-up could not be saved for restart recovery. Keep this window open until you recover it.";
+				}
 			}
 		}
 	}

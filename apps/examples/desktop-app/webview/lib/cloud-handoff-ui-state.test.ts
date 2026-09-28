@@ -154,6 +154,54 @@ describe("cloudHandoffUiReducer", () => {
 		).toBe(restored);
 	});
 
+	it.each([
+		"failed",
+		"retry_restored",
+	] as const)("consumes %s draft and images after a local send", (status) => {
+		const state = {
+			"local-1": {
+				status,
+				retryDraft: "/cloud describe",
+				retryAttachments: [new File(["image"], "qa.png")],
+			},
+		};
+		expect(
+			cloudHandoffUiReducer(state, {
+				type: "local_prompt_delivered",
+				sourceSessionId: "local-1",
+			}),
+		).toEqual({});
+	});
+
+	it.each([
+		{ status: "progress" as const, phase: "creating" as const },
+		{
+			status: "recovery" as const,
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+		},
+		{
+			status: "retry_restored" as const,
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			retryDraft: "/cloud describe",
+		},
+		{
+			status: "complete" as const,
+			receipt: {
+				targetSessionId: "cloud-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+			externalPresentation: false,
+		},
+	])("retains $status ownership state after a stale local send", (entry) => {
+		const state = { "local-1": entry };
+		expect(
+			cloudHandoffUiReducer(state, {
+				type: "local_prompt_delivered",
+				sourceSessionId: "local-1",
+			}),
+		).toBe(state);
+	});
+
 	it("lets an explicit retry replace recovery while ignoring late old progress", () => {
 		const recovery = {
 			"local-1": {
