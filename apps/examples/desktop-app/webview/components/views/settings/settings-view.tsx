@@ -12,13 +12,17 @@ import {
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import {
+	APP_LOCALES,
+	type AppLocaleCode,
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
 	MAX_APP_FONT_SIZE,
 	MIN_APP_FONT_SIZE,
 	readStoredAppFontSize,
 	setStoredAppFontSize,
+	setStoredAppLocale,
 	subscribeToAppFontSize,
+	subscribeToAppLocale,
 } from "@/lib/app-font-size";
 import {
 	APP_ICONS,
@@ -30,6 +34,7 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
@@ -917,6 +922,17 @@ function GeneralSettingsContent({
 		}
 	};
 
+	const { locale: appLocale, t } = useTranslation();
+	const [locale, setLocale] = useState<AppLocaleCode>(appLocale);
+
+	// The locale lives outside React - localStorage plus an event, so the head
+	// bootstrap can apply it before first paint. Mirror it into state for render.
+	useEffect(() => subscribeToAppLocale(setLocale), []);
+	useEffect(() => setLocale(appLocale), [appLocale]);
+
+	const updateLocale = (next: AppLocaleCode) =>
+		setLocale(setStoredAppLocale(next));
+
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
 		setTheme(setStoredHubTheme(nextTheme));
@@ -970,20 +986,56 @@ function GeneralSettingsContent({
 				<NotificationSettings />
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Dark mode</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("Dark mode")}
+						</p>
 						<p className="text-sm text-muted-foreground">
-							Keep the desktop interface in dark mode on this browser.
+							{t("Keep the desktop interface in dark mode on this browser.")}
 						</p>
 					</div>
 					<Switch
-						aria-label="Dark mode"
+						aria-label={t("Dark mode")}
 						checked={theme === "dark"}
 						onCheckedChange={updateTheme}
 					/>
 				</div>
+				{/* Options are labelled in their own script on purpose: someone who cannot
+					read the current interface is exactly the person choosing a new one. */}
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Font size</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("Interface language")}
+						</p>
+						<p className="text-sm text-muted-foreground">
+							{t("Choose the language Cline shows its interface in.")}
+						</p>
+					</div>
+					<div className="flex shrink-0 flex-wrap items-center gap-2">
+						{APP_LOCALES.map((option) => (
+							<button
+								aria-pressed={locale === option.code}
+								className={cn(
+									"inline-flex h-8 cursor-pointer items-center justify-center whitespace-nowrap rounded-md border bg-background px-3 text-sm font-medium shadow-xs outline-none hover:bg-surface-hover focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+									locale === option.code
+										? "ring-2 ring-ring ring-offset-2 ring-offset-background text-foreground"
+										: "text-muted-foreground",
+								)}
+								key={option.code}
+								lang={option.code}
+								onClick={() => updateLocale(option.code)}
+								title={option.englishLabel}
+								type="button"
+							>
+								{option.label}
+							</button>
+						))}
+					</div>
+				</div>
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							{t("Font size")}
+						</p>
 						<p className="text-sm text-muted-foreground">
 							Adjust the size of text and interface elements throughout the app.
 						</p>
@@ -1058,7 +1110,9 @@ function GeneralSettingsContent({
 				</div>
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">App icon</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("App icon")}
+						</p>
 						<p className="text-sm text-muted-foreground">
 							Pick the icon Cline shows in the {appIconLocation}.
 						</p>
