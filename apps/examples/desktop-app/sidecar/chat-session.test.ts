@@ -557,6 +557,13 @@ describe("session forks", () => {
 				}),
 			}),
 		);
+		const startedMetadata = (
+			start.mock.calls[0] as unknown as [
+				{ sessionMetadata: Record<string, unknown> },
+			]
+		)[0].sessionMetadata;
+		expect(startedMetadata).not.toHaveProperty("checkpoint");
+		expect(startedMetadata.fork).toHaveProperty("checkpoints");
 		expect(readMessages).toHaveBeenCalledWith("edited-fork");
 		expect(result).toEqual({
 			sessionId: "edited-fork",

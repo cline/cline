@@ -1149,7 +1149,50 @@ describe("ChatMessages tool disclosures", () => {
 		expect(editButtons).toHaveLength(1);
 		await act(async () => editButtons[0]?.click());
 
-		expect(onEditLastMessage).toHaveBeenCalledWith("Last prompt", 2);
+		expect(onEditLastMessage).toHaveBeenCalledWith(
+			{ content: "Last prompt", images: [] },
+			2,
+		);
+	});
+
+	it("refills the whole prompt, images included, when editing a segmented user message", async () => {
+		const onEditLastMessage = vi.fn(async () => undefined);
+		const image = {
+			id: "img-1",
+			mediaType: "image/png" as const,
+			data: "aGk=",
+		};
+		await renderMessages(
+			[
+				{
+					id: "user_text_0",
+					sessionId: "session-1",
+					role: "user",
+					content: "Before the tool",
+					images: [image],
+					createdAt: 1,
+				},
+				{
+					id: "user_text_1",
+					sessionId: "session-1",
+					role: "user",
+					content: "After the tool",
+					createdAt: 2,
+					meta: { userRunSpan: 0 },
+				},
+			],
+			{ onEditLastMessage },
+		);
+
+		const editButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		await act(async () => editButton?.click());
+
+		expect(onEditLastMessage).toHaveBeenCalledWith(
+			{ content: "Before the tool\nAfter the tool", images: [image] },
+			1,
+		);
 	});
 
 	it("copies a user message without its transport envelope", async () => {

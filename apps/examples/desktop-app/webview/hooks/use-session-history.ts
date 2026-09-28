@@ -822,6 +822,7 @@ export function useSessionHistory({
 					.filter((session) => Boolean(session.sessionId))
 					.filter(isValidHistorySession)
 					.filter((session) => !session.isSubagent && !session.parentSessionId)
+					.filter((session) => !session.metadata?.supersededBy)
 					.sort(compareSessionsByActivityDesc);
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
@@ -1206,6 +1207,24 @@ export function useSessionHistory({
 			scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 		};
 
+		const handleSessionSuperseded = (event: Event) => {
+			const detail = (event as SessionDeletedEvent).detail;
+			const sessionId = detail?.sessionId?.trim()
+				? sessionKey(detail)
+				: undefined;
+			if (!sessionId) {
+				return;
+			}
+			setSessions((current) =>
+				current.filter((session) => sessionKey(session) !== sessionId),
+			);
+			scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
+		};
+
+		window.addEventListener(
+			"cline:session-superseded",
+			handleSessionSuperseded as EventListener,
+		);
 		window.addEventListener(
 			"cline:session-title-updated",
 			handleTitleUpdated as EventListener,
@@ -1374,6 +1393,10 @@ export function useSessionHistory({
 			},
 		);
 		return () => {
+			window.removeEventListener(
+				"cline:session-superseded",
+				handleSessionSuperseded as EventListener,
+			);
 			window.removeEventListener(
 				"cline:session-title-updated",
 				handleTitleUpdated as EventListener,

@@ -59,7 +59,7 @@ import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
-import type { ChatSessionConfig } from "@/lib/chat-schema";
+import type { ChatMessageImage, ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import {
@@ -282,6 +282,18 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const line = options.prompt?.trim().split("\n")[0]?.trim();
 	if (line) return line.slice(0, 70);
 	return "New session";
+}
+
+function imageToFile(image: ChatMessageImage, index: number): File {
+	const binary = atob(image.data);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i += 1) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	const extension = image.mediaType.split("/")[1] ?? "png";
+	return new File([bytes], `image-${index + 1}.${extension}`, {
+		type: image.mediaType,
+	});
 }
 
 export default function Home() {
@@ -1993,13 +2005,47 @@ function ChatThreadPane({
 		[forkSession, openForkedSession],
 	);
 
+	// Editing swaps the pane onto a trimmed copy of the session (the SDK can't
+	// rewrite history under the same id). The predecessor keeps its history but
+	// is marked superseded so the sidebar shows a single session for the edit.
+	const supersededSessionIdRef = useRef<string | null>(null);
 	const handleEditLastMessage = useCallback(
-		async (content: string, runCount: number) => {
-			await editLastMessage(runCount);
-			setPromptInput(content);
+		async (
+			prompt: { content: string; images: ChatMessageImage[] },
+			runCount: number,
+		) => {
+			const { previousSessionId } = await editLastMessage(runCount);
+			supersededSessionIdRef.current = previousSessionId;
+			setPromptInput(prompt.content);
+			// The removed turn's images go back to the composer so resending
+			// doesn't silently drop them.
+			setPendingAttachments(
+				prompt.images.map((image, index) => imageToFile(image, index)),
+			);
 		},
-		[editLastMessage, setPromptInput],
+		[editLastMessage, setPendingAttachments, setPromptInput],
 	);
+	useEffect(() => {
+		const superseded = supersededSessionIdRef.current;
+		if (!superseded || !sessionId || sessionId === superseded) {
+			return;
+		}
+		supersededSessionIdRef.current = null;
+		void desktopClient
+			.invoke("update_chat_session_metadata", {
+				sessionId: superseded,
+				environmentId,
+				metadata: { supersededBy: sessionId },
+			})
+			.then(() =>
+				window.dispatchEvent(
+					new CustomEvent("cline:session-superseded", {
+						detail: { sessionId: superseded, environmentId },
+					}),
+				),
+			)
+			.catch(() => undefined);
+	}, [sessionId, environmentId]);
 
 	const visibleHistorySession =
 		historySession?.sessionId &&

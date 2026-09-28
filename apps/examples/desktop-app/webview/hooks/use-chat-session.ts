@@ -4157,6 +4157,7 @@ export function useChatSession(environmentId: string) {
 			resetCounters();
 			void refreshSessionDiffSummary(nextSessionId);
 			void refreshPromptsInQueue(nextSessionId);
+			return { previousSessionId: activeSessionId };
 		},
 		[
 			clearAbortFallbackTimeout,

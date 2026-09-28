@@ -31,6 +31,7 @@ import { formatRunError } from "@/lib/run-error";
 import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 import { ImportedSessionNotice } from "./imported-session-notice";
+import { formatChatMessageContent } from "./message-content";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
 	buildPreviousTimestampMap,
@@ -76,7 +77,7 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
 	onEditLastMessage?: (
-		content: string,
+		prompt: { content: string; images: ChatMessageImage[] },
 		runCount: number,
 	) => void | Promise<void>;
 	onEditMessage?: (
@@ -480,7 +481,7 @@ function ChatMessagesImpl({
 		[onEditMessage],
 	);
 	const handleEditLastMessage = useCallback(
-		async (messageId: string, content: string, runCount: number) => {
+		async (messageId: string, _content: string, runCount: number) => {
 			if (!onEditLastMessage) {
 				return;
 			}
@@ -494,7 +495,12 @@ function ChatMessagesImpl({
 				return next;
 			});
 			try {
-				await Promise.resolve(onEditLastMessage(content, runCount));
+				await Promise.resolve(
+					onEditLastMessage(
+						collectRunPrompt(messages, messageId),
+						runCount,
+					),
+				);
 			} catch (err) {
 				const message =
 					err instanceof Error ? err.message : "Could not edit this message.";
@@ -505,7 +511,7 @@ function ChatMessagesImpl({
 				);
 			}
 		},
-		[onEditLastMessage],
+		[messages, onEditLastMessage],
 	);
 	const requestEditMessage = useCallback(
 		(messageId: string, content: string, runCount: number) => {
@@ -937,6 +943,48 @@ function ChatMessagesImpl({
 }
 
 export const ChatMessages = memo(ChatMessagesImpl);
+
+/**
+ * A persisted user message can project into several text segments around
+ * tool blocks; only the first represents the run. Editing must refill the
+ * whole prompt, so gather the anchor's text and images together with the
+ * segments that follow it from the same persisted message.
+ */
+function collectRunPrompt(
+	messages: ChatMessage[],
+	anchorId: string,
+): { content: string; images: ChatMessageImage[] } {
+	const anchorIndex = messages.findIndex((message) => message.id === anchorId);
+	const anchor = messages[anchorIndex];
+	if (!anchor) {
+		return { content: "", images: [] };
+	}
+	const baseId = (id: string) => id.replace(/_text_\d+$/, "");
+	const segments = [anchor];
+	for (const message of messages.slice(anchorIndex + 1)) {
+		if (
+			message.role === "user" &&
+			message.meta?.userRunSpan === 0 &&
+			!isSystemSteeringMessage(message) &&
+			baseId(message.id) === baseId(anchorId)
+		) {
+			segments.push(message);
+		}
+	}
+	return {
+		content: segments
+			.map((message) =>
+				formatChatMessageContent(
+					message.role,
+					message.content,
+					message.meta?.providerId,
+				),
+			)
+			.filter((text) => text.trim())
+			.join("\n"),
+		images: segments.flatMap((message) => message.images ?? []),
+	};
+}
 
 /**
  * Sending a message returns the reader to the newest content: whenever a new

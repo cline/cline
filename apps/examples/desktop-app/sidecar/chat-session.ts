@@ -1703,8 +1703,16 @@ async function handleForkUnlocked(
 		forkBeforeRunCount === undefined
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
+	// A trimmed fork keeps the source's checkpoint refs under the source id
+	// only, so inheriting the source's checkpoint history would list
+	// checkpoints for turns the fork no longer contains and point at snapshots
+	// it can't restore. Carry it under `fork.checkpoints` for lineage instead.
+	const inheritedMetadata: JsonRecord = { ...(sourceMetadata ?? {}) };
+	if (forkBeforeRunCount !== undefined) {
+		delete inheritedMetadata.checkpoint;
+	}
 	const forkMetadata: JsonRecord = {
-		...(sourceMetadata ?? {}),
+		...inheritedMetadata,
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
