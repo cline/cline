@@ -1063,7 +1063,11 @@ function ChatInputBarImpl({
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
 			if (!activeSlash) return;
-			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
+			// Only replace the slash token itself; keep whatever follows the
+			// cursor (e.g. a prompt the command was prepended to).
+			const tokenEnd = activeSlash.slashIndex + 1 + activeSlash.query.length;
+			const rest = promptInput.slice(tokenEnd).replace(/^ /, "");
+			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} ${rest}`;
 			// Closes via derivation: the trailing space ends the slash command.
 			setPromptInput(nextValue);
 			const nextCursor = activeSlash.slashIndex + commandName.length + 2;

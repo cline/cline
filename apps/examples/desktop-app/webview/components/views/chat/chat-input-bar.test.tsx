@@ -539,6 +539,32 @@ describe("ChatInputBar", () => {
 		});
 	});
 
+	it("keeps the text after the cursor when autocompleting a slash command", async () => {
+		const onPromptInputChange = vi.fn();
+		await renderVoiceComposer({
+			prompt: "/for Hi, my prompt is working and I want to fork",
+			executionTarget: "local",
+			onPromptInputChange,
+		});
+		const textarea = container.querySelector("textarea");
+		// Place the caret right after "/for" so the slash menu opens for it.
+		textarea?.setSelectionRange(4, 4);
+		await act(async () => {
+			textarea?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		});
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Tab", bubbles: true }),
+			);
+		});
+		expect(onPromptInputChange).toHaveBeenLastCalledWith(
+			"/fork Hi, my prompt is working and I want to fork",
+		);
+	});
+
 	it("allows cloud image and model selection without replacing local defaults", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
