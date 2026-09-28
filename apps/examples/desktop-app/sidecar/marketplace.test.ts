@@ -306,11 +306,12 @@ describe("marketplace skill install", () => {
 			{ spawnCommand },
 		);
 
-		expect(installGitHubSkillMock).toHaveBeenCalledWith({
-			owner: "cline",
-			repo: "skills",
-			skill: "review-team",
-		});
+		// The accepted names are the ones the installed-check looks for, so the
+		// installer lands the skill where this entry will find it again.
+		expect(installGitHubSkillMock).toHaveBeenCalledWith(
+			{ owner: "cline", repo: "skills", skill: "review-team" },
+			{ acceptedNames: ["review-team"] },
+		);
 		expect(spawnCommand).not.toHaveBeenCalled();
 		expect(result).toMatchObject({
 			status: "installed",
