@@ -18,10 +18,13 @@ import {
 	resolve,
 } from "node:path";
 import {
+	type GitHubSkillSource,
 	installPlugin as installCorePlugin,
+	installGitHubSkill,
 	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
+	parseGitHubSkillSource,
 	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
@@ -779,6 +782,48 @@ async function installSkill(
 		};
 	}
 	ensureGlobalSkillsDirWritable();
+	const githubSource = parseGitHubSkillSource(entry.install.args ?? []);
+	const output = githubSource
+		? await installSkillFromGitHub(githubSource)
+		: await installSkillWithSkillsCli(entry, spawnCommand);
+	if (!isGlobalSkillInstalled(entry)) {
+		throw new Error(
+			`Skill install completed, but ${entry.name ?? entry.id} was not found in Cline's global skills directories.`,
+		);
+	}
+	return {
+		id: entry.id,
+		type: entry.type,
+		status: "installed",
+		message: `Installed ${entry.name ?? entry.id} globally for Cline.`,
+		output,
+	};
+}
+
+// Catalog skills all live on GitHub, so they install in-process: shelling out
+// to `npx skills` failed for users without Node on the app's PATH (a GUI app
+// can inherit a stale or minimal one) or with a Node older than what
+// skills@latest requires.
+async function installSkillFromGitHub(
+	source: GitHubSkillSource,
+): Promise<string> {
+	try {
+		const result = await installGitHubSkill(source);
+		return [
+			`Path: ${result.installPath}`,
+			...result.skippedPaths.map((path) => `Skipped link: ${path}`),
+		].join("\n");
+	} catch (error) {
+		throw new Error(
+			`Skill install failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
+async function installSkillWithSkillsCli(
+	entry: MarketplaceInstallInput,
+	spawnCommand: SpawnCommand,
+): Promise<string | undefined> {
 	const result = await spawnCommand("npx", [
 		"-y",
 		"skills@latest",
@@ -803,18 +848,7 @@ async function installSkill(
 			`Skill install failed${output ? `:\n${missingGitHint}${output}` : ""}`,
 		);
 	}
-	if (!isGlobalSkillInstalled(entry)) {
-		throw new Error(
-			`Skill install completed, but ${entry.name ?? entry.id} was not found in Cline's global skills directories.`,
-		);
-	}
-	return {
-		id: entry.id,
-		type: entry.type,
-		status: "installed",
-		message: `Installed ${entry.name ?? entry.id} globally for Cline.`,
-		output,
-	};
+	return output;
 }
 
 async function installPlugin(
@@ -901,10 +935,8 @@ export async function installMarketplaceEntry(
 
 export async function uninstallMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
-	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	let mcpDetails: JsonRecord | undefined;
 	const result = await uninstallCoreMarketplaceEntry(
 		entry satisfies MarketplaceEntryInput,
@@ -912,8 +944,6 @@ export async function uninstallMarketplaceEntry(
 			deleteMcpServer: (name) => {
 				mcpDetails = deleteMcpServer(name);
 			},
-			spawnCommand: (command, commandArgs) =>
-				spawnCommand(command, commandArgs),
 		},
 	);
 	return {
@@ -948,10 +978,7 @@ export async function installMarketplaceEntryFromCatalog(
 
 export async function uninstallMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
-	options: {
-		spawnCommand?: SpawnCommand;
-		loadCatalog?: CatalogLoader;
-	} = {},
+	options: { loadCatalog?: CatalogLoader } = {},
 ): Promise<MarketplaceInstallResult> {
 	const requested = readInstallRequest(args);
 	const catalog = await (options.loadCatalog ?? fetchMarketplaceCatalog)();
@@ -964,10 +991,7 @@ export async function uninstallMarketplaceEntryFromCatalog(
 			`Marketplace entry ${requested.type}:${requested.id} was not found in the catalog.`,
 		);
 	}
-	return uninstallMarketplaceEntry(
-		{ entry },
-		{ spawnCommand: options.spawnCommand },
-	);
+	return uninstallMarketplaceEntry({ entry });
 }
 
 export function listMarketplaceInstalledEntries(
@@ -993,10 +1017,7 @@ export async function installMarketplaceEntryForDesktopCommand(
 
 export async function uninstallMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
-	options: {
-		spawnCommand?: SpawnCommand;
-		loadCatalog?: CatalogLoader;
-	} = {},
+	options: { loadCatalog?: CatalogLoader } = {},
 ): Promise<MarketplaceInstallResult> {
 	return uninstallMarketplaceEntryFromCatalog(args, options);
 }
