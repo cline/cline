@@ -3,9 +3,10 @@ import { createServer } from "node:http"
 import * as os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import WebSocket from "ws"
 import { ClineEndpoint, ClineEnv, Environment } from "@/config"
 import { startLocalCloudDevelopment } from "@/dev/local-cloud-development"
-import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
+import { CloudSessionsService, isCloudSessionExpired } from "@/services/cloud/CloudSessionsService"
 import type { UserResponse } from "@/shared/ClineAccount"
 import { startLocalCloudEnvironment } from "./local-cloud-environment"
 
@@ -256,6 +257,90 @@ describe("local cloud development ownership", () => {
 			expect(environment.sessions.size).toBe(0)
 		} finally {
 			await environment.dispose()
+		}
+	})
+
+	it("serves seeded expired sessions as archived-or-missing history and refuses their sandbox connection", async () => {
+		vi.stubEnv("CLINE_LOCAL_CLOUD_SEED_EXPIRED", "1")
+		const development = await startLocalCloudDevelopment({ port: 0 })
+		const { environment } = development
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => environment.accessToken,
+			getActiveOrganizationId: () => undefined,
+		})
+		try {
+			const sessions = await service.listSessions()
+			expect(sessions.map((record) => record.title).sort()).toEqual(["Archived fixture task", "Unarchived fixture task"])
+			for (const record of sessions) {
+				expect(record.status).toBe("active")
+				expect(isCloudSessionExpired(record)).toBe(true)
+				expect(record.repoContext).toEqual({ repoUrl: "https://github.com/cline/fixture", branch: "main" })
+				expect(Date.parse(record.createdAt)).toBeLessThan(Date.parse(record.expiredAt ?? ""))
+				expect(await service.getStatus(record.id)).toEqual({ status: "expired" })
+				const upgrade = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+					const socket = new WebSocket(service.sessionSocketUrl(record.id), {
+						headers: { Authorization: `Bearer ${environment.accessToken}` },
+					})
+					socket.once("unexpected-response", (_request, response) => {
+						const chunks: Buffer[] = []
+						response.on("data", (chunk: Buffer) => chunks.push(chunk))
+						response.once("end", () =>
+							resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }),
+						)
+					})
+					socket.once("open", () => reject(new Error("Expired session accepted a WebSocket upgrade")))
+					socket.once("error", reject)
+				})
+				expect(upgrade.status).toBe(410)
+				expect(JSON.parse(upgrade.body)).toEqual({ error: "session expired", success: false })
+			}
+			const archived = sessions.find((record) => record.title === "Archived fixture task")
+			const unarchived = sessions.find((record) => record.title === "Unarchived fixture task")
+			if (!archived || !unarchived) throw new Error("Expected both seeded sessions")
+			expect(await service.getHistory(archived.id)).toEqual([
+				expect.objectContaining({ role: "user", sessionId: archived.metadata.taskId }),
+				expect.objectContaining({
+					role: "assistant",
+					content: [{ type: "text", text: "cloud fixture reply" }],
+					sessionId: archived.metadata.taskId,
+				}),
+			])
+			expect(await service.getHistory(unarchived.id)).toBeNull()
+			const missing = await fetch(`${environment.apiBaseUrl}/api/v1/session/${unarchived.id}/history`, {
+				headers: { Authorization: `Bearer ${environment.accessToken}` },
+			})
+			expect(missing.status).toBe(404)
+			expect(await missing.json()).toEqual({ error: "no history captured for this session" })
+			const live = await service.createSession({ modelId: "fixture-model", repoUrl: "https://github.com/cline/fixture" })
+			expect(await service.getHistory(live.id)).toEqual([])
+		} finally {
+			await development.dispose()
+		}
+	})
+
+	it("scripts the hosted insufficient-credits reply for every model request", async () => {
+		vi.stubEnv("CLINE_LOCAL_CLOUD_INSUFFICIENT_CREDITS", "1")
+		const development = await startLocalCloudDevelopment({ port: 0 })
+		try {
+			const response = await development.environment.modelFetch("https://api.cline.bot/api/v1/chat/completions", {
+				method: "POST",
+				body: "{}",
+			})
+			expect(response.status).toBe(402)
+			expect(response.headers.get("content-type")).toBe("application/json")
+			expect(await response.json()).toEqual({
+				error: {
+					code: "insufficient_credits",
+					message: "Not enough credits available",
+					current_balance: 0.01,
+					total_spent: 4.99,
+					total_promotions: 0,
+					buy_credits_url: "http://127.0.0.1/credits",
+				},
+			})
+		} finally {
+			await development.dispose()
 		}
 	})
 

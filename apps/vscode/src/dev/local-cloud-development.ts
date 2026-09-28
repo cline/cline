@@ -42,6 +42,14 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 	// for that long, like the hosted control plane, so cancelling during
 	// provisioning can be exercised.
 	const provisioningDelayMs = Number(process.env.CLINE_LOCAL_CLOUD_PROVISION_DELAY_MS ?? 0)
+	// CLINE_LOCAL_CLOUD_SEED_EXPIRED=1 starts with two Personal sessions whose
+	// sandboxes are already gone, so the read-only transcript view and the
+	// "no history captured" path can be exercised without waiting a day.
+	const seedExpiredSessions = process.env.CLINE_LOCAL_CLOUD_SEED_EXPIRED === "1"
+	// CLINE_LOCAL_CLOUD_INSUFFICIENT_CREDITS=1 makes every model reply the hosted
+	// API's 402 insufficient-credits response, so the out-of-credits card can be
+	// exercised without spending anything.
+	const insufficientCredits = process.env.CLINE_LOCAL_CLOUD_INSUFFICIENT_CREDITS === "1"
 	try {
 		environment = await startLocalCloudEnvironment({
 			...options,
@@ -49,6 +57,8 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 			accessToken,
 			beforeModelResponse,
 			provisioningDelayMs,
+			seedExpiredSessions,
+			insufficientCredits,
 		})
 		const settingsDir = path.join(dataDir, "settings")
 		await mkdir(settingsDir, { recursive: true })
