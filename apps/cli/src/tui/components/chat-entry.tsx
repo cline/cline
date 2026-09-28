@@ -250,6 +250,9 @@ function ToolCallView(props: {
 	// Display the summary for the "submit_and_exit" tool if it hasn't failed.
 	if (toolName === "submit_and_exit" && !failed) {
 		const summary = extractSubmitSummary(props.rawInput, result?.outputSummary);
+		const verificationStatus = result?.outputSummary.match(
+			/^Submission recorded \((verified|unverified)\):/,
+		)?.[1];
 		if (streaming || !summary) {
 			return (
 				<box flexDirection="row">
@@ -262,6 +265,7 @@ function ToolCallView(props: {
 					</box>
 					<text fg={accent}>
 						<strong>Summary</strong>
+						{verificationStatus ? ` (${verificationStatus})` : ""}
 					</text>
 				</box>
 			);
@@ -274,6 +278,7 @@ function ToolCallView(props: {
 					</box>
 					<text fg={accent}>
 						<strong>Summary</strong>
+						{verificationStatus ? ` (${verificationStatus})` : ""}
 					</text>
 				</box>
 				<box paddingLeft={2}>

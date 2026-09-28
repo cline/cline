@@ -1203,6 +1203,25 @@ describe("runCli lightweight command dispatch", () => {
 				expect.anything(),
 			);
 		});
+
+		it("keeps a persisted act choice for a single-prompt run", async () => {
+			writePersistedSettings({ planActMode: "act" });
+			forcePromptModeInput();
+			process.argv = ["bun", "src/index.ts", "say hello"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+				"say hello",
+				expect.objectContaining({
+					mode: "act",
+					enableSpawnAgent: true,
+					enableAgentTeams: true,
+				}),
+				expect.anything(),
+			);
+		});
 	});
 
 	it("forces chat view when resuming a session", async () => {
@@ -1493,6 +1512,25 @@ describe("runCli lightweight command dispatch", () => {
 		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
 	});
 
+	it("uses yolo tool availability for an implicit unattended run", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({
+				mode: "yolo",
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				teamName: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("rejects yolo runs with a single bare prompt token", async () => {
 		const consoleError = vi
 			.spyOn(console, "error")
@@ -1515,7 +1553,7 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "/team find the bug"];
+		process.argv = ["bun", "src/index.ts", "--act", "/team find the bug"];
 
 		const { runCli } = await import("./main");
 

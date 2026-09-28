@@ -910,6 +910,7 @@ export async function runCli(): Promise<void> {
 				(!args.prompt?.trim() &&
 					(!!process.stdin.isTTY || !stdinHasPipedInput())),
 			autoApprove: effectiveToolAutoApprove,
+			persistedMode: persistedGlobalSettings.planActMode,
 		},
 	);
 	const effectiveCompactionMode = resolveStartupCompactionMode(
@@ -990,7 +991,7 @@ export async function runCli(): Promise<void> {
 		const providedApiKey = args.key?.trim() || undefined;
 		let apiKey = providedApiKey || persistedApiKey || undefined;
 
-		const isYoloMode = args.mode === "yolo";
+		const isYoloMode = effectiveMode === "yolo";
 		const isZenMode = args.mode === "zen";
 
 		// In headless mode (yolo / json / piped stdin without --tui),

@@ -148,4 +148,13 @@ describe("resolveNonInteractiveMode", () => {
 			resolveNonInteractiveMode({ modeExplicitlySet: false }, "plan", headless),
 		).toBe("plan");
 	});
+
+	it("keeps a persisted act choice in unattended runs", () => {
+		expect(
+			resolveNonInteractiveMode({ modeExplicitlySet: false }, "act", {
+				...headless,
+				persistedMode: "act",
+			}),
+		).toBe("act");
+	});
 });
