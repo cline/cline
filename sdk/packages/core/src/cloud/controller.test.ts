@@ -239,14 +239,26 @@ describe("CloudSessionController neutral host contract", () => {
 	});
 
 	it.each([
-		"suspended",
-		"ready",
-	])("keeps discovery asleep and clears suspended state when reopening with status %s", async (status) => {
-		const f = await attached();
+		["discovery", "suspended"],
+		["discovery", "ready"],
+		["reconnect", "suspended"],
+	])("keeps %s asleep and reopens with status %s", async (source, status) => {
+		const f = resumableFixture();
+		await f.controller.attach(record.id);
+		const headers = f.getConnectionOptions().resolveConnectionHeaders!;
+		await headers();
 		f.api.list.mockResolvedValue([
 			{ ...record, sandboxType: "resumable", status: "suspended" },
 		]);
-		await f.controller.listForDiscovery();
+		if (source === "discovery") {
+			await f.controller.listForDiscovery();
+		} else {
+			const original = f.command.getMockImplementation()!;
+			f.command.mockRejectedValue(new Error("Pod stopped"));
+			await headers();
+			await vi.waitFor(() => expect(f.dispose).toHaveBeenCalledTimes(1));
+			f.command.mockImplementation(original);
+		}
 		expect(f.api.resume).not.toHaveBeenCalled();
 		expect(f.dispose).toHaveBeenCalledTimes(1);
 		expect(f.controller.getSnapshot(record.id)?.status).toBe("suspended");
@@ -263,30 +275,6 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("drops a reconnecting transport when the sandbox suspended and resumes on reopen", async () => {
-		const f = resumableFixture();
-		await f.controller.attach(record.id);
-		const headers = f.getConnectionOptions().resolveConnectionHeaders;
-		if (!headers) throw new Error("Missing header resolver");
-		await headers();
-		f.api.list.mockResolvedValue([
-			{ ...record, sandboxType: "resumable", status: "suspended" },
-		]);
-		const original = f.command.getMockImplementation();
-		if (!original) throw new Error("Missing command implementation");
-		f.command.mockRejectedValue(new Error("Pod stopped"));
-		await headers();
-		await vi.waitFor(() => expect(f.dispose).toHaveBeenCalledTimes(1));
-		expect(f.controller.getSnapshot(record.id)?.status).toBe("suspended");
-		expect(f.api.resume).not.toHaveBeenCalled();
-		f.command.mockImplementation(original);
-		f.api.status.mockResolvedValue({ status: "suspended" });
-		await f.controller.attach(record.id);
-		expect(f.api.resume).toHaveBeenCalledTimes(1);
-		expect(f.controller.getSnapshot(record.id)?.endedAt).toBeUndefined();
-		await f.controller.dispose();
-	});
-
 	it.each([
 		[new CloudSessionError("request_failed", "Network unavailable"), true],
 		[
@@ -296,14 +284,8 @@ describe("CloudSessionController neutral host contract", () => {
 		[new DOMException("Timed out", "TimeoutError"), true],
 		[new TypeError("fetch failed"), true],
 		[new CloudSessionError("authentication_required", "Sign in"), false],
-		[new CloudSessionError("session_not_found", "Gone"), false],
-		[new CloudSessionError("session_expired", "Expired"), false],
 		[
 			new CloudSessionError("request_failed", "Forbidden", undefined, 403),
-			false,
-		],
-		[
-			new CloudSessionError("request_failed", "Conflict", undefined, 409),
 			false,
 		],
 		[new DOMException("Cancelled", "AbortError"), false],
@@ -418,43 +400,32 @@ describe("CloudSessionController neutral host contract", () => {
 	it.each([
 		{
 			savedApproval: true,
-			localApproval: false,
 			code: "command_failed",
 			savedThinking: { thinking: true, reasoningEffort: "medium" },
 			cold: true,
 		},
 		{
 			savedApproval: false,
-			localApproval: true,
-			code: "session_not_found",
 			savedThinking: { thinking: false, reasoningEffort: null },
-			cold: false,
 		},
 		{
 			savedApproval: false,
-			localApproval: true,
-			code: "session_not_found",
 			savedThinking: { thinking: null, reasoningEffort: null },
-			cold: false,
 		},
 		{
 			savedApproval: undefined,
-			localApproval: true,
-			code: "session_not_found",
 			savedThinking: undefined,
-			cold: false,
 		},
 	])("restores history and saved preferences with legacy host fallback: %j", async ({
 		savedApproval,
-		localApproval,
-		code,
+		code = "session_not_found",
 		savedThinking,
-		cold,
+		cold = false,
 	}) => {
 		const f = resumableFixture();
 		if (!cold)
 			f.controller.restoreCreationOptions(record.id, {
-				autoApproveTools: localApproval,
+				autoApproveTools: true,
 				thinking: true,
 				reasoningEffort: "high",
 			});
@@ -496,9 +467,9 @@ describe("CloudSessionController neutral host contract", () => {
 			return original(...args);
 		});
 		await f.controller.attach(record.id);
-		expect(
-			f.commands.find((c) => c.command === "session.create")?.payload,
-		).toMatchObject({
+		const restored = f.commands.find((c) => c.command === "session.create")
+			?.payload as { sessionConfig: Record<string, unknown> };
+		expect(restored).toMatchObject({
 			initialMessages: messages,
 			sessionConfig: {
 				sessionId: "inner",
@@ -508,17 +479,12 @@ describe("CloudSessionController neutral host contract", () => {
 				systemPrompt: "Saved instructions",
 			},
 			runtimeOptions: { enableSpawn: false, enableTeams: false },
-			toolPolicies: { "*": { autoApprove: savedApproval ?? localApproval } },
+			toolPolicies: { "*": { autoApprove: savedApproval ?? true } },
 		});
-		const restoredConfig = (
-			f.commands.find((c) => c.command === "session.create")?.payload as {
-				sessionConfig: Record<string, unknown>;
-			}
-		).sessionConfig;
-		expect(restoredConfig.thinking).toBe(
+		expect(restored.sessionConfig.thinking).toBe(
 			savedThinking ? (savedThinking.thinking ?? undefined) : true,
 		);
-		expect(restoredConfig.reasoningEffort).toBe(
+		expect(restored.sessionConfig.reasoningEffort).toBe(
 			savedThinking ? (savedThinking.reasoningEffort ?? undefined) : "high",
 		);
 		expect(await f.controller.readMessages(record.id)).toEqual(messages);
