@@ -6212,6 +6212,71 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("returns to the remembered cloud repo after viewing another cloud session", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			EXECUTION_TARGET_STORAGE_KEY,
+			JSON.stringify({
+				target: "cloud",
+				cloudModel: "cloud-model",
+				cloudRepoUrl: "https://github.com/cline/cline",
+				cloudBranch: "dev",
+			}),
+		);
+		const sessionId = "session-cloud-history";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return { sessionId, status: "completed", ...cloudSessionConfig };
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "completed",
+				repoUrl: "https://github.com/cline/other",
+				metadata: { gitBranch: "feature" },
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			});
+		});
+		expect(current.config).toMatchObject({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/other",
+		});
+
+		// Both are Cloud, so the target does not change; the repo still must.
+		await act(async () => {
+			await current.reset();
+		});
+		expect(current.config).toMatchObject({
+			sessionId: undefined,
+			executionTarget: "cloud",
+			model: "cloud-model",
+			repoUrl: "https://github.com/cline/cline",
+			branch: "dev",
+		});
+	});
+
 	it("keeps remote environments on Local even when Cloud is remembered", async () => {
 		await act(async () => root.unmount());
 		window.localStorage.setItem(

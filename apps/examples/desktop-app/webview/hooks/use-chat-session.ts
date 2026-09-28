@@ -3770,8 +3770,9 @@ export function useChatSession(environmentId: string) {
 			const leavingTaskWorktree = isTaskWorktreePath(
 				prev.workspaceRoot || prev.cwd || "",
 			);
-			// The Cloud/Local pick is remembered too, so a pane that hydrated a
-			// session on the other target goes back to the remembered one.
+			// The Cloud/Local pick and cloud repo are remembered too, so a pane
+			// that hydrated a session goes back to the remembered ones rather
+			// than keeping that session's target or repository.
 			const switchingTarget = prev.executionTarget !== initial.executionTarget;
 			return {
 				...prev,
@@ -3781,9 +3782,8 @@ export function useChatSession(environmentId: string) {
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
-				...(switchingTarget
-					? { repoUrl: initial.repoUrl, branch: initial.branch }
-					: {}),
+				repoUrl: initial.repoUrl,
+				branch: initial.branch,
 				...(switchingTarget || leavingTaskWorktree
 					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
 					: {}),

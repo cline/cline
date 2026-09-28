@@ -2199,9 +2199,12 @@ function ChatThreadPane({
 		sessionId,
 	]);
 
+	// Only a real pick is remembered: the composer also clears the repo/branch
+	// itself (e.g. while GitHub is not connected for the current account), and
+	// that must not erase the memory.
 	const handleCloudRepoUrlChange = useCallback(
 		(repoUrl: string) => {
-			writeCloudRepoUrlToWindow(repoUrl);
+			if (repoUrl.trim()) writeCloudRepoUrlToWindow(repoUrl);
 			setConfig((prev) =>
 				prev.repoUrl === repoUrl ? prev : { ...prev, repoUrl },
 			);
@@ -2211,7 +2214,7 @@ function ChatThreadPane({
 
 	const handleCloudBranchChange = useCallback(
 		(branch: string) => {
-			writeCloudBranchToWindow(branch);
+			if (branch.trim()) writeCloudBranchToWindow(branch);
 			setConfig((prev) =>
 				prev.branch === branch ? prev : { ...prev, branch },
 			);
