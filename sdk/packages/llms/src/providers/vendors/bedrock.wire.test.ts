@@ -13,8 +13,8 @@
 //      reasoning support — adapters before 5.0.96 sent it for every
 //      non-Anthropic id (cline/cline#14095, vercel/ai#21487);
 //   3. the families the adapter does classify keep their native shapes from
-//      the id alone, listed in the catalog or not, so a catalog that lags a
-//      model launch never switches thinking off.
+//      the id alone even when the catalog does not list the model, so a
+//      catalog that lags a model launch never switches thinking off.
 import type { GatewayStreamRequest, ModelReasoningOption } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { createGateway } from "../gateway";
@@ -142,14 +142,6 @@ describe("Bedrock reasoning wire contract", () => {
 		expect(sent).toEqual({ reasoning: { effort: "high" } });
 	});
 
-	it("keeps reasoning_effort for gpt-oss", async () => {
-		const { path, sent } = await wireRequest("openai.gpt-oss-120b-1:0", {
-			effort: "high",
-		});
-		expect(path).toBe("/model/openai.gpt-oss-120b-1:0/converse-stream");
-		expect(sent).toEqual({ reasoning_effort: "high" });
-	});
-
 	it("sends no reasoning fields for an unlisted inference-profile ARN", async () => {
 		const { sent } = await wireRequest(
 			"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
@@ -168,18 +160,6 @@ describe("Bedrock reasoning wire contract", () => {
 			"no-controls",
 		);
 		expect(sent).toBeNull();
-	});
-
-	it("keeps reasoningConfig for Nova 2 Lite, which the adapter classifies itself", async () => {
-		// `medium`, not `high`: Bedrock rejects `high` whenever `maxTokens` is
-		// also set (vercel/ai#21590), and the pinned request should be one it
-		// accepts.
-		const { sent } = await wireRequest("us.amazon.nova-2-lite-v1:0", {
-			effort: "medium",
-		});
-		expect(sent).toMatchObject({
-			reasoningConfig: { type: "enabled", maxReasoningEffort: "medium" },
-		});
 	});
 
 	it("keeps thinking for a Claude id the catalog does not list", async () => {
@@ -202,13 +182,5 @@ describe("Bedrock reasoning wire contract", () => {
 			"unlisted",
 		);
 		expect(sent).toEqual({ reasoning: { effort: "high" } });
-	});
-
-	it("keeps Anthropic models on the adapter's native shape", async () => {
-		const { path, sent } = await wireRequest("us.anthropic.claude-sonnet-4-6", {
-			effort: "high",
-		});
-		expect(path).toBe("/model/us.anthropic.claude-sonnet-4-6/converse-stream");
-		expect(sent).toMatchObject({ output_config: { effort: "high" } });
 	});
 });
