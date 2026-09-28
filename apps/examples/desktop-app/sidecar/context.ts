@@ -36,6 +36,7 @@ import {
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
+import { sanitizeStartupError } from "./startup-diagnostics";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -66,12 +67,17 @@ export function getBackendInitialization(
 			{
 				// Startup no longer exits the process on failure, so the fatal
 				// `sidecar.startup` report from main() never fires for these.
-				onFailure: (error, state) => {
-					ctx.logger?.error?.("Session service initialization failed", {
-						error,
-						attempt: state.attempt,
-						automaticRetry: state.automaticRetry ?? false,
-					});
+				onFailure: (rawError, state) => {
+					const error = sanitizeStartupError(rawError);
+					try {
+						ctx.logger?.error?.("Session service initialization failed", {
+							error,
+							attempt: state.attempt,
+							automaticRetry: state.automaticRetry ?? false,
+						});
+					} catch {
+						// Still attempt telemetry when the local log destination fails.
+					}
 					captureSdkError(ctx.telemetry, {
 						component: "desktop",
 						operation: "sidecar.session_service_init",
@@ -79,7 +85,7 @@ export function getBackendInitialization(
 						handled: true,
 						context: {
 							attempt: state.attempt,
-							automatic_retry: state.automaticRetry ?? false,
+							automaticRetry: state.automaticRetry ?? false,
 						},
 					});
 				},
@@ -1451,15 +1457,10 @@ export function getRuntimeBinding(
 ): SessionRuntimeBinding {
 	const binding = ctx.runtimeBindings.get(environmentId);
 	if (!binding) {
-		throw new BackendReadinessError(
-			environmentId === LOCAL_ENVIRONMENT_ID
-				? getBackendInitialization(ctx).state
-				: {
-						state: "failed",
-						attempt: 0,
-						message: `Environment ${environmentId} is not connected.`,
-					},
-		);
+		if (environmentId === LOCAL_ENVIRONMENT_ID) {
+			throw new BackendReadinessError(getBackendInitialization(ctx).state);
+		}
+		throw new Error(`Environment ${environmentId} is not connected.`);
 	}
 	return binding;
 }

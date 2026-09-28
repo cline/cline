@@ -122,6 +122,52 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
+	it("sanitizes startup reports and still emits telemetry when logging throws", async () => {
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			getBackendInitialization,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const log = vi.fn(() => {
+			throw new Error("log destination closed");
+		});
+		const capture = vi.fn();
+		ctx.logger = { log: vi.fn(), debug: vi.fn(), error: log };
+		ctx.telemetry = { capture } as never;
+		createCoreMock.mockRejectedValue(
+			new Error("ws://user:private-value@host/?approval_token=private-value"),
+		);
+		try {
+			await expect(initializeSessionManager(ctx)).resolves.toBeUndefined();
+			expect(log).toHaveBeenCalledWith(
+				"Session service initialization failed",
+				expect.objectContaining({
+					error: expect.objectContaining({
+						message: "Sensitive session-service startup diagnostic omitted",
+					}),
+				}),
+			);
+			expect(capture).toHaveBeenCalledWith(
+				expect.objectContaining({
+					properties: expect.objectContaining({
+						operation: "sidecar.session_service_init",
+						automaticRetry: true,
+						attempt: 1,
+						error_message:
+							"Sensitive session-service startup diagnostic omitted",
+					}),
+				}),
+			);
+			expect(JSON.stringify(capture.mock.calls)).not.toContain("private-value");
+			expect(JSON.stringify(capture.mock.calls)).not.toContain(
+				"automatic_retry",
+			);
+		} finally {
+			getBackendInitialization(ctx).stop();
+		}
+	});
+
 	it("registers the desktop capability factory with core", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

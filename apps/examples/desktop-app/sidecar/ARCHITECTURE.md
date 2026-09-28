@@ -72,6 +72,15 @@ Manual retries retain exponential backoff capped at 30 seconds. Shutdown cancels
 pending initialization, scheduled automatic retries, and queued retries. The existing 90-second command-readiness timeout
 is unchanged.
 
+Readiness publication and failure reporting cannot interrupt the initialization
+lifecycle. Reporting is best effort and does not delay retries, even if a sink
+throws, rejects, or never settles. Startup errors are sanitized before logging
+or telemetry; potentially sensitive messages are omitted, and raw stacks, causes,
+and custom error fields are not forwarded. Native stdout/stderr forwarding uses
+the same guard as stored diagnostics and continues draining on output failure.
+Only local readiness errors suppress duplicate command telemetry; disconnected
+remote environments retain their command-failure reports.
+
 Tauri's `get_desktop_backend_status` and `retry_desktop_backend` commands work
 without the sidecar transport. They expose bounded, sanitized startup diagnostics
 and recovery for sidecar failures. `get_backend_readiness` and

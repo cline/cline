@@ -6,7 +6,7 @@ mod macos_notification;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
@@ -391,6 +391,11 @@ fn sanitize_startup_diagnostic(line: &str) -> String {
         .filter(|c| !c.is_control())
         .take(MAX_DIAGNOSTIC_LINE)
         .collect()
+}
+
+// Forward only sanitized output, and keep draining the pipe if the log sink fails.
+fn forward_backend_diagnostic(mut output: impl Write, stream: &str, line: &str) {
+    let _ = writeln!(output, "[{stream}] {}", sanitize_startup_diagnostic(line));
 }
 
 // Bound memory even when a failing process writes a huge unterminated line.
@@ -800,7 +805,7 @@ fn ensure_desktop_backend_started_locked(
                     return;
                 }
             }
-            eprintln!("[desktop-backend] {trimmed}");
+            forward_backend_diagnostic(std::io::stderr(), "desktop-backend", trimmed);
             state_for_stdout.record_diagnostic(trimmed);
         });
         // Only clear the endpoint if this thread's child is still the one
@@ -822,7 +827,7 @@ fn ensure_desktop_backend_started_locked(
             if trimmed.is_empty() {
                 return;
             }
-            eprintln!("[desktop-backend:err] {trimmed}");
+            forward_backend_diagnostic(std::io::stderr(), "desktop-backend:err", trimmed);
             state_for_stderr.record_diagnostic(trimmed);
         });
     });
@@ -2113,6 +2118,28 @@ mod tests {
             .lines
             .iter()
             .any(|line| line.contains("startup failure 99")));
+    }
+
+    #[test]
+    fn forwarded_output_is_sanitized_and_broken_sinks_do_not_interrupt_readers() {
+        for stream in ["desktop-backend", "desktop-backend:err"] {
+            let mut output = Vec::new();
+            forward_backend_diagnostic(&mut output, stream, "Error: missing dependency");
+            forward_backend_diagnostic(&mut output, stream, "https://user:private-value@host/path");
+            forward_backend_diagnostic(&mut output, stream, "approval_token=private-value");
+            let text = String::from_utf8(output).unwrap();
+            assert!(text.contains("missing dependency"));
+            assert!(!text.contains("private-value"));
+            assert!(text.contains("Sensitive startup diagnostic omitted"));
+        }
+        struct BrokenSink;
+        impl Write for BrokenSink {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "closed"))
+            }
+            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+        }
+        forward_backend_diagnostic(BrokenSink, "desktop-backend", "still draining");
     }
 
     #[test]

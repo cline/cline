@@ -208,6 +208,57 @@ describe("session service initialization", () => {
 		lifecycle.stop();
 	});
 
+	it.each([
+		"throw",
+		"reject",
+		"hang",
+	] as const)("preserves recovery and backoff when reporting hooks %s", async (mode) => {
+		vi.useFakeTimers();
+		const initialize = vi.fn().mockRejectedValue(new Error("offline"));
+		const onFailure = vi.fn(() => {
+			if (mode === "throw") throw new Error("log destination closed");
+			if (mode === "reject")
+				return Promise.reject(new Error("telemetry failed"));
+			return new Promise<void>(() => {});
+		});
+		const lifecycle = new BackendInitialization(initialize, vi.fn(), {
+			onFailure,
+		});
+		await expect(lifecycle.start()).resolves.toBeUndefined();
+		for (const [delay, calls] of [
+			[1000, 2],
+			[2000, 3],
+			[4000, 4],
+		]) {
+			await vi.advanceTimersByTimeAsync(delay - 1);
+			expect(initialize).toHaveBeenCalledTimes(calls - 1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(initialize).toHaveBeenCalledTimes(calls);
+		}
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(initialize).toHaveBeenCalledTimes(4);
+		expect(onFailure).toHaveBeenCalledTimes(4);
+		initialize.mockResolvedValue(undefined);
+		await lifecycle.start();
+		expect(lifecycle.state.state).toBe("ready");
+		lifecycle.stop();
+	});
+
+	it("does not let readiness observers stop initialization or recovery", async () => {
+		vi.useFakeTimers();
+		const initialize = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(undefined);
+		const lifecycle = new BackendInitialization(initialize, () => {
+			throw new Error("disconnected observer");
+		});
+		await expect(lifecycle.start()).resolves.toBeUndefined();
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(lifecycle.state).toEqual({ state: "ready", attempt: 2 });
+		lifecycle.stop();
+	});
+
 	it("reports the raw failure for logging and telemetry, but not shutdown aborts", async () => {
 		vi.useFakeTimers();
 		const error = new Error("hub refused");

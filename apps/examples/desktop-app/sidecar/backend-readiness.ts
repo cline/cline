@@ -31,13 +31,20 @@ export class BackendInitialization {
 		private readonly options: {
 			timeoutMs?: number;
 			/** Receives the raw error; `publish` only ever sees a sanitized message. */
-			onFailure?: (error: unknown, state: BackendReadiness) => void;
+			onFailure?: (
+				error: unknown,
+				state: BackendReadiness,
+			) => void | Promise<void>;
 		} = {},
 	) {}
 
 	private update(state: BackendReadiness): void {
 		this.state = state;
-		this.publish(state);
+		try {
+			this.publish(state);
+		} catch {
+			// Observers must not interrupt initialization or its recovery schedule.
+		}
 	}
 
 	reportStep(step: NonNullable<BackendReadiness["step"]>): void {
@@ -112,9 +119,19 @@ export class BackendInitialization {
 								? "Unable to start the session service. Retrying automatically..."
 								: "Unable to start the session service. Retry to reconnect; export diagnostics if the problem persists.",
 					});
-				if (!this.stopped) this.options.onFailure?.(error, this.state);
 				this.retryAt =
 					Date.now() + Math.min(1_000 * 2 ** Math.min(attempt - 1, 5), 30_000);
+				if (!this.stopped) {
+					try {
+						// Reporting is best effort, including asynchronous sinks. Never
+						// wait for it or let it reject this lifecycle's promise.
+						void Promise.resolve(
+							this.options.onFailure?.(error, this.state),
+						).catch(() => {});
+					} catch {
+						// A broken log destination must not prevent recovery.
+					}
+				}
 			} finally {
 				clearTimeout(timer);
 			}
