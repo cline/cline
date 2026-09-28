@@ -210,20 +210,25 @@ export async function refreshClineRulesToggles(
 	// (e.g. ~/.cline/rules), so the panel shows what actually reaches the model.
 	// Toggles saved before the toggle wrote frontmatter (cline/cline#13695) are
 	// pushed into the files once per scope; from then on the files are the
-	// source of truth for that scope. Workspace toggles are stored per window,
-	// so each workspace carries its own marker.
-	const backfilledScopes = { ...controller.stateManager.getGlobalStateKey("clineRulesTogglesWrittenToFrontmatter") }
-	const globalScope = "global"
-	const workspaceScope = `workspace:${workingDirectory}`
+	// source of truth for that scope. The global marker is a global flag; the
+	// workspace marker lives in this window's workspace state, keyed by
+	// workspace path, so windows cannot clobber each other's marker through
+	// their separate copies of global state.
+	const globalBackfilled = controller.stateManager.getGlobalStateKey("clineRulesTogglesWrittenToFrontmatter") === true
+	const backfilledWorkspaces = controller.stateManager.getWorkspaceStateKey("localClineRulesTogglesWrittenToFrontmatter")
+	const workspaceBackfilled = backfilledWorkspaces[workingDirectory] === true
 
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalRuleDirectories = await resolveGlobalRuleDirectories()
 	const updatedGlobalToggles = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(globalRuleDirectories, globalClineRulesToggles),
 		globalRuleDirectories,
-		{ backfillFromState: !backfilledScopes[globalScope] },
+		{ backfillFromState: !globalBackfilled },
 	)
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
+	if (!globalBackfilled) {
+		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", true)
+	}
 
 	// Local toggles: both supported workspace layouts — the legacy
 	// `.clinerules` directory (or single file) and `.cline/rules` — via the
@@ -237,14 +242,14 @@ export async function refreshClineRulesToggles(
 			CLINERULES_EXCLUDED_SUBDIRECTORIES,
 		),
 		localRuleDirectories,
-		{ backfillFromState: !backfilledScopes[workspaceScope] },
+		{ backfillFromState: !workspaceBackfilled },
 	)
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
-
-	if (!backfilledScopes[globalScope] || !backfilledScopes[workspaceScope]) {
-		backfilledScopes[globalScope] = true
-		backfilledScopes[workspaceScope] = true
-		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", backfilledScopes)
+	if (!workspaceBackfilled) {
+		controller.stateManager.setWorkspaceState("localClineRulesTogglesWrittenToFrontmatter", {
+			...backfilledWorkspaces,
+			[workingDirectory]: true,
+		})
 	}
 
 	return {

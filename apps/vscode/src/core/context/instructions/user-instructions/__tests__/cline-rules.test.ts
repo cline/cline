@@ -169,12 +169,18 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 })
 
 describe("refreshClineRulesToggles back-fill", () => {
-	function makeController(localToggles: Record<string, boolean>, backfilledScopes: Record<string, boolean>) {
+	function makeController(
+		localToggles: Record<string, boolean>,
+		markers: { global?: boolean; workspaces?: Record<string, boolean> } = {},
+	) {
 		const globalState = new Map<string, unknown>([
 			["globalClineRulesToggles", {}],
-			["clineRulesTogglesWrittenToFrontmatter", backfilledScopes],
+			["clineRulesTogglesWrittenToFrontmatter", markers.global ?? false],
 		])
-		const workspaceState = new Map<string, unknown>([["localClineRulesToggles", localToggles]])
+		const workspaceState = new Map<string, unknown>([
+			["localClineRulesToggles", localToggles],
+			["localClineRulesTogglesWrittenToFrontmatter", markers.workspaces ?? {}],
+		])
 		return {
 			controller: {
 				stateManager: {
@@ -186,6 +192,7 @@ describe("refreshClineRulesToggles back-fill", () => {
 				},
 			} as unknown as Controller,
 			globalState,
+			workspaceState,
 		}
 	}
 
@@ -195,18 +202,16 @@ describe("refreshClineRulesToggles back-fill", () => {
 		await fs.mkdir(path.dirname(rulePath), { recursive: true })
 		await fs.writeFile(rulePath, "Toggled off before the fix")
 
-		const first = makeController({ [rulePath]: false }, {})
+		const first = makeController({ [rulePath]: false })
 		const firstResult = await refreshClineRulesToggles(first.controller, workspace)
 		expect(firstResult.localToggles[rulePath]).to.equal(false)
 		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).to.equal(true)
-		expect(first.globalState.get("clineRulesTogglesWrittenToFrontmatter")).to.deep.equal({
-			global: true,
-			[`workspace:${workspace}`]: true,
-		})
+		expect(first.globalState.get("clineRulesTogglesWrittenToFrontmatter")).to.equal(true)
+		expect(first.workspaceState.get("localClineRulesTogglesWrittenToFrontmatter")).to.deep.equal({ [workspace]: true })
 
 		// The user re-enables the rule by editing the file: no back-fill any more.
 		await fs.writeFile(rulePath, "Re-enabled by hand")
-		const second = makeController({ [rulePath]: false }, { global: true, [`workspace:${workspace}`]: true })
+		const second = makeController({ [rulePath]: false }, { global: true, workspaces: { [workspace]: true } })
 		const secondResult = await refreshClineRulesToggles(second.controller, workspace)
 		expect(secondResult.localToggles[rulePath]).to.equal(true)
 		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
@@ -218,17 +223,17 @@ describe("refreshClineRulesToggles back-fill", () => {
 		await fs.mkdir(path.dirname(rulePath), { recursive: true })
 		await fs.writeFile(rulePath, "Toggled off before the fix")
 
-		const { controller, globalState } = makeController(
+		const { controller, workspaceState } = makeController(
 			{ [rulePath]: false },
-			{
-				global: true,
-				"workspace:/some/other/workspace": true,
-			},
+			{ global: true, workspaces: { "/some/other/workspace": true } },
 		)
 		const result = await refreshClineRulesToggles(controller, workspace)
 
 		expect(result.localToggles[rulePath]).to.equal(false)
 		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).to.equal(true)
-		expect(globalState.get("clineRulesTogglesWrittenToFrontmatter")).to.have.property(`workspace:${workspace}`, true)
+		expect(workspaceState.get("localClineRulesTogglesWrittenToFrontmatter")).to.deep.equal({
+			"/some/other/workspace": true,
+			[workspace]: true,
+		})
 	})
 })
