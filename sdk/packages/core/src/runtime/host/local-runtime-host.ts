@@ -1315,19 +1315,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
+		const result = await this.invokeOptionalValue<{
+			updated: boolean;
+			metadata?: SessionManifest["metadata"] | null;
+		}>("updateSession", {
+			sessionId,
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			title: updates.title,
+		});
 		const updated = result?.updated === true;
-		if (updated && updates.metadata !== undefined) {
+		if (updated && result.metadata !== undefined) {
 			const active = this.sessions.get(sessionId.trim());
-			if (active) active.sessionMetadata = updates.metadata ?? undefined;
+			if (active) {
+				active.sessionMetadata = result.metadata ?? undefined;
+				if (active.artifacts)
+					active.artifacts.manifest.metadata = active.sessionMetadata;
+			}
 		}
 		return { updated };
 	}

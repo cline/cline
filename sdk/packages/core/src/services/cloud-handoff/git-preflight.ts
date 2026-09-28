@@ -1,12 +1,11 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import {
+	createWorkspaceGitReader,
+	type GitCommand,
+	gitCommandErrorMessage,
+	gitCommandExitCode,
+} from "../workspace/workspace-manifest";
 
-const execFileAsync = promisify(execFile);
-
-export type GitCommand = (
-	args: readonly string[],
-	options: { cwd: string; signal?: AbortSignal },
-) => Promise<{ stdout: string; stderr?: string }>;
+export type { GitCommand } from "../workspace/workspace-manifest";
 
 export type CloudHandoffGitContext = {
 	repoUrl: string;
@@ -34,25 +33,6 @@ export class CloudHandoffGitPreflightError extends Error {
 		super(message, options);
 		this.name = "CloudHandoffGitPreflightError";
 	}
-}
-
-function defaultGitCommand(
-	args: readonly string[],
-	options: { cwd: string; signal?: AbortSignal },
-): Promise<{ stdout: string; stderr: string }> {
-	return execFileAsync("git", args, {
-		cwd: options.cwd,
-		encoding: "utf8",
-		windowsHide: true,
-		signal: options.signal,
-		timeout: 15_000,
-		maxBuffer: 10 * 1024 * 1024,
-		env: {
-			...process.env,
-			GIT_TERMINAL_PROMPT: "0",
-			GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND || "ssh -o BatchMode=yes",
-		},
-	});
 }
 
 function trimGitSuffix(pathname: string): string {
@@ -90,31 +70,15 @@ export function normalizeGitHubRemoteUrl(remoteUrl: string): string | null {
 	}
 }
 
-function commandErrorMessage(error: unknown): string {
-	if (!error || typeof error !== "object") return "";
-	const stderr = (error as { stderr?: unknown }).stderr;
-	return typeof stderr === "string" ? stderr.trim() : "";
-}
-
-function commandExitCode(error: unknown): number | undefined {
-	if (!error || typeof error !== "object") return undefined;
-	const code = (error as { code?: unknown }).code;
-	return typeof code === "number" ? code : undefined;
-}
-
-async function runRequired(
-	git: GitCommand,
-	cwd: string,
-	args: readonly string[],
+async function runRequired<T>(
+	read: () => Promise<T>,
 	code: CloudHandoffGitPreflightErrorCode,
 	message: string,
-	signal?: AbortSignal,
-	normalizeOutput: (stdout: string) => string = (stdout) => stdout.trim(),
-): Promise<string> {
+): Promise<T> {
 	try {
-		return normalizeOutput((await git(args, { cwd, signal })).stdout);
+		return await read();
 	} catch (error) {
-		const detail = commandErrorMessage(error);
+		const detail = gitCommandErrorMessage(error);
 		throw new CloudHandoffGitPreflightError(
 			code,
 			detail ? `${message} (${detail})` : message,
@@ -159,18 +123,14 @@ export async function preflightCloudHandoffGit(input: {
 	git?: GitCommand;
 	signal?: AbortSignal;
 }): Promise<CloudHandoffGitContext> {
-	const git = input.git ?? defaultGitCommand;
-	const cwd = input.cwd;
+	const git = createWorkspaceGitReader(input);
 
 	const insideWorktree = await runRequired(
-		git,
-		cwd,
-		["rev-parse", "--is-inside-work-tree"],
+		git.isInsideWorkTree,
 		"not_git_repository",
 		"Cloud handoff requires a Git repository.",
-		input.signal,
 	);
-	if (insideWorktree !== "true") {
+	if (!insideWorktree) {
 		throw new CloudHandoffGitPreflightError(
 			"not_git_repository",
 			"Cloud handoff requires a Git working tree.",
@@ -178,28 +138,16 @@ export async function preflightCloudHandoffGit(input: {
 	}
 	const workspaceRelativePath = normalizeWorkspaceRelativePath(
 		await runRequired(
-			git,
-			cwd,
-			["rev-parse", "--show-prefix"],
+			git.workspacePrefix,
 			"git_command_failed",
 			"Could not resolve the workspace path relative to the Git repository.",
-			input.signal,
-			(stdout) => stdout.replace(/[\r\n]+$/, ""),
 		),
 	);
 
 	const dirty = await runRequired(
-		git,
-		cwd,
-		[
-			"status",
-			"--porcelain=v1",
-			"--untracked-files=all",
-			"--ignore-submodules=none",
-		],
+		git.worktreeStatus,
 		"git_command_failed",
 		"Could not inspect the Git worktree.",
-		input.signal,
 	);
 	if (dirty) {
 		const lines = dirty.split("\n").filter(Boolean);
@@ -214,15 +162,10 @@ export async function preflightCloudHandoffGit(input: {
 
 	let branch: string;
 	try {
-		branch = (
-			await git(["symbolic-ref", "--quiet", "--short", "HEAD"], {
-				cwd,
-				signal: input.signal,
-			})
-		).stdout.trim();
+		branch = await git.symbolicBranch();
 	} catch (error) {
-		const detached = commandExitCode(error) === 1;
-		const detail = commandErrorMessage(error);
+		const detached = gitCommandExitCode(error) === 1;
+		const detail = gitCommandErrorMessage(error);
 		const message = detached
 			? "Cloud handoff requires a checked-out branch; detached HEAD is not supported."
 			: "Could not inspect the current Git branch.";
@@ -241,28 +184,19 @@ export async function preflightCloudHandoffGit(input: {
 
 	const [remoteName, mergeRef, headSha] = await Promise.all([
 		runRequired(
-			git,
-			cwd,
-			["config", "--get", `branch.${branch}.remote`],
+			() => git.branchRemote(branch),
 			"missing_upstream",
 			`Branch ${branch} has no upstream. Push it with -u before handing off.`,
-			input.signal,
 		),
 		runRequired(
-			git,
-			cwd,
-			["config", "--get", `branch.${branch}.merge`],
+			() => git.branchMergeRef(branch),
 			"missing_upstream",
 			`Branch ${branch} has no upstream. Push it with -u before handing off.`,
-			input.signal,
 		),
 		runRequired(
-			git,
-			cwd,
-			["rev-parse", "HEAD"],
+			git.headSha,
 			"git_command_failed",
 			"Could not resolve the current commit.",
-			input.signal,
 		),
 	]);
 	if (
@@ -280,12 +214,7 @@ export async function preflightCloudHandoffGit(input: {
 	let rawRemoteUrl = remoteName;
 	if (!normalizeGitHubRemoteUrl(remoteName)) {
 		try {
-			rawRemoteUrl = (
-				await git(["remote", "get-url", remoteName], {
-					cwd,
-					signal: input.signal,
-				})
-			).stdout.trim();
+			rawRemoteUrl = await git.remoteUrl(remoteName);
 		} catch {
 			// Git may echo credential-bearing remote URLs in stderr. Do not retain
 			// the raw command error in either the message or the cause chain.
@@ -305,14 +234,9 @@ export async function preflightCloudHandoffGit(input: {
 
 	let remoteOutput: string;
 	try {
-		remoteOutput = (
-			await git(["ls-remote", "--exit-code", remoteName, mergeRef], {
-				cwd,
-				signal: input.signal,
-			})
-		).stdout.trim();
+		remoteOutput = await git.remoteRefs(remoteName, mergeRef);
 	} catch (error) {
-		const missing = commandExitCode(error) === 2;
+		const missing = gitCommandExitCode(error) === 2;
 		const message = missing
 			? `The upstream branch ${upstreamBranch} was not found. Push it before handing off.`
 			: "Could not verify the remote branch. Check your network and GitHub authentication, then try again.";

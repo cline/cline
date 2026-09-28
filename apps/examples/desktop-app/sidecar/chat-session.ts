@@ -7,7 +7,7 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
-	clearCloudHandoffMetadata,
+	createForkSessionMetadata,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
@@ -1740,26 +1740,17 @@ async function handleForkUnlocked(
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(baseForkConfig)
 			: baseForkConfig;
-	const checkpointMetadata =
-		sourceMetadata?.checkpoint !== undefined
-			? { checkpoints: sourceMetadata.checkpoint }
-			: {};
 	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
-	const forkMetadata: JsonRecord = {
-		...clearCloudHandoffMetadata(sourceMetadata),
-		fork: {
-			forkedFromSessionId: sourceSessionId,
-			forkedAt: new Date().toISOString(),
-			source: sourceSession?.source ?? "desktop",
-			...(forkBeforeRunCount !== undefined
-				? { beforeRunCount: forkBeforeRunCount }
-				: {}),
-			...checkpointMetadata,
-		},
-	};
+	const forkMetadata = createForkSessionMetadata({
+		metadata: sourceMetadata,
+		forkedFromSessionId: sourceSessionId,
+		forkedAt: new Date().toISOString(),
+		source: sourceSession?.source ?? "desktop",
+		beforeRunCount: forkBeforeRunCount,
+	});
 	const systemPrompt =
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(forkConfig)
@@ -2214,6 +2205,12 @@ export async function handleChatSessionCommand(
 				).trim();
 				if (!repoUrl || !modelId) {
 					throw new Error("repoUrl and model are required for a cloud session");
+				}
+				const models = await cloud.listModels();
+				if (!models.some((model) => model.id === modelId)) {
+					throw new Error(
+						`The selected model ${modelId} is not available in Cline Cloud for this account. Select a supported model before starting a cloud session.`,
+					);
 				}
 				const branch = String(request.config?.branch ?? "").trim();
 				const initialPrompt = request.prompt?.trim();

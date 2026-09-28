@@ -70,7 +70,7 @@ export type CreateCloudSessionInput = {
 		sourceSessionId: string;
 		resolveMessages: () => Promise<MessageWithMetadata[]>;
 		/** Persist dispatch intent after successful recovery lookup, before POST. */
-		onCreating?: () => void | Promise<void>;
+		onCreating: () => void | Promise<void>;
 		onOuterSessionCreated: (
 			sessionId: string,
 			context?: { created: boolean },
@@ -279,8 +279,20 @@ export class CloudSessionApi {
 		let refreshed = false;
 		let rejectedToken: string | undefined;
 		while (true) {
-			const token =
-				typeof auth === "string" ? auth : await this.options.getAuthToken();
+			let token: string | undefined;
+			try {
+				token =
+					typeof auth === "string" ? auth : await this.options.getAuthToken();
+			} catch (error) {
+				if (rejectedToken)
+					throw cloudErrorForResponse(
+						401,
+						undefined,
+						this.appBaseUrl,
+						githubConnectUrl,
+					);
+				throw error;
+			}
 			if (!token?.trim()) {
 				throw new CloudSessionError(
 					"authentication_required",
@@ -530,6 +542,11 @@ export class CloudSessionApi {
 		sandboxUrl: string;
 		cleanupAuthToken: string;
 	}> {
+		if (input.handoff && typeof input.handoff.onCreating !== "function")
+			throw new CloudSessionError(
+				"request_failed",
+				"Cloud handoff requires an onCreating callback to persist creation intent before dispatch.",
+			);
 		const initialAuthToken = (await this.options.getAuthToken())?.trim();
 		if (!initialAuthToken) {
 			throw new CloudSessionError(
@@ -624,6 +641,25 @@ export class CloudSessionApi {
 			if (matches[0]) return await adopt(matches[0]);
 			const completed = this.completedHandoffCreates.get(handoffKey);
 			if (completed) {
+				try {
+					await this.request(
+						`/api/v1/session/${encodeURIComponent(completed.sessionId)}/status`,
+						{},
+						undefined,
+						creationAuth,
+					);
+				} catch (error) {
+					if (
+						error instanceof CloudSessionError &&
+						(error.code === "session_not_found" ||
+							error.code === "session_expired")
+					) {
+						await input.handoff?.onOuterSessionRemoved?.(completed.sessionId);
+						this.completedHandoffCreates.delete(handoffKey);
+						this.unconfirmedHandoffCreates.delete(handoffKey);
+					}
+					throw error;
+				}
 				await input.handoff?.onOuterSessionCreated(completed.sessionId, {
 					created: false,
 				});
@@ -636,12 +672,17 @@ export class CloudSessionApi {
 				);
 			this.unconfirmedHandoffCreates.add(handoffKey);
 		}
+		try {
+			await input.handoff?.onCreating();
+		} catch (error) {
+			if (handoffKey) this.unconfirmedHandoffCreates.delete(handoffKey);
+			throw error;
+		}
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		let createdSessionId: string | undefined;
 		let postDispatched = false;
 		try {
-			await input.handoff?.onCreating?.();
 			const created = await this.request<{
 				sessionId: string;
 				sandboxUrl?: string;
@@ -772,7 +813,7 @@ export class CloudSessionApi {
 			await input.handoff.onOuterSessionCreated(sessionId, { created: true });
 		} catch (persistenceError) {
 			try {
-				await this.deleteWithAuth(sessionId, auth);
+				await this.deleteWithAuth(sessionId, auth.token);
 			} catch (cleanupError) {
 				if (
 					!(
@@ -867,17 +908,28 @@ export class CloudSessionApi {
 		sessionId: string,
 		auth?: RequestAuth,
 	): Promise<void> {
-		await this.request(
-			`/api/v1/session/${encodeURIComponent(sessionId)}`,
-			{ method: "DELETE" },
-			undefined,
-			auth,
-		);
+		let goneError: CloudSessionError | undefined;
+		try {
+			await this.request(
+				`/api/v1/session/${encodeURIComponent(sessionId)}`,
+				{ method: "DELETE" },
+				undefined,
+				auth,
+			);
+		} catch (error) {
+			if (
+				!(error instanceof CloudSessionError) ||
+				(error.code !== "session_not_found" && error.code !== "session_expired")
+			)
+				throw error;
+			goneError = error;
+		}
 		for (const [key, result] of this.completedHandoffCreates)
 			if (result.sessionId === sessionId) {
 				this.completedHandoffCreates.delete(key);
 				this.unconfirmedHandoffCreates.delete(key);
 			}
+		if (goneError) throw goneError;
 	}
 
 	async updateTitle(

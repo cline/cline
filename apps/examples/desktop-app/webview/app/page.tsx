@@ -46,7 +46,9 @@ import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
+import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import {
 	WindowTitleBar,
 	WindowTitleBarContent,
@@ -76,7 +78,6 @@ import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
-	formatHandoffModelFallback,
 	HANDOFF_PROGRESS_LABELS,
 	type HandoffPreflight,
 	type HandoffProgressPhase,
@@ -87,6 +88,7 @@ import {
 	readPendingHandoffRecovery,
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
+import { openWithCloudHandoffFollowUp } from "@/lib/cloud-handoff-follow-up";
 import {
 	createHandoffLifecycle,
 	type HandoffLifecycle,
@@ -158,6 +160,12 @@ import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	markCurrentWhatsNewSeen,
+	markWhatsNewSeen,
+	pendingWhatsNew,
+} from "@/lib/whats-new";
+import type { WhatsNewRelease } from "@/lib/whats-new-content";
 import {
 	readWorkInFromWindow,
 	startsNewThread,
@@ -343,7 +351,9 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -391,7 +401,13 @@ export default function Home() {
 	useAppUpdate();
 
 	useEffect(() => {
-		setShowOnboarding(!hasCompletedOnboarding());
+		const onboarded = hasCompletedOnboarding();
+		setShowOnboarding(!onboarded);
+		// Returning users get the catch-up once; first-run users see onboarding
+		// instead, and completing it marks the catch-up as seen.
+		if (onboarded) {
+			setWhatsNew(pendingWhatsNew());
+		}
 		const handleReset = () => setShowOnboarding(true);
 		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
 		return () =>
@@ -635,6 +651,7 @@ export default function Home() {
 
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
+		markCurrentWhatsNewSeen();
 		setShowOnboarding(false);
 		setOnboardingInitialStep("welcome");
 		// A fresh thread remounts the chat pane so it picks up credentials and
@@ -647,19 +664,56 @@ export default function Home() {
 		setShowOnboarding(true);
 	}, []);
 
+	const sessionOpenRevision = useRef(0);
 	const handleOpenSession = useCallback(
-		(
+		async (
 			session: SessionHistoryItem,
 			initialPromptDraft?: string,
 			initialAttachments?: File[],
-		) => {
-			dispatchApp({
-				type: "open-session",
-				session,
-				environmentId: session.environmentId,
-				initialPromptDraft,
-				initialAttachments,
-			});
+			expectedActiveThreadId?: string,
+		): Promise<boolean> => {
+			const revision = ++sessionOpenRevision.current;
+			const location = activeLocationRef.current;
+			const open = (
+				draft = initialPromptDraft,
+				attachments = initialAttachments,
+			) =>
+				dispatchApp({
+					type: "open-session",
+					session,
+					environmentId: session.environmentId,
+					initialPromptDraft: draft,
+					initialAttachments: attachments,
+				});
+			if (session.origin !== "cloud") {
+				open();
+				return true;
+			}
+			try {
+				return await openWithCloudHandoffFollowUp({
+					targetSessionId: session.sessionId,
+					initialPromptDraft,
+					initialAttachments,
+					canOpen: () =>
+						revision === sessionOpenRevision.current &&
+						location === activeLocationRef.current &&
+						isExpectedHandoffSourceActive(
+							expectedActiveThreadId,
+							activeLocationRef.current.activeThreadId,
+							activeLocationRef.current.view,
+						),
+					open,
+					delivered: (sourceSessionId) =>
+						dispatchHandoffUi({ type: "retry_delivered", sourceSessionId }),
+				});
+			} catch (error) {
+				toast({
+					title: "Unable to restore cloud follow-up",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+				return false;
+			}
 		},
 		[],
 	);
@@ -722,8 +776,8 @@ export default function Home() {
 		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
-	const activeLocationRef = useRef({ activeThreadId, view });
-	activeLocationRef.current = { activeThreadId, view };
+	const activeLocationRef = useRef(appState.navigation.current);
+	activeLocationRef.current = appState.navigation.current;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			handleNewThread();
@@ -833,12 +887,12 @@ export default function Home() {
 						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
-				handleOpenSession(
+				return await handleOpenSession(
 					cachedSession,
 					options.initialPromptDraft,
 					options.initialAttachments,
+					options.expectedActiveThreadId,
 				);
-				return true;
 			}
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
@@ -868,12 +922,12 @@ export default function Home() {
 						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
 					);
 				}
-				handleOpenSession(
+				return await handleOpenSession(
 					session,
 					options.initialPromptDraft,
 					options.initialAttachments,
+					options.expectedActiveThreadId,
 				);
-				return true;
 			} catch (error) {
 				if (!options.silent) {
 					toast({
@@ -964,6 +1018,9 @@ export default function Home() {
 						break;
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
+						break;
+					case "export-diagnostics":
+						setExportDiagnosticsOpen(true);
 						break;
 					case "check-for-updates":
 						void checkForUpdateAndNotify();
@@ -1126,7 +1183,7 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("API Providers")
+												handleSettingsSectionChange("Providers")
 											}
 											onOpenAccountSettings={() =>
 												handleSettingsSectionChange("Account")
@@ -1139,6 +1196,7 @@ export default function Home() {
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
+											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
 											onOpenSession={handleOpenSessionById}
 											section={settingsSection}
@@ -1164,7 +1222,28 @@ export default function Home() {
 					) : null}
 				</WindowTitleBarProvider>
 			</SidebarProvider>
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
 			<HubUpdateRequiredDialog />
+			{whatsNew ? (
+				<WhatsNewDialog
+					onOpenChange={(open) => {
+						if (!open) {
+							markWhatsNewSeen(whatsNew.id);
+							setWhatsNew(null);
+						}
+					}}
+					onShowAllChanges={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("About");
+					}}
+					open={!showOnboarding}
+					release={whatsNew}
+				/>
+			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
 				onOpenSession={handleOpenSessionById}
@@ -1902,6 +1981,22 @@ function ChatThreadPane({
 		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
 
+	// Let the sidecar load the workspace's plugin sandbox now so the slash
+	// menu lists plugin commands without paying the cold spawn on first open.
+	useEffect(() => {
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+		void desktopClient
+			.invoke("warm_plugin_commands", {
+				workspacePath: activeWorkspaceCwd,
+				environmentId,
+			})
+			.catch(() => {
+				// Best effort; the menu falls back to loading on open.
+			});
+	}, [activeWorkspaceCwd, environmentId]);
+
 	useEffect(() => {
 		void refreshGitBranch();
 		if (!activeWorkspaceCwd) {
@@ -2248,15 +2343,6 @@ function ChatThreadPane({
 						},
 					},
 				);
-				const fallbackMessage = formatHandoffModelFallback(
-					preflight.modelFallback,
-				);
-				if (fallbackMessage) {
-					toast({
-						title: "Using a cloud-compatible model",
-						description: fallbackMessage,
-					});
-				}
 				await runHandoff(
 					preflight,
 					nextCommand,
@@ -2336,6 +2422,9 @@ function ChatThreadPane({
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 			});
+			if (promptTaken && !isCloudSession && sourceSessionId) {
+				onHandoffUiAction({ type: "local_prompt_delivered", sourceSessionId });
+			}
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping. Leave anything they typed meanwhile alone.
@@ -2349,6 +2438,7 @@ function ChatThreadPane({
 			handleAttachFiles,
 			isCloudSession,
 			isNewThread,
+			onHandoffUiAction,
 			onThreadStarted,
 			pendingAttachments,
 			prepareHandoff,
@@ -2356,6 +2446,7 @@ function ChatThreadPane({
 			sessionId,
 			setPendingAttachments,
 			setPromptInput,
+			sourceSessionId,
 			threadId,
 			cloudHandoffAvailable,
 			handoffRetryEligible,

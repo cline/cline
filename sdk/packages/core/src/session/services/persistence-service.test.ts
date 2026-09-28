@@ -648,7 +648,10 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		await expect(
 			service.updateSession({ sessionId, prompt: "second user message" }),
-		).resolves.toEqual({ updated: true });
+		).resolves.toMatchObject({
+			updated: true,
+			metadata: { title: "first user message" },
+		});
 
 		const [row] = await service.listSessions(10);
 		expect(row?.prompt).toBe("second user message");
@@ -683,7 +686,10 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		await expect(
 			service.updateSession({ sessionId, prompt: "first saved prompt" }),
-		).resolves.toEqual({ updated: true });
+		).resolves.toMatchObject({
+			updated: true,
+			metadata: { title: "first saved prompt" },
+		});
 
 		const [row] = await service.listSessions(10);
 		expect(row?.metadata).toMatchObject({ title: "first saved prompt" });

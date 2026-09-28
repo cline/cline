@@ -136,6 +136,7 @@ export function clearCloudHandoffMetadata(
 ): Record<string, unknown> {
 	const {
 		handoff: _handoff,
+		cloudHandoffIntent: _intent,
 		cloudHandoffSeedDispatched: _seedDispatched,
 		...rest
 	} = metadata ?? {};
