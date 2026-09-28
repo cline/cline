@@ -496,6 +496,13 @@ export async function runCli(): Promise<void> {
 				transport?: string;
 				yes?: boolean;
 			}>();
+			const globalOpts = program.opts<{ dataDir?: string; cwd?: string }>();
+			configureSandboxEnvironment({
+				enabled:
+					!!globalOpts.dataDir || process.env.CLINE_SANDBOX?.trim() === "1",
+				cwd: globalOpts.cwd ?? process.cwd(),
+				explicitDir: globalOpts.dataDir,
+			});
 			const { runMcpInstallCommand } = await import("./commands/mcp");
 			ctx.exitCode = await runMcpInstallCommand({
 				name,
