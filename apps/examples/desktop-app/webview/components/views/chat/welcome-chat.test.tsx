@@ -434,6 +434,68 @@ describe("WelcomeScreen", () => {
 		accountRef.user = null;
 	});
 
+	it("does not judge a re-activated Cloud composer by stale access results", async () => {
+		accountRef.user = { id: "user-1" };
+		// First activation: GitHub not connected. The user reconnects while on
+		// Local; the second activation must wait for the fresh result instead
+		// of clearing the remembered repo against the old one.
+		let connected = false;
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				return connected
+					? {
+							connected: true,
+							connectUrl: "https://app.example/dashboard/integrations",
+							repositories: [
+								{
+									id: 7,
+									name: "repo",
+									fullName: "org/repo",
+									url: "https://github.com/org/repo",
+									defaultBranch: "main",
+								},
+							],
+						}
+					: {
+							connected: false,
+							connectUrl: "https://app.example/dashboard/integrations",
+							repositories: [],
+						};
+			}
+			return {};
+		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const base = {
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			cloudAgentsEnabled: true,
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		await renderWelcomeScreen({ ...base, executionTarget: "cloud" });
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		await renderWelcomeScreen({ ...base, executionTarget: "local" });
+		connected = true;
+		await renderWelcomeScreen({
+			...base,
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/org/repo",
+			cloudBranch: "dev",
+		});
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).not.toHaveBeenCalledWith("");
+		accountRef.user = null;
+	});
+
 	it("drops a remembered repository the account can no longer reach", async () => {
 		accountRef.user = { id: "user-1" };
 		invokeMock.mockImplementation(async (command: string) => {

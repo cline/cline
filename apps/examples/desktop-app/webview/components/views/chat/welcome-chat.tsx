@@ -103,6 +103,12 @@ export function WelcomeScreen({
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
 	const cloudSetupRequestRef = useRef(0);
+	// Request whose result `cloudSetup` currently reflects (every fetch that
+	// applies a result records it). The access guard only acts once this has
+	// caught up with the latest request, so a re-activated composer is never
+	// judged against the previous activation's stale results — a request
+	// starts synchronously, before any re-render.
+	const cloudSetupResultRequestRef = useRef(0);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -142,6 +148,7 @@ export function WelcomeScreen({
 		const result = await fetchCloudRepositories();
 		if (cloudSetupRequestRef.current === requestId) {
 			applyCloudSetupResult(result);
+			cloudSetupResultRequestRef.current = requestId;
 		}
 		return result;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
@@ -191,24 +198,29 @@ export function WelcomeScreen({
 			const result = await fetchCloudRepositories();
 			if (cloudSetupRequestRef.current !== requestId) return;
 			applyCloudSetupResult(result);
+			cloudSetupResultRequestRef.current = requestId;
 		} catch {
 			if (cloudSetupRequestRef.current !== requestId) return;
 			setCloudSetup((prev) => ({ ...prev, status: "error" }));
+			cloudSetupResultRequestRef.current = requestId;
 		} finally {
 			if (cloudSetupRequestRef.current === requestId) {
 				setCloudSetupChecking(false);
 			}
 		}
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
-	const invalidateCloudScope = useCallback(() => {
+	const markCloudScopeStale = useCallback(() => {
 		setCloudSetup((prev) => ({
 			...prev,
 			status: "checking",
 			repositoryUrls: [],
 		}));
+	}, []);
+	const invalidateCloudScope = useCallback(() => {
+		markCloudScopeStale();
 		onRepoUrlChange("");
 		onCloudBranchChange("");
-	}, [onCloudBranchChange, onRepoUrlChange]);
+	}, [markCloudScopeStale, onCloudBranchChange, onRepoUrlChange]);
 
 	// Only a switch to another user invalidates the picked repo eagerly. The
 	// first check of a composer (launch, Local → Cloud) keeps a remembered
@@ -222,6 +234,8 @@ export function WelcomeScreen({
 			checkedUserIdRef.current !== accountUserId
 		) {
 			invalidateCloudScope();
+		} else {
+			markCloudScopeStale();
 		}
 		checkedUserIdRef.current = accountUserId;
 		void checkCloudSetup();
@@ -242,6 +256,7 @@ export function WelcomeScreen({
 		checkCloudSetup,
 		cloudModeActive,
 		invalidateCloudScope,
+		markCloudScopeStale,
 		signedIn,
 	]);
 
@@ -322,6 +337,10 @@ export function WelcomeScreen({
 	useEffect(() => {
 		if (!cloudModeActive || cloudSetup.status === "unknown") return;
 		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
+			return;
+		}
+		// A check is in flight for this activation; wait for its result.
+		if (cloudSetupResultRequestRef.current !== cloudSetupRequestRef.current) {
 			return;
 		}
 		const normalized = normalizeCloudRepositoryUrl(repoUrl);
