@@ -2553,6 +2553,24 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		expect(end.messages[0].ts).toBe(streamingTs)
 	})
 
+	it("accumulates text chunks that carry no running total, as a cloud session sends them", () => {
+		const state = new MessageTranslatorState()
+		const chunk = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_start", contentType: "text", text } as AgentEvent },
+		})
+		const end = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_end", contentType: "text", text } as AgentEvent },
+		})
+
+		expect(translateSessionEvent(chunk("Hello "), state).messages[0].text).toBe("Hello ")
+		expect(translateSessionEvent(chunk("world"), state).messages[0].text).toBe("Hello world")
+		translateSessionEvent(end("Hello world"), state)
+		// The next text block starts from nothing.
+		expect(translateSessionEvent(chunk("Next"), state).messages[0].text).toBe("Next")
+	})
+
 	it("accumulates reasoning deltas into text for webview rendering", () => {
 		const state = new MessageTranslatorState()
 
