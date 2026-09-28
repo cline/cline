@@ -139,10 +139,10 @@ describe("resolveCredentialFailureHint", () => {
 		);
 	});
 
-	it("points everything else at Settings → API Providers", () => {
+	it("points everything else at Settings → Providers", () => {
 		for (const providerId of ["anthropic", "openai-codex", ""]) {
 			expect(resolveCredentialFailureHint(providerId)).toMatch(
-				/Settings → API Providers/,
+				/Settings → Providers/,
 			);
 		}
 	});

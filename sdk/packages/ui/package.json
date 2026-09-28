@@ -68,6 +68,7 @@
 		"components/agent-context-usage.tsx",
 		"components/agent-aurora.css",
 		"components/agent-aurora.tsx",
+		"components/agent-conversation-layout.tsx",
 		"components/agent-hero-heading.css",
 		"components/agent-hero-heading.tsx",
 		"components/agent-welcome-hero.css",
@@ -92,7 +93,8 @@
 		"theme",
 		"ADOPTION.md",
 		"README.md",
-		"RADIX-COLORS-LICENSE"
+		"RADIX-COLORS-LICENSE",
+		"components/agent-composer.tsx"
 	],
 	"sideEffects": [
 		"./components.css",
