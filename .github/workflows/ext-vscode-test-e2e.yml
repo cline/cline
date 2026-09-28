@@ -10,9 +10,9 @@ on:
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    # A new push to a pull request cancels its superseded run. Runs on main
-    # always finish, so every merge gets a complete result and main's cache
-    # save is not interrupted.
+    # A new push to a pull request cancels its superseded run. A run on main
+    # that has started finishes, so main's cache save is not interrupted; a
+    # run still waiting to start is replaced by the next merge's run.
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -82,7 +82,7 @@ jobs:
             matrix:
                 include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
         runs-on: ${{ matrix.runner }}-latest
-        # A run on main after a bun.lock change installs without a cache and
+        # A run on main that misses the bun cache installs without it and
         # saves a new one before the tests start.
         timeout-minutes: 30
         # Nothing in this job uses OIDC, so it does not need an id-token
@@ -129,10 +129,10 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # A pull request's cache is readable only by that pull request, and
-            # saving the multi-gigabyte cache costs minutes of the time limit, so
-            # only main saves. Saving right after the install keeps the cache
-            # even when a later test fails.
+            # A pull request's cache can be restored only by that pull request,
+            # and saving the cache takes several minutes, so only main saves.
+            # Saving right after the install keeps the cache even when a later
+            # test fails.
             - name: Save Bun install cache
               if: github.ref == 'refs/heads/main' && steps.bun-cache.outputs.cache-hit != 'true'
               uses: actions/cache/save@v4
@@ -164,7 +164,7 @@ jobs:
               run: sudo apt-get update && sudo apt-get install -y xvfb
 
             # Type checks and lint run in ext-vscode-test's Quality Checks job;
-            # test:e2e only builds the extension before running the tests.
+            # test:e2e builds the extension without them.
             - name: Run E2E tests - Linux
               if: matrix.runner == 'ubuntu'
               run: xvfb-run -a bun run test:e2e

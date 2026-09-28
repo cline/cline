@@ -7,7 +7,7 @@
  *  - Starts the mock Cline API server (from the e2e test fixtures).
  *  - Downloads a stable build of VS Code (via @vscode/test-electron).
  *  - Creates a temporary VS Code user profile directory.
- *  - Loads the Cline extension from this directory as an extension under development.
+ *  - Loads the Cline extension from apps/vscode as an extension under development.
  *  - Opens a test workspace and automatically reveals the Cline sidebar.
  *  - Records **all gRPC calls** during the session for later inspection.
  *  - Keeps VS Code running for manual interactive testing until the window is closed or Ctrl+C is pressed.
