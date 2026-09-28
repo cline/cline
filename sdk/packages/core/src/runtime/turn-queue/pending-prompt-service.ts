@@ -264,7 +264,9 @@ export class PendingPromptsController {
 		},
 	): void {
 		const session = this.deps.getSession(sessionId);
-		if (!session) return;
+		// A session being torn down discarded its queue and will never
+		// drain it again, so it accepts no new prompts.
+		if (!session || session.shuttingDown) return;
 		// The queue survives aborts and is visible while one settles, so
 		// queue operations must keep working during the abort window: a
 		// prompt typed right after Escape joins the queue instead of being
@@ -290,9 +292,10 @@ export class PendingPromptsController {
 	}
 
 	/**
-	 * Drops every queued prompt. Only called when the user aborts a
+	 * Drops every queued prompt. Called when the user aborts a
 	 * queue-initiated turn — that gesture means "stop the queued work", not
-	 * just "stop this response", so the remainder must not auto-run.
+	 * just "stop this response", so the remainder must not auto-run — and
+	 * when the session starts tearing down.
 	 */
 	discardQueue(session: ActiveSession): void {
 		if (session.pendingPrompts.length === 0) return;
