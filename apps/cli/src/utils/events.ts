@@ -142,10 +142,10 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 				case "tool": {
 					closeInlineStreamIfNeeded();
 					const toolName = event.toolName ?? "unknown_tool";
-					const inputStr = formatToolInput(toolName, event.input);
-					if (toolName === "ask_question") {
+					if (toolName === "ask_question" || toolName === "submit_and_exit") {
 						break;
 					}
+					const inputStr = formatToolInput(toolName, event.input);
 					write(
 						`${c.cyan}[${toolName}]${c.reset}${inputStr ? ` ${inputStr}` : ""}\n`,
 					);
@@ -163,6 +163,27 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 				case "tool":
 					closeInlineStreamIfNeeded();
 					if (event.toolName === "ask_question") {
+						break;
+					}
+					if (event.toolName === "submit_and_exit") {
+						if (event.error) {
+							write(
+								`${c.cyan}[submit_and_exit]${c.reset} ${c.red}error: ${event.error}${c.reset}\n`,
+							);
+						} else {
+							const output =
+								typeof event.output === "string"
+									? event.output
+									: formatToolOutput(event.output);
+							const recorded = output.match(
+								/^Submission recorded \((verified|unverified)\):\s*([\s\S]*)$/,
+							);
+							const summary = recorded?.[2] ?? output;
+							write(
+								`\n${c.bold}Summary${recorded ? ` (${recorded[1]})` : ""}${c.reset}\n${summary.trim()}\n`,
+							);
+						}
+						shouldPrefixNextTextWithBlankLine = false;
 						break;
 					}
 					if (event.error) {

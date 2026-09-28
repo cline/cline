@@ -184,6 +184,33 @@ describe("handleEvent text formatting", () => {
 		expect(output).toBe("");
 	});
 
+	it("prints submit_and_exit as a full summary without a tool result block", () => {
+		const summary =
+			"Explored the repository.\nFound the CLI in apps/cli and the SDK in sdk. The command output remains complete rather than being shortened to a tool preview.";
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "submit_and_exit",
+				input: { summary },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "submit_and_exit",
+				output: `Submission recorded (verified): ${summary}`,
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain(`Summary (verified)\x1b[0m\n${summary}`);
+		expect(output).not.toContain("[submit_and_exit]");
+		expect(output).not.toContain("⎿");
+	});
+
 	it("prints tool errors inline", () => {
 		handleEvent(
 			{
