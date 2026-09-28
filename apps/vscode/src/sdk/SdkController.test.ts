@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import { telemetryService } from "@/services/telemetry"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { Controller as SdkController } from "./SdkController"
+import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
 
 describe("isClineManagedProvider", () => {
@@ -279,6 +280,90 @@ describe("SDK remote-config coordination", () => {
 		expect(taskId).toBe("task-id")
 		expect(events).toEqual(["policy", "task"])
 		expect(initTask).toHaveBeenCalledWith("start immediately", undefined, undefined, undefined, undefined)
+	})
+
+	describe("after a Cline sign-in error offers to retry a prompt", () => {
+		function controllerShowingSignInError(options: { existingTask?: boolean } = {}) {
+			const controller = {
+				task: undefined as TaskProxy | undefined,
+				turnStateTracker: { set: vi.fn(), get: () => ({ phase: "error" }) },
+				messageTranslatorState: { clearTurnOutcome: vi.fn() },
+				messages: { appendAndEmit: vi.fn() },
+				sessions: { getActiveSession: () => undefined },
+				postStateToWebview: vi.fn(async () => {}),
+				initTask: vi.fn(async () => "task-id"),
+				followups: { askResponse: vi.fn(async () => {}) },
+				cancelTask: vi.fn(async () => {}),
+				askResponse(prompt?: string, images?: string[], files?: string[]) {
+					return SdkController.prototype.askResponse.call(controller as never, prompt, images, files)
+				},
+			}
+			const openTask = (taskId: string) => {
+				controller.task = createTaskProxy(taskId, controller.askResponse, controller.cancelTask)
+				return controller.task
+			}
+			if (options.existingTask) {
+				openTask("existing-task")
+			}
+			SdkController.prototype["emitClineAuthError"].call(controller as never, "original prompt")
+			const errorTask = controller.task
+			if (!errorTask) {
+				throw new Error("The sign-in error did not leave a task to answer")
+			}
+			return { controller, errorTask, openTask }
+		}
+
+		it("restarts a new task with the original prompt when Retry is clicked", async () => {
+			const { controller, errorTask } = controllerShowingSignInError()
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.initTask).toHaveBeenCalledWith("original prompt", undefined, undefined)
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
+		})
+
+		it("restarts a new task with a revised prompt submitted from the composer", async () => {
+			const { controller, errorTask } = controllerShowingSignInError()
+			await errorTask.handleWebviewAskResponse("messageResponse", "revised prompt", ["img"])
+			expect(controller.initTask).toHaveBeenCalledWith("revised prompt", ["img"], undefined)
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
+		})
+
+		it("keeps the original prompt when the revised submission has attachments but no text", async () => {
+			const { controller, errorTask } = controllerShowingSignInError()
+			await errorTask.handleWebviewAskResponse("messageResponse", "  ", ["img"])
+			expect(controller.initTask).toHaveBeenCalledWith("original prompt", ["img"], undefined)
+		})
+
+		it("continues an existing conversation with a message submitted from the composer", async () => {
+			const { controller, errorTask } = controllerShowingSignInError({ existingTask: true })
+			await errorTask.handleWebviewAskResponse("messageResponse", "follow-up")
+			expect(controller.initTask).not.toHaveBeenCalled()
+			expect(controller.task).toBe(errorTask)
+			expect(controller.followups.askResponse).toHaveBeenCalledWith(
+				"follow-up",
+				undefined,
+				undefined,
+				"messageResponse",
+				"error",
+			)
+
+			// The follow-up answered the error, so a later approval continues the conversation.
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.initTask).not.toHaveBeenCalled()
+		})
+
+		it("does not restart the failed prompt from a task opened afterwards", async () => {
+			const { controller, openTask } = controllerShowingSignInError()
+			const historyTask = openTask("history-task")
+			await historyTask.handleWebviewAskResponse("yesButtonClicked", "resume here")
+			expect(controller.initTask).not.toHaveBeenCalled()
+			expect(controller.followups.askResponse).toHaveBeenCalledWith(
+				"resume here",
+				undefined,
+				undefined,
+				"yesButtonClicked",
+				"error",
+			)
+		})
 	})
 
 	it("waits for initial remote config before resuming an existing task", async () => {
