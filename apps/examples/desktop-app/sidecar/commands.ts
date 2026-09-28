@@ -910,22 +910,6 @@ function taskWorktreesRoot(): string {
 	return join(resolveClineDir(), "worktrees");
 }
 
-/**
- * Buckets a worktree git failure for telemetry. Only the kind is reported,
- * never the message, since git errors embed paths and branch names.
- */
-function worktreeErrorKind(error: unknown): string {
-	const message = error instanceof Error ? error.message : String(error);
-	if (/No space left on device/i.test(message)) return "no_space";
-	if (/not a git repository/i.test(message)) return "not_git_repo";
-	if (/invalid reference/i.test(message)) return "invalid_head";
-	if (/No such file or directory|cannot change to/i.test(message)) {
-		return "missing_path";
-	}
-	if (/is locked/i.test(message)) return "locked";
-	return "other";
-}
-
 function captureWorktreeEvent(
 	ctx: SidecarContext,
 	event: "created" | "removed",
@@ -986,7 +970,6 @@ async function createGitWorktree(
 	} catch (error) {
 		captureWorktreeEvent(ctx, "created", {
 			success: false,
-			errorKind: worktreeErrorKind(error),
 			durationMs: Date.now() - startedAt,
 			...facts,
 		});
@@ -1034,11 +1017,7 @@ async function removeTaskWorktree(
 			worktreePath,
 			error,
 		});
-		captureWorktreeEvent(ctx, "removed", {
-			success: false,
-			reason,
-			errorKind: worktreeErrorKind(error),
-		});
+		captureWorktreeEvent(ctx, "removed", { success: false, reason });
 	}
 	// The `<id>` directory that held the worktree.
 	removePathIfExists(dirname(worktreePath), { recursive: true });

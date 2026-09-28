@@ -143,7 +143,7 @@ describe("worktree telemetry", () => {
 		});
 	});
 
-	it("reports a failed creation with an error kind but no paths", async () => {
+	it("reports a failed creation without leaking paths", async () => {
 		const plain = join(sandbox, "plain");
 		mkdirSync(plain, { recursive: true });
 		const { ctx, capture } = telemetryCtx();
@@ -154,11 +154,7 @@ describe("worktree telemetry", () => {
 
 		expect(capture).toHaveBeenCalledWith({
 			event: "desktop.worktree.created",
-			properties: {
-				success: false,
-				errorKind: "not_git_repo",
-				durationMs: expect.any(Number),
-			},
+			properties: { success: false, durationMs: expect.any(Number) },
 		});
 		expect(JSON.stringify(capture.mock.calls)).not.toContain(sandbox);
 	});
@@ -178,11 +174,7 @@ describe("worktree telemetry", () => {
 			},
 			{
 				event: "desktop.worktree.removed",
-				properties: {
-					success: false,
-					reason: "start_failed",
-					errorKind: "missing_path",
-				},
+				properties: { success: false, reason: "start_failed" },
 			},
 		]);
 	});
