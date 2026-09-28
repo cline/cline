@@ -52,6 +52,10 @@ their utilities are emitted without changing generic host utility names.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 
+`AgentConversationLayout`, `AgentConversationHeader`, and `AgentSessionContent`
+share welcome/conversation geometry and header groups through host-owned slots.
+See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
+
 `Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
 accent, neutral, and destructive tones. Both default to `type="button"` so they
 are safe inside forms. `IconButton` requires an accessible `aria-label`, and
@@ -92,6 +96,11 @@ and submits its callbacks.
 and also accepts a typed custom answer. The host owns pending answers, errors,
 and response transport. Multiple-choice items set `multiple: true` and provide
 `onAnswers` for explicit array submission.
+
+`AgentComposer` and its body, field, textarea, actions, attachments, and settings
+primitives share the desktop input presentation without taking ownership of
+drafts, keyboard handling, models, uploads, or runtime actions. See the
+[composer adoption contract](./ADOPTION.md#composer-presentation).
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.

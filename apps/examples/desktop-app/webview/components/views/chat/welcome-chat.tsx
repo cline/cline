@@ -3,6 +3,7 @@
 import type { AgendaTaskRecord } from "@cline/shared";
 import { getClineEnvironmentConfig } from "@cline/shared/browser";
 import {
+	AgentConversationLayout,
 	type AgentQuickAction,
 	AgentQuickActions,
 	AgentWelcomeHero,
@@ -25,13 +26,11 @@ import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
-import { cn } from "@/lib/utils";
 import type { WorkIn } from "@/lib/work-in-selection";
 import {
 	CloudOnboardingCard,
 	type CloudOnboardingVariant,
 } from "./cloud-onboarding";
-import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 // Used only until the API's connectUrl arrives (or when it is blank), so a
@@ -362,109 +361,74 @@ export function WelcomeScreen({
 	const showCloudOnboarding = cloudOnboardingVariant !== null;
 
 	return (
-		<div
-			className={cn(
-				active
-					? "relative h-full min-h-0 overflow-hidden bg-background"
-					: "contents",
-			)}
-		>
-			<div
-				className={cn(
-					active
-						? "relative z-10 h-full w-full overflow-x-hidden overflow-y-auto"
-						: "contents",
-				)}
-			>
-				<div
-					className={cn(
-						active
-							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
-							: "contents",
-					)}
-				>
-					{active ? (
-						<div className="cline-view-enter">
-							<h1 className="sr-only">What would you like to build?</h1>
-							<AgentWelcomeHero />
+		<AgentConversationLayout
+			welcome={active}
+			body={body}
+			bodyClassName="cline-view-enter"
+			composer={composer}
+			notice={notice && !showCloudOnboarding ? notice : null}
+			hideWelcomeComposer={showCloudOnboarding}
+			welcomeHeader={
+				<div className="cline-view-enter">
+					<h1 className="sr-only">What would you like to build?</h1>
+					<AgentWelcomeHero />
 
-							<div className="mt-11 flex min-w-0 items-center gap-2">
-								{environmentSelector}
-								<WelcomeWorkspaceControls
-									cloudBranch={cloudBranch}
-									cloudControlsHidden={showCloudOnboarding}
-									cloudEnabled={cloudAgentsEnabled}
-									currentBranch={gitBranch}
-									executionTarget={executionTarget}
-									onCloudBranchChange={onCloudBranchChange}
-									onListCloudBranches={listCloudBranches}
-									onListCloudRepositories={listCloudRepositories}
-									onListGitBranches={onListGitBranches}
-									onOpenExternalUrl={connectGitHub}
-									onPickWorkspaceDirectory={pickWorkspaceDirectory}
-									onRefreshWorkspaces={refreshWorkspaces}
-									onRepoUrlChange={onRepoUrlChange}
-									onSignIn={signIn}
-									onSelectChat={selectChat}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={switchWorkspace}
-									repoUrl={repoUrl}
-									signedIn={signedIn}
-									signingIn={signingIn}
-									onWorkInChange={onWorkInChange}
-									workIn={workIn}
-									workspaceRoot={workspaceRoot}
-									workspaces={workspaces}
-								/>
-								{signInError ? (
-									<p className="mt-2 text-xs text-destructive">
-										Sign in failed: {signInError}
-									</p>
-								) : null}
-							</div>
-						</div>
-					) : null}
-
-					<div
-						className={
-							active
-								? "hidden"
-								: "cline-view-enter h-full min-h-0 overflow-hidden"
-						}
-						key="conversation-body"
-					>
-						{body}
+					<div className="mt-11 flex min-w-0 items-center gap-2">
+						{environmentSelector}
+						<WelcomeWorkspaceControls
+							cloudBranch={cloudBranch}
+							cloudControlsHidden={showCloudOnboarding}
+							cloudEnabled={cloudAgentsEnabled}
+							currentBranch={gitBranch}
+							executionTarget={executionTarget}
+							onCloudBranchChange={onCloudBranchChange}
+							onListCloudBranches={listCloudBranches}
+							onListCloudRepositories={listCloudRepositories}
+							onListGitBranches={onListGitBranches}
+							onOpenExternalUrl={connectGitHub}
+							onPickWorkspaceDirectory={pickWorkspaceDirectory}
+							onRefreshWorkspaces={refreshWorkspaces}
+							onRepoUrlChange={onRepoUrlChange}
+							onSignIn={signIn}
+							onSelectChat={selectChat}
+							onSwitchGitBranch={onSwitchGitBranch}
+							onSwitchWorkspace={switchWorkspace}
+							repoUrl={repoUrl}
+							signedIn={signedIn}
+							signingIn={signingIn}
+							onWorkInChange={onWorkInChange}
+							workIn={workIn}
+							workspaceRoot={workspaceRoot}
+							workspaces={workspaces}
+						/>
+						{signInError ? (
+							<p className="mt-2 text-xs text-destructive">
+								Sign in failed: {signInError}
+							</p>
+						) : null}
 					</div>
-
-					{active && notice && !showCloudOnboarding ? notice : null}
-
-					{active && showCloudOnboarding ? (
-						<div className="mt-4 w-full">
-							<CloudOnboardingCard
-								checking={cloudSetupChecking}
-								onConnect={() =>
-									void (cloudOnboardingVariant === "not_connected"
-										? connectGitHub(cloudSetup.connectUrl)
-										: openExternalUrl(cloudSetup.connectUrl))
-								}
-								onRefresh={() => void checkCloudSetup()}
-								onSignIn={() => void signIn()}
-								signingIn={signingIn}
-								variant={cloudOnboardingVariant}
-							/>
-						</div>
-					) : null}
-
-					<div
-						className={cn(
-							active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6",
-							active && showCloudOnboarding && "hidden",
-						)}
-						key="persistent-composer"
-					>
-						{active ? composer : <SessionContent>{composer}</SessionContent>}
+				</div>
+			}
+			welcomeSetup={
+				showCloudOnboarding ? (
+					<div className="mt-4 w-full">
+						<CloudOnboardingCard
+							checking={cloudSetupChecking}
+							onConnect={() =>
+								void (cloudOnboardingVariant === "not_connected"
+									? connectGitHub(cloudSetup.connectUrl)
+									: openExternalUrl(cloudSetup.connectUrl))
+							}
+							onRefresh={() => void checkCloudSetup()}
+							onSignIn={() => void signIn()}
+							signingIn={signingIn}
+							variant={cloudOnboardingVariant}
+						/>
 					</div>
-
+				) : null
+			}
+			welcomeFooter={
+				<>
 					{active && AGENDA_UI_ENABLED ? (
 						<>
 							<AgentQuickActions
@@ -510,8 +474,8 @@ export function WelcomeScreen({
 							going even when you close the app.
 						</p>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</>
+			}
+		/>
 	);
 }

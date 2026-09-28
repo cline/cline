@@ -205,6 +205,11 @@ installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
 (version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
 skill (`.cline/skills/publish-desktop/SKILL.md`).
 
+Individual releases are not announced in-app; Settings → About lists the
+bundled release notes. Every so often a one-time "What's new" dialog catches
+users up on accumulated features — see the `desktop-whats-new` skill
+(`.cline/skills/desktop-whats-new/SKILL.md`).
+
 Installed apps auto-update via the Tauri updater: they poll the rolling
 `desktop-latest` release's `latest.json` on launch and every 2 hours, download
 updates in the background, and prompt for a restart. macOS installs the update

@@ -1,8 +1,106 @@
+import { execFile } from "node:child_process";
 import { basename, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import { promisify } from "node:util";
 import type { WorkspaceInfo } from "@cline/shared";
 import { processWorkspaceInfo } from "@cline/shared";
 import simpleGit from "simple-git";
+
+const execFileAsync = promisify(execFile);
+
+export type GitCommand = (
+	args: readonly string[],
+	options: { cwd: string; signal?: AbortSignal },
+) => Promise<{ stdout: string; stderr?: string }>;
+
+function defaultGitCommand(
+	args: readonly string[],
+	options: { cwd: string; signal?: AbortSignal },
+): Promise<{ stdout: string; stderr: string }> {
+	return execFileAsync("git", args, {
+		cwd: options.cwd,
+		encoding: "utf8",
+		windowsHide: true,
+		signal: options.signal,
+		timeout: 15_000,
+		maxBuffer: 10 * 1024 * 1024,
+		env: {
+			...process.env,
+			GIT_TERMINAL_PROMPT: "0",
+			GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND || "ssh -o BatchMode=yes",
+		},
+	});
+}
+
+export function gitCommandErrorMessage(error: unknown): string {
+	if (!error || typeof error !== "object" || !("stderr" in error)) return "";
+	return typeof error.stderr === "string" ? error.stderr.trim() : "";
+}
+
+export function gitCommandExitCode(error: unknown): number | undefined {
+	if (!error || typeof error !== "object" || !("code" in error))
+		return undefined;
+	return typeof error.code === "number" ? error.code : undefined;
+}
+
+/**
+ * Shared Git queries, without metadata fallback or cloud-handoff policy.
+ * Display branches retain simple-git's detached/unborn semantics; symbolic
+ * branches are strict and preserve Git exit codes for callers that require one.
+ * Commands are lazy so metadata reads never collect status or contact a remote.
+ * Structured display queries use simple-git; raw queries use the injectable
+ * runner to retain exit codes, timeouts, and cancellation for strict checks.
+ */
+export function createWorkspaceGitReader(input: {
+	cwd: string;
+	git?: GitCommand;
+	signal?: AbortSignal;
+}) {
+	const cwd = normalizeWorkspacePath(input.cwd);
+	const git = input.git ?? defaultGitCommand;
+	const run = async (args: readonly string[]) =>
+		(await git(args, { cwd, signal: input.signal })).stdout;
+	const read = async (args: readonly string[]) => (await run(args)).trim();
+
+	return {
+		async isInsideWorkTree(): Promise<boolean> {
+			try {
+				return (await read(["rev-parse", "--is-inside-work-tree"])) === "true";
+			} catch (error) {
+				if (
+					gitCommandExitCode(error) === 128 &&
+					/not a git repository|Kein Git-Repository/i.test(
+						gitCommandErrorMessage(error),
+					)
+				) {
+					return false;
+				}
+				throw error;
+			}
+		},
+		remotes: () => simpleGit({ baseDir: cwd }).getRemotes(true),
+		displayBranch: async () =>
+			(await simpleGit({ baseDir: cwd }).branch()).current.trim(),
+		symbolicBranch: () => read(["symbolic-ref", "--quiet", "--short", "HEAD"]),
+		headSha: () => read(["rev-parse", "HEAD"]),
+		workspacePrefix: async () =>
+			(await run(["rev-parse", "--show-prefix"])).replace(/[\r\n]+$/, ""),
+		worktreeStatus: () =>
+			read([
+				"status",
+				"--porcelain=v1",
+				"--untracked-files=all",
+				"--ignore-submodules=none",
+			]),
+		branchRemote: (branch: string) =>
+			read(["config", "--get", `branch.${branch}.remote`]),
+		branchMergeRef: (branch: string) =>
+			read(["config", "--get", `branch.${branch}.merge`]),
+		remoteUrl: (remote: string) => read(["remote", "get-url", remote]),
+		remoteRefs: (remote: string, ref: string) =>
+			read(["ls-remote", "--exit-code", remote, ref]),
+	};
+}
 
 export interface WorkspaceInfoDiagnostics {
 	info: WorkspaceInfo;
@@ -133,14 +231,14 @@ export async function generateWorkspaceInfoWithDiagnostics(
 	let firstError: { errorType: string; message: string } | undefined;
 
 	try {
-		const git = simpleGit({ baseDir: rootPath });
-		const isRepo = await git.checkIsRepo();
+		const git = createWorkspaceGitReader({ cwd: rootPath });
+		const isRepo = await git.isInsideWorkTree();
 		if (!isRepo) {
 			return { info, vcsType: "none", gitState };
 		}
 
 		try {
-			const remotes = await git.getRemotes(true);
+			const remotes = await git.remotes();
 			if (remotes.length > 0) {
 				const associatedRemoteUrls = remotes.map((remote) => {
 					const remoteUrl = remote.refs.fetch || remote.refs.push;
@@ -155,7 +253,7 @@ export async function generateWorkspaceInfoWithDiagnostics(
 		}
 
 		try {
-			const latestGitCommitHash = (await git.revparse(["HEAD"])).trim();
+			const latestGitCommitHash = await git.headSha();
 			if (latestGitCommitHash.length > 0) {
 				info.latestGitCommitHash = latestGitCommitHash;
 			}
@@ -166,7 +264,7 @@ export async function generateWorkspaceInfoWithDiagnostics(
 		}
 
 		try {
-			const latestGitBranchName = (await git.branch()).current.trim();
+			const latestGitBranchName = await git.displayBranch();
 			if (latestGitBranchName.length > 0) {
 				info.latestGitBranchName = latestGitBranchName;
 				gitState.branch = latestGitBranchName;
@@ -194,14 +292,13 @@ export async function readGitWorkspaceState(
 	workspacePath: string,
 ): Promise<GitWorkspaceState | undefined> {
 	try {
-		const git = simpleGit({ baseDir: normalizeWorkspacePath(workspacePath) });
-		if (!(await git.checkIsRepo())) return {};
-		const [remotes, branchSummary] = await Promise.all([
-			git.getRemotes(true),
-			git.branch(),
+		const git = createWorkspaceGitReader({ cwd: workspacePath });
+		if (!(await git.isInsideWorkTree())) return {};
+		const [remotes, branch] = await Promise.all([
+			git.remotes(),
+			git.displayBranch(),
 		]);
 		const url = selectPrimaryGitRemoteUrl(remotes);
-		const branch = branchSummary.current.trim();
 		return {
 			...(url ? { url } : {}),
 			...(branch ? { branch } : {}),
