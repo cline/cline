@@ -152,6 +152,49 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(connect).not.toHaveBeenCalled()
 	})
 
+	describe("expired sessions", () => {
+		const expired = { ...record, id: "ses-expired", expiredAt: new Date(1_000).toISOString() }
+		const userTurn = { role: "user", content: [{ type: "text", text: "archived prompt" }], timestamp: 500 }
+
+		async function openExpired(getHistory: () => Promise<unknown[] | null>) {
+			const { coordinator, cloudSessions, options } = makeCoordinator()
+			Object.assign(cloudSessions, { getHistory: vi.fn(getHistory) })
+			cloudSessions.listSessions.mockResolvedValue([expired])
+			const connect = vi.spyOn(CloudSessionHost, "connect")
+			await coordinator.openCloudTask(expired.id)
+			expect(connect).not.toHaveBeenCalled()
+			const messages = options.getTask()!.messageStateHandler.getClineMessages()
+			await coordinator.dispose()
+			return messages
+		}
+
+		it("shows the archived conversation with a notice, not an error", async () => {
+			const messages = await openExpired(async () => [userTurn])
+			expect(messages.some((message) => message.text?.includes("archived prompt"))).toBe(true)
+			const notice = messages.at(-1)!
+			expect(notice.say).toBe("info")
+			expect(notice.text).toContain("retired after 24 hours without activity")
+			expect(notice.text).toContain("saved here to read")
+			expect(notice.text).toContain("start a new cloud task on cline/fixture (main)")
+		})
+
+		it("says when no conversation was archived", async () => {
+			const messages = await openExpired(async () => null)
+			expect(messages).toHaveLength(1)
+			expect(messages[0].say).toBe("info")
+			expect(messages[0].text).toContain("No conversation was saved")
+		})
+
+		it("says when the archive could not be loaded", async () => {
+			const messages = await openExpired(async () => {
+				throw new Error("network down")
+			})
+			expect(messages).toHaveLength(1)
+			expect(messages[0].say).toBe("info")
+			expect(messages[0].text).toContain("could not be loaded right now (network down)")
+		})
+	})
+
 	it("ignores a successful list after disposal", async () => {
 		const list = deferred<CloudSessionRecord[]>()
 		const entered = deferred<void>()
