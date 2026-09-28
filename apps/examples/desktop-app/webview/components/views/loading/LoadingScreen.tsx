@@ -5,10 +5,8 @@ import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 
 export function LoadingScreen({
 	readiness,
-	onContinue,
 }: {
 	readiness: ReturnType<typeof useDesktopReadiness>;
-	onContinue?: () => void;
 }) {
 	const connected = readiness.transport === "connected";
 	const { hub, startup } = readiness;
@@ -60,15 +58,7 @@ export function LoadingScreen({
 				>
 					{status}
 				</span>
-				{onContinue && hub.state !== "ready" && (
-					<button
-						type="button"
-						onClick={onContinue}
-						className="text-sm text-primary hover:opacity-80"
-					>
-						Continue to sign-in, settings, or remote environments
-					</button>
-				)}
+
 			</div>
 
 			{failed && (

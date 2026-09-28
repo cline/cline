@@ -76,9 +76,12 @@ Tauri's `get_desktop_backend_status` and `retry_desktop_backend` commands work
 without the sidecar transport. They expose bounded, sanitized startup diagnostics
 and recovery for sidecar failures. `get_backend_readiness` and
 `retry_backend_initialization` run over the sidecar transport and manage the local
-session service. Remote environments connect on demand and do not delay sign-in
-or local settings. The full-screen loader gates the app shell on local readiness;
-remote connections are not part of this gate.
+session service. The full-screen loader requires both the desktop transport and
+local session service to be ready before exposing any app screens, including
+sign-in, settings, and remote environments. There is no bypass; failures retain
+startup diagnostics and Retry. Previously mounted screens stay hidden and inert
+during recovery to preserve drafts and attachments. Remote connections happen
+on demand after this local readiness gate.
 
 ## Directory Structure
 

@@ -71,9 +71,7 @@ it("keeps automatic recovery in the loader without a Retry button or sidebar", (
 		);
 	act(render);
 	expect(container.textContent).toContain("Retrying session service");
-	expect(container.querySelector("button")?.textContent).toContain(
-		"Continue to sign-in",
-	);
+	expect(container.querySelector("button")).toBeNull();
 	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "starting", attempt: 2, step: "connecting" };
 	act(render);
@@ -122,28 +120,17 @@ it("reveals the app as soon as the hub is ready and never before", () => {
 	expect(container.textContent).toBe("Sidebar");
 });
 
-it.each([
-	"starting",
-	"failed",
-] as const)("allows local screens while the hub is %s", (hubState) => {
-	const state = readiness();
-	state.transport = "connected";
-	state.hub = { state: hubState, attempt: 4 };
-	act(() =>
-		root.render(
-			<SiteLoader readiness={state}>
-				<nav>Sign-in Settings Remote environments</nav>
-			</SiteLoader>,
-		),
-	);
-	const continueButton = Array.from(container.querySelectorAll("button")).find(
-		(button) => button.textContent?.includes("Continue to sign-in"),
-	);
-	expect(continueButton).toBeDefined();
-	act(() => continueButton?.click());
-	expect(container.querySelector("nav")).not.toBeNull();
-	expect(container.querySelector("[inert]")).toBeNull();
-	expect(container.querySelector("[hidden]")).toBeNull();
+it.each(["starting", "failed"] as const)("keeps workspace controls unmounted while the hub is %s", (hubState) => {
+ const state = readiness();
+ state.transport = "connected";
+ state.hub = { state: hubState, attempt: 4 };
+ act(() => root.render(
+  <SiteLoader readiness={state}>
+   <button>Workspace selector</button>
+  </SiteLoader>,
+ ));
+ expect(container.textContent).not.toContain("Workspace selector");
+ expect(container.textContent).not.toContain("Continue to sign-in");
 });
 
 it("keeps the mounted composer and attachments across transport recovery", () => {
@@ -166,6 +153,7 @@ it("keeps the mounted composer and attachments across transport recovery", () =>
 	act(render);
 	expect(container.querySelector("textarea")).toBe(composer);
 	expect(container.querySelector("input")).toBe(attachments);
+	expect(composer?.closest("[hidden][inert]")).not.toBeNull();
 	state.transport = "connected";
 	state.hub = { state: "ready", attempt: 1 };
 	act(render);

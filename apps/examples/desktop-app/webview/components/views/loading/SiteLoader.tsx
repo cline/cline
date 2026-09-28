@@ -11,10 +11,9 @@ export function SiteLoader({
 	children: ReactNode;
 	readiness: ReturnType<typeof useDesktopReadiness>;
 }) {
-	const [continueWithoutHub, setContinueWithoutHub] = useState(false);
 	const showApp =
 		readiness.transport === "connected" &&
-		(readiness.hub.state === "ready" || continueWithoutHub);
+		readiness.hub.state === "ready";
 	// Once shown, keep the app mounted through a transport blip so unsent
 	// drafts and attachments survive the reconnect.
 	const [hasLoaded, setHasLoaded] = useState(false);
@@ -31,11 +30,7 @@ export function SiteLoader({
 			{!showApp && (
 				<LoadingScreen
 					readiness={readiness}
-					onContinue={
-						readiness.transport === "connected"
-							? () => setContinueWithoutHub(true)
-							: undefined
-					}
+
 				/>
 			)}
 		</>
