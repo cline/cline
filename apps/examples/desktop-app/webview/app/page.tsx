@@ -2134,10 +2134,15 @@ function ChatThreadPane({
 					model: local.model,
 					apiKey: local.apiKey,
 					// A thread that opened on Cloud never captured a local workspace;
-					// keep the one workspace discovery already validated rather than
-					// the raw remembered path, which may no longer exist.
-					workspaceRoot: captured?.workspaceRoot || prev.workspaceRoot,
-					cwd: captured?.cwd || prev.cwd,
+					// prefer the one workspace discovery already validated over the
+					// raw remembered path (which may no longer exist), but fall back
+					// to the remembered one if discovery has not returned yet so the
+					// persistence effect never records an empty workspace.
+					workspaceRoot:
+						captured?.workspaceRoot ||
+						prev.workspaceRoot ||
+						local.workspaceRoot,
+					cwd: captured?.cwd || prev.cwd || local.cwd,
 					executionTarget: "local",
 					repoUrl: undefined,
 					branch: undefined,
