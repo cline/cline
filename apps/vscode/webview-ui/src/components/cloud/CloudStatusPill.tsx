@@ -15,7 +15,8 @@ const LABELS: Record<CloudSessionStatus, string> = {
 
 const TITLES: Partial<Record<CloudSessionStatus, string>> = {
 	unknown: "Cloud session: status could not be confirmed",
-	expired: "Cloud session: the sandbox was retired after 24 hours without activity; the saved conversation can still be read",
+	expired:
+		"Cloud session: the sandbox was retired after 24 hours without activity; open it to see whether a conversation was saved",
 }
 
 export function isCloudStatusActive(status: string | undefined): boolean {
