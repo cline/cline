@@ -4123,6 +4123,7 @@ export function useChatSession(environmentId: string) {
 			if (BUSY_STATUSES.has(status)) {
 				throw new Error("Wait for the current turn to finish before editing.");
 			}
+			const hydrationRequestId = hydrationRequestIdRef.current;
 			const payload = (await postSession({
 				action: "fork",
 				sessionId: activeSessionId,
@@ -4141,6 +4142,14 @@ export function useChatSession(environmentId: string) {
 						sessionId: nextSessionId,
 						maxMessages: MAX_MESSAGES,
 					});
+			if (
+				activeSessionIdRef.current !== activeSessionId ||
+				hydrationRequestIdRef.current !== hydrationRequestId
+			) {
+				throw new Error("The active session changed while editing.");
+			}
+			discardPendingStream();
+			resetStreamDedupe();
 			clearAbortFallbackTimeout();
 			setError(null);
 			activeAssistantMessageIdRef.current = null;
@@ -4149,6 +4158,7 @@ export function useChatSession(environmentId: string) {
 			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			clearLiveToolRefs();
+			setConfig((current) => ({ ...current, sessionId: nextSessionId }));
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
 			setMessages(nextMessages);
@@ -4157,11 +4167,13 @@ export function useChatSession(environmentId: string) {
 			resetCounters();
 			void refreshSessionDiffSummary(nextSessionId);
 			void refreshPromptsInQueue(nextSessionId);
-			return { previousSessionId: activeSessionId };
+			return { previousSessionId: activeSessionId, nextSessionId };
 		},
 		[
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
+			discardPendingStream,
+			resetStreamDedupe,
 			config,
 			environmentId,
 			postSession,

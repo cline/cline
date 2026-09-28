@@ -110,6 +110,74 @@ afterEach(async () => {
 });
 
 describe("useSessionHistory session mapping", () => {
+	it("recovers retained history after deleting an edit, including repeated edits", async () => {
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		const original = {
+			...sessionRow("original"),
+			metadata: { supersededBy: "edit" },
+		};
+		const edit = {
+			...sessionRow("edit"),
+			metadata: { supersededBy: "edit-again" },
+		};
+		await act(async () => {
+			pendingLists[0].resolve([original, edit, sessionRow("edit-again")]);
+		});
+		expect(current.sessions.map((row) => row.sessionId)).toEqual([
+			"edit-again",
+		]);
+		await act(async () => {
+			window.dispatchEvent(
+				new CustomEvent("cline:session-deleted", {
+					detail: { sessionId: "edit-again", environmentId: "local" },
+				}),
+			);
+		});
+		await flush(1000);
+		await act(async () => {
+			pendingLists.at(-1)!.resolve([original, edit]);
+		});
+		expect(current.sessions.map((row) => row.sessionId)).toEqual(["edit"]);
+		expect(current.threads.map((row) => row.id)).toEqual([sessionKey(edit)]);
+	});
+
+	it("does not hide history for a replacement in another environment", async () => {
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				{ ...sessionRow("original"), metadata: { supersededBy: "edit" } },
+				{ ...sessionRow("edit"), environmentId: "remote" },
+			]);
+		});
+		expect(current.sessions).toHaveLength(2);
+	});
+
+	it("removes superseded sessions from both lists even when refresh fails", async () => {
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([sessionRow("original"), sessionRow("edit")]);
+		});
+		await act(async () => {
+			window.dispatchEvent(
+				new CustomEvent("cline:session-superseded", {
+					detail: { sessionId: "original", environmentId: "local" },
+				}),
+			);
+		});
+		expect(current.sessions.map((row) => row.sessionId)).toEqual(["edit"]);
+		expect(current.threads.map((row) => row.id)).toEqual([
+			sessionKey(sessionRow("edit")),
+		]);
+		await flush(1000);
+		await act(async () => {
+			pendingLists.at(-1)!.reject(new Error("offline"));
+		});
+		expect(current.threads).toHaveLength(1);
+	});
+
 	it("keeps duplicate IDs visible and renames only the selected environment", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);

@@ -131,7 +131,7 @@ export const MessageBubble = memo(function MessageBubble({
 		content: string,
 		runCount: number,
 	) => void | Promise<void>;
-	/** Set only on the last user message: edit it in place (no new session). */
+	/** Set only on the last user message: refill it in the current pane. */
 	onEditLastMessage?: (
 		messageId: string,
 		content: string,
@@ -192,12 +192,18 @@ export const MessageBubble = memo(function MessageBubble({
 		!isError &&
 		Boolean(displayContent.trim()) &&
 		Boolean(onCopyMessage || onForkSession);
+	const canEditLastMessage = Boolean(
+		onEditLastMessage &&
+			runCount &&
+			(displayContent.trim() || message.images?.length),
+	);
 	const shouldRenderUserActions =
 		isUser &&
 		Boolean(
 			onCopyMessage ||
 				checkpoint ||
-				((onEditMessage || onEditLastMessage) && runCount && displayContent.trim()),
+				canEditLastMessage ||
+				(onEditMessage && runCount && displayContent.trim()),
 		);
 	const keepUserActionsVisible =
 		restorePending ||
@@ -297,7 +303,7 @@ export const MessageBubble = memo(function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
-						{onEditLastMessage && runCount && displayContent.trim() ? (
+						{canEditLastMessage && onEditLastMessage && runCount ? (
 							<MessageAction
 								disabled={editDisabled || editPending}
 								label="Edit user message"

@@ -428,6 +428,64 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it.each([
+		false,
+		true,
+	])("keeps edit results scoped to their source session (switch away: %s)", async (switchAway) => {
+		const fork = deferred<{ sessionId: string; messages?: never[] }>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as {
+						action?: string;
+						sessionId?: string;
+					};
+					if (request.action === "fork") return fork.promise;
+					return { sessionId: request.sessionId, status: "completed" };
+				}
+				return [];
+			},
+		);
+		const history = (sessionId: string) => ({
+			sessionId,
+			status: "completed" as const,
+			provider: "cline",
+			model: "test-model",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			startedAt: "2026-09-01T00:00:00Z",
+		});
+		await act(async () => {
+			await current.hydrateSession(history("original"));
+		});
+		let result!: Promise<unknown>;
+		await act(async () => {
+			result = current.editLastMessage(1).catch((error) => error);
+		});
+		if (switchAway) {
+			await act(async () => {
+				await current.hydrateSession(history("other"));
+			});
+		}
+		await act(async () => {
+			fork.resolve({ sessionId: "edited" });
+			await result;
+		});
+		if (switchAway) {
+			expect(await result).toBeInstanceOf(Error);
+			expect(current.sessionId).toBe("other");
+		} else {
+			expect(await result).toEqual({
+				previousSessionId: "original",
+				nextSessionId: "edited",
+			});
+			expect(current.sessionId).toBe("edited");
+			expect(current.config.sessionId).toBe("edited");
+			expect(current.messages).toEqual([]);
+			expect(current.status).toBe("idle");
+		}
+	});
+
 	const cloudSessionConfig = {
 		provider: "cline",
 		model: "test-model",

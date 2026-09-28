@@ -2008,44 +2008,34 @@ function ChatThreadPane({
 	// Editing swaps the pane onto a trimmed copy of the session (the SDK can't
 	// rewrite history under the same id). The predecessor keeps its history but
 	// is marked superseded so the sidebar shows a single session for the edit.
-	const supersededSessionIdRef = useRef<string | null>(null);
 	const handleEditLastMessage = useCallback(
 		async (
 			prompt: { content: string; images: ChatMessageImage[] },
 			runCount: number,
 		) => {
-			const { previousSessionId } = await editLastMessage(runCount);
-			supersededSessionIdRef.current = previousSessionId;
+			const attachments = prompt.images.map(imageToFile);
+			const { previousSessionId, nextSessionId } =
+				await editLastMessage(runCount);
 			setPromptInput(prompt.content);
-			// The removed turn's images go back to the composer so resending
-			// doesn't silently drop them.
-			setPendingAttachments(
-				prompt.images.map((image, index) => imageToFile(image, index)),
-			);
+			setPendingAttachments(attachments);
+			// Use the actual fork result, not a later render's active session.
+			void desktopClient
+				.invoke("update_chat_session_metadata", {
+					sessionId: previousSessionId,
+					environmentId,
+					metadata: { supersededBy: nextSessionId },
+				})
+				.then(() =>
+					window.dispatchEvent(
+						new CustomEvent("cline:session-superseded", {
+							detail: { sessionId: previousSessionId, environmentId },
+						}),
+					),
+				)
+				.catch(() => undefined);
 		},
-		[editLastMessage, setPendingAttachments, setPromptInput],
+		[editLastMessage, environmentId, setPendingAttachments, setPromptInput],
 	);
-	useEffect(() => {
-		const superseded = supersededSessionIdRef.current;
-		if (!superseded || !sessionId || sessionId === superseded) {
-			return;
-		}
-		supersededSessionIdRef.current = null;
-		void desktopClient
-			.invoke("update_chat_session_metadata", {
-				sessionId: superseded,
-				environmentId,
-				metadata: { supersededBy: sessionId },
-			})
-			.then(() =>
-				window.dispatchEvent(
-					new CustomEvent("cline:session-superseded", {
-						detail: { sessionId: superseded, environmentId },
-					}),
-				),
-			)
-			.catch(() => undefined);
-	}, [sessionId, environmentId]);
 
 	const visibleHistorySession =
 		historySession?.sessionId &&

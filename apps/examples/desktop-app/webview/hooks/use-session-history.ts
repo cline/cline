@@ -822,11 +822,27 @@ export function useSessionHistory({
 					.filter((session) => Boolean(session.sessionId))
 					.filter(isValidHistorySession)
 					.filter((session) => !session.isSubagent && !session.parentSessionId)
-					.filter((session) => !session.metadata?.supersededBy)
 					.sort(compareSessionsByActivityDesc);
+				// Hide an edit predecessor only while its replacement is available
+				// in this environment. Deleting the replacement restores access to
+				// the retained history (also for chains of repeated edits).
+				const availableSessionIds = new Set(topLevelSessions.map(sessionKey));
+				const visibleSessions = topLevelSessions.filter((session) => {
+					const successor = session.metadata?.supersededBy;
+					return (
+						!successor ||
+						successor === session.sessionId ||
+						!availableSessionIds.has(
+							sessionKey({
+								sessionId: successor,
+								environmentId: session.environmentId,
+							}),
+						)
+					);
+				});
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
-					topLevelSessions,
+					visibleSessions,
 				);
 
 				setSessions((current) =>
@@ -1217,6 +1233,9 @@ export function useSessionHistory({
 			}
 			setSessions((current) =>
 				current.filter((session) => sessionKey(session) !== sessionId),
+			);
+			setThreads((current) =>
+				current.filter((thread) => thread.id !== sessionId),
 			);
 			scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 		};

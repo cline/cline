@@ -496,10 +496,7 @@ function ChatMessagesImpl({
 			});
 			try {
 				await Promise.resolve(
-					onEditLastMessage(
-						collectRunPrompt(messages, messageId),
-						runCount,
-					),
+					onEditLastMessage(collectRunPrompt(messages, messageId), runCount),
 				);
 			} catch (err) {
 				const message =
@@ -965,7 +962,6 @@ function collectRunPrompt(
 		if (
 			message.role === "user" &&
 			message.meta?.userRunSpan === 0 &&
-			!isSystemSteeringMessage(message) &&
 			baseId(message.id) === baseId(anchorId)
 		) {
 			segments.push(message);

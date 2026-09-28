@@ -1708,6 +1708,8 @@ async function handleForkUnlocked(
 	// checkpoints for turns the fork no longer contains and point at snapshots
 	// it can't restore. Carry it under `fork.checkpoints` for lineage instead.
 	const inheritedMetadata: JsonRecord = { ...(sourceMetadata ?? {}) };
+	// Supersession belongs to the source, never to its new fork.
+	delete inheritedMetadata.supersededBy;
 	if (forkBeforeRunCount !== undefined) {
 		delete inheritedMetadata.checkpoint;
 	}

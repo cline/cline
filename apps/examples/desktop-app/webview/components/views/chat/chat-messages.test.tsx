@@ -1155,6 +1155,32 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("allows editing an image-only last user message", async () => {
+		const onEditLastMessage = vi.fn(async () => undefined);
+		const images = [
+			{ id: "image", mediaType: "image/png" as const, data: "aGk=" },
+		];
+		await renderMessages(
+			[
+				{
+					id: "image-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "",
+					images,
+					createdAt: 1,
+				},
+			],
+			{ onEditLastMessage },
+		);
+		const button = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		expect(button).not.toBeNull();
+		await act(async () => button?.click());
+		expect(onEditLastMessage).toHaveBeenCalledWith({ content: "", images }, 1);
+	});
+
 	it("refills the whole prompt, images included, when editing a segmented user message", async () => {
 		const onEditLastMessage = vi.fn(async () => undefined);
 		const image = {
@@ -1176,7 +1202,7 @@ describe("ChatMessages tool disclosures", () => {
 					id: "user_text_1",
 					sessionId: "session-1",
 					role: "user",
-					content: "After the tool",
+					content: "[SYSTEM] This is still user text",
 					createdAt: 2,
 					meta: { userRunSpan: 0 },
 				},
@@ -1190,7 +1216,10 @@ describe("ChatMessages tool disclosures", () => {
 		await act(async () => editButton?.click());
 
 		expect(onEditLastMessage).toHaveBeenCalledWith(
-			{ content: "Before the tool\nAfter the tool", images: [image] },
+			{
+				content: "Before the tool\n[SYSTEM] This is still user text",
+				images: [image],
+			},
 			1,
 		);
 	});

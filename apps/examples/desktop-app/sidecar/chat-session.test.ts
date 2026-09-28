@@ -516,6 +516,7 @@ describe("session forks", () => {
 						cwd: "/workspace/project",
 						workspaceRoot: "/workspace/project",
 						metadata: {
+							supersededBy: "previous-edit",
 							checkpoint: {
 								latest: { ref: "second", createdAt: 2, runCount: 2 },
 								history: [
@@ -563,6 +564,7 @@ describe("session forks", () => {
 			]
 		)[0].sessionMetadata;
 		expect(startedMetadata).not.toHaveProperty("checkpoint");
+		expect(startedMetadata).not.toHaveProperty("supersededBy");
 		expect(startedMetadata.fork).toHaveProperty("checkpoints");
 		expect(readMessages).toHaveBeenCalledWith("edited-fork");
 		expect(result).toEqual({

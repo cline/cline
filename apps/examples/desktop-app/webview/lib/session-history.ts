@@ -23,17 +23,13 @@ export type SessionMetadata = {
 		version?: string;
 		trigger?: string;
 	};
+	/** Hide an edit predecessor while its replacement is available. */
+	supersededBy?: string;
 	/**
 	 * Provenance the cron runner stamps onto sessions it starts (see
 	 * `buildRunSessionMetadata` in @cline/core). The sidebar groups a
 	 * schedule's runs by `scheduleId` and labels each with `scheduleRunNumber`.
 	 */
-	/**
-	 * Set on a session whose last message was edited: the edit continues in
-	 * the session with this id, so the sidebar hides the predecessor while
-	 * keeping its history.
-	 */
-	supersededBy?: string;
 	scheduleId?: string;
 	scheduleName?: string;
 	scheduleExecutionId?: string;
