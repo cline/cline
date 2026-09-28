@@ -640,7 +640,7 @@ export class NodeHubClient {
 				suppressCloseMessage = true;
 				this.lastCloseError = new HubTransportError(
 					"hub_connection_closed",
-					`Hub sent a frame this client could not parse (${text.length} bytes): ${error instanceof Error ? error.message : String(error)}`,
+					`Hub sent a frame this client could not parse (${Buffer.byteLength(text)} bytes): ${error instanceof Error ? error.message : String(error)}`,
 				);
 				this.sawSocketClose = true;
 				socket.close();
