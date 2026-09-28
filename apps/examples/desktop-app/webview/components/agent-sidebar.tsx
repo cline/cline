@@ -321,9 +321,12 @@ export function AgentSidebar({
 	const activeThread = activeSessionId ?? "";
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
-	const [sortMode, setSortMode] = useState<SidebarSortMode>(
-		readSidebarSortModeFromWindow,
-	);
+	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
+	// Read after mount: the page is pre-rendered with the default, so reading
+	// localStorage during the first render would mismatch the server HTML.
+	useEffect(() => {
+		setSortMode(readSidebarSortModeFromWindow());
+	}, []);
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
