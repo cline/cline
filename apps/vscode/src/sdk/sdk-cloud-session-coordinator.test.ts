@@ -57,6 +57,8 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		),
 		deleteSession: vi.fn(async () => undefined),
 		renameSession: vi.fn(async () => undefined),
+		getStatus: vi.fn(async (): Promise<{ status?: string }> => ({ status: "ready" })),
+		getHistory: vi.fn(async (): Promise<unknown[] | null> => []),
 		dashboardUrl: vi.fn((id: string) => `https://example.test/${id}`),
 		sessionSocketUrl: vi.fn((id: string) => `ws://127.0.0.1/${id}`),
 	}
@@ -158,7 +160,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 		async function openExpired(getHistory: () => Promise<unknown[] | null>) {
 			const { coordinator, cloudSessions, options } = makeCoordinator()
-			Object.assign(cloudSessions, { getHistory: vi.fn(getHistory) })
+			cloudSessions.getHistory.mockImplementation(getHistory)
 			cloudSessions.listSessions.mockResolvedValue([expired])
 			const connect = vi.spyOn(CloudSessionHost, "connect")
 			await coordinator.openCloudTask(expired.id)
@@ -192,6 +194,35 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(messages).toHaveLength(1)
 			expect(messages[0].say).toBe("info")
 			expect(messages[0].text).toContain("could not be loaded right now (network down)")
+		})
+
+		it("shows a sandbox retired after History was listed as expired, not as a connection error", async () => {
+			const { coordinator, cloudSessions, options } = makeCoordinator()
+			cloudSessions.listSessions.mockResolvedValue([record])
+			cloudSessions.getStatus.mockRejectedValue(new CloudSessionError("session_expired", "session expired", undefined, 410))
+			cloudSessions.getHistory.mockResolvedValue(null)
+			vi.spyOn(CloudSessionHost, "connect").mockRejectedValue(new Error("Unexpected server response: 410"))
+			await coordinator.openCloudTask(record.id)
+			const messages = options.getTask()!.messageStateHandler.getClineMessages()
+			expect(messages).toHaveLength(1)
+			expect(messages[0].say).toBe("info")
+			expect(messages[0].text).toContain("retired after 24 hours")
+			await coordinator.dispose()
+		})
+
+		it("keeps a deleted session's notice when a newer selection did not supersede it", async () => {
+			const { coordinator, cloudSessions, options } = makeCoordinator()
+			cloudSessions.listSessions.mockResolvedValueOnce([record]).mockResolvedValue([])
+			cloudSessions.getStatus.mockRejectedValue(
+				new CloudSessionError("session_not_found", "session not found", undefined, 404),
+			)
+			vi.spyOn(CloudSessionHost, "connect").mockRejectedValue(new Error("Unexpected server response: 404"))
+			await coordinator.openCloudTask(record.id)
+			expect(options.getTask()?.taskId).toBe(record.id)
+			expect(options.getTask()!.messageStateHandler.getClineMessages()[0].text).toContain("was deleted")
+			expect(options.invalidateHistoryCache).toHaveBeenCalled()
+			expect(await coordinator.findHistoryRecord(record.id)).toBeUndefined()
+			await coordinator.dispose()
 		})
 	})
 

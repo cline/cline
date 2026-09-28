@@ -965,26 +965,8 @@ export class SdkCloudSessionCoordinator {
 			let attachedRunning = false
 			let observedStatus = status
 			if (status === "expired") {
-				// The control plane archives a transcript only when a viewer disconnects
-				// from a live sandbox, so an old or never-viewed session may have none.
-				// Tell the three cases apart instead of showing an empty error.
-				let archived: unknown[] | null | undefined
-				let archiveError: string | undefined
-				try {
-					archived = await this.options.cloudSessions.getHistory(sessionId)
-				} catch (error) {
-					archiveError = error instanceof Error ? error.message : String(error)
-				}
+				messages = await this.renderExpired(entry)
 				if (isStale()) return historyItem
-				// Rendering an empty transcript would still add a synthetic "Done" row.
-				messages = archived?.length ? this.renderTranscript(archived as SdkMessage[], true) : []
-				messages.push({
-					ts: Date.now(),
-					type: "say",
-					say: "info",
-					text: describeExpiredCloudSession(entry.record, archived, archiveError),
-					partial: false,
-				})
 			} else if (status === "failed" && !entry.host) {
 				messages.push({
 					ts: Date.now(),
@@ -1043,22 +1025,85 @@ export class SdkCloudSessionCoordinator {
 			// The task-view claim guards error rendering as well as successful attachment.
 			if (isStale()) return historyItem
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
+			const { messages, deleted } = await this.explainConnectFailure(entry, error)
+			if (isStale()) return historyItem
 			const task = this.installTask(sessionId)
-			task.messageStateHandler.addMessages([
-				{
-					ts: Date.now(),
-					type: "say",
-					say: "error",
-					text: `Could not connect to this cloud session: ${error instanceof Error ? error.message : String(error)}`,
-					partial: false,
-				},
-			])
+			task.messageStateHandler.addMessages(messages)
 			this.options.setTurnPhase("idle")
+			if (deleted) {
+				this.entries.delete(sessionId)
+				this.options.invalidateHistoryCache()
+			}
 			await this.options.postStateToWebview().catch(() => {})
 		} finally {
 			entry.pinned--
 		}
 		return historyItem
+	}
+
+	/**
+	 * The archived conversation of a retired sandbox, followed by a notice. The
+	 * control plane archives a transcript only when a viewer disconnects from a
+	 * live sandbox, so an old or never-viewed session may have none; the notice
+	 * tells the cases apart instead of showing an empty error.
+	 */
+	private async renderExpired(entry: CloudSessionEntry): Promise<ClineMessage[]> {
+		let archived: unknown[] | null | undefined
+		let archiveError: string | undefined
+		try {
+			archived = await this.options.cloudSessions.getHistory(entry.record.id)
+		} catch (error) {
+			archiveError = error instanceof Error ? error.message : String(error)
+		}
+		// Rendering an empty transcript would still add a synthetic "Done" row.
+		const messages = archived?.length ? this.renderTranscript(archived as SdkMessage[], true) : []
+		messages.push({
+			ts: Date.now(),
+			type: "say",
+			say: "info",
+			text: describeExpiredCloudSession(entry.record, archived, archiveError),
+			partial: false,
+		})
+		return messages
+	}
+
+	/**
+	 * Explains a failed sandbox connection. The Hub client reports the proxy's
+	 * refusal only as "Unexpected server response", so ask the control plane
+	 * why: a session deleted elsewhere (for example from the dashboard) is
+	 * reported as `deleted` so the caller drops it from History; one retired
+	 * since the list was fetched is shown as expired.
+	 */
+	private async explainConnectFailure(
+		entry: CloudSessionEntry,
+		error: unknown,
+	): Promise<{ messages: ClineMessage[]; deleted: boolean }> {
+		const probe = await this.options.cloudSessions.getStatus(entry.record.id).then(
+			() => undefined,
+			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
+		)
+		if (probe === "session_expired") {
+			return { messages: await this.renderExpired(entry), deleted: false }
+		}
+		const notice = (say: "info" | "error", text: string): ClineMessage[] => [
+			{ ts: Date.now(), type: "say", say, text, partial: false },
+		]
+		if (probe === "session_not_found") {
+			return {
+				messages: notice(
+					"info",
+					"This cloud session was deleted, so it can no longer be opened. It has been removed from History.",
+				),
+				deleted: true,
+			}
+		}
+		return {
+			messages: notice(
+				"error",
+				`Could not connect to this cloud session: ${error instanceof Error ? error.message : String(error)}`,
+			),
+			deleted: false,
+		}
 	}
 
 	private renderTranscript(messages: SdkMessage[], finalTurnCompleted: boolean): ClineMessage[] {
