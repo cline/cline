@@ -282,9 +282,9 @@ export type HubRetirementOutcome =
  * showed the replacement daemon booting seconds before "Hub connection
  * closed (code=1006)" run failures). The caller then attaches to the older
  * Hub and the build-mismatch prompt lets the user pick the swap moment.
- * Only a Hub that answered with a command error (too old to serve
- * `session.list`) is treated as idle, so pre-`session.list` builds still get
- * replaced instead of stranding their clients.
+ * A command error is busy too: `session.list` fails with `command_failed`
+ * when the session store is contended by a running turn, and every Hub build
+ * serves the command, so no error reading proves the Hub idle.
  */
 export async function hubHasLiveSessions(
 	record: Pick<HubServerProbeRecord, "url" | "authToken">,
@@ -295,18 +295,9 @@ export async function hubHasLiveSessions(
 			record.authToken,
 		);
 		return activity.activeSessionCount > 0;
-	} catch (error) {
-		return !isHubCommandRejection(error);
+	} catch {
+		return true;
 	}
-}
-
-/** The Hub answered the command and rejected it, as opposed to not answering. */
-function isHubCommandRejection(error: unknown): boolean {
-	const candidate = error as { name?: unknown; code?: unknown } | undefined;
-	return (
-		candidate?.name === "HubCommandError" &&
-		candidate.code !== "hub_command_timeout"
-	);
 }
 
 /**

@@ -1217,11 +1217,10 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 
 /**
  * Ask a hub how much live work it is serving. Throws when the hub cannot
- * answer (unreachable, auth rejected, or too old to serve `session.list`)
- * so each caller picks its own fallback instead of inheriting a hidden one:
- * replacement and recovery both treat a hub that did not answer as busy and
- * leave it alone, while replacement treats a hub that answered with a command
- * error (too old for `session.list`) as idle so it can still be replaced.
+ * answer (unreachable, auth rejected, timed out, or `session.list` failed)
+ * so each caller picks its own fallback instead of inheriting a hidden one;
+ * today both the replacement and recovery paths treat a hub they cannot
+ * positively observe idle as busy and leave it alone.
  */
 export async function queryHubSessionActivity(
 	url: string,
