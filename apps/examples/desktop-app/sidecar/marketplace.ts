@@ -784,13 +784,8 @@ async function installSkill(
 	ensureGlobalSkillsDirWritable();
 	const githubSource = parseGitHubSkillSource(entry.install.args ?? []);
 	const output = githubSource
-		? await installSkillFromGitHub(githubSource)
+		? await installSkillFromGitHub(entry, githubSource)
 		: await installSkillWithSkillsCli(entry, spawnCommand);
-	if (!isGlobalSkillInstalled(entry)) {
-		throw new Error(
-			`Skill install completed, but ${entry.name ?? entry.id} was not found in Cline's global skills directories.`,
-		);
-	}
 	return {
 		id: entry.id,
 		type: entry.type,
@@ -805,10 +800,13 @@ async function installSkill(
 // can inherit a stale or minimal one) or with a Node older than what
 // skills@latest requires.
 async function installSkillFromGitHub(
+	entry: MarketplaceInstallInput,
 	source: GitHubSkillSource,
 ): Promise<string> {
 	try {
-		const result = await installGitHubSkill(source);
+		const result = await installGitHubSkill(source, {
+			acceptedNames: getSkillInstallCandidates(entry),
+		});
 		return [
 			`Path: ${result.installPath}`,
 			...result.skippedPaths.map((path) => `Skipped link: ${path}`),
@@ -843,6 +841,13 @@ async function installSkillWithSkillsCli(
 	const output = commandOutput(result);
 	if (/\bFailed to install\b/i.test(output ?? "")) {
 		throw new Error(`Skill install failed${output ? `:\n${output}` : ""}`);
+	}
+	// The CLI picks the directory name itself, so confirm it landed where the
+	// installed-check will look.
+	if (!isGlobalSkillInstalled(entry)) {
+		throw new Error(
+			`Skill install completed, but ${entry.name ?? entry.id} was not found in Cline's global skills directories.`,
+		);
 	}
 	return output;
 }
