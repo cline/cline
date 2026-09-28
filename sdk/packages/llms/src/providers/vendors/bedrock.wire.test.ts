@@ -35,7 +35,11 @@ type CatalogFact =
 	| "advertises-effort"
 	/** Listed, but advertises no reasoning control. */
 	| "no-controls"
-	/** Not in the catalog at all, e.g. an inference-profile ARN. */
+	/**
+	 * Not in the catalog at all, e.g. an inference-profile ARN. The helper
+	 * asserts this against the gateway's model list, so a catalog sync that
+	 * adds the id fails the case instead of silently testing the listed path.
+	 */
 	| "unlisted";
 
 interface WireRequest {
@@ -94,6 +98,11 @@ async function wireRequest(
 			},
 		],
 	});
+	if (catalog === "unlisted") {
+		expect(
+			gateway.listModels("bedrock").map((model) => model.id),
+		).not.toContain(modelId);
+	}
 	for await (const _event of await gateway.stream({
 		providerId: "bedrock",
 		modelId,
@@ -162,11 +171,14 @@ describe("Bedrock reasoning wire contract", () => {
 	});
 
 	it("keeps reasoningConfig for Nova 2 Lite, which the adapter classifies itself", async () => {
+		// `medium`, not `high`: Bedrock rejects `high` whenever `maxTokens` is
+		// also set (vercel/ai#21590), and the pinned request should be one it
+		// accepts.
 		const { sent } = await wireRequest("us.amazon.nova-2-lite-v1:0", {
-			effort: "high",
+			effort: "medium",
 		});
 		expect(sent).toMatchObject({
-			reasoningConfig: { type: "enabled", maxReasoningEffort: "high" },
+			reasoningConfig: { type: "enabled", maxReasoningEffort: "medium" },
 		});
 	});
 
