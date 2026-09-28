@@ -26,9 +26,13 @@ const CLINERULES_EXCLUDED_SUBDIRECTORIES: string[][] = [
 	[".clinerules", "skills"],
 ]
 
-function isPathWithin(rootPath: string, candidatePath: string): boolean {
-	const relativePath = path.relative(rootPath, candidatePath)
-	return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+/**
+ * The SDK loader reads only the files directly inside a rules directory (or
+ * the root itself when it is the single legacy `.clinerules` file); nested
+ * files never reach the model, so they are never written either.
+ */
+function isRuleFileOfRoot(rootPath: string, filePath: string): boolean {
+	return filePath === rootPath || path.dirname(filePath) === rootPath
 }
 
 /**
@@ -54,7 +58,7 @@ export async function resolveRuleWriteRoots(scope: "global" | "local"): Promise<
 /**
  * Resolve a toggle's rule path to the real file we may write, or `null` when
  * the path is not a rule document the SDK loads or does not resolve (through
- * symlinks) into one of the allowed roots.
+ * symlinks) to a direct child of one of the allowed roots.
  */
 export async function resolveWritableRuleFile(rulePath: string, allowedRoots: ReadonlyArray<string>): Promise<string | null> {
 	if (!rulePath || !path.isAbsolute(rulePath)) {
@@ -77,7 +81,7 @@ export async function resolveWritableRuleFile(rulePath: string, allowedRoots: Re
 
 	for (const root of allowedRoots) {
 		try {
-			if (isPathWithin(await fs.realpath(root), realFilePath)) {
+			if (isRuleFileOfRoot(await fs.realpath(root), realFilePath)) {
 				return realFilePath
 			}
 		} catch {
@@ -88,21 +92,29 @@ export async function resolveWritableRuleFile(rulePath: string, allowedRoots: Re
 }
 
 /**
+ * Outcome of persisting a toggle to a rule file:
+ * - `written`: the file now carries the requested state (or already did);
+ * - `skipped`: the path is not a rule document the SDK loads, so there was
+ *   nothing to write;
+ * - `failed`: the file is a rule document but could not be read or written,
+ *   so the SDK will keep loading its previous state.
+ */
+export type RuleFrontmatterWriteResult = "written" | "skipped" | "failed"
+
+/**
  * Persist a rule's UI toggle in the frontmatter consumed by the SDK rules
  * loader, which reads `disabled` from the rule document itself rather than
- * from the extension's toggle state.
- *
- * Only rule documents inside `allowedRoots` are written; everything else is
- * skipped and reported as `false` (the extension-state toggle still applies).
+ * from the extension's toggle state. Only rule documents directly inside
+ * `allowedRoots` are written.
  */
 export async function setRuleDisabledInFrontmatter(
 	rulePath: string,
 	enabled: boolean,
 	allowedRoots: ReadonlyArray<string>,
-): Promise<boolean> {
+): Promise<RuleFrontmatterWriteResult> {
 	const filePath = await resolveWritableRuleFile(rulePath, allowedRoots)
 	if (!filePath) {
-		return false
+		return "skipped"
 	}
 	try {
 		const content = await fs.readFile(filePath, "utf-8")
@@ -110,25 +122,30 @@ export async function setRuleDisabledInFrontmatter(
 		if (updated !== content) {
 			await fs.writeFile(filePath, updated)
 		}
-		return true
+		return "written"
 	} catch (error) {
 		Logger.warn(`Failed to update rule frontmatter at ${filePath}:`, error)
-		return false
+		return "failed"
 	}
 }
 
 /**
- * Bring extension-state toggles and on-disk frontmatter into agreement.
+ * Bring extension-state toggles and on-disk frontmatter into agreement. The
+ * file is the source of truth, since it is what the SDK loads: a rule whose
+ * frontmatter disables it shows as off in the panel, and a rule whose
+ * frontmatter was hand-edited back to enabled shows as on.
  *
- * Toggles persisted before the toggle wrote frontmatter are written to the
- * file so SDK sessions honor them. A file whose frontmatter says it is
- * disabled (hand-edited, or toggled from another surface) wins over a stale
- * `true` in state so the panel shows what the model actually gets. Files
- * outside `allowedRoots` are left alone.
+ * With `backfillFromState`, toggles turned off before the toggle wrote
+ * frontmatter are written to their files first, so they keep taking effect
+ * after upgrading. Run once; afterwards a `false` in state with no `disabled`
+ * in the file means the user re-enabled the rule by editing it.
+ *
+ * Files outside `allowedRoots` are left alone.
  */
 export async function reconcileRuleTogglesWithFrontmatter(
 	toggles: ClineRulesToggles,
 	allowedRoots: ReadonlyArray<string>,
+	options: { backfillFromState?: boolean } = {},
 ): Promise<ClineRulesToggles> {
 	const updated: ClineRulesToggles = { ...toggles }
 	for (const [rulePath, enabled] of Object.entries(toggles)) {
@@ -147,11 +164,15 @@ export async function reconcileRuleTogglesWithFrontmatter(
 			continue
 		}
 		const fileDisabled = isFrontmatterDisabled(data)
-		if (!enabled && !fileDisabled) {
-			await setRuleDisabledInFrontmatter(rulePath, false, allowedRoots)
-		} else if (enabled && fileDisabled) {
-			updated[rulePath] = false
+		if (enabled === !fileDisabled) {
+			continue
 		}
+		if (!enabled && options.backfillFromState) {
+			if ((await setRuleDisabledInFrontmatter(rulePath, false, allowedRoots)) === "written") {
+				continue
+			}
+		}
+		updated[rulePath] = !fileDisabled
 	}
 	return updated
 }
@@ -187,11 +208,17 @@ export async function refreshClineRulesToggles(
 	// in (resolved through the OS, so it follows redirected Documents folders),
 	// plus every global location the shared SDK resolver loads rules from
 	// (e.g. ~/.cline/rules), so the panel shows what actually reaches the model.
+	// Toggles saved before the toggle wrote frontmatter (cline/cline#13695) are
+	// pushed into the files once; from then on the files are the source of truth.
+	const backfillFromState = !controller.stateManager.getGlobalStateKey("clineRulesTogglesWrittenToFrontmatter")
+	const reconcileOptions = { backfillFromState }
+
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalRuleDirectories = await resolveGlobalRuleDirectories()
 	const updatedGlobalToggles = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(globalRuleDirectories, globalClineRulesToggles),
 		globalRuleDirectories,
+		reconcileOptions,
 	)
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
 
@@ -207,8 +234,16 @@ export async function refreshClineRulesToggles(
 			CLINERULES_EXCLUDED_SUBDIRECTORIES,
 		),
 		localRuleDirectories,
+		reconcileOptions,
 	)
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
+
+	// Workspace toggles are per window, so the back-fill covers this workspace
+	// and the global toggles; other workspaces' stale toggles are corrected from
+	// their files on their next refresh.
+	if (backfillFromState) {
+		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", true)
+	}
 
 	return {
 		globalToggles: updatedGlobalToggles,

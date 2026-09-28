@@ -67,19 +67,24 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 }
 
 /**
- * True when the frontmatter marks the document as disabled, using the same
- * rule as the SDK loader: `disabled: true`, or the legacy `enabled: false`.
+ * True when the frontmatter marks the document as disabled, with the same
+ * precedence as the SDK loader: a boolean `disabled` wins, and the legacy
+ * `enabled: false` only counts when `disabled` is absent.
  */
 export function isFrontmatterDisabled(data: Record<string, unknown>): boolean {
-	return data.disabled === true || data.enabled === false
+	if (typeof data.disabled === "boolean") {
+		return data.disabled
+	}
+	return data.enabled === false
 }
 
+/** Matches a top-level `key:` line, with the key bare, double-quoted, or single-quoted. */
 function isTopLevelKeyLine(line: string, key: string): boolean {
-	return new RegExp(`^${key}\\s*:`).test(line)
+	return new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*:`).test(line)
 }
 
 function isEnabledFalseLine(line: string): boolean {
-	return /^enabled\s*:\s*false\s*(#.*)?$/.test(line)
+	return /^(?:enabled|"enabled"|'enabled')\s*:\s*false\s*(#.*)?$/.test(line)
 }
 
 /**
@@ -114,7 +119,7 @@ function removeTopLevelEntries(lines: ReadonlyArray<string>, shouldRemove: (line
  * The edit is line-based so a toggle never rewrites what the user authored:
  * YAML comments, key order, quoting, line endings, and a leading BOM all
  * survive. Only the top-level `disabled` key (and a stale `enabled: false`)
- * is touched.
+ * is touched; quoted keys (`"disabled":`) are recognized too.
  *
  * - enabled=false sets `disabled: true`, replacing an existing top-level
  *   `disabled` line or appending one to the block (creating the block if the

@@ -1,6 +1,6 @@
 import { describe, it } from "bun:test"
 import { expect } from "chai"
-import { parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "../frontmatter"
+import { isFrontmatterDisabled, parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "../frontmatter"
 
 describe("parseYamlFrontmatter", () => {
 	it("returns original content when no frontmatter", () => {
@@ -137,6 +137,15 @@ describe("updateUserInstructionMarkdownDisabledState preserves authored frontmat
 		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
 	})
 
+	it("recognizes quoted keys", () => {
+		const disabledQuoted = ["---", '"disabled": true', "---", "Body"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(disabledQuoted, true)).to.equal("Body")
+		const enabledQuoted = ["---", "'disabled': false", "paths:", "  - src/**", "---", "Body"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(enabledQuoted, false)).to.equal(
+			["---", "disabled: true", "paths:", "  - src/**", "---", "Body"].join("\n"),
+		)
+	})
+
 	it("is a no-op when the document already has the requested state", () => {
 		const disabled = ["---", "disabled: true", "---", "Body"].join("\n")
 		expect(updateUserInstructionMarkdownDisabledState(disabled, false)).to.equal(disabled)
@@ -151,5 +160,15 @@ describe("updateUserInstructionMarkdownDisabledState preserves authored frontmat
 		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
 			["---", "paths:", "  - src/**", "---", "Body"].join("\n"),
 		)
+	})
+})
+
+describe("isFrontmatterDisabled", () => {
+	it("uses the SDK precedence: a boolean disabled wins over enabled", () => {
+		expect(isFrontmatterDisabled({ disabled: true })).to.equal(true)
+		expect(isFrontmatterDisabled({ enabled: false })).to.equal(true)
+		expect(isFrontmatterDisabled({ disabled: false, enabled: false })).to.equal(false)
+		expect(isFrontmatterDisabled({ disabled: true, enabled: true })).to.equal(true)
+		expect(isFrontmatterDisabled({})).to.equal(false)
 	})
 })

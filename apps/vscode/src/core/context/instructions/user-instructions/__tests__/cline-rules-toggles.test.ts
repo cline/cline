@@ -19,6 +19,7 @@ function makeControllerStub(initial: {
 	const controller = {
 		stateManager: {
 			getGlobalSettingsKey: (key: string) => globalState.get(key) ?? {},
+			getGlobalStateKey: (key: string) => globalState.get(key),
 			getWorkspaceStateKey: (key: string) => workspaceState.get(key) ?? {},
 			setGlobalState: (key: string, value: unknown) => globalState.set(key, value),
 			setWorkspaceState: (key: string, value: unknown) => workspaceState.set(key, value),

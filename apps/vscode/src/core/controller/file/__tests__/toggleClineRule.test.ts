@@ -99,6 +99,25 @@ describe("toggleClineRule", () => {
 		expect(await fs.readFile(rulePath, "utf-8")).toBe("Not a rule")
 	})
 
+	it("reverts the state toggle when the rule file cannot be written", async () => {
+		const rulePath = path.join(workspace, ".clinerules", "read-only.md")
+		await fs.writeFile(rulePath, "Locked rule")
+		await fs.chmod(rulePath, 0o444)
+		const { controller, localToggles } = createController()
+		try {
+			const response = await toggleClineRule(
+				controller as never,
+				ToggleClineRuleRequest.create({ scope: RuleScope.LOCAL, rulePath, enabled: false }),
+			)
+
+			expect(localToggles[rulePath]).toBe(true)
+			expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(true)
+			expect(await fs.readFile(rulePath, "utf-8")).toBe("Locked rule")
+		} finally {
+			await fs.chmod(rulePath, 0o644)
+		}
+	})
+
 	it("does not write frontmatter into non-rule files that happen to live in .clinerules", async () => {
 		const rulePath = path.join(workspace, ".clinerules", "notes.json")
 		await fs.writeFile(rulePath, "{}")
