@@ -30,7 +30,10 @@ import {
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { ShowMessageType } from "@shared/proto/host/window"
-import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
+import {
+	getCachedClineRecommendedModels,
+	refreshClineRecommendedModels,
+} from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import {
@@ -715,14 +718,30 @@ export class SdkCloudSessionCoordinator {
 
 	// ---- Starting a task ----
 
-	/** The Cline model the sandbox should run: the user's current Cline model, else the top recommendation. */
-	private async resolveCloudModelId(): Promise<string> {
+	/**
+	 * The Cline model a new sandbox runs: the user's Act-mode Cline model,
+	 * else the top recommendation known so far. Synchronous so the composer
+	 * can show the same choice the start path makes.
+	 */
+	private nextCloudModelId(): string {
 		const apiConfig = this.options.stateManager.getApiConfiguration()
 		if (apiConfig.actModeApiProvider === "cline" && apiConfig.actModeClineModelId?.trim()) {
 			return apiConfig.actModeClineModelId.trim()
 		}
-		const recommended = await refreshClineRecommendedModels().catch(() => CLINE_RECOMMENDED_MODELS_FALLBACK)
+		const recommended = getCachedClineRecommendedModels() ?? CLINE_RECOMMENDED_MODELS_FALLBACK
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
+	}
+
+	/** The model the displayed cloud task runs on, else the one a new cloud task would use. */
+	getCloudModelId(): string {
+		const taskId = this.options.getTask()?.taskId
+		const entry = taskId ? this.entries.get(taskId) : undefined
+		return entry?.host?.sessionModelId ?? entry?.record.metadata.modelId ?? this.nextCloudModelId()
+	}
+
+	private async resolveCloudModelId(): Promise<string> {
+		await refreshClineRecommendedModels().catch(() => undefined)
+		return this.nextCloudModelId()
 	}
 
 	/**

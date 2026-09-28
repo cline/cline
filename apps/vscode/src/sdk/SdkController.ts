@@ -2565,6 +2565,7 @@ export class Controller {
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
 				cloudTaskTarget: this.stateManager.getGlobalStateKey("cloudTaskTarget"),
 				currentCloudTask: this.cloud.getCurrentTaskInfo(),
+				cloudModelId: isCloudSessionsFeatureEnabled() ? this.cloud.getCloudModelId() : undefined,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}
