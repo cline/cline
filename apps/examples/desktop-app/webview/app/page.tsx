@@ -81,6 +81,7 @@ import {
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
+	readExecutionTargetSelectionFromWindow,
 	writeCloudModelToWindow,
 	writeExecutionTargetToWindow,
 } from "@/lib/execution-target-selection";
@@ -2114,8 +2115,10 @@ function ChatThreadPane({
 						...prev,
 						executionTarget: "cloud",
 						provider: "cline",
+						// Same model a new Cloud thread would open on.
 						model:
-							prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID,
+							readExecutionTargetSelectionFromWindow().cloudModel ||
+							(prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID),
 						apiKey: providerCredentials.cline?.apiKey ?? "",
 						workspaceRoot: "",
 						cwd: "",
