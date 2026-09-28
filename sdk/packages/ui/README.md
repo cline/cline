@@ -93,6 +93,11 @@ and also accepts a typed custom answer. The host owns pending answers, errors,
 and response transport. Multiple-choice items set `multiple: true` and provide
 `onAnswers` for explicit array submission.
 
+`AgentComposer` and its body, field, textarea, actions, attachments, and settings
+primitives share the desktop input presentation without taking ownership of
+drafts, keyboard handling, models, uploads, or runtime actions. See the
+[composer adoption contract](./ADOPTION.md#composer-presentation).
+
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
 

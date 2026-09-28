@@ -1,8 +1,12 @@
+import type { MessageWithMetadata } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	CloudHandoffCreationRejectedError,
 	CloudSessionApi,
+	type CloudSessionApiOptions,
 	CloudSessionError,
 	type CloudSessionRecord,
+	type CreateCloudSessionInput,
 } from "./api";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -35,6 +39,53 @@ function jwtFor(subject: string, nonce: string): string {
 }
 
 describe("CloudSessionApi", () => {
+	it.each([
+		"rotated",
+		"changed",
+		"revoked",
+	] as const)("rechecks scoped credentials before lost-create recovery: %s", async (mode) => {
+		let token: string | undefined = jwtFor("original-user", "initial");
+		const original = token;
+		const rotated = jwtFor("original-user", "rotated");
+		const requests: Array<{ method: string; authorization: string }> = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => token,
+			fetch: async (_input, init) => {
+				requests.push({
+					method: init?.method ?? "GET",
+					authorization: new Headers(init?.headers).get("Authorization") ?? "",
+				});
+				if (init?.method === "POST") {
+					token =
+						mode === "rotated"
+							? rotated
+							: mode === "changed"
+								? jwtFor("other-user", "new")
+								: undefined;
+					throw new Error("POST response lost");
+				}
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+		await expect(
+			api.create({ modelId: "model", repoUrl: "repo" }),
+		).rejects.toThrow("POST response lost");
+		expect(requests).toEqual([
+			{ method: "POST", authorization: `Bearer ${original}` },
+			...(mode === "rotated"
+				? [{ method: "GET", authorization: `Bearer ${rotated}` }]
+				: []),
+		]);
+		// Explicit credentials remain available solely for caller-authorized cleanup.
+		await api.delete("created-id", original);
+		expect(requests.at(-1)).toEqual({
+			method: "DELETE",
+			authorization: `Bearer ${original}`,
+		});
+	});
+
 	it.each([
 		["https://api.example", "https://api.example"],
 		["https://api.example///", "https://api.example"],
@@ -159,7 +210,10 @@ describe("CloudSessionApi", () => {
 
 	it("returns the real id before polling readiness and reports provisioning phases", async () => {
 		vi.useFakeTimers();
-		const tokens = ["workos:create", "workos:create", "workos:new-account"];
+		const tokens = [
+			...Array<string>(5).fill("workos:create"),
+			"workos:new-account",
+		];
 		const authorizations: string[] = [];
 		let statusCalls = 0;
 		const phases: Array<string | undefined> = [];
@@ -229,7 +283,7 @@ describe("CloudSessionApi", () => {
 	it("refreshes an expired provisioning token without switching accounts", async () => {
 		const original = jwtFor("user-1", "original");
 		const refreshed = jwtFor("user-1", "refreshed");
-		const tokens = [original, refreshed];
+		const tokens = [original, original, refreshed];
 		const authorizations: string[] = [];
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -264,7 +318,7 @@ describe("CloudSessionApi", () => {
 	it("does not switch accounts while refreshing provisioning auth", async () => {
 		const original = jwtFor("user-1", "original");
 		const otherAccount = jwtFor("user-2", "refreshed");
-		const tokens = [original, otherAccount];
+		const tokens = [original, original, otherAccount];
 		let statusCalls = 0;
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -838,5 +892,405 @@ describe("CloudSessionApi", () => {
 			connectUrl: "https://app.example/dashboard/integrations",
 			repositories: [],
 		});
+	});
+});
+
+describe("seeded cloud provisioning recovery", () => {
+	const record: CloudSessionRecord = {
+		id: "ses-seeded",
+		status: "ready",
+		sandboxUrl: "",
+		repoContext: { repoUrl: "https://github.com/cline/repo", branch: "main" },
+		metadata: { modelId: "model" },
+		createdAt: "2026-01-01",
+		updatedAt: "2026-01-01",
+	};
+	const messages: MessageWithMetadata[] = [
+		{ role: "user", content: [{ type: "text", text: "Prior request" }] },
+		{ role: "assistant", content: [{ type: "text", text: "Prior answer" }] },
+	];
+	function response(data: unknown, status = 200) {
+		return jsonResponse({ data }, status);
+	}
+	function createApi(fetch: CloudSessionApiOptions["fetch"]) {
+		return new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken: async () => "token",
+			fetch,
+		});
+	}
+	const input = (
+		hooks: Partial<NonNullable<CreateCloudSessionInput["handoff"]>> = {},
+	): CreateCloudSessionInput => ({
+		requestId: "handoff:source:sha",
+		repoUrl: record.repoContext.repoUrl!,
+		modelId: "model",
+		handoff: {
+			sourceSessionId: "source",
+			resolveMessages: async () => messages,
+			onCreating: async () => {},
+			onOuterSessionCreated: async () => {},
+			...hooks,
+		},
+	});
+
+	it.each([
+		undefined,
+		null,
+	])("rejects a missing creation-intent callback (%s) before any request", async (onCreating) => {
+		const fetch = vi.fn<NonNullable<CloudSessionApiOptions["fetch"]>>(
+			async (_url, init) =>
+				response(
+					init?.method === "POST"
+						? { sessionId: record.id, status: "ready" }
+						: [],
+				),
+		);
+		const invalid = input();
+		Reflect.set(invalid.handoff!, "onCreating", onCreating);
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await expect(createApi(fetch).create(invalid)).rejects.toThrow(
+				"onCreating",
+			);
+		}
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it("awaits durable create intent after lookup and before any POST", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const methods: string[] = [];
+		const onCreating = vi.fn(() => gate);
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response(
+				init?.method === "POST"
+					? { sessionId: record.id, status: "ready" }
+					: [],
+			);
+		});
+		const creating = api.create(input({ onCreating }));
+		await vi.waitFor(() => expect(onCreating).toHaveBeenCalledOnce());
+		expect(methods).toEqual(["GET"]);
+		release();
+		await creating;
+		expect(methods).toEqual(["GET", "POST"]);
+	});
+	it("does not POST when durable create intent cannot be saved", async () => {
+		const methods: string[] = [];
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response([]);
+		});
+		await expect(
+			api.create(
+				input({
+					onCreating: async () => {
+						throw new Error("intent persistence failed");
+					},
+				}),
+			),
+		).rejects.not.toBeInstanceOf(CloudHandoffCreationRejectedError);
+		expect(methods).toEqual(["GET"]);
+	});
+	it.each([
+		400, 401, 403, 404, 429,
+	])("marks HTTP %s as definitely rejected and allows an explicit retry", async (status) => {
+		let posts = 0;
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "POST") {
+				posts++;
+				return response(undefined, status);
+			}
+			return response([]);
+		});
+		await expect(api.create(input())).rejects.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		await expect(api.create(input())).rejects.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		expect(posts).toBe(2);
+	});
+	it.each([
+		408, 409, 500,
+	])("preserves ambiguity and does not repeat a POST after HTTP %s", async (status) => {
+		let posts = 0;
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "POST") {
+				posts++;
+				return response(undefined, status);
+			}
+			return response([]);
+		});
+		await expect(api.create(input())).rejects.not.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		await expect(api.create(input())).rejects.toThrow("unconfirmed");
+		expect(posts).toBe(1);
+	});
+	it("does not mark a failed pre-list as definitely rejected or write dispatch intent", async () => {
+		const onCreating = vi.fn();
+		const api = createApi(async () => {
+			throw new Error("lookup unavailable");
+		});
+		await expect(api.create(input({ onCreating }))).rejects.not.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		expect(onCreating).not.toHaveBeenCalled();
+	});
+	it("marks a scope rejection between lookup and POST without dispatching", async () => {
+		let resolutions = 0;
+		const methods: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken: async () => {
+				if (++resolutions === 3) throw new Error("scope revoked");
+				return "token";
+			},
+			fetch: async (_url, init) => {
+				methods.push(init?.method ?? "GET");
+				return response([]);
+			},
+		});
+		await expect(api.create(input())).rejects.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		expect(methods).toEqual(["GET"]);
+	});
+	it("allows retry when token refresh throws after a definitive 401", async () => {
+		let posts = 0;
+		const getAuthToken = vi.fn(async () => jwtFor("user", "token"));
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken,
+			fetch: async (_url, init) => {
+				if (init?.method !== "POST") return response([]);
+				if (++posts === 1) {
+					getAuthToken.mockRejectedValueOnce(new Error("refresh unavailable"));
+					return response(undefined, 401);
+				}
+				return response({ sessionId: record.id, status: "ready" });
+			},
+		});
+		await expect(api.create(input())).rejects.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		await expect(api.create(input())).resolves.toMatchObject({
+			sessionId: record.id,
+		});
+		expect(posts).toBe(2);
+	});
+	it.each([
+		200, 404, 410, 500,
+	])("invalidates cached creation only after definitive deletion: HTTP %s", async (status) => {
+		let posts = 0;
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "DELETE") return response(undefined, status);
+			if (init?.method === "POST") {
+				posts++;
+				return response({ sessionId: record.id, status: "ready" });
+			}
+			return response([]);
+		});
+		await api.create(input());
+		if (status === 200) await api.delete(record.id);
+		else
+			await expect(api.delete(record.id)).rejects.toBeInstanceOf(
+				CloudSessionError,
+			);
+		await api.create(input());
+		expect(posts).toBe(status === 500 ? 1 : 2);
+	});
+	it.each([
+		200, 404, 410, 500, 401,
+	])("revalidates a cached target missing from the list: HTTP %s", async (status) => {
+		let posts = 0;
+		let currentStatus = status;
+		const removed = vi.fn(async () => {});
+		const api = createApi(async (url, init) => {
+			if (String(url).endsWith("/status"))
+				return response({ status: "ready" }, currentStatus);
+			if (init?.method === "POST") {
+				posts++;
+				return response({ sessionId: record.id, status: "ready" });
+			}
+			return response([]);
+		});
+		await api.create(input());
+		if (status === 404) {
+			removed.mockRejectedValueOnce(new Error("metadata write failed"));
+			await expect(
+				api.create(input({ onOuterSessionRemoved: removed })),
+			).rejects.toThrow("metadata write failed");
+		}
+		if (status === 200)
+			await expect(
+				api.create(input({ onOuterSessionRemoved: removed })),
+			).resolves.toMatchObject({ sessionId: record.id });
+		else
+			await expect(
+				api.create(input({ onOuterSessionRemoved: removed })),
+			).rejects.toBeInstanceOf(CloudSessionError);
+		expect(posts).toBe(1);
+		expect(removed).toHaveBeenCalledTimes(
+			status === 404 ? 2 : status === 410 ? 1 : 0,
+		);
+		currentStatus = 200;
+		await api.create(input());
+		expect(posts).toBe(status === 404 || status === 410 ? 2 : 1);
+	});
+
+	it("adopts the exact stable marker before any POST and persists the recovered outer id", async () => {
+		const persist = vi.fn(async () => {});
+		const fetch = vi.fn(async () =>
+			response([
+				{ ...record, title: "__cline_create_request__:handoff:source:sha" },
+			]),
+		);
+		const api = createApi(fetch);
+		expect(
+			(await api.create(input({ onOuterSessionCreated: persist }))).sessionId,
+		).toBe(record.id);
+		expect(persist).toHaveBeenCalledWith(record.id, { created: false });
+		expect(fetch.mock.calls).toHaveLength(1);
+	});
+	it("removes a terminal recovered marker before allowing an explicit retry", async () => {
+		const methods: string[] = [];
+		const removed = vi.fn(async () => {});
+		let failedMarkerVisible = false;
+		let posts = 0;
+		const api = createApi(async (_url, init) => {
+			const method = init?.method ?? "GET";
+			methods.push(method);
+			if (method === "DELETE") {
+				failedMarkerVisible = false;
+				return response(undefined);
+			}
+			if (method === "POST") {
+				posts++;
+				if (posts === 1) {
+					failedMarkerVisible = true;
+					throw new Error("lost create reply");
+				}
+				return response({ sessionId: "ses-retry", status: "ready" });
+			}
+			return response(
+				failedMarkerVisible
+					? [
+							{
+								...record,
+								status: "failed",
+								title: "__cline_create_request__:handoff:source:sha",
+							},
+						]
+					: [],
+			);
+		});
+
+		await expect(
+			api.create(input({ onOuterSessionRemoved: removed })),
+		).rejects.toMatchObject({ code: "session_failed" });
+		expect(methods).toEqual(["GET", "POST", "GET", "DELETE"]);
+		expect(removed).toHaveBeenCalledWith(record.id);
+
+		await expect(api.create(input())).resolves.toMatchObject({
+			sessionId: "ses-retry",
+		});
+		expect(posts).toBe(2);
+	});
+	it.each([
+		false,
+		true,
+	])("fences an invisible accepted POST (restart=%s)", async (restart) => {
+		let posts = 0;
+		let intentSaved = false;
+		const onCreating = async () => {
+			if (intentSaved) throw new Error("creation unconfirmed");
+			intentSaved = true;
+		};
+		const fetch: NonNullable<CloudSessionApiOptions["fetch"]> = async (
+			_url,
+			init,
+		) => {
+			if (init?.method === "POST") {
+				posts++;
+				throw new Error("lost response");
+			}
+			return response([]);
+		};
+		const api = createApi(fetch);
+		await expect(api.create(input({ onCreating }))).rejects.toThrow(
+			"lost response",
+		);
+		await expect(
+			(restart ? createApi(fetch) : api).create(input({ onCreating })),
+		).rejects.toThrow("unconfirmed");
+		await expect(
+			createApi(fetch).create(input({ onCreating })),
+		).rejects.not.toBeInstanceOf(CloudHandoffCreationRejectedError);
+		expect(posts).toBe(1);
+	});
+	it.each([
+		false,
+		true,
+	])("cleans up an unpersisted outer session after account switch: %s", async (switchAccount) => {
+		const methods: string[] = [];
+		const removed = vi.fn(async () => {});
+		let token = "original-account";
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken: async () => token,
+			fetch: async (_url, init) => {
+				methods.push(init?.method ?? "GET");
+				if (init?.method === "DELETE")
+					expect(new Headers(init.headers).get("Authorization")).toBe(
+						"Bearer original-account",
+					);
+				return response(
+					init?.method === "POST"
+						? { sessionId: record.id, status: "ready" }
+						: [],
+				);
+			},
+		});
+		await expect(
+			api.create(
+				input({
+					onOuterSessionCreated: async () => {
+						if (switchAccount) token = "other-account";
+						throw new Error("disk full");
+					},
+					onOuterSessionRemoved: removed,
+				}),
+			),
+		).rejects.toThrow("disk full");
+		expect(methods).toEqual(["GET", "POST", "DELETE"]);
+		expect(removed).toHaveBeenCalledWith(record.id);
+	});
+	it("does not delete an adopted workspace when persistence fails", async () => {
+		const methods: string[] = [];
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response([
+				{ ...record, title: "__cline_create_request__:handoff:source:sha" },
+			]);
+		});
+		await expect(
+			api.create(
+				input({
+					onOuterSessionCreated: async () => {
+						throw new Error("disk full");
+					},
+				}),
+			),
+		).rejects.toThrow("disk full");
+		expect(methods).toEqual(["GET"]);
 	});
 });
