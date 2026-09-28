@@ -618,7 +618,7 @@ export class HubProbeTimeoutError extends Error {
 
 export async function probeHubServer(
 	url: string,
-	options?: { authToken?: string },
+	options?: { authToken?: string; signal?: AbortSignal },
 ): Promise<HubServerProbeRecord | undefined> {
 	const signal = AbortSignal.timeout(3_000);
 	// Idempotent; repeated here so every embedder of the hub client is covered.
@@ -633,6 +633,7 @@ export async function probeHubServer(
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
 					: undefined,
+				signal: options?.signal,
 			},
 		);
 		if (!response.ok) {

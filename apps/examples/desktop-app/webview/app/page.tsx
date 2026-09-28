@@ -41,7 +41,9 @@ import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import { SiteLoader } from "@/components/views/loading/SiteLoader";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
+import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import {
 	WindowTitleBar,
 	WindowTitleBarContent,
@@ -117,6 +119,12 @@ import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	markCurrentWhatsNewSeen,
+	markWhatsNewSeen,
+	pendingWhatsNew,
+} from "@/lib/whats-new";
+import type { WhatsNewRelease } from "@/lib/whats-new-content";
 import {
 	readWorkInFromWindow,
 	startsNewThread,
@@ -306,7 +314,9 @@ function HomeShell({
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -354,7 +364,13 @@ function HomeShell({
 	useAppUpdate();
 
 	useEffect(() => {
-		setShowOnboarding(!hasCompletedOnboarding());
+		const onboarded = hasCompletedOnboarding();
+		setShowOnboarding(!onboarded);
+		// Returning users get the catch-up once; first-run users see onboarding
+		// instead, and completing it marks the catch-up as seen.
+		if (onboarded) {
+			setWhatsNew(pendingWhatsNew());
+		}
 		const handleReset = () => setShowOnboarding(true);
 		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
 		return () =>
@@ -598,6 +614,7 @@ function HomeShell({
 
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
+		markCurrentWhatsNewSeen();
 		setShowOnboarding(false);
 		setOnboardingInitialStep("welcome");
 		// A fresh thread remounts the chat pane so it picks up credentials and
@@ -812,6 +829,9 @@ function HomeShell({
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
 						break;
+					case "export-diagnostics":
+						setExportDiagnosticsOpen(true);
+						break;
 					case "check-for-updates":
 						void checkForUpdateAndNotify();
 						break;
@@ -856,11 +876,6 @@ function HomeShell({
 		sessionHistory.threads,
 	]);
 
-	const localChatUnavailable =
-		readiness.hub.state !== "ready" &&
-		view === "chat" &&
-		activeThread?.environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
-		activeThread.historySession?.origin !== "cloud";
 
 	return (
 		<AccountProvider>
@@ -905,31 +920,7 @@ function HomeShell({
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{localChatUnavailable && (
-									<div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-										<output className="text-sm text-muted-foreground">
-											{readiness.hub.message ?? "Starting session service…"}
-										</output>
-										{readiness.hub.state === "failed" &&
-											!readiness.hub.automaticRetry && (
-												<button
-													type="button"
-													disabled={readiness.retrying}
-													onClick={() => void readiness.retry()}
-													className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
-												>
-													Retry session service
-												</button>
-											)}
-										<EnvironmentSelector
-											activeEnvironmentId={activeThread.environmentId}
-											profiles={remoteEnvironmentProfiles}
-											loading={remoteEnvironmentProfilesLoading}
-											onSelectEnvironment={handleSelectEnvironment}
-											onAddSshHost={() => handleSettingsSectionChange("Remote")}
-										/>
-									</div>
-								)}
+
 								{view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
@@ -937,20 +928,9 @@ function HomeShell({
 									/>
 								) : activeThread ? (
 									<div
-										aria-hidden={
-											view === "settings" || localChatUnavailable
-												? true
-												: undefined
-										}
+										aria-hidden={view === "settings" ? true : undefined}
 										className="flex min-h-0 flex-1 flex-col"
-										inert={
-											view === "settings" || localChatUnavailable
-												? true
-												: undefined
-										}
-										style={
-											localChatUnavailable ? { display: "none" } : undefined
-										}
+										inert={view === "settings" ? true : undefined}
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}
@@ -1019,6 +999,7 @@ function HomeShell({
 								{view === "settings" ? (
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
+											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
 											onOpenSession={handleOpenSessionById}
 											section={settingsSection}
@@ -1044,7 +1025,28 @@ function HomeShell({
 					) : null}
 				</WindowTitleBarProvider>
 			</SidebarProvider>
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
 			<HubUpdateRequiredDialog />
+			{whatsNew ? (
+				<WhatsNewDialog
+					onOpenChange={(open) => {
+						if (!open) {
+							markWhatsNewSeen(whatsNew.id);
+							setWhatsNew(null);
+						}
+					}}
+					onShowAllChanges={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("About");
+					}}
+					open={!showOnboarding}
+					release={whatsNew}
+				/>
+			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
 				onOpenSession={handleOpenSessionById}
