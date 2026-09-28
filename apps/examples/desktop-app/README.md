@@ -63,6 +63,19 @@ names, paths, PR numbers/titles, check names, and URLs are not included.
 Automatic polling does not emit additional impressions. Telemetry delivery
 does not block interactions, and failures do not interrupt the feature.
 
+### Worktree telemetry
+
+The sidecar emits these when a task worktree is created or removed:
+
+| Event | Properties |
+| --- | --- |
+| `desktop.worktree.created` | `success`, `durationMs`, `hasSubmodules`, `freeDiskGb` (volume holding `~/.cline/worktrees`), and `errorKind` on failure |
+| `desktop.worktree.removed` | `success`, `reason` (`session_deleted` or `start_failed`), and `errorKind` on failure |
+
+`errorKind` is a coarse bucket (`no_space`, `not_git_repo`, `invalid_head`,
+`missing_path`, `locked`, `other`); the git error message, repository name,
+branch, and paths are never sent.
+
 ## App Icons
 
 `src-tauri/app-icon.png` (1024x1024, edge-to-edge) is the source for

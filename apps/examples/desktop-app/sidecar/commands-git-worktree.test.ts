@@ -116,6 +116,78 @@ describe("create_git_worktree command", () => {
 	});
 });
 
+describe("worktree telemetry", () => {
+	function telemetryCtx() {
+		const capture = vi.fn();
+		const ctx = {
+			telemetry: { capture },
+			logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },
+		} as unknown as SidecarContext;
+		return { ctx, capture };
+	}
+
+	it("reports a successful creation with disk space and submodule facts", async () => {
+		writeFileSync(join(repo, ".gitmodules"), "");
+		const { ctx, capture } = telemetryCtx();
+
+		await handleCommand(ctx, "create_git_worktree", { cwd: repo });
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "desktop.worktree.created",
+			properties: {
+				success: true,
+				durationMs: expect.any(Number),
+				hasSubmodules: true,
+				freeDiskGb: expect.any(Number),
+			},
+		});
+	});
+
+	it("reports a failed creation with an error kind but no paths", async () => {
+		const plain = join(sandbox, "plain");
+		mkdirSync(plain, { recursive: true });
+		const { ctx, capture } = telemetryCtx();
+
+		await expect(
+			handleCommand(ctx, "create_git_worktree", { cwd: plain }),
+		).rejects.toThrow();
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "desktop.worktree.created",
+			properties: {
+				success: false,
+				errorKind: "not_git_repo",
+				durationMs: expect.any(Number),
+			},
+		});
+		expect(JSON.stringify(capture.mock.calls)).not.toContain(sandbox);
+	});
+
+	it("reports removals with their reason, including a missing worktree", async () => {
+		const worktree = await run(repo);
+		const { ctx, capture } = telemetryCtx();
+
+		await handleCommand(ctx, "remove_git_worktree", { path: worktree.path });
+		// Second removal: the directory is already gone.
+		await handleCommand(ctx, "remove_git_worktree", { path: worktree.path });
+
+		expect(capture.mock.calls.map(([call]) => call)).toEqual([
+			{
+				event: "desktop.worktree.removed",
+				properties: { success: true, reason: "start_failed" },
+			},
+			{
+				event: "desktop.worktree.removed",
+				properties: {
+					success: false,
+					reason: "start_failed",
+					errorKind: "missing_path",
+				},
+			},
+		]);
+	});
+});
+
 describe("remove_git_worktree command", () => {
 	const ctx = {
 		logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },

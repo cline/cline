@@ -8,6 +8,7 @@ import {
 	rmSync,
 	statSync,
 } from "node:fs";
+import { statfs } from "node:fs/promises";
 import { homedir } from "node:os";
 import {
 	basename,
@@ -910,35 +911,87 @@ function taskWorktreesRoot(): string {
 }
 
 /**
+ * Buckets a worktree git failure for telemetry. Only the kind is reported,
+ * never the message, since git errors embed paths and branch names.
+ */
+function worktreeErrorKind(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	if (/No space left on device/i.test(message)) return "no_space";
+	if (/not a git repository/i.test(message)) return "not_git_repo";
+	if (/invalid reference/i.test(message)) return "invalid_head";
+	if (/No such file or directory|cannot change to/i.test(message)) {
+		return "missing_path";
+	}
+	if (/is locked/i.test(message)) return "locked";
+	return "other";
+}
+
+function captureWorktreeEvent(
+	ctx: SidecarContext,
+	event: "created" | "removed",
+	properties: Record<string, string | number | boolean | undefined>,
+): void {
+	try {
+		ctx.telemetry?.capture({ event: `desktop.worktree.${event}`, properties });
+	} catch {
+		// Worktree operations must not fail because telemetry did.
+	}
+}
+
+/**
  * Creates a git worktree for the repo containing `cwd` and checks out a fresh
  * branch in it, so a task can run isolated from the user's working tree.
  * Mirrors the CLI's `--worktree` layout: `~/.cline/worktrees/<id>/<repo>`.
  */
 async function createGitWorktree(
+	ctx: SidecarContext,
 	cwd: string,
 ): Promise<{ path: string; branch: string }> {
-	const { stdout } = await execFileAsync(
-		"git",
-		["rev-parse", "--show-toplevel"],
-		{ cwd, encoding: "utf8" },
-	).catch(() => {
-		throw new Error(`Not a git repository: ${cwd}`);
-	});
-	const repoRoot = stdout.trim();
-	const id = randomUUID().replaceAll("-", "").slice(0, 5);
-	const branch = `cline/${id}`;
-	const worktreePath = join(
-		taskWorktreesRoot(),
-		id,
-		basename(repoRoot) || "workspace",
-	);
-	mkdirSync(dirname(worktreePath), { recursive: true });
-	await execFileAsync(
-		"git",
-		["-C", repoRoot, "worktree", "add", "-b", branch, worktreePath, "HEAD"],
-		{ encoding: "utf8" },
-	);
-	return { path: worktreePath, branch };
+	const startedAt = Date.now();
+	// Signals that explain a slow or failed checkout, or a worktree that is
+	// not usable afterwards (submodules are not populated by `worktree add`).
+	const facts: { hasSubmodules?: boolean; freeDiskGb?: number } = {};
+	try {
+		const { stdout } = await execFileAsync(
+			"git",
+			["rev-parse", "--show-toplevel"],
+			{ cwd, encoding: "utf8" },
+		).catch(() => {
+			throw new Error(`Not a git repository: ${cwd}`);
+		});
+		const repoRoot = stdout.trim();
+		const id = randomUUID().replaceAll("-", "").slice(0, 5);
+		const branch = `cline/${id}`;
+		const worktreePath = join(
+			taskWorktreesRoot(),
+			id,
+			basename(repoRoot) || "workspace",
+		);
+		mkdirSync(dirname(worktreePath), { recursive: true });
+		facts.hasSubmodules = existsSync(join(repoRoot, ".gitmodules"));
+		facts.freeDiskGb = await statfs(dirname(worktreePath))
+			.then((s) => Math.round(((s.bavail * s.bsize) / 2 ** 30) * 10) / 10)
+			.catch(() => undefined);
+		await execFileAsync(
+			"git",
+			["-C", repoRoot, "worktree", "add", "-b", branch, worktreePath, "HEAD"],
+			{ encoding: "utf8" },
+		);
+		captureWorktreeEvent(ctx, "created", {
+			success: true,
+			durationMs: Date.now() - startedAt,
+			...facts,
+		});
+		return { path: worktreePath, branch };
+	} catch (error) {
+		captureWorktreeEvent(ctx, "created", {
+			success: false,
+			errorKind: worktreeErrorKind(error),
+			durationMs: Date.now() - startedAt,
+			...facts,
+		});
+		throw error;
+	}
 }
 
 /** True for paths of the exact `~/.cline/worktrees/<id>/<repo>` shape. */
@@ -956,6 +1009,7 @@ function isTaskWorktreePath(path: string): boolean {
 async function removeTaskWorktree(
 	ctx: SidecarContext,
 	worktreePath: string,
+	reason: "session_deleted" | "start_failed",
 ): Promise<{ path: string; repoRoot?: string }> {
 	const git = (args: string[]) =>
 		execFileAsync("git", ["-C", worktreePath, ...args], {
@@ -974,10 +1028,16 @@ async function removeTaskWorktree(
 		await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
 			encoding: "utf8",
 		}).catch(() => undefined);
+		captureWorktreeEvent(ctx, "removed", { success: true, reason });
 	} catch (error) {
 		ctx.logger?.error?.("Failed to remove task worktree", {
 			worktreePath,
 			error,
+		});
+		captureWorktreeEvent(ctx, "removed", {
+			success: false,
+			reason,
+			errorKind: worktreeErrorKind(error),
 		});
 	}
 	// The `<id>` directory that held the worktree.
@@ -2730,7 +2790,7 @@ export async function handleCommand(
 				const cwd = other.cwd?.trim() ?? "";
 				return cwd === sessionCwd || cwd.startsWith(sessionCwd + sep);
 			})
-				? await removeTaskWorktree(ctx, sessionCwd)
+				? await removeTaskWorktree(ctx, sessionCwd, "session_deleted")
 				: undefined;
 		if (deleted) {
 			broadcastEvent(ctx, "session_deleted", {
@@ -3512,7 +3572,7 @@ export async function handleCommand(
 	if (command === "create_git_worktree") {
 		const cwd = typeof args?.cwd === "string" ? args.cwd.trim() : "";
 		if (!cwd) throw new Error("cwd is required");
-		return await createGitWorktree(cwd);
+		return await createGitWorktree(ctx, cwd);
 	}
 
 	// Rolls back a worktree from `create_git_worktree` whose session never
@@ -3523,7 +3583,7 @@ export async function handleCommand(
 		if (!isTaskWorktreePath(path)) {
 			throw new Error(`Not a task worktree: ${path}`);
 		}
-		return await removeTaskWorktree(ctx, path);
+		return await removeTaskWorktree(ctx, path, "start_failed");
 	}
 
 	// ── Routine schedules ─────────────────────────────────────────────
