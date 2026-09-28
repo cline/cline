@@ -458,9 +458,17 @@ export async function startLocalCloudEnvironment(
 		const match = url.pathname.match(/^\/api\/v1\/session\/([^/]+)$/)
 		const owned = match ? sessions.get(decodeURIComponent(match[1])) : undefined
 		const presentedToken = request.headers.authorization?.replace(/^Bearer\s+/i, "").replace(/^workos:/i, "")
-		if (!owned || presentedToken !== accessToken) {
+		if (presentedToken !== accessToken) {
 			socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n")
 			socket.destroy()
+			return
+		}
+		if (!owned) {
+			// The hosted proxy answers a deleted or unknown session this way.
+			const body = JSON.stringify({ error: "session not found", success: false })
+			socket.end(
+				`HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+			)
 			return
 		}
 		if (isExpired(owned.record)) {
