@@ -1,5 +1,14 @@
 # Cline Desktop Changelog
 
+## 0.0.36
+
+- The app now starts on machines that set a system HTTP(S) proxy, such as Clash, v2ray, or a corporate proxy. Before, the backend sent its local connection checks through the proxy, so it couldn't find its own hub and failed with "No compatible hub runtime is available." Local connections now skip the proxy, and any proxy exemptions you already had are kept
+- On small or scaled displays, the main window now fits on screen. A 1080p laptop at 150% scaling used to open the window larger than the screen, which pushed the settings and account controls out of reach. An oversized window now shrinks to fit the screen (not counting the taskbar) and opens centered
+- Plugin slash commands like `/goal` no longer vanish from the slash menu the first time you use them. Plugin commands now load as soon as a workspace opens instead of on your first `/`. If that first load is slow or fails, the app retries in the background, so the command no longer gets sent to the model as plain text
+- The Providers settings (renamed from API Providers) now keep the model list inside the panel. Long model lists scroll in place, and the model controls stay reachable in short windows
+- In SSH settings, **Save** is disabled until you change a saved host, and the button for a new host now says **Add**
+- On Amazon Bedrock, OpenAI GPT-6 and GPT-5.6 models now work without turning on cross-region inference. They used to fail with "on-demand throughput isn't supported." India regions (ap-south-1/2) now use the `in.` inference profile
+
 ## 0.0.35
 
 - Cline Desktop now runs on Linux. Each release ships x64 `.deb` and `.rpm` packages alongside the macOS and Windows builds. **Open folder…** uses the native GTK picker, and updates download in the background and install when you choose **Restart now**, so you are never hit with a surprise password prompt. There is no AppImage for now

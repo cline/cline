@@ -29,6 +29,10 @@ anchors. `getAgentPullRequestMergeStatus` and
 `summarizeAgentPullRequestChecks` expose the same status normalization for other
 host presentation.
 
+## Fork metadata
+
+`createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
+
 ## Cloud sessions (experimental)
 
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
@@ -54,13 +58,16 @@ authorizes recreation of a missing established task.
 
 ## Experimental cloud handoff
 
-Hosts can use `create({ handoff, ... })` or `seedHandoff(id, seed)`.
-Both return the seeded `innerSessionId`; `create` also returns the outer `sessionId`.
-Persist the outer target and seed-dispatch marker through the provided callbacks.
-After an uncertain dispatch, `recoverOnly` adopts an existing matching conversation
-but never creates a replacement. `verifyHandoffTranscript` checks persisted read-back.
-`waitUntilReady(id)` explicitly waits for provisioning; ordinary `attach(id)` keeps
-returning a provisioning receipt immediately. Hosts own feature gates and draft recovery.
+`loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
+models. Handoff requires the selected model; it never substitutes another.
+
+Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
+an existing target. Persist target IDs and dispatch markers through the callbacks;
+use `recoverOnly` after uncertain dispatch to avoid duplicate conversations.
+Handoff creation requires `onCreating`: durably save intent before returning, and reject a previously unconfirmed intent after restart.
+Callback errors preserve their original type; they do not prove an earlier POST was rejected or permit clearing its intent.
+`CloudHandoffSeedRejectedError` means no seed was dispatched; clear only the seed marker before retrying the saved target.
+`verifyHandoffTranscript` checks the seeded history; `waitUntilReady(id)` waits for provisioning.
 
 ## Voice input models
 

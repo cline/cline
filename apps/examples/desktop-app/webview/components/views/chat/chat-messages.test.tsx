@@ -2270,7 +2270,7 @@ describe("persisted run errors", () => {
 		const fullError =
 			providerId === "claude-code"
 				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
-				: "The run failed: API key expired. Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
+				: "The run failed: API key expired. Check your model connection in Settings → Providers (or sign in with Cline), then try again.";
 		await renderMessages(messages, { error: fullError, status: "failed" });
 		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
 		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
