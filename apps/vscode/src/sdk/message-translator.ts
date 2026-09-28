@@ -121,6 +121,8 @@ function normalizeUsageEvent(usageEvent: {
 export class MessageTranslatorState {
 	/** Current streaming text message timestamp (used for dedup) */
 	private streamingTextTs: number | undefined
+	/** Streaming text so far, for sources whose deltas carry no `accumulated` */
+	private streamingText = ""
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
 	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
@@ -220,10 +222,21 @@ export class MessageTranslatorState {
 		return this.streamingTextTs
 	}
 
+	/**
+	 * The text streamed so far after this chunk. A local session reports the
+	 * running total as `accumulated`; a Hub-hosted (cloud) session forwards
+	 * only the chunk, so the total is built here.
+	 */
+	appendStreamingText(chunk: string, accumulated: string | undefined): string {
+		this.streamingText = accumulated ?? this.streamingText + chunk
+		return this.streamingText
+	}
+
 	/** Clear streaming text (content ended) */
 	clearStreamingText(): number {
 		const ts = this.streamingTextTs ?? this.nextTs()
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		return ts
 	}
 
@@ -527,6 +540,7 @@ export class MessageTranslatorState {
 	 */
 	reset(): void {
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		this.streamingReasoningTs = undefined
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
@@ -1335,18 +1349,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_start": {
 			switch (event.contentType) {
 				case "text": {
-					// The SDK emits MULTIPLE content_start events for streaming text.
-					// Each has `text` (the delta) and `accumulated` (full text so far).
-					// We use `accumulated` so the webview can update the message in-place
-					// with the growing text, giving smooth streaming. Using `text` (delta)
-					// would cause a "flip book" effect where each update replaces the
-					// previous content with just the new chunk.
+					// The SDK emits MULTIPLE content_start events for streaming text,
+					// each carrying a chunk. The row must show the full text so far so
+					// the webview updates it in place; showing only the chunk gives a
+					// "flip book" effect where each update replaces the previous one.
 					const ts = state.getStreamingTextTs()
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.accumulated ?? event.text ?? "",
+						text: state.appendStreamingText(event.text ?? "", event.accumulated),
 						partial: true,
 					})
 					break
