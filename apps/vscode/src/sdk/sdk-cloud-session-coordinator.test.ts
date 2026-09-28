@@ -224,6 +224,27 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(await coordinator.findHistoryRecord(record.id)).toBeUndefined()
 			await coordinator.dispose()
 		})
+
+		it("disposes a retained host when its session turns out to be deleted", async () => {
+			const dispose = vi.fn(async () => undefined)
+			const { coordinator, cloudSessions } = makeCoordinator()
+			cloudSessions.listSessions.mockResolvedValue([record])
+			await coordinator.listHistoryRecords()
+			const retained = {
+				status: "unknown",
+				refreshStatus: vi.fn(async () => {
+					throw new Error("Unexpected server response: 404")
+				}),
+				dispose,
+			}
+			;(coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries.get(record.id)!.host = retained
+			cloudSessions.getStatus.mockRejectedValue(
+				new CloudSessionError("session_not_found", "session not found", undefined, 404),
+			)
+			await coordinator.openCloudTask(record.id)
+			expect(dispose).toHaveBeenCalledWith("deleted")
+			await coordinator.dispose()
+		})
 	})
 
 	it("ignores a successful list after disposal", async () => {

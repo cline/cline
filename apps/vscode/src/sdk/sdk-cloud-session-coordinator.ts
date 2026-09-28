@@ -82,7 +82,7 @@ const CLOUD_SANDBOX_IDLE_HOURS = 24
  * transcript survived depends on whether a viewer disconnected from the live
  * sandbox before it was retired.
  */
-export function describeExpiredCloudSession(
+function describeExpiredCloudSession(
 	record: Pick<CloudSessionRecord, "repoContext">,
 	archived: unknown[] | null | undefined,
 	archiveError: string | undefined,
@@ -1050,8 +1050,12 @@ export class SdkCloudSessionCoordinator {
 			task.messageStateHandler.addMessages(messages)
 			this.options.setTurnPhase("idle")
 			if (deleted) {
+				// A retained host from an earlier observation has nothing left to watch.
+				const retained = entry.host
+				entry.host = undefined
 				this.entries.delete(sessionId)
 				this.options.invalidateHistoryCache()
+				await retained?.dispose("deleted").catch(() => undefined)
 			}
 			await this.options.postStateToWebview().catch(() => {})
 		} finally {
