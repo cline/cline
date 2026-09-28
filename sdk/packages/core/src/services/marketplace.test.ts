@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { uninstallMarketplaceEntry } from "./marketplace";
 
 describe("marketplace service", () => {
@@ -77,7 +77,7 @@ describe("marketplace service", () => {
 		expect(settings.mcpServers?.other).toBeDefined();
 	});
 
-	it("uninstalls marketplace skills through skills CLI remove", async () => {
+	it("uninstalls marketplace skills in-process without spawning the skills CLI", async () => {
 		const skillDir = join(home, ".agents", "skills", "review-team");
 		await mkdir(skillDir, { recursive: true });
 		await writeFile(
@@ -85,7 +85,16 @@ describe("marketplace service", () => {
 			"---\nname: Review\n---\n",
 			"utf8",
 		);
-		const calls: Array<{ command: string; args: string[] }> = [];
+		const lockPath = join(home, ".agents", ".skill-lock.json");
+		await writeFile(
+			lockPath,
+			JSON.stringify({
+				version: 3,
+				skills: { "review-team": { source: "cline/skills" }, other: {} },
+			}),
+			"utf8",
+		);
+		const spawnCommand = vi.fn();
 
 		const result = await uninstallMarketplaceEntry(
 			{
@@ -96,13 +105,7 @@ describe("marketplace service", () => {
 					args: ["github.com/cline/skills@review-team"],
 				},
 			},
-			{
-				spawnCommand: async (command, args) => {
-					calls.push({ command, args });
-					rmSync(skillDir, { recursive: true, force: true });
-					return { exitCode: 0, stdout: "removed", stderr: "" };
-				},
-			},
+			{ spawnCommand },
 		);
 
 		expect(result).toMatchObject({
@@ -110,44 +113,39 @@ describe("marketplace service", () => {
 			type: "skill",
 			status: "uninstalled",
 			message: "Uninstalled Review Team.",
+			output: `Removed: ${skillDir}`,
 		});
-		expect(calls).toEqual([
-			{
-				command: "npx",
-				args: ["-y", "skills@latest", "remove", "review-team", "-g", "-y"],
-			},
-		]);
+		expect(spawnCommand).not.toHaveBeenCalled();
 		expect(existsSync(skillDir)).toBe(false);
+		expect(JSON.parse(readFileSync(lockPath, "utf8")).skills).toEqual({
+			other: {},
+		});
 	});
 
-	it("cleans up remaining marketplace skill directories after skills CLI remove succeeds", async () => {
+	it("removes marketplace skills from every global skills directory", async () => {
 		const clineSkillDir = join(
 			process.env.CLINE_DIR ?? "",
 			"skills",
 			"review-team",
 		);
-		await mkdir(clineSkillDir, { recursive: true });
-		await writeFile(join(clineSkillDir, "SKILL.md"), "# Review Team", "utf8");
+		const agentsSkillDir = join(home, ".agents", "skills", "review-team");
+		for (const dir of [clineSkillDir, agentsSkillDir]) {
+			await mkdir(dir, { recursive: true });
+			await writeFile(join(dir, "SKILL.md"), "# Review Team", "utf8");
+		}
 
-		const result = await uninstallMarketplaceEntry(
-			{
-				id: "review-team",
-				type: "skill",
-				name: "Review Team",
-				install: { args: ["github.com/cline/skills@review-team"] },
-			},
-			{
-				spawnCommand: async () => ({
-					exitCode: 0,
-					stdout: "removed",
-					stderr: "",
-				}),
-			},
-		);
+		const result = await uninstallMarketplaceEntry({
+			id: "review-team",
+			type: "skill",
+			name: "Review Team",
+			install: { args: ["github.com/cline/skills@review-team"] },
+		});
 
 		expect(result.status).toBe("uninstalled");
 		expect(result.output).toContain(`Removed: ${clineSkillDir}`);
+		expect(result.output).toContain(`Removed: ${agentsSkillDir}`);
 		expect(existsSync(clineSkillDir)).toBe(false);
+		expect(existsSync(agentsSkillDir)).toBe(false);
 	});
 
 	it("uninstalls official marketplace plugins by marketplace slug", async () => {
