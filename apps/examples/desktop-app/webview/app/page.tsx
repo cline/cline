@@ -742,6 +742,13 @@ export default function Home() {
 	const handleInitialPromptDraftConsumed = useCallback((threadId: string) => {
 		dispatchApp({ type: "consume-initial-prompt-draft", threadId });
 	}, []);
+
+	const handleSavePromptDraft = useCallback(
+		(threadId: string, value: string) => {
+			dispatchApp({ type: "save-prompt-draft", threadId, value });
+		},
+		[],
+	);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
 		onDeleteSession: (sessionId, environmentId) =>
@@ -945,6 +952,7 @@ export default function Home() {
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
 											}
+											onSavePromptDraft={handleSavePromptDraft}
 											onUpdateSessionMetadata={(sessionId, metadata) =>
 												handleUpdateSessionMetadata(
 													sessionId,
@@ -1061,6 +1069,7 @@ function ChatThreadPane({
 	initialPromptDraft,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
+	onSavePromptDraft,
 	onUpdateSessionMetadata,
 	onAddSshHost,
 	onDeleteSession,
@@ -1085,6 +1094,7 @@ function ChatThreadPane({
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
+	onSavePromptDraft?: (threadId: string, value: string) => void;
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
@@ -1163,6 +1173,14 @@ function ChatThreadPane({
 	const handlePromptInputChange = useCallback((value: string) => {
 		promptInputRef.current = value;
 	}, []);
+	// The pane remounts whenever the user switches threads or views; hand the
+	// unsent text back to the thread so it is restored on the next mount.
+	useEffect(
+		() => () => {
+			onSavePromptDraft?.(threadId, promptInputRef.current);
+		},
+		[onSavePromptDraft, threadId],
+	);
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
@@ -1764,13 +1782,18 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPromptInput("");
+		setPromptInput(initialPromptDraft ?? "");
+		if (initialPromptDraft !== undefined) {
+			onInitialPromptDraftConsumed?.(threadId);
+		}
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
 	}, [
 		historySession,
+		initialPromptDraft,
 		manualTitle,
+		onInitialPromptDraftConsumed,
 		reset,
 		threadId,
 		setPromptInput,

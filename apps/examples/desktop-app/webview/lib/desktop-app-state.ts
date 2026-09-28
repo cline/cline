@@ -47,6 +47,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			initialPromptDraft?: string;
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
+	| { type: "save-prompt-draft"; threadId: string; value: string }
 	| {
 			type: "delete-session";
 			deletedSessionId: string;
@@ -189,7 +190,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 											...action.session,
 											environmentId: action.environmentId,
 										},
-										initialPromptDraft: action.initialPromptDraft,
+										initialPromptDraft:
+											action.initialPromptDraft ?? thread.initialPromptDraft,
 									}
 								: thread,
 						)
@@ -228,6 +230,17 @@ export function desktopAppReducer<SettingsSection extends string>(
 						: thread,
 				),
 			};
+		case "save-prompt-draft": {
+			const value = action.value || undefined;
+			return {
+				...state,
+				threads: state.threads.map((thread) =>
+					thread.id === action.threadId && thread.initialPromptDraft !== value
+						? { ...thread, initialPromptDraft: value }
+						: thread,
+				),
+			};
+		}
 		case "delete-session": {
 			const historyThreadId = `session_${sessionKey({ sessionId: action.deletedSessionId, environmentId: action.environmentId })}`;
 			const deletedThreadIds = new Set(

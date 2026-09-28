@@ -89,6 +89,40 @@ describe("desktopAppReducer", () => {
 		).toBeUndefined();
 	});
 
+	it("keeps a saved prompt draft across reopening the same session", () => {
+		const threadId = `session_${sessionKey({ sessionId: "session-a", environmentId: "local" })}`;
+		let state = createDesktopAppState("welcome", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("session-a"),
+			environmentId: "local",
+		});
+		state = desktopAppReducer(state, {
+			type: "save-prompt-draft",
+			threadId,
+			value: "unsent prompt",
+		});
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("session-a"),
+			environmentId: "local",
+		});
+		expect(
+			state.threads.find((thread) => thread.id === threadId)
+				?.initialPromptDraft,
+		).toBe("unsent prompt");
+
+		state = desktopAppReducer(state, {
+			type: "save-prompt-draft",
+			threadId,
+			value: "",
+		});
+		expect(
+			state.threads.find((thread) => thread.id === threadId)
+				?.initialPromptDraft,
+		).toBeUndefined();
+	});
+
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {
