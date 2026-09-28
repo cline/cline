@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createUserInstructionConfigWatcher } from "../extensions/config/user-instruction-config-loader";
 import { installGitHubSkill, parseGitHubSkillSource } from "./skill-install";
 
 // Lets a test make one rename fail; every other call is the real one.
@@ -390,6 +391,18 @@ describe("installGitHubSkill", () => {
 
 		expect(result.installPath).toBe(join(skillsDir, "foo"));
 		expect(readdirSync(skillsDir)).toEqual(["foo"]);
+
+		// Cline's own skills loader keys the skill by its frontmatter name and
+		// does not require the directory to match (only Agent Plugin skills do).
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+		await watcher.refreshType("skill");
+		expect(watcher.getSnapshot("skill").get("bar")).toMatchObject({
+			item: { name: "bar", description: "bar description" },
+		});
 	});
 
 	it("keeps the existing skill when the final swap fails", async () => {
