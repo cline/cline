@@ -210,11 +210,20 @@ export function WelcomeScreen({
 		onCloudBranchChange("");
 	}, [onCloudBranchChange, onRepoUrlChange]);
 
+	// Only a switch to another user invalidates the picked repo eagerly. The
+	// first check of a composer (launch, Local → Cloud) keeps a remembered
+	// repo and lets the access guard below drop it once the result is known.
+	const checkedUserIdRef = useRef<string | null>(null);
 	// GitHub setup finishes in the browser; poll while onboarding is visible.
 	useEffect(() => {
-		void accountUserId;
 		if (!cloudModeActive || !signedIn) return;
-		invalidateCloudScope();
+		if (
+			checkedUserIdRef.current !== null &&
+			checkedUserIdRef.current !== accountUserId
+		) {
+			invalidateCloudScope();
+		}
+		checkedUserIdRef.current = accountUserId;
 		void checkCloudSetup();
 		const handleFocus = () => void checkCloudSetup();
 		window.addEventListener("focus", handleFocus);

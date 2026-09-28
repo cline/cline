@@ -377,6 +377,104 @@ describe("WelcomeScreen", () => {
 		accountRef.user = null;
 	});
 
+	it("keeps a remembered repository through the first cloud setup check", async () => {
+		accountRef.user = { id: "user-1" };
+		const repository = (owner: string) => ({
+			id: 7,
+			name: "repo",
+			fullName: `${owner}/repo`,
+			url: `https://github.com/${owner}/repo`,
+			defaultBranch: "main",
+		});
+		let owner = "org";
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				return {
+					connected: true,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [repository(owner)],
+				};
+			}
+			return {};
+		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const cloudProps = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			onRepoUrlChange,
+			onCloudBranchChange,
+			repoUrl: "https://github.com/org/repo",
+			cloudBranch: "dev",
+		};
+		// A new thread mounts with the remembered repo already applied; the
+		// mount-time check must not wipe it while confirming access.
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			...cloudProps,
+		});
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(onRepoUrlChange).not.toHaveBeenCalled();
+		expect(onCloudBranchChange).not.toHaveBeenCalled();
+
+		// Another user's scope invalidates it eagerly, as before.
+		owner = "otherorg";
+		accountRef.user = { id: "user-2" };
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			...cloudProps,
+		});
+		expect(onRepoUrlChange).toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).toHaveBeenCalledWith("");
+		accountRef.user = null;
+	});
+
+	it("drops a remembered repository the account can no longer reach", async () => {
+		accountRef.user = { id: "user-1" };
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				return {
+					connected: true,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [
+						{
+							id: 8,
+							name: "other",
+							fullName: "org/other",
+							url: "https://github.com/org/other",
+							defaultBranch: "main",
+						},
+					],
+				};
+			}
+			return {};
+		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			onRepoUrlChange,
+			onCloudBranchChange,
+			repoUrl: "https://github.com/org/repo",
+			cloudBranch: "dev",
+		});
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(onRepoUrlChange).toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).toHaveBeenCalledWith("");
+		accountRef.user = null;
+	});
+
 	it("re-checks cloud setup when the sidecar broadcasts a scope change", async () => {
 		accountRef.user = { id: "user-1" };
 		subscribeMock.mockClear();
