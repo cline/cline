@@ -84,7 +84,7 @@ const CLOUD_SANDBOX_IDLE_HOURS = 24
  */
 function describeExpiredCloudSession(
 	record: Pick<CloudSessionRecord, "repoContext">,
-	archived: unknown[] | null | undefined,
+	archived: SdkMessage[] | undefined,
 	archiveError: string | undefined,
 ): string {
 	const repo = record.repoContext.repoUrl?.replace(/^https:\/\/github\.com\//, "")
@@ -94,7 +94,7 @@ function describeExpiredCloudSession(
 	if (archiveError) {
 		return `${retired} Its saved conversation could not be loaded right now (${archiveError}). ${resume}`
 	}
-	if (archived === null) {
+	if (!archived) {
 		return `${retired} No conversation was saved for it: the sandbox was already gone when the last viewer disconnected. ${resume}`
 	}
 	return `${retired} The conversation above is saved here to read. ${resume}`
@@ -198,6 +198,8 @@ export class SdkCloudSessionCoordinator {
 	private startGeneration = 0
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
 	private pendingStart: AbortController | undefined
+	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
+	private recommendedModelsWarmup: Promise<unknown> | undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
@@ -720,16 +722,35 @@ export class SdkCloudSessionCoordinator {
 
 	/**
 	 * The Cline model a new sandbox runs: the user's Act-mode Cline model,
-	 * else the top recommendation known so far. Synchronous so the composer
-	 * can show the same choice the start path makes.
+	 * else the top recommendation known so far. Synchronous, and the only
+	 * source for both the composer label and the start path, so the sandbox
+	 * runs the model the user saw when they submitted.
 	 */
 	private nextCloudModelId(): string {
 		const apiConfig = this.options.stateManager.getApiConfiguration()
 		if (apiConfig.actModeApiProvider === "cline" && apiConfig.actModeClineModelId?.trim()) {
 			return apiConfig.actModeClineModelId.trim()
 		}
+		this.warmRecommendedModels()
 		const recommended = getCachedClineRecommendedModels() ?? CLINE_RECOMMENDED_MODELS_FALLBACK
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
+	}
+
+	/**
+	 * Fetches the recommendation list once so the composer label moves from
+	 * the built-in fallback to the live recommendation before the user
+	 * submits. State is re-posted when the list lands; a failed fetch leaves
+	 * the fallback in place rather than retrying on every state post.
+	 */
+	private warmRecommendedModels(): void {
+		if (this.recommendedModelsWarmup || getCachedClineRecommendedModels()) {
+			return
+		}
+		this.recommendedModelsWarmup = refreshClineRecommendedModels()
+			.then(() => {
+				if (!this.disposed) this.options.postStateToWebview().catch(() => {})
+			})
+			.catch(() => undefined)
 	}
 
 	/** The model the displayed cloud task runs on, else the one a new cloud task would use. */
@@ -737,11 +758,6 @@ export class SdkCloudSessionCoordinator {
 		const taskId = this.options.getTask()?.taskId
 		const entry = taskId ? this.entries.get(taskId) : undefined
 		return entry?.host?.sessionModelId ?? entry?.record.metadata.modelId ?? this.nextCloudModelId()
-	}
-
-	private async resolveCloudModelId(): Promise<string> {
-		await refreshClineRecommendedModels().catch(() => undefined)
-		return this.nextCloudModelId()
 	}
 
 	/**
@@ -754,6 +770,9 @@ export class SdkCloudSessionCoordinator {
 		const startGeneration = ++this.startGeneration
 		const pendingStart = new AbortController()
 		this.pendingStart = pendingStart
+		// Snapshot the model now, before any await: it is what the composer was
+		// showing when the user submitted.
+		const modelId = this.nextCloudModelId()
 		return async () => {
 			try {
 				await this.scopeTransition
@@ -764,7 +783,7 @@ export class SdkCloudSessionCoordinator {
 				)
 					return undefined
 				return await this.trackScopeOperation(() =>
-					this.startCloudTaskInScope(input, generationBeforeTransition, startGeneration, pendingStart.signal),
+					this.startCloudTaskInScope(input, modelId, generationBeforeTransition, startGeneration, pendingStart.signal),
 				)
 			} finally {
 				if (this.pendingStart === pendingStart) {
@@ -792,6 +811,7 @@ export class SdkCloudSessionCoordinator {
 
 	private async startCloudTaskInScope(
 		input: CloudTaskInput,
+		modelId: string,
 		generation: number,
 		startGeneration: number,
 		cancelSignal: AbortSignal,
@@ -838,8 +858,6 @@ export class SdkCloudSessionCoordinator {
 		let host: SdkSessionHost | undefined
 		let sent = false
 		try {
-			const modelId = await this.resolveCloudModelId()
-			if (isStale()) return undefined
 			const config = await this.options.sessionConfigBuilder.build({
 				cwd: CLOUD_WORKSPACE_ROOT,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
@@ -1068,18 +1086,22 @@ export class SdkCloudSessionCoordinator {
 	 * The archived conversation of a retired sandbox, followed by a notice. The
 	 * control plane archives a transcript only when a viewer disconnects from a
 	 * live sandbox, so an old or never-viewed session may have none; the notice
-	 * tells the cases apart instead of showing an empty error.
+	 * tells the cases apart instead of showing an empty error. An archive with
+	 * no messages is treated as none, so the notice never points at rows that
+	 * are not there.
 	 */
 	private async renderExpired(entry: CloudSessionEntry): Promise<ClineMessage[]> {
-		let archived: unknown[] | null | undefined
+		let archived: SdkMessage[] | undefined
 		let archiveError: string | undefined
 		try {
-			archived = await this.options.cloudSessions.getHistory(entry.record.id)
+			const history = await this.options.cloudSessions.getHistory(entry.record.id)
+			archived = history?.length ? (history as SdkMessage[]) : undefined
 		} catch (error) {
 			archiveError = error instanceof Error ? error.message : String(error)
 		}
-		// Rendering an empty transcript would still add a synthetic "Done" row.
-		const messages = archived?.length ? this.renderTranscript(archived as SdkMessage[], true) : []
+		// Retirement says nothing about whether the last turn finished, so the
+		// final response stays a plain text row rather than a completion box.
+		const messages = archived ? this.renderTranscript(archived, false) : []
 		messages.push({
 			ts: Date.now(),
 			type: "say",
