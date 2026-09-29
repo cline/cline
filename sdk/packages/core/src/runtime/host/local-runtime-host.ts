@@ -436,21 +436,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// Hub clients cannot stop a resident session (HubRuntimeHost.stopSession
 			// only detaches), so a start that names one is how they rebuild it:
 			// desktop resume and provider switches, CLI plan/act toggles and
-			// `--resume`. Build the replacement first so the id never goes missing
-			// and a failed rebuild leaves the idle resident untouched, then release
-			// the old runtime; only a session mid-turn is protected above. Release
-			// failures are already logged and captured, and the replacement is live.
-			const result = await this.startNewSession(
-				input,
-				sessionId,
-				requestedSessionId,
-			);
-			if (resident) {
-				await this.releaseSessionRuntime(resident, "session_replaced").catch(
-					() => undefined,
+			// `--resume`. Build the replacement first so the id keeps resolving to a
+			// live session throughout (no session_not_found window), then release the
+			// old runtime whether the rebuild succeeded or threw, so it is never
+			// stranded. The release guard leaves a live replacement in place; a run
+			// that raced the rebuild onto the old runtime is aborted by the release,
+			// the intended teardown now that the id belongs to the replacement. Only
+			// a session already mid-turn when the start arrives is protected above.
+			// Release failures are already logged and captured internally.
+			try {
+				return await this.startNewSession(
+					input,
+					sessionId,
+					requestedSessionId,
 				);
+			} finally {
+				if (resident) {
+					await this.releaseSessionRuntime(
+						resident,
+						"session_replaced",
+					).catch(() => undefined);
+				}
 			}
-			return result;
 		})().finally(() => this.sessionStarts.delete(sessionId));
 		this.sessionStarts.set(sessionId, starting);
 		return await starting;
