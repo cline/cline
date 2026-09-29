@@ -69,6 +69,15 @@ async function optionalConfig(cwd: string, key: string) {
 
 export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	const root = await git(cwd, ["rev-parse", "--show-toplevel"]);
+	if (
+		(await git(root, ["ls-files", "-v", "-z"]))
+			.split("\0")
+			.some((entry) => /^[a-zS] /.test(entry))
+	) {
+		throw new Error(
+			"Cloud preparation cannot include files marked skip-worktree or assume-unchanged. Review these flags and local changes before retrying /cloud.",
+		);
+	}
 	const sourceBranch = await git(root, ["symbolic-ref", "--short", "HEAD"]);
 	const headSha = await git(root, ["rev-parse", "HEAD"]);
 	const status = await git(root, [

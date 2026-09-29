@@ -93,6 +93,42 @@ beforeEach(() => {
 afterEach(() => rmSync(temporary, { recursive: true, force: true }));
 
 describe("cloud handoff Git preparation", () => {
+	it.each([
+		["--skip-worktree", false],
+		["--assume-unchanged", false],
+		["--skip-worktree", true],
+		["--assume-unchanged", true],
+	] as const)("rejects %s (after preview: %s) without changing Git state", async (flag, afterPreview) => {
+		const credentials = join(repo, "credentials.json");
+		writeFileSync(credentials, "synthetic baseline\n");
+		git("add", "credentials.json");
+		git("commit", "-m", "synthetic baseline");
+		writeFileSync(join(repo, "new.txt"), "visible change\n");
+		const plan = afterPreview ? await inspectHandoffGit(repo) : undefined;
+		git("update-index", flag, "credentials.json");
+		const localContent = afterPreview
+			? "synthetic baseline\n"
+			: "synthetic local-only value\n";
+		writeFileSync(credentials, localContent);
+		expect(git("status", "--porcelain")).toBe("?? new.txt");
+		const head = git("rev-parse", "HEAD");
+		const index = readFileSync(join(repo, ".git/index"));
+		const remoteRefs = git("ls-remote", "origin");
+
+		await expect(
+			plan ? applyHandoffGit(plan) : inspectHandoffGit(repo),
+		).rejects.toThrow("skip-worktree or assume-unchanged");
+
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(git("rev-parse", "HEAD")).toBe(head);
+		expect(readFileSync(join(repo, ".git/index"))).toEqual(index);
+		expect(readFileSync(credentials, "utf8")).toBe(localContent);
+		expect(readFileSync(join(repo, "new.txt"), "utf8")).toBe(
+			"visible change\n",
+		);
+		expect(git("ls-remote", "origin")).toBe(remoteRefs);
+	});
+
 	it("previews all staged/unstaged/new files from a subdirectory without changing the index or branch, then publishes the exact checkpoint", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "staged\n");
 		git("add", ".");
