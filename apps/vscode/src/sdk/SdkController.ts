@@ -68,7 +68,6 @@ import {
 } from "./provider-failure-telemetry"
 import { RemoteConfigRefreshCoordinator } from "./remote-config-refresh-coordinator"
 import {
-	buildWorkspaceRestoreAvailabilityByMessageTs,
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
@@ -192,9 +191,6 @@ export class Controller {
 	private readonly providerCatalog: ProviderCatalog
 	private readonly providerConfigStoreSubscription: Disposable
 	private providerConfigStatePostScheduled = false
-	private workspaceRestoreAvailabilitySessionId: string | undefined
-	private workspaceRestoreAvailabilityByMessageTs: NonNullable<ExtensionState["workspaceRestoreAvailabilityByMessageTs"]> = {}
-	private workspaceRestoreAvailabilityGeneration = 0
 	// Debounces/coalesces postStateToWebview() calls — see StatePostDebouncer.
 	private static readonly STATE_POST_DEBOUNCE_MS = 50
 	private readonly statePostDebouncer: StatePostDebouncer
@@ -738,9 +734,6 @@ export class Controller {
 
 	private handleSessionBecameIdle(): void {
 		this.sessionRebuilds?.sessionBecameIdle()
-		void this.refreshWorkspaceRestoreAvailability(true)
-			.then(() => this.postStateToWebview())
-			.catch((error) => Logger.error("[SdkController] Failed to refresh workspace restore availability:", error))
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
@@ -1817,65 +1810,50 @@ export class Controller {
 		}
 	}
 
-	private async refreshWorkspaceRestoreAvailability(force: boolean): Promise<void> {
+	/**
+	 * Whether Reset Code can restore the workspace from the user message with
+	 * the given ts. Answered when the user opens the message for editing, so
+	 * the checkpoint written for the latest turn is visible: a running session
+	 * is read from its live conversation, because the persisted transcript
+	 * lags the turn-complete event.
+	 */
+	async hasWorkspaceCheckpointForMessage(messageTs: number): Promise<boolean> {
 		const activeSession = this.sessions.getActiveSession()
 		const currentTask = this.task
-		const sessionId = activeSession?.sessionId ?? currentTask?.taskId
-		if (!sessionId || !currentTask) {
-			this.workspaceRestoreAvailabilityGeneration += 1
-			this.workspaceRestoreAvailabilitySessionId = undefined
-			this.workspaceRestoreAvailabilityByMessageTs = {}
-			return
+		if (!currentTask) {
+			return false
 		}
-		if (!force && this.workspaceRestoreAvailabilitySessionId === sessionId) {
-			return
+		const clineMessages = currentTask.messageStateHandler.getClineMessages()
+		const targetIndex = clineMessages.findIndex((message) => message.ts === messageTs)
+		if (targetIndex === -1 || getCheckpointRunCountForMessage(clineMessages, targetIndex) === undefined) {
+			return false
 		}
-		const generation = ++this.workspaceRestoreAvailabilityGeneration
+		const userOrdinal = clineMessages.slice(0, targetIndex + 1).filter(isVisibleCheckpointUserMessage).length
+		const sessionId = activeSession?.sessionId ?? currentTask.taskId
 		let tempHost: VscodeSessionHost | undefined
 		try {
-			if (!activeSession) {
-				tempHost = await this.createRemoteConfigAwareSessionHost()
-			}
-			const sessionHost = activeSession?.sdkHost ?? tempHost
-			if (!sessionHost) {
-				throw new Error("No session host available for workspace restore availability")
-			}
+			const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 			const [sessionRecord, sdkMessages] = await Promise.all([
 				sessionHost.get(sessionId),
-				sessionHost.readMessages(sessionId) as Promise<SdkUserMessage[]>,
+				(sessionHost.readLiveMessages?.(sessionId) ?? sessionHost.readMessages(sessionId)) as Promise<SdkUserMessage[]>,
 			])
-			if (
-				generation !== this.workspaceRestoreAvailabilityGeneration ||
-				this.task !== currentTask ||
-				this.sessions.getActiveSession() !== activeSession
-			) {
-				return
+			const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
+			if (sdkIndex === -1) {
+				return false
 			}
-			const checkpointHistory = readSessionCheckpointHistory(sessionRecord)
-			this.workspaceRestoreAvailabilityByMessageTs = buildWorkspaceRestoreAvailabilityByMessageTs({
-				clineMessages: currentTask.messageStateHandler.getClineMessages(),
-				getRunCountForUserOrdinal: (userOrdinal) => {
-					const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
-					return sdkIndex === -1 ? undefined : getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
-				},
-				hasCheckpointForRun: (runCount) => findCheckpointForRun(checkpointHistory, runCount) !== undefined,
-			})
-			this.workspaceRestoreAvailabilitySessionId = sessionId
+			const runCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
+			return (
+				runCount !== undefined &&
+				findCheckpointForRun(readSessionCheckpointHistory(sessionRecord), runCount) !== undefined
+			)
 		} catch (error) {
-			Logger.debug(`[SdkController] Failed to resolve workspace restore availability: ${error}`)
-			if (
-				generation === this.workspaceRestoreAvailabilityGeneration &&
-				this.task === currentTask &&
-				this.sessions.getActiveSession() === activeSession
-			) {
-				this.workspaceRestoreAvailabilitySessionId = undefined
-				this.workspaceRestoreAvailabilityByMessageTs = {}
-			}
+			Logger.debug(`[SdkController] Failed to resolve workspace checkpoint for message ${messageTs}: ${error}`)
+			return false
 		} finally {
 			try {
-				await tempHost?.dispose("workspaceRestoreAvailability")
+				await tempHost?.dispose("workspaceCheckpointForMessage")
 			} catch (error) {
-				Logger.debug(`[SdkController] Failed to dispose workspace restore availability host: ${error}`)
+				Logger.debug(`[SdkController] Failed to dispose workspace checkpoint host: ${error}`)
 			}
 		}
 	}
@@ -2308,6 +2286,7 @@ export class Controller {
 		try {
 			const snapshotTask = this.task
 			const snapshotSession = this.sessions.getActiveSession()
+			const snapshotEpoch = this.messageTranslatorState.getMinter().epoch
 			syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
 			const { getStateToPostToWebview: buildBaseState } = await import("@core/controller/state/getStateToPostToWebview")
 			const state = await buildBaseState({
@@ -2379,26 +2358,26 @@ export class Controller {
 				}
 			}
 
-			await this.refreshWorkspaceRestoreAvailability(false)
-			if (this.task !== snapshotTask || this.sessions.getActiveSession() !== snapshotSession) {
-				if (snapshotAttempt === 0) {
-					return this.getStateToPostToWebview(1)
-				}
-				throw new Error("Task changed while building webview state")
-			}
-
 			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
 			// from the SAME counter that stamps messages. This lets the webview ignore stale
 			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
 			// synchronously here (no await between sampling and return).
 			const minter = this.messageTranslatorState.getMinter()
-			const unavailableReason = state.enableCheckpointsSetting === false ? "checkpoints_disabled" : "checkpoint_unavailable"
-			const workspaceRestoreAvailabilityByMessageTs = Object.fromEntries(
-				Object.entries(this.workspaceRestoreAvailabilityByMessageTs).map(([messageTs, availability]) => [
-					messageTs,
-					availability.available ? availability : { available: false, reason: unavailableReason },
-				]),
-			) as NonNullable<ExtensionState["workspaceRestoreAvailabilityByMessageTs"]>
+			// The transcript was copied before the awaits above. A snapshot stamped with a
+			// newer epoch than its messages replaces the webview's transcript wholesale, and
+			// messages appended at the old epoch after the copy would never arrive: the
+			// webview drops their partial-stream copies as stale and a later snapshot only
+			// merges. Rebuild once so the transcript and the stamp come from the same epoch.
+			if (
+				this.task !== snapshotTask ||
+				this.sessions.getActiveSession() !== snapshotSession ||
+				minter.epoch !== snapshotEpoch
+			) {
+				if (snapshotAttempt === 0) {
+					return this.getStateToPostToWebview(1)
+				}
+				throw new Error("Task changed while building webview state")
+			}
 			return {
 				...state,
 				currentTaskItem: snapshotTask?.taskId
@@ -2407,7 +2386,6 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
-				workspaceRestoreAvailabilityByMessageTs,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

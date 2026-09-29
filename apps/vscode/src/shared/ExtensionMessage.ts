@@ -90,7 +90,6 @@ export interface ExtensionState {
 	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
-	workspaceRestoreAvailabilityByMessageTs?: Record<number, WorkspaceRestoreAvailability>
 	platform: Platform
 	environment?: Environment
 	shouldShowAnnouncement: boolean

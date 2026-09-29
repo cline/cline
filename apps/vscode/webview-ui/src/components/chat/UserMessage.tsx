@@ -1,12 +1,13 @@
 import type { WorkspaceRestoreAvailability } from "@shared/ExtensionMessage"
+import { Int64Request } from "@shared/proto/cline/common"
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { CheckpointsServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import { highlightText } from "./task-header/Highlights"
 
 interface UserMessageProps {
@@ -15,11 +16,12 @@ interface UserMessageProps {
 	images?: string[]
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
-	workspaceRestoreAvailability?: WorkspaceRestoreAvailability
+	/** True for messages that started an agent run, which are the only ones Reset Code applies to. */
+	canRestoreWorkspace?: boolean
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, workspaceRestoreAvailability }) => {
-	const { navigateToSettings } = useExtensionState()
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace }) => {
+	const { navigateToSettings, enableCheckpointsSetting } = useExtensionState()
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
@@ -27,11 +29,41 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>()
 	const [workspaceRestorePopoverOpen, setWorkspaceRestorePopoverOpen] = useState(false)
+	const [hasWorkspaceCheckpoint, setHasWorkspaceCheckpoint] = useState(false)
 	const highlightedText = useMemo(() => highlightText(text), [text])
+	const workspaceRestoreAvailability: WorkspaceRestoreAvailability | undefined = canRestoreWorkspace
+		? hasWorkspaceCheckpoint
+			? { available: true }
+			: { available: false, reason: enableCheckpointsSetting === false ? "checkpoints_disabled" : "checkpoint_unavailable" }
+		: undefined
 	const workspaceRestoreTooltip = workspaceRestoreAvailability?.available
 		? "Rewind conversation, reset code edits"
 		: "No workspace checkpoint was created for this message."
 	const workspaceRestoreUnavailable = workspaceRestoreAvailability?.available === false
+
+	// The checkpoint is looked up when the user opens the editor, not pushed
+	// with every state update, so the answer covers the checkpoint written for
+	// the latest turn. Until it arrives, and when the lookup fails, Reset Code
+	// is disabled with the "no checkpoint" explanation.
+	useEffect(() => {
+		setHasWorkspaceCheckpoint(false)
+		if (!isEditing || !canRestoreWorkspace || messageTs === undefined) {
+			return
+		}
+		let cancelled = false
+		CheckpointsServiceClient.checkpointExistsForMessage(Int64Request.create({ value: messageTs }))
+			.then((result) => {
+				if (!cancelled) {
+					setHasWorkspaceCheckpoint(result.value)
+				}
+			})
+			.catch((error) => {
+				console.error("Failed to look up the workspace checkpoint for this message:", error)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [isEditing, canRestoreWorkspace, messageTs])
 
 	const startEditing = () => {
 		setEditedText(text ?? "")
