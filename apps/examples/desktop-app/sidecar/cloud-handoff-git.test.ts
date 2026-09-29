@@ -41,7 +41,9 @@ vi.mock("node:child_process", async (original) => {
 		}
 		const push = args.indexOf("push");
 		if (push >= 0 && transport.rejectPush) {
-			queueMicrotask(() => callback(new Error("rejected"), "", ""));
+			queueMicrotask(() =>
+				callback(new Error("rejected: synthetic-private-token"), "", ""),
+			);
 			return;
 		}
 		const mapped = [...args];
@@ -198,7 +200,9 @@ describe("cloud handoff Git preparation", () => {
 		writeFileSync(join(repo, "tracked.txt"), "keep this");
 		const plan = await inspectHandoffGit(repo);
 		transport.rejectPush = true;
-		await expect(applyHandoffGit(plan)).rejects.toThrow("were not rolled back");
+		await expect(applyHandoffGit(plan)).rejects.toMatchObject({
+			message: `Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying.`,
+		});
 		expect(git("branch", "--show-current")).toBe(plan.branch);
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("keep this");
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");

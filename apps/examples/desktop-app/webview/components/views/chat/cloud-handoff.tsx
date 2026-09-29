@@ -39,8 +39,8 @@ export function CloudHandoffGitConfirmation({
 				<AlertDialogHeader>
 					<AlertDialogTitle>Continue in cloud?</AlertDialogTitle>
 					<AlertDialogDescription>
-						Cline will switch this checkout to a new branch and publish it to
-						continue your conversation in cloud.
+						Cline will switch this checkout to a new branch and push it to
+						GitHub to continue your conversation in cloud.
 						{plan.files.length > 0 && (
 							<span className="mt-2 block">
 								{plan.files.length} changed/new{" "}
@@ -99,7 +99,7 @@ export function CloudHandoffGitConfirmation({
 						Cancel
 					</AlertDialogCancel>
 					<AlertDialogAction onClick={() => onDecision(true)}>
-						Publish and continue
+						Push and continue
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

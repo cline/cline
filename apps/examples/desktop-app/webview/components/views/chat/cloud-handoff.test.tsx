@@ -57,7 +57,7 @@ describe("CloudHandoffProgress", () => {
 describe("CloudHandoffGitConfirmation", () => {
 	it.each([
 		"Cancel",
-		"Publish and continue",
+		"Push and continue",
 	])("discloses scope and requires an explicit %s decision", (label) => {
 		const onDecision = vi.fn();
 		render(
@@ -123,7 +123,7 @@ describe("CloudHandoffGitConfirmation", () => {
 		expect(dialog?.querySelector("details")?.textContent).toContain(
 			"abc local commit",
 		);
-		expect(dialog?.textContent).toContain("Publish and continue");
+		expect(dialog?.textContent).toContain("Push and continue");
 	});
 });
 

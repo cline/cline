@@ -246,6 +246,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 			"The proposed handoff branch already exists. Run /cloud again.",
 		);
 	}
+	let pushing = false;
 	try {
 		await git(plan.root, ["switch", "-c", plan.branch]);
 		await git(plan.root, ["read-tree", plan.treeSha]);
@@ -283,6 +284,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 			);
 		}
 		// Publish only the approved commit, never a moving HEAD or configured push refspecs.
+		pushing = true;
 		await git(
 			plan.root,
 			[
@@ -297,6 +299,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 			undefined,
 			10 * 60_000,
 		);
+		pushing = false;
 		await git(plan.root, [
 			"config",
 			`branch.${plan.branch}.remote`,
@@ -308,6 +311,11 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 			`refs/heads/${plan.branch}`,
 		]);
 	} catch (error) {
+		if (pushing) {
+			throw new Error(
+				`Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying.`,
+			);
+		}
 		throw new Error(
 			`${error instanceof Error ? error.message : String(error)} Preparation may have left a checkpoint on ${plan.branch}; your files were not rolled back. Inspect that branch before retrying.`,
 		);
