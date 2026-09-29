@@ -106,6 +106,25 @@ export function resolveEffectiveLastUsedProviderId(
 }
 
 /**
+ * The pointer to carry across a save that does not claim the last-used slot.
+ * The stored id survives when it resolves once this save is applied — signing
+ * in to Cline creates the `cline` entry a dangling `cline` / `cline-pass`
+ * pointer was waiting for, and that selection should come back. Otherwise the
+ * pointer is repaired from the state before the save, so an unrelated save
+ * cannot become the fallback just by being the newest entry.
+ */
+export function carryLastUsedProvider(
+	previous: StoredProviderSettings,
+	next: StoredProviderSettings,
+): string | undefined {
+	const stored = previous.lastUsedProvider;
+	if (stored && hasResolvableSettings(next, stored)) {
+		return stored;
+	}
+	return resolveEffectiveLastUsedProviderId(previous);
+}
+
+/**
  * Return `state` with `lastUsedProvider` set to its effective value. The same
  * object is returned when nothing changes, so callers can detect a repair.
  */
