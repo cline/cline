@@ -102,6 +102,7 @@ export function WelcomeScreen({
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
 	const cloudSetupRequestRef = useRef(0);
+	const cloudSetupCheckRequestRef = useRef(0);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -185,6 +186,7 @@ export function WelcomeScreen({
 
 	const checkCloudSetup = useCallback(async () => {
 		const requestId = ++cloudSetupRequestRef.current;
+		const checkId = ++cloudSetupCheckRequestRef.current;
 		setCloudSetupChecking(true);
 		try {
 			const result = await fetchCloudRepositories();
@@ -194,7 +196,8 @@ export function WelcomeScreen({
 			if (cloudSetupRequestRef.current !== requestId) return;
 			setCloudSetup((prev) => ({ ...prev, status: "error" }));
 		} finally {
-			if (cloudSetupRequestRef.current === requestId) {
+			// Picker requests can supersede results without owning this spinner.
+			if (cloudSetupCheckRequestRef.current === checkId) {
 				setCloudSetupChecking(false);
 			}
 		}

@@ -377,6 +377,51 @@ describe("WelcomeScreen", () => {
 		accountRef.user = null;
 	});
 
+	it.each([
+		"resolve",
+		"reject",
+	])("unblocks Refresh after a picker supersedes a setup check that will %s", async (outcome) => {
+		accountRef.user = { id: "user-1" };
+		const pending: Array<{
+			resolve: (result: unknown) => void;
+			reject: (error: Error) => void;
+		}> = [];
+		invokeMock.mockImplementation((command: string) =>
+			command === "list_cloud_repositories"
+				? new Promise((resolve, reject) => pending.push({ resolve, reject }))
+				: Promise.resolve({}),
+		);
+		const disconnected = { connected: false, repositories: [] };
+		await renderWelcomeScreen({
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		await clickButton("Select repository");
+		expect(pending).toHaveLength(2);
+		await act(async () => pending[1].resolve(disconnected));
+		await act(async () => {
+			if (outcome === "resolve") pending[0].resolve(disconnected);
+			else pending[0].reject(new Error("offline"));
+		});
+		const refresh = () =>
+			[...container.querySelectorAll("button")].find((button) =>
+				button.textContent?.includes("I've connected GitHub"),
+			);
+		expect(refresh()?.disabled).toBe(false);
+		await clickButton("I've connected GitHub");
+		expect(pending).toHaveLength(3);
+		// An older check must not clear the spinner for a newer focus check.
+		await act(async () => window.dispatchEvent(new Event("focus")));
+		expect(pending).toHaveLength(4);
+		await act(async () => pending[2].resolve(disconnected));
+		expect(refresh()?.disabled).toBe(true);
+		await act(async () => pending[3].resolve(disconnected));
+		expect(refresh()?.disabled).toBe(false);
+		accountRef.user = null;
+	});
+
 	it("re-checks cloud setup when the sidecar broadcasts a scope change", async () => {
 		accountRef.user = { id: "user-1" };
 		subscribeMock.mockClear();
