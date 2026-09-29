@@ -826,8 +826,9 @@ describe("ProviderSettingsManager", () => {
 			expect(manager.getLastUsedProviderConfig()?.providerId).toBe(
 				"openai-compatible",
 			);
-			expect(manager.read().lastUsedProvider).toBe("openai-compatible");
-			// Reads repair in memory only; the file is left for the next write.
+			// read() reports the pointer as stored; the repair happens where the
+			// pointer is interpreted and on the next write.
+			expect(manager.read().lastUsedProvider).toBe("cline");
 			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
 				"cline",
 			);
@@ -865,7 +866,7 @@ describe("ProviderSettingsManager", () => {
 			});
 
 			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
-			expect(manager.read().lastUsedProvider).toBeUndefined();
+			expect(manager.read().lastUsedProvider).toBe("cline");
 		});
 
 		it("keeps a selection whose credentials live under another provider's entry", () => {
