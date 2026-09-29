@@ -1966,6 +1966,17 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "session.detached": {
 				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
+				if (session) {
+					this.events.emit({
+						type: "session_access",
+						payload: {
+							sessionId,
+							ownedByAnotherClient:
+								session.createdByClientId !== "hub" &&
+								session.createdByClientId !== this.client.getClientId(),
+						},
+					});
+				}
 				if (snapshot) {
 					this.events.emit({
 						type: "session_snapshot",

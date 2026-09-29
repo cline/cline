@@ -140,6 +140,21 @@ describe("HubRuntimeHost", () => {
 		}
 		expect(desktopEvents).toEqual(cliEvents);
 		expect(desktopEvents).toHaveLength(2);
+		for (const owner of ["another-client", "hub"]) {
+			for (const listener of listeners)
+				listener({
+					version: "v1",
+					event: "session.detached",
+					sessionId: "shared",
+					payload: {
+						session: { sessionId: "shared", createdByClientId: owner },
+					},
+				});
+			expect(desktopEvents.at(-1)).toMatchObject({
+				type: "session_access",
+				payload: { sessionId: "shared", ownedByAnotherClient: owner !== "hub" },
+			});
+		}
 	});
 
 	it("does not treat persisted agent metadata as a resident runtime", async () => {

@@ -565,6 +565,7 @@ export function useChatSession(environmentId: string) {
 	const [readOnlySessionId, setReadOnlySessionId] = useState<string | null>(
 		null,
 	);
+	const sessionAccessRevisionRef = useRef(0);
 	const isSessionReadOnly =
 		sessionId !== null && readOnlySessionId === sessionId;
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
@@ -2219,6 +2220,22 @@ export function useChatSession(environmentId: string) {
 			unsubscribeEvents();
 		};
 	}, [handleIncomingChunk, subscribeToEnvironment]);
+
+	useEffect(
+		() =>
+			subscribeToEnvironment("chat_session_access", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const access = payload as { sessionId?: string; readOnly?: boolean };
+				if (
+					access.sessionId !== activeSessionIdRef.current ||
+					typeof access.readOnly !== "boolean"
+				)
+					return;
+				sessionAccessRevisionRef.current += 1;
+				setReadOnlySessionId(access.readOnly ? access.sessionId : null);
+			}),
+		[subscribeToEnvironment],
+	);
 
 	useEffect(() => {
 		const unsubscribeStatus = subscribeToEnvironment(
@@ -3934,6 +3951,7 @@ export function useChatSession(environmentId: string) {
 					setIsHydratingSession(false);
 				}
 
+				const accessRevision = sessionAccessRevisionRef.current;
 				const attached = await desktopClient
 					.invoke<{
 						sessionId?: string;
@@ -3970,7 +3988,9 @@ export function useChatSession(environmentId: string) {
 						return undefined;
 					});
 				if (hydrationRequestIdRef.current !== requestId) return;
-				setReadOnlySessionId(attached?.readOnly ? session.sessionId : null);
+				if (sessionAccessRevisionRef.current === accessRevision) {
+					setReadOnlySessionId(attached?.readOnly ? session.sessionId : null);
+				}
 				if (
 					attached?.environmentId !== undefined &&
 					attached.environmentId !== environmentId

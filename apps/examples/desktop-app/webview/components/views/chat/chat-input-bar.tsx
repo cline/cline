@@ -1098,7 +1098,7 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<fieldset disabled={readOnly} className="min-w-0">
+		<>
 			<AgentComposer variant={variant}>
 				{readOnly && readOnlyReason ? (
 					<p role="status" className="px-4 py-3 text-sm text-muted-foreground">
@@ -1399,7 +1399,7 @@ function ChatInputBarImpl({
 										Repository required
 									</span>
 								) : null}
-								{canAbort && (
+								{canAbort && !readOnly && (
 									<AgentComposerStopButton
 										aria-label="Stop agent"
 										variant={variant}
@@ -1414,7 +1414,7 @@ function ChatInputBarImpl({
 							    configured in Settings → Voice; unconfigured users
 							    don't get a dead control. Start with the configured provider;
 							    browser recognition is only a fallback for network failures. */}
-								{transcriptionTarget ? (
+								{transcriptionTarget && !readOnly ? (
 									<SpeechInput
 										fallbackOnNetworkError
 										key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
@@ -1641,7 +1641,7 @@ function ChatInputBarImpl({
 					</AgentComposerSettingsEnd>
 				</AgentComposerSettings>
 			</AgentComposer>
-		</fieldset>
+		</>
 	);
 }
 

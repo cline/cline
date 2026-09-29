@@ -68,6 +68,10 @@ export interface SessionSnapshotEvent {
 }
 
 export type CoreSessionEvent =
+	| {
+			type: "session_access";
+			payload: { sessionId: string; ownedByAnotherClient: boolean };
+	  }
 	| { type: "chunk"; payload: SessionChunkEvent }
 	| {
 			type: "agent_event";

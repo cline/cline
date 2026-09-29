@@ -198,6 +198,7 @@ async function renderVoiceComposer({
 	readOnlyReason,
 	executionTarget,
 	onAttachFiles = vi.fn(),
+	onRemoveAttachment = vi.fn(),
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -211,6 +212,7 @@ async function renderVoiceComposer({
 	readOnly?: boolean;
 	readOnlyReason?: string;
 	executionTarget?: "cloud" | "local";
+	onRemoveAttachment?: ReturnType<typeof vi.fn>;
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
 	await act(async () => {
@@ -237,7 +239,7 @@ async function renderVoiceComposer({
 					onPromptInputChange={onPromptInputChange}
 					onProviderChange={vi.fn()}
 					onReasoningChange={vi.fn()}
-					onRemoveAttachment={vi.fn()}
+					onRemoveAttachment={onRemoveAttachment}
 					onRemovePromptInQueue={vi.fn()}
 					onSend={onSend}
 					onSteerPromptInQueue={vi.fn()}
@@ -259,8 +261,11 @@ async function renderVoiceComposer({
 describe("ChatInputBar", () => {
 	it("explains external ownership and disables the composer without discarding its draft", async () => {
 		const onSend = vi.fn();
+		const onRemoveAttachment = vi.fn();
 		await renderVoiceComposer({
 			readOnly: true,
+			attachments: [{ id: "draft-file", name: "draft.txt", isImage: false }],
+			onRemoveAttachment,
 			readOnlyReason: "This session is open in another client.",
 			prompt: "draft",
 			onSend,
@@ -270,7 +275,13 @@ describe("ChatInputBar", () => {
 		);
 		const textarea = container.querySelector("textarea");
 		expect(textarea?.value).toBe("draft");
-		expect(textarea?.matches(":disabled")).toBe(true);
+		expect(textarea?.readOnly).toBe(true);
+		const remove = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Remove draft.txt"]',
+		);
+		expect(remove?.matches(":disabled")).toBe(false);
+		await act(async () => remove?.click());
+		expect(onRemoveAttachment).toHaveBeenCalledWith("draft-file");
 		expect(
 			container
 				.querySelector('[aria-label="Send message"]')

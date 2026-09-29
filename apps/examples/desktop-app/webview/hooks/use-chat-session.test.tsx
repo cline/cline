@@ -464,6 +464,27 @@ describe("useChatSession", () => {
 			expect(await current.sendPrompt("hello")).toBe(false);
 		});
 		expect(invokeMock).not.toHaveBeenCalled();
+		await act(async () =>
+			handlerFor("chat_session_access")({
+				sessionId: "unrelated",
+				readOnly: false,
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(true);
+		await act(async () =>
+			handlerFor("chat_session_access")({
+				sessionId: "external-session",
+				readOnly: false,
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(false);
+		await act(async () =>
+			handlerFor("chat_session_access")({
+				sessionId: "external-session",
+				readOnly: true,
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(true);
 		await act(async () => current.reset());
 		expect(current.isSessionReadOnly).toBe(false);
 	});
