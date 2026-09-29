@@ -64,7 +64,7 @@ function asCount(value: unknown): number {
 export function CustomizeView({
 	onOpenMarketplace,
 }: {
-	onOpenMarketplace?: () => void;
+	onOpenMarketplace?: (filter?: "connector") => void;
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
@@ -135,7 +135,7 @@ export function CustomizeView({
 				actions={
 					onOpenMarketplace ? (
 						<Button
-							onClick={onOpenMarketplace}
+							onClick={() => onOpenMarketplace()}
 							size="sm"
 							type="button"
 							variant="outline"
@@ -209,7 +209,9 @@ export function CustomizeView({
 			) : tab === "integrations" ? (
 				<ComposioConnectorsView
 					onChanged={handleInventoryChanged}
-					onOpenMarketplace={onOpenMarketplace}
+					onOpenMarketplace={
+						onOpenMarketplace ? () => onOpenMarketplace("connector") : undefined
+					}
 					variant="installed"
 				/>
 			) : tab === "plugins" ? (

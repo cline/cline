@@ -521,12 +521,18 @@ function DetailPane({
 	);
 }
 
-export function MarketplaceExplorerView() {
+export type MarketplaceTypeFilter = MarketplacePrimitiveType | "connector";
+
+export function MarketplaceExplorerView({
+	initialTypeFilter = null,
+}: {
+	initialTypeFilter?: MarketplaceTypeFilter | null;
+}) {
 	const directory = useMarketplaceDirectory();
 	const [query, setQuery] = useState("");
-	const [typeFilter, setTypeFilter] = useState<
-		MarketplacePrimitiveType | "connector" | null
-	>(null);
+	const [typeFilter, setTypeFilter] = useState<MarketplaceTypeFilter | null>(
+		initialTypeFilter,
+	);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);

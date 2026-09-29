@@ -59,7 +59,10 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceExplorerView } from "../marketplace-explorer-view";
+import {
+	MarketplaceExplorerView,
+	type MarketplaceTypeFilter,
+} from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AboutContent } from "./about-view";
 import { AccountView } from "./account-view";
@@ -115,6 +118,8 @@ export function SettingsView({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
+	const [marketplaceInitialFilter, setMarketplaceInitialFilter] =
+		useState<MarketplaceTypeFilter | null>(null);
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -622,10 +627,13 @@ export function SettingsView({
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
-				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+				onOpenMarketplace={(filter) => {
+					setMarketplaceInitialFilter(filter ?? null);
+					onNavigateSection("Marketplace");
+				}}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceExplorerView />
+			<MarketplaceExplorerView initialTypeFilter={marketplaceInitialFilter} />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
