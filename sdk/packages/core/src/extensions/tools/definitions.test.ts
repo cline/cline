@@ -1,7 +1,14 @@
-import type { AgentToolContext, ITelemetryService } from "@cline/shared";
+import { Agent } from "@cline/agents";
+import type {
+	AgentMessage,
+	AgentModel,
+	AgentToolContext,
+	ITelemetryService,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRunCommandsDescription,
+	createAskQuestionTool,
 	createDefaultTools,
 	createEditorTool,
 	createReadFilesTool,
@@ -2136,5 +2143,74 @@ describe("default editor tool", () => {
 			`recommended limit of ${INPUT_ARG_CHAR_LIMIT}`,
 		);
 		expect(execute).not.toHaveBeenCalled();
+	});
+});
+
+describe("direct Agent question continuation", () => {
+	it.each([
+		"factory",
+		"defaults",
+	])("keeps the answer separate with %s tools", async (source) => {
+		const answer = 'use $& and "$1"';
+		const tools =
+			source === "factory"
+				? [createAskQuestionTool(async () => answer)]
+				: createDefaultTools({
+						executors: { askQuestion: async () => answer },
+						enableAskQuestion: true,
+					});
+		const requests: AgentMessage[][] = [];
+		const model: AgentModel = {
+			async stream(request) {
+				requests.push(structuredClone([...request.messages]));
+				const first = requests.length === 1;
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "q1",
+							toolName: "ask_question",
+							inputText: JSON.stringify({
+								question: "Which?",
+								options: ["a", "b"],
+							}),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "Continuing." };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const agent = new Agent({ model, tools });
+		const outputs: unknown[] = [];
+		agent.subscribe((event) => {
+			if (event.type === "tool-finished")
+				outputs.push(event.message.content[0]);
+		});
+		const result = await agent.run("Work on the task");
+		expect(requests).toHaveLength(2);
+		expect(outputs).toEqual([
+			expect.objectContaining({ type: "tool-result", output: answer }),
+		]);
+		const next = requests[1] ?? [];
+		expect(next.at(-2)?.content[0]).toMatchObject({
+			type: "tool-result",
+			output: answer,
+		});
+		const context = next.at(-1);
+		expect(context).toMatchObject({
+			role: "user",
+			metadata: { displayRole: "system" },
+		});
+		expect(JSON.stringify(context)).toContain(
+			"Continue working on their task using that answer.",
+		);
+		expect(
+			result.messages.filter(
+				(message) => message.metadata?.displayRole === "system",
+			),
+		).toHaveLength(1);
 	});
 });

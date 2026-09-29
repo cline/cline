@@ -33,6 +33,7 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { createDefaultTools } from "../../extensions/tools/definitions";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -3073,7 +3074,10 @@ describe("question continuation context", () => {
 							type: "tool-call-delta" as const,
 							toolCallId: "question-1",
 							toolName,
-							inputText: "{}",
+							inputText: JSON.stringify({
+								question: "Which?",
+								options: ["a", "b"],
+							}),
 						};
 						yield { type: "finish" as const, reason: "tool-calls" as const };
 					} else {
@@ -3085,17 +3089,25 @@ describe("question continuation context", () => {
 		};
 		const session = new SessionRuntime(
 			makeAgentConfig({
-				tools: [
-					{
-						name: toolName,
-						description: "Test question",
-						inputSchema: { type: "object" },
-						execute: async () => {
-							if (fails) throw new Error("No answer");
-							return answer;
-						},
-					},
-				],
+				tools:
+					toolName === "ask_question"
+						? createDefaultTools({
+								executors: {
+									askQuestion: async () => {
+										if (fails) throw new Error("No answer");
+										return answer;
+									},
+								},
+								enableAskQuestion: true,
+							})
+						: [
+								{
+									name: toolName,
+									description: "Other",
+									inputSchema: { type: "object" },
+									execute: async () => answer,
+								},
+							],
 				hooks: {
 					afterTool: () => ({ appendContext: "Existing hook context" }),
 				},

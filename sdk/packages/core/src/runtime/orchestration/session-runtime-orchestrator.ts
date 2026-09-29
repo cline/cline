@@ -1129,28 +1129,6 @@ export class SessionRuntime {
 		]);
 		return {
 			...hooks,
-			afterTool: async (ctx) => {
-				const control = await hooks.afterTool?.(ctx);
-				const result = control?.result ?? ctx.result;
-				if (
-					control?.stop ||
-					ctx.toolCall.toolName !== "ask_question" ||
-					result.isError
-				) {
-					return control;
-				}
-				// Keep the answer verbatim for clients. The runtime appends this
-				// context after tool results with displayRole: "system".
-				return {
-					...control,
-					appendContext: [
-						control?.appendContext,
-						"The user has answered the question. Continue working on their task using that answer.",
-					]
-						.filter(Boolean)
-						.join("\n\n"),
-				};
-			},
 			beforeModel: async (ctx) => {
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {

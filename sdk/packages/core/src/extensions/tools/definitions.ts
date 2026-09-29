@@ -833,6 +833,8 @@ export function createAskQuestionTool(
 ): AgentTool<AskQuestionInput, string> {
 	return {
 		name: "ask_question",
+		successContext:
+			"The user has answered the question. Continue working on their task using that answer.",
 		description:
 			"Ask user a question for clarifying or gathering information needed to complete the task. " +
 			"For example, ask the user clarifying questions about a key implementation decision. " +

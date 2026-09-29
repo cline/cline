@@ -558,7 +558,7 @@ Extensibility is split deliberately:
 
 - extensions register runtime contributions
 - hooks intercept lifecycle stages
-- core adds continuation context after a successful `ask_question` through the after-tool hook. The tool result remains the verbatim answer; the runtime appends the reminder after tool results with `displayRole: "system"`, preserving model context without displaying it as a user answer.
+- tools can declare `successContext` for model-only instructions after successful execution. The generic agent runtime appends this context after tool results and after-tool hooks with `displayRole: "system"`. Core’s `ask_question` uses this contract to keep answers verbatim while reminding both direct agents and sessions to continue; no tool-name policy lives in the generic runtime.
 
 Design implication:
 
