@@ -304,10 +304,80 @@ describe("LocalRuntimeHost", () => {
 				await expect(
 					manager.updateSessionConnection("restored-task", {}),
 				).resolves.toBeUndefined();
-				await expect(manager.startSession(input)).rejects.toMatchObject({
-					code: "session_already_exists",
+				await expect(manager.startSession(input)).resolves.toMatchObject({
+					sessionId: "restored-task",
 				});
+				expect(agent.shutdown).toHaveBeenCalledWith("session_restart");
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
 			}
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("drains a resident runtime before restarting (busy: %s)", async (busy) => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const shutdownRuntime = vi.fn().mockResolvedValue(undefined);
+		const runtimeBuilder = {
+			build: vi.fn(async () => ({ tools: [], shutdown: shutdownRuntime })),
+		};
+		const createAgent = vi.fn(() => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("restart-agent"),
+			getConversationId: vi.fn().mockReturnValue("restart-conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: createAgent as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "restart-task",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+			const previous = createAgent.mock.results[0]?.value;
+			if (!previous) throw new Error("Initial agent was not created");
+			previous.canStartRun.mockReturnValue(!busy);
+			previous.shutdown.mockImplementationOnce(() => gate);
+			const restart = manager.startSession(input);
+			await vi.waitFor(() =>
+				expect(previous.shutdown).toHaveBeenCalledWith("session_restart"),
+			);
+			expect(previous.abort).toHaveBeenCalledTimes(busy ? 1 : 0);
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(1);
+			expect(shutdownRuntime).not.toHaveBeenCalled();
+			release();
+			await expect(restart).resolves.toMatchObject({
+				sessionId: "restart-task",
+			});
+			expect(shutdownRuntime).toHaveBeenCalledWith("session_restart");
+			expect(createAgent).toHaveBeenCalledTimes(2);
+			await manager.runTurn({ sessionId: "restart-task", prompt: "Continue" });
+			expect(previous.run).not.toHaveBeenCalled();
+			expect(createAgent.mock.results[1]?.value.run).toHaveBeenCalled();
 		} finally {
 			release();
 			await manager.dispose();

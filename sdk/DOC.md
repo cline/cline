@@ -29,6 +29,16 @@ anchors. `getAgentPullRequestMergeStatus` and
 `summarizeAgentPullRequestChecks` expose the same status normalization for other
 host presentation.
 
+## Restarting sessions
+
+`start({ config: { sessionId, ... }, ... })` can restart a resident session under
+its existing ID. The host aborts and drains any active run, releases the previous
+runtime, and rebuilds using the supplied configuration and initial messages.
+Callers must supply the history they want to retain. Use `send` for another turn
+without rebuilding. Overlapping starts for the same ID still reject with
+`session_already_exists` after the first succeeds; a waiting start retries if the
+first fails.
+
 ## Fork metadata
 
 `createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
