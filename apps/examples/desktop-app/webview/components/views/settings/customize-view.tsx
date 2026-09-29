@@ -17,6 +17,7 @@ import {
 	invalidateExtensionInventoryCache,
 } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
+import { WebSearchSettings } from "./web-search-settings";
 
 /**
  * Unified Customize hub: the installed inventory of everything that extends
@@ -61,9 +62,11 @@ function asCount(value: unknown): number {
 }
 
 export function CustomizeView({
+	onOpenModelProviders,
 	onOpenMarketplace,
 }: {
 	onOpenMarketplace?: () => void;
+	onOpenModelProviders: () => void;
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
@@ -231,11 +234,14 @@ export function CustomizeView({
 					section="Hooks"
 				/>
 			) : (
-				<CustomizationSectionView
-					chrome="embedded"
-					onInventoryChanged={handleInventoryChanged}
-					section="Tools"
-				/>
+				<>
+					<WebSearchSettings onOpenModelProviders={onOpenModelProviders} />
+					<CustomizationSectionView
+						chrome="embedded"
+						onInventoryChanged={handleInventoryChanged}
+						section="Tools"
+					/>
+				</>
 			)}
 		</PageFrame>
 	);
