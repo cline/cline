@@ -10,10 +10,7 @@ on:
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    # A new push to a pull request cancels its superseded run. A run on main
-    # that has started finishes, so main's cache save is not interrupted; a
-    # run still waiting to start is replaced by the next merge's run.
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    cancel-in-progress: true
 
 permissions:
     contents: read
@@ -59,7 +56,6 @@ jobs:
                           - 'apps/vscode/esbuild.mjs'
                           - 'apps/vscode/bunfig.toml'
                           - 'apps/vscode/.vscode-test.mjs'
-                          - 'apps/vscode/.vscodeignore'
                           - 'apps/vscode/playwright*.ts'
                           - '.github/workflows/ext-vscode-test-e2e.yml'
 
@@ -82,15 +78,11 @@ jobs:
             matrix:
                 include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
         runs-on: ${{ matrix.runner }}-latest
-        # A run on main that misses the bun cache installs without it and
-        # saves a new one before the tests start.
-        timeout-minutes: 30
+        timeout-minutes: 20
         # Nothing in this job uses OIDC, so it does not need an id-token
         # permission.
         permissions:
             contents: read
-        env:
-            BUN_CACHE_PATH: ~/.bun/install/cache
         defaults:
             run:
                 working-directory: apps/vscode
@@ -101,19 +93,12 @@ jobs:
               with:
                   bun-version: 1.3.14
 
-            # Cache keys below are exact-match only (no restore-keys prefix
-            # fallbacks); a miss just means a cold install, which is acceptable.
+            # Bun's install cache is not cached. On every runner, restoring it
+            # and then installing took about as long as installing without it,
+            # as ext-vscode-test does.
 
-            # Bun's global install cache, keyed on the authoritative root bun.lock.
-            # Every run restores it; only main saves it (see "Save Bun install cache").
-            - name: Restore Bun install cache
-              uses: actions/cache/restore@v4
-              id: bun-cache
-              with:
-                  path: ${{ env.BUN_CACHE_PATH }}
-                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-
-            # Cache VS Code installation
+            # Cache VS Code installation. The key is exact-match only (no
+            # restore-keys prefix fallbacks); a miss just downloads VS Code.
             - name: Cache VS Code
               uses: actions/cache@v4
               id: vscode-cache
@@ -128,17 +113,6 @@ jobs:
               run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            # A pull request's cache can be restored only by that pull request,
-            # and saving the cache takes several minutes, so only main saves.
-            # Saving right after the install keeps the cache even when a later
-            # test fails.
-            - name: Save Bun install cache
-              if: github.ref == 'refs/heads/main' && steps.bun-cache.outputs.cache-hit != 'true'
-              uses: actions/cache/save@v4
-              with:
-                  path: ${{ env.BUN_CACHE_PATH }}
-                  key: ${{ steps.bun-cache.outputs.cache-primary-key }}
 
             # @cline/* are local workspace symlinks to source packages; build dist/
             # before building the extension for E2E.
