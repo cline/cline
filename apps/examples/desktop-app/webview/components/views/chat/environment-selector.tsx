@@ -106,7 +106,14 @@ export function EnvironmentSelector({
 			: Laptop;
 
 	const selectEnvironment = async (environmentId: string) => {
-		if (busy || (!cloudSelected && environmentId === activeEnvironmentId))
+		// An explicit Local pick must override a remembered Cloud preference,
+		// even when an automatic fallback already displays Local.
+		if (
+			busy ||
+			(!cloudSelected &&
+				environmentId === activeEnvironmentId &&
+				environmentId !== LOCAL_WORKSPACE_ENVIRONMENT_ID)
+		)
 			return;
 		setInternalSwitchingId(environmentId);
 		try {

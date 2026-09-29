@@ -3,6 +3,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	EXECUTION_TARGET_STORAGE_KEY,
+	writeExecutionTargetToWindow,
+} from "@/lib/model-selection";
 import type { RemoteEnvironmentProfile } from "@/lib/remote-environments";
 import {
 	buildEnvironmentSelectorModel,
@@ -51,6 +56,7 @@ beforeEach(() => {
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
+	window.localStorage.removeItem(EXECUTION_TARGET_STORAGE_KEY);
 	vi.restoreAllMocks();
 });
 
@@ -203,6 +209,32 @@ describe("EnvironmentSelector", () => {
 		await click(menuItemContaining("Cloud"));
 		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("cloud");
 		expect(onSelectEnvironment).not.toHaveBeenCalled();
+	});
+
+	it("remembers an explicit Local pick after Cloud falls back to Local", async () => {
+		writeExecutionTargetToWindow("cloud");
+		const onSelectExecutionTarget = vi.fn(writeExecutionTargetToWindow);
+		const onSelectEnvironment = vi.fn();
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="local"
+					executionTarget="local"
+					cloudEnabled={false}
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		// Displaying the automatic fallback alone preserves the saved preference.
+		expect(getInitialChatConfig("local").executionTarget).toBe("cloud");
+		await pointerDown(trigger());
+		await click(menuItemContaining("Local"));
+		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("local");
+		expect(onSelectEnvironment).not.toHaveBeenCalled();
+		expect(getInitialChatConfig("local").executionTarget).toBe("local");
 	});
 
 	it("picking Local from an SSH host also selects the local execution target", async () => {
