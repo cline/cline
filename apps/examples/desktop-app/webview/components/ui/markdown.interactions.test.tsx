@@ -42,6 +42,8 @@ let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	// jsdom has no scrollTo; streamdown >=2.6 auto-scrolls streaming code blocks.
+	HTMLElement.prototype.scrollTo = vi.fn();
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
