@@ -2,7 +2,11 @@
  * Simple Logger utility for the extension's backend code.
  */
 export class Logger {
-	private static isVerbose = process.env.IS_DEV === "true"
+	// Production bundles replace `process.env.IS_DEV` with "false" at build time.
+	// Read lazily so tests can toggle it.
+	private static get isVerbose(): boolean {
+		return process.env.IS_DEV === "true"
+	}
 
 	private static subscribers: Set<(msg: string) => void> = new Set()
 
@@ -21,6 +25,10 @@ export class Logger {
 	 */
 	static subscribe(outputFn: (msg: string) => void) {
 		Logger.subscribers.add(outputFn)
+	}
+
+	static unsubscribe(outputFn: (msg: string) => void) {
+		Logger.subscribers.delete(outputFn)
 	}
 
 	static error(message: string, ...args: any[]) {
@@ -50,8 +58,9 @@ export class Logger {
 	static #output(level: string, message: string, error: Error | undefined, args: any[]) {
 		try {
 			let fullMessage = message
-			if (Logger.isVerbose && args.length > 0) {
-				fullMessage += ` ${args.map((arg) => JSON.stringify(arg)).join(" ")}`
+			const formatted = Logger.#formatArgs(args)
+			if (formatted) {
+				fullMessage += ` ${formatted}`
 			}
 			const errorSuffix = error?.message ? ` ${error.message}` : ""
 			const ts = new Date().toISOString()
@@ -60,4 +69,78 @@ export class Logger {
 			// do nothing if Logger fails
 		}
 	}
+
+	/**
+	 * Formats the extra arguments of a log call.
+	 *
+	 * Verbose (development) builds serialize everything. Production builds are
+	 * deliberately narrow because these lines end up in the output channel and
+	 * in bug reports that users paste publicly: only error messages (never
+	 * stacks, and never other properties of an error), numbers and booleans are
+	 * kept. Strings, objects and everything else are dropped, since they routinely
+	 * carry URLs with OAuth codes, file or terminal contents, and settings.
+	 * Callers that need a string in production logs must interpolate it into the
+	 * message themselves, redacted as appropriate.
+	 */
+	static #formatArgs(args: unknown[]): string {
+		const parts: string[] = []
+		for (const arg of args) {
+			const part = Logger.isVerbose ? Logger.#formatVerbose(arg) : Logger.#formatSafe(arg)
+			if (part) {
+				parts.push(part)
+			}
+		}
+		return parts.join(" ")
+	}
+
+	static #formatVerbose(arg: unknown): string | undefined {
+		if (arg instanceof Error) {
+			return arg.stack || `${arg.name}: ${arg.message}`
+		}
+		try {
+			return JSON.stringify(arg)
+		} catch {
+			return String(arg)
+		}
+	}
+
+	static #formatSafe(arg: unknown): string | undefined {
+		if (typeof arg === "number" || typeof arg === "boolean") {
+			return String(arg)
+		}
+		if (arg instanceof Error) {
+			return Logger.#describeError(arg)
+		}
+		if (arg && typeof arg === "object") {
+			// Error-like objects (e.g. gRPC service errors) and metadata bags of the
+			// form `{ ...context, error }`, as SDK loggers pass them.
+			const record = arg as { message?: unknown; error?: unknown }
+			if (typeof record.message === "string") {
+				return record.message
+			}
+			if (record.error instanceof Error) {
+				return Logger.#describeError(record.error)
+			}
+		}
+		return undefined
+	}
+
+	static #describeError(error: Error): string {
+		const seen = new Set<unknown>()
+		const describe = (err: unknown, depth: number): string => {
+			if (!(err instanceof Error)) {
+				return ""
+			}
+			seen.add(err)
+			let text = `${err.name}: ${err.message}`
+			const cause = err.cause
+			if (cause instanceof Error && !seen.has(cause) && depth < MAX_CAUSE_DEPTH) {
+				text += ` (cause: ${describe(cause, depth + 1)})`
+			}
+			return text
+		}
+		return describe(error, 0)
+	}
 }
+
+const MAX_CAUSE_DEPTH = 3
