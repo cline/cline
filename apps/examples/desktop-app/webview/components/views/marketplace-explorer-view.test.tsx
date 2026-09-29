@@ -180,7 +180,7 @@ describe("Marketplace directory", () => {
 		await render();
 		expect(connectorFilter()?.textContent).toBe("Connectors121");
 		const section = container.querySelector('section[aria-label="Connectors"]');
-		expect(section?.querySelector("h2")?.textContent).toBe("Connectors121");
+		expect(section?.querySelector("h2")?.textContent).toBe("BetaConnectors121");
 		expect(section?.querySelectorAll("button")).toHaveLength(24);
 		const input = container.querySelector(
 			'input[aria-label="Search marketplace"]',
@@ -195,7 +195,7 @@ describe("Marketplace directory", () => {
 		expect(section?.querySelectorAll("button")).toHaveLength(1);
 		expect(section?.textContent).toContain("App 120");
 		expect(connectorFilter()?.textContent).toBe("Connectors121");
-		expect(section?.querySelector("h2")?.textContent).toBe("Connectors121");
+		expect(section?.querySelector("h2")?.textContent).toBe("BetaConnectors121");
 	});
 	it("appends pages on scroll through the full catalog and resets pagination for search", async () => {
 		mocks.catalog.mockResolvedValue({
