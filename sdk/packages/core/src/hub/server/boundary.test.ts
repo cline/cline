@@ -61,6 +61,36 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
+	it("rejects duplicate client ownership without replacing the live registration", async () => {
+		const transport = createTransport();
+		try {
+			const register = (displayName: string) =>
+				transport.handleCommand({
+					version: "v1",
+					command: "client.register",
+					clientId: "same-client",
+					payload: { clientId: "same-client", displayName },
+				});
+			expect((await register("original")).ok).toBe(true);
+			const ctx = getContext(transport);
+			const original = ctx.clients.get("same-client");
+			expect(await register("replacement")).toMatchObject({
+				ok: false,
+				error: { code: "client_already_registered" },
+			});
+			expect(ctx.clients.get("same-client")).toBe(original);
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "same-client",
+			});
+			expect((await register("replacement")).ok).toBe(true);
+			expect(ctx.clients.get("same-client")?.displayName).toBe("replacement");
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("serializes duplicate session creation as session_already_exists", async () => {
 		const transport = createTransport({
 			sessionHost: {

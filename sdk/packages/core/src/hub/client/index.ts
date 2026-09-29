@@ -222,6 +222,7 @@ const HUB_RECONNECT_MAX_DELAY_MS = 5_000;
 const HUB_RECONNECT_JITTER_RATIO = 0.5;
 
 export type HubTransportErrorCode =
+	| "hub_invalid_frame"
 	| "hub_connect_timeout"
 	| "hub_connect_failed"
 	| "hub_connection_closed"
@@ -627,7 +628,27 @@ export class NodeHubClient {
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
-			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
+			if (this.socket !== socket || suppressCloseMessage) return;
+			let frame: HubTransportFrame;
+			try {
+				frame = JSON.parse(decodeSocketData(data)) as HubTransportFrame;
+			} catch {
+				// Do not include frame contents: replies can contain credentials or
+				// private session data. A protocol failure must not kill the host.
+				this.lastCloseError = new HubTransportError(
+					"hub_invalid_frame",
+					"Hub sent malformed JSON; closing the connection.",
+				);
+				suppressCloseMessage = true;
+				this.registered = false;
+				for (const pending of this.pendingReplies.values()) {
+					pending.reject(this.lastCloseError);
+				}
+				this.pendingReplies.clear();
+				socket.close();
+				return;
+			}
+			this.handleFrame(frame);
 		});
 		socket.addEventListener("close", (event: unknown) => {
 			if (this.socket !== socket) {

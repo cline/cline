@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveHubUrl } from "./connect";
+import { connectToHub, resolveHubUrl } from "./connect";
 
 const envSnapshot = {
 	CLINE_HUB_DISCOVERY_PATH: process.env.CLINE_HUB_DISCOVERY_PATH,
@@ -99,5 +99,44 @@ describe("resolveHubUrl", () => {
 			}),
 		).resolves.toBe("ws://0.0.0.0:9321/custom");
 		expect(readHubDiscovery).not.toHaveBeenCalled();
+	});
+});
+
+describe("connectToHub", () => {
+	it("rejects pending requests on malformed JSON without throwing from the socket callback", async () => {
+		let socket!: TestSocket;
+		class TestSocket {
+			listeners = new Map<string, (event: { data: string }) => void>();
+			close = vi.fn();
+			send = vi.fn();
+			constructor() {
+				socket = this;
+				queueMicrotask(() => this.listeners.get("open")?.({ data: "" }));
+			}
+			addEventListener(
+				type: string,
+				listener: (event: { data: string }) => void,
+			) {
+				this.listeners.set(type, listener);
+			}
+		}
+		vi.stubGlobal("WebSocket", TestSocket);
+		try {
+			const connection = await connectToHub("ws://example.test/hub");
+			const pending = connection.send({
+				version: "v1",
+				command: "client.list",
+			});
+			const rejected = expect(pending).rejects.toThrow(
+				"Hub sent malformed JSON",
+			);
+			expect(() =>
+				socket.listeners.get("message")?.({ data: '{"unterminated":"' }),
+			).not.toThrow();
+			await rejected;
+			expect(socket.close).toHaveBeenCalledOnce();
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 });

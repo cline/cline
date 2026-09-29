@@ -7,6 +7,11 @@ import type {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import type { HubConnectionAuthority } from "./command-transport";
+import {
+	handleClientRegister,
+	handleClientUnregister,
+} from "./handlers/client-handlers";
+import type { HubTransportContext } from "./handlers/context";
 
 function createSocket() {
 	const messageListeners = new Set<(event: { data: string }) => void>();
@@ -53,6 +58,94 @@ describe("BrowserWebSocketHubAdapter", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
+	});
+
+	it("closing a rejected duplicate socket leaves the owner's registration intact", async () => {
+		const ctx = {
+			clients: new Map(),
+			publish: vi.fn(),
+			buildEvent: vi.fn(),
+		} as unknown as HubTransportContext;
+		const removed = vi.fn();
+		const transport = {
+			command: vi.fn(async (envelope: HubCommandEnvelope) =>
+				envelope.command === "client.register"
+					? handleClientRegister(ctx, envelope)
+					: handleClientUnregister(ctx, envelope, removed),
+			),
+			subscribe: vi.fn(),
+		};
+		const adapter = new BrowserWebSocketHubAdapter(transport);
+		const first = createSocket();
+		const duplicate = createSocket();
+		adapter.attach(first);
+		adapter.attach(duplicate);
+		const registration = JSON.stringify({
+			kind: "command",
+			envelope: {
+				version: "v1",
+				command: "client.register",
+				clientId: "same-client",
+				payload: { clientId: "same-client" },
+			},
+		});
+		// Race both registrations, before either adapter has received its reply.
+		first.emitMessage(registration);
+		duplicate.emitMessage(registration);
+		await vi.waitFor(() => expect(duplicate.sent).toHaveLength(1));
+		expect(JSON.parse(duplicate.sent[0])).toMatchObject({
+			envelope: { ok: false, error: { code: "client_already_registered" } },
+		});
+		duplicate.emitClose();
+		expect(ctx.clients.has("same-client")).toBe(true);
+		expect(removed).not.toHaveBeenCalled();
+		first.emitClose();
+		expect(removed).toHaveBeenCalledExactlyOnceWith("same-client");
+		const replacement = createSocket();
+		adapter.attach(replacement);
+		replacement.emitMessage(registration);
+		await vi.waitFor(() => expect(replacement.sent).toHaveLength(1));
+		expect(JSON.parse(replacement.sent[0])).toMatchObject({
+			envelope: { ok: true },
+		});
+		first.emitClose();
+		expect(ctx.clients.has("same-client")).toBe(true);
+		replacement.emitClose();
+	});
+
+	it("unregisters an owner whose socket closed before registration completed", async () => {
+		let finish!: (reply: HubReplyEnvelope) => void;
+		const transport = {
+			command: vi.fn((envelope: HubCommandEnvelope) =>
+				envelope.command === "client.register"
+					? new Promise<HubReplyEnvelope>((resolveReply) => {
+							finish = resolveReply;
+						})
+					: Promise.resolve({ version: "v1" as const, ok: true }),
+			),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command: "client.register",
+					clientId: "closed-owner",
+				},
+			}),
+		);
+		socket.emitClose();
+		finish({ version: "v1", ok: true });
+		await vi.waitFor(() =>
+			expect(transport.command).toHaveBeenCalledWith({
+				version: "v1",
+				command: "client.unregister",
+				clientId: "closed-owner",
+			}),
+		);
 	});
 
 	it("ignores malformed websocket frames instead of throwing", async () => {

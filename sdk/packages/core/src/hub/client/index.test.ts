@@ -161,6 +161,64 @@ describe("NodeHubClient", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it("rejects malformed registration replies without an uncaught exception", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const send = vi
+				.spyOn(MockWebSocket.prototype, "send")
+				.mockImplementation(function (this: MockWebSocket) {
+					queueMicrotask(() =>
+						this.emit("message", { data: '{"kind":"reply"' }),
+					);
+				});
+			const client = new NodeHubClient({ url: "ws://example.test/hub" });
+			try {
+				await expect(client.connect()).rejects.toMatchObject({
+					code: "hub_invalid_frame",
+				});
+				expect(client.isConnected()).toBe(false);
+				expect(MockWebSocket.instances[0].readyState).toBe(
+					MockWebSocket.CLOSED,
+				);
+			} finally {
+				send.mockRestore();
+				client.close();
+			}
+		});
+
+		it("contains malformed JSON, rejects pending work, and reconnects subscriptions", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://example.test/hub" });
+			await client.connect();
+			const listener = vi.fn();
+			client.subscribe(listener);
+			const socket = MockWebSocket.instances[0];
+			vi.spyOn(socket, "send").mockImplementation(() => {});
+			const pending = client.command("client.list");
+			const rejected = expect(pending).rejects.toMatchObject({
+				code: "hub_invalid_frame",
+			});
+			await Promise.resolve();
+			expect(() =>
+				socket.emit("message", {
+					data: '{"kind":"reply","secret":"unfinished',
+				}),
+			).not.toThrow();
+			await rejected;
+			expect(client.getConnectionError()?.message).not.toContain("secret");
+			await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(2));
+			await vi.waitFor(() => expect(client.isConnected()).toBe(true));
+			// A retired socket cannot deliver events to the replacement client.
+			socket.emit("message", {
+				data: JSON.stringify({ kind: "event", envelope: { event: "stale" } }),
+			});
+			expect(listener).not.toHaveBeenCalled();
+			expect(MockWebSocket.instances[1].sentFrames).toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+			});
+			client.close();
+		});
+
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 

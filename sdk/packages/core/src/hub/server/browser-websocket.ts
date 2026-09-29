@@ -211,6 +211,20 @@ export class BrowserWebSocketHubAdapter {
 						);
 						commandPromise.then(
 							(lateReply) => {
+								// Registration can finish after the socket closes (or its
+								// reply times out). Always account for the acquired ID.
+								if (registration && lateReply.ok) {
+									if (closed) {
+										void this.transport.command({
+											version: "v1",
+											command: "client.unregister",
+											clientId: registration.clientId,
+										});
+									} else {
+										registeredClientIds.add(registration.clientId);
+										authority = registration;
+									}
+								}
 								if (!settled) return;
 								logHubMessage(
 									lateReply.ok ? "warn" : "error",
@@ -296,15 +310,7 @@ export class BrowserWebSocketHubAdapter {
 								errorMessage: reply.error?.message,
 							});
 						}
-						if (frame.envelope.command === "client.register" && reply.ok) {
-							if (registration) {
-								registeredClientIds.add(registration.clientId);
-								authority = registration;
-							}
-						} else if (
-							frame.envelope.command === "client.unregister" &&
-							reply.ok
-						) {
+						if (frame.envelope.command === "client.unregister" && reply.ok) {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
