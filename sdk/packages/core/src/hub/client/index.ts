@@ -425,24 +425,52 @@ export class NodeHubClient {
 		let attemptSocket: WebSocketLike | undefined;
 		this.connectPromise = connectPromise.then(async (socket) => {
 			attemptSocket = socket;
-			await this.commandOnce(
-				"client.register",
-				{
-					clientId: this.clientId,
-					clientType: this.options.clientType ?? "core",
-					displayName: this.options.displayName ?? "core",
-					transport: "native",
-					actorKind: "client",
-					capabilities: this.capabilities,
-					workspaceContext: {
-						workspaceRoot: this.options.workspaceRoot,
-						cwd: this.options.cwd,
-					},
-				} satisfies HubClientRegistration,
-				undefined,
-				undefined,
-				false,
-			);
+			// The previous socket may still own this ID while its close is being
+			// processed. Keep concurrent callers waiting for registration, even
+			// for command-only clients with no subscription reconnect loop.
+			for (let attempt = 0; ; attempt += 1) {
+				if (
+					generation !== this.connectGeneration ||
+					this.closedByClient ||
+					this.socket !== socket ||
+					socket.readyState !== 1
+				) {
+					throw this.lastCloseError;
+				}
+				try {
+					await this.commandOnce(
+						"client.register",
+						{
+							clientId: this.clientId,
+							clientType: this.options.clientType ?? "core",
+							displayName: this.options.displayName ?? "core",
+							transport: "native",
+							actorKind: "client",
+							capabilities: this.capabilities,
+							workspaceContext: {
+								workspaceRoot: this.options.workspaceRoot,
+								cwd: this.options.cwd,
+							},
+						} satisfies HubClientRegistration,
+						undefined,
+						undefined,
+						false,
+					);
+					break;
+				} catch (error) {
+					if (
+						!(error instanceof HubCommandError) ||
+						error.code !== "client_already_registered" ||
+						attempt >= 6
+					) {
+						throw error;
+					}
+					// Bound retries so a genuinely duplicate live client still fails.
+					await new Promise<void>((resolve) =>
+						setTimeout(resolve, 50 * 2 ** attempt),
+					);
+				}
+			}
 			// Registration may resolve after close/reconnect; reject a stale socket.
 			if (generation !== this.connectGeneration || this.closedByClient) {
 				try {
