@@ -191,6 +191,73 @@ describe("provider settings cloud session lifecycle", () => {
 		expect(ctx.cloudSessionManager).toBeNull();
 		expect(dispose).toHaveBeenCalledOnce();
 	});
+
+	it.each([
+		["cline", ["cline"]],
+		["cline-pass", ["cline", "cline-pass"]],
+	] as const)("clears stored OAuth tokens and identity when a %s API key is pasted", async (provider, savedProviderIds) => {
+		const { ctx } = createContext();
+		getProviderSettingsMock.mockReturnValue({
+			auth: {
+				accessToken: "token",
+				refreshToken: "refresh",
+				accountId: "acct-1",
+			},
+		});
+		saveProviderSettingsMock.mockReturnValue({
+			providerId: provider,
+			enabled: true,
+		});
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider,
+			api_key: "manual-key",
+		});
+		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual(
+			savedProviderIds.map((providerId) =>
+				expect.objectContaining({
+					providerId,
+					apiKey: "manual-key",
+					auth: {
+						accessToken: "",
+						refreshToken: "",
+						apiKey: "",
+						accountId: "",
+					},
+				}),
+			),
+		);
+	});
+
+	it("leaves auth alone for API-key-only providers, empty keys, and keys saved without a sign-in", async () => {
+		const { ctx } = createContext();
+		saveProviderSettingsMock.mockReturnValue({
+			providerId: "anthropic",
+			enabled: true,
+		});
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "anthropic",
+			api_key: "sk-test",
+		});
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "",
+		});
+		// Re-committing an unchanged key (e.g. blurring the field) must keep
+		// the account identity that fetchMe stored for a key-only user.
+		getProviderSettingsMock.mockReturnValue({
+			apiKey: "manual-key",
+			auth: { accountId: "acct-1" },
+		});
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "manual-key",
+		});
+		for (const [, request] of saveProviderSettingsMock.mock.calls) {
+			expect(request).not.toHaveProperty("auth");
+		}
+	});
 });
 
 afterEach(() => {
