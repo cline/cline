@@ -1630,6 +1630,14 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			{
+				id: "web_search",
+				name: "web_search",
+				description:
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support web search. Applies to new sessions.",
+				enabled: readGlobalSettings().tools?.web_search?.enabled === true,
+				source: "builtin",
+			},
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
@@ -3231,13 +3239,6 @@ export async function handleCommand(
 		});
 		return settings;
 	}
-	if (command === "set_web_search_enabled") {
-		if (typeof args?.web_search_enabled !== "boolean") {
-			throw new Error("web_search_enabled must be a boolean");
-		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
-		return readGlobalSettings();
-	}
 
 	// ── Connector channels ─────────────────────────────────────────────
 	if (command === "list_connector_channels") {
@@ -3617,7 +3618,11 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
-		for (const name of toolNames) {
+		for (const name of new Set(toolNames)) {
+			if (name === "web_search") {
+				setModelToolEnabledGlobally("web_search", args?.disabled !== true);
+				continue;
+			}
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,

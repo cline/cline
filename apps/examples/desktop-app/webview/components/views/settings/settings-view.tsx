@@ -618,7 +618,6 @@ export function SettingsView({
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
-				onOpenModelProviders={() => onNavigateSection("Providers")}
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
