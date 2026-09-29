@@ -56,6 +56,9 @@ jobs:
                           - 'apps/vscode/esbuild.mjs'
                           - 'apps/vscode/bunfig.toml'
                           - 'apps/vscode/.vscode-test.mjs'
+                          # ext-vscode-test-e2e builds without lint; list its Playwright config
+                          # here so Quality Checks lints it.
+                          - 'apps/vscode/playwright*.ts'
                           - 'apps/vscode/test-setup.js'
                           - '.github/workflows/ext-vscode-test.yml'
                       testing_platform:
