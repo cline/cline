@@ -62,9 +62,11 @@ function asCount(value: unknown): number {
 }
 
 export function CustomizeView({
+	onOpenModelProviders,
 	onOpenMarketplace,
 }: {
 	onOpenMarketplace?: (filter?: "connector") => void;
+	onOpenModelProviders?: () => void;
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
@@ -239,6 +241,7 @@ export function CustomizeView({
 					chrome="embedded"
 					onInventoryChanged={handleInventoryChanged}
 					section="Tools"
+					onOpenModelProviders={onOpenModelProviders}
 				/>
 			)}
 		</PageFrame>
