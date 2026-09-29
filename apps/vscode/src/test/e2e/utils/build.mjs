@@ -4,7 +4,7 @@
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { execa } from "execa"
 
-const TIMEOUT_MINUTE = 1
+const TIMEOUT_MINUTE = 5
 const INSTALL_TIMEOUT_MS = TIMEOUT_MINUTE * 60 * 1000
 
 async function installVSCode() {

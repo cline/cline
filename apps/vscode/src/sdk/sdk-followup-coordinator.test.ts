@@ -218,7 +218,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued")
 
-		expect(options.waitForPendingRebuilds).toHaveBeenCalledOnce()
+		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
@@ -231,56 +231,31 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("waits for a pending rebuild before queuing a running-turn follow-up", async () => {
-		const oldSession = makeActiveSession({ isRunning: true })
-		const rebuiltSession = makeActiveSession()
-		const events: string[] = []
-		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
-		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, waitForPendingRebuilds })
-		options.resolveContextMentions.mockImplementation(async (text: string) => {
-			events.push("resolve-mentions")
-			return `resolved: ${text}`
-		})
-		options.sessions.setRunning.mockImplementation(() => events.push("set-running"))
-		options.onFollowUpStarting.mockImplementation(() => events.push("start-follow-up"))
-		options.sessions.fireAndForgetSend.mockImplementation(() => events.push("queue-follow-up"))
+	it.each([
+		{ isRunning: true, queuedPromptCount: 0 },
+		{ isRunning: false, queuedPromptCount: 1 },
+	])("queues immediately while Core is busy: %j", async (busy) => {
+		const activeSession = makeActiveSession(busy)
+		const waitForPendingRebuilds = vi.fn().mockRejectedValue(new Error("must not wait for Core's queue"))
+		const { coordinator, options } = makeCoordinator({ activeSession, waitForPendingRebuilds })
 
-		const sendPromise = coordinator.askResponse(
-			"use the new provider settings",
-			undefined,
-			undefined,
-			"messageResponse",
-			"streaming",
-		)
-		await Promise.resolve()
+		await coordinator.askResponse("use the latest settings at the next request")
 
-		expect(waitForPendingRebuilds).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.onFollowUpStarting).not.toHaveBeenCalled()
-
-		options.sessions.getActiveSession.mockReturnValue(rebuiltSession)
-		resolveRebuild()
-		await sendPromise
-
-		expect(events).toEqual(["resolve-mentions", "set-running", "start-follow-up", "queue-follow-up"])
+		expect(waitForPendingRebuilds).not.toHaveBeenCalled()
+		expect(options.runExclusive).not.toHaveBeenCalled()
+		expect(options.applyPendingProviderConnection).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			rebuiltSession.sdkHost,
-			"session-123",
-			"resolved: use the new provider settings",
+			activeSession.sdkHost,
+			activeSession.sessionId,
+			"resolved: use the latest settings at the next request",
 			undefined,
 			undefined,
 			"queue",
 		)
 	})
 
-	it("does not queue onto a different task selected while a running-turn rebuild settles", async () => {
-		const oldSession = makeActiveSession({ isRunning: true })
+	it("does not send to a different task selected while an idle-session rebuild settles", async () => {
+		const oldSession = makeActiveSession()
 		const rebuiltSession = makeActiveSession({ isRunning: true })
 		const task = makeTask("task-1")
 		const replacementTask = makeTask("task-2")
@@ -293,7 +268,7 @@ describe("SdkFollowupCoordinator", () => {
 		)
 		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, task, waitForPendingRebuilds })
 
-		const sendPromise = coordinator.askResponse("keep going", undefined, undefined, "messageResponse", "streaming")
+		const sendPromise = coordinator.askResponse("keep going")
 		await Promise.resolve()
 
 		options.getTask.mockReturnValue(replacementTask)
@@ -306,7 +281,7 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it("does not queue onto a same-id replacement installed while mentions resolve", async () => {
+	it("queues onto the current same-task replacement after mentions resolve", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const replacementSession = makeActiveSession({ isRunning: true })
 		let resolveMentions: (value: string) => void = () => {}
@@ -324,11 +299,17 @@ describe("SdkFollowupCoordinator", () => {
 		resolveMentions("resolved: queued")
 		await sendPromise
 
-		expect(options.sessions.setRunning).not.toHaveBeenCalled()
-		expect(options.onFollowUpStarting).not.toHaveBeenCalled()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.onFollowUpStarting).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			replacementSession.sdkHost,
+			replacementSession.sessionId,
+			"resolved: queued",
+			undefined,
+			undefined,
+			"queue",
+		)
+		expect(options.onFollowUpAbandoned).not.toHaveBeenCalled()
 	})
 
 	it("queues a follow-up when the turn phase is still streaming even if the session running flag is stale", async () => {
@@ -338,7 +319,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
 
-		expect(options.waitForPendingRebuilds).toHaveBeenCalledOnce()
+		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -430,27 +411,24 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("waits for an in-flight mode rebuild before deciding whether to resume a displayed task", async () => {
-		const task = makeTask("task-1")
+	it("selects the follow-up session inside the rebuild boundary", async () => {
+		const task = makeTask("session-123")
 		const rebuiltSession = makeActiveSession({ isRunning: true })
-		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
-		const { coordinator, options } = makeCoordinator({ task, waitForPendingRebuilds })
+		let runExclusive: (() => Promise<void>) | undefined
+		const { coordinator, options } = makeCoordinator({
+			task,
+			runExclusive: vi.fn(async (operation) => {
+				runExclusive = operation
+			}),
+		})
 		options.sessions.getActiveSession.mockReturnValueOnce(undefined).mockReturnValue(rebuiltSession)
 
 		const sendPromise = coordinator.askResponse("sent during rebuild")
-		await new Promise((resolve) => setTimeout(resolve, 0))
-
-		expect(waitForPendingRebuilds).toHaveBeenCalledOnce()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 
-		resolveRebuild()
+		await vi.waitFor(() => expect(runExclusive).toBeDefined())
+		await runExclusive?.()
 		await sendPromise
 
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
@@ -464,25 +442,13 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("waits for a passive rebuild before choosing the session for an idle follow-up", async () => {
+	it("uses the rebuilt session exposed by the exclusive boundary", async () => {
 		const oldSession = makeActiveSession()
 		const rebuiltSession = makeActiveSession()
-		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
-		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, waitForPendingRebuilds })
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession })
 		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(rebuiltSession)
 
-		const sendPromise = coordinator.askResponse("after rebuild")
-		await Promise.resolve()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-
-		resolveRebuild()
-		await sendPromise
+		await coordinator.askResponse("after rebuild")
 
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			rebuiltSession.sdkHost,
@@ -544,6 +510,30 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.onFollowUpStarting).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("abandons a follow-up if task navigation occurs while mentions resolve", async () => {
+		const oldSession = makeActiveSession({ isRunning: true })
+		const oldTask = makeTask("session-123")
+		let currentTask = oldTask
+		let resolveMentions: (prompt: string) => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, task: oldTask })
+		options.getTask.mockImplementation(() => currentTask)
+		options.resolveContextMentions.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveMentions = resolve
+				}),
+		)
+
+		const send = coordinator.askResponse("with @mention", undefined, undefined, "messageResponse", "streaming")
+		await Promise.resolve()
+		currentTask = makeTask("other-task")
+		resolveMentions("resolved after navigation")
+		await send
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
 	})
 
 	it("queues a message response after a pending tool approval is not resolved by chat text", async () => {
@@ -1011,6 +1001,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			sessionId: "resumed-session",
 			sdkHost: resumedSdkHost,
 			isRunning: true,
+			queuedPromptCount: 0,
 		})
 		return {
 			startResult: { sessionId: "resumed-session" },
@@ -1101,6 +1092,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		waitForPendingRebuilds: ReturnType<typeof vi.fn>
 		applyPendingProviderConnection: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onFollowUpStarting: ReturnType<typeof vi.fn>
@@ -1127,19 +1119,20 @@ interface MakeCoordinatorInput {
 		totalCost: number
 		cwdOnTaskInitialization?: string
 	}
+	waitForPendingRebuilds: () => Promise<void>
 	mode: "act" | "plan"
 	isLegacyTask: boolean
-	waitForPendingRebuilds: () => Promise<void>
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 
-function makeActiveSession(input: { isRunning?: boolean } = {}) {
+function makeActiveSession(input: { isRunning?: boolean; queuedPromptCount?: number } = {}) {
 	return {
 		sessionId: "session-123",
 		sdkHost: {
 			send: vi.fn(),
 		},
 		isRunning: input.isRunning ?? false,
+		queuedPromptCount: input.queuedPromptCount ?? 0,
 	}
 }
 

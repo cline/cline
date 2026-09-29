@@ -76,6 +76,12 @@ export class SdkSessionLifecycle {
 	 * sequencing the CLI uses.
 	 */
 	private readonly pendingStops = new Map<string, Promise<void>>()
+	/**
+	 * Counts turns started on the active session. A send whose promise settles
+	 * after a newer turn began (Core drained a queued prompt) must not mark the
+	 * session idle, or a passive rebuild could replace it mid-turn.
+	 */
+	private turnGeneration = 0
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -89,7 +95,21 @@ export class SdkSessionLifecycle {
 			return
 		}
 		activeSession.isRunning = isRunning
-		if (!isRunning) {
+		if (isRunning) {
+			this.turnGeneration += 1
+		} else {
+			this.options.onDidBecomeIdle?.()
+		}
+	}
+
+	/** Records Core's queue length for the active session; see ActiveSession.queuedPromptCount. */
+	setQueuedPromptCount(count: number): void {
+		const activeSession = this.activeSession
+		if (!activeSession || activeSession.queuedPromptCount === count) {
+			return
+		}
+		activeSession.queuedPromptCount = count
+		if (count === 0 && !activeSession.isRunning) {
 			this.options.onDidBecomeIdle?.()
 		}
 	}
@@ -188,6 +208,7 @@ export class SdkSessionLifecycle {
 				unsubscribe: () => {},
 				startResult,
 				isRunning: true,
+				queuedPromptCount: 0,
 			}
 
 			return { startResult, sdkHost }
@@ -259,6 +280,7 @@ export class SdkSessionLifecycle {
 					: activeSession.startConfig,
 				startResult: restored.startResult,
 				isRunning: false,
+				queuedPromptCount: 0,
 			}
 
 			if (restored.sessionId !== sourceSessionId) {
@@ -401,10 +423,13 @@ export class SdkSessionLifecycle {
 		// session was replaced by the time the send settles, the settle callbacks
 		// must not run bookkeeping against the successor (e.g. flipping a live
 		// auto-continued run to isRunning=false, which makes the event coordinator
-		// treat the new turn's completion as a cancelled-turn straggler).
+		// treat the new turn's completion as a cancelled-turn straggler). The
+		// same applies within one session when Core drains a queued prompt into
+		// a new turn before this send's promise settles.
 		const sessionAtSend = this.activeSession
+		const turnAtSend = this.turnGeneration
 		const isSuperseded = (label: string): boolean => {
-			if (this.activeSession === sessionAtSend) {
+			if (this.activeSession === sessionAtSend && this.turnGeneration === turnAtSend) {
 				return false
 			}
 			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)

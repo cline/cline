@@ -121,7 +121,7 @@ export class SdkFollowupCoordinator {
 			// provider fields before the queued turn starts.
 			const activeSession = this.options.sessions.getActiveSession()
 			if (activeSession) {
-				const queued = await this.queueToActiveSession(activeSession, prompt, images, files, {
+				const queued = await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files, {
 					preserveTurnPhase: true,
 				})
 				if (queued && this.options.interactions.restorePendingInteractionTurnPhase()) {
@@ -135,24 +135,25 @@ export class SdkFollowupCoordinator {
 			}
 		}
 
-		// Rebuilds replace sessions once their current turn becomes idle. Wait
-		// before choosing even a running target: otherwise the SDK can drain a
-		// queued prompt on the old host before a provider-field rebuild runs.
+		const activeSession = this.options.sessions.getActiveSession()
+		if (activeSession && (activeSession.isRunning || activeSession.queuedPromptCount > 0 || submittedDuringActiveTurn)) {
+			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
+			return
+		}
+
+		// Flush debounced configuration before continuing an idle session. Running
+		// turns queue immediately above: waiting for their rebuild would prevent
+		// Core from receiving follow-ups until its prompt queue is empty.
 		await this.options.waitForPendingRebuilds()
 		if (task && this.options.getTask()?.taskId !== task.taskId) {
 			await this.abandonFollowUp(`askResponse: Task changed while waiting to resume ${task.taskId}; cancelling follow-up`)
 			return
 		}
 
-		const activeSession = this.options.sessions.getActiveSession()
-		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.queueToActiveSession(activeSession, prompt, images, files)
-			return
-		}
-
 		await this.options.runExclusive(async () => {
-			// Task navigation does not use the rebuild scheduler. Do not deliver a
-			// prompt submitted from one task into a task selected while we waited.
+			// Task navigation and follow-up selection share this rebuild boundary.
+			// Still recheck logical identity because navigation may have completed
+			// before this operation acquired the boundary.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
 			// and the user's follow-up should survive that.
 			if (task && this.options.getTask()?.taskId !== task.taskId) {
@@ -163,8 +164,11 @@ export class SdkFollowupCoordinator {
 			}
 
 			const currentSession = this.options.sessions.getActiveSession()
-			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.queueToActiveSession(currentSession, prompt, images, files)
+			if (
+				currentSession &&
+				(currentSession.isRunning || currentSession.queuedPromptCount > 0 || submittedDuringActiveTurn)
+			) {
+				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
 				return
 			}
 
@@ -192,25 +196,45 @@ export class SdkFollowupCoordinator {
 	/** Queue a follow-up onto a session whose turn is still running. */
 	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		displayedTaskId: string | undefined,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
 		options: { preserveTurnPhase?: boolean } = {},
 	): Promise<boolean> {
-		const { sdkHost, sessionId } = activeSession
+		const { sessionId } = activeSession
 		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
+		// The submitted turn phase is authoritative when the lifecycle flag is
+		// briefly stale. Keep passive rebuilds behind the active turn while mention
+		// resolution runs. Core owns the queue: it shows the prompt in the webview
+		// at once, and a later session rebuild carries the queue over.
+		this.options.sessions.setRunning(true)
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		if (this.options.sessions.getActiveSession() !== activeSession) {
-			await this.abandonFollowUp(`Active session changed while queuing follow-up for ${sessionId}; cancelling follow-up`)
+		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
+			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
 			return false
 		}
 
-		this.options.sessions.setRunning(true)
+		const currentSession = this.options.sessions.getActiveSession()
+		if (!currentSession || currentSession.sessionId !== (displayedTaskId ?? sessionId)) {
+			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
+			return false
+		}
+		if (currentSession !== activeSession) {
+			this.options.sessions.setRunning(true)
+		}
 		if (!options.preserveTurnPhase) {
 			this.options.onFollowUpStarting()
 		}
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
+		this.options.sessions.fireAndForgetSend(
+			currentSession.sdkHost,
+			currentSession.sessionId,
+			resolvedPrompt,
+			images,
+			files,
+			"queue",
+		)
 		return true
 	}
 

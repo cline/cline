@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 
 const createHost = vi.hoisted(() => vi.fn())
 vi.mock("./vscode-session-host", () => ({ VscodeSessionHost: { create: createHost } }))
@@ -12,7 +13,7 @@ vi.mock("@/core/storage/StateManager", () => ({
 const config = { sessionId: "task-1", providerId: "lmstudio", modelId: "local-model", apiKey: "old-key" }
 const startInput = { config, interactive: true } as Parameters<SdkSessionLifecycle["startNewSession"]>[0]
 
-function setup() {
+function setup(useRealScheduler = false) {
 	const host = {
 		start: vi.fn().mockResolvedValue({ sessionId: "task-1" }),
 		restore: vi.fn(),
@@ -22,6 +23,7 @@ function setup() {
 	}
 	createHost.mockResolvedValue(host)
 	let coordinator: SdkProviderChangeCoordinator
+	let scheduler: SdkSessionRebuildScheduler | undefined
 	const sessions = new SdkSessionLifecycle({
 		mcpHub: {} as never,
 		requestToolApproval: vi.fn(),
@@ -29,10 +31,12 @@ function setup() {
 		onSessionEvent: vi.fn(),
 		onSendComplete: vi.fn(),
 		onSendError: vi.fn(),
+		onDidBecomeIdle: () => scheduler?.sessionBecameIdle(),
 		onActiveSessionReplacementStarted: (session) => coordinator.handleActiveSessionReplacementStarted(session),
 		onActiveSessionReplacementFinished: (session) => coordinator.handleActiveSessionReplacementFinished(session),
 	})
-	const request = vi.fn()
+	scheduler = useRealScheduler ? new SdkSessionRebuildScheduler({ sessions }) : undefined
+	const request = vi.fn((...args: Parameters<SdkSessionRebuildScheduler["request"]>) => scheduler?.request(...args))
 	coordinator = new SdkProviderChangeCoordinator({
 		sessions,
 		stateManager: {
@@ -46,17 +50,44 @@ function setup() {
 		getTask: () => undefined,
 		getWorkspaceRoot: async () => "/workspace",
 		loadInitialMessages: async () => undefined,
-		buildStartSessionInput: () => startInput,
+		buildStartSessionInput: (config) => ({ ...startInput, config }),
 		postStateToWebview: async () => {},
 		rebuilds: { request },
 	})
-	return { sessions, coordinator, host, request }
+	return { sessions, coordinator, host, request, scheduler }
 }
 
 describe("provider edits during session installation", () => {
 	afterEach(() => {
 		vi.useRealTimers()
 		vi.clearAllMocks()
+	})
+
+	it("refreshes credentials before a queued turn while deferring the full rebuild", async () => {
+		vi.useFakeTimers()
+		const { sessions, coordinator, host, scheduler } = setup(true)
+		await sessions.startNewSession(startInput)
+		sessions.setQueuedPromptCount(1)
+		sessions.setRunning(false)
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		await vi.advanceTimersByTimeAsync(350)
+		expect(host.start).toHaveBeenCalledTimes(1)
+		expect(host.stop).not.toHaveBeenCalled()
+
+		await coordinator.applyPendingConnectionUpdateBeforeModelRequest()
+		expect(host.updateSuspendedSessionConnection).toHaveBeenCalledExactlyOnceWith(
+			"task-1",
+			expect.objectContaining({ apiKey: "new-key", baseUrl: "http://localhost:4321/v1" }),
+		)
+		expect(host.start).toHaveBeenCalledTimes(1)
+
+		sessions.setQueuedPromptCount(0)
+		await scheduler!.waitUntilSettled()
+		expect(host.start).toHaveBeenCalledTimes(2)
+		expect(host.start).toHaveBeenLastCalledWith(
+			expect.objectContaining({ config: expect.objectContaining({ apiKey: "new-key" }) }),
+		)
 	})
 
 	it.each([
@@ -120,7 +151,7 @@ describe("provider edits during session installation", () => {
 		const pending = Promise.withResolvers<{ sessionId: string; startResult: { sessionId: string } }>()
 		host.restore.mockReturnValue(pending.promise)
 		const restoring = sessions.restoreActiveSession({ sessionId: "task-1" } as never)
-		await queuedRebuild()
+		await queuedRebuild({ isCurrent: () => true })
 		expect(host.start).toHaveBeenCalledTimes(1)
 		expect(host.stop).not.toHaveBeenCalled()
 

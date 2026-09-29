@@ -33,6 +33,8 @@ const TRAY_QUIT_MENU_ID: &str = "tray-quit";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
 #[cfg(any(target_os = "macos", test))]
+const EXPORT_DIAGNOSTICS_MENU_ID: &str = "export-diagnostics";
+#[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
@@ -45,6 +47,7 @@ enum DesktopAction {
     NewSession,
     OpenSettings,
     CheckForUpdates,
+    ExportDiagnostics,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -1233,6 +1236,7 @@ fn show_session_notification(
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<DesktopAction> {
     match menu_id {
+        EXPORT_DIAGNOSTICS_MENU_ID => Some(DesktopAction::ExportDiagnostics),
         VIEW_ZOOM_IN_MENU_ID => Some(DesktopAction::ZoomIn),
         VIEW_ZOOM_OUT_MENU_ID => Some(DesktopAction::ZoomOut),
         VIEW_ZOOM_RESET_MENU_ID => Some(DesktopAction::ZoomReset),
@@ -1270,12 +1274,21 @@ fn setup_application_menu(
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
 
+    let export_diagnostics = MenuItem::with_id(
+        app,
+        EXPORT_DIAGNOSTICS_MENU_ID,
+        "Export Diagnostics…",
+        true,
+        None::<&str>,
+    )?;
+    let mut help_menu = None;
     let mut view_menu = None;
     for item in menu.items()? {
         if let MenuItemKind::Submenu(submenu) = item {
-            if submenu.text()? == "View" {
-                view_menu = Some(submenu);
-                break;
+            match submenu.text()?.as_str() {
+                "View" => view_menu = Some(submenu),
+                "Help" => help_menu = Some(submenu),
+                _ => {}
             }
         }
     }
@@ -1286,6 +1299,17 @@ fn setup_application_menu(
         let view_menu =
             Submenu::with_items(app, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
         menu.append(&view_menu)?;
+    }
+
+    if let Some(help_menu) = help_menu {
+        help_menu.append(&export_diagnostics)?;
+    } else {
+        menu.append(&Submenu::with_items(
+            app,
+            "Help",
+            true,
+            &[&export_diagnostics],
+        )?)?;
     }
 
     app.set_menu(menu)?;
@@ -1670,7 +1694,7 @@ mod tests {
     }
 
     #[test]
-    fn application_menu_ids_map_to_zoom_actions() {
+    fn application_menu_ids_map_to_desktop_actions() {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_IN_MENU_ID),
             Some(DesktopAction::ZoomIn)
@@ -1682,6 +1706,14 @@ mod tests {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_RESET_MENU_ID),
             Some(DesktopAction::ZoomReset)
+        );
+        assert_eq!(
+            application_menu_action(EXPORT_DIAGNOSTICS_MENU_ID),
+            Some(DesktopAction::ExportDiagnostics)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::ExportDiagnostics).unwrap(),
+            serde_json::json!({ "type": "export-diagnostics" })
         );
         assert_eq!(application_menu_action("unknown"), None);
     }

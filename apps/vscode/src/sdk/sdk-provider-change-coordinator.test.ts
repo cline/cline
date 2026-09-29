@@ -124,7 +124,7 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(queuedRebuild).toBeTypeOf("function")
 
 		options.sessions.getActiveSession.mockReturnValue(replacementSession)
-		await queuedRebuild?.()
+		await queuedRebuild?.({ isCurrent: () => true })
 
 		expect(options.sessionConfigBuilder.build).not.toHaveBeenCalled()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()

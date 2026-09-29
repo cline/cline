@@ -135,7 +135,10 @@ Owns stateful orchestration:
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
-- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent. It does not implement local-to-cloud handoff.
+- `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
+- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
+- The cloud controller resumes suspended sessions and restores saved tasks. The runtime serializes starts for the same session ID and rejects duplicates.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -163,6 +166,14 @@ Provider-field edits have two coordinated paths in the VS Code host:
 1. The normal idle-session rebuild remains authoritative for the complete
    session configuration, including system-prompt and model metadata that
    cannot be changed in place.
+   Running-turn follow-ups enter Core's prompt queue immediately; they do not
+   wait for a passive provider rebuild that itself waits for the queue to empty.
+   The pre-request connection callback applies current provider fields before
+   those queued turns issue inference. Idle continuations still flush debounced
+   provider edits and wait for rebuild settlement. Both the rebuild drain and
+   its settlement barrier treat queued prompts as busy, including the gap
+   between turns, and yield until Core reports an empty queue.
+
 2. While a turn is running, the host retains the latest connection-scoped
    edit and uses a host-local root-runtime callback to apply it before request
    preparation and recheck it immediately before the provider stream opens.
@@ -547,6 +558,12 @@ Design implication:
   root usage and teammate usage as separate buckets, then derives aggregate
   totals from those buckets while telemetry remains scoped to the primary
   lead/root agent.
+- Usage events report non-reasoning `outputTokens` and a separate optional
+  `reasoningTokenCount` delta. `RuntimeEventAdapter` derives both deltas from
+  cumulative runtime usage; the hub's `usage.updated.delta` payload preserves
+  them when `HubRuntimeHost` reconstructs the event. `task.tokens` telemetry
+  likewise reports reasoning separately from `tokensOut`. Provider billing
+  still includes reasoning tokens at the output rate.
 
 ### 4. Settings Mutation Boundary
 

@@ -92,7 +92,7 @@ jobs:
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: 1.3.14
+                  bun-version: "1.4.2"
 
             # Single root install resolves the entire bun workspace (apps/vscode,
             # webview-ui, testing-platform and the @cline/* SDK symlinks) at once,
@@ -144,7 +144,7 @@ jobs:
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: 1.3.14
+                  bun-version: "1.4.2"
 
             # Single root install resolves the entire bun workspace at once (replaces
             # the per-package `npm ci` steps for apps/vscode + webview-ui).
@@ -284,7 +284,7 @@ jobs:
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: 1.3.14
+                  bun-version: "1.4.2"
 
             # Single root install resolves the whole bun workspace, including the
             # testing-platform package, so the separate per-package `npm ci` steps
