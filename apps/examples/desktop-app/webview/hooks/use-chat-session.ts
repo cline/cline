@@ -3770,7 +3770,6 @@ export function useChatSession(environmentId: string) {
 			const leavingTaskWorktree = isTaskWorktreePath(
 				prev.workspaceRoot || prev.cwd || "",
 			);
-			// Restore the remembered target after viewing a session on another target.
 			const switchingTarget = prev.executionTarget !== initial.executionTarget;
 			return {
 				...prev,

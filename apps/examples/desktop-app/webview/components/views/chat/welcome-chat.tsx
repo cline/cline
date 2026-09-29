@@ -265,8 +265,7 @@ export function WelcomeScreen({
 		});
 	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
 
-	// Like local workspace restoration, publish the saved selection only once
-	// it is usable. Until then the existing empty-repository send guard applies.
+	// Keep sending blocked until the saved repository and branch are validated.
 	useEffect(() => {
 		if (
 			!cloudModeActive ||

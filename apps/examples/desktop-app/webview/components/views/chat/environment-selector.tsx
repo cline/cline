@@ -106,8 +106,7 @@ export function EnvironmentSelector({
 			: Laptop;
 
 	const selectEnvironment = async (environmentId: string) => {
-		// An explicit Local pick must override a remembered Cloud preference,
-		// even when an automatic fallback already displays Local.
+		// Clicking Local must save the choice even after an automatic fallback.
 		if (
 			busy ||
 			(!cloudSelected &&
@@ -120,8 +119,7 @@ export function EnvironmentSelector({
 			if (environmentId !== activeEnvironmentId) {
 				await onSelectEnvironment(environmentId);
 			}
-			// Picking "Local" is an explicit choice over Cloud even from an SSH
-			// host. Commit that choice only after the environment switch succeeds.
+			// Persist the choice only after a successful environment switch.
 			if (cloudSelected || environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID)
 				onSelectExecutionTarget?.("local");
 		} catch {

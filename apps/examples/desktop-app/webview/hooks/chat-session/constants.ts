@@ -41,10 +41,6 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	missionTimeIntervalMs: undefined,
 };
 
-/**
- * Config for a fresh thread: the remembered provider/model/workspace, on the
- * remembered execution target unless `options.executionTarget` pins one.
- */
 export function getInitialChatConfig(
 	environmentId: string,
 	options?: { executionTarget?: ExecutionTarget },
@@ -74,7 +70,7 @@ export function getInitialChatConfig(
 		workspaceRoot: workspaceSelection.lastWorkspace,
 		cwd: workspaceSelection.lastWorkspace,
 	};
-	// Cloud is only offered for the local environment; SSH hosts run locally.
+	// Cloud preferences apply only to the local environment.
 	const executionTarget =
 		options?.executionTarget ??
 		(environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
@@ -83,7 +79,6 @@ export function getInitialChatConfig(
 	if (executionTarget !== "cloud") {
 		return local;
 	}
-	// Same shape as the Local → Cloud switch: cloud runs on the Cline provider.
 	return {
 		...local,
 		executionTarget: "cloud",

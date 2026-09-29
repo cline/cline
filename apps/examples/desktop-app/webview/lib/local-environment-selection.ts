@@ -1,6 +1,5 @@
 import { writeExecutionTargetToWindow } from "./model-selection";
 
-/** Coordinate the disconnect event with the command that explicitly picks Local. */
 export function createLocalEnvironmentSelection() {
 	let pending = 0;
 	return {
@@ -8,8 +7,7 @@ export function createLocalEnvironmentSelection() {
 			pending += 1;
 			try {
 				await disconnect();
-				// A newly mounted draft must read Local, but a failed disconnect
-				// must not change the user's remembered target.
+				// Save Local after disconnect succeeds and before the draft mounts.
 				writeExecutionTargetToWindow("local");
 				selectDraft();
 			} finally {
@@ -17,8 +15,7 @@ export function createLocalEnvironmentSelection() {
 			}
 		},
 		onDisconnected(selectDraft: () => void) {
-			// The sidecar broadcasts before replying. The explicit selection
-			// owns navigation until its command settles, including deferred UI.
+			// Disconnect events arrive before the command replies; let select navigate.
 			if (pending === 0) selectDraft();
 		},
 	};

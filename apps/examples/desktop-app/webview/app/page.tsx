@@ -1209,9 +1209,7 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
-	// Re-evaluate the account-targeted flag after sign-in changes. Null until
-	// the first fetch settles so a thread remembered on Cloud is not bounced
-	// to Local before the flag is known.
+	// Wait for the flag before falling back from remembered Cloud to Local.
 	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState<
 		boolean | null
 	>(null);
@@ -1372,8 +1370,7 @@ function ChatThreadPane({
 	const activeWorkspaceCwd = isCloudSession
 		? ""
 		: (config.cwd || config.workspaceRoot || "").trim();
-	// Local settings to restore on a Cloud → Local switch. A thread that opened
-	// on Cloud has none captured yet and falls back to the remembered ones.
+	// Threads opened on Cloud have no captured Local config.
 	const localConfigRef = useRef<Pick<
 		ChatSessionConfig,
 		"provider" | "model" | "apiKey" | "workspaceRoot" | "cwd"
@@ -2133,7 +2130,6 @@ function ChatThreadPane({
 						workspaceRoot: prev.workspaceRoot,
 						cwd: prev.cwd,
 					};
-					// Restore the model remembered for Cloud.
 					const remembered = readModelSelectionStorageFromWindow("cloud");
 					return {
 						...prev,
@@ -2156,11 +2152,8 @@ function ChatThreadPane({
 					provider: local.provider,
 					model: local.model,
 					apiKey: local.apiKey,
-					// A thread that opened on Cloud never captured a local workspace;
-					// prefer the one workspace discovery already validated over the
-					// raw remembered path (which may no longer exist), but fall back
-					// to the remembered one if discovery has not returned yet so the
-					// persistence effect never records an empty workspace.
+					// Prefer a validated workspace; retain the saved path while discovery
+					// is pending so persistence does not overwrite it with an empty value.
 					workspaceRoot:
 						captured?.workspaceRoot ||
 						prev.workspaceRoot ||
@@ -2184,8 +2177,7 @@ function ChatThreadPane({
 			setPendingAttachments,
 		],
 	);
-	// Only the user's own pick is remembered; the flag-off fallback below
-	// must not overwrite it.
+	// Automatic fallbacks must not overwrite the user's preference.
 	const handleSelectExecutionTarget = useCallback(
 		(target: "local" | "cloud") => {
 			if (target === "cloud" && !cloudAgentsEnabled) {
@@ -2260,8 +2252,7 @@ function ChatThreadPane({
 	}, [abort]);
 	const handleModelChange = useCallback(
 		(nextModel: string) => {
-			// The model picker only persists local picks (the cloud catalog
-			// differs), so cloud picks are remembered here instead.
+			// The shared model picker only persists Local selections.
 			if (config.executionTarget === "cloud") {
 				try {
 					writeModelSelectionStorageToWindow(
@@ -2681,9 +2672,6 @@ function ChatThreadPane({
 					cloudBranch={config.branch ?? ""}
 					onRepoUrlChange={handleCloudRepoUrlChange}
 					onCloudBranchChange={handleCloudBranchChange}
-					// A composer remembered on Cloud keeps its cloud controls (not the
-					// local folder picker) while the flag is still unknown; if the
-					// flag settles false, the effect above moves it to Local.
 					cloudAgentsEnabled={
 						cloudAgentsEnabled ||
 						(cloudAgentsFlagEnabled === null &&
