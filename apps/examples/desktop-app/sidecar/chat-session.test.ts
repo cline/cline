@@ -217,6 +217,95 @@ describe("starting SSH sessions", () => {
 	});
 });
 
+describe("continuing an existing desktop runtime", () => {
+	it.each([
+		"local",
+		"ssh",
+	] as const)("reattaches the %s runtime without replacing its state", async (kind) => {
+		const sessionId = "session-existing-runtime";
+		const start = vi.fn().mockRejectedValue(
+			Object.assign(new Error(`session already exists: ${sessionId}`), {
+				code: "session_already_exists",
+			}),
+		);
+		const record = {
+			sessionId,
+			status: "completed",
+			provider: "cline",
+			model: "existing-model",
+			cwd: "/existing/project",
+			workspaceRoot: "/existing/project",
+		};
+		const get = vi.fn(async () => record);
+		const command = vi.fn(async () => ({}));
+		const messages = [{ role: "user", content: "original prompt" }];
+		const queuedAttachmentFiles = new Map();
+		const ctx = {
+			...localRuntimeContext({ start, get }),
+			liveSessions: new Map([
+				[
+					sessionId,
+					{ config: {}, messages, promptsInQueue: [], queuedAttachmentFiles },
+				],
+			]),
+		} as unknown as SidecarContext;
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing local test binding");
+		binding.kind = kind;
+		binding.hubClient = { command } as unknown as typeof binding.hubClient;
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				sessionId,
+				environmentId: "local",
+				initialMessages: messages,
+				model: "new-model",
+			},
+		});
+
+		expect(result).toMatchObject(record);
+		expect(start).toHaveBeenCalledOnce();
+		expect(command).toHaveBeenCalledWith(
+			"session.attach",
+			{ sessionId },
+			sessionId,
+		);
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			messages,
+			status: "completed",
+			attachedViaHub: true,
+			config: { model: "existing-model" },
+		});
+		expect(ctx.liveSessions.get(sessionId)?.queuedAttachmentFiles).toBe(
+			queuedAttachmentFiles,
+		);
+	});
+
+	it("propagates unrelated start failures", async () => {
+		const error = Object.assign(new Error("Hub unavailable"), {
+			code: "hub_command_timeout",
+		});
+		const start = vi.fn().mockRejectedValue(error);
+		const get = vi.fn();
+		const ctx = {
+			...localRuntimeContext({ start, get }),
+			liveSessions: new Map(),
+		} as unknown as SidecarContext;
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: {
+					sessionId: "existing",
+					environmentId: "local",
+					initialMessages: [{ role: "user", content: "hello" }],
+				},
+			}),
+		).rejects.toBe(error);
+		expect(get).not.toHaveBeenCalled();
+	});
+});
+
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
 		const update = buildSessionConnectionUpdate({

@@ -1014,21 +1014,40 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
-		source: SessionSource.DESKTOP,
-		interactive: true,
-		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(config),
-		sessionMetadata:
-			binding.kind === "ssh"
-				? {
-						remoteEnvironmentId: binding.environmentId,
-						remoteEnvironmentName: binding.remote?.profile.name,
-						remoteHost: binding.remote?.profile.host,
-					}
-				: undefined,
-	});
+	let startResult: Awaited<ReturnType<ClineCore["start"]>>;
+	try {
+		startResult = await manager.start({
+			...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
+			source: SessionSource.DESKTOP,
+			interactive: true,
+			...(initialMessages ? { initialMessages } : {}),
+			toolPolicies: resolveToolPolicies(config),
+			sessionMetadata:
+				binding.kind === "ssh"
+					? {
+							remoteEnvironmentId: binding.environmentId,
+							remoteEnvironmentName: binding.remote?.profile.name,
+							remoteHost: binding.remote?.profile.host,
+						}
+					: undefined,
+		});
+	} catch (error) {
+		if (
+			!requestedSessionId ||
+			(error as { code?: string })?.code !== "session_already_exists"
+		) {
+			throw error;
+		}
+		// History continuation can race with another viewer or revisit a runtime
+		// still owned by the Hub. Reuse that runtime and its canonical state;
+		// handleSend refreshes the connection settings before the next turn.
+		return await handleAttach(ctx, {
+			...request,
+			sessionId: requestedSessionId,
+			config: { ...request.config, environmentId: binding.environmentId },
+		});
+	}
+
 	const sessionId = startResult.sessionId;
 	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
