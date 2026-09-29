@@ -89,27 +89,46 @@ function distanceFromBottom(viewport: HTMLDivElement): number {
 type ReadingAnchor = { element: Element; offsetTop: number };
 
 /**
- * The first row whose bottom edge is below the viewport top: the thing the
- * reader is looking at. Its position relative to the viewport is what must
- * not move when content elsewhere changes height. Consumers wrap the rows in
- * layout containers, so descend through single-child wrappers to the list.
+ * The element the reader is looking at. Its position relative to the viewport
+ * is what must not move when content elsewhere changes height.
+ *
+ * Consumers nest rows inside layout wrappers and add siblings (banners,
+ * notices), so the DOM shape cannot be assumed. Descend from `content`
+ * through whichever child crosses the viewport's top edge; the deepest such
+ * element is the row being read. If none crosses it (the reader is in a gap
+ * between rows), the first child starting below the edge is the anchor.
  */
 function findReadingAnchor(
 	viewport: HTMLDivElement,
 	content: HTMLDivElement,
 ): ReadingAnchor | null {
-	let list: Element = content;
-	while (list.children.length === 1) {
-		list = list.children[0];
-	}
 	const viewportTop = viewport.getBoundingClientRect().top;
-	for (const element of list.children) {
-		const rect = element.getBoundingClientRect();
-		if (rect.bottom > viewportTop) {
-			return { element, offsetTop: rect.top - viewportTop };
+	const anchorFor = (element: Element): ReadingAnchor => ({
+		element,
+		offsetTop: element.getBoundingClientRect().top - viewportTop,
+	});
+
+	let current: Element = content;
+	for (;;) {
+		let crossing: Element | null = null;
+		let firstBelow: Element | null = null;
+		for (const child of current.children) {
+			const rect = child.getBoundingClientRect();
+			if (rect.bottom <= viewportTop) continue;
+			if (rect.top < viewportTop) {
+				crossing = child;
+			} else {
+				firstBelow = child;
+			}
+			break;
 		}
+		if (crossing) {
+			current = crossing;
+			continue;
+		}
+		if (firstBelow) return anchorFor(firstBelow);
+		return current === content ? null : anchorFor(current);
 	}
-	return null;
 }
 
 /**

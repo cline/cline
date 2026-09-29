@@ -573,6 +573,74 @@ describe("@cline/ui agent chat primitives", () => {
 			expect(pinned()).toBe("false");
 		});
 
+		it("anchors on the row being read even when the row list has siblings", async () => {
+			const fireResize = stubResizeObserver();
+			await render(
+				<Conversation>
+					<ConversationViewport>
+						<ConversationContent>
+							<div data-wrapper="column">
+								<div data-wrapper="list">
+									<div data-row="a" />
+									<div data-row="b" />
+									<div data-row="c" />
+								</div>
+								<div data-banner="reconnecting" />
+							</div>
+						</ConversationContent>
+					</ConversationViewport>
+					<PinnedProbe />
+				</Conversation>,
+			);
+			const viewport = getViewport();
+			const scrollTo = mockViewport(viewport, 400);
+			viewport.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+			const rowTops = [0, 100, 200];
+			const rows = [...viewport.querySelectorAll("[data-row]")];
+			rows.forEach((row, index) => {
+				row.getBoundingClientRect = () =>
+					({
+						top: rowTops[index] - viewport.scrollTop,
+						bottom: rowTops[index] + 100 - viewport.scrollTop,
+					}) as DOMRect;
+			});
+			// The wrappers and banner track the rows: column and list span all
+			// of them; the banner sits below the last row.
+			const column = viewport.querySelector(
+				'[data-wrapper="column"]',
+			) as Element;
+			const list = viewport.querySelector('[data-wrapper="list"]') as Element;
+			const banner = viewport.querySelector("[data-banner]") as Element;
+			const spanRows = () =>
+				({
+					top: rowTops[0] - viewport.scrollTop,
+					bottom: rowTops[2] + 100 - viewport.scrollTop,
+				}) as DOMRect;
+			list.getBoundingClientRect = spanRows;
+			column.getBoundingClientRect = () =>
+				({
+					top: rowTops[0] - viewport.scrollTop,
+					bottom: rowTops[2] + 140 - viewport.scrollTop,
+				}) as DOMRect;
+			banner.getBoundingClientRect = () =>
+				({
+					top: rowTops[2] + 100 - viewport.scrollTop,
+					bottom: rowTops[2] + 140 - viewport.scrollTop,
+				}) as DOMRect;
+
+			viewport.scrollTop = 120;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			scrollTo.mockClear();
+
+			// Row "a" grows by 150px above the reader; the column's top did not
+			// move, so anchoring on the column would miss this entirely.
+			rowTops[1] += 150;
+			rowTops[2] += 150;
+			viewport.scrollHeight = 650;
+			await fireResize();
+			expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 270 });
+		});
+
 		it("ignores arrow keys aimed at a focused child control", async () => {
 			await render(
 				<Conversation>
