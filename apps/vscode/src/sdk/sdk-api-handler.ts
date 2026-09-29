@@ -7,6 +7,7 @@
 // returned here. Both share the same provider/model/key/baseUrl resolution so
 // there is no second source of truth.
 
+import { CORE_BUILD_VERSION, SessionSource } from "@cline/core"
 import { type ApiHandler, createHandler, type ProviderConfig, resolveProviderRequestHeaders } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
@@ -29,13 +30,6 @@ import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 
 /**
- * Surface tag for standalone requests, mirroring `SessionSource.VSCODE` in
- * `@cline/core`. Inlined rather than imported so this module stays free of a
- * core dependency it needs nothing else from.
- */
-const REQUEST_HEADER_SOURCE = "vscode"
-
-/**
  * Resolve the request headers for a standalone handler.
  *
  * Delegates to the same `resolveProviderRequestHeaders` policy the session path
@@ -55,8 +49,8 @@ function resolveRequestHeaders(
 ): Record<string, string> | undefined {
 	return resolveProviderRequestHeaders({
 		providerId,
-		source: REQUEST_HEADER_SOURCE,
-		defaultSource: REQUEST_HEADER_SOURCE,
+		source: SessionSource.VSCODE,
+		defaultSource: SessionSource.VSCODE,
 		client: {
 			name: client?.name ?? ClineClient.VSCode,
 			version: client?.version ?? ExtensionRegistryInfo.version,
@@ -64,10 +58,10 @@ function resolveRequestHeaders(
 			platformVersion: client?.platformVersion,
 			isMultiRoot: client?.isMultiRoot,
 		},
-		// The extension bundles the SDK core rather than depending on a separately
-		// versioned one, so its own version is the core version — the convention
-		// `buildBasicClineHeaders` (EnvUtils) already uses for Cline API calls.
-		coreVersion: ExtensionRegistryInfo.version,
+		// The core's own build version, which is what a session from
+		// `local-runtime-bootstrap` sends as `X-CORE-VERSION` — not the
+		// extension's version, so the two paths agree by construction.
+		coreVersion: CORE_BUILD_VERSION,
 		headers: {
 			// Custom headers the user configured for this provider in
 			// providers.json, layered under the required headers exactly as the

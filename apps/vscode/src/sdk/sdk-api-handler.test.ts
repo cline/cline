@@ -1,3 +1,4 @@
+import { CORE_BUILD_VERSION } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { version as extensionVersion } from "../../package.json"
 import { buildSdkProviderConfig } from "./sdk-api-handler"
@@ -160,7 +161,7 @@ describe("buildSdkProviderConfig", () => {
 		expect(providerConfig.headers).toMatchObject({
 			"X-CLIENT-TYPE": "VSCode Extension",
 			"X-CLIENT-VERSION": extensionVersion,
-			"X-CORE-VERSION": extensionVersion,
+			"X-CORE-VERSION": CORE_BUILD_VERSION,
 			"User-Agent": `Cline/${extensionVersion}`,
 		})
 	})
