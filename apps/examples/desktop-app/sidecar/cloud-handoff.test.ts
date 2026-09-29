@@ -1,4 +1,5 @@
 import {
+	CloudHandoffGitPreflightError,
 	CloudHandoffTranscriptMismatchError,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
@@ -14,6 +15,7 @@ import {
 	updateHandoffMetadataOrThrow,
 } from "./cloud-handoff";
 import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
+import * as gitPreparation from "./cloud-handoff-git";
 import {
 	CloudHandoffCreationRejectedError,
 	CloudHandoffSeedRejectedError,
@@ -24,13 +26,15 @@ import {
 	CloudSessionManager,
 	type CreateCloudSessionInput,
 } from "./cloud-sessions";
+import { handleCommand } from "./commands";
+import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
 	localRuntimeContext,
 	localSessionManager,
 } from "./session-test-helpers";
-import type { SidecarContext } from "./types";
+import type { SidecarContext, SidecarWebSocketClient } from "./types";
 
 // Git preflight shells out to `git` and requires a pushed github.com branch;
 // the full-transaction test below swaps in a deterministic repository state.
@@ -72,6 +76,24 @@ describe("cloud handoff gates", () => {
 			}),
 		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
 		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("requires the trusted approval connection before Git preparation dispatch", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+		const request = {
+			action: "prepare_handoff_git",
+			sessionId,
+			gitPreparationId: "unknown",
+		};
+		await expect(
+			handleCommand(ctx, "chat_session_command", { request }),
+		).rejects.toThrow("trusted desktop connection");
+		const connection = {
+			data: { canApproveTools: true },
+		} as SidecarWebSocketClient;
+		await expect(
+			handleCommand(ctx, "chat_session_command", { request }, { connection }),
+		).rejects.toThrow("review the preparation plan");
 	});
 
 	it("exempts a persisted pending handoff from the Cloud sessions gate", async () => {
@@ -697,6 +719,140 @@ describe("cloud handoff transaction", () => {
 			create,
 		};
 	}
+
+	it.each([
+		"idle",
+		"busy",
+		"expanding",
+	])("preparation consumes approval once and locks sibling sessions (%s)", async (state) => {
+		const busy = state === "busy";
+		const f = createHandoffFixture();
+		vi.mocked(preflightCloudHandoffGit).mockRejectedValue(
+			new CloudHandoffGitPreflightError("dirty_worktree", "dirty"),
+		);
+		const plan: gitPreparation.HandoffGitPlan = {
+			id: "plan-id",
+			cwd: "/workspace/project",
+			root: "/workspace/project",
+			repoUrl: "https://github.com/cline/test",
+			pushUrl: "git@github.com:cline/test.git",
+			remote: "origin",
+			branch: "cline/handoff-test",
+			sourceBranch: "main",
+			headSha: f.headSha,
+			treeSha: "b".repeat(40),
+			indexTree: "c".repeat(40),
+			status: " M file.txt\0",
+			files: [{ path: "file.txt", status: " M" }],
+			commits: [],
+		};
+		const inspect = vi
+			.spyOn(gitPreparation, "inspectHandoffGit")
+			.mockResolvedValue(plan);
+		const apply = vi
+			.spyOn(gitPreparation, "applyHandoffGit")
+			.mockResolvedValue(undefined);
+		let expansion: ReturnType<typeof vi.spyOn> | undefined;
+		try {
+			const preparation = await handleChatSessionCommand(f.ctx, {
+				action: "prepare_handoff",
+				sessionId: f.sourceSessionId,
+			});
+			expect(preparation).toEqual({
+				gitPreparation: gitPreparation.previewHandoffGit(plan),
+			});
+			expect(apply).not.toHaveBeenCalled();
+			expect(f.create).not.toHaveBeenCalled();
+			const source = f.ctx.liveSessions.get(f.sourceSessionId);
+			if (!source) throw new Error("missing fixture source");
+			f.ctx.liveSessions.set("sibling", {
+				...source,
+				busy,
+				status: busy ? "running" : "idle",
+				config: { ...source.config, cwd: "/workspace/project/subdirectory" },
+			});
+			if (busy) {
+				await expect(
+					handleChatSessionCommand(f.ctx, {
+						action: "prepare_handoff_git",
+						sessionId: f.sourceSessionId,
+						gitPreparationId: plan.id,
+					}),
+				).rejects.toThrow("workspace");
+				expect(apply).not.toHaveBeenCalled();
+				return;
+			}
+			let sendDuringExpansion: Promise<unknown> | undefined;
+			let releaseExpansion: (() => void) | undefined;
+			if (state === "expanding") {
+				expansion = vi
+					.spyOn(pluginCommands, "runPluginSlashCommand")
+					.mockImplementation(async () => {
+						await new Promise<void>((resolve) => {
+							releaseExpansion = resolve;
+						});
+						return { submitPrompt: "edit this" };
+					});
+				sendDuringExpansion = handleChatSessionCommand(f.ctx, {
+					action: "send",
+					sessionId: "sibling",
+					prompt: "/test-prep",
+				});
+				await vi.waitFor(() => expect(releaseExpansion).toBeDefined());
+			}
+			apply.mockImplementation(async () => {
+				if (sendDuringExpansion) {
+					const rejected =
+						expect(sendDuringExpansion).rejects.toThrow("workspace");
+					releaseExpansion?.();
+					await rejected;
+				}
+				await expect(
+					handleChatSessionCommand(f.ctx, {
+						action: "send",
+						sessionId: "sibling",
+						config: { cwd: "/workspace/project/subdirectory" },
+						prompt: "edit this",
+					}),
+				).rejects.toThrow("workspace");
+			});
+			await expect(
+				handleChatSessionCommand(f.ctx, {
+					action: "prepare_handoff_git",
+					sessionId: f.sourceSessionId,
+					gitPreparationId: plan.id,
+				}),
+			).resolves.toEqual({ ok: true });
+			expect(apply).toHaveBeenCalledExactlyOnceWith(plan);
+			await expect(
+				handleChatSessionCommand(f.ctx, {
+					action: "prepare_handoff_git",
+					sessionId: f.sourceSessionId,
+					gitPreparationId: plan.id,
+				}),
+			).rejects.toThrow("review the preparation plan");
+		} finally {
+			expansion?.mockRestore();
+			inspect.mockRestore();
+			apply.mockRestore();
+		}
+	});
+
+	it("never prepares a different Git state for an existing uncertain handoff", async () => {
+		const f = createHandoffFixture(true, {
+			cloudHandoffIntent: { fingerprint: {} },
+		});
+		vi.mocked(preflightCloudHandoffGit).mockRejectedValue(
+			new CloudHandoffGitPreflightError("dirty_worktree", "dirty"),
+		);
+		await expect(
+			handleChatSessionCommand(f.ctx, {
+				action: "prepare_handoff",
+				sessionId: f.sourceSessionId,
+			}),
+		).rejects.toThrow("restore the original handoff commit");
+		expect(f.create).not.toHaveBeenCalled();
+	});
 
 	it("preserves uncertain creation across restart and adopts it once visible", async () => {
 		const first = createHandoffFixture();

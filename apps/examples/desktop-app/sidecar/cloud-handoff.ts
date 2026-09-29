@@ -1,8 +1,10 @@
+import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildCloudHandoffDashboardUrl,
 	type ClineCore,
 	type CloudHandoffFingerprint,
+	CloudHandoffGitPreflightError,
 	type CloudHandoffMetadata,
 	CloudHandoffTranscriptMismatchError,
 	clearCloudHandoffMetadata,
@@ -18,6 +20,13 @@ import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
 import { saveCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
+import {
+	applyHandoffGit,
+	type HandoffGitPlan,
+	type HandoffGitPreview,
+	inspectHandoffGit,
+	previewHandoffGit,
+} from "./cloud-handoff-git";
 import {
 	CloudHandoffCreationRejectedError,
 	CloudHandoffSeedRejectedError,
@@ -36,6 +45,7 @@ import { isCloudAgentsEnabled } from "./feature-flags";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
+	workspaceIsWithin,
 	workspacePathKey,
 } from "./session-config";
 import { readSessionMetadata } from "./session-data/common";
@@ -91,7 +101,12 @@ async function assertHandoffIdle(
 	const persisted = await manager.get(sessionId);
 	const workspaceKey =
 		workspacePathKey(live?.config) ?? workspacePathKey(persisted);
-	if (workspaceKey && ctx.restoringWorkspacePaths.has(workspaceKey)) {
+	if (
+		workspaceKey &&
+		[...ctx.restoringWorkspacePaths].some((locked) =>
+			workspaceIsWithin(workspaceKey, locked),
+		)
+	) {
 		throw new Error(
 			"Wait for the workspace restore to finish before handing off to cloud.",
 		);
@@ -201,7 +216,10 @@ async function assertCloudHandoffAvailable(
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
-	options: { pinnedModelId?: string } = {},
+	options: {
+		pinnedModelId?: string;
+		readGit?: (cwd: string) => Promise<CloudHandoffGitState>;
+	} = {},
 ): Promise<PreparedCloudHandoff> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
@@ -225,7 +243,9 @@ async function prepareCloudHandoff(
 	};
 	const cwd = readWorkspacePath(config) ?? readWorkspacePath(persisted);
 	if (!cwd) throw new Error("Cloud handoff requires a workspace path.");
-	const git = await preflightCloudHandoffGit({ cwd });
+	const git = options.readGit
+		? await options.readGit(cwd)
+		: await preflightCloudHandoffGit({ cwd });
 	const cloud = getCloudSessionManager(ctx);
 	const { organizationId } = await cloud.prepareHandoffRepository(git.repoUrl);
 	const localModelId = String(
@@ -288,12 +308,121 @@ function readRequestedHandoffFingerprint(
 	});
 }
 
+const gitPlans = new WeakMap<
+	SidecarContext,
+	Map<string, { plan: HandoffGitPlan; fingerprint: CloudHandoffFingerprint }>
+>();
+const gitPreparations = new WeakMap<SidecarContext, Set<string>>();
+
+async function assertNoPendingHandoff(ctx: SidecarContext, sessionId: string) {
+	const persisted =
+		await getSessionRuntimeBinding(ctx).sessionManager.get(sessionId);
+	const metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
+	if (readCloudHandoffMetadata(metadata) || metadata?.cloudHandoffIntent) {
+		throw new Error(
+			"This session already has a pending cloud handoff. Open its cloud workspace, or restore the original handoff commit and a clean working tree before retrying.",
+		);
+	}
+}
+
 export async function handlePrepareHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
-): Promise<PreparedCloudHandoff> {
+): Promise<PreparedCloudHandoff | { gitPreparation: HandoffGitPreview }> {
 	await assertCloudHandoffAvailable(ctx, request.sessionId?.trim());
-	return await prepareCloudHandoff(ctx, request);
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	if (isCloudHandoffInProgress(ctx, sessionId))
+		throw new Error("Handoff is already in progress.");
+	gitPlans.get(ctx)?.delete(sessionId);
+	let plan: HandoffGitPlan | undefined;
+	const prepared = await prepareCloudHandoff(ctx, request, {
+		readGit: async (cwd) => {
+			try {
+				return await preflightCloudHandoffGit({ cwd });
+			} catch (error) {
+				if (
+					!(error instanceof CloudHandoffGitPreflightError) ||
+					![
+						"dirty_worktree",
+						"missing_upstream",
+						"remote_branch_missing",
+						"unpushed_commits",
+					].includes(error.code)
+				)
+					throw error;
+				await assertNoPendingHandoff(ctx, sessionId);
+				plan = await inspectHandoffGit(cwd);
+				return {
+					repoUrl: plan.repoUrl,
+					branch: plan.branch,
+					headSha: plan.headSha,
+				};
+			}
+		},
+	});
+	if (!plan) return prepared;
+	let plans = gitPlans.get(ctx);
+	if (!plans) {
+		plans = new Map();
+		gitPlans.set(ctx, plans);
+	}
+	plans.set(sessionId, { plan, fingerprint: prepared.fingerprint });
+	return { gitPreparation: previewHandoffGit(plan) };
+}
+
+export async function handlePrepareHandoffGit(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	withWorkspaceLock: (cwd: string, work: () => Promise<void>) => Promise<void>,
+): Promise<{ ok: true }> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const approved = gitPlans.get(ctx)?.get(sessionId);
+	if (!approved || approved.plan.id !== request.gitPreparationId)
+		throw new Error("Run /cloud again to review the preparation plan.");
+	if (
+		isCloudHandoffInProgress(ctx, sessionId) ||
+		activeDeleteRequests.get(ctx)?.has(sessionId) ||
+		activeMetadataUpdateRequests.get(ctx)?.has(sessionId)
+	)
+		throw new Error("Wait for the current session operation to finish.");
+	gitPlans.get(ctx)?.delete(sessionId);
+	let active = gitPreparations.get(ctx);
+	if (!active) {
+		active = new Set();
+		gitPreparations.set(ctx, active);
+	}
+	active.add(sessionId);
+	try {
+		await assertCloudHandoffAvailable(ctx, sessionId);
+		await assertNoPendingHandoff(ctx, sessionId);
+		const current = await prepareCloudHandoff(ctx, request, {
+			readGit: async (cwd) => {
+				if (resolve(cwd) !== approved.plan.cwd)
+					throw new Error(
+						"The workspace changed. Run /cloud again before publishing.",
+					);
+				return {
+					repoUrl: approved.plan.repoUrl,
+					branch: approved.plan.branch,
+					headSha: approved.plan.headSha,
+				};
+			},
+		});
+		if (
+			!cloudHandoffFingerprintsEqual(current.fingerprint, approved.fingerprint)
+		)
+			throw new Error(
+				"Cloud settings changed. Run /cloud again before publishing.",
+			);
+		await withWorkspaceLock(approved.plan.root, () =>
+			applyHandoffGit(approved.plan),
+		);
+		return { ok: true };
+	} finally {
+		active.delete(sessionId);
+	}
 }
 
 async function handleHandoffOnce(
@@ -876,7 +1005,7 @@ function beginActiveSessionDelete(
 	sessionId: string,
 ): () => void {
 	const lockContext = handoffLockContext(ctx);
-	if (handoffRequests.get(lockContext)?.has(sessionId)) {
+	if (isCloudHandoffInProgress(lockContext, sessionId)) {
 		throw new Error("Wait for the cloud handoff to finish before deleting.");
 	}
 	let requests = activeDeleteRequests.get(lockContext);
@@ -901,7 +1030,7 @@ export function beginSessionMetadataUpdate(
 	sessionId: string,
 ): () => void {
 	const lockContext = handoffLockContext(ctx);
-	if (handoffRequests.get(lockContext)?.has(sessionId)) {
+	if (isCloudHandoffInProgress(lockContext, sessionId)) {
 		throw new Error(
 			"Wait for the cloud handoff to finish before updating session metadata.",
 		);
@@ -957,6 +1086,8 @@ export async function handleHandoff(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (gitPreparations.get(ctx)?.has(sourceSessionId))
+		throw new Error("Wait for Git preparation to finish before handing off.");
 	if (activeDeleteRequests.get(ctx)?.has(sourceSessionId)) {
 		throw new Error("Wait for session deletion to finish before handing off.");
 	}
@@ -1002,5 +1133,8 @@ export function isCloudHandoffInProgress(
 	ctx: SidecarContext,
 	sessionId: string,
 ): boolean {
-	return handoffRequests.get(ctx)?.has(sessionId) ?? false;
+	return Boolean(
+		handoffRequests.get(ctx)?.has(sessionId) ||
+			gitPreparations.get(ctx)?.has(sessionId),
+	);
 }

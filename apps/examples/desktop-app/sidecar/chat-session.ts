@@ -48,6 +48,7 @@ import {
 	beginActiveSessionSend,
 	handleHandoff,
 	handlePrepareHandoff,
+	handlePrepareHandoffGit,
 	isCloudHandoffInProgress,
 } from "./cloud-handoff";
 import {
@@ -70,6 +71,7 @@ import { runPluginSlashCommand } from "./plugin-commands";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
+	workspaceIsWithin,
 	workspacePathKey,
 } from "./session-config";
 import {
@@ -244,12 +246,17 @@ async function withWorkspaceRestoreLock<T>(
 	work: () => Promise<T>,
 ): Promise<T> {
 	const key = resolve(workspacePath);
-	if (ctx.restoringWorkspacePaths.has(key)) {
+	if (
+		[...ctx.restoringWorkspacePaths].some(
+			(locked) =>
+				workspaceIsWithin(key, locked) || workspaceIsWithin(locked, key),
+		)
+	) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	for (const session of ctx.liveSessions.values()) {
 		if (
-			workspacePathKey(session.config) === key &&
+			workspaceIsWithin(workspacePathKey(session.config), key) &&
 			hasActiveWorkspaceTurn(session)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
@@ -1320,7 +1327,9 @@ async function handleSendOnce(
 	);
 	if (
 		lockedWorkspaceKey &&
-		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+		[...ctx.restoringWorkspacePaths].some((locked) =>
+			workspaceIsWithin(lockedWorkspaceKey, locked),
+		)
 	) {
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
 	}
@@ -1362,6 +1371,14 @@ async function handleSendOnce(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
+	if (
+		lockedWorkspaceKey &&
+		[...ctx.restoringWorkspacePaths].some((locked) =>
+			workspaceIsWithin(lockedWorkspaceKey, locked),
+		)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -2150,6 +2167,10 @@ const ACTION_HANDLERS: Record<
 	attach: handleAttach,
 	send: handleSend,
 	prepare_handoff: handlePrepareHandoff,
+	prepare_handoff_git: (ctx, request) =>
+		handlePrepareHandoffGit(ctx, request, (cwd, work) =>
+			withWorkspaceRestoreLock(ctx, cwd, work),
+		),
 	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
