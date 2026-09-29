@@ -30,6 +30,7 @@ import {
 } from "../providers/local-provider-registry";
 import {
 	normalizeLastUsedProvider,
+	resolveEffectiveLastUsedProviderId,
 	resolveStoredProviderSettings,
 } from "./provider-settings-last-used";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
@@ -172,20 +173,12 @@ export class ProviderSettingsManager {
 			const parsed = JSON.parse(raw) as unknown;
 			const result = StoredProviderSettingsSchema.safeParse(parsed);
 			if (result.success) {
-				// Repair the pointer in memory only; disk is healed by the next
-				// write, since reads must not race other processes for the file.
-				const data = normalizeLastUsedProvider(result.data);
-				if (data.lastUsedProvider !== result.data.lastUsedProvider) {
-					sdkDebug(
-						`providers.read lastUsedProvider=${result.data.lastUsedProvider} has no settings; using ${data.lastUsedProvider ?? "none"}`,
-					);
-				}
-				registerConfiguredProvidersFromSettings(data);
-				const clineAuth = data.providers["cline"]?.settings?.auth;
+				registerConfiguredProvidersFromSettings(result.data);
+				const clineAuth = result.data.providers["cline"]?.settings?.auth;
 				sdkDebug(
-					`providers.read providers=[${Object.keys(data.providers).join(",")}] lastUsed=${data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
+					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
 				);
-				return data;
+				return result.data;
 			}
 		} catch {
 			// Invalid content falls back to a clean state.
@@ -249,9 +242,12 @@ export class ProviderSettingsManager {
 					tokenSource,
 				},
 			},
+			// Resolve the previous pointer before this write: write() repairs a
+			// dangling pointer against the merged state, and an unrelated save
+			// (setLastUsed: false) must not become the fallback by being newest.
 			lastUsedProvider: shouldSetLastUsed
 				? providerId
-				: previous.lastUsedProvider,
+				: resolveEffectiveLastUsedProviderId(previous),
 		};
 		this.write(next);
 		const prevClineAuth = previous.providers["cline"]?.settings?.auth;
@@ -300,7 +296,15 @@ export class ProviderSettingsManager {
 		state: StoredProviderSettings,
 		options: ResolveLastUsedProviderSettingsOptions,
 	): string | undefined {
-		const providerId = state.lastUsedProvider;
+		// read() returns the pointer as stored, so the migration and the
+		// last-used bookkeeping see what is on disk; the repair happens here,
+		// where the pointer is interpreted, and in write().
+		const providerId = resolveEffectiveLastUsedProviderId(state);
+		if (providerId !== state.lastUsedProvider) {
+			sdkDebug(
+				`providers.lastUsed stored=${state.lastUsedProvider ?? "none"} has no usable settings; using ${providerId ?? "none"}`,
+			);
+		}
 		if (
 			providerId === CLINE_PASS_PROVIDER_ID &&
 			options.isClinePassEnabled === false
