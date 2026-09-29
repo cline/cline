@@ -77,6 +77,7 @@ import type {
 import type { SessionRecord } from "../../types/sessions";
 import {
 	type HubClientOptions,
+	HubCommandError,
 	isHubCommandTimeoutError,
 	NodeHubClient,
 	restartLocalHubIfIdleAfterStartupTimeout,
@@ -1305,7 +1306,22 @@ export class HubRuntimeHost implements RuntimeHost {
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
-		await this.client.command("session.detach", { sessionId }, sessionId);
+		try {
+			await this.client.command("session.stop", { sessionId }, sessionId);
+		} catch (error) {
+			// A hub from before session.stop existed answers unsupported_command;
+			// fall back to the viewer-only detach it does understand so a newer
+			// client keeps working against an older shared daemon.
+			if (
+				!(
+					error instanceof HubCommandError &&
+					error.code === "unsupported_command"
+				)
+			) {
+				throw error;
+			}
+			await this.client.command("session.detach", { sessionId }, sessionId);
+		}
 	}
 
 	async dispose(): Promise<void> {

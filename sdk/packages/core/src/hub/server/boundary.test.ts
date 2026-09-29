@@ -1478,6 +1478,51 @@ describe("HubServerTransport boundaries", () => {
 		expect(readSessionCompactionState).toHaveBeenCalledWith("session-1");
 	});
 
+	it("session.stop releases the runtime, cancels its pending approvals, and drops session state", async () => {
+		const stopSession = vi.fn().mockResolvedValue(undefined);
+		const transport = createTransport({ sessionHost: { stopSession } });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+		const resolve = vi.fn();
+		ctx.pendingApprovals.set("approval-1", {
+			sessionId: "session-1",
+			resolve,
+		} as never);
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stop",
+			command: "session.stop",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		expect(reply).toMatchObject({ ok: true, payload: { stopped: true } });
+		expect(stopSession).toHaveBeenCalledWith("session-1");
+		expect(resolve).toHaveBeenCalledWith(
+			expect.objectContaining({ approved: false }),
+		);
+		expect(ctx.pendingApprovals.has("approval-1")).toBe(false);
+		expect(ctx.sessionState.has("session-1")).toBe(false);
+	});
+
+	it("session.stop rejects a missing session id", async () => {
+		const stopSession = vi.fn();
+		const transport = createTransport({ sessionHost: { stopSession } });
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stop-invalid",
+			command: "session.stop",
+			clientId: "owner-client",
+		});
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "invalid_session_stop" },
+		});
+		expect(stopSession).not.toHaveBeenCalled();
+	});
+
 	it("clears compaction sidecar ownership when the owner detaches", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({

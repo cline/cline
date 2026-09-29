@@ -1848,14 +1848,9 @@ async function handleReset(
 	if (sessionId) {
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
-		if (
-			session?.busy ||
-			session?.status === "starting" ||
-			session?.status === "running" ||
-			session?.status === "stopping"
-		) {
-			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
-		}
+		// Leaving a thread must not stop its session: a run in progress keeps
+		// going in the Hub (tray count, completion notification) and the user
+		// can come back to it. Only the sidecar's view of the session is dropped.
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
 		ctx.sessionEnvironmentIds.delete(sessionId);
