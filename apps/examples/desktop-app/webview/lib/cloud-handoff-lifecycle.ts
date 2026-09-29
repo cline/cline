@@ -74,6 +74,7 @@ export type HandoffRpcResolvedContext = {
 };
 
 export type HandoffRpcRejectedContext = {
+	silent?: boolean;
 	handoffAttemptId?: string;
 	error: unknown;
 	nextCommand: string;
@@ -496,7 +497,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				retryDraft: nextCommand ? `/cloud ${nextCommand}` : "/cloud",
 				retryAttachments: sourceAttachments,
 			});
-			toastFailure(error);
+			if (!ctx.silent) toastFailure(error);
 		},
 	};
 }

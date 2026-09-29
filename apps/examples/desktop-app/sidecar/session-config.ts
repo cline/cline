@@ -1,4 +1,14 @@
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
+
+export function workspaceIsWithin(
+	path: string | undefined,
+	root: string,
+): boolean {
+	if (!path) return false;
+	const resolved = resolve(path);
+	const parent = resolve(root);
+	return resolved === parent || resolved.startsWith(`${parent}${sep}`);
+}
 
 type WorkspacePathSource = {
 	cwd?: unknown;
