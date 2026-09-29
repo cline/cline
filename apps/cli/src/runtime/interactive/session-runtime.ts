@@ -543,12 +543,26 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const applyMode = async (mode: "plan" | "act"): Promise<void> => {
+		const previousMode = input.config.mode;
 		await applyInteractiveModeConfig({
 			config: input.config,
 			mode,
 			switchToActModeTool: input.switchToActModeTool,
 		});
-		await restartWithCurrentMessages();
+		try {
+			await restartWithCurrentMessages();
+		} catch (error) {
+			// The next session to start reads config.mode, so a failed restart
+			// must leave the config describing the mode the user still has.
+			if (previousMode === "plan" || previousMode === "act") {
+				await applyInteractiveModeConfig({
+					config: input.config,
+					mode: previousMode,
+					switchToActModeTool: input.switchToActModeTool,
+				}).catch(() => undefined);
+			}
+			throw error;
+		}
 	};
 
 	const sendCurrentTurn = async (

@@ -218,14 +218,16 @@ function App(props: TuiProps) {
 	);
 
 	const toggleMode = useCallback(() => {
-		const previousMode = session.uiMode;
-		const newMode = previousMode === "act" ? "plan" : "act";
+		const newMode = session.uiMode === "act" ? "plan" : "act";
 		session.toggleMode();
-		// The switch restarts the session runtime; if that fails the runtime is
-		// still in the previous mode, so put the UI back and say so instead of
-		// letting the rejection escape and take the whole TUI down.
+		// The switch restarts the session runtime; if that fails, resync the
+		// indicator to the mode the runtime config actually has (the runtime
+		// rolls its config back, and this also holds when two quick toggles
+		// both fail) and say so, instead of letting the rejection escape and
+		// take the whole TUI down.
 		props.onModeChange(newMode).catch((error: unknown) => {
-			session.setUiMode(previousMode);
+			const actual = props.config.mode;
+			if (actual === "plan" || actual === "act") session.setUiMode(actual);
 			showToast(
 				`Couldn't switch to ${newMode} mode: ${error instanceof Error ? error.message : String(error)}`,
 				"error",

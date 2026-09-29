@@ -781,6 +781,7 @@ export async function runInteractive(
 			if (!isInteractiveMode(mode)) return;
 			// Persist the user's choice immediately, even when the switch is
 			// deferred until the current turn aborts, so it survives restarts.
+			const previousMode = config.mode;
 			setPlanActModeGlobally(mode);
 			if (isRunning) {
 				pendingModeChange.current = mode;
@@ -788,7 +789,15 @@ export async function runInteractive(
 				sessionRuntime.abortAll();
 				return;
 			}
-			await applyModeChange(mode);
+			try {
+				await applyModeChange(mode);
+			} catch (error) {
+				// The switch did not happen; the saved preference must not say it did.
+				if (isInteractiveMode(previousMode)) {
+					setPlanActModeGlobally(previousMode);
+				}
+				throw error;
+			}
 		},
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
