@@ -14,7 +14,16 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentConversationHeader,
+	AgentConversationLayout,
+	AgentSessionContent,
+	AgentChangedFile,
+	AgentChangesPanel,
+	AgentPullRequestBar,
+	AgentCommandOutput,
+	AgentImageLightboxContent,
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
 	AttachmentDropZone,
 	AgentAurora,
@@ -22,8 +31,12 @@ import {
 	AgentWelcomeHero,
 	AgentPromptQueue,
 	AgentQuickActions,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	AgentSessionOverview,
 	SearchCombobox,
 	SessionStatus,
+	Switch,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
@@ -45,6 +58,11 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
+		throw new Error("packed review UI stylesheet is missing: " + name);
+	}
+}
 const heroCss = readFileSync(
 	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
 	"utf8",
@@ -74,16 +92,29 @@ if (
 	throw new Error("markdown subpath did not export Mermaid opt-in controls");
 }
 if (
+	!AgentConversationHeader ||
+	!AgentConversationLayout ||
+	!AgentSessionContent ||
+	!AgentChangedFile ||
+	!AgentChangesPanel ||
+	!AgentPullRequestBar ||
+	!AgentCommandOutput ||
+	!AgentImageLightboxContent ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentWelcomeHero ||
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
+	!AgentSessionRow ||
+	!AgentSessionRowEditor ||
+	!AgentSessionOverview ||
 	!SessionStatus ||
+	!Switch ||
 	!Conversation ||
 	!Message ||
 	!css ||
@@ -110,6 +141,38 @@ function createConsumer(root: string): void {
 	writeFileSync(
 		join(root, "package.json"),
 		`${JSON.stringify({ name: "cline-ui-smoke", private: true, type: "module" }, null, 2)}\n`,
+	);
+}
+
+async function verifyDiffDeclarations(root: string): Promise<void> {
+	const consumer = join(root, "tool-diff-consumer.ts");
+	writeFileSync(
+		consumer,
+		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import type { ComponentProps } from "react";
+const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
+	diffStyle: "split",
+};
+void options;
+`,
+	);
+	await run(
+		[
+			process.execPath,
+			join(root, "node_modules/typescript/bin/tsc"),
+			"--noEmit",
+			"--strict",
+			"--skipLibCheck",
+			"false",
+			"--target",
+			"ES2022",
+			"--module",
+			"ESNext",
+			"--moduleResolution",
+			"Bundler",
+			consumer,
+		],
+		root,
 	);
 }
 
@@ -184,6 +247,7 @@ async function verifyTailwindContract(
 		"backdrop-blur-sm",
 		"border-dashed",
 		"pointer-events-none",
+		"group-hover/row:bg-cline-ui-surface-hover",
 	]) {
 		expectCandidate(css, candidate);
 	}
@@ -218,6 +282,22 @@ async function verifyTailwindContract(
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
 	expectInlineHeroMasks(noPreflightCss, "no-Preflight Tailwind contract");
+	for (const output of [css, noPreflightCss]) {
+		for (const candidate of [
+			"font-cline-ui-mono",
+			"text-cline-ui-xs",
+			"cursor-zoom-out",
+			"rounded-cline-ui-lg",
+		]) {
+			expectCandidate(output, candidate);
+		}
+		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
+		expectFragment(
+			output,
+			".cline-ui-switch__input:checked",
+			"packed switch states",
+		);
+	}
 }
 
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));
@@ -255,13 +335,17 @@ try {
 			archive,
 			"react@19.2.4",
 			"react-dom@19.2.4",
-			"@pierre/diffs@1.3.2",
+			"@pierre/diffs@1.4.0",
+			"@types/react@19.2.14",
+			"@types/node@22.20.3",
+			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
+	await verifyDiffDeclarations(bunConsumer);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
@@ -281,19 +365,23 @@ try {
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
+			"@types/react@18.3.1",
+			"@types/node@22.20.3",
+			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	await verifyDiffDeclarations(npmConsumer);
 	await verifyTailwindContract(npmConsumer, [
 		"npx",
 		"--no-install",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18, including Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and npm/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });

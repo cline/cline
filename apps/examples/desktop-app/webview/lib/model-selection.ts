@@ -83,3 +83,61 @@ export function writeModelSelectionStorageToWindow(
 		JSON.stringify(value),
 	);
 }
+
+export const REASONING_SELECTION_STORAGE_KEY =
+	"cline.code.reasoning-selection.v1";
+
+export const REASONING_SELECTION_VALUES = [
+	"none",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+] as const;
+
+export type ReasoningSelectionValue =
+	(typeof REASONING_SELECTION_VALUES)[number];
+
+/** Last reasoning effort picked for each provider, like `lastModelByProvider`. */
+export function readReasoningSelectionStorageFromWindow(): Record<
+	string,
+	ReasoningSelectionValue
+> {
+	if (typeof window === "undefined") {
+		return {};
+	}
+	try {
+		const parsed = JSON.parse(
+			window.localStorage.getItem(REASONING_SELECTION_STORAGE_KEY) ?? "null",
+		) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {};
+		}
+		return Object.fromEntries(
+			Object.entries(parsed).filter(
+				(entry): entry is [string, ReasoningSelectionValue] =>
+					(REASONING_SELECTION_VALUES as readonly string[]).includes(
+						entry[1] as string,
+					),
+			),
+		);
+	} catch {
+		return {};
+	}
+}
+
+export function writeReasoningSelectionToWindow(
+	providerId: string,
+	value: ReasoningSelectionValue,
+): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	window.localStorage.setItem(
+		REASONING_SELECTION_STORAGE_KEY,
+		JSON.stringify({
+			...readReasoningSelectionStorageFromWindow(),
+			[providerId]: value,
+		}),
+	);
+}

@@ -124,7 +124,8 @@ async function waitForDiscovery(
 			if (
 				typeof parsed.url === "string" &&
 				typeof parsed.authToken === "string" &&
-				(notPid === undefined || parsed.pid !== notPid)
+				(notPid === undefined || parsed.pid !== notPid) &&
+				(await fetch(toHealthUrl(parsed.url))).status === 200
 			) {
 				return {
 					url: parsed.url,

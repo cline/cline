@@ -207,7 +207,11 @@ async function mergeKnownModels(
 		// Cline recommendations can use Vercel-style ids while the broader
 		// catalog includes OpenRouter aliases for the same models. Image-output
 		// models are temporarily unavailable through Cline's inference backend,
-		// so filter them only at the Cline catalog boundary.
+		// so filter them only at the Cline catalog boundary. buildClineModels
+		// applies the same restriction to the bundled catalog. User overrides are
+		// also subject to this filter — the backend rejects image output
+		// regardless of where the model was configured. Remove both filter call
+		// sites together when the backend gains image-output support.
 		return Llms.sortModelsByReleaseDate(
 			Llms.filterImageOutputModels({
 				...Llms.preferCanonicalModelIds(
@@ -812,44 +816,73 @@ async function getPrivateProviderModels(
 
 async function fetchLiveModelsCatalog(
 	url: string,
+	includeClineCloudModels: boolean,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
+	// Bound both catalog sources, including response-body reads, while keeping
+	// any cancellation supplied by the source fetcher.
+	const fetchWithTimeout = Object.assign(
+		(...args: Parameters<typeof fetch>) => {
+			const [input, init] = args;
+			const timeout = AbortSignal.timeout(
+				DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
+			);
+			const signal = init?.signal
+				? AbortSignal.any([init.signal, timeout])
+				: timeout;
+			return globalThis.fetch(input, { ...init, signal });
+		},
+		globalThis.fetch,
+	);
+	return Llms.fetchLiveProviderModels(url, fetchWithTimeout, {
+		includeClineCloudModels,
+	});
 }
 
 export async function getLiveModelsCatalog(
-	options: Pick<ModelCatalogConfig, "url" | "cacheTtlMs"> = {},
+	options: Pick<
+		ModelCatalogConfig,
+		"url" | "cacheTtlMs" | "includeClineCloudModels"
+	> = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
+	const includeClineCloudModels = options.includeClineCloudModels === true;
+	const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
 	const now = Date.now();
 
-	const cached = MODELS_CATALOG_CACHE.get(url);
+	const cached = MODELS_CATALOG_CACHE.get(cacheKey);
 	if (cached && cached.expiresAt > now) {
 		return cached.data;
 	}
 
-	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(url);
+	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(cacheKey);
 	if (inFlight) {
 		return inFlight;
 	}
 
-	const request = fetchLiveModelsCatalog(url)
+	const request = fetchLiveModelsCatalog(url, includeClineCloudModels)
 		.then((data) => {
-			MODELS_CATALOG_CACHE.set(url, { data, expiresAt: now + cacheTtlMs });
+			MODELS_CATALOG_CACHE.set(cacheKey, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
 			return data;
 		})
 		.finally(() => {
-			MODELS_CATALOG_IN_FLIGHT.delete(url);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
 		});
 
-	MODELS_CATALOG_IN_FLIGHT.set(url, request);
+	MODELS_CATALOG_IN_FLIGHT.set(cacheKey, request);
 	return request;
 }
 
 export function clearLiveModelsCatalogCache(url?: string): void {
 	if (url) {
-		MODELS_CATALOG_CACHE.delete(url);
-		MODELS_CATALOG_IN_FLIGHT.delete(url);
+		for (const includeClineCloudModels of [false, true]) {
+			const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
+			MODELS_CATALOG_CACHE.delete(cacheKey);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
+		}
 		return;
 	}
 
@@ -920,9 +953,9 @@ export async function resolveProviderConfig(
 		// Public (keyless) live model sources run whenever `modelsSourceUrl` is
 		// registered for the provider — even if the caller didn't pass a
 		// `config`. Falls back to the spec's default base URL so a fresh install
-		// still hits the default local model endpoint. Failures are swallowed
-		// below, so an unreachable server just leaves the picker on the bundled
-		// catalog.
+		// still hits the default local model endpoint. Unless the caller opted
+		// into `failOnError`, failures are swallowed below so an unreachable
+		// server just leaves the picker on the bundled catalog.
 		const hasPublicModelSource = Boolean(
 			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider
 				.modelsSourceUrl,
@@ -939,7 +972,10 @@ export async function resolveProviderConfig(
 					providerId,
 					modelCatalog,
 					publicConfig,
-				).catch(() => ({}))
+				).catch((error: unknown) => {
+					if (modelCatalog?.failOnError) throw error;
+					return {};
+				})
 			: {};
 		const knownModels = await mergeKnownModels(
 			providerId,

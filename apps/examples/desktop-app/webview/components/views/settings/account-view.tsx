@@ -25,8 +25,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
+import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -181,6 +183,7 @@ export function AccountView() {
 	const [accountActionPending, setAccountActionPending] = useState<
 		"sign-in" | "sign-out" | null
 	>(null);
+	const deviceUserCode = useOAuthUserCode(accountActionPending === "sign-in");
 	// Organization id being switched to, "" while switching to the personal
 	// account, null when no switch is in flight.
 	const [switchTargetId, setSwitchTargetId] = useState<string | null>(null);
@@ -278,9 +281,13 @@ export function AccountView() {
 		setAccountActionPending("sign-in");
 		setOverviewError(null);
 		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				// The browser round-trip routinely outlives the default command
+				// deadline; the sidecar bounds the flow by device-code expiry.
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
 			await loadOverview();
 			setActiveTab("overview");
 		} catch (err) {
@@ -502,6 +509,14 @@ export function AccountView() {
 						<ExternalLink className="h-4 w-4" />
 					</button>
 				</div>
+				{accountActionPending === "sign-in" && deviceUserCode ? (
+					<p className="text-sm text-muted-foreground">
+						Confirm this code in your browser:{" "}
+						<span className="font-mono font-medium text-foreground">
+							{deviceUserCode}
+						</span>
+					</p>
+				) : null}
 			</div>
 		</div>
 	);

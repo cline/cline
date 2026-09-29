@@ -1,12 +1,21 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	fetchComposioStatus,
+	getComposioAvailability,
+	subscribeComposioAvailability,
+} from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
-import { CustomizationSectionView } from "./extensions-view";
+import { ComposioConnectorsView } from "./composio-connectors-view";
+import {
+	CustomizationSectionView,
+	invalidateExtensionInventoryCache,
+} from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
 /**
@@ -16,15 +25,23 @@ import { McpServersContent } from "./mcp-view";
  * reached from the sidebar or the header button here.
  */
 
-type CustomizeTab = "skills" | "mcp" | "plugins" | "rules" | "hooks" | "tools";
+type CustomizeTab =
+	| "skills"
+	| "mcp"
+	| "integrations"
+	| "plugins"
+	| "rules"
+	| "hooks"
+	| "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
-	{ id: "skills", label: "Skills" },
-	{ id: "mcp", label: "MCP" },
-	{ id: "plugins", label: "Plugins" },
-	{ id: "rules", label: "Rules" },
-	{ id: "hooks", label: "Hooks" },
 	{ id: "tools", label: "Tools" },
+	{ id: "plugins", label: "Plugins" },
+	{ id: "skills", label: "Skills" },
+	{ id: "rules", label: "Rules" },
+	{ id: "mcp", label: "MCP" },
+	{ id: "hooks", label: "Hooks" },
+	{ id: "integrations", label: "Connectors" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -48,19 +65,42 @@ export function CustomizeView({
 }: {
 	onOpenMarketplace?: () => void;
 }) {
-	const [tab, setTab] = useState<CustomizeTab>("skills");
+	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
+	// Connectors are an org-provisioned feature: the tab only exists when the
+	// account has Composio beta access.
+	const connectorsAvailable =
+		useSyncExternalStore(
+			subscribeComposioAvailability,
+			getComposioAvailability,
+			() => null,
+		) === true;
 
 	const refreshCounts = useCallback(async () => {
-		const inventory = await desktopClient
-			.invoke<HubInventoryResponse>("list_user_instruction_configs")
-			.catch(() => null);
+		const [inventory, composioStatus] = await Promise.all([
+			desktopClient
+				.invoke<HubInventoryResponse>("list_user_instruction_configs")
+				.catch(() => null),
+			fetchComposioStatus().catch(() => null),
+		]);
+		const connectedIntegrations = composioStatus
+			? composioStatus.integrations.filter(
+					(integration) => integration.status === "connected",
+				).length
+			: undefined;
 		if (!inventory) {
+			if (connectedIntegrations !== undefined) {
+				setCounts((previous) => ({
+					...previous,
+					integrations: connectedIntegrations,
+				}));
+			}
 			return;
 		}
 		setCounts({
 			skills: asCount(inventory.skills) + asCount(inventory.workflows),
 			mcp: asCount(inventory.mcp?.servers),
+			integrations: connectedIntegrations,
 			plugins: asCount(inventory.plugins),
 			rules: asCount(inventory.rules),
 			hooks: asCount(inventory.hooks),
@@ -74,6 +114,15 @@ export function CustomizeView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshCounts]);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("settings.changed", () => {
+				invalidateExtensionInventoryCache();
+				void refreshCounts();
+			}),
+		[refreshCounts],
+	);
 
 	const handleInventoryChanged = useCallback(() => {
 		void refreshCounts();
@@ -95,12 +144,15 @@ export function CustomizeView({
 						</Button>
 					) : undefined
 				}
-				description="Extend what Cline can do and change how it works. Manage what's installed, or browse the marketplace for more options."
+				description="Extend what Cline can do and how it works. Explore the marketplace for more options."
 				title="Customize"
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{CUSTOMIZE_TABS.map((customizeTab) => {
+				{CUSTOMIZE_TABS.filter(
+					(customizeTab) =>
+						customizeTab.id !== "integrations" || connectorsAvailable,
+				).map((customizeTab) => {
 					const count = counts[customizeTab.id];
 					const active = tab === customizeTab.id;
 					return (
@@ -151,6 +203,12 @@ export function CustomizeView({
 					chrome="embedded"
 					marketplaceVariant="installed"
 					onInventoryChanged={handleInventoryChanged}
+				/>
+			) : tab === "integrations" ? (
+				<ComposioConnectorsView
+					onChanged={handleInventoryChanged}
+					onOpenMarketplace={onOpenMarketplace}
+					variant="installed"
 				/>
 			) : tab === "plugins" ? (
 				<CustomizationSectionView

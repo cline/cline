@@ -1,4 +1,4 @@
-This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + task runner) with **Node >=22** as the runtime. Do not use npm/yarn/pnpm.
+This is the **Cline** monorepo. Toolchain is **Bun 1.4.2** (package manager + task runner) with **Node >=22** as the runtime. Do not use npm/yarn/pnpm.
 
 ## Cloud Agent Instructions
 

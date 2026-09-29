@@ -35,6 +35,8 @@ export interface SearchComboboxProps {
 	emptyText?: string;
 	loading?: boolean;
 	loadingText?: string;
+	/** Called when the panel opens, so callers can refresh stale options. */
+	onOpen?: () => void;
 	onValueChange: (value: string) => void;
 	options: SearchComboboxOption[];
 	/** Panel width as a CSS length (default "16rem"). */
@@ -43,8 +45,10 @@ export interface SearchComboboxProps {
 	placement?: "top" | "bottom";
 	searchPlaceholder?: string;
 	/**
-	 * Section headers, rendered while the search box is empty whenever a run of
-	 * consecutive options carries that section id. Searching flattens the list.
+	 * Section headers, rendered whenever a run of consecutive options carries
+	 * that section id. They stay visible while searching so same-named options
+	 * from different sections (e.g. a Subscribed and a Free row for one model)
+	 * remain distinguishable.
 	 */
 	sections?: SearchComboboxSection[];
 	value?: string;
@@ -84,6 +88,7 @@ export function SearchCombobox({
 	emptyText = "No results",
 	loading = false,
 	loadingText = "Loading…",
+	onOpen,
 	onValueChange,
 	options,
 	panelWidth = "16rem",
@@ -284,9 +289,6 @@ export function SearchCombobox({
 	};
 
 	const renderOptions = () => {
-		if (query) {
-			return filtered.map((option, index) => renderOption(option, index));
-		}
 		const rows: ReactNode[] = [];
 		let previousSection: string | undefined;
 		filtered.forEach((option, index) => {
@@ -334,7 +336,10 @@ export function SearchCombobox({
 					.filter(Boolean)
 					.join(" ")}
 				disabled={disabled}
-				onClick={() => setOpen((current) => !current)}
+				onClick={() => {
+					if (!open) onOpen?.();
+					setOpen(!open);
+				}}
 				ref={triggerRef}
 				title={displayedValue}
 				type="button"

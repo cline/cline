@@ -52,6 +52,37 @@ async function renderMessages(
 	});
 }
 
+describe("ChatMessages error action", () => {
+	it("keeps the recovery action when the error is already in the transcript", async () => {
+		const onClick = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "github-error",
+					sessionId: "session-1",
+					role: "error",
+					content: "GitHub access expired",
+					createdAt: Date.now(),
+				},
+			],
+			{
+				error: "GitHub access expired",
+				errorAction: { label: "Connect GitHub", onClick },
+			},
+		);
+
+		const button = [...container.querySelectorAll("button")].find((candidate) =>
+			candidate.textContent?.includes("Connect GitHub"),
+		);
+		expect(button).toBeDefined();
+		expect(container.textContent?.match(/GitHub access expired/g)).toHaveLength(
+			1,
+		);
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+});
+
 describe("ChatMessages tool disclosures", () => {
 	it.each([
 		["run_commands", "lucide-terminal"],
@@ -134,7 +165,7 @@ describe("ChatMessages tool disclosures", () => {
 			}),
 			createdAt: 1,
 		};
-		await renderMessages([pendingTool]);
+		await renderMessages([pendingTool], { status: "running" });
 
 		const pendingTitle = container.querySelector(
 			".cline-chat-tool-label > span",
@@ -160,6 +191,93 @@ describe("ChatMessages tool disclosures", () => {
 		expect(
 			completedTitle?.classList.contains("cline-chat-streaming-title"),
 		).toBe(false);
+	});
+
+	it.each([
+		"cancelled",
+		"failed",
+		"completed",
+		"idle",
+	] as const)("stops animating missing tool results when the run is %s, including on reopen", async (status) => {
+		const tool: ChatMessage = {
+			id: "unfinished",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "read_files", hookEventName: "tool_call_start" },
+		};
+		const snapshot = JSON.stringify(tool);
+		await renderMessages([tool], { status: "running" });
+		expect(
+			container.querySelector(".cline-chat-streaming-title"),
+		).not.toBeNull();
+		await renderMessages([tool], { status });
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		expect(JSON.stringify(tool)).toBe(snapshot);
+		await renderMessages(
+			[{ ...tool, meta: { ...tool.meta, hookEventName: "history_tool_use" } }],
+			{ status },
+		);
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		// A later turn must not reactivate the old unfinished tool.
+		await renderMessages(
+			[
+				tool,
+				{
+					id: "next-turn",
+					sessionId: "session-1",
+					role: "user",
+					content: "Continue",
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+	});
+
+	it("keeps late results renderable after an inactive status", async () => {
+		const tool: ChatMessage = {
+			id: "late-result",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "custom_tool",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "custom_tool", hookEventName: "history_tool_use" },
+		};
+		await renderMessages([tool], { status: "completed" });
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], { status: "running" });
+		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
+		await renderMessages(
+			[
+				{
+					...tool,
+					content: JSON.stringify({
+						toolName: "custom_tool",
+						input: { paths: ["pending.ts"] },
+						result: "Actual late result",
+					}),
+					meta: { ...tool.meta, hookEventName: "tool_call_end" },
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		const trigger = container.querySelector("button.cline-chat-tool-trigger");
+		await act(async () => (trigger as HTMLButtonElement).click());
+		expect(container.textContent).toContain("Actual late result");
 	});
 
 	it("exposes and toggles expandable tool details", async () => {
@@ -329,6 +447,61 @@ describe("ChatMessages tool disclosures", () => {
 
 		expect(container.textContent).toContain("Scheduled task failed");
 		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
+	it("keeps the scheduled-task report visible when the run collapses", async () => {
+		// A follow-up prompt settles the scheduled run's span and folds its
+		// working rows into the work summary; the submit_and_exit row is the
+		// run's final report and must stay visible below it.
+		const summary = "All feeds healthy.";
+		await renderMessages([
+			{
+				id: "user-schedule",
+				sessionId: "session-1",
+				role: "user",
+				content: "Check the feeds",
+				createdAt: 1_000,
+			},
+			{
+				id: "tool-read",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["feeds.json"] },
+					result: {},
+				}),
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 3_000,
+			},
+			{
+				id: "user-followup",
+				sessionId: "session-1",
+				role: "user",
+				content: "Thanks!",
+				createdAt: 9_000,
+			},
+		]);
+
+		// The working rows folded into a collapsed work summary…
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		);
+		expect(workTrigger?.getAttribute("aria-expanded")).toBe("false");
+		// …but the report row did not fold with them: it stays visible and
+		// expanded outside the summary.
+		expect(container.textContent).toContain("Scheduled task completed");
+		expect(container.textContent).toContain(summary);
 	});
 
 	it("renders consecutive tool calls as individual rows", async () => {
@@ -1318,12 +1491,6 @@ describe("ChatMessages follow-up questions", () => {
 			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
-		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
-
-		const submit = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Submit",
-		);
-		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});
@@ -2061,5 +2228,122 @@ describe("ChatMessages tool approvals", () => {
 
 		await act(async () => reject?.click());
 		expect(onReject).toHaveBeenCalledWith("req-1");
+	});
+
+	it("leads an imported transcript with a notice naming the source tool", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "user-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "imported prompt",
+				createdAt: 1,
+			},
+		];
+		await renderMessages(messages, { importedFromTool: "claude-code" });
+
+		const notice = container.querySelector("output");
+		expect(notice?.textContent).toContain("Imported from Claude Code");
+		expect(notice?.parentElement?.firstElementChild).toBe(notice);
+		expect(notice?.parentElement?.textContent).toContain("imported prompt");
+
+		await renderMessages(messages);
+		expect(container.querySelector("output")).toBeNull();
+	});
+});
+
+describe("persisted run errors", () => {
+	it.each([
+		"openrouter",
+		"claude-code",
+	])("renders one complete %s failure before and after reopening", async (providerId) => {
+		const messages: ChatMessage[] = [
+			{
+				id: "expired-key",
+				sessionId: "session-1",
+				role: "error",
+				content: "API key expired.",
+				createdAt: 1,
+				meta: { providerId },
+			},
+		];
+		const fullError =
+			providerId === "claude-code"
+				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
+				: "The run failed: API key expired. Check your model connection in Settings → Providers (or sign in with Cline), then try again.";
+		await renderMessages(messages, { error: fullError, status: "failed" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+		await renderMessages(messages, { error: null, status: "idle" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+	});
+});
+
+describe("ChatMessages credential failures", () => {
+	const failure: ChatMessage = {
+		id: "error-1",
+		sessionId: "session-1",
+		role: "error",
+		content:
+			"The run failed: cline requires re-authentication. Sign in to Cline again in Settings → Account, then try again.",
+		createdAt: 2,
+		meta: { reason: "credentials", providerId: "cline" },
+	};
+
+	it("offers a sign-in action inside the failure bubble and shows the failure once", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages([failure], {
+			error: failure.content,
+			onFixCredentials,
+			status: "failed",
+		});
+
+		const bubble = container.querySelector(
+			'.cline-chat-message[data-role="error"]',
+		);
+		expect(bubble?.textContent).toContain("cline requires re-authentication");
+		// The hook's error state mirrors the bubble, so no second banner.
+		expect(
+			container.textContent?.split("requires re-authentication"),
+		).toHaveLength(2);
+
+		const action = [...(bubble?.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Sign in to Cline",
+		);
+		expect(action).toBeDefined();
+		await act(async () => action?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("account");
+	});
+
+	it("points other providers at model settings and skips local-auth providers", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages(
+			[
+				{
+					...failure,
+					id: "error-anthropic",
+					meta: { reason: "credentials", providerId: "anthropic" },
+				},
+				{
+					...failure,
+					id: "error-claude-code",
+					createdAt: 3,
+					meta: { reason: "credentials", providerId: "claude-code" },
+				},
+			],
+			{ onFixCredentials, status: "failed" },
+		);
+
+		const buttons = [...container.querySelectorAll("button")].filter(
+			(button) =>
+				button.textContent === "Open API providers" ||
+				button.textContent === "Sign in to Cline",
+		);
+		expect(buttons.map((button) => button.textContent)).toEqual([
+			"Open API providers",
+		]);
+		await act(async () => buttons[0]?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });

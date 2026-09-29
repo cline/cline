@@ -17,6 +17,7 @@ import {
 import {
 	applyPluginFailures,
 	type InteractiveConfigItem,
+	isToggleableInteractiveConfigItem,
 } from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
 import { createInteractiveConfigDataLoader } from "./config-data";
@@ -112,6 +113,172 @@ describe("interactive config data loader", () => {
 		);
 		return pluginPath;
 	}
+
+	it("merges the hub-owned Agent Plugin inventory into the config view", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-agent-plugin-"));
+		tempRoots.push(tempRoot);
+		const pluginRoot = "/remote/home/.agents/plugins/portable-review";
+		const calls: unknown[] = [];
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+			loadCoreSettings: async (input) => {
+				calls.push(input);
+				return {
+					workflows: [],
+					rules: [],
+					tools: [],
+					plugins: [
+						{
+							id: "agent-plugin:portable-review",
+							name: "portable-review",
+							path: pluginRoot,
+							kind: "plugin",
+							source: "global-plugin",
+							enabled: true,
+							toggleable: true,
+							agentPlugin: true,
+						},
+					],
+					skills: [
+						{
+							id: "portable-review:review",
+							name: "review",
+							path: `${pluginRoot}/skills/review/SKILL.md`,
+							kind: "skill",
+							source: "global-plugin",
+							enabled: true,
+							toggleable: false,
+							agentPlugin: true,
+							pluginName: "portable-review",
+							pluginPath: pluginRoot,
+						},
+					],
+					mcp: [
+						{
+							id: "portable-review.docs",
+							name: "portable-review.docs",
+							path: `${pluginRoot}/mcp.json`,
+							kind: "mcp",
+							source: "global-plugin",
+							enabled: true,
+							toggleable: false,
+							agentPlugin: true,
+							pluginName: "portable-review",
+							pluginPath: pluginRoot,
+						},
+					],
+				};
+			},
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: false });
+
+		expect(calls).toEqual([
+			expect.objectContaining({
+				includePluginTools: false,
+			}),
+		]);
+		expect(data.plugins).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: "portable-review",
+					agentPlugin: true,
+					toggleable: true,
+					deletable: false,
+				}),
+			]),
+		);
+		const skill = data.skills.find(
+			(item) => item.id === "portable-review:review",
+		);
+		expect(skill).toMatchObject({
+			pluginName: "portable-review",
+			agentPlugin: true,
+		});
+		expect(skill && isToggleableInteractiveConfigItem(skill)).toBe(false);
+		expect(data.mcp).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "portable-review.docs" }),
+			]),
+		);
+	});
+
+	it("toggles Agent Plugins through the hub without mutating client settings", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-agent-toggle-"));
+		tempRoots.push(tempRoot);
+		const globalSettingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+		const pluginRoot = "/hub/home/.agents/plugins/portable-review";
+		const toggleCalls: unknown[] = [];
+		const loader = createInteractiveConfigDataLoader({
+			config: {
+				...createConfig(tempRoot),
+				agentPluginPaths: ["./portable-review"],
+			},
+			toggleCoreSettings: async (input) => {
+				toggleCalls.push(input);
+				return {
+					changedTypes: ["plugins", "skills", "mcp"],
+					snapshot: {
+						workflows: [],
+						rules: [],
+						tools: [],
+						skills: [],
+						mcp: [],
+						plugins: [
+							{
+								id: "agent-plugin:portable-review",
+								name: "portable-review",
+								path: pluginRoot,
+								kind: "plugin",
+								source: "global-plugin",
+								enabled: false,
+								toggleable: true,
+								agentPlugin: true,
+							},
+						],
+					},
+				};
+			},
+		});
+
+		const data = await loader.onToggleConfigItem(
+			{
+				id: "agent-plugin:portable-review",
+				name: "portable-review",
+				path: pluginRoot,
+				kind: "plugin",
+				source: "global-plugin",
+				enabled: true,
+				toggleable: true,
+				deletable: false,
+				agentPlugin: true,
+			},
+			{ includePluginTools: false },
+		);
+
+		expect(toggleCalls).toEqual([
+			expect.objectContaining({
+				type: "plugins",
+				id: "agent-plugin:portable-review",
+				path: pluginRoot,
+				name: "portable-review",
+				enabled: false,
+				agentPluginPaths: ["./portable-review"],
+				includePluginTools: false,
+			}),
+		]);
+		expect(data?.plugins).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					name: "portable-review",
+					enabled: false,
+					agentPlugin: true,
+				}),
+			]),
+		);
+		await expect(readFile(globalSettingsPath, "utf8")).rejects.toThrow();
+	});
 
 	it("toggles a skill item to the opposite enabled state and refreshes before reload", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));

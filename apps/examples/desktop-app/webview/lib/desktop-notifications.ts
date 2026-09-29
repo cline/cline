@@ -5,6 +5,7 @@ import {
 	requestPermission,
 } from "@tauri-apps/plugin-notification";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import { eventEnvironmentId, sessionKey } from "./session-identity";
 
 const DESKTOP_NOTIFICATION_SETTINGS_STORAGE_KEY =
 	"cline:desktop-notification-settings:v1";
@@ -309,19 +310,21 @@ export function watchDesktopNotifications(): () => void {
 	};
 
 	const handleTerminal = (
+		environmentId: string,
 		sessionId: string,
 		kind: TerminalKind,
 		detail = "",
 	) => {
-		if (!sessionId || terminalBySession.get(sessionId) === kind) {
+		const key = sessionKey({ sessionId, environmentId });
+		if (!sessionId || terminalBySession.get(key) === kind) {
 			return;
 		}
-		terminalBySession.set(sessionId, kind);
+		terminalBySession.set(key, kind);
 		if (kind === "cancelled") {
 			return;
 		}
 		if (kind === "completed") {
-			if ((queuedPromptsBySession.get(sessionId) ?? 0) > 0) {
+			if ((queuedPromptsBySession.get(key) ?? 0) > 0) {
 				return;
 			}
 			void notify({
@@ -347,7 +350,7 @@ export function watchDesktopNotifications(): () => void {
 			const sessionId = asNonEmptyString(record.sessionId);
 			if (!sessionId) return;
 			queuedPromptsBySession.set(
-				sessionId,
+				sessionKey({ sessionId, environmentId: eventEnvironmentId(payload) }),
 				Array.isArray(record.items) ? record.items.length : 0,
 			);
 		}),
@@ -362,13 +365,16 @@ export function watchDesktopNotifications(): () => void {
 				stream === "chat_tool_call_start" ||
 				stream === "chat_text"
 			) {
-				terminalBySession.delete(sessionId);
+				terminalBySession.delete(
+					sessionKey({ sessionId, environmentId: eventEnvironmentId(payload) }),
+				);
 				return;
 			}
 			if (stream !== "chat_done") return;
 			const done = parseDoneChunk(event.chunk);
 			const kind = terminalKind(done.reason || "completed");
-			if (kind) handleTerminal(sessionId, kind, done.text);
+			if (kind)
+				handleTerminal(eventEnvironmentId(payload), sessionId, kind, done.text);
 		}),
 		desktopClient.subscribe("chat_session_status", (payload) => {
 			if (!payload || typeof payload !== "object") return;
@@ -377,11 +383,14 @@ export function watchDesktopNotifications(): () => void {
 			const status = asNonEmptyString(record.status).toLowerCase();
 			if (!sessionId || !status) return;
 			if (status === "running" || status === "starting") {
-				terminalBySession.delete(sessionId);
+				terminalBySession.delete(
+					sessionKey({ sessionId, environmentId: eventEnvironmentId(payload) }),
+				);
 				return;
 			}
 			const kind = terminalKind(status);
-			if (kind && status !== "idle") handleTerminal(sessionId, kind);
+			if (kind && status !== "idle")
+				handleTerminal(eventEnvironmentId(payload), sessionId, kind);
 		}),
 		desktopClient.subscribe("chat_session_ended", (payload) => {
 			if (!payload || typeof payload !== "object") return;
@@ -389,7 +398,8 @@ export function watchDesktopNotifications(): () => void {
 			const sessionId = asNonEmptyString(record.sessionId);
 			const reason = asNonEmptyString(record.reason);
 			const kind = terminalKind(reason);
-			if (sessionId && kind) handleTerminal(sessionId, kind);
+			if (sessionId && kind)
+				handleTerminal(eventEnvironmentId(payload), sessionId, kind);
 		}),
 		desktopClient.subscribe("tool_approval_state", (payload) => {
 			if (!payload || typeof payload !== "object") return;
@@ -398,7 +408,16 @@ export function watchDesktopNotifications(): () => void {
 			if (!sessionId || !Array.isArray(record.items)) return;
 			for (const item of record.items as ToolApprovalItem[]) {
 				const requestId = asNonEmptyString(item.requestId);
-				if (!requestId || !addSeenRequest(seenApprovalRequests, requestId)) {
+				if (
+					!requestId ||
+					!addSeenRequest(
+						seenApprovalRequests,
+						sessionKey({
+							sessionId: requestId,
+							environmentId: eventEnvironmentId(payload),
+						}),
+					)
+				) {
 					continue;
 				}
 				const toolName = asNonEmptyString(item.toolName) || "A tool";
@@ -418,7 +437,13 @@ export function watchDesktopNotifications(): () => void {
 			if (
 				!requestId ||
 				!sessionId ||
-				!addSeenRequest(seenQuestionRequests, requestId)
+				!addSeenRequest(
+					seenQuestionRequests,
+					sessionKey({
+						sessionId: requestId,
+						environmentId: eventEnvironmentId(payload),
+					}),
+				)
 			) {
 				return;
 			}

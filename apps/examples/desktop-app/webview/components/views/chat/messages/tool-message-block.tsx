@@ -1,6 +1,6 @@
 "use client";
 
-import { GeneratedMediaContent } from "@cline/ui";
+import { AgentCommandOutput, GeneratedMediaContent } from "@cline/ui";
 import {
 	ToolActivity,
 	ToolActivityCode,
@@ -12,7 +12,7 @@ import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	type ChatMessage,
@@ -61,15 +61,20 @@ function ToolLabel({
 
 const ToolCallRow = memo(function ToolCallRow({
 	message,
+	isRunActive,
 	onExpandImage,
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
+	isRunActive: boolean;
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
+	// A missing result can outlive its run. Only gate the running display;
+	// keep the message intact so a later result can still replace it.
+	const isRunning = inProgress && isRunActive;
 	const isCommand = summary.kind === "command";
 	// submit_and_exit carries the run's final answer (scheduled tasks end with
 	// it), so surface it expanded and rendered as markdown rather than leaving
@@ -103,7 +108,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const toolSessionId = message.sessionId;
 	const toolCallId = message.meta?.toolCallId;
 	const canProceed = Boolean(
-		inProgress &&
+		isRunning &&
 			isCommand &&
 			message.meta?.toolDetachable === true &&
 			toolSessionId &&
@@ -216,9 +221,9 @@ const ToolCallRow = memo(function ToolCallRow({
 						<Icon className="size-4" />
 					)
 				}
-				label={<ToolLabel isRunning={inProgress} parts={labelParts} />}
+				label={<ToolLabel isRunning={isRunning} parts={labelParts} />}
 				showDisclosureIcon={false}
-				status={hasError ? "error" : inProgress ? "running" : "success"}
+				status={hasError ? "error" : isRunning ? "running" : "success"}
 			/>
 			<ToolActivityContent presentation="rail">
 				{details.length > 0 ? (
@@ -253,10 +258,9 @@ const ToolCallRow = memo(function ToolCallRow({
 					),
 				)}
 				{commandOutput ? (
-					<CommandOutputTerminal
-						isRunning={inProgress}
-						output={commandOutput}
-					/>
+					<AgentCommandOutput isRunning={isRunning} output={commandOutput}>
+						<Ansi>{commandOutput}</Ansi>
+					</AgentCommandOutput>
 				) : submitText ? (
 					// The summary is the run's final answer: full foreground color,
 					// not the panel's muted tool-detail gray.
@@ -338,63 +342,15 @@ const ToolCallRow = memo(function ToolCallRow({
 	);
 });
 
-function CommandOutputTerminal({
-	output,
-	isRunning,
-}: {
-	output: string;
-	isRunning: boolean;
-}) {
-	const containerRef = useRef<HTMLDivElement>(null);
-	const shouldAutoScrollRef = useRef(true);
-	useEffect(() => {
-		const container = containerRef.current;
-		if (container && shouldAutoScrollRef.current) {
-			container.scrollTop = output ? container.scrollHeight : 0;
-		}
-	}, [output]);
-
-	return (
-		<div className="mt-2 space-y-1">
-			<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-				Output
-			</div>
-			<div
-				aria-label="Command output"
-				aria-live="off"
-				className="max-h-64 overflow-auto rounded-md border border-border/70 bg-black/90 p-3 font-mono text-xs leading-relaxed text-zinc-100"
-				onScroll={(event) => {
-					const container = event.currentTarget;
-					shouldAutoScrollRef.current =
-						container.scrollHeight -
-							container.scrollTop -
-							container.clientHeight <
-						24;
-				}}
-				ref={containerRef}
-				role="log"
-			>
-				<pre className="whitespace-pre-wrap break-words">
-					<Ansi>{output}</Ansi>
-					{isRunning ? (
-						<span
-							aria-hidden="true"
-							className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-zinc-100"
-						/>
-					) : null}
-				</pre>
-			</div>
-		</div>
-	);
-}
-
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
 		messages,
+		isRunActive,
 		onExpandImage,
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
+		isRunActive: boolean;
 		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
 	}) {
@@ -403,6 +359,7 @@ export const ToolMessageBlock = memo(
 			<div className="flex flex-col gap-1">
 				{messages.map((message) => (
 					<ToolCallRow
+						isRunActive={isRunActive}
 						key={message.id}
 						message={message}
 						onExpandImage={onExpandImage}
@@ -413,6 +370,7 @@ export const ToolMessageBlock = memo(
 		);
 	},
 	(prev, next) =>
+		prev.isRunActive === next.isRunActive &&
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
 		prev.onExpandImage === next.onExpandImage &&

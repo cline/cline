@@ -1,21 +1,31 @@
 "use client";
 
 import {
+	AgentSessionOverview,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+} from "@cline/ui";
+
+import {
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
-	Bot,
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
+	Cloud,
 	Filter,
 	FolderTree,
 	GitFork,
+	Import,
+	Info,
 	Loader2,
 	Mic,
+	Network,
 	PanelLeftOpen,
 	Pencil,
 	Pin,
+	Plug,
 	Plus,
 	Radio,
 	Search,
@@ -96,11 +106,18 @@ import {
 	getSessionSources,
 } from "@/lib/session-history";
 import {
+	groupScheduledThreads,
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
+	type SidebarListRow,
+	type SidebarScheduleGroup,
+	scheduleGroupKey,
+	scheduleRunLabel,
 	workspaceDisplayName,
 } from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
@@ -136,11 +153,14 @@ function hubPort(url: string | null): string | null {
 
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
-	Models: Bot,
+	Providers: Plug,
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
+	Import: Import,
+	Remote: Network,
 	Account: CircleUserRound,
+	About: Info,
 	Customize: Blocks,
 	Marketplace: Store,
 } satisfies Record<SettingsSection, typeof Settings>;
@@ -325,6 +345,12 @@ export function AgentSidebar({
 	const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Explicit expand/collapse choices per schedule group. Groups without an
+	// entry default to expanded only while they hold the active session, so a
+	// run opened from elsewhere (e.g. the Schedules settings page) is visible.
+	const [scheduleGroupExpanded, setScheduleGroupExpanded] = useState<
+		Map<string, boolean>
+	>(() => new Map());
 	const [projectVisibleCounts, setProjectVisibleCounts] = useState<
 		Record<string, number>
 	>({});
@@ -537,6 +563,40 @@ export function AgentSidebar({
 			return next;
 		});
 	}, []);
+	// Opening a session drops the stored choice for the group that holds it,
+	// so a run opened elsewhere is visible even if its group was collapsed
+	// earlier. Keyed on the session and group ids rather than the thread list
+	// so a history refresh doesn't undo a collapse made while it is open.
+	const activeScheduleGroupId = useMemo(() => {
+		const thread = threads.find((t) => t.id === activeThread);
+		return thread ? scheduleGroupKey(thread) : null;
+	}, [activeThread, threads]);
+	useEffect(() => {
+		if (!activeThread || !activeScheduleGroupId) return;
+		setScheduleGroupExpanded((current) => {
+			if (!current.has(activeScheduleGroupId)) return current;
+			const next = new Map(current);
+			next.delete(activeScheduleGroupId);
+			return next;
+		});
+	}, [activeThread, activeScheduleGroupId]);
+	const isScheduleGroupExpanded = useCallback(
+		(group: SidebarScheduleGroup) =>
+			scheduleGroupExpanded.get(group.id) ??
+			group.threads.some((thread) => thread.id === activeThread),
+		[activeThread, scheduleGroupExpanded],
+	);
+	const toggleScheduleGroup = useCallback(
+		(group: SidebarScheduleGroup) => {
+			const expanded = isScheduleGroupExpanded(group);
+			setScheduleGroupExpanded((current) => {
+				const next = new Map(current);
+				next.set(group.id, !expanded);
+				return next;
+			});
+		},
+		[isScheduleGroupExpanded],
+	);
 	const toggleProject = useCallback((project: string) => {
 		setCollapsedProjects((current) => {
 			const next = new Set(current);
@@ -612,7 +672,7 @@ export function AgentSidebar({
 	);
 	// A single click flips straight to the other mode (a dropdown here would
 	// cost an extra click for a two-option choice); the icon shows the mode
-	// that is currently active.
+	// the click switches to, not the one currently active.
 	const sortToggle = (
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
@@ -629,19 +689,21 @@ export function AgentSidebar({
 			variant="ghost"
 		>
 			{sortMode === "time" ? (
-				<Clock3 className="size-3.5" />
-			) : (
 				<FolderTree className="size-3.5" />
+			) : (
+				<Clock3 className="size-3.5" />
 			)}
 		</Button>
 	);
-	const threadItem = (thread: Thread) => (
+	const threadItem = (thread: Thread, options?: { nested?: boolean }) => (
 		<ThreadItem
 			editTitle={editingTitle}
 			editing={editingSessionId === thread.id}
 			hoverCardOpen={hoverCardThreadId === thread.id}
 			isActive={activeThread === thread.id}
 			key={thread.id}
+			label={options?.nested ? scheduleRunLabel(thread) : undefined}
+			nested={options?.nested}
 			onHoverCardOpenChange={(open) =>
 				setHoverCardThreadId((current) =>
 					open ? thread.id : current === thread.id ? null : current,
@@ -661,6 +723,30 @@ export function AgentSidebar({
 			thread={thread}
 			unread={unreadSessionIds.has(thread.id)}
 		/>
+	);
+	// Scheduled runs collapse into one row per schedule; everything else
+	// renders as before.
+	const listRow = (row: SidebarListRow) => {
+		if (row.kind === "thread") {
+			return threadItem(row.thread);
+		}
+		const expanded = isScheduleGroupExpanded(row);
+		return (
+			<ScheduleGroupRow
+				active={row.threads.some((thread) => thread.id === activeThread)}
+				expanded={expanded}
+				group={row}
+				key={row.id}
+				onToggle={() => toggleScheduleGroup(row)}
+				unread={row.threads.some((thread) => unreadSessionIds.has(thread.id))}
+			>
+				{row.threads.map((thread) => threadItem(thread, { nested: true }))}
+			</ScheduleGroupRow>
+		);
+	};
+	const scheduledRows = useMemo(
+		() => groupScheduledThreads(scheduledThreads),
+		[scheduledThreads],
 	);
 	const customizeSectionOpen =
 		view === "settings" &&
@@ -843,12 +929,12 @@ export function AgentSidebar({
 								newTaskActive && "bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={openHome}
-							title="Start a new task"
+							title="Start a new session"
 							type="button"
 							variant="sidebarItem"
 						>
 							<Plus className="size-4 shrink-0" />
-							<span className="truncate">New</span>
+							<span className="truncate">Session</span>
 						</Button>
 						<Button
 							aria-label="Schedule"
@@ -995,20 +1081,22 @@ export function AgentSidebar({
 																label="Pinned"
 																onToggle={() => toggleSection("pinned")}
 															>
-																{pinnedThreads.map(threadItem)}
+																{pinnedThreads.map((thread) =>
+																	threadItem(thread),
+																)}
 															</CategorySection>
 														) : null}
-														{scheduledThreads.length > 0 ? (
+														{scheduledRows.length > 0 ? (
 															<CategorySection
 																collapsed={collapsedSections.has("scheduled")}
-																count={scheduledThreads.length}
+																count={scheduledRows.length}
 																label="Scheduled"
 																onToggle={() => toggleSection("scheduled")}
 															>
-																{scheduledThreads
+																{scheduledRows
 																	.slice(0, scheduledVisibleCount)
-																	.map(threadItem)}
-																{scheduledThreads.length >
+																	.map(listRow)}
+																{scheduledRows.length >
 																scheduledVisibleCount ? (
 																	<Button
 																		className="px-2!"
@@ -1037,19 +1125,24 @@ export function AgentSidebar({
 															>
 																{taskThreads
 																	.slice(0, showMoreCount)
-																	.map(threadItem)}
+																	.map((thread) => threadItem(thread))}
 																{showTimeShowMore ? timeShowMoreButton : null}
 															</CategorySection>
 														) : null}
 													</>
 												) : (
-													taskThreads.slice(0, showMoreCount).map(threadItem)
+													taskThreads
+														.slice(0, showMoreCount)
+														.map((thread) => threadItem(thread))
 												)
 											) : (
 												projectGroups.map((project) => {
 													const visibleCount =
 														projectVisibleCounts[project.id] ??
 														INITIAL_VISIBLE_THREAD_COUNT;
+													const projectRows = groupScheduledThreads(
+														project.threads,
+													);
 													return (
 														<ProjectSection
 															collapsed={collapsedProjects.has(project.id)}
@@ -1057,10 +1150,8 @@ export function AgentSidebar({
 															label={project.label}
 															onToggle={() => toggleProject(project.id)}
 														>
-															{project.threads
-																.slice(0, visibleCount)
-																.map(threadItem)}
-															{project.threads.length > visibleCount ? (
+															{projectRows.slice(0, visibleCount).map(listRow)}
+															{projectRows.length > visibleCount ? (
 																<Button
 																	className="max-w-full pl-2!"
 																	onClick={() => showMoreForProject(project.id)}
@@ -1202,9 +1293,13 @@ export function AgentSidebar({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "
-							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
-							from local history.
+							{deleteConfirmThread?.origin === "cloud"
+								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
+								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
+							{deleteConfirmThread?.origin !== "cloud" &&
+							isTaskWorktreePath(deleteConfirmThread?.workspacePath ?? "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1312,12 +1407,83 @@ function ProjectSection({
 	);
 }
 
+function ScheduleGroupRow({
+	group,
+	expanded,
+	active,
+	unread,
+	onToggle,
+	children,
+}: {
+	group: SidebarScheduleGroup;
+	expanded: boolean;
+	/** One of the runs is the open session; the header shows it while collapsed. */
+	active: boolean;
+	unread: boolean;
+	onToggle: () => void;
+	children: ReactNode;
+}) {
+	const running = group.threads.some((thread) => thread.status === "running");
+	const statusDotClass = running ? "bg-green-500" : unread ? "bg-blue-500" : "";
+	const runCount = group.threads.length;
+	return (
+		<div className="min-w-0">
+			<button
+				aria-expanded={expanded}
+				className={cn(
+					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
+					active && !expanded
+						? "bg-surface-hover text-sidebar-foreground"
+						: "text-sidebar-foreground/80 hover:bg-surface-hover",
+				)}
+				onClick={onToggle}
+				title={group.label}
+				type="button"
+			>
+				<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+					<ChevronDown
+						className={cn(
+							"size-3 shrink-0 text-muted-foreground transition-transform",
+							!expanded && "-rotate-90",
+						)}
+					/>
+					<Clock3
+						aria-label="Scheduled"
+						className="size-3 shrink-0 text-muted-foreground"
+					/>
+					<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
+						{group.label}
+					</span>
+				</span>
+				<span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
+					{statusDotClass ? (
+						<span
+							aria-hidden="true"
+							className={cn("size-1.5 rounded-full", statusDotClass)}
+						/>
+					) : null}
+					<span>
+						{runCount} {runCount === 1 ? "run" : "runs"}
+					</span>
+				</span>
+			</button>
+			{expanded ? (
+				<div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l border-sidebar-border/70 pl-1">
+					{children}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 function ThreadItem({
 	thread,
 	editTitle,
 	editing,
 	hoverCardOpen,
 	isActive,
+	label,
+	nested = false,
 	onClick,
 	onHoverCardOpenChange,
 	onCancelRename,
@@ -1335,6 +1501,10 @@ function ThreadItem({
 	editing: boolean;
 	hoverCardOpen: boolean;
 	isActive: boolean;
+	/** Row text when it should not be the session title (a run inside a schedule group). */
+	label?: string;
+	/** Rendered inside a schedule group: the group already shows the clock. */
+	nested?: boolean;
 	onClick: () => void;
 	onHoverCardOpenChange: (open: boolean) => void;
 	onCancelRename: () => void;
@@ -1348,27 +1518,14 @@ function ThreadItem({
 	unread: boolean;
 }) {
 	const title = normalizeTitle(thread.title);
+	const rowText = label ?? title;
 	const overviewTitle = getSessionOverviewTitle(title);
 	const pending = pendingAction !== null;
-	const statusDotClass = pending
-		? "bg-yellow-400"
-		: thread.status === "running"
-			? "bg-green-500"
-			: unread
-				? "bg-blue-500"
-				: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
 		return (
-			<div
-				className={cn(
-					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2",
-					isActive
-						? "bg-surface-hover text-sidebar-foreground"
-						: "text-sidebar-foreground/80",
-				)}
-			>
+			<AgentSessionRowEditor active={isActive}>
 				<EditableSessionTitle
 					disabled={pendingAction === "rename"}
 					onCancel={onCancelRename}
@@ -1379,7 +1536,7 @@ function ThreadItem({
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
 				) : null}
-			</div>
+			</AgentSessionRowEditor>
 		);
 	}
 
@@ -1393,65 +1550,61 @@ function ThreadItem({
 			>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
-						{/* The delete affordance is a sibling of the row button
-						    (buttons cannot nest), overlaid where the timestamp
-						    sits; group/row hover swaps the two and keeps the
-						    row's hover background while the pointer is on the
-						    trash button. */}
-						<div className="group/row relative min-w-0">
-							<button
-								className={cn(
-									"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
-									isActive
-										? "bg-surface-hover text-sidebar-foreground"
-										: "text-sidebar-foreground/80 group-hover/row:bg-surface-hover",
-								)}
-								disabled={pending}
-								onClick={onClick}
-								type="button"
-							>
-								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
-									{thread.isScheduled ? (
+						<AgentSessionRow
+							active={isActive}
+							disabled={pending}
+							status={
+								pending
+									? "pending"
+									: thread.status === "provisioning"
+										? "provisioning"
+										: thread.status === "running"
+											? "running"
+											: "idle"
+							}
+							unread={unread}
+							label={rowText}
+							timestamp={thread.time}
+							onSelect={onClick}
+							leading={
+								<>
+									{thread.origin === "cloud" ? (
+										<Cloud
+											aria-label="Cloud session"
+											className="size-3 shrink-0 text-muted-foreground"
+										/>
+									) : null}
+									{thread.isScheduled && !nested ? (
 										<Clock3
 											aria-label="Scheduled"
 											className="size-3 shrink-0 text-muted-foreground"
 										/>
 									) : null}
-									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-										{title}
-									</span>
-								</span>
-								<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
-									{statusDotClass ? (
-										<span
-											aria-hidden="true"
-											className={cn("size-1.5 rounded-full", statusDotClass)}
-										/>
-									) : null}
-									{thread.pinned ? (
-										<Pin aria-label="Pinned" className="size-3 fill-current" />
-									) : null}
-									<span className="group-hover/row:invisible">
-										{thread.time}
-									</span>
-								</span>
-							</button>
-							<Button
-								aria-label={`Delete ${title}`}
-								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
-								disabled={pending}
-								onClick={(event) => {
-									event.stopPropagation();
-									onDelete();
-								}}
-								size="icon"
-								title="Delete session"
-								type="button"
-								variant="ghost"
-							>
-								<Trash2 className="size-3.5" />
-							</Button>
-						</div>
+								</>
+							}
+							pinnedIndicator={
+								thread.pinned ? (
+									<Pin aria-label="Pinned" className="size-3 fill-current" />
+								) : null
+							}
+							action={
+								<Button
+									aria-label={`Delete ${title}`}
+									className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+									disabled={pending}
+									onClick={(event) => {
+										event.stopPropagation();
+										onDelete();
+									}}
+									size="icon"
+									title="Delete session"
+									type="button"
+									variant="ghost"
+								>
+									<Trash2 className="size-3.5" />
+								</Button>
+							}
+						/>
 					</HoverCardTrigger>
 				</ContextMenuTrigger>
 				<HoverCardContent
@@ -1465,27 +1618,12 @@ function ThreadItem({
 					side="right"
 					sideOffset={8}
 				>
-					<div className="min-w-0 space-y-2">
-						<div className="wrap-break-word text-sm font-medium">
-							{overviewTitle}
-						</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
-							{infoItems.map(([label, value, fullValue]) => (
-								<div className="contents" key={label}>
-									<span className="text-muted-foreground">{label}</span>
-									<span
-										className="min-w-0 truncate font-mono text-foreground"
-										title={fullValue}
-									>
-										{value}
-									</span>
-								</div>
-							))}
-						</div>
-					</div>
+					<AgentSessionOverview title={overviewTitle} items={infoItems} />
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				allowPin={thread.origin !== "cloud"}
+				allowFork={thread.origin !== "cloud"}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
@@ -1508,9 +1646,13 @@ export function getSessionOverviewItems(
 	// Updated time is already visible in the sidebar item.
 	const workspacePath = thread.workspacePath || thread.codebase;
 	const items: Array<[string, string | null | undefined, string?]> = [
+		["Schedule", thread.scheduleName],
+		["Run", thread.scheduleRunNumber ? String(thread.scheduleRunNumber) : null],
 		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
+			thread.origin === "cloud" ? "Repository" : "Workspace",
+			thread.origin === "cloud"
+				? thread.repoUrl
+				: workspaceDisplayName(workspacePath),
 			workspacePath || undefined,
 		],
 		["Branch", thread.gitBranch],
@@ -1578,6 +1720,8 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	allowPin,
+	allowFork,
 	pinned,
 	onRename,
 	onTogglePin,
@@ -1585,6 +1729,8 @@ function SessionContextMenuContent({
 	onDelete,
 	pendingAction,
 }: {
+	allowPin: boolean;
+	allowFork: boolean;
 	pinned: boolean;
 	onRename: () => void;
 	onTogglePin: () => void;
@@ -1595,10 +1741,12 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
-				<Pin className={cn("size-4", pinned && "fill-current")} />
-				{pinned ? "Unpin" : "Pin"}
-			</ContextMenuItem>
+			{allowPin ? (
+				<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
+					<Pin className={cn("size-4", pinned && "fill-current")} />
+					{pinned ? "Unpin" : "Pin"}
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-4 animate-spin" />
@@ -1607,14 +1755,16 @@ function SessionContextMenuContent({
 				)}
 				{pendingAction === "rename" ? "Renaming..." : "Rename"}
 			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onFork}>
-				{pendingAction === "fork" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<GitFork className="size-4" />
-				)}
-				{pendingAction === "fork" ? "Forking..." : "Fork"}
-			</ContextMenuItem>
+			{allowFork ? (
+				<ContextMenuItem disabled={pending} onSelect={onFork}>
+					{pendingAction === "fork" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<GitFork className="size-4" />
+					)}
+					{pendingAction === "fork" ? "Forking..." : "Fork"}
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem
 				disabled={pending}
 				onSelect={onDelete}

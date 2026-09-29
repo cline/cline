@@ -261,6 +261,69 @@ describe("HubScheduleService", () => {
 		},
 	);
 
+	sqliteIt(
+		"captures the local timezone on creation and preserves it on updates",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "unused" })),
+					sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			const resolved = Intl.DateTimeFormat().resolvedOptions();
+			const timezone = vi
+				.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions")
+				.mockReturnValue({ ...resolved, timeZone: "Asia/Tokyo" });
+			try {
+				const created = service.createSchedule({
+					name: "Local morning",
+					cronPattern: "0 9 * * *",
+					prompt: "Review work",
+					workspaceRoot: "/workspace",
+				});
+				expect(created.timezone).toBe("Asia/Tokyo");
+				expect(service.getSchedule(created.scheduleId)?.timezone).toBe(
+					"Asia/Tokyo",
+				);
+				expect(new Date(created.nextRunAt ?? NaN).getUTCHours()).toBe(0);
+				timezone.mockReturnValue({ ...resolved, timeZone: "America/New_York" });
+				const updated = service.updateSchedule(created.scheduleId, {
+					scheduleId: created.scheduleId,
+					name: "Renamed",
+				});
+				expect(updated?.timezone).toBe("Asia/Tokyo");
+				expect(updated?.nextRunAt).toBe(created.nextRunAt);
+				const explicit = service.createSchedule({
+					name: "Explicit timezone",
+					cronPattern: "0 9 * * *",
+					timezone: "Europe/London",
+					prompt: "Review work",
+					workspaceRoot: "/workspace",
+				});
+				expect(explicit.timezone).toBe("Europe/London");
+				const once = service.createSchedule({
+					name: "Once",
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					metadata: {
+						[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: Date.now() + 60_000,
+					},
+					prompt: "Review work",
+					workspaceRoot: "/workspace",
+				});
+				expect(once.timezone).toBeUndefined();
+			} finally {
+				timezone.mockRestore();
+				await service.dispose();
+			}
+		},
+	);
+
 	sqliteIt("persists and validates recurring schedule timezones", async () => {
 		const dbPath = await createTempDbPath();
 		cleanupPaths.push(dbPath);

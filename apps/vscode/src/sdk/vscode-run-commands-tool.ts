@@ -34,7 +34,9 @@ import {
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
+import { describeBackgroundFailure } from "./background-failure"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { isStandaloneHost } from "./vscode-terminal-execution-mode"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -541,6 +543,7 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state: { snapshot: ShellSnapshot }): ShellExecutor {
 	const { cwd, getTerminalManager } = options
 	const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
+	const terminalType = isStandaloneHost() ? "standalone" : "vscode"
 
 	// Lazy-init background executor — recreated when the snapshotted shell changes.
 	let bgExecutor: ShellExecutor | undefined
@@ -573,14 +576,14 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 			// foreground mode in the same task.terminal_execution event.
 			try {
 				const result = await bgExecutor(command, commandCwd || cwd, context)
-				telemetryService.captureTerminalExecution(true, "vscode", "child_process", {
+				telemetryService.captureTerminalExecution(true, terminalType, "child_process", {
 					exitCode: 0,
 					terminalExecutionMode: "backgroundExec",
 				})
 				return result
 			} catch (error) {
-				telemetryService.captureTerminalExecution(false, "vscode", "child_process", {
-					...(error instanceof CommandExitError && { exitCode: error.exitCode }),
+				telemetryService.captureTerminalExecution(false, terminalType, "child_process", {
+					...describeBackgroundFailure(error),
 					terminalExecutionMode: "backgroundExec",
 				})
 				throw error

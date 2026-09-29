@@ -65,6 +65,17 @@ export function hydrateSessionMessages(
 
 	for (const { message: msg } of projectSessionMessagesForDisplay(messages)) {
 		const displayRole = getDisplayRole(msg);
+		if (displayRole === "error") {
+			const text =
+				typeof msg.content === "string"
+					? msg.content
+					: msg.content
+							.filter((block) => block.type === "text")
+							.map((block) => block.text)
+							.join("\n");
+			entries.push({ kind: "error", text });
+			continue;
+		}
 		if (displayRole === "system" || displayRole === "status") {
 			continue;
 		}

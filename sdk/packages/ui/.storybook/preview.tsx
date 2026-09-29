@@ -5,7 +5,7 @@ const withClineTheme: Decorator = (Story, context) => {
 	const isDark = context.globals.theme === "dark";
 	document.documentElement.classList.toggle("dark", isDark);
 	return (
-		<div className="cline-storybook-surface">
+		<div className="cline-storybook-surface" data-view-mode={context.viewMode}>
 			<Story />
 		</div>
 	);

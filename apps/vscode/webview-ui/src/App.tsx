@@ -23,7 +23,7 @@ const AppContent = () => {
 		showMcp,
 		mcpTab,
 		showSettings,
-		settingsTargetSection,
+		settingsNavigationRequest,
 		showHistory,
 		showAccount,
 		showWorktrees,
@@ -78,7 +78,7 @@ const AppContent = () => {
 
 	return (
 		<div className="flex h-screen w-full flex-col">
-			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
+			{showSettings && <SettingsView navigationRequest={settingsNavigationRequest} onDone={hideSettings} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMarketplace && <MarketplaceView initialType={mcpTab ? "mcp" : undefined} onDone={closeMarketplaceView} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}

@@ -1,0 +1,10 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Cline Nightly",
+	"identifier": "bot.cline.app.nightly",
+	"plugins": {
+		"updater": {
+			"endpoints": []
+		}
+	}
+}

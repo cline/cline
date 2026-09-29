@@ -18,6 +18,7 @@ import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
@@ -35,6 +36,7 @@ import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "../../services/session-data";
+import { readImportedFromMetadata } from "../../services/session-import/service";
 import {
 	emitMentionTelemetry,
 	emitSessionCreationTelemetry,
@@ -62,7 +64,10 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
-import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import {
+	readSessionHistoryOriginMetadata,
+	withSessionHistoryOriginMetadata,
+} from "../../session/history-origin";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -122,6 +127,7 @@ import {
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
 import type {
+	ListSessionsOptions,
 	PendingPromptsServiceApi,
 	ResolvedStartSessionInput,
 	RestoreSessionInput,
@@ -135,7 +141,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import { SessionNotFoundError } from "./runtime-host";
+import {
+	SessionAlreadyExistsError,
+	SessionNotFoundError,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -269,6 +278,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly sessionStarts = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -307,7 +320,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
-		this.defaultTelemetry?.setDistinctId(distinctId);
+		// A caller-owned telemetry service may already be identified to an
+		// authenticated account (the long-lived Hub daemon is one example).
+		// Only replace that identity when the caller explicitly supplied the
+		// runtime distinct id. ClineCore always does so through host.ts.
+		if (options.distinctId !== undefined) {
+			this.defaultTelemetry?.setDistinctId(distinctId);
+		}
 		this.defaultFetch = options.fetch;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
@@ -317,6 +336,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
+			steerFirst: async (input) =>
+				this.pendingPromptsController.steerFirst(input.sessionId),
 			list: async (input) =>
 				this.pendingPromptsController.list(input.sessionId),
 			update: async (input) => this.pendingPromptsController.update(input),
@@ -394,6 +415,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		const pending = this.sessionStarts.get(sessionId);
+		if (pending) {
+			try {
+				await pending;
+			} catch {
+				return await this.startSession({
+					...input,
+					config: { ...input.config, sessionId },
+				});
+			}
+			// A successful one-shot start may already have released its runtime.
+			throw new SessionAlreadyExistsError(sessionId);
+		}
+		if (this.sessions.has(sessionId)) {
+			throw new SessionAlreadyExistsError(sessionId);
+		}
+		const starting = this.startNewSession(
+			input,
+			sessionId,
+			requestedSessionId,
+		).finally(() => this.sessionStarts.delete(sessionId));
+		this.sessionStarts.set(sessionId, starting);
+		return await starting;
+	}
+
+	private async startNewSession(
+		input: StartSessionInput,
+		sessionId: string,
+		requestedSessionId: string,
+	): Promise<StartSessionResult> {
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&
@@ -547,10 +598,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method: string, ...args: unknown[]) =>
 				this.invokeOptional(method, ...args),
 		};
+		// A resumed session keeps the provenance it was initiated with
+		// (automation trigger, import source): the start input's metadata
+		// always carries a default "user" origin, which would otherwise
+		// overwrite the stored one on the next metadata write. An explicit
+		// mode on the start input replaces the stored origin entirely.
+		const resumedOrigin = readSessionHistoryOriginMetadata(
+			resumedArtifacts?.manifest.metadata,
+		);
+		const sessionOrigin = readSessionHistoryOriginMetadata(
+			withSessionHistoryOriginMetadata(startInput.sessionMetadata, {
+				mode: startInput.mode ?? resumedOrigin?.mode,
+				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
+			}),
+		);
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
+			sessionOrigin,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
@@ -598,16 +664,31 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
+		const restoredSessionMetadata = {
+			...(resumedArtifacts?.manifest.metadata ?? {}),
+			...(startInput.sessionMetadata ?? {}),
+		};
 		const initialSessionMetadata = withSessionHistoryOriginMetadata(
 			withSessionGitMetadata(
 				{
-					...(resumedArtifacts?.manifest.metadata ?? {}),
-					...(startInput.sessionMetadata ?? {}),
+					...restoredSessionMetadata,
+					// Null records an unset preference; missing keys belong to legacy sessions.
+					thinking:
+						bootstrap.config.thinking ??
+						restoredSessionMetadata.thinking ??
+						null,
+					reasoningEffort:
+						bootstrap.config.thinking === false
+							? null
+							: (bootstrap.config.reasoningEffort ??
+								restoredSessionMetadata.reasoningEffort ??
+								null),
 				},
 				bootstrap.gitState,
 			),
 			{
-				mode: startInput.mode,
+				mode: sessionOrigin?.mode,
+				trigger: sessionOrigin?.trigger,
 				version: bootstrap.config.extensionContext?.client?.version,
 			},
 		);
@@ -648,9 +729,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
-		const compact = createContextCompactionPrepareTurn(configWithProvider);
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
+		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
+		// Resuming an imported session summarizes the foreign transcript before
+		// the model sees it. The summary persists to the compaction sidecar and
+		// the policy stands down once that sidecar projects, so it applies once
+		// per session and again only if the sidecar has gone stale.
+		const importedFrom = isReadOnlyResumeStart
+			? readImportedFromMetadata(manifest.metadata)
+			: undefined;
+		const compact = importedFrom
+			? createImportedHistoryCompactionPrepareTurn({
+					config: configWithProvider,
+					importedFrom: importedFrom.tool,
+					next: autoCompact,
+				})
+			: autoCompact;
 		// A compaction sidecar must keep projecting into the working context even
 		// when auto-compaction is disabled (`compact` undefined): manual /compact
 		// persists a sidecar and promises the next turn will use it. The
@@ -1009,6 +1104,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<RestoreSessionResult> {
 		return this.sessionVersioning.restoreCheckpoint({
 			...input,
+			telemetry: this.defaultTelemetry,
 			getSession: (sessionId) => this.getSession(sessionId),
 			readMessages: (sessionId) => this.readSessionMessages(sessionId),
 			buildStartInput: (context, startInput) => {
@@ -1231,8 +1327,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
-	async listSessions(limit = 200): Promise<SessionRecord[]> {
-		const rows = await this.listRows(limit);
+	async listSessions(
+		limit = 200,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const rows = await this.listRows(limit, options);
 		const persisted = rows.map(toSessionRecord);
 		const seen = new Set(persisted.map((row) => row.sessionId));
 		for (const active of this.sessions.values()) {
@@ -1267,16 +1366,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
-		return { updated: result?.updated === true };
+		const result = await this.invokeOptionalValue<{
+			updated: boolean;
+			metadata?: SessionManifest["metadata"] | null;
+		}>("updateSession", {
+			sessionId,
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			title: updates.title,
+		});
+		const updated = result?.updated === true;
+		if (updated && result.metadata !== undefined) {
+			const active = this.sessions.get(sessionId.trim());
+			if (active) {
+				active.sessionMetadata = result.metadata ?? undefined;
+				if (active.artifacts)
+					active.artifacts.manifest.metadata = active.sessionMetadata;
+			}
+		}
+		return { updated };
 	}
 
 	async updateSessionCompactionState(
@@ -1604,10 +1712,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
 		// Keep the persisted manifest in sync so session history reflects the
 		// connection the session is now using, not the one it started with.
-		if (updates.providerId || updates.modelId) {
-			await this.mutateSessionManifest(session, (manifest) => {
+		const reasoningMetadata =
+			Object.hasOwn(updates, "thinking") ||
+			Object.hasOwn(updates, "reasoningEffort")
+				? {
+						thinking: session.config.thinking ?? null,
+						reasoningEffort: session.config.reasoningEffort ?? null,
+					}
+				: undefined;
+		if (reasoningMetadata) {
+			// Empty sessions persist lazily, so retain updates before artifacts exist.
+			session.sessionMetadata = {
+				...session.sessionMetadata,
+				...reasoningMetadata,
+			};
+		}
+		if (updates.providerId || updates.modelId || reasoningMetadata) {
+			await this.mutateSessionManifest(session, async (manifest) => {
 				if (updates.providerId) manifest.provider = updates.providerId;
 				if (updates.modelId) manifest.model = updates.modelId;
+				if (reasoningMetadata) {
+					manifest.metadata = { ...manifest.metadata, ...reasoningMetadata };
+					await this.invokeOptionalValue("updateSession", {
+						sessionId,
+						metadata: manifest.metadata,
+					});
+					session.sessionMetadata = manifest.metadata;
+				}
 			});
 		}
 	}
@@ -1622,7 +1753,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
-		mutate: (manifest: SessionManifest) => void,
+		mutate: (manifest: SessionManifest) => void | Promise<void>,
 	): Promise<SessionManifest | undefined> {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
@@ -1635,7 +1766,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					"readSessionManifest",
 					sessionId,
 				)) ?? artifacts.manifest;
-			mutate(latest);
+			await mutate(latest);
 			artifacts.manifest = latest;
 			await this.invoke<void>(
 				"writeSessionManifest",
@@ -2000,7 +2131,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "submit_and_exit",
@@ -2048,7 +2179,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "shutdown",
@@ -2116,6 +2247,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId: session.sessionId,
 			source: session.source,
 			pid: process.pid,
+			// Seeded sessions (forks, checkpoint restores) materialize at start
+			// while idle; the service otherwise defaults the row to "running",
+			// and a later restore that reuses the id resumes from that stale
+			// manifest status and reports a turn that never existed.
+			status: session.status,
 			interactive: session.interactive,
 			provider: session.config.providerId,
 			model: session.config.modelId,
@@ -2638,10 +2774,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.events.emit(event);
 	}
 
-	private async listRows(limit: number): Promise<SessionRow[]> {
+	private async listRows(
+		limit: number,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRow[]> {
 		return this.invoke<SessionRow[]>(
 			"listSessions",
 			Math.min(Math.max(1, Math.floor(limit)), MAX_SCAN_LIMIT),
+			options,
 		);
 	}
 

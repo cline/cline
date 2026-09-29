@@ -23,6 +23,9 @@ export function Toast(props: { toast: ToastState | null }) {
 	};
 	const availableWidth = Math.max(1, width - 4);
 	const maxWidth = Math.min(44, availableWidth);
+	// Border and horizontal padding take four columns. An explicit width (not
+	// maxWidth) is what makes the text wrap instead of clipping at the edge.
+	const boxWidth = Math.min(maxWidth, props.toast.message.length + 4);
 	const right = width < 32 ? 0 : 2;
 	const color = variantColor[props.toast.variant];
 
@@ -32,7 +35,7 @@ export function Toast(props: { toast: ToastState | null }) {
 			zIndex={100}
 			top={1}
 			right={right}
-			maxWidth={maxWidth}
+			width={boxWidth}
 			border
 			borderStyle="rounded"
 			borderColor={color}

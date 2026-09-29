@@ -187,4 +187,19 @@ describe("official plugin install detection", () => {
 		);
 		expect(populated.installedKeys).toEqual(["plugin:goal"]);
 	});
+
+	it("does not match portable Agent Plugins to Cline marketplace entries", () => {
+		const result = listMarketplaceInstalledEntries({ entries: [GOAL_ENTRY] }, {
+			plugins: [
+				{
+					id: "agent-plugin:goal",
+					name: "goal",
+					path: "/home/user/.agents/plugins/goal",
+					agentPlugin: true,
+				},
+			],
+		} as JsonRecord);
+
+		expect(result.installedKeys).toEqual([]);
+	});
 });

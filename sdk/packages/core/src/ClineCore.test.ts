@@ -645,7 +645,7 @@ describe("ClineCore", () => {
 		const core = await ClineCore.create();
 		const [row] = await core.list(10);
 
-		expect(host.listSessions).toHaveBeenCalledWith(20);
+		expect(host.listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(host.readSessionMessages).toHaveBeenCalledWith("session-3");
 		expect(row).toMatchObject({
 			sessionId: "session-3",
@@ -703,7 +703,7 @@ describe("ClineCore", () => {
 		// Hydration and default root-session filtering are consumed by
 		// ClineCore/listSessionHistory; the host list contract only receives the
 		// numeric scan limit.
-		expect(host.listSessions.mock.calls).toEqual([[20]]);
+		expect(host.listSessions.mock.calls).toEqual([[20, { rootOnly: true }]]);
 		expect(host.readSessionMessages).not.toHaveBeenCalled();
 		expect(row).toMatchObject({
 			sessionId: "session-lightweight",
@@ -777,6 +777,9 @@ Summarize the local event.
 			expect(result.queuedRuns).toHaveLength(1);
 
 			await core.automation.start();
+			await expect
+				.poll(() => core.automation.listRuns()[0]?.status)
+				.toBe("done");
 			await core.automation.stop();
 			await core.dispose();
 

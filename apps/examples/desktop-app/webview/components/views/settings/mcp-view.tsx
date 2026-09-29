@@ -1,5 +1,6 @@
 "use client";
 
+import { Switch } from "@cline/ui";
 import {
 	ChevronRight,
 	Circle,
@@ -45,7 +46,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
