@@ -81,7 +81,6 @@
 		"jiti": "^2.7.0",
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
-		"node-ws": "npm:ws@^8.20.0",
 		"proxy-from-env": "^2.1.0",
 		"simple-git": "3.36.0",
 		"ws": "^8.20.0",

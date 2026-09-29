@@ -13,7 +13,7 @@ const client = new NodeHubClient({
 
 try {
 	await client.connect();
-	console.log("connected");
+	console.log(`connected under ${process.versions.bun ? "Bun" : "Node"}`);
 } finally {
 	client.close();
 }
