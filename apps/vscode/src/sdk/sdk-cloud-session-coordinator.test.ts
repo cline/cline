@@ -207,11 +207,17 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			} as never,
 		})
 
+		// The failed fetch leaves the fallback in place and posts no state: a
+		// post would read the model again and start the next fetch, so a dead
+		// endpoint would be polled without bound.
+		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
+		await vi.waitFor(() => expect(fetchRecommended).toHaveBeenCalledTimes(1))
+		await new Promise((resolve) => setTimeout(resolve, 20))
+		expect(options.postStateToWebview).not.toHaveBeenCalled()
+
+		// The next read the user causes retries, and the fresh list is posted.
 		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
 		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(1))
-
-		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
-		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(2))
 		expect(fetchRecommended).toHaveBeenCalledTimes(2)
 		expect(coordinator.getCloudModelId()).toBe("fresh/model")
 		await coordinator.dispose()
