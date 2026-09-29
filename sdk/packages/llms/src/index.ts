@@ -15,6 +15,7 @@ export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	fetchVercelTranscriptionModels,
 	filterImageOutputModels,
 	filterOpenAICodexModels,
 	GENERATED_CLINE_RECOMMENDED_MODELS,
@@ -117,6 +118,7 @@ export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	builtinProviderSupportsModelOperation,
+	getBuiltinStreamingTranscriptionModels,
 	providerManifestSupportsModelOperation,
 	resolveModelOperation,
 } from "./providers/model-operations";

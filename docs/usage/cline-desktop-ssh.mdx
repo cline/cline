@@ -159,6 +159,36 @@ Everything that stays on your computer:
 
 To go back to your own machine, open the environment selector and choose **Local**. This disconnects, stops the helper on the host, and leaves it cached in `~/.cline/remote/` for a faster reconnect.
 
+## Behind a proxy or jump host
+
+SSH does not use your system's HTTP(S) proxy, even when the rest of Cline Desktop does. If the host is only reachable through a proxy or a bastion, tell your SSH client how to get there and Cline follows along, because it runs your own `ssh` and reads your `~/.ssh/config`.
+
+Define an alias with the route, then enter the alias in the **SSH host** field:
+
+```ssh-config
+# Through a bastion (jump host)
+Host build-box
+  HostName 10.0.4.12
+  User dev
+  ProxyJump me@bastion.example.com
+
+# Through an HTTP proxy (macOS / Linux, using netcat)
+Host build-box-via-proxy
+  HostName dev.example.com
+  User dev
+  ProxyCommand nc -X connect -x proxy.example.com:3128 %h %p
+
+# Through a local SOCKS proxy such as Clash or v2ray
+Host build-box-via-socks
+  HostName dev.example.com
+  User dev
+  ProxyCommand nc -X 5 -x 127.0.0.1:7890 %h %p
+```
+
+`%h` and `%p` expand to the host and port. On Windows, `nc` is not included; use `connect.exe` from Git for Windows instead, for example `ProxyCommand connect -H proxy.example.com:3128 %h %p`.
+
+Test it from a terminal first: `ssh build-box` should log you in with no prompts. Then add `build-box` as the **SSH host** in Cline and leave **User** and **Port** blank so the alias supplies them.
+
 ## Limitations
 
 - **Key-based login only.** Password prompts are never shown, so password-only accounts cannot connect.

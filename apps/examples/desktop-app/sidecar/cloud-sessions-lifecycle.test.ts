@@ -189,17 +189,16 @@ describe("CloudSessionManager lifecycle", () => {
 			remote.title = "Renamed after failure";
 			remote.updatedAt = new Date().toISOString();
 			expect((await manager.listForDiscovery())[0].endedAt).toBe(endedAt);
-			const live = ctx.liveSessions.get(remote.id)!;
 			ctx.liveSessions.clear();
 			expect((await manager.listForDiscovery())[0].endedAt).toBe(endedAt);
 
 			const hubEndedAt = Date.parse(endedAt) + 500;
-			live.endedAt = hubEndedAt;
-			ctx.liveSessions.set(remote.id, live);
+			manager["sessions"].get(remote.id)!.endedAt = hubEndedAt;
 			expect((await manager.listForDiscovery())[0].endedAt).toBe(
 				new Date(hubEndedAt).toISOString(),
 			);
 			ctx.liveSessions.clear();
+			manager["sessions"].clear();
 			delete remote.lastActivityAt;
 			expect((await manager.listForDiscovery())[0].endedAt).toBe(
 				remote.createdAt,

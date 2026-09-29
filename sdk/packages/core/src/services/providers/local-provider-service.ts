@@ -10,6 +10,7 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { isTranscriptionModel } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
@@ -82,13 +83,11 @@ export interface TranscribeLocalAudioRequest {
 	providerId: string;
 	modelId: string;
 	audio: Uint8Array;
-	mediaType?: string;
 	abortSignal?: AbortSignal;
 }
 
 export interface TranscribeConfiguredVoiceInputRequest {
 	audio: Uint8Array;
-	mediaType?: string;
 	abortSignal?: AbortSignal;
 }
 
@@ -144,9 +143,17 @@ function stableColor(id: string): string {
 }
 
 export function isDedicatedTranscriptionModel(
-	model: Pick<ProviderModel, "operation">,
+	model: Pick<
+		ProviderModel,
+		"operation" | "inputModalities" | "outputModalities"
+	>,
 ): boolean {
-	return model.operation === "transcription";
+	return isTranscriptionModel({
+		modalities: {
+			input: model.inputModalities,
+			output: model.outputModalities,
+		},
+	});
 }
 
 function toSortedProviderModels(
@@ -181,7 +188,13 @@ async function resolveProviderModelMap(
 			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
 			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
-			failOnError: false,
+			// Endpoint-owned catalogs (LiteLLM, Baseten, Ollama, custom
+			// `modelsSourceUrl` providers, ...) have no bundled fallback, so a
+			// failed refresh (unreachable host, TLS rejection, bad key) must
+			// reach the caller instead of silently yielding an empty list.
+			failOnError:
+				isPrivateModelCatalogProvider(providerId) ||
+				Boolean(provider?.modelsSourceUrl),
 		},
 		config,
 	);
@@ -855,13 +868,10 @@ export async function listLocalProviders(
 					provider.id === configuredVoiceInput.providerId && provider.enabled,
 			)
 		: undefined;
-	const voiceModel = voiceProvider?.modelList?.find(
-		(model) =>
-			model.id === configuredVoiceInput?.modelId &&
-			isDedicatedTranscriptionModel(model),
-	);
-	const voiceInput =
-		configuredVoiceInput && voiceModel ? configuredVoiceInput : undefined;
+	// This network-free snapshot carries the saved selection, not proof of
+	// support. Voice consumers and requests validate against the voice catalog,
+	// which can contain current models absent from the bundled chat catalog.
+	const voiceInput = voiceProvider ? configuredVoiceInput : undefined;
 
 	return { providers, settingsPath: manager.getFilePath(), voiceInput };
 }
@@ -895,6 +905,53 @@ export async function getLocalProviderModels(
 	return { providerId: id, models };
 }
 
+/** The same executable voice catalog is used by pickers, saves, and requests. */
+export async function getLocalTranscriptionModels(
+	providerId: string,
+	config?: ProviderConfig,
+): Promise<{ providerId: string; models: ProviderModel[] }> {
+	const id = providerId.trim();
+	const providerConfig = config ?? { providerId: id, modelId: "" };
+	let route: LlmsModels.AudioTranscriptionRoute;
+	try {
+		route = LlmsModels.resolveAudioTranscriptionRoute(providerConfig);
+	} catch {
+		return { providerId: id, models: [] };
+	}
+	if (route.transport === "vercel-ai-gateway") {
+		return {
+			providerId: id,
+			models: toSortedProviderModels(
+				await LlmsModels.fetchVercelTranscriptionModels(providerConfig),
+			),
+		};
+	}
+	const modelMap = await resolveProviderModelMap(id, config);
+	const models = toSortedProviderModels({
+		...modelMap,
+		...LlmsModels.getBuiltinStreamingTranscriptionModels(
+			providerConfig.routingProviderId ?? id,
+		),
+	});
+	return {
+		providerId: id,
+		models: models.filter(
+			(model) =>
+				isDedicatedTranscriptionModel(model) &&
+				LlmsModels.builtinProviderSupportsModelOperation({
+					providerId: providerConfig.routingProviderId ?? id,
+					modelId: model.id,
+					operation: "transcription",
+					operationModes: model.operationModes,
+					modalities: {
+						input: model.inputModalities ?? [],
+						output: model.outputModalities ?? [],
+					},
+				}),
+		),
+	};
+}
+
 export async function transcribeLocalAudio(
 	manager: ProviderSettingsManager,
 	request: TranscribeLocalAudioRequest,
@@ -910,7 +967,7 @@ export async function transcribeLocalAudio(
 		);
 	}
 
-	const { models } = await getLocalProviderModels(providerId, config);
+	const { models } = await getLocalTranscriptionModels(providerId, config);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -927,7 +984,6 @@ export async function transcribeLocalAudio(
 		providerConfig: config,
 		modelId,
 		audio: request.audio,
-		mediaType: request.mediaType,
 		abortSignal: request.abortSignal,
 	});
 }
@@ -955,11 +1011,17 @@ export async function saveVoiceInputSettings(
 	const config = manager.getProviderConfig(providerId, {
 		includeKnownModels: false,
 	});
-	const { models } = await getLocalProviderModels(providerId, config);
+	const { models } = await getLocalTranscriptionModels(providerId, config);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
 			`Model "${modelId}" is not a dedicated audio-to-text transcription model`,
+		);
+	}
+
+	if (!model.operationModes?.includes("streaming")) {
+		throw new Error(
+			`Model "${modelId}" does not support streaming transcription. Choose a streaming model for voice input.`,
 		);
 	}
 
@@ -979,7 +1041,6 @@ export async function transcribeConfiguredVoiceInput(
 	return transcribeLocalAudio(manager, {
 		...selection,
 		audio: request.audio,
-		mediaType: request.mediaType,
 		abortSignal: request.abortSignal,
 	});
 }
@@ -1000,7 +1061,10 @@ export async function createConfiguredStreamingTranscriptionSession(
 			`Transcription provider "${selection.providerId}" is not configured in providers.json`,
 		);
 	}
-	const { models } = await getLocalProviderModels(selection.providerId, config);
+	const { models } = await getLocalTranscriptionModels(
+		selection.providerId,
+		config,
+	);
 	const model = models.find((candidate) => candidate.id === selection.modelId);
 	if (
 		!model ||

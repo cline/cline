@@ -1,6 +1,6 @@
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { reconcileBufferedCloudEvents } from "./cloud-session-snapshots";
+import { reconcileBufferedCloudEvents } from "./snapshots";
 
 describe("reconcileBufferedCloudEvents", () => {
 	const event = (

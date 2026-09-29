@@ -21,6 +21,7 @@ import type {
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
 } from "../../../runtime/host/runtime-host";
+import { SessionAlreadyExistsError } from "../../../runtime/host/runtime-host";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
@@ -203,6 +204,11 @@ function getCapabilityOwnerClientId(
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
+/** `null` is meaningful for prompt/title updates (it clears the field). */
+function asNullableString(value: unknown): string | null | undefined {
+	return typeof value === "string" || value === null ? value : undefined;
+}
+
 function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
@@ -258,6 +264,23 @@ function authorizeSessionCompactionAccess(input: {
 }
 
 export async function handleSessionCreate(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	requestToolApproval: (
+		request: ToolApprovalRequest,
+	) => Promise<{ approved: boolean; reason?: string }>,
+): Promise<HubReplyEnvelope> {
+	try {
+		return await createSession(ctx, envelope, requestToolApproval);
+	} catch (error) {
+		if (error instanceof SessionAlreadyExistsError) {
+			return errorReply(envelope, error.code, error.message);
+		}
+		throw error;
+	}
+}
+
+async function createSession(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	requestToolApproval: (
@@ -1052,7 +1075,13 @@ export async function handleSessionUpdate(
 	const metadata = stripServerOwnedSessionMetadata(
 		asPlainRecord(envelope.payload?.metadata),
 	);
-	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
+	const prompt = asNullableString(envelope.payload?.prompt);
+	const title = asNullableString(envelope.payload?.title);
+	const updated = await ctx.sessionHost.updateSession(sessionId, {
+		metadata,
+		...(prompt !== undefined ? { prompt } : {}),
+		...(title !== undefined ? { title } : {}),
+	});
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
 		readCoreSessionSnapshot(ctx, sessionId),

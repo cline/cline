@@ -67,6 +67,7 @@ export const TASK_PROVIDER_STREAM_STARTED_EVENT =
 export const TASK_FIRST_CHUNK_RECEIVED_EVENT = "task.first_chunk_received";
 export const TASK_PROVIDER_STREAM_FAILED_EVENT = "task.provider_stream_failed";
 export const TASK_CANCELLED_EVENT = "task.cancelled";
+export const TASK_MAX_TOKENS_RECOVERY_EVENT = "task.max_tokens_recovery";
 
 export interface CaptureTaskLifecycleEventInput {
 	event: string;

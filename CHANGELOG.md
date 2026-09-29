@@ -1,5 +1,24 @@
 # Changelog
 
+## [4.1.21]
+
+### Added
+
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan.
+
+### Changed
+
+- Refreshed the model catalog to 6,386 models across 209 providers. The resolved default model changes for 19 providers that do not pin one, 11 of them to Claude Opus 5.5 (including GitHub Copilot and Vertex). If you use one of those providers without pinning a model, expect a different default.
+- Raised the minimum js-yaml version to 4.3.2 to pick up a security fix in the parser used to read rule and skill frontmatter.
+
+### Fixed
+
+- Long replies on local models (llama.cpp, Ollama, LM Studio) that hit the output-token limit now compact the conversation and retry once instead of ending the task. These servers cap generation at whatever context is left, regardless of the output budget you set. If compaction cannot help, the existing concise-retry recovery still runs, and the partial answer is kept.
+- Reopening a task that failed now shows the error with the retry option, instead of presenting it as a completed task.
+- A command that prints nothing no longer shows a raw JSON blob like `[{"query":"git add -A","result":"","success":true}]` as its output.
+- On Windows, @-mention search results now show the right file names. Nested files such as a subfolder's README rendered as `/README.md`, and the same open file could appear twice.
+- Canceling a request while it waits to retry an empty model response now takes effect right away, instead of after the backoff finishes.
+
 ## [4.1.20]
 
 ### Changed

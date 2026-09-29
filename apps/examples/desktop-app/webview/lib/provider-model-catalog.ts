@@ -1,7 +1,11 @@
 "use client";
 
-import { isChatCompatibleModel } from "@cline/shared/browser";
+import {
+	isChatCompatibleModel,
+	isTranscriptionModel,
+} from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
+import { isProviderConnected } from "@/lib/provider-connection";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -31,7 +35,20 @@ export type TranscriptionModelTarget = {
 };
 
 export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
-	return model.operation === "transcription";
+	return isTranscriptionModel({
+		modalities: {
+			input: model.inputModalities,
+			output: model.outputModalities,
+		},
+	});
+}
+
+/** Voice input requires continuous transcript updates, not recorded-file uploads. */
+export function isStreamingTranscriptionModel(model: ProviderModel): boolean {
+	return (
+		isDedicatedTranscriptionModel(model) &&
+		model.operationModes?.includes("streaming") === true
+	);
 }
 
 export function supportsAudio(model: ProviderModel): boolean {
@@ -74,7 +91,7 @@ export function selectTranscriptionModel(
 	const model = provider?.modelList?.find(
 		(candidate) =>
 			candidate.id === selection.modelId &&
-			isDedicatedTranscriptionModel(candidate),
+			isStreamingTranscriptionModel(candidate),
 	);
 	return provider && model
 		? {
@@ -144,6 +161,38 @@ let providerCatalogCache: {
 	fetchedAt: number;
 	promise: Promise<ProviderCatalogResponse>;
 } | null = null;
+let providerCatalogPayload: ProviderCatalogResponse | null = null;
+
+// Discovery can contact provider APIs. Reuse verified results across settings
+// and chat remounts; execution still validates against the provider catalog.
+const TRANSCRIPTION_MODELS_CACHE_TTL_MS = 5 * 60_000;
+const transcriptionModelsCache = new Map<
+	string,
+	{
+		fetchedAt: number;
+		promise: Promise<ProviderModel[]>;
+		models?: ProviderModel[];
+	}
+>();
+
+export function readVoiceInputCatalog(): ProviderCatalogResponse | null {
+	if (!providerCatalogPayload) return null;
+	const providers: Provider[] = [];
+	for (const provider of providerCatalogPayload.providers ?? []) {
+		if (!isProviderConnected(provider)) {
+			providers.push(provider);
+			continue;
+		}
+		const cached = transcriptionModelsCache.get(provider.id);
+		if (
+			!cached?.models ||
+			Date.now() - cached.fetchedAt >= TRANSCRIPTION_MODELS_CACHE_TTL_MS
+		)
+			return null;
+		providers.push({ ...provider, modelList: cached.models });
+	}
+	return { ...providerCatalogPayload, providers };
+}
 
 type ProviderModelsListener = (
 	providerId: string,
@@ -182,6 +231,11 @@ export function fetchProviderCatalog(options?: {
 	}
 	const promise = desktopClient
 		.invoke<ProviderCatalogResponse>("list_provider_catalog")
+		.then((payload) => {
+			if (providerCatalogCache?.promise === promise)
+				providerCatalogPayload = payload;
+			return payload;
+		})
 		.catch((error) => {
 			// Never cache failures.
 			if (providerCatalogCache?.promise === promise) {
@@ -212,6 +266,8 @@ export function subscribeToProviderCatalogInvalidation(
 
 export function invalidateProviderCatalogCache(): void {
 	providerCatalogCache = null;
+	providerCatalogPayload = null;
+	transcriptionModelsCache.clear();
 	// Credentials may have just changed: a pane remounting off the snapshot
 	// must not act on the old keys, so drop it until a fresh load lands.
 	providerCatalogSnapshot = null;
@@ -240,16 +296,78 @@ export function writeProviderCatalogSnapshot(
 	providerCatalogSnapshot = snapshot;
 }
 
-export function notifyVoiceInputSettingsChanged(): void {
-	invalidateProviderCatalogCache();
+export function notifyVoiceInputSettingsChanged(settings?: {
+	voiceInput?: VoiceInputSelection;
+}): void {
+	if (settings && providerCatalogPayload) {
+		// A model selection does not change credentials or provider capabilities.
+		providerCatalogPayload = {
+			...providerCatalogPayload,
+			voiceInput: settings.voiceInput,
+		};
+		providerCatalogCache = {
+			fetchedAt: Date.now(),
+			promise: Promise.resolve(providerCatalogPayload),
+		};
+	} else {
+		invalidateProviderCatalogCache();
+	}
 	if (typeof window !== "undefined") {
 		window.dispatchEvent(new Event(VOICE_INPUT_SETTINGS_CHANGED_EVENT));
 	}
 }
 
-export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
+export async function loadProviderModelCatalog(options?: {
+	includeVoiceInput?: boolean;
+}): Promise<ProviderModelCatalog> {
 	const payload = await fetchProviderCatalog();
-	return buildProviderModelCatalog(payload.providers ?? [], payload.voiceInput);
+	const catalog = buildProviderModelCatalog(payload.providers ?? []);
+	// Voice discovery may need the provider network. Chat and routine pickers
+	// should remain usable even if the configured voice provider is unavailable.
+	if (!options?.includeVoiceInput) return catalog;
+	const selection = payload.voiceInput;
+	const provider = catalog.providers.find(
+		(entry) => entry.id === selection?.providerId && isProviderConnected(entry),
+	);
+	if (selection && provider) {
+		const models = await loadTranscriptionModels(provider.id);
+		catalog.voiceInput = selectTranscriptionModel(
+			[{ ...provider, modelList: models }],
+			selection,
+		);
+	}
+	return catalog;
+}
+
+export function loadTranscriptionModels(
+	providerId: string,
+): Promise<ProviderModel[]> {
+	const cached = transcriptionModelsCache.get(providerId);
+	if (
+		cached &&
+		Date.now() - cached.fetchedAt < TRANSCRIPTION_MODELS_CACHE_TTL_MS
+	)
+		return cached.promise;
+	const promise = desktopClient
+		.invoke<ProviderModelsResponse>("list_transcription_models", {
+			provider: providerId,
+		})
+		.then((payload) => {
+			const models = payload.models.filter(isDedicatedTranscriptionModel);
+			const entry = transcriptionModelsCache.get(providerId);
+			if (entry?.promise === promise) {
+				entry.models = models;
+				entry.fetchedAt = Date.now();
+			}
+			return models;
+		})
+		.catch((error) => {
+			if (transcriptionModelsCache.get(providerId)?.promise === promise)
+				transcriptionModelsCache.delete(providerId);
+			throw error;
+		});
+	transcriptionModelsCache.set(providerId, { fetchedAt: Date.now(), promise });
+	return promise;
 }
 
 export async function loadProviderModels(

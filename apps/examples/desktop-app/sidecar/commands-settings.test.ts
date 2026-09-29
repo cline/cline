@@ -47,6 +47,34 @@ afterEach(() => {
 });
 
 describe("desktop settings commands", () => {
+	it("lists only current gateway transcription models for voice input", async () => {
+		const { ctx } = createContext();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					data: [
+						{
+							id: "stt",
+							modalities: { input: ["audio"], output: ["text"] },
+							supported_specifications: ["v4"],
+						},
+						{
+							id: "transcribe-chat",
+							type: "language",
+							modalities: { input: ["text", "audio"], output: ["text"] },
+							supported_specifications: ["v4"],
+						},
+					],
+				}),
+			),
+		);
+		const result = (await handleCommand(ctx, "list_transcription_models", {
+			provider: "vercel-ai-gateway",
+		})) as { models: Array<{ id: string }> };
+		expect(result.models.map((model) => model.id)).toEqual(["stt"]);
+	});
+
 	it.each([
 		"list_chat_sessions",
 		"list_discovered_sessions",
