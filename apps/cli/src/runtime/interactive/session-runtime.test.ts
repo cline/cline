@@ -151,6 +151,8 @@ function makeManager() {
 		dispose: vi.fn(),
 		get: vi.fn(),
 		readMessages: vi.fn(async (): Promise<Message[]> => []),
+		readLiveMessages: vi.fn(async (): Promise<Message[]> => []),
+		update: vi.fn(async () => ({ updated: true })),
 		readSessionCompactionState: vi.fn().mockResolvedValue(undefined),
 		updateSessionCompactionState: vi.fn(),
 		readTranscript: vi.fn(),
@@ -159,6 +161,7 @@ function makeManager() {
 		updateSessionModel: vi.fn(),
 		updateSessionConnection: vi.fn(async () => {}),
 		pendingPrompts: {
+			list: vi.fn(async () => []),
 			update: vi.fn(),
 		},
 		restore: vi.fn(),
@@ -956,6 +959,7 @@ describe("createInteractiveSessionRuntime", () => {
 			expect(manager.readMessages).toHaveBeenCalledWith("session-1");
 		});
 
+		const recordReadsBeforeCleanup = manager.get.mock.calls.length;
 		let cleanupSettled = false;
 		const cleanupPromise = runtime.cleanup().finally(() => {
 			cleanupSettled = true;
@@ -963,7 +967,7 @@ describe("createInteractiveSessionRuntime", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(cleanupSettled).toBe(false);
-		expect(manager.get).not.toHaveBeenCalled();
+		expect(manager.get).toHaveBeenCalledTimes(recordReadsBeforeCleanup);
 		expect(manager.dispose).not.toHaveBeenCalled();
 
 		recoveryRead.resolve([]);
@@ -972,5 +976,206 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(sendError).toBeInstanceOf(SessionNotFoundError);
 		expect(manager.dispose).toHaveBeenCalledWith("cli_interactive_shutdown");
+	});
+	it("holds a local mutation lock throughout cloud transfer and releases it", async () => {
+		const manager = makeManager();
+		manager.get.mockResolvedValue({ status: "idle", metadata: {} });
+		manager.readLiveMessages.mockResolvedValue([
+			{ role: "user", content: "local history" },
+		]);
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		const source = runtime.getHandoffSource()!;
+		const snapshot = await source.read();
+		expect(snapshot).toMatchObject({
+			sessionId: "session-1",
+			modelId: "claude-test",
+			busy: false,
+			queued: false,
+			config: { autoApproveTools: true },
+		});
+		const release = source.lock();
+		await expect(
+			runtime.sendCurrentTurn({ prompt: "duplicate" }),
+		).rejects.toThrow("handoff");
+		await expect(runtime.resetForNewSession()).rejects.toThrow("handoff");
+		await expect(runtime.forkCurrentSession()).rejects.toThrow("handoff");
+		await expect(runtime.resumeSession("another-session")).rejects.toThrow(
+			"handoff",
+		);
+		expect(manager.send).not.toHaveBeenCalled();
+		release();
+		await runtime.resetForNewSession();
+		await expect(source.read()).rejects.toThrow("conversation changed");
+	});
+
+	it("blocks sends after restart when handoff outcome is unknown or complete", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		manager.get.mockResolvedValue({
+			metadata: { cloudHandoffIntent: { fingerprint: {} } },
+		});
+		await expect(
+			runtime.sendCurrentTurn({ prompt: "duplicate" }),
+		).rejects.toThrow("unresolved");
+		manager.get.mockResolvedValue({
+			metadata: {
+				handoff: {
+					status: "complete",
+					toCloudSessionId: "outer",
+					handedOffAt: "date",
+					dashboardUrl: "https://example.com",
+				},
+			},
+		});
+		await expect(
+			runtime.sendCurrentTurn({ prompt: "duplicate" }),
+		).rejects.toThrow("continued in cloud");
+		expect(manager.send).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"locked",
+		"unresolved",
+		"complete",
+	])("rejects mode changes before mutating config for %s handoffs", async (status) => {
+		const manager = makeManager();
+		const config = createConfig();
+		const before = { ...config };
+		const runtime = await makeRuntime(manager, { config });
+		await runtime.ensureReady();
+		if (status === "locked") runtime.getHandoffSource()!.lock();
+		else
+			manager.get.mockResolvedValue({
+				metadata:
+					status === "complete"
+						? {
+								handoff: {
+									status: "complete",
+									toCloudSessionId: "outer",
+									handedOffAt: "date",
+									dashboardUrl: "https://example.com",
+								},
+							}
+						: { cloudHandoffIntent: { fingerprint: {} } },
+			});
+		await expect(runtime.applyMode("plan")).rejects.toThrow(
+			/handoff|continued in cloud/,
+		);
+		expect(config).toEqual(before);
+		expect(manager.stop).not.toHaveBeenCalled();
+		expect(manager.start).toHaveBeenCalledTimes(1);
+	});
+
+	it("blocks handoff while a mode change reads and restarts the session", async () => {
+		const manager = makeManager();
+		const reading = deferred<Message[]>();
+		manager.readMessages.mockReturnValueOnce(reading.promise);
+		const restarting = deferred<void>();
+		manager.stop.mockReturnValueOnce(restarting.promise);
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		const source = runtime.getHandoffSource()!;
+		const change = runtime.applyMode("plan");
+		await vi.waitFor(() => expect(manager.readMessages).toHaveBeenCalled());
+		expect(() => source.lock()).toThrow("local operation");
+		reading.resolve([]);
+		await vi.waitFor(() => expect(manager.stop).toHaveBeenCalled());
+		expect(() => source.lock()).toThrow("local operation");
+		restarting.resolve();
+		await change;
+		expect(() => runtime.getHandoffSource()!.lock()()).not.toThrow();
+	});
+
+	it("reserves config mutations during metadata checks and releases failed mutations", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		const checking = deferred<undefined>();
+		manager.get.mockReturnValueOnce(checking.promise);
+		const mutate = vi.fn(() => {
+			throw new Error("mutation failed");
+		});
+		const changing = runtime.withLocalMutation(mutate);
+		expect(() => runtime.getHandoffSource()!.lock()).toThrow("local operation");
+		expect(mutate).not.toHaveBeenCalled();
+		checking.resolve(undefined);
+		await expect(changing).rejects.toThrow("mutation failed");
+		expect(() => runtime.getHandoffSource()!.lock()()).not.toThrow();
+	});
+
+	it.each([
+		"new",
+		"fork",
+		"resume",
+	])("allows %s away from an unresolved handoff without removing the source fence", async (action) => {
+		const manager = makeManager();
+		const metadata = {
+			cloudHandoffIntent: { fingerprint: { requestId: "pending" } },
+		};
+		const originalMetadata = structuredClone(metadata);
+		const messages: Message[] = [{ role: "user", content: "existing history" }];
+		manager.get.mockImplementation(async (id) => ({
+			status: "idle",
+			metadata: id === "session-1" ? metadata : {},
+		}));
+		manager.readMessages.mockResolvedValue(messages);
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		loadInteractiveResumeMessagesMock.mockResolvedValue(messages);
+		if (action === "new") {
+			await runtime.resetForNewSession();
+			await runtime.ensureReady();
+		} else if (action === "fork") {
+			await runtime.forkCurrentSession();
+			expect(manager.start.mock.calls[1]?.[0]).toMatchObject({
+				sessionMetadata: { fork: { forkedFromSessionId: "session-1" } },
+			});
+			expect(
+				(
+					manager.start.mock.calls[1]?.[0] as {
+						sessionMetadata: Record<string, unknown>;
+					}
+				).sessionMetadata.cloudHandoffIntent,
+			).toBeUndefined();
+		} else await runtime.resumeSession("other-session");
+		expect(runtime.getActiveSessionId()).not.toBe("session-1");
+		expect(metadata).toEqual(originalMetadata);
+		expect(manager.update).not.toHaveBeenCalled();
+		manager.start.mockResolvedValueOnce({
+			sessionId: "session-1",
+			manifest: createManifest("session-1"),
+			manifestPath: "/tmp/session-1.json",
+			messagesPath: "/tmp/session-1.messages.json",
+		});
+		await runtime.resumeSession("session-1");
+		await expect(
+			runtime.sendCurrentTurn({ prompt: "duplicate" }),
+		).rejects.toThrow("unresolved");
+		await expect(runtime.resumeSession("session-1")).rejects.toThrow(
+			"unresolved",
+		);
+		await expect(
+			runtime.restartWithMessages(messages, undefined, undefined, {
+				preserveSessionId: true,
+			}),
+		).rejects.toThrow("unresolved");
+		await expect(runtime.restoreCheckpoint(1, false)).rejects.toThrow(
+			"unresolved",
+		);
+		expect(manager.send).not.toHaveBeenCalled();
+		expect(manager.restore).not.toHaveBeenCalled();
+		expect(metadata).toEqual(originalMetadata);
+	});
+
+	it("requires a durable source metadata update", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		manager.update.mockResolvedValueOnce({ updated: false });
+		await expect(
+			runtime.getHandoffSource()!.updateMetadata("session-1", {}),
+		).rejects.toThrow("recovery information");
 	});
 });

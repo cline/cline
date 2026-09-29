@@ -21,6 +21,10 @@ describe("buildForkSessionMetadata", () => {
 				metadata: {
 					title: "Source title",
 					totalCost: 1.25,
+					handoff: { status: "complete" },
+					cloudHandoffIntent: { fingerprint: {} },
+					cloudHandoffScope: "old-account",
+					cloudHandoffSeedDispatched: true,
 					checkpoint: {
 						latest: {
 							ref: "abc123",
@@ -37,6 +41,13 @@ describe("buildForkSessionMetadata", () => {
 
 		expect(metadata.title).toBe("Source title (fork)");
 		expect(metadata.totalCost).toBe(1.25);
+		for (const key of [
+			"handoff",
+			"cloudHandoffIntent",
+			"cloudHandoffScope",
+			"cloudHandoffSeedDispatched",
+		])
+			expect(metadata).not.toHaveProperty(key);
 		expect(metadata.fork).toEqual({
 			forkedFromSessionId: "sess_source",
 			forkedAt: "2026-04-29T16:00:00.000Z",

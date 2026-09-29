@@ -142,3 +142,30 @@ describe("command palette", () => {
 		).toBe("Create Session Fork");
 	});
 });
+
+describe("cloud palette admission", () => {
+	it("hides the item and shortcut unless explicitly enabled", () => {
+		for (const cloudEnabled of [undefined, false]) {
+			const items = buildCommandPaletteItems({
+				canForkSession: true,
+				cloudEnabled,
+			});
+			expect(items.some((item) => item.result.action === "cloud")).toBe(false);
+			expect(
+				findCommandPaletteShortcut(items, {
+					name: "b",
+					meta: true,
+					shift: false,
+				}),
+			).toBeUndefined();
+		}
+		const items = buildCommandPaletteItems({
+			canForkSession: true,
+			cloudEnabled: true,
+		});
+		expect(
+			findCommandPaletteShortcut(items, { name: "b", meta: true, shift: false })
+				?.result.action,
+		).toBe("cloud");
+	});
+});

@@ -7,6 +7,7 @@ import {
 	getVisibleSystemSlashCommands,
 	getVisibleUserSlashCommands,
 	resolveSlashCommand,
+	shouldDispatchTuiSlashCommand,
 } from "./slash-command-registry";
 
 describe("slash command registry", () => {
@@ -315,5 +316,57 @@ describe("slash command registry", () => {
 		expect(
 			getVisibleSystemSlashCommands(registry).map((command) => command.name),
 		).toContain("account");
+	});
+});
+
+describe("cloud command admission", () => {
+	it.each([
+		undefined,
+		false,
+	])("reserves hidden /cloud as local when enabled=%s", (cloudEnabled) => {
+		const registry = buildSlashCommandRegistry({
+			cloudEnabled,
+			additionalSlashCommands: [
+				{ name: "cloud", instructions: "run a plugin", description: "plugin" },
+			],
+		});
+		expect(resolveSlashCommand(registry, "cloud")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			visible: false,
+			selectable: false,
+		});
+		expect(
+			getVisibleSystemSlashCommands(registry).some(
+				(entry) => entry.name === "cloud",
+			),
+		).toBe(false);
+	});
+	it("advertises cloud only when the rollout gate allows it", () => {
+		expect(
+			resolveSlashCommand(
+				buildSlashCommandRegistry({ cloudEnabled: true }),
+				"cloud",
+			),
+		).toMatchObject({ visible: true, selectable: true, execution: "local" });
+	});
+});
+
+describe("cloud navigation during local runs", () => {
+	it.each([
+		"/cloud",
+		"/CLOUD",
+		"/cloud args",
+		" //cloud ",
+	])("reserves %s even for queued/steering submissions", (prompt) => {
+		expect(shouldDispatchTuiSlashCommand(prompt, "queue")).toBe(true);
+		expect(shouldDispatchTuiSlashCommand(prompt, "steer")).toBe(true);
+	});
+	it("preserves established local command and ordinary text routing", () => {
+		expect(shouldDispatchTuiSlashCommand("/settings")).toBe(true);
+		expect(shouldDispatchTuiSlashCommand("/settings", "queue")).toBe(false);
+		expect(shouldDispatchTuiSlashCommand("please use /cloud", "queue")).toBe(
+			false,
+		);
 	});
 });

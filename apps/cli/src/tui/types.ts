@@ -130,7 +130,7 @@ export interface PendingPromptMutationResult {
 	removed?: boolean;
 }
 
-export type AppView = "onboarding" | "home" | "chat";
+export type AppView = "onboarding" | "home" | "chat" | "cloud";
 export type TuiStartupTarget = "chat" | "config" | "history";
 
 export type RuntimeToolInteraction =
@@ -147,6 +147,7 @@ export type RuntimeToolInteraction =
 	  };
 
 export interface TuiProps {
+	cloud?: import("../runtime/cloud/runtime").CliCloudRuntime;
 	config: Config;
 	startupTarget?: TuiStartupTarget;
 	initialPrompt?: string;
@@ -199,9 +200,9 @@ export interface TuiProps {
 	onHubUpdateRestart?: () => void;
 	onRunningChange: (isRunning: boolean) => void;
 	onTurnErrorReported: (reported: boolean) => void;
-	onAutoApproveChange: (enabled: boolean) => void;
+	onAutoApproveChange: (enabled: boolean) => void | Promise<void>;
 	onCompactionModeChange: (mode: CliCompactionMode) => Promise<void>;
-	onModelChange: () => Promise<void>;
+	onModelChange: (nextConfig?: Config) => Promise<void>;
 	onModeChange: (mode: AgentMode) => Promise<void>;
 	onNewSession: () => Promise<void>;
 	onSessionRestart: () => Promise<void>;

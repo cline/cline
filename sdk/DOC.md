@@ -61,6 +61,9 @@ authorizes recreation of a missing established task.
 
 ## Experimental cloud handoff
 
+For `CloudHandoffCoordinator` from `@cline/core/cloud`, call `prepare()`, confirm the
+destination, then `execute()`. It verifies the transfer without sending a follow-up.
+
 `loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
 models. Handoff requires the selected model; it never substitutes another.
 

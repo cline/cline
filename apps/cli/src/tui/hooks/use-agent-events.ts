@@ -428,7 +428,17 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 		[appendEntry],
 	);
 
+	/** Retire transient projections when an authoritative cloud snapshot replaces them. */
+	const resetProjection = useCallback(() => {
+		activeInlineStreamRef.current = undefined;
+		pendingCompactionEntriesRef.current = [];
+		openCompactionEntryRef.current = false;
+		knownPendingPromptIdsRef.current.clear();
+		turnErrorReportedRef.current = false;
+	}, [activeInlineStreamRef]);
+
 	return {
+		resetProjection,
 		handleAgentEvent,
 		handleTeamEvent,
 		handlePendingPrompts,

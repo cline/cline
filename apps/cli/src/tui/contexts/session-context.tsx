@@ -199,19 +199,33 @@ export function SessionProvider(props: {
 		setUiMode(uiModeRef.current === "act" ? "plan" : "act");
 	}, [setUiMode]);
 
+	const reportConfigChangeError = useCallback(
+		(error: unknown) => {
+			appendEntry({
+				kind: "error",
+				text: error instanceof Error ? error.message : String(error),
+			});
+		},
+		[appendEntry],
+	);
+
 	const toggleAutoApprove = useCallback(() => {
 		const next = !autoApproveAllRef.current;
-		autoApproveAllRef.current = next;
-		onAutoApproveChange(next);
-		_setAutoApproveAll(next);
-	}, [onAutoApproveChange]);
+		void (async () => {
+			await onAutoApproveChange(next);
+			autoApproveAllRef.current = next;
+			_setAutoApproveAll(next);
+		})().catch(reportConfigChangeError);
+	}, [onAutoApproveChange, reportConfigChangeError]);
 
 	const setCompactionMode = useCallback(
 		(mode: CliCompactionMode) => {
-			_setCompactionMode(mode);
-			void onCompactionModeChange(mode);
+			void onCompactionModeChange(mode).then(
+				() => _setCompactionMode(mode),
+				reportConfigChangeError,
+			);
 		},
-		[onCompactionModeChange],
+		[onCompactionModeChange, reportConfigChangeError],
 	);
 
 	const requestExit = useCallback(() => {
