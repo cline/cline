@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { INPUT_HISTORY_STORAGE_KEY } from "@/lib/input-history";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -2983,5 +2984,188 @@ describe("ChatInputBar token ring", () => {
 		);
 		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+	});
+});
+
+describe("ChatInputBar input history", () => {
+	const nativeValueSetter = Object.getOwnPropertyDescriptor(
+		HTMLTextAreaElement.prototype,
+		"value",
+	)?.set;
+
+	beforeEach(() => {
+		window.localStorage.removeItem(INPUT_HISTORY_STORAGE_KEY);
+	});
+
+	async function type(value: string) {
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			nativeValueSetter?.call(textarea, value);
+			textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+	}
+
+	async function pressKey(key: string, selectionStart?: number) {
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			if (selectionStart !== undefined && textarea) {
+				textarea.selectionStart = selectionStart;
+				textarea.selectionEnd = selectionStart;
+			}
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key, bubbles: true }),
+			);
+		});
+	}
+
+	it("records sent prompts and recalls them with ArrowUp/ArrowDown", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("first message");
+		await pressKey("Enter");
+		await type("second message");
+		await pressKey("Enter");
+		expect(onSend).toHaveBeenLastCalledWith("second message");
+
+		await pressKey("ArrowUp", 0);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("second message");
+		expect(textarea?.selectionStart).toBe(0);
+		await pressKey("ArrowUp");
+		expect(textarea?.value).toBe("first message");
+		await pressKey("ArrowUp");
+		expect(textarea?.value).toBe("first message");
+
+		await pressKey("ArrowDown");
+		expect(textarea?.value).toBe("second message");
+		await pressKey("ArrowDown");
+		expect(textarea?.value).toBe("");
+	});
+
+	it("restores the in-progress draft when navigating back", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("one");
+		await pressKey("Enter");
+		await type("draft text");
+		await pressKey("ArrowUp", 0);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("one");
+		await pressKey("ArrowDown");
+		expect(textarea?.value).toBe("draft text");
+		expect(textarea?.selectionStart).toBe("draft text".length);
+		await pressKey("Enter");
+		expect(onSend).toHaveBeenLastCalledWith("draft text");
+	});
+
+	it("keeps native caret behavior when the caret is inside the text", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("one");
+		await pressKey("Enter");
+		await type("two");
+		await pressKey("Enter");
+		await type("current draft");
+		await pressKey("ArrowUp", 5);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("current draft");
+		await pressKey("ArrowDown", 5);
+		expect(textarea?.value).toBe("current draft");
+		await pressKey("ArrowUp", 0);
+		expect(textarea?.value).toBe("two");
+	});
+
+	it("resets the recall position when the recalled text is edited", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("one");
+		await pressKey("Enter");
+		await type("two");
+		await pressKey("Enter");
+		await pressKey("ArrowUp", 0);
+		await type("two!");
+		await pressKey("ArrowDown");
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("two!");
+	});
+
+	it("persists history across remounts", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("persisted");
+		await pressKey("Enter");
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(INPUT_HISTORY_STORAGE_KEY) ?? "[]",
+			),
+		).toEqual(["persisted"]);
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await renderVoiceComposer({ onSend: vi.fn() });
+		await pressKey("ArrowUp", 0);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("persisted");
+	});
+
+	it("re-pins the caret when the recalled text equals the current draft", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("hi");
+		await pressKey("Enter");
+		await type("hi");
+		await pressKey("ArrowUp", 0);
+		await pressKey("ArrowDown");
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("hi");
+		expect(textarea?.selectionStart).toBe(2);
+	});
+
+	it("stops navigating once an injected draft replaces the input", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("one");
+		await pressKey("Enter");
+		await pressKey("ArrowUp", 0);
+		await renderVoiceComposer({
+			onSend,
+			prompt: "injected draft",
+			promptVersion: 1,
+		});
+		await pressKey("ArrowDown");
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("injected draft");
+	});
+
+	it("keeps entries written by another window when recording", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		window.localStorage.setItem(
+			INPUT_HISTORY_STORAGE_KEY,
+			JSON.stringify(["from another window"]),
+		);
+		await type("mine");
+		await pressKey("Enter");
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(INPUT_HISTORY_STORAGE_KEY) ?? "[]",
+			),
+		).toEqual(["mine", "from another window"]);
+	});
+
+	it("does not navigate history in read-only sessions", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend });
+		await type("one");
+		await pressKey("Enter");
+		await renderVoiceComposer({
+			onSend,
+			prompt: "frozen",
+			readOnly: true,
+			promptVersion: 1,
+		});
+		await pressKey("ArrowUp", 0);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("frozen");
+		expect(textarea?.selectionStart).toBe(0);
 	});
 });
