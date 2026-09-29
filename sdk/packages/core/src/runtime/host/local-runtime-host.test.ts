@@ -304,9 +304,19 @@ describe("LocalRuntimeHost", () => {
 				await expect(
 					manager.updateSessionConnection("restored-task", {}),
 				).resolves.toBeUndefined();
+				// A later start naming the resident idle session rebuilds it in
+				// place (hub clients have no other way to restart a session)...
+				await expect(manager.startSession(input)).resolves.toMatchObject({
+					sessionId: "restored-task",
+				});
+				expect(agent.shutdown).toHaveBeenCalledWith("session_replaced");
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
+				// ...but a session mid-turn is protected from replacement.
+				agent.canStartRun.mockReturnValue(false);
 				await expect(manager.startSession(input)).rejects.toMatchObject({
 					code: "session_already_exists",
 				});
+				agent.canStartRun.mockReturnValue(true);
 			}
 		} finally {
 			release();

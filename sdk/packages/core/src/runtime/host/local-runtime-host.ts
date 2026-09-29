@@ -428,14 +428,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// A successful one-shot start may already have released its runtime.
 			throw new SessionAlreadyExistsError(sessionId);
 		}
-		if (this.sessions.has(sessionId)) {
+		const resident = this.sessions.get(sessionId);
+		if (resident && !resident.agent.canStartRun()) {
 			throw new SessionAlreadyExistsError(sessionId);
 		}
-		const starting = this.startNewSession(
-			input,
-			sessionId,
-			requestedSessionId,
-		).finally(() => this.sessionStarts.delete(sessionId));
+		const starting = (async () => {
+			// Hub clients cannot stop a resident session (HubRuntimeHost.stopSession
+			// only detaches), so a start that names one is how they rebuild it:
+			// desktop resume and provider switches, CLI plan/act toggles and
+			// `--resume`. Release the idle runtime and start over from the caller's
+			// config and history; only a session mid-turn is protected above.
+			// Cleanup failures are already logged and captured by the release.
+			if (resident) {
+				await this.releaseSessionRuntime(resident, "session_replaced").catch(
+					() => undefined,
+				);
+			}
+			return await this.startNewSession(input, sessionId, requestedSessionId);
+		})().finally(() => this.sessionStarts.delete(sessionId));
 		this.sessionStarts.set(sessionId, starting);
 		return await starting;
 	}
