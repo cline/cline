@@ -811,17 +811,16 @@ export function createSkillsTool(
 }
 
 /**
- * A bare answer reads as the end of the exchange, so the result tells the
- * model to keep going. An empty answer (dismissed, timed out, session torn
+ * An empty answer (dismissed, timed out, session torn
  * down) is an error so the model never assumes an answer the user did not give.
  */
-function formatAskQuestionResult(answer: string): string {
+function validateAskQuestionAnswer(answer: string): string {
 	if (!answer.trim()) {
 		throw new Error(
 			"The user did not answer. Do not assume an answer: make a reasonable choice and say so, or stop and report what you need.",
 		);
 	}
-	return `User answered: ${answer}\n\nContinue the session.`;
+	return answer;
 }
 
 /**
@@ -851,7 +850,7 @@ export function createAskQuestionTool(
 				validatedInput.options,
 				context,
 			);
-			return formatAskQuestionResult(answer);
+			return validateAskQuestionAnswer(answer);
 		},
 	};
 }
