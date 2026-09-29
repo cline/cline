@@ -161,6 +161,147 @@ describe("NodeHubClient", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it.each([
+			"cleanup",
+			"duplicate",
+			"close",
+			"socket-close",
+		] as const)("handles registration conflicts during reconnect: %s", async (outcome) => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://example.test/hub" });
+			await client.connect();
+			MockWebSocket.instances[0].close();
+			await Promise.resolve();
+			const originalSend = MockWebSocket.prototype.send;
+			let registrations = 0;
+			const send = vi
+				.spyOn(MockWebSocket.prototype, "send")
+				.mockImplementation(function (this: MockWebSocket, data: string) {
+					const frame = JSON.parse(data);
+					if (frame.envelope?.command === "client.register") {
+						registrations += 1;
+						if (outcome !== "cleanup" || registrations <= 2) {
+							this.sentFrames.push(frame);
+							queueMicrotask(() =>
+								this.emit("message", {
+									data: JSON.stringify({
+										kind: "reply",
+										envelope: {
+											...frame.envelope,
+											ok: false,
+											error: {
+												code: "client_already_registered",
+												message: "Already registered",
+											},
+										},
+									}),
+								}),
+							);
+							return;
+						}
+					}
+					originalSend.call(this, data);
+				});
+			try {
+				const commands = Promise.all([
+					client.command("client.list"),
+					client.command("client.list"),
+				]);
+				const checked =
+					outcome === "cleanup"
+						? expect(commands).resolves.toHaveLength(2)
+						: expect(commands).rejects.toMatchObject({
+								code:
+									outcome === "close" || outcome === "socket-close"
+										? "hub_connection_closed"
+										: "client_already_registered",
+							});
+				await vi.advanceTimersByTimeAsync(0);
+				expect(registrations).toBe(1);
+				expect(MockWebSocket.instances[1].sentFrames).toHaveLength(1);
+				if (outcome === "close" || outcome === "socket-close") {
+					// Enter the longest backoff, then close without advancing its timer.
+					await vi.advanceTimersByTimeAsync(1550);
+					expect(registrations).toBe(6);
+					if (outcome === "close") client.close();
+					else MockWebSocket.instances[1].close();
+					await checked;
+					expect(vi.getTimerCount()).toBe(0);
+				} else {
+					await vi.advanceTimersByTimeAsync(4000);
+				}
+				await checked;
+				expect(registrations).toBe(
+					outcome === "cleanup" ? 3 : outcome === "duplicate" ? 7 : 6,
+				);
+				expect(MockWebSocket.instances).toHaveLength(2);
+				expect(client.isConnected()).toBe(outcome === "cleanup");
+			} finally {
+				client.close();
+				send.mockRestore();
+				vi.useRealTimers();
+			}
+		});
+
+		it("rejects malformed registration replies without an uncaught exception", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const send = vi
+				.spyOn(MockWebSocket.prototype, "send")
+				.mockImplementation(function (this: MockWebSocket) {
+					queueMicrotask(() =>
+						this.emit("message", { data: '{"kind":"reply"' }),
+					);
+				});
+			const client = new NodeHubClient({ url: "ws://example.test/hub" });
+			try {
+				await expect(client.connect()).rejects.toMatchObject({
+					code: "hub_invalid_frame",
+				});
+				expect(client.isConnected()).toBe(false);
+				expect(MockWebSocket.instances[0].readyState).toBe(
+					MockWebSocket.CLOSED,
+				);
+			} finally {
+				send.mockRestore();
+				client.close();
+			}
+		});
+
+		it("contains malformed JSON, rejects pending work, and reconnects subscriptions", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://example.test/hub" });
+			await client.connect();
+			const listener = vi.fn();
+			client.subscribe(listener);
+			const socket = MockWebSocket.instances[0];
+			vi.spyOn(socket, "send").mockImplementation(() => {});
+			const pending = client.command("client.list");
+			const rejected = expect(pending).rejects.toMatchObject({
+				code: "hub_invalid_frame",
+			});
+			await Promise.resolve();
+			expect(() =>
+				socket.emit("message", {
+					data: '{"kind":"reply","secret":"unfinished',
+				}),
+			).not.toThrow();
+			await rejected;
+			expect(client.getConnectionError()?.message).not.toContain("secret");
+			await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(2));
+			await vi.waitFor(() => expect(client.isConnected()).toBe(true));
+			// A retired socket cannot deliver events to the replacement client.
+			socket.emit("message", {
+				data: JSON.stringify({ kind: "event", envelope: { event: "stale" } }),
+			});
+			expect(listener).not.toHaveBeenCalled();
+			expect(MockWebSocket.instances[1].sentFrames).toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+			});
+			client.close();
+		});
+
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 

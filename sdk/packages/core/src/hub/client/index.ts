@@ -222,6 +222,7 @@ const HUB_RECONNECT_MAX_DELAY_MS = 5_000;
 const HUB_RECONNECT_JITTER_RATIO = 0.5;
 
 export type HubTransportErrorCode =
+	| "hub_invalid_frame"
 	| "hub_connect_timeout"
 	| "hub_connect_failed"
 	| "hub_connection_closed"
@@ -343,6 +344,7 @@ export class NodeHubClient {
 	private readonly lastEventSequenceByKey = new Map<string, number>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
+	private cancelRegistrationBackoff: (() => void) | undefined;
 	private closedByClient = false;
 	// Invalidates connection work superseded by close() or a newer attempt.
 	private connectGeneration = 0;
@@ -419,29 +421,60 @@ export class NodeHubClient {
 			);
 		}
 
+		this.cancelRegistrationBackoff?.();
 		const generation = ++this.connectGeneration;
 		const connectPromise = this.openSocket(url, authToken, generation);
 		let attemptSocket: WebSocketLike | undefined;
 		this.connectPromise = connectPromise.then(async (socket) => {
 			attemptSocket = socket;
-			await this.commandOnce(
-				"client.register",
-				{
-					clientId: this.clientId,
-					clientType: this.options.clientType ?? "core",
-					displayName: this.options.displayName ?? "core",
-					transport: "native",
-					actorKind: "client",
-					capabilities: this.capabilities,
-					workspaceContext: {
-						workspaceRoot: this.options.workspaceRoot,
-						cwd: this.options.cwd,
-					},
-				} satisfies HubClientRegistration,
-				undefined,
-				undefined,
-				false,
-			);
+			// The previous socket may still own this ID while its close is being
+			// processed. Keep concurrent callers waiting for registration, even
+			// for command-only clients with no subscription reconnect loop.
+			for (let attempt = 0; ; attempt += 1) {
+				if (
+					generation !== this.connectGeneration ||
+					this.closedByClient ||
+					this.socket !== socket ||
+					socket.readyState !== 1
+				) {
+					throw this.lastCloseError;
+				}
+				try {
+					await this.commandOnce(
+						"client.register",
+						{
+							clientId: this.clientId,
+							clientType: this.options.clientType ?? "core",
+							displayName: this.options.displayName ?? "core",
+							transport: "native",
+							actorKind: "client",
+							capabilities: this.capabilities,
+							workspaceContext: {
+								workspaceRoot: this.options.workspaceRoot,
+								cwd: this.options.cwd,
+							},
+						} satisfies HubClientRegistration,
+						undefined,
+						undefined,
+						false,
+					);
+					break;
+				} catch (error) {
+					if (
+						!(error instanceof HubCommandError) ||
+						error.code !== "client_already_registered" ||
+						attempt >= 6
+					) {
+						throw error;
+					}
+					// Bound retries so a genuinely duplicate live client still fails.
+					await this.waitForRegistrationRetry(
+						socket,
+						generation,
+						50 * 2 ** attempt,
+					);
+				}
+			}
 			// Registration may resolve after close/reconnect; reject a stale socket.
 			if (generation !== this.connectGeneration || this.closedByClient) {
 				try {
@@ -484,6 +517,33 @@ export class NodeHubClient {
 			}
 			throw error;
 		}
+	}
+
+	private waitForRegistrationRetry(
+		socket: WebSocketLike,
+		generation: number,
+		delayMs: number,
+	): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			if (
+				this.closedByClient ||
+				generation !== this.connectGeneration ||
+				this.socket !== socket ||
+				socket.readyState !== 1
+			) {
+				reject(this.lastCloseError);
+				return;
+			}
+			const timer = setTimeout(() => {
+				this.cancelRegistrationBackoff = undefined;
+				resolve();
+			}, delayMs);
+			this.cancelRegistrationBackoff = () => {
+				clearTimeout(timer);
+				this.cancelRegistrationBackoff = undefined;
+				reject(this.lastCloseError);
+			};
+		});
 	}
 
 	private async openSocket(
@@ -627,7 +687,28 @@ export class NodeHubClient {
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
-			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
+			if (this.socket !== socket || suppressCloseMessage) return;
+			let frame: HubTransportFrame;
+			try {
+				frame = JSON.parse(decodeSocketData(data)) as HubTransportFrame;
+			} catch {
+				// Do not include frame contents: replies can contain credentials or
+				// private session data. A protocol failure must not kill the host.
+				this.lastCloseError = new HubTransportError(
+					"hub_invalid_frame",
+					"Hub sent malformed JSON; closing the connection.",
+				);
+				suppressCloseMessage = true;
+				this.registered = false;
+				this.cancelRegistrationBackoff?.();
+				for (const pending of this.pendingReplies.values()) {
+					pending.reject(this.lastCloseError);
+				}
+				this.pendingReplies.clear();
+				socket.close();
+				return;
+			}
+			this.handleFrame(frame);
 		});
 		socket.addEventListener("close", (event: unknown) => {
 			if (this.socket !== socket) {
@@ -638,6 +719,7 @@ export class NodeHubClient {
 				this.sawSocketClose = true;
 			}
 			this.registered = false;
+			this.cancelRegistrationBackoff?.();
 			for (const pending of this.pendingReplies.values()) {
 				pending.reject(this.lastCloseError);
 			}
@@ -885,6 +967,7 @@ export class NodeHubClient {
 				DEFAULT_HUB_CLOSED_MESSAGE,
 			);
 		}
+		this.cancelRegistrationBackoff?.();
 		for (const pending of this.pendingReplies.values()) {
 			pending.reject(this.lastCloseError);
 		}

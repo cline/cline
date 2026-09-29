@@ -20,6 +20,15 @@ export function handleClientRegister(
 		payload?.clientId?.trim() ||
 		envelope.clientId?.trim() ||
 		createSessionId("client_");
+	// A client ID has one live owner. Replacing it would let the old socket's
+	// close handler unregister the new owner and cancel its capability requests.
+	if (ctx.clients.has(clientId)) {
+		return errorReply(
+			envelope,
+			"client_already_registered",
+			"Client ID is already registered with this hub.",
+		);
+	}
 	ctx.clients.set(clientId, {
 		clientId,
 		clientType: payload?.clientType ?? "unknown",

@@ -145,7 +145,18 @@ export async function connectToHub(url: string): Promise<HubConnection> {
 			});
 
 			ws.addEventListener("message", (event) => {
-				const frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				let frame: HubTransportFrame;
+				try {
+					frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				} catch {
+					const error = new Error(
+						"Hub sent malformed JSON; closing the connection.",
+					);
+					for (const entry of pending.values()) entry.reject(error);
+					pending.clear();
+					ws.close();
+					return;
+				}
 				if (frame.kind === "reply" && frame.envelope.requestId) {
 					const entry = pending.get(frame.envelope.requestId);
 					if (entry) {
