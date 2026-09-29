@@ -522,6 +522,7 @@ describe("Cloud sessions sidecar wiring", () => {
 				repoUrl: "https://github.com/cline/test",
 				modelId: "anthropic/claude-sonnet-5",
 				initialPrompt: "Fix the provisioning flow",
+				sandboxType: "resumable",
 				branch: "feature/login-fix",
 				autoApproveTools: false,
 			}),
