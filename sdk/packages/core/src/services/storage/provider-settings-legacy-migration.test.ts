@@ -1487,6 +1487,98 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 	});
 
+	it("prefers the legacy mode provider over a phantom entry when the stored pointer is stale", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		// Stale pointer plus a phantom left by an earlier migration: the
+		// stored pointer must be judged as written, not as read() would repair it.
+		writeFileSync(
+			providersPath,
+			JSON.stringify({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						updatedAt: "2026-09-01T00:00:00.000Z",
+						tokenSource: "migration",
+					},
+				},
+			}),
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "openai",
+				openAiBaseUrl: "http://127.0.0.1:8080/v1",
+				actModeOpenAiModelId: "qwen3-coder",
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.lastUsedProvider).toBe("openai-compatible");
+		expect(
+			JSON.parse(readFileSync(providersPath, "utf8")).lastUsedProvider,
+		).toBe("openai-compatible");
+	});
+
+	it("prefers the legacy mode provider over an existing usable provider when the stored pointer is stale", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		// Repairing the pointer before the migration reads it would pin
+		// anthropic here and hide the provider the user actually selected.
+		writeFileSync(
+			providersPath,
+			JSON.stringify({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					anthropic: {
+						settings: { provider: "anthropic", apiKey: "existing-key" },
+						updatedAt: "2026-09-01T00:00:00.000Z",
+						tokenSource: "manual",
+					},
+				},
+			}),
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "openai",
+				openAiBaseUrl: "http://127.0.0.1:8080/v1",
+				actModeOpenAiModelId: "qwen3-coder",
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.lastUsedProvider).toBe("openai-compatible");
+		expect(manager.getProviderSettings("anthropic")?.apiKey).toBe(
+			"existing-key",
+		);
+	});
+
 	it("keeps an existing last-used provider that still resolves", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
