@@ -83,7 +83,7 @@ const { FakeNodeWebSocket } = vi.hoisted(() => {
 	return { FakeNodeWebSocket };
 });
 
-vi.mock("node-ws", () => ({ default: FakeNodeWebSocket }));
+vi.mock("ws", () => ({ default: FakeNodeWebSocket }));
 
 import { NodeHubClient } from ".";
 

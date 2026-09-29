@@ -12,10 +12,14 @@ import {
 } from "@cline/shared";
 import { HttpProxyAgent } from "http-proxy-agent";
 import { HttpsProxyAgent } from "https-proxy-agent";
-// @ts-expect-error node-ws aliases the ws runtime so Bun does not replace it,
-// while @types/ws declares only the literal "ws" package name.
-import NodeWebSocket from "node-ws";
 import { getProxyForUrl } from "proxy-from-env";
+// Node loads the npm package; Bun substitutes its own `ws`, which reads the
+// proxy URL and Proxy-Authorization from the same `agent` option. One socket
+// shape therefore serves the extension host, the CLI and the Bun-hosted
+// desktop sidecar. Do not alias the npm package to bypass Bun's substitution:
+// Bun's node:http client has not always emitted `upgrade`, and the npm client
+// then fails the handshake with "Unexpected server response: 101".
+import NodeWebSocket from "ws";
 import corePackage from "../../../package.json";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
