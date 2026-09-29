@@ -82,6 +82,114 @@ describe("HubRuntimeHost", () => {
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
 	});
 
+	it.each([
+		"attached",
+		"detached",
+		"unregistered",
+	] as const)("preserves the original hook after a duplicate start fails (registration: %s)", async (registration) => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		const unsubscribe = vi.fn();
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return unsubscribe;
+		});
+		const sessionId = "sess-existing";
+		const beforeModel = vi.fn(async () => ({ stop: false }));
+		const replacementHook = vi.fn(async () => ({
+			stop: false,
+		}));
+		commandMock.mockResolvedValue({ ok: true, payload: {} });
+		if (registration !== "unregistered")
+			commandMock.mockResolvedValueOnce({
+				payload: {
+					session: {
+						sessionId,
+						status: "idle",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+					},
+				},
+			});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		if (registration !== "unregistered")
+			await host.startSession({
+				config: { ...createConfig(), sessionId },
+				localRuntime: { hooks: { beforeModel } },
+			});
+		if (registration === "detached") {
+			await host.stopSession(sessionId);
+			unsubscribe.mockClear();
+		}
+		const duplicate = Object.assign(
+			new Error(`session already exists: ${sessionId}`),
+			{ code: "session_already_exists" },
+		);
+		commandMock.mockRejectedValueOnce(duplicate);
+		await expect(
+			host.startSession({
+				config: { ...createConfig(), sessionId },
+				localRuntime: {
+					hooks: {
+						beforeModel:
+							registration === "unregistered" ? beforeModel : replacementHook,
+					},
+				},
+			}),
+		).rejects.toBe(duplicate);
+		expect(unsubscribe).not.toHaveBeenCalled();
+		onEvent?.({
+			version: "v1",
+			event: "capability.requested",
+			sessionId,
+			payload: {
+				requestId: "hook-after-duplicate",
+				targetClientId: "client-1",
+				capabilityName: "hook.beforeModel",
+				payload: { context: {} },
+			},
+		});
+		await vi.waitFor(() =>
+			expect(commandMock).toHaveBeenCalledWith(
+				"capability.respond",
+				{
+					requestId: "hook-after-duplicate",
+					ok: true,
+					payload: { control: { stop: false } },
+				},
+				sessionId,
+			),
+		);
+		expect(beforeModel).toHaveBeenCalledOnce();
+		expect(replacementHook).not.toHaveBeenCalled();
+	});
+
+	it("cleans up a fresh failed start so its retry can subscribe again", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const config = { ...createConfig(), sessionId: "sess-retry" };
+		commandMock.mockRejectedValueOnce(new Error("creation failed"));
+		await expect(host.startSession({ config })).rejects.toThrow(
+			"creation failed",
+		);
+		expect(unsubscribe).toHaveBeenCalledOnce();
+		commandMock.mockResolvedValueOnce({
+			payload: {
+				session: {
+					sessionId: config.sessionId,
+					cwd: config.cwd,
+					workspaceRoot: config.workspaceRoot,
+				},
+			},
+		});
+		await expect(host.startSession({ config })).resolves.toMatchObject({
+			sessionId: config.sessionId,
+		});
+		expect(subscribeMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("does not auto-start a run during session creation", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		commandMock.mockResolvedValue({

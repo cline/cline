@@ -879,6 +879,34 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
+		// A rejected duplicate start must not replace or dispose the callbacks
+		// still serving the existing Hub runtime.
+		const hasExistingRegistration =
+			this.sessionCapabilities.has(plannedSessionId) ||
+			this.sessionClientContributionHandlers.has(plannedSessionId);
+		const registerStart = () => {
+			if (!hasExistingRegistration) {
+				this.registerPlannedSession(
+					plannedSessionId,
+					capabilities,
+					clientContributions.handlers,
+				);
+			} else {
+				// A desktop reset may have detached this client's event stream
+				// while the Hub kept the session and its callbacks alive.
+				this.ensureSessionSubscription(plannedSessionId);
+			}
+		};
+		const cleanupStart = (error?: unknown) => {
+			// The Hub still owns this session on a duplicate reply. Keep freshly
+			// supplied callbacks too, so a client can reattach after losing them.
+			if (
+				!hasExistingRegistration &&
+				(error as { code?: string })?.code !== "session_already_exists"
+			) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
+		};
 		const sendCreateCommand = () =>
 			this.client.command("session.create", {
 				workspaceRoot: input.config.workspaceRoot?.trim() || input.config.cwd,
@@ -905,26 +933,18 @@ export class HubRuntimeHost implements RuntimeHost {
 					? { initialCompactionState: input.initialCompactionState }
 					: {}),
 			});
-		this.registerPlannedSession(
-			plannedSessionId,
-			capabilities,
-			clientContributions.handlers,
-		);
+		registerStart();
 		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
 		try {
 			reply = await sendCreateCommand();
 		} catch (error) {
-			this.cleanupPlannedSession(plannedSessionId);
+			cleanupStart(error);
 			if (await this.recoverLocalHubStartupDeadlock(error)) {
-				this.registerPlannedSession(
-					plannedSessionId,
-					capabilities,
-					clientContributions.handlers,
-				);
+				registerStart();
 				try {
 					reply = await sendCreateCommand();
 				} catch (retryError) {
-					this.cleanupPlannedSession(plannedSessionId);
+					cleanupStart(retryError);
 					throw retryError;
 				}
 			} else {
@@ -935,7 +955,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		const session = reply.payload?.session as HubSessionRecord | undefined;
 		const sessionId = (snapshot?.sessionId ?? session?.sessionId)?.trim();
 		if (!sessionId) {
-			this.cleanupPlannedSession(plannedSessionId);
+			cleanupStart();
 			throw new Error("Hub runtime did not return a session id.");
 		}
 		let manifest: SessionManifest;
@@ -944,17 +964,17 @@ export class HubRuntimeHost implements RuntimeHost {
 				? buildManifestFromSnapshot(snapshot, input)
 				: buildManifest(sessionId, input, session);
 		} catch (error) {
-			this.cleanupPlannedSession(plannedSessionId);
+			cleanupStart();
 			throw error;
 		}
 		if (sessionId !== plannedSessionId) {
-			this.cleanupPlannedSession(plannedSessionId);
-			this.registerPlannedSession(
-				sessionId,
-				capabilities,
-				clientContributions.handlers,
-			);
+			cleanupStart();
 		}
+		this.registerPlannedSession(
+			sessionId,
+			capabilities,
+			clientContributions.handlers,
+		);
 
 		return {
 			sessionId,
