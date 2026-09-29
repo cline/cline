@@ -2,12 +2,14 @@ import { isClineProvider } from "@cline/shared";
 import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import {
 	getModelReasoningControls,
+	isAnthropicCompatibleModel,
 	isDeepSeekFamily,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMiniMaxM3Model,
 	isMoonshotKimiModelIdFallback,
 	providerReasoningRouteMatches,
+	resolveModelFamily,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
@@ -138,6 +140,27 @@ const directGoogleProviderRule: ProviderOptionRule = {
 	applies: (input) => input.request.providerId === "google",
 	suppresses: { genericFanout: true },
 	build: () => undefined,
+};
+
+const routedAnthropicProviderFallbackRule: ProviderOptionRule = {
+	id: "provider.routed-anthropic.fallbacks",
+	phase: "provider",
+	description:
+		"OpenRouter and Cline enable provider failover for Anthropic models.",
+	applies: (input) =>
+		(input.request.providerId === "openrouter" ||
+			isClineProvider(input.request.providerId)) &&
+		isAnthropicCompatibleModel({
+			modelId: input.request.modelId,
+			family: resolveModelFamily(input.context),
+		}),
+	// Provider failover is distinct from Anthropic's refusal-model fallback.
+	build: (input) =>
+		buildProviderAndAliasPatch({
+			providerId: input.request.providerId,
+			providerOptionsKey: input.providerOptionsKey,
+			bucketOptions: { provider: { allow_fallbacks: true } },
+		}),
 };
 
 const openAiAdapterRule: ProviderOptionRule = {
@@ -512,6 +535,7 @@ const routedGlmReasoningRule: ProviderOptionRule = {
  */
 export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	directAnthropicProviderRule,
+	routedAnthropicProviderFallbackRule,
 	directGoogleProviderRule,
 	openAiAdapterRule,
 	openAiCodexRule,
