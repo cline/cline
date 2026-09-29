@@ -161,6 +161,21 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 	})
 }
 
+/**
+ * The prompt a "Sign in to Cline" error offers to retry, and the task that
+ * shows the error.
+ */
+interface ClineAuthRetry {
+	task: TaskProxy
+	prompt: string
+	/**
+	 * The error was shown on a task that already had a conversation, such as
+	 * a failed edit or checkpoint restore, rather than on a new task that
+	 * failed before its session was created.
+	 */
+	hasConversation: boolean
+}
+
 // ---------------------------------------------------------------------------
 // Controller
 // ---------------------------------------------------------------------------
@@ -227,7 +242,7 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
-	private pendingClineAuthRetryPrompt?: string
+	private pendingClineAuthRetry?: ClineAuthRetry
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
@@ -617,7 +632,7 @@ export class Controller {
 			buildStartSessionInput,
 			createHistoryItemFromSession,
 			clearTask: async () => {
-				this.pendingClineAuthRetryPrompt = undefined
+				this.pendingClineAuthRetry = undefined
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -1267,8 +1282,7 @@ export class Controller {
 	 */
 	private emitClineAuthError(task?: string): void {
 		const ts = Date.now()
-		this.pendingClineAuthRetryPrompt = task
-
+		const hasConversation = this.task !== undefined
 		if (!this.task) {
 			this.task = createTaskProxy(
 				`auth-error-${ts}`,
@@ -1276,6 +1290,7 @@ export class Controller {
 				() => this.cancelTask(),
 			)
 		}
+		this.pendingClineAuthRetry = task === undefined ? undefined : { task: this.task, prompt: task, hasConversation }
 
 		const clineError = new ClineError(
 			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
@@ -1473,7 +1488,7 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		this.pendingClineAuthRetryPrompt = undefined
+		this.pendingClineAuthRetry = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
@@ -1494,11 +1509,23 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
-		if (this.pendingClineAuthRetryPrompt !== undefined && this.task?.taskState?.askResponse === "yesButtonClicked") {
-			const retryPrompt = this.pendingClineAuthRetryPrompt
-			this.pendingClineAuthRetryPrompt = undefined
-			await this.initTask(retryPrompt, images, files)
-			return
+		// The sign-in retry answers only the next response to the task that
+		// showed the error; a task opened since then does not inherit it.
+		const retry = this.pendingClineAuthRetry
+		this.pendingClineAuthRetry = undefined
+		if (retry && retry.task === this.task) {
+			const askResponse = this.task.taskState.askResponse
+			if (askResponse === "yesButtonClicked") {
+				await this.initTask(retry.prompt, images, files)
+				return
+			}
+			// A task that failed before it had a session has nothing to
+			// continue, so a prompt typed in the composer starts it again. With
+			// attachments but no text, the original prompt is kept.
+			if (askResponse === "messageResponse" && !retry.hasConversation) {
+				await this.initTask(prompt?.trim() ? prompt : retry.prompt, images, files)
+				return
+			}
 		}
 
 		const turnStateBefore = this.turnStateTracker.get()
