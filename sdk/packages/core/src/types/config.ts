@@ -53,8 +53,10 @@ export interface CoreModelConfig {
 
 export interface CoreRuntimeFeatures {
 	enableTools: boolean;
-	enableSpawnAgent: boolean;
-	enableAgentTeams: boolean;
+	/** Omit to use the selected mode's tool preset. */
+	enableSpawnAgent?: boolean;
+	/** Omit to use the selected mode's tool preset. */
+	enableAgentTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
 	yolo?: boolean;
 }

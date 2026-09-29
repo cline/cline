@@ -1493,6 +1493,33 @@ describe("runCli lightweight command dispatch", () => {
 		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ persistedMode: undefined, expectedMode: "yolo" },
+		{ persistedMode: "act", expectedMode: "act" },
+	] as const)("resolves unattended mode with persisted $persistedMode", async ({
+		persistedMode,
+		expectedMode,
+	}) => {
+		if (persistedMode)
+			writeFileSync(
+				process.env.CLINE_GLOBAL_SETTINGS_PATH!,
+				JSON.stringify({ planActMode: persistedMode }),
+			);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+		const { runCli } = await import("./main");
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({
+				mode: expectedMode,
+				enableSpawnAgent: expectedMode !== "yolo",
+				enableAgentTeams: expectedMode !== "yolo",
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("rejects yolo runs with a single bare prompt token", async () => {
 		const consoleError = vi
 			.spyOn(console, "error")
@@ -1515,7 +1542,7 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "/team find the bug"];
+		process.argv = ["bun", "src/index.ts", "--act", "/team find the bug"];
 
 		const { runCli } = await import("./main");
 
@@ -1524,7 +1551,7 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
 			'<user_command slash="team">spawn a team of agents for the following task: find the bug</user_command>',
 			expect.objectContaining({
-				enableAgentTeams: true,
+				mode: "act",
 				teamName: undefined,
 			}),
 			expect.anything(),

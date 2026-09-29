@@ -545,6 +545,7 @@ export async function prepareLocalRuntimeBootstrap(
 		baseConfig.hooks,
 		baseConfig.checkpoint?.enabled === true
 			? createCheckpointHooks({
+					mode: baseConfig.mode,
 					cwd: baseConfig.cwd,
 					sessionId,
 					logger: baseConfig.logger,

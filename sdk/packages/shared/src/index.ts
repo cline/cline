@@ -602,6 +602,7 @@ export {
 	isRuntimeConfigExtensionKind,
 	parseRuntimeConfigExtensions,
 	RUNTIME_CONFIG_EXTENSION_KINDS,
+	resolveNonInteractiveMode,
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";

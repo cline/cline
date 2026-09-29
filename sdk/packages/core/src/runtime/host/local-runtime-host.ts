@@ -12,6 +12,7 @@ import {
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	resolveNonInteractiveMode,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
@@ -26,6 +27,10 @@ import {
 	RunCommandExecutionController,
 } from "../../extensions/tools";
 import { cleanupStaleDetachedCommandLogs } from "../../extensions/tools/executors/bash";
+import {
+	resolveToolPresetName,
+	ToolPresets,
+} from "../../extensions/tools/presets";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -410,9 +415,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 	}
 
+	private applySessionDefaults(input: StartSessionInput): StartSessionInput {
+		const mode = resolveNonInteractiveMode({
+			mode: input.config.mode,
+			interactive: input.interactive === true,
+			// Match bootstrap policy precedence, including an explicitly empty map.
+			autoApprove: (input.toolPolicies ??
+				input.config.toolPolicies ??
+				this.defaultToolPolicies)?.["*"]?.autoApprove,
+		});
+		const preset = ToolPresets[resolveToolPresetName({ mode })];
+		return {
+			...input,
+			config: {
+				...input.config,
+				mode,
+				enableSpawnAgent:
+					input.config.enableSpawnAgent ?? preset.enableSpawnAgent,
+				enableAgentTeams:
+					input.config.enableAgentTeams ?? preset.enableAgentTeams,
+			},
+		};
+	}
+
 	// ── Public API ──────────────────────────────────────────────────────
 
-	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+	async startSession(rawInput: StartSessionInput): Promise<StartSessionResult> {
+		const input = this.applySessionDefaults(rawInput);
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const pending = this.sessionStarts.get(sessionId);
@@ -672,6 +701,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			withSessionGitMetadata(
 				{
 					...restoredSessionMetadata,
+					mode: startInput.config.mode ?? "act",
 					// Null records an unset preference; missing keys belong to legacy sessions.
 					thinking:
 						bootstrap.config.thinking ??
@@ -1116,6 +1146,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 					: startInput.sessionMetadata;
 				return {
 					...startInput,
+					config: {
+						...startInput.config,
+						mode: startInput.config.mode ?? context.plan.mode,
+					},
 					...(sessionMetadata ? { sessionMetadata } : {}),
 					initialMessages: context.initialMessages,
 				};

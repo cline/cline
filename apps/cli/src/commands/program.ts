@@ -80,19 +80,15 @@ export function addRootOptions(cmd: Command): Command {
 			.option("--update", "Check for updates and install if available")
 			.option("--kanban", "Run the kanban app")
 			.option("-v, --verbose", "Show verbose output")
+			.option(
+				"-y, --yolo",
+				"Run autonomously without human input or tool approval. Use in unsupervised environments, especially benchmarks.",
+			)
 			// HIDDEN/LEGACY OPTIONS BELOW
 			.addOption(
 				// Act mode is the default. Keep the legacy flags accepted for users who
 				// still pass them, but do not advertise them in help output.
 				new Option("-a, --act", "Run in act mode").hideHelp(),
-			)
-			.addOption(
-				// `-y, --yolo` is still accepted (and behaves the same as before) but
-				// hidden from `--help` output.
-				new Option(
-					"-y, --yolo",
-					"Enable yolo mode where agents can use tools without approval with only a small set of tools available.",
-				).hideHelp(),
 			)
 			.addOption(
 				// TODO: Refactor teams to resume session without team name

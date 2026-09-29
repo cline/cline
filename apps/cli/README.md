@@ -265,7 +265,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline/data` (enables sandbox mode automatically) |
 | `--auto-approve [true\|false]` | Set tool auto-approval for all tools |
 | `--kanban` | Run the external `kanban` app |
-| `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
+| `-y, --yolo` | Run autonomously without human input or tool approval in unsupervised environments; use this mode for benchmarks. Enables `submit_and_exit` and disables spawn/team tools by default. |
 | `-z, --zen` | Dispatch the task to the background hub and exit the CLI immediately |
 | `--team-name <name>` | Override the runtime team state name |
 | `-h, --help` | Show help and exit |

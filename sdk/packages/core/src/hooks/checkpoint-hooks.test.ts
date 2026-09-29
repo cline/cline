@@ -96,6 +96,37 @@ async function runCheckpointHooks(
 }
 
 describe("createCheckpointHooks", () => {
+	it("records mode changes even when the workspace checkpoint ref is unchanged", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		for (const mode of ["yolo", "plan"] as const) {
+			const hooks = createCheckpointHooks({
+				cwd: "/tmp",
+				sessionId: "mode-test",
+				mode,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: (next) => {
+					metadata = next;
+				},
+				createCheckpoint: ({ runCount }) => ({
+					ref: "same-ref",
+					createdAt: 1,
+					runCount,
+				}),
+			});
+			await runCheckpointHooks(hooks, {
+				messages:
+					mode === "yolo"
+						? [userMessage("first")]
+						: [userMessage("first"), userMessage("second")],
+			});
+		}
+		expect(
+			(metadata?.checkpoint as CheckpointMetadata).history.map(
+				({ mode }) => mode,
+			),
+		).toEqual(["yolo", "plan"]);
+	});
+
 	it("creates one checkpoint at the start of each root run and appends metadata", async () => {
 		const cwd = await createGitRepo();
 		let metadata: Record<string, unknown> | undefined;

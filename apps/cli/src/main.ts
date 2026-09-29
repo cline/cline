@@ -3,7 +3,11 @@ import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
-import { registerDisposable } from "@cline/shared";
+import {
+	type AgentMode,
+	registerDisposable,
+	resolveNonInteractiveMode,
+} from "@cline/shared";
 import type { Command } from "commander";
 import { registerHistoryCommand } from "./commands/history-command";
 import {
@@ -900,7 +904,21 @@ export async function runCli(): Promise<void> {
 			autoApprove: effectiveToolAutoApprove,
 		},
 	};
-	const effectiveMode = resolveStartupMode(args, persistedGlobalSettings);
+	// Leave the mode unset unless the user (or persisted settings) chose one, so
+	// the SDK rule can promote non-interactive auto-approve runs to yolo. The
+	// prompt below is mode-dependent, hence resolving it here as well.
+	const effectiveMode: AgentMode =
+		resolveNonInteractiveMode({
+			mode:
+				args.modeExplicitlySet || persistedGlobalSettings.planActMode
+					? resolveStartupMode(args, persistedGlobalSettings)
+					: undefined,
+			interactive:
+				args.interactive ||
+				(!args.prompt?.trim() &&
+					(!!process.stdin.isTTY || !stdinHasPipedInput())),
+			autoApprove: effectiveToolAutoApprove,
+		}) ?? "act";
 	const effectiveCompactionMode = resolveStartupCompactionMode(
 		args,
 		persistedGlobalSettings,
@@ -979,7 +997,7 @@ export async function runCli(): Promise<void> {
 		const providedApiKey = args.key?.trim() || undefined;
 		let apiKey = providedApiKey || persistedApiKey || undefined;
 
-		const isYoloMode = args.mode === "yolo";
+		const isYoloMode = effectiveMode === "yolo";
 		const isZenMode = args.mode === "zen";
 
 		// In headless mode (yolo / json / piped stdin without --tui),
@@ -1066,7 +1084,8 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: effectiveMode,
+				// Zen sessions run with the yolo toolset, so use the yolo prompt.
+				mode: isZenMode ? "yolo" : effectiveMode,
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,

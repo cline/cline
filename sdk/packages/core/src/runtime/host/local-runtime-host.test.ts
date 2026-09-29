@@ -396,6 +396,188 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it.each<{
+		interactive: StartSessionInput["interactive"];
+		mode: CoreSessionConfig["mode"];
+		autoApprove: boolean | undefined;
+		toolPolicies: StartSessionInput["toolPolicies"];
+		expected: CoreSessionConfig["mode"];
+	}>([
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: undefined,
+			toolPolicies: undefined,
+			expected: "yolo",
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: true,
+			toolPolicies: undefined,
+			expected: "yolo",
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: false,
+			toolPolicies: undefined,
+			expected: undefined,
+		},
+		{
+			interactive: true,
+			mode: undefined,
+			autoApprove: undefined,
+			toolPolicies: undefined,
+			expected: undefined,
+		},
+		{
+			interactive: false,
+			mode: "act",
+			autoApprove: undefined,
+			toolPolicies: undefined,
+			expected: "act",
+		},
+		{
+			interactive: false,
+			mode: "plan",
+			autoApprove: undefined,
+			toolPolicies: undefined,
+			expected: "plan",
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: false,
+			toolPolicies: { "*": { autoApprove: true } },
+			expected: "yolo",
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: true,
+			toolPolicies: { "*": { autoApprove: false } },
+			expected: undefined,
+		},
+		{
+			interactive: false,
+			mode: undefined,
+			autoApprove: undefined,
+			toolPolicies: {},
+			expected: undefined,
+		},
+		{
+			interactive: false,
+			mode: "act",
+			autoApprove: false,
+			toolPolicies: { "*": { autoApprove: true } },
+			expected: "act",
+		},
+	])("resolves session mode: $interactive / $mode / $autoApprove", async ({
+		interactive,
+		toolPolicies,
+		mode,
+		autoApprove,
+		expected,
+	}) => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
+			getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			toolPolicies: { "*": { autoApprove: true } },
+			sessionService: new FileSessionService(sessionsDir),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		try {
+			const checkpoint = {
+				ref: "unused",
+				createdAt: 1,
+				runCount: 1,
+				mode: expected ?? "act",
+			};
+			const started = await manager.startSession({
+				sessionMetadata: {
+					checkpoint: { latest: checkpoint, history: [checkpoint] },
+				},
+				interactive,
+				toolPolicies,
+				config: {
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					cwd: isolatedHomeDir,
+					systemPrompt: "Test",
+					enableTools: true,
+					mode,
+					toolPolicies:
+						autoApprove === undefined ? undefined : { "*": { autoApprove } },
+				},
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({ mode: expected }),
+				}),
+			);
+			expect(await manager.getSession(started.sessionId)).toMatchObject({
+				metadata: expect.objectContaining({ mode: expected ?? "act" }),
+				enableSpawn: expected !== "yolo",
+				enableTeams: expected !== "yolo",
+			});
+			const messages: MessageWithMetadata[] = [
+				{
+					role: "user",
+					content: "original",
+					metadata: { mode: expected ?? "act" },
+				},
+			];
+			vi.spyOn(manager, "readSessionMessages").mockResolvedValue(messages);
+			const restored = await manager.restoreSession({
+				sessionId: started.sessionId,
+				checkpointRunCount: 1,
+				restore: { workspace: false },
+				start: {
+					interactive: false,
+					toolPolicies: { "*": { autoApprove: true } },
+					config: {
+						providerId: "mock-provider",
+						modelId: "mock-model",
+						cwd: isolatedHomeDir,
+						systemPrompt: "Test",
+						enableTools: true,
+					},
+				},
+			});
+			expect(runtimeBuilder.build).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({ mode: expected ?? "act" }),
+				}),
+			);
+			expect(await manager.getSession(restored.sessionId ?? "")).toMatchObject({
+				enableSpawn: expected !== "yolo",
+				enableTeams: expected !== "yolo",
+			});
+			expect(restored.messages).toEqual(messages);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("stores git under metadata and refreshes it after an active turn", async () => {
 		const workspaceRoot = join(isolatedHomeDir, "workspace");
 		mkdirSync(workspaceRoot, { recursive: true });

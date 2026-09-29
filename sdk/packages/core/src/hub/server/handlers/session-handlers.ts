@@ -11,6 +11,7 @@ import {
 	createSessionId,
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
+	resolveNonInteractiveMode,
 } from "@cline/shared";
 import {
 	isCoreBuiltinToolAvailable,
@@ -333,9 +334,16 @@ async function createSession(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
+	const toolPolicies = asPlainRecord(payload.toolPolicies)
+		? (JSON.parse(
+				JSON.stringify(payload.toolPolicies),
+			) as RuntimeSessionConfig["toolPolicies"])
+		: typeof runtimeOptions.autoApproveTools === "boolean"
+			? { "*": { autoApprove: runtimeOptions.autoApproveTools } }
+			: undefined;
 	metadata.autoApproveTools = resolveSessionAutoApproveTools(
-		payload.toolPolicies,
-		runtimeOptions,
+		toolPolicies ?? sessionConfig?.toolPolicies,
+		{},
 	);
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
@@ -396,11 +404,19 @@ async function createSession(
 					? metadata.model
 					: "hub"),
 	});
-	const sessionMode =
-		sessionConfig?.mode ??
-		(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-			? runtimeOptions.mode
-			: "act");
+	const sessionMode = resolveNonInteractiveMode({
+		mode:
+			sessionConfig?.mode ??
+			(runtimeOptions.mode === "act" ||
+			runtimeOptions.mode === "plan" ||
+			runtimeOptions.mode === "yolo" ||
+			runtimeOptions.mode === "zen"
+				? runtimeOptions.mode
+				: undefined),
+		interactive: metadata.interactive !== false,
+		autoApprove: (toolPolicies ?? sessionConfig?.toolPolicies)?.["*"]
+			?.autoApprove,
+	});
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
@@ -437,7 +453,7 @@ async function createSession(
 					...(ctx.sessionTools ?? []),
 					...(clientContributionRuntime.localRuntime.extraTools ?? []),
 				],
-				sessionMode,
+				sessionMode ?? "act",
 				typeof metadata.source === "string" ? metadata.source : undefined,
 			),
 		},
@@ -487,9 +503,15 @@ async function createSession(
 			enableTools:
 				sessionConfig?.enableTools ?? runtimeOptions.enableTools !== false,
 			enableSpawnAgent:
-				sessionConfig?.enableSpawnAgent ?? runtimeOptions.enableSpawn !== false,
+				sessionConfig?.enableSpawnAgent ??
+				(typeof runtimeOptions.enableSpawn === "boolean"
+					? runtimeOptions.enableSpawn
+					: undefined),
 			enableAgentTeams:
-				sessionConfig?.enableAgentTeams ?? runtimeOptions.enableTeams !== false,
+				sessionConfig?.enableAgentTeams ??
+				(typeof runtimeOptions.enableTeams === "boolean"
+					? runtimeOptions.enableTeams
+					: undefined),
 			checkpoint:
 				sessionConfig?.checkpoint ??
 				(runtimeOptions.checkpointEnabled === true
@@ -499,17 +521,7 @@ async function createSession(
 				sessionConfig?.teamName ??
 				(typeof metadata.teamName === "string" ? metadata.teamName : undefined),
 		},
-		toolPolicies:
-			payload.toolPolicies &&
-			typeof payload.toolPolicies === "object" &&
-			!Array.isArray(payload.toolPolicies)
-				? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
-						string,
-						{ autoApprove?: boolean; enabled?: boolean }
-					>)
-				: runtimeOptions.autoApproveTools === true
-					? { "*": { autoApprove: true } }
-					: undefined,
+		toolPolicies,
 	});
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
@@ -692,9 +704,12 @@ export async function handleSessionRestore(
 								context.sourceSession.cwd;
 				const sessionMode =
 					sessionConfig?.mode ??
-					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+					(runtimeOptions.mode === "act" ||
+					runtimeOptions.mode === "plan" ||
+					runtimeOptions.mode === "yolo" ||
+					runtimeOptions.mode === "zen"
 						? runtimeOptions.mode
-						: "act");
+						: context.plan.mode);
 				return {
 					source:
 						typeof metadata.source === "string" ? metadata.source : undefined,
@@ -775,10 +790,14 @@ export async function handleSessionRestore(
 							runtimeOptions.enableTools !== false,
 						enableSpawnAgent:
 							sessionConfig?.enableSpawnAgent ??
-							runtimeOptions.enableSpawn !== false,
+							(typeof runtimeOptions.enableSpawn === "boolean"
+								? runtimeOptions.enableSpawn
+								: undefined),
 						enableAgentTeams:
 							sessionConfig?.enableAgentTeams ??
-							runtimeOptions.enableTeams !== false,
+							(typeof runtimeOptions.enableTeams === "boolean"
+								? runtimeOptions.enableTeams
+								: undefined),
 						checkpoint:
 							sessionConfig?.checkpoint ??
 							(runtimeOptions.checkpointEnabled === true
