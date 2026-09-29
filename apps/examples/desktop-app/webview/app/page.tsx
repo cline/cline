@@ -2476,8 +2476,13 @@ function ChatThreadPane({
 		);
 	}
 
-	const composer = (
+	const composer = ({
+		cloudRepositoryReady,
+	}: {
+		cloudRepositoryReady: boolean;
+	}) => (
 		<ChatInputBar
+			cloudRepositoryReady={cloudRepositoryReady}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}

@@ -75,7 +75,9 @@ export function WelcomeScreen({
 }: {
 	active: boolean;
 	body: ReactNode;
-	composer: ReactNode;
+	composer:
+		| ReactNode
+		| ((state: { cloudRepositoryReady: boolean }) => ReactNode);
 	/** Rendered above the composer on the welcome state (e.g. setup notice). */
 	notice?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
@@ -388,6 +390,20 @@ export function WelcomeScreen({
 						? "error"
 						: null;
 	const showCloudOnboarding = cloudOnboardingVariant !== null;
+	// A restored URL is only a preference until the current account's
+	// repository list confirms access. Keep the draft mounted while checking.
+	const cloudRepositoryReady =
+		!active ||
+		executionTarget !== "cloud" ||
+		(cloudAgentsEnabled &&
+			signedIn &&
+			checkedUserIdRef.current === accountUserId &&
+			cloudSetup.status === "ready" &&
+			cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl)));
+	const composerContent =
+		typeof composer === "function"
+			? composer({ cloudRepositoryReady })
+			: composer;
 
 	return (
 		<div
@@ -490,7 +506,11 @@ export function WelcomeScreen({
 						)}
 						key="persistent-composer"
 					>
-						{active ? composer : <SessionContent>{composer}</SessionContent>}
+						{active ? (
+							composerContent
+						) : (
+							<SessionContent>{composerContent}</SessionContent>
+						)}
 					</div>
 
 					{active && AGENDA_UI_ENABLED ? (
