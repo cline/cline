@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import * as localRuntimeBootstrap from "../../services/local-runtime-bootstrap";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import {
@@ -304,12 +305,171 @@ describe("LocalRuntimeHost", () => {
 				await expect(
 					manager.updateSessionConnection("restored-task", {}),
 				).resolves.toBeUndefined();
-				await expect(manager.startSession(input)).rejects.toMatchObject({
-					code: "session_already_exists",
+				await expect(manager.startSession(input)).resolves.toMatchObject({
+					sessionId: "restored-task",
 				});
+				expect(agent.shutdown).toHaveBeenCalledWith("session_restart");
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
 			}
 		} finally {
 			release();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("drains a resident runtime before restarting (busy: %s)", async (busy) => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const activate = vi.fn();
+		const shutdownRuntime = vi.fn().mockResolvedValue(undefined);
+		const runtimeBuilder = {
+			build: vi.fn(async () => ({
+				tools: [],
+				shutdown: shutdownRuntime,
+				activate,
+			})),
+		};
+		const createAgent = vi.fn(() => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("restart-agent"),
+			getConversationId: vi.fn().mockReturnValue("restart-conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: createAgent as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "restart-task",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+			const previous = createAgent.mock.results[0]?.value;
+			if (!previous) throw new Error("Initial agent was not created");
+			previous.canStartRun.mockReturnValue(!busy);
+			previous.shutdown.mockImplementationOnce(() => gate);
+			const restart = manager.startSession(input);
+			await vi.waitFor(() =>
+				expect(previous.shutdown).toHaveBeenCalledWith("session_restart"),
+			);
+			expect(previous.abort).toHaveBeenCalledTimes(busy ? 1 : 0);
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(2);
+			expect(shutdownRuntime).not.toHaveBeenCalled();
+			expect(activate).toHaveBeenCalledTimes(1);
+			release();
+			await expect(restart).resolves.toMatchObject({
+				sessionId: "restart-task",
+			});
+			expect(shutdownRuntime).toHaveBeenCalledWith("session_restart");
+			expect(createAgent).toHaveBeenCalledTimes(2);
+			expect(activate).toHaveBeenCalledTimes(2);
+			await manager.runTurn({ sessionId: "restart-task", prompt: "Continue" });
+			expect(previous.run).not.toHaveBeenCalled();
+			expect(createAgent.mock.results[1]?.value.run).toHaveBeenCalled();
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"workspace",
+		"bootstrap",
+		"runtime",
+		"agent",
+	] as const)("keeps the resident session usable after %s preparation fails", async (stage) => {
+		const shutdownRuntime = vi.fn().mockResolvedValue(undefined);
+		const runtimeBuilder = {
+			build: vi.fn(async () => ({ tools: [], shutdown: shutdownRuntime })),
+		};
+		const createAgent = vi.fn(() => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("restart-agent"),
+			getConversationId: vi.fn().mockReturnValue("restart-conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		}));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: createAgent as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "restart-task",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+			const previous = createAgent.mock.results[0]?.value;
+			if (!previous) throw new Error("Initial agent was not created");
+			await manager.runTurn({
+				sessionId: "restart-task",
+				prompt: "Before restart",
+			});
+			const usage = await manager.getAccumulatedUsage("restart-task");
+			const failedInput = { ...input, config: { ...input.config } };
+			if (stage === "workspace") {
+				const workspace = resolveChatWorkspacePath();
+				mkdirSync(dirname(workspace), { recursive: true });
+				writeFileSync(workspace, "not a directory");
+				failedInput.config.cwd = undefined;
+				failedInput.config.workspaceRoot = undefined;
+			} else if (stage === "bootstrap") {
+				vi.spyOn(
+					localRuntimeBootstrap,
+					"prepareLocalRuntimeBootstrap",
+				).mockRejectedValueOnce(new Error("bootstrap failed"));
+			} else if (stage === "runtime") {
+				runtimeBuilder.build.mockRejectedValueOnce(new Error("runtime failed"));
+			} else {
+				createAgent.mockImplementationOnce(() => {
+					throw new Error("agent failed");
+				});
+			}
+			await expect(manager.startSession(failedInput)).rejects.toThrow();
+			expect(await manager.getAccumulatedUsage("restart-task")).toEqual(usage);
+			expect(previous.abort).not.toHaveBeenCalled();
+			expect(previous.shutdown).not.toHaveBeenCalled();
+			expect(shutdownRuntime).toHaveBeenCalledTimes(stage === "agent" ? 1 : 0);
+			await manager.runTurn({
+				sessionId: "restart-task",
+				prompt: "Still usable",
+			});
+			expect(previous.run).toHaveBeenCalledTimes(1);
+			expect(previous.continue).toHaveBeenCalledTimes(1);
+		} finally {
 			await manager.dispose();
 		}
 	});

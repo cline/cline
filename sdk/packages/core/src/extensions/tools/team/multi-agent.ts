@@ -551,6 +551,8 @@ export class AgentTeamsRuntime {
 	private readonly runs: Map<string, TeamRunRecord & { result?: AgentResult }> =
 		new Map();
 	private readonly runQueue: string[] = [];
+	private shuttingDown = false;
+	private readonly pendingExecutions = new Set<Promise<unknown>>();
 	private queuedRunDispatchTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly outcomes: Map<string, TeamOutcome> = new Map();
 	private readonly outcomeFragments: Map<string, TeamOutcomeFragment> =
@@ -851,6 +853,7 @@ export class AgentTeamsRuntime {
 	}
 
 	spawnTeammate({ agentId, config }: SpawnTeammateOptions): TeamMemberSnapshot {
+		if (this.shuttingDown) throw new Error("Team runtime is shutting down");
 		const existing = this.members.get(agentId);
 		if (existing && existing.role !== "teammate") {
 			throw new Error(
@@ -1025,7 +1028,31 @@ export class AgentTeamsRuntime {
 		return { ...task };
 	}
 
+	async shutdown(reason: string): Promise<void> {
+		this.shuttingDown = true;
+		this.clearQueuedRunDispatchTimer();
+		for (const teammateId of this.getTeammateIds()) {
+			this.shutdownTeammate(teammateId, reason);
+		}
+		await Promise.allSettled([...this.pendingExecutions]);
+	}
+
 	async routeToTeammate(
+		agentId: string,
+		message: string,
+		options?: RouteToTeammateOptions,
+	): Promise<AgentResult> {
+		if (this.shuttingDown) throw new Error("Team runtime is shutting down");
+		const execution = this.executeTeammate(agentId, message, options);
+		this.pendingExecutions.add(execution);
+		try {
+			return await execution;
+		} finally {
+			this.pendingExecutions.delete(execution);
+		}
+	}
+
+	private async executeTeammate(
 		agentId: string,
 		message: string,
 		options?: RouteToTeammateOptions,
@@ -1120,6 +1147,7 @@ export class AgentTeamsRuntime {
 			leaseOwner?: string;
 		},
 	): TeamRunRecord {
+		if (this.shuttingDown) throw new Error("Team runtime is shutting down");
 		const runId = `run_${String(++this.runCounter).padStart(5, "0")}`;
 		const record: TeamRunRecord & { result?: AgentResult } = {
 			id: runId,
@@ -1146,6 +1174,7 @@ export class AgentTeamsRuntime {
 	}
 
 	private dispatchQueuedRuns(): void {
+		if (this.shuttingDown) return;
 		this.clearQueuedRunDispatchTimer();
 		let nextDelayedAttemptAt: Date | undefined;
 		while (
@@ -1164,7 +1193,9 @@ export class AgentTeamsRuntime {
 			if (!run || run.status !== "queued") {
 				continue;
 			}
-			void this.executeQueuedRun(run);
+			const execution = this.executeQueuedRun(run);
+			this.pendingExecutions.add(execution);
+			void execution.finally(() => this.pendingExecutions.delete(execution));
 		}
 		this.scheduleQueuedRunDispatch(nextDelayedAttemptAt);
 	}
@@ -1251,7 +1282,12 @@ export class AgentTeamsRuntime {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
-			if (this.runs.get(run.id)?.status !== "running") {
+			// Interrupted work stays recoverable; work that finishes while
+			// draining must still be persisted as complete to avoid replaying it.
+			if (
+				this.runs.get(run.id)?.status !== "running" ||
+				(this.shuttingDown && result.finishReason === "aborted")
+			) {
 				return;
 			}
 			const cancellationReason = this.members.get(run.agentId)?.abortReason;
@@ -1276,7 +1312,7 @@ export class AgentTeamsRuntime {
 				error instanceof Error
 					? error.message
 					: String(error ?? "Unknown error");
-			if (this.runs.get(run.id)?.status !== "running") {
+			if (this.shuttingDown || this.runs.get(run.id)?.status !== "running") {
 				return;
 			}
 			run.error = message;

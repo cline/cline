@@ -55,6 +55,8 @@ export interface BuiltRuntime {
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
+	/** Activate recovered work after registration and after the previous runtime drains. */
+	activate?: () => void | Promise<void>;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 

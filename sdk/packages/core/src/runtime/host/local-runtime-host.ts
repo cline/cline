@@ -428,50 +428,37 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// A successful one-shot start may already have released its runtime.
 			throw new SessionAlreadyExistsError(sessionId);
 		}
-		if (this.sessions.has(sessionId)) {
-			throw new SessionAlreadyExistsError(sessionId);
-		}
-		const starting = this.startNewSession(
-			input,
-			sessionId,
-			requestedSessionId,
-		).finally(() => this.sessionStarts.delete(sessionId));
+		const starting = (async () => {
+			const isReadOnlyResumeStart =
+				requestedSessionId.length > 0 &&
+				(input.initialMessages?.length ?? 0) > 0 &&
+				!input.prompt?.trim();
+			const hasRequestedWorkspace = Boolean(
+				input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
+			);
+			const existingResumeManifest =
+				isReadOnlyResumeStart && !hasRequestedWorkspace
+					? await this.invokeOptionalValue<SessionManifest>(
+							"readSessionManifest",
+							sessionId,
+						)
+					: undefined;
+			const config = existingResumeManifest
+				? {
+						...input.config,
+						cwd: existingResumeManifest.cwd,
+						workspaceRoot: existingResumeManifest.workspace_root,
+					}
+				: await resolveStartSessionWorkspace(input.config);
+			return await this.startResolvedSession(
+				{ ...input, config },
+				sessionId,
+				requestedSessionId.length > 0,
+				existingResumeManifest,
+			);
+		})().finally(() => this.sessionStarts.delete(sessionId));
 		this.sessionStarts.set(sessionId, starting);
 		return await starting;
-	}
-
-	private async startNewSession(
-		input: StartSessionInput,
-		sessionId: string,
-		requestedSessionId: string,
-	): Promise<StartSessionResult> {
-		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
-			(input.initialMessages?.length ?? 0) > 0 &&
-			!input.prompt?.trim();
-		const hasRequestedWorkspace = Boolean(
-			input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
-		);
-		const existingResumeManifest =
-			isReadOnlyResumeStart && !hasRequestedWorkspace
-				? await this.invokeOptionalValue<SessionManifest>(
-						"readSessionManifest",
-						sessionId,
-					)
-				: undefined;
-		const config = existingResumeManifest
-			? {
-					...input.config,
-					cwd: existingResumeManifest.cwd,
-					workspaceRoot: existingResumeManifest.workspace_root,
-				}
-			: await resolveStartSessionWorkspace(input.config);
-		return await this.startResolvedSession(
-			{ ...input, config },
-			sessionId,
-			requestedSessionId.length > 0,
-			existingResumeManifest,
-		);
 	}
 
 	private async startResolvedSession(
@@ -566,8 +553,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			rootMessagesPath: resumedArtifacts?.messagesPath ?? messagesPath,
 			manifest,
 		});
-		this.usageBySession.set(sessionId, initialUsage);
-		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 
 		const capabilities = normalizeRuntimeCapabilities(
 			this.defaultCapabilities,
@@ -693,11 +678,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build({
-			...bootstrap.runtimeBuilderInput,
-			distinctId: this.distinctId,
-			runCommandExecutionController: this.runCommandExecutionController,
-		});
+		let runtime: Awaited<ReturnType<RuntimeBuilder["build"]>>;
+		try {
+			runtime = await this.runtimeBuilder.build({
+				...bootstrap.runtimeBuilderInput,
+				distinctId: this.distinctId,
+				runCommandExecutionController: this.runCommandExecutionController,
+			});
+		} catch (error) {
+			await Promise.allSettled([
+				Promise.resolve().then(() => bootstrap.pluginSandboxShutdown?.()),
+			]);
+			throw error;
+		}
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
@@ -918,7 +911,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			},
 		};
-		const agent = this.createAgentInstance(agentConfig);
+		let agent: ReturnType<typeof this.createAgentInstance>;
+		try {
+			agent = this.createAgentInstance(agentConfig);
+		} catch (error) {
+			await Promise.allSettled([
+				Promise.resolve().then(() => runtime.shutdown("session_start_failed")),
+				Promise.resolve().then(() => bootstrap.pluginSandboxShutdown?.()),
+			]);
+			throw error;
+		}
 		if (agentConfig.onEvent) {
 			agent.subscribeEvents(agentConfig.onEvent);
 		}
@@ -943,15 +945,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				modelId: configWithProvider.modelId,
 				provider: configWithProvider.providerId,
 				...rootAgentIdentity,
-			});
-		}
-		if (runtime.teamRuntime) {
-			captureAgentTeamCreated(configWithProvider.telemetry, {
-				ulid: sessionId,
-				teamId: runtime.teamRuntime.getTeamId(),
-				teamName: runtime.teamRuntime.getTeamName(),
-				leadAgentId: agent.getAgentId(),
-				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
 			});
 		}
 
@@ -1006,7 +999,35 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			active.compactionState = undefined;
 		}
+		// Prepare the replacement before touching the resident session. Failed
+		// workspace resolution, bootstrap, or construction leaves it usable.
+		const existing = this.sessions.get(sessionId);
+		if (existing) {
+			try {
+				await this.releaseSessionRuntime(existing, "session_restart");
+			} catch (error) {
+				await this.releaseSessionRuntime(active, "session_start_failed");
+				throw error;
+			}
+		}
+		this.usageBySession.set(sessionId, initialUsage);
+		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 		this.sessions.set(sessionId, active);
+		try {
+			await runtime.activate?.();
+		} catch (error) {
+			await this.releaseSessionRuntime(active, "session_start_failed");
+			throw error;
+		}
+		if (runtime.teamRuntime) {
+			captureAgentTeamCreated(configWithProvider.telemetry, {
+				ulid: sessionId,
+				teamId: runtime.teamRuntime.getTeamId(),
+				teamName: runtime.teamRuntime.getTeamName(),
+				leadAgentId: agent.getAgentId(),
+				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
+			});
+		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}

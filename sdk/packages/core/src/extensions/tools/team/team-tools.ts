@@ -179,8 +179,6 @@ export interface BootstrapAgentTeamsOptions {
 	teammateConfigProvider: DelegatedAgentConfigProvider;
 	createBaseTools?: () => AgentTool[];
 	leadAgentId?: string;
-	restoredTeammates?: TeamTeammateSpec[];
-	restoredFromPersistence?: boolean;
 	includeLeadSpawnTool?: boolean;
 	includeLeadManagementTools?: boolean;
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
@@ -188,8 +186,7 @@ export interface BootstrapAgentTeamsOptions {
 
 export interface BootstrapAgentTeamsResult {
 	tools: AgentTool[];
-	restoredFromPersistence: boolean;
-	restoredTeammates: string[];
+	restoreTeammates: (specs: TeamTeammateSpec[]) => string[];
 }
 
 export const TEAM_TOOL_NAMES = [
@@ -254,7 +251,6 @@ export function bootstrapAgentTeams(
 	options: BootstrapAgentTeamsOptions,
 ): BootstrapAgentTeamsResult {
 	const leadAgentId = options.leadAgentId ?? "lead";
-	const restoredFromPersistence = options.restoredFromPersistence === true;
 
 	const tools = createAgentTeamsTools({
 		runtime: options.runtime,
@@ -267,25 +263,21 @@ export function bootstrapAgentTeams(
 		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
 	});
 
-	const restoredTeammates: string[] = [];
-	for (const spec of options.restoredTeammates ?? []) {
-		if (options.runtime.isTeammateActive(spec.agentId)) {
-			continue;
-		}
-		spawnTeamTeammate({
-			runtime: options.runtime,
-			requesterId: leadAgentId,
-			teammateConfigProvider: options.teammateConfigProvider,
-			createBaseTools: options.createBaseTools,
-			spec,
-		});
-		restoredTeammates.push(spec.agentId);
-	}
-
 	return {
 		tools,
-		restoredFromPersistence,
-		restoredTeammates,
+		restoreTeammates: (specs) => {
+			const restored: string[] = [];
+			for (const spec of specs) {
+				if (options.runtime.isTeammateActive(spec.agentId)) continue;
+				spawnTeamTeammate({
+					...options,
+					requesterId: leadAgentId,
+					spec,
+				});
+				restored.push(spec.agentId);
+			}
+			return restored;
+		},
 	};
 }
 

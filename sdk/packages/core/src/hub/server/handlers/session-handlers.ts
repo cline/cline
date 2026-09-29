@@ -363,6 +363,14 @@ async function createSession(
 			? sessionConfig.sessionId.trim()
 			: "";
 	const sessionId = requestedSessionId || createSessionId();
+	const ownerClientId = getCapabilityOwnerClientId(ctx, sessionId);
+	if (ownerClientId && ownerClientId !== clientId) {
+		return errorReply(
+			envelope,
+			"session_wrong_client",
+			`Session ${sessionId} is owned by ${ownerClientId}`,
+		);
+	}
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
