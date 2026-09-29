@@ -592,8 +592,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			rootMessagesPath: resumedArtifacts?.messagesPath ?? messagesPath,
 			manifest,
 		});
-		this.usageBySession.set(sessionId, initialUsage);
-		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 
 		const capabilities = normalizeRuntimeCapabilities(
 			this.defaultCapabilities,
@@ -1032,6 +1030,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			active.compactionState = undefined;
 		}
+		// Host-level state is written only once the session registers, so a
+		// start that fails during bootstrap cannot clobber a resident's totals.
+		this.usageBySession.set(sessionId, initialUsage);
+		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 		this.sessions.set(sessionId, active);
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
