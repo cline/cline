@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	getDefaultAwsRegion,
+	resolveProviderConfigAws,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
@@ -66,6 +67,57 @@ describe("provider config values", () => {
 				awsRegion: "",
 			}),
 		).toBe("us-west-2");
+	});
+
+	it("uses API-key auth and clears any stored profile when a key is entered", () => {
+		expect(
+			resolveProviderConfigAws({
+				awsRegion: "us-east-1",
+				apiKey: " bedrock-key ",
+				awsProfile: "bedrock",
+			}),
+		).toStrictEqual({
+			region: "us-east-1",
+			authentication: "api-key",
+			profile: undefined,
+		});
+	});
+
+	it("uses the entered AWS profile name for profile auth", () => {
+		expect(
+			resolveProviderConfigAws({
+				awsRegion: "us-east-1",
+				awsProfile: " bedrock ",
+			}),
+		).toStrictEqual({
+			region: "us-east-1",
+			authentication: "profile",
+			profile: "bedrock",
+		});
+	});
+
+	it("leaves AWS_PROFILE to the credential chain instead of pinning it at save time", () => {
+		process.env.AWS_PROFILE = "bedrock";
+
+		expect(
+			resolveProviderConfigAws({ awsRegion: "us-east-1", awsProfile: "  " }),
+		).toStrictEqual({
+			region: "us-east-1",
+			authentication: "iam",
+			profile: undefined,
+		});
+	});
+
+	it("does not claim profile auth when no profile name resolves", () => {
+		delete process.env.AWS_PROFILE;
+
+		expect(
+			resolveProviderConfigAws({ awsRegion: "us-east-1", awsProfile: "" }),
+		).toStrictEqual({
+			region: "us-east-1",
+			authentication: "iam",
+			profile: undefined,
+		});
 	});
 
 	it("resolves Vertex GCP field values into GCP settings", () => {

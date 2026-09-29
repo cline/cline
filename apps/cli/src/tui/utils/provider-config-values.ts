@@ -21,6 +21,21 @@ export function resolveProviderConfigAwsRegion(
 	return values.awsRegion?.trim() || getDefaultAwsRegion(values.awsProfile);
 }
 
+export function resolveProviderConfigAws(values: ProviderConfigValues): {
+	region: string;
+	authentication: "api-key" | "profile" | "iam";
+	profile: string | undefined;
+} {
+	const region = resolveProviderConfigAwsRegion(values);
+	if (values.apiKey?.trim()) {
+		return { region, authentication: "api-key", profile: undefined };
+	}
+	const profile = values.awsProfile?.trim();
+	return profile
+		? { region, authentication: "profile", profile }
+		: { region, authentication: "iam", profile: undefined };
+}
+
 export function resolveProviderConfigGcp(values: ProviderConfigValues):
 	| {
 			projectId?: string;
