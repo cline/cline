@@ -187,6 +187,37 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		resetClineRecommendedModelsCacheForTests()
 	})
 
+	it("retries the recommendation fetch after a failed attempt left the built-in fallback in place", async () => {
+		resetClineRecommendedModelsCacheForTests()
+		vi.spyOn(ClineEnv, "config").mockReturnValue({ apiBaseUrl: "https://api.cline-test.bot" } as ReturnType<
+			typeof ClineEnv.config
+		>)
+		const fetchRecommended = vi
+			.spyOn(sdkCore, "fetchClineRecommendedModels")
+			.mockResolvedValueOnce(structuredClone(sdkCore.FALLBACK_CLINE_RECOMMENDED_MODELS))
+			.mockResolvedValueOnce({
+				recommended: [{ id: "fresh/model", name: "Fresh", description: "", tags: [] }],
+				free: [],
+				clinePass: [],
+			})
+		const { coordinator, options } = makeCoordinator({
+			stateManager: {
+				...makeStateManager(),
+				getApiConfiguration: () => ({ actModeApiProvider: "anthropic" }),
+			} as never,
+		})
+
+		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(1))
+
+		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(2))
+		expect(fetchRecommended).toHaveBeenCalledTimes(2)
+		expect(coordinator.getCloudModelId()).toBe("fresh/model")
+		await coordinator.dispose()
+		resetClineRecommendedModelsCacheForTests()
+	})
+
 	it("refuses to connect when the control plane omits the canonical task id", async () => {
 		const withoutTaskId = { ...record, metadata: { modelId: "fixture-model" } }
 		const { coordinator, cloudSessions, options } = makeCoordinator()
