@@ -1062,3 +1062,9 @@ Explicit modes are preserved. Clients constructing mode-specific system prompts
 use `resolveNonInteractiveMode` from `@cline/shared` before building the prompt.
 Spawn and team availability defaults belong to the SDK runtime tool presets;
 explicit client tool-availability settings override those defaults.
+
+Checkpoint entries record the effective runtime mode. Both local and hub checkpoint
+restoration inherit that saved mode when the caller omits a mode, before selecting
+tools or applying preset defaults. Explicit restore modes override the resumed
+runtime only; restored historical messages remain unchanged. Hub restore clients
+preserve omitted mode and spawn/team options on the wire.

@@ -3,7 +3,12 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentHooks, BasicLogger, ITelemetryService } from "@cline/shared";
+import type {
+	AgentHooks,
+	AgentMode,
+	BasicLogger,
+	ITelemetryService,
+} from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { countUserRunMessages } from "../session/user-run-messages";
 
@@ -78,6 +83,8 @@ async function pruneStaleScratchDirs(): Promise<void> {
 }
 
 export interface CheckpointEntry {
+	/** Effective runtime mode at this checkpoint, retained across later mode switches. */
+	mode?: AgentMode;
 	ref: string;
 	createdAt: number;
 	runCount: number;
@@ -90,6 +97,7 @@ export interface CheckpointMetadata {
 }
 
 type CreateCheckpointHooksOptions = {
+	mode?: AgentMode;
 	cwd: string;
 	sessionId: string;
 	logger?: BasicLogger;
@@ -689,11 +697,15 @@ export function createCheckpointHooks(
 			if (!introducedUserRun && alreadyCheckpointed) {
 				return undefined;
 			}
-			const entry = await createCheckpoint(runCount);
-			if (!entry) {
+			const checkpoint = await createCheckpoint(runCount);
+			if (!checkpoint) {
 				return undefined;
 			}
-			if (existing?.latest.ref === entry.ref) {
+			const entry = { ...checkpoint, mode: options.mode ?? "act" };
+			if (
+				existing?.latest.ref === entry.ref &&
+				existing.latest.mode === entry.mode
+			) {
 				return undefined;
 			}
 			const history = upsertCheckpointHistory(existing?.history ?? [], entry);

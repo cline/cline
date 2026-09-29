@@ -413,7 +413,16 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 		try {
+			const checkpoint = {
+				ref: "unused",
+				createdAt: 1,
+				runCount: 1,
+				mode: expected ?? "act",
+			};
 			const started = await manager.startSession({
+				sessionMetadata: {
+					checkpoint: { latest: checkpoint, history: [checkpoint] },
+				},
 				interactive,
 				toolPolicies,
 				config: {
@@ -433,9 +442,44 @@ describe("LocalRuntimeHost", () => {
 				}),
 			);
 			expect(await manager.getSession(started.sessionId)).toMatchObject({
+				metadata: expect.objectContaining({ mode: expected ?? "act" }),
 				enableSpawn: expected !== "yolo",
 				enableTeams: expected !== "yolo",
 			});
+			const messages: MessageWithMetadata[] = [
+				{
+					role: "user",
+					content: "original",
+					metadata: { mode: expected ?? "act" },
+				},
+			];
+			vi.spyOn(manager, "readSessionMessages").mockResolvedValue(messages);
+			const restored = await manager.restoreSession({
+				sessionId: started.sessionId,
+				checkpointRunCount: 1,
+				restore: { workspace: false },
+				start: {
+					interactive: false,
+					toolPolicies: { "*": { autoApprove: true } },
+					config: {
+						providerId: "mock-provider",
+						modelId: "mock-model",
+						cwd: isolatedHomeDir,
+						systemPrompt: "Test",
+						enableTools: true,
+					},
+				},
+			});
+			expect(runtimeBuilder.build).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({ mode: expected ?? "act" }),
+				}),
+			);
+			expect(await manager.getSession(restored.sessionId ?? "")).toMatchObject({
+				enableSpawn: expected !== "yolo",
+				enableTeams: expected !== "yolo",
+			});
+			expect(restored.messages).toEqual(messages);
 		} finally {
 			await manager.dispose();
 		}

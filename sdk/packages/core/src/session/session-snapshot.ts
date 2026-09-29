@@ -98,6 +98,12 @@ function readCheckpointSnapshot(
 					ref,
 					createdAt,
 					runCount,
+					...(entry.mode === "act" ||
+					entry.mode === "plan" ||
+					entry.mode === "yolo" ||
+					entry.mode === "zen"
+						? { mode: entry.mode }
+						: {}),
 					...(entry.kind === "stash" || entry.kind === "commit"
 						? { kind: entry.kind }
 						: {}),

@@ -686,9 +686,12 @@ export async function handleSessionRestore(
 								context.sourceSession.cwd;
 				const sessionMode =
 					sessionConfig?.mode ??
-					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+					(runtimeOptions.mode === "act" ||
+					runtimeOptions.mode === "plan" ||
+					runtimeOptions.mode === "yolo" ||
+					runtimeOptions.mode === "zen"
 						? runtimeOptions.mode
-						: "act");
+						: context.plan.mode);
 				return {
 					source:
 						typeof metadata.source === "string" ? metadata.source : undefined,
@@ -769,10 +772,14 @@ export async function handleSessionRestore(
 							runtimeOptions.enableTools !== false,
 						enableSpawnAgent:
 							sessionConfig?.enableSpawnAgent ??
-							runtimeOptions.enableSpawn !== false,
+							(typeof runtimeOptions.enableSpawn === "boolean"
+								? runtimeOptions.enableSpawn
+								: undefined),
 						enableAgentTeams:
 							sessionConfig?.enableAgentTeams ??
-							runtimeOptions.enableTeams !== false,
+							(typeof runtimeOptions.enableTeams === "boolean"
+								? runtimeOptions.enableTeams
+								: undefined),
 						checkpoint:
 							sessionConfig?.checkpoint ??
 							(runtimeOptions.checkpointEnabled === true

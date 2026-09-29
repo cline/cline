@@ -661,6 +661,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				{
 					...(resumedArtifacts?.manifest.metadata ?? {}),
 					...(startInput.sessionMetadata ?? {}),
+					mode: startInput.config.mode ?? "act",
 				},
 				bootstrap.gitState,
 			),
@@ -1094,6 +1095,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 					: startInput.sessionMetadata;
 				return {
 					...startInput,
+					config: {
+						...startInput.config,
+						mode: startInput.config.mode ?? context.plan.mode,
+					},
 					...(sessionMetadata ? { sessionMetadata } : {}),
 					initialMessages: context.initialMessages,
 				};

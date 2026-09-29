@@ -2,6 +2,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
+import type { AgentMode } from "@cline/shared";
 import type {
 	CheckpointEntry,
 	CheckpointMetadata,
@@ -13,6 +14,7 @@ import { getUserRunSpan } from "./user-run-messages";
 const execFile = promisify(execFileCallback);
 
 export interface CheckpointRestorePlan {
+	mode: AgentMode;
 	checkpoint: CheckpointEntry;
 	messages?: LlmsProviders.MessageWithMetadata[];
 	cwd: string;
@@ -184,7 +186,22 @@ export function readSessionCheckpointHistory(
 				entry.kind === "stash" || entry.kind === "commit"
 					? entry.kind
 					: undefined;
-			return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }];
+			const mode =
+				entry.mode === "act" ||
+				entry.mode === "plan" ||
+				entry.mode === "yolo" ||
+				entry.mode === "zen"
+					? entry.mode
+					: undefined;
+			return [
+				{
+					ref,
+					createdAt,
+					runCount,
+					...(kind ? { kind } : {}),
+					...(mode ? { mode } : {}),
+				},
+			];
 		});
 }
 
@@ -291,8 +308,14 @@ export function createCheckpointRestorePlan(input: {
 	if (!cwd) {
 		throw new Error("cwd or workspaceRoot is required to restore a checkpoint");
 	}
+	const savedMode = checkpoint.mode ?? input.session.metadata?.mode;
+	const mode =
+		savedMode === "plan" || savedMode === "yolo" || savedMode === "zen"
+			? savedMode
+			: "act";
 	return {
 		checkpoint,
+		mode,
 		cwd,
 		...(input.restoreMessages !== false
 			? {
