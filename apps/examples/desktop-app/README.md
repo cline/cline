@@ -18,7 +18,7 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
-The `dev*` commands set `CLINE_BUILD_ENV=development`, the same as `bun run cli` from
+The `dev`, `dev:headless`, and `dev:sidecar` commands set `CLINE_BUILD_ENV=development`, the same as `bun run cli` from
 the repository root, so a desktop built from source talks to the development Cline Hub
 (default port 25466) rather than the Hub an installed Cline app or CLI is using (default
 port 25463). Clients only share live session updates when they attach to the same Hub,
