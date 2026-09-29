@@ -50,8 +50,6 @@ describe("SDK remote-config coordination", () => {
 			isRemoteConfigAvailable: true,
 			currentRemoteConfigRevision: 7,
 			ensureWorkspaceManager: async () => undefined,
-			refreshWorkspaceRestoreAvailability: async () => undefined,
-			workspaceRestoreAvailabilityByMessageTs: {},
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
 			turnStateTracker: { get: () => undefined },
@@ -63,6 +61,41 @@ describe("SDK remote-config coordination", () => {
 		expect(buildBaseStateMock).toHaveBeenCalledWith(
 			expect.objectContaining({ isRemoteConfigAvailable: true, currentRemoteConfigRevision: 7 }),
 		)
+	})
+
+	it("rebuilds the snapshot when the epoch moves while the state is being built", async () => {
+		buildBaseStateMock.mockClear()
+		const minter = { epoch: 1, nextSeq: () => 1 }
+		const controller = {
+			stateManager: {
+				getGlobalSettingsKey: () => undefined,
+				getRemoteConfigSettings: () => ({}),
+				setGlobalState: vi.fn(),
+			},
+			backgroundCommandRunning: false,
+			backgroundCommandTaskId: undefined,
+			foregroundCommands: { isRunning: false },
+			isRemoteConfigAvailable: false,
+			currentRemoteConfigRevision: undefined,
+			ensureWorkspaceManager: async () => undefined,
+			taskHistory: {
+				listHistory: async () => {
+					// A conversation boundary (follow-up on an idle session) bumps the
+					// epoch while this snapshot's transcript copy is already taken.
+					minter.epoch = 2
+					return []
+				},
+			},
+			sessions: { getActiveSession: () => undefined },
+			turnStateTracker: { get: () => undefined },
+			messageTranslatorState: { getMinter: () => minter },
+			getStateToPostToWebview: SdkController.prototype.getStateToPostToWebview,
+		}
+
+		const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+
+		expect(buildBaseStateMock).toHaveBeenCalledTimes(2)
+		expect(state.epoch).toBe(2)
 	})
 
 	it("keys refreshes by the current user and organization", async () => {
@@ -263,157 +296,129 @@ describe("SDK remote-config coordination", () => {
 	})
 })
 
-describe("workspace restore availability cache", () => {
-	it("builds history-task state when temporary host creation fails", async () => {
-		const task = {
-			taskId: "task-a",
-			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
-		}
+describe("hasWorkspaceCheckpointForMessage", () => {
+	const messages = [
+		{ ts: 1, type: "say", say: "task", text: "start" },
+		{ ts: 2, type: "say", say: "text", text: "done" },
+		{ ts: 3, type: "say", say: "user_feedback", text: "continue" },
+	]
+	const sdkMessages = [
+		{ role: "user", content: "start" },
+		{ role: "assistant", content: "done" },
+		{ role: "user", content: "continue" },
+	]
+
+	it("reads the live conversation of the active session", async () => {
+		const readLiveMessages = vi.fn().mockResolvedValue(sdkMessages)
+		const readMessages = vi.fn().mockResolvedValue([])
 		const controller = {
-			task,
-			sessions: { getActiveSession: () => undefined },
-			createRemoteConfigAwareSessionHost: vi.fn().mockRejectedValue(new Error("host unavailable")),
-			refreshWorkspaceRestoreAvailability: (SdkController.prototype as any).refreshWorkspaceRestoreAvailability,
-			workspaceRestoreAvailabilityGeneration: 0,
-			workspaceRestoreAvailabilitySessionId: undefined,
-			workspaceRestoreAvailabilityByMessageTs: { 1: { available: true } },
-			stateManager: {
-				getGlobalSettingsKey: () => undefined,
-				getRemoteConfigSettings: () => ({}),
-				setGlobalState: vi.fn(),
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			sessions: {
+				getActiveSession: () => ({
+					sessionId: "task-a",
+					sdkHost: {
+						get: async () => ({
+							metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 2 }] } },
+						}),
+						readLiveMessages,
+						readMessages,
+					},
+				}),
 			},
-			backgroundCommandRunning: false,
-			backgroundCommandTaskId: undefined,
-			foregroundCommands: { isRunning: false },
-			isRemoteConfigAvailable: true,
-			currentRemoteConfigRevision: 7,
-			ensureWorkspaceManager: async () => undefined,
-			taskHistory: { listHistory: async () => [] },
-			getWorkspaceRoot: async () => "/workspace",
-			turnStateTracker: { get: () => undefined },
-			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
 		}
 
-		const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
-
-		expect(state.workspaceRestoreAvailabilityByMessageTs).toEqual({})
-		expect(controller.workspaceRestoreAvailabilitySessionId).toBeUndefined()
-		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({})
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toBe(true)
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toBe(false)
+		expect(readLiveMessages).toHaveBeenCalledWith("task-a")
+		expect(readMessages).not.toHaveBeenCalled()
 	})
 
-	it("does not block history-task state when temporary host cleanup fails", async () => {
-		const task = {
-			taskId: "task-a",
-			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
+	it("agrees with editMessageAndRegenerate on which messages exist while the transcript lags", async () => {
+		// The persisted transcript is written after Core reports the turn done,
+		// so it can still lack the newest user message while its checkpoint exists.
+		const readLiveMessages = vi.fn().mockResolvedValue(sdkMessages)
+		const readMessages = vi.fn().mockResolvedValue(sdkMessages.slice(0, 2))
+		const restore = vi.fn().mockRejectedValue(new Error("stop at restore"))
+		const controller = {
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			sessions: {
+				getActiveSession: () => ({
+					sessionId: "task-a",
+					isRunning: false,
+					sdkHost: {
+						get: async () => ({
+							cwd: "C:/work",
+							metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 2 }] } },
+						}),
+						readLiveMessages,
+						readMessages,
+						restore,
+					},
+				}),
+			},
+			taskHistory: { findHistoryItem: async () => undefined },
+			getWorkspaceRoot: async () => "C:/work",
+			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
+			resolveContextMentions: async (text: string) => text,
 		}
+
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toBe(true)
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller as never, {
+				messageTs: 3,
+				text: "continue, edited",
+				restoreWorkspace: true,
+			}),
+		).rejects.toThrow("stop at restore")
+		expect(restore).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "task-a", checkpointRunCount: 2 }))
+		expect(readMessages).not.toHaveBeenCalled()
+	})
+
+	it("uses and disposes a temporary host for a history task", async () => {
 		const tempHost = {
 			get: vi.fn().mockResolvedValue({
 				metadata: { checkpoint: { history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] } },
 			}),
-			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "A" }]),
+			readMessages: vi.fn().mockResolvedValue(sdkMessages),
 			dispose: vi.fn().mockRejectedValue(new Error("cleanup failed")),
 		}
 		const controller = {
-			task,
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
 			sessions: { getActiveSession: () => undefined },
 			createRemoteConfigAwareSessionHost: vi.fn().mockResolvedValue(tempHost),
-			workspaceRestoreAvailabilityGeneration: 0,
-			workspaceRestoreAvailabilitySessionId: undefined,
-			workspaceRestoreAvailabilityByMessageTs: {},
 		}
 
-		await expect(
-			(SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true),
-		).resolves.toBeUndefined()
-		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-a")
-		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 1: { available: true } })
-		expect(tempHost.dispose).toHaveBeenCalledWith("workspaceRestoreAvailability")
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toBe(true)
+		expect(tempHost.get).toHaveBeenCalledWith("task-a")
+		expect(tempHost.dispose).toHaveBeenCalledWith("workspaceCheckpointForMessage")
 	})
 
-	it("does not publish a suspended refresh after switching tasks", async () => {
-		let resolveTaskA: ((value: unknown) => void) | undefined
-		const taskARecord = new Promise((resolve) => {
-			resolveTaskA = resolve
-		})
-		const taskA = {
-			taskId: "task-a",
-			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
-		}
-		const taskB = {
-			taskId: "task-b",
-			messageStateHandler: { getClineMessages: () => [{ ts: 2, type: "say", say: "task", text: "B" }] },
-		}
-		const sessionA = {
-			sessionId: "task-a",
-			sdkHost: {
-				get: () => taskARecord,
-				readMessages: async () => [{ role: "user", content: "A" }],
-			},
-		}
-		const sessionB = {
-			sessionId: "task-b",
-			sdkHost: {
-				get: async () => ({
-					metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 1 }] } },
-				}),
-				readMessages: async () => [{ role: "user", content: "B" }],
-			},
-		}
-		let activeSession = sessionA
+	it("reports no checkpoint when the host cannot be read", async () => {
 		const controller = {
-			task: taskA,
-			sessions: { getActiveSession: () => activeSession },
-			stateManager: { getGlobalSettingsKey: () => true },
-			workspaceRestoreAvailabilityGeneration: 0,
-			workspaceRestoreAvailabilitySessionId: undefined,
-			workspaceRestoreAvailabilityByMessageTs: {},
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			sessions: { getActiveSession: () => undefined },
+			createRemoteConfigAwareSessionHost: vi.fn().mockRejectedValue(new Error("host unavailable")),
 		}
 
-		const refreshTaskA = (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true)
-		controller.task = taskB
-		activeSession = sessionB
-		const refreshTaskB = (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true)
-		resolveTaskA?.({ metadata: { checkpoint: { history: [] } } })
-		await Promise.all([refreshTaskA, refreshTaskB])
-
-		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-b")
-		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 2: { available: true } })
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toBe(false)
 	})
 
-	it("retries a same-session refresh after a transient read failure", async () => {
-		const task = {
-			taskId: "task-a",
-			messageStateHandler: { getClineMessages: () => [{ ts: 1, type: "say", say: "task", text: "A" }] },
-		}
-		const get = vi
-			.fn()
-			.mockRejectedValueOnce(new Error("temporary read failure"))
-			.mockResolvedValueOnce({
-				metadata: { checkpoint: { history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] } },
-			})
-		const session = {
-			sessionId: "task-a",
-			sdkHost: {
-				get,
-				readMessages: async () => [{ role: "user", content: "A" }],
-			},
-		}
+	it("reports no checkpoint for messages that did not start a run", async () => {
+		const answerMessages = [
+			{ ts: 1, type: "say", say: "task", text: "start" },
+			{ ts: 2, type: "ask", ask: "followup", text: "which file?" },
+			{ ts: 3, type: "say", say: "user_feedback", text: "src/index.ts" },
+		]
+		const createRemoteConfigAwareSessionHost = vi.fn()
 		const controller = {
-			task,
-			sessions: { getActiveSession: () => session },
-			stateManager: { getGlobalSettingsKey: () => true },
-			workspaceRestoreAvailabilityGeneration: 0,
-			workspaceRestoreAvailabilitySessionId: "task-a",
-			workspaceRestoreAvailabilityByMessageTs: { 1: { available: false, reason: "checkpoint_unavailable" } },
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => answerMessages } },
+			sessions: { getActiveSession: () => undefined },
+			createRemoteConfigAwareSessionHost,
 		}
 
-		await (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, true)
-		expect(controller.workspaceRestoreAvailabilitySessionId).toBeUndefined()
-		await (SdkController.prototype as any).refreshWorkspaceRestoreAvailability.call(controller, false)
-
-		expect(get).toHaveBeenCalledTimes(2)
-		expect(controller.workspaceRestoreAvailabilitySessionId).toBe("task-a")
-		expect(controller.workspaceRestoreAvailabilityByMessageTs).toEqual({ 1: { available: true } })
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toBe(false)
+		expect(createRemoteConfigAwareSessionHost).not.toHaveBeenCalled()
 	})
 })
 
