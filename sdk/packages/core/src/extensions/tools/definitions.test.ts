@@ -193,9 +193,7 @@ describe("default ask_question tool", () => {
 			},
 		);
 
-		expect(result).toBe(
-			'The user answered your question "Which approach should I take?" with: "asked". Continue the task using this answer.',
-		);
+		expect(result).toBe("User answered: asked\n\nContinue the session.");
 		expect(execute).toHaveBeenCalledWith(
 			"Which approach should I take?",
 			["Option 1", "Option 2"],
@@ -263,13 +261,15 @@ describe("default ask_question tool", () => {
 
 			expect(settled).toBeUndefined();
 			resolveAnswer("Option 2");
-			await expect(pending).resolves.toContain('with: "Option 2"');
+			await expect(pending).resolves.toBe(
+				"User answered: Option 2\n\nContinue the session.",
+			);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("keeps answers with $ patterns and quotes intact", async () => {
+	it("keeps answers with $ patterns and quotes verbatim", async () => {
 		const askTool = createDefaultTools({
 			executors: { askQuestion: async () => 'use $& and "$1"' },
 			enableAskQuestion: true,
@@ -279,7 +279,7 @@ describe("default ask_question tool", () => {
 			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
 		);
 		expect(result).toBe(
-			`The user answered your question "Which?" with: ${JSON.stringify('use $& and "$1"')}. Continue the task using this answer.`,
+			'User answered: use $& and "$1"\n\nContinue the session.',
 		);
 	});
 
