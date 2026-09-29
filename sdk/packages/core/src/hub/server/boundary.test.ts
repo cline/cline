@@ -89,6 +89,45 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it.each([
+		"owner-client",
+		"other-client",
+		undefined,
+	])("checks the live owner before restarting a session (owner: %s)", async (owner) => {
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const transport = createTransport({ sessionHost: { startSession } });
+		const ctx = getContext(transport);
+		if (owner) ensureSessionState(ctx, "session-1", owner, "creator");
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "restart",
+				command: "session.create",
+				clientId: "owner-client",
+				payload: {
+					sessionConfig: { sessionId: " session-1 " },
+					metadata: { hubCapabilityOwnerClientId: "owner-client" },
+				},
+			});
+			if (owner === "other-client") {
+				expect(reply).toMatchObject({
+					ok: false,
+					error: { code: "session_wrong_client" },
+				});
+			} else {
+				expect(reply).toMatchObject({ ok: true });
+			}
+			expect(startSession).toHaveBeenCalledTimes(
+				owner === "other-client" ? 0 : 1,
+			);
+			expect(ctx.sessionState.get("session-1")?.createdByClientId).toBe(
+				owner ?? "owner-client",
+			);
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

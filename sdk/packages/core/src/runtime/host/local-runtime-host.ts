@@ -429,12 +429,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			throw new SessionAlreadyExistsError(sessionId);
 		}
 		const starting = (async () => {
-			const existing = this.sessions.get(sessionId);
-			if (existing) {
-				// A start with an existing ID rebuilds from the caller's configuration
-				// and history. Drain and release the old runtime before replacing it.
-				await this.releaseSessionRuntime(existing, "session_restart");
-			}
 			const isReadOnlyResumeStart =
 				requestedSessionId.length > 0 &&
 				(input.initialMessages?.length ?? 0) > 0 &&
@@ -559,8 +553,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			rootMessagesPath: resumedArtifacts?.messagesPath ?? messagesPath,
 			manifest,
 		});
-		this.usageBySession.set(sessionId, initialUsage);
-		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 
 		const capabilities = normalizeRuntimeCapabilities(
 			this.defaultCapabilities,
@@ -686,11 +678,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build({
-			...bootstrap.runtimeBuilderInput,
-			distinctId: this.distinctId,
-			runCommandExecutionController: this.runCommandExecutionController,
-		});
+		let runtime: Awaited<ReturnType<RuntimeBuilder["build"]>>;
+		try {
+			runtime = await this.runtimeBuilder.build({
+				...bootstrap.runtimeBuilderInput,
+				distinctId: this.distinctId,
+				runCommandExecutionController: this.runCommandExecutionController,
+			});
+		} catch (error) {
+			await Promise.allSettled([
+				Promise.resolve().then(() => bootstrap.pluginSandboxShutdown?.()),
+			]);
+			throw error;
+		}
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
@@ -911,7 +911,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			},
 		};
-		const agent = this.createAgentInstance(agentConfig);
+		let agent: ReturnType<typeof this.createAgentInstance>;
+		try {
+			agent = this.createAgentInstance(agentConfig);
+		} catch (error) {
+			await Promise.allSettled([
+				Promise.resolve().then(() => runtime.shutdown("session_start_failed")),
+				Promise.resolve().then(() => bootstrap.pluginSandboxShutdown?.()),
+			]);
+			throw error;
+		}
 		if (agentConfig.onEvent) {
 			agent.subscribeEvents(agentConfig.onEvent);
 		}
@@ -999,6 +1008,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			active.compactionState = undefined;
 		}
+		// Prepare the replacement before touching the resident session. Failed
+		// workspace resolution, bootstrap, or construction leaves it usable.
+		const existing = this.sessions.get(sessionId);
+		if (existing) {
+			try {
+				await this.releaseSessionRuntime(existing, "session_restart");
+			} catch (error) {
+				await this.releaseSessionRuntime(active, "session_start_failed");
+				throw error;
+			}
+		}
+		this.usageBySession.set(sessionId, initialUsage);
+		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 		this.sessions.set(sessionId, active);
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
