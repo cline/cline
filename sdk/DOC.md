@@ -34,7 +34,8 @@ host presentation.
 `start({ config: { sessionId, ... }, ... })` can restart a resident session under
 its existing ID. The host prepares a replacement using the supplied configuration
 and initial messages, then aborts and drains any active run and releases the
-previous runtime. Preparation failures leave the resident session usable. The Hub
+previous runtime. Team recovery starts only after the resident team has drained,
+using its final persisted state. Preparation failures leave the resident session usable. The Hub
 rejects restarts by a client other than the live session owner.
 Callers must supply the history they want to retain. Use `send` for another turn
 without rebuilding. Overlapping starts for the same ID still reject with

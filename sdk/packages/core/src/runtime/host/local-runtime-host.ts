@@ -947,15 +947,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 				...rootAgentIdentity,
 			});
 		}
-		if (runtime.teamRuntime) {
-			captureAgentTeamCreated(configWithProvider.telemetry, {
-				ulid: sessionId,
-				teamId: runtime.teamRuntime.getTeamId(),
-				teamName: runtime.teamRuntime.getTeamName(),
-				leadAgentId: agent.getAgentId(),
-				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
-			});
-		}
 
 		const active: ActiveSession = {
 			sessionId,
@@ -1022,6 +1013,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.usageBySession.set(sessionId, initialUsage);
 		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 		this.sessions.set(sessionId, active);
+		try {
+			await runtime.activate?.();
+		} catch (error) {
+			await this.releaseSessionRuntime(active, "session_start_failed");
+			throw error;
+		}
+		if (runtime.teamRuntime) {
+			captureAgentTeamCreated(configWithProvider.telemetry, {
+				ulid: sessionId,
+				teamId: runtime.teamRuntime.getTeamId(),
+				teamName: runtime.teamRuntime.getTeamName(),
+				leadAgentId: agent.getAgentId(),
+				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
+			});
+		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}

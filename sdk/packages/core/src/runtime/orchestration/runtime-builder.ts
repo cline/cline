@@ -310,22 +310,6 @@ async function loadConfiguredMcpTools(options: {
 	};
 }
 
-function shutdownTeamRuntime(
-	teamRuntime: AgentTeamsRuntime | undefined,
-	reason: string,
-): void {
-	if (!teamRuntime) {
-		return;
-	}
-	for (const teammateId of teamRuntime.getTeammateIds()) {
-		try {
-			teamRuntime.shutdownTeammate(teammateId, reason);
-		} catch {
-			// Best-effort shutdown for all teammates.
-		}
-	}
-}
-
 function isRuntimeLifecycleShutdownReason(reason: string | undefined): boolean {
 	if (reason === undefined) {
 		return true;
@@ -594,19 +578,17 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const teamStore = normalized.enableAgentTeams
 			? createLocalTeamStore()
 			: undefined;
-		const restoredTeam = teamStore?.loadRuntime(teamStoreKey);
-		const restoredTeamState = restoredTeam?.state;
-		const restoredTeammateSpecs = restoredTeam?.teammates ?? [];
-		const teammateSpecs = new Map(
-			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
-		);
+		const teammateSpecs = new Map<string, TeamTeammateSpec>();
+		let activated = false;
+		let stopped = false;
+		let restoredFromPersistence = false;
+		let teamBootstrap: ReturnType<typeof bootstrapAgentTeams> | undefined;
 		let leadAgentInstance:
 			| {
 					addTools: (tools: AgentTool[]) => void;
 			  }
 			| undefined;
 		let pendingLeadTeamTools: AgentTool[] = [];
-		let restoredStateHydratedIntoRuntime = false;
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,
 			modelId: config.modelId,
@@ -683,6 +665,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					missionLogIntervalSteps: normalized.missionLogIntervalSteps,
 					missionLogIntervalMs: normalized.missionLogIntervalMs,
 					onTeamEvent: (event: TeamEvent) => {
+						if (!activated) return;
 						onTeamEvent(event);
 						if (teamRuntime && teamStore) {
 							if (
@@ -712,10 +695,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						}
 					},
 				});
-				if (restoredTeamState) {
-					teamRuntime.hydrateState(restoredTeamState);
-					restoredStateHydratedIntoRuntime = true;
-				}
 			}
 
 			if (!teamToolsRegistered) {
@@ -724,11 +703,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 				teamToolsRegistered = true;
 
-				const teamBootstrap = bootstrapAgentTeams({
+				teamBootstrap = bootstrapAgentTeams({
 					runtime: teamRuntime,
 					leadAgentId: config.sessionId || "lead",
-					restoredFromPersistence: Boolean(restoredTeamState),
-					restoredTeammates: restoredTeammateSpecs,
 					includeLeadSpawnTool: true,
 					includeLeadManagementTools: true,
 					onLeadToolsUnlocked: (teamTools) => {
@@ -753,13 +730,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					teammateConfigProvider: delegatedAgentConfigProvider,
 				});
 
-				if (restoredStateHydratedIntoRuntime) {
-					teamRuntime.recoverActiveRuns("runtime_recovered");
-				}
-
-				if (teamBootstrap.restoredFromPersistence) {
-					onTeamRestored?.();
-				}
 				tools.push(...teamBootstrap.tools);
 			}
 
@@ -836,7 +806,29 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
-			teamRestoredFromPersistence: Boolean(restoredTeamState),
+			get teamRestoredFromPersistence() {
+				return restoredFromPersistence;
+			},
+			activate: () => {
+				if (stopped) throw new Error("Cannot activate a stopped runtime");
+				if (activated) return;
+				// Read the final snapshot only after the previous runtime has drained.
+				const restored = teamStore?.loadRuntime(teamStoreKey);
+				if (restored && teamRuntime) {
+					for (const spec of restored.teammates)
+						teammateSpecs.set(spec.agentId, spec);
+					if (restored.state) teamRuntime.hydrateState(restored.state);
+					restoredFromPersistence = Boolean(restored.state);
+				}
+				activated = true;
+				if (restored && teamRuntime) {
+					teamBootstrap?.restoreTeammates(restored.teammates);
+					if (restored.state) {
+						teamRuntime.recoverActiveRuns("runtime_recovered");
+						onTeamRestored?.();
+					}
+				}
+			},
 			delegatedAgentConfigProvider,
 			extensions: runtimeExtensions,
 			completionPolicy,
@@ -851,7 +843,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 			},
 			shutdown: async (reason: string) => {
-				shutdownTeamRuntime(teamRuntime, reason);
+				stopped = true;
+				await teamRuntime?.shutdown(reason);
+				activated = false;
 				await mcpShutdown?.();
 				for (const service of ownedUserInstructionServices) {
 					service.stop();

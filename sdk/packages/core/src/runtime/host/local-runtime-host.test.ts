@@ -325,9 +325,14 @@ describe("LocalRuntimeHost", () => {
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
+		const activate = vi.fn();
 		const shutdownRuntime = vi.fn().mockResolvedValue(undefined);
 		const runtimeBuilder = {
-			build: vi.fn(async () => ({ tools: [], shutdown: shutdownRuntime })),
+			build: vi.fn(async () => ({
+				tools: [],
+				shutdown: shutdownRuntime,
+				activate,
+			})),
 		};
 		const createAgent = vi.fn(() => ({
 			run: vi.fn().mockResolvedValue(createResult()),
@@ -370,12 +375,14 @@ describe("LocalRuntimeHost", () => {
 			expect(previous.abort).toHaveBeenCalledTimes(busy ? 1 : 0);
 			expect(runtimeBuilder.build).toHaveBeenCalledTimes(2);
 			expect(shutdownRuntime).not.toHaveBeenCalled();
+			expect(activate).toHaveBeenCalledTimes(1);
 			release();
 			await expect(restart).resolves.toMatchObject({
 				sessionId: "restart-task",
 			});
 			expect(shutdownRuntime).toHaveBeenCalledWith("session_restart");
 			expect(createAgent).toHaveBeenCalledTimes(2);
+			expect(activate).toHaveBeenCalledTimes(2);
 			await manager.runTurn({ sessionId: "restart-task", prompt: "Continue" });
 			expect(previous.run).not.toHaveBeenCalled();
 			expect(createAgent.mock.results[1]?.value.run).toHaveBeenCalled();

@@ -3,8 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const createBuiltinToolsMock = vi.fn(() => []);
 const bootstrapAgentTeamsMock = vi.fn(() => ({
 	tools: [],
-	restoredFromPersistence: true,
-	restoredTeammates: ["restored-1"],
+	restoreTeammates: vi.fn(),
 }));
 
 let runtimeInstance: MockAgentTeamsRuntime | undefined;
@@ -43,6 +42,9 @@ class MockAgentTeamsRuntime {
 	listTasks = vi.fn((): Array<{ status: string }> => []);
 	listRuns = vi.fn(() => []);
 	shutdownTeammate = vi.fn();
+	shutdown = vi.fn(async (reason: string) => {
+		for (const id of this.getTeammateIds()) this.shutdownTeammate(id, reason);
+	});
 }
 
 vi.mock("../../extensions/tools/team", () => ({
@@ -122,7 +124,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		const onTeamRestored = vi.fn();
 
-		await new DefaultRuntimeBuilder().build({
+		const environment = await new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -139,10 +141,9 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			onTeamRestored,
 		});
 
+		await environment.activate?.();
 		expect(bootstrapAgentTeamsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				restoredFromPersistence: true,
-				restoredTeammates: [expect.objectContaining({ agentId: "restored-1" })],
 				teammateConfigProvider: expect.objectContaining({
 					getRuntimeConfig: expect.any(Function),
 				}),
@@ -315,6 +316,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				enableAgentTeams: true,
 			},
 		});
+		await environment.activate?.();
 		runtimeInstance?.emit({
 			type: "teammate_shutdown",
 			agentId: "restored-1",
@@ -330,11 +332,70 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		await environment.shutdown("session_stop");
 	});
 
+	it("keeps preparation passive and reloads the latest snapshot on activation", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		const onTeamEvent = vi.fn();
+		const environment = await new DefaultRuntimeBuilder().build({
+			config: {
+				sessionId: "replacement",
+				providerId: "anthropic",
+				modelId: "test",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+			},
+			onTeamEvent,
+		});
+		const runtime = runtimeInstance;
+		const store = teamStoreInstance;
+		if (!runtime || !store) throw new Error("Missing team runtime");
+		expect(store.loadRuntime).not.toHaveBeenCalled();
+		expect(runtime.hydrateState).not.toHaveBeenCalled();
+		expect(runtime.recoverActiveRuns).not.toHaveBeenCalled();
+		runtime.emit({ type: "teammate_spawned", agentId: "premature" });
+		expect(onTeamEvent).not.toHaveBeenCalled();
+		expect(store.persistRuntime).not.toHaveBeenCalled();
+		// The resident finishes work after preparation but before activation.
+		const finalSnapshot = store.loadRuntime.getMockImplementation()?.();
+		if (!finalSnapshot) throw new Error("Missing persisted snapshot");
+		finalSnapshot.state.teamName = "final-snapshot-after-drain";
+		store.loadRuntime.mockReturnValue(finalSnapshot);
+		await environment.activate?.();
+		expect(runtime.hydrateState).toHaveBeenCalledWith(finalSnapshot.state);
+		expect(runtime.recoverActiveRuns).toHaveBeenCalledOnce();
+		await environment.activate?.();
+		expect(runtime.recoverActiveRuns).toHaveBeenCalledOnce();
+		await environment.shutdown("session_stop");
+	});
+
+	it("discarding an unactivated replacement never restores or persists a team", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		const environment = await new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "test",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+			},
+		});
+		await environment.shutdown("session_start_failed");
+		expect(teamStoreInstance?.loadRuntime).not.toHaveBeenCalled();
+		expect(teamStoreInstance?.persistRuntime).not.toHaveBeenCalled();
+		expect(runtimeInstance?.recoverActiveRuns).not.toHaveBeenCalled();
+	});
+
 	it("forwards cline workspace metadata to teammate runtime bootstrap config", async () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		bootstrapAgentTeamsMock.mockClear();
 
-		await new DefaultRuntimeBuilder().build({
+		const environment = await new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
@@ -357,6 +418,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			},
 		});
 
+		await environment.activate?.();
 		expect(bootstrapAgentTeamsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				teammateConfigProvider: expect.objectContaining({

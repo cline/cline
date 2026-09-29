@@ -93,6 +93,47 @@ function createAbortedResult(): AgentResult {
 }
 
 describe("AgentTeamsRuntime teammate lifecycle events", () => {
+	it.each([
+		"aborted",
+		"completed",
+	] as const)("drains %s work without dispatching queued work during shutdown", async (finishReason) => {
+		let finish!: (result: AgentResult) => void;
+		const pending = new Promise<AgentResult>((resolve) => {
+			finish = resolve;
+		});
+		const run = vi.fn(() => pending);
+		const abort = vi.fn();
+		mockNextSessionRuntime({ run, abort });
+		const runtime = new AgentTeamsRuntime({
+			teamName: "drain",
+			maxConcurrentRuns: 1,
+		});
+		spawnTestTeammate(runtime, "worker");
+		const first = runtime.startTeammateRun("worker", "running");
+		const second = runtime.startTeammateRun("worker", "queued");
+		let stopped = false;
+		const shutdown = runtime.shutdown("session_restart").then(() => {
+			stopped = true;
+		});
+		await Promise.resolve();
+		expect(abort).toHaveBeenCalled();
+		expect(stopped).toBe(false);
+		expect(run).toHaveBeenCalledOnce();
+		finish({ ...createAbortedResult(), finishReason });
+		await shutdown;
+		expect(stopped).toBe(true);
+		expect(run).toHaveBeenCalledOnce();
+		expect(runtime.listRuns().find((run) => run.id === first.id)?.status).toBe(
+			finishReason === "aborted" ? "running" : "completed",
+		);
+		expect(runtime.listRuns().find((run) => run.id === second.id)?.status).toBe(
+			"queued",
+		);
+		await expect(runtime.routeToTeammate("worker", "late")).rejects.toThrow(
+			"shutting down",
+		);
+	});
+
 	it("spawns teammates with a 10 minute API timeout", () => {
 		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
 		createSessionRuntimeMock.mockImplementationOnce(function () {
