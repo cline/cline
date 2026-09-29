@@ -89,6 +89,26 @@ function warningToastCount(toastMock: {
 	).length;
 }
 
+it("restores a cancelled preparation's command/images after navigation without a failure toast", async () => {
+	const h = makeHarness();
+	const files = [makeAttachment()];
+	const attempt = h.lifecycle.onRpcStarted(SOURCE, "source-thread");
+	await h.lifecycle.onRpcRejected(SOURCE, {
+		handoffAttemptId: attempt,
+		error: new Error("cancelled"),
+		nextCommand: "continue this",
+		sourceAttachments: files,
+		isThreadActive: () => false,
+		silent: true,
+	});
+	expect(h.getState()[SOURCE]).toMatchObject({
+		status: "failed",
+		retryDraft: "/cloud continue this",
+		retryAttachments: files,
+	});
+	expect(h.toast).not.toHaveBeenCalled();
+});
+
 describe("cloud handoff lifecycle: RPC resolved", () => {
 	it("(a) no warning: complete dispatch, in-app open, no toast at all", async () => {
 		const h = makeHarness();

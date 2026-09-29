@@ -37,6 +37,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import {
+	CloudHandoffGitConfirmation,
 	CloudHandoffProgress,
 	CloudHandoffReceipt,
 	CloudHandoffRecoveryNotice,
@@ -93,6 +94,10 @@ import {
 	createHandoffLifecycle,
 	type HandoffLifecycle,
 } from "@/lib/cloud-handoff-lifecycle";
+import {
+	type HandoffPreparation,
+	prepareHandoffWithGit,
+} from "@/lib/cloud-handoff-preparation";
 import {
 	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
@@ -187,6 +192,7 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
+import type { HandoffGitPreview } from "../../sidecar/cloud-handoff-git";
 
 // Lazily loaded views: none of these are needed for the first paint of the
 // chat shell, so keeping them out of the entry chunk shortens app startup.
@@ -348,6 +354,24 @@ export default function Home() {
 		cloudHandoffUiReducer,
 		{},
 	);
+	const [gitConfirmation, setGitConfirmation] =
+		useState<HandoffGitPreview | null>(null);
+	const gitDecisionRef = useRef<((approved: boolean) => void) | null>(null);
+	const confirmHandoffGit = useCallback(
+		(plan: HandoffGitPreview) =>
+			new Promise<boolean>((resolve) => {
+				gitDecisionRef.current?.(false);
+				gitDecisionRef.current = resolve;
+				setGitConfirmation(plan);
+			}),
+		[],
+	);
+	const finishGitConfirmation = useCallback((approved: boolean) => {
+		const resolve = gitDecisionRef.current;
+		gitDecisionRef.current = null;
+		setGitConfirmation(null);
+		resolve?.(approved);
+	}, []);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
@@ -1154,6 +1178,7 @@ export default function Home() {
 											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
 											handoffLifecycle={handoffLifecycle}
+											confirmHandoffGit={confirmHandoffGit}
 											knownWorkspacePaths={historyWorkspacePaths}
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
@@ -1227,6 +1252,12 @@ export default function Home() {
 				open={exportDiagnosticsOpen}
 			/>
 			<HubUpdateRequiredDialog />
+			{gitConfirmation ? (
+				<CloudHandoffGitConfirmation
+					plan={gitConfirmation}
+					onDecision={finishGitConfirmation}
+				/>
+			) : null}
 			{whatsNew ? (
 				<WhatsNewDialog
 					onOpenChange={(open) => {
@@ -1270,6 +1301,7 @@ export default function Home() {
 let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
+	confirmHandoffGit,
 	threadId,
 	environmentId,
 	environmentProfiles,
@@ -1313,6 +1345,7 @@ function ChatThreadPane({
 		HandoffLifecycle,
 		"onRpcStarted" | "onRpcResolved" | "onRpcRejected"
 	>;
+	confirmHandoffGit: (plan: HandoffGitPreview) => Promise<boolean>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -2333,16 +2366,49 @@ function ChatThreadPane({
 					sourceSessionId,
 					pendingPrompt,
 				});
-				const preflight = await desktopClient.invoke<HandoffPreflight>(
-					"chat_session_command",
-					{
-						request: {
-							action: "prepare_handoff",
-							sessionId: sourceSessionId,
-							config,
-						},
+				const preflight = await prepareHandoffWithGit({
+					inspect: () =>
+						desktopClient.invoke<HandoffPreparation>("chat_session_command", {
+							request: {
+								action: "prepare_handoff",
+								sessionId: sourceSessionId,
+								config,
+							},
+						}),
+					confirm: confirmHandoffGit,
+					apply: (gitPreparationId) => {
+						onHandoffUiAction({
+							type: "progress",
+							sourceSessionId,
+							phase: "checking",
+							message:
+								"Preparing and publishing the approved Git checkpoint...",
+						});
+						return desktopClient.invoke(
+							"chat_session_command",
+							{
+								request: {
+									action: "prepare_handoff_git",
+									sessionId: sourceSessionId,
+									config,
+									gitPreparationId,
+								},
+							},
+							{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
+						);
 					},
-				);
+				});
+				if (!preflight) {
+					await handoffLifecycle.onRpcRejected(sourceSessionId, {
+						handoffAttemptId,
+						error: new Error("Cloud preparation cancelled."),
+						nextCommand,
+						sourceAttachments,
+						isThreadActive,
+						silent: true,
+					});
+					return;
+				}
 				await runHandoff(
 					preflight,
 					nextCommand,
@@ -2366,6 +2432,7 @@ function ChatThreadPane({
 		},
 		[
 			cloudHandoffAvailable,
+			confirmHandoffGit,
 			config,
 			handoffRetryEligible,
 			handoffLifecycle,
