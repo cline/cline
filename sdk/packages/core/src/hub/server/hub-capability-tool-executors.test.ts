@@ -4,6 +4,7 @@ import type { HubTransportContext } from "./handlers/context";
 import {
 	createHubClientContributionRuntime,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	parseHubClientContributions,
 } from "./hub-client-contributions";
 
 type ClientContributionRequest = Parameters<
@@ -11,6 +12,37 @@ type ClientContributionRequest = Parameters<
 >[0]["requestCapability"];
 
 describe("hub capability custom tools", () => {
+	it.each([
+		"Keep going.",
+		undefined,
+		42,
+	])("preserves valid success context through parsing and proxy creation: %s", (successContext) => {
+		const contributions = parseHubClientContributions(
+			JSON.parse(
+				JSON.stringify([
+					{
+						kind: "tool",
+						name: "custom_tool",
+						description: "Custom tool",
+						inputSchema: { type: "object" },
+						capabilityName: "custom_tool.custom_tool",
+						successContext,
+					},
+				]),
+			),
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions,
+			requestCapability: vi.fn(async () => ({ result: "done" })),
+		});
+		expect(runtime.localRuntime.extraTools).toHaveLength(1);
+		expect(runtime.localRuntime.extraTools?.[0]?.successContext).toBe(
+			typeof successContext === "string" ? successContext : undefined,
+		);
+	});
+
 	it("proxies custom tool execution to the owning client", async () => {
 		const request: ClientContributionRequest = vi.fn(
 			async (
