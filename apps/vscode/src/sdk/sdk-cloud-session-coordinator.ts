@@ -737,20 +737,27 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	/**
-	 * Fetches the recommendation list once so the composer label moves from
-	 * the built-in fallback to the live recommendation before the user
-	 * submits. State is re-posted when the list lands; a failed fetch leaves
-	 * the fallback in place rather than retrying on every state post.
+	 * Fetches the recommendation list so the composer label moves from the
+	 * built-in fallback to the live recommendation before the user submits.
+	 * State is re-posted when the list lands. A fetch that fails to populate
+	 * the cache releases the handle, so the next state post retries instead of
+	 * pinning the fallback until restart.
 	 */
 	private warmRecommendedModels(): void {
 		if (this.recommendedModelsWarmup || getCachedClineRecommendedModels()) {
 			return
 		}
-		this.recommendedModelsWarmup = refreshClineRecommendedModels()
+		const warmup = refreshClineRecommendedModels()
 			.then(() => {
 				if (!this.disposed) this.options.postStateToWebview().catch(() => {})
 			})
 			.catch(() => undefined)
+			.finally(() => {
+				if (this.recommendedModelsWarmup === warmup) {
+					this.recommendedModelsWarmup = undefined
+				}
+			})
+		this.recommendedModelsWarmup = warmup
 	}
 
 	/** The model the displayed cloud task runs on, else the one a new cloud task would use. */
