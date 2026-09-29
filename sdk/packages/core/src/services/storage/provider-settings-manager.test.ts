@@ -985,6 +985,38 @@ describe("ProviderSettingsManager", () => {
 			});
 		});
 
+		for (const dangling of ["cline", "cline-pass"]) {
+			it(`keeps a dangling ${dangling} selection when signing in creates the entry it points at`, () => {
+				const { filePath, manager } = setup({
+					version: 1,
+					lastUsedProvider: dangling,
+					modes: {},
+					providers: {
+						anthropic: {
+							settings: { provider: "anthropic", apiKey: "existing-key" },
+							...at("2026-09-01T00:00:00.000Z"),
+						},
+					},
+				});
+
+				// What the extension's sign-in does when the stored pointer is
+				// already Cline-backed: save the credentials without claiming
+				// the last-used slot.
+				manager.saveProviderSettings(
+					{ provider: "cline", auth: { accessToken: "workos:new-token" } },
+					{ tokenSource: "oauth", setLastUsed: false },
+				);
+
+				expect(
+					JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider,
+				).toBe(dangling);
+				expect(manager.getLastUsedProviderSettings()).toMatchObject({
+					provider: dangling,
+					auth: { accessToken: "workos:new-token" },
+				});
+			});
+		}
+
 		it("persists the repaired selection on the next write", () => {
 			const { filePath, manager } = setup({
 				version: 1,

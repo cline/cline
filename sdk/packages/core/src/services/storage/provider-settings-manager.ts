@@ -29,6 +29,7 @@ import {
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
 import {
+	carryLastUsedProvider,
 	normalizeLastUsedProvider,
 	resolveEffectiveLastUsedProviderId,
 	resolveStoredProviderSettings,
@@ -242,13 +243,10 @@ export class ProviderSettingsManager {
 					tokenSource,
 				},
 			},
-			// Resolve the previous pointer before this write: write() repairs a
-			// dangling pointer against the merged state, and an unrelated save
-			// (setLastUsed: false) must not become the fallback by being newest.
-			lastUsedProvider: shouldSetLastUsed
-				? providerId
-				: resolveEffectiveLastUsedProviderId(previous),
 		};
+		next.lastUsedProvider = shouldSetLastUsed
+			? providerId
+			: carryLastUsedProvider(previous, next);
 		this.write(next);
 		const prevClineAuth = previous.providers["cline"]?.settings?.auth;
 		const nextClineAuth =
