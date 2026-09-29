@@ -191,6 +191,10 @@ async function renderVoiceComposer({
 	onAbort = vi.fn(),
 	onPromptInputChange = vi.fn(),
 	onSend = vi.fn(),
+	pendingQuestionId,
+	onAnswerQuestion,
+	onSteerPromptInQueue = vi.fn(),
+	promptsInQueue = [],
 	prompt = "",
 	promptVersion = 0,
 	status = "idle",
@@ -204,6 +208,10 @@ async function renderVoiceComposer({
 	onAbort?: ReturnType<typeof vi.fn>;
 	onPromptInputChange?: ReturnType<typeof vi.fn>;
 	onSend?: ReturnType<typeof vi.fn>;
+	pendingQuestionId?: string;
+	onAnswerQuestion?: Parameters<typeof ChatInputBar>[0]["onAnswerQuestion"];
+	onSteerPromptInQueue?: ReturnType<typeof vi.fn>;
+	promptsInQueue?: Parameters<typeof ChatInputBar>[0]["promptsInQueue"];
 	prompt?: string;
 	promptVersion?: number;
 	status?: ChatSessionStatus;
@@ -215,6 +223,9 @@ async function renderVoiceComposer({
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					environmentId="local"
+					pendingQuestionId={pendingQuestionId}
+					onAnswerQuestion={onAnswerQuestion}
 					readOnly={readOnly}
 					executionTarget={executionTarget}
 					attachments={attachments}
@@ -237,10 +248,10 @@ async function renderVoiceComposer({
 					onRemoveAttachment={vi.fn()}
 					onRemovePromptInQueue={vi.fn()}
 					onSend={onSend}
-					onSteerPromptInQueue={vi.fn()}
+					onSteerPromptInQueue={onSteerPromptInQueue}
 					onSwitchGitBranch={vi.fn(async () => true)}
 					promptDraft={{ version: promptVersion, value: prompt }}
-					promptsInQueue={[]}
+					promptsInQueue={promptsInQueue}
 					provider="cline"
 					reasoningEffort="low"
 					status={status}
@@ -254,6 +265,193 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it.each([
+		"Enter",
+		"click",
+	])("answers a pending question via %s instead of queuing a prompt", async (method) => {
+		const onSend = vi.fn();
+		const onAnswerQuestion = vi.fn().mockResolvedValue(undefined);
+		await renderVoiceComposer({
+			status: "running",
+			pendingQuestionId: "question-1",
+			onAnswerQuestion,
+			onSend,
+			prompt: "  Neither pill, thanks.  ",
+			attachments: [{ id: "image-1", name: "screenshot.png", isImage: true }],
+		});
+		const input = container.querySelector("textarea");
+		expect(input?.placeholder).toBe("Type your answer…");
+		await act(async () => {
+			if (method === "Enter") {
+				input?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				);
+			} else {
+				container
+					.querySelector<HTMLButtonElement>('[aria-label="Submit answer"]')
+					?.click();
+			}
+		});
+		expect(onAnswerQuestion).toHaveBeenCalledExactlyOnceWith(
+			"question-1",
+			"Neither pill, thanks.",
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		expect(input?.value).toBe("");
+		expect(container.textContent).toContain("screenshot.png");
+	});
+
+	it("keeps normal prompt submission when no question is pending", async () => {
+		const onSend = vi.fn();
+		const onAnswerQuestion = vi.fn();
+		await renderVoiceComposer({
+			status: "running",
+			prompt: "Next task",
+			onSend,
+			onAnswerQuestion,
+		});
+		expect(container.querySelector("textarea")?.placeholder).toContain(
+			"submit to queue",
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Send message"]')
+				?.click(),
+		);
+		expect(onSend).toHaveBeenCalledExactlyOnceWith("Next task");
+		expect(onAnswerQuestion).not.toHaveBeenCalled();
+	});
+
+	it("preserves a failed answer for retry without queuing it", async () => {
+		const onSend = vi.fn();
+		const onAnswerQuestion = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("Connection lost"))
+			.mockResolvedValueOnce(undefined);
+		await renderVoiceComposer({
+			status: "running",
+			pendingQuestionId: "question-1",
+			prompt: "Red",
+			onSend,
+			onAnswerQuestion,
+		});
+		const submit = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Submit answer"]',
+		);
+		await act(async () => submit?.click());
+		expect(container.querySelector("textarea")?.value).toBe("Red");
+		expect(submit?.disabled).toBe(false);
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Could not submit answer",
+				description: "Connection lost",
+			}),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		await act(async () => submit?.click());
+		expect(onAnswerQuestion).toHaveBeenCalledTimes(2);
+		expect(container.querySelector("textarea")?.value).toBe("");
+	});
+
+	it("prevents duplicate answers while submission is in flight", async () => {
+		const answer = deferred<void>();
+		const onAnswerQuestion = vi.fn(() => answer.promise);
+		const onSend = vi.fn();
+		await renderVoiceComposer({
+			status: "running",
+			pendingQuestionId: "question-1",
+			prompt: "Red",
+			onSend,
+			onAnswerQuestion,
+		});
+		await act(async () => {
+			const input = container.querySelector("textarea");
+			input?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+			input?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onAnswerQuestion).toHaveBeenCalledOnce();
+		expect(onSend).not.toHaveBeenCalled();
+		await act(async () => answer.resolve());
+		expect(container.querySelector("textarea")?.value).toBe("");
+	});
+
+	it("does not clear a new draft when an earlier answer finishes", async () => {
+		const answer = deferred<void>();
+		const onAnswerQuestion = vi.fn(() => answer.promise);
+		await renderVoiceComposer({
+			status: "running",
+			pendingQuestionId: "question-1",
+			prompt: "Red",
+			onAnswerQuestion,
+		});
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Submit answer"]')
+				?.click(),
+		);
+		await renderVoiceComposer({ prompt: "New draft", promptVersion: 1 });
+		await act(async () => answer.resolve());
+		expect(container.querySelector("textarea")?.value).toBe("New draft");
+	});
+
+	it.each([
+		{ attachments: [] },
+		{ attachments: [{ id: "image-1", name: "screenshot.png", isImage: true }] },
+	])("does not answer or steer queued prompts on empty input with attachments $attachments", async ({
+		attachments,
+	}) => {
+		const onAnswerQuestion = vi.fn();
+		const onSend = vi.fn();
+		const onSteerPromptInQueue = vi.fn();
+		await renderVoiceComposer({
+			status: "running",
+			pendingQuestionId: "question-1",
+			prompt: "   ",
+			onSend,
+			onAnswerQuestion,
+			attachments,
+			onSteerPromptInQueue,
+			promptsInQueue: [{ id: "queued-1", prompt: "Later", steer: false }],
+		});
+		await act(async () =>
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onAnswerQuestion).not.toHaveBeenCalled();
+		expect(onSteerPromptInQueue).not.toHaveBeenCalled();
+	});
+
+	it("does not answer a question in a read-only session", async () => {
+		const onAnswerQuestion = vi.fn();
+		await renderVoiceComposer({
+			readOnly: true,
+			pendingQuestionId: "question-1",
+			prompt: "Red",
+			onAnswerQuestion,
+		});
+		const submit = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Submit answer"]',
+		);
+		expect(submit?.disabled).toBe(true);
+		await act(async () => {
+			submit?.click();
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				);
+		});
+		expect(onAnswerQuestion).not.toHaveBeenCalled();
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });

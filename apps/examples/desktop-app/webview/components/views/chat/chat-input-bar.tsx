@@ -330,6 +330,8 @@ type ChatInputBarProps = {
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onSend: (prompt: string) => void;
+	pendingQuestionId?: string;
+	onAnswerQuestion?: (requestId: string, answer: string) => Promise<void>;
 	onAbort: () => void;
 	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
@@ -377,6 +379,8 @@ function ChatInputBarImpl({
 	onListGitBranches,
 	onSwitchGitBranch,
 	onSend,
+	pendingQuestionId,
+	onAnswerQuestion,
 	onAbort,
 	promptsInQueue,
 	attachments,
@@ -534,8 +538,15 @@ function ChatInputBarImpl({
 	const unsupportedDraftImageCount = imagesUnsupported
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
+	const isAnsweringQuestion = Boolean(pendingQuestionId && onAnswerQuestion);
+	const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+	const answerInFlightRef = useRef(false);
 	const canSend =
-		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+		(isAnsweringQuestion ? promptInput.trim().length > 0 : hasDraft) &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!readOnly &&
+		!isSubmittingAnswer;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -557,14 +568,48 @@ function ChatInputBarImpl({
 			steeringPromptRef.current = false;
 		}
 	};
-	const handleSend = useCallback(() => {
-		if (speechInputActive || readOnly) return;
+	const handleSend = useCallback(async () => {
+		if (
+			speechInputActive ||
+			readOnly ||
+			needsCloudRepository ||
+			answerInFlightRef.current
+		)
+			return;
+		const prompt = promptInput.trim();
+		if (pendingQuestionId && onAnswerQuestion) {
+			if (!prompt) return;
+			answerInFlightRef.current = true;
+			setIsSubmittingAnswer(true);
+			const submittedDraft = promptInputValueRef.current;
+			const submittedVersion = latestDraftVersionRef.current;
+			try {
+				await onAnswerQuestion(pendingQuestionId, prompt);
+				// Preserve text entered or injected while the request was in flight.
+				// Attachments stay in the draft: question answers accept text only.
+				if (
+					promptInputValueRef.current === submittedDraft &&
+					latestDraftVersionRef.current === submittedVersion
+				) {
+					setPromptInput("");
+				}
+			} catch (error) {
+				toast({
+					title: "Could not submit answer",
+					description:
+						error instanceof Error ? error.message : "Please try again.",
+					variant: "destructive",
+				});
+			} finally {
+				answerInFlightRef.current = false;
+				setIsSubmittingAnswer(false);
+			}
+			return;
+		}
 		if (unsupportedDraftImageCount > 0) {
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository) return;
-		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
 				title: "Add a message to go with your attachments",
@@ -576,6 +621,8 @@ function ChatInputBarImpl({
 		setPromptInput("");
 		onSend(prompt);
 	}, [
+		onAnswerQuestion,
+		pendingQuestionId,
 		needsCloudRepository,
 		readOnly,
 		onSend,
@@ -1334,6 +1381,8 @@ function ChatInputBarImpl({
 									if (canSend) {
 										handleSend();
 									} else if (
+										!isAnsweringQuestion &&
+										!isSubmittingAnswer &&
 										!hasDraft &&
 										!speechInputActive &&
 										!e.ctrlKey &&
@@ -1355,15 +1404,17 @@ function ChatInputBarImpl({
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
-										: isBusy && variant !== "welcome"
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+										: isAnsweringQuestion
+											? "Type your answer…"
+											: isBusy && variant !== "welcome"
+												? promptsInQueue.length > 0
+													? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+													: "Agent is working... submit to queue another message"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
@@ -1421,16 +1472,23 @@ function ChatInputBarImpl({
 									title={`Transcribe live with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
 								/>
 							) : null}
-							{(!isBusy || canSend) && (
+							{(!isBusy ||
+								canSend ||
+								isAnsweringQuestion ||
+								isSubmittingAnswer) && (
 								<AgentComposerSendButton
-									aria-label="Send message"
+									aria-label={
+										isAnsweringQuestion ? "Submit answer" : "Send message"
+									}
 									variant={variant}
 									disabled={!canSend}
 									onClick={handleSend}
 									title={
 										needsCloudRepository
 											? "Choose a repository"
-											: "Send (Enter)"
+											: isAnsweringQuestion
+												? "Submit answer (Enter)"
+												: "Send (Enter)"
 									}
 									type="button"
 								>

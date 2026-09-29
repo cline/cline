@@ -4472,6 +4472,23 @@ describe("useChatSession", () => {
 			environmentId: "local",
 			sessionId: hydratedSessionId,
 		});
+
+		// The composer shares the card's answer path, not the prompt queue.
+		invokeMock.mockClear();
+		await act(async () => {
+			await current.answerAskQuestion(
+				pendingQuestion.requestId,
+				"Use my existing feature branch",
+			);
+		});
+		expect(invokeMock).toHaveBeenCalledExactlyOnceWith("respond_ask_question", {
+			environmentId: "local",
+			requestId: pendingQuestion.requestId,
+			answer: "Use my existing feature branch",
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+		expect(current.promptsInQueue).toEqual([]);
+		expect(current.status).toBe("running");
 	});
 
 	it("resets to the remembered provider/model after viewing a historical session", async () => {

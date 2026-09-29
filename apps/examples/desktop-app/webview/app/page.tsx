@@ -1929,7 +1929,7 @@ function ChatThreadPane({
 	);
 	const handleAnswerAskQuestion = useCallback(
 		(requestId: string, answer: string) => {
-			void answerAskQuestion(requestId, answer);
+			return answerAskQuestion(requestId, answer);
 		},
 		[answerAskQuestion],
 	);
@@ -2410,6 +2410,8 @@ function ChatThreadPane({
 	const composer = (
 		<ChatInputBar
 			readOnly={isCloudSessionExpired}
+			pendingQuestionId={pendingAskQuestions[0]?.requestId}
+			onAnswerQuestion={handleAnswerAskQuestion}
 			attachments={attachmentList}
 			environmentId={environmentId}
 			hasRunningAgents={agentActivity.running > 0}
