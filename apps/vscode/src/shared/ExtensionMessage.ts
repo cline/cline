@@ -37,13 +37,6 @@ export const DEFAULT_PLATFORM = "unknown"
 
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 
-export type WorkspaceRestoreAvailability =
-	| { available: true }
-	| {
-			available: false
-			reason: "checkpoints_disabled" | "checkpoint_unavailable"
-	  }
-
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean

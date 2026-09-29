@@ -333,6 +333,48 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		expect(readMessages).not.toHaveBeenCalled()
 	})
 
+	it("agrees with editMessageAndRegenerate on which messages exist while the transcript lags", async () => {
+		// The persisted transcript is written after Core reports the turn done,
+		// so it can still lack the newest user message while its checkpoint exists.
+		const readLiveMessages = vi.fn().mockResolvedValue(sdkMessages)
+		const readMessages = vi.fn().mockResolvedValue(sdkMessages.slice(0, 2))
+		const restore = vi.fn().mockRejectedValue(new Error("stop at restore"))
+		const controller = {
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			sessions: {
+				getActiveSession: () => ({
+					sessionId: "task-a",
+					isRunning: false,
+					sdkHost: {
+						get: async () => ({
+							cwd: "C:/work",
+							metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 2 }] } },
+						}),
+						readLiveMessages,
+						readMessages,
+						restore,
+					},
+				}),
+			},
+			taskHistory: { findHistoryItem: async () => undefined },
+			getWorkspaceRoot: async () => "C:/work",
+			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
+			resolveContextMentions: async (text: string) => text,
+		}
+
+		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toBe(true)
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller as never, {
+				messageTs: 3,
+				text: "continue, edited",
+				restoreWorkspace: true,
+			}),
+		).rejects.toThrow("stop at restore")
+		expect(restore).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "task-a", checkpointRunCount: 2 }))
+		expect(readMessages).not.toHaveBeenCalled()
+	})
+
 	it("uses and disposes a temporary host for a history task", async () => {
 		const tempHost = {
 			get: vi.fn().mockResolvedValue({

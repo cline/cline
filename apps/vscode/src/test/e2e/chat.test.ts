@@ -114,6 +114,9 @@ e2e.describe("Checkpoint settings", () => {
 
 		await openEditor("follow-up without checkpoints")
 		const resetCode = sidebar.getByRole("button", { name: "Reset Code" })
+		// The button is busy while the checkpoint is looked up; the answer
+		// swaps its tooltip for the explanation popover.
+		await expect(resetCode).not.toHaveAttribute("aria-busy")
 		await expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await resetCode.focus()
 		await resetCode.press("Enter")

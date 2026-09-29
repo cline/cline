@@ -134,6 +134,35 @@ describe("UserMessage – IME composition handling", () => {
 		)
 	})
 
+	it("shows Reset Code as busy and does not restore until the checkpoint lookup answers", async () => {
+		const user = userEvent.setup()
+		let answer: (result: { value: boolean }) => void = () => {}
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockReturnValue(
+			new Promise((resolve) => {
+				answer = resolve
+			}),
+		)
+		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		expect(resetCode).toHaveAttribute("aria-busy", "true")
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.hover(resetCode)
+		expect(await screen.findByText("Checking for a workspace checkpoint…")).toBeInTheDocument()
+		await user.click(resetCode)
+		expect(TaskServiceClient.editMessageAndRegenerate).not.toHaveBeenCalled()
+
+		act(() => answer({ value: true }))
+		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
+		expect(resetCode).not.toHaveAttribute("aria-disabled")
+		await user.click(resetCode)
+		await waitFor(() => expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledTimes(1))
+		expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledWith(
+			expect.objectContaining({ restoreWorkspace: true }),
+		)
+	})
+
 	it("keeps Reset Chat enabled and disables Reset Code when checkpoints were off", async () => {
 		const user = userEvent.setup()
 		enableCheckpointsSetting = false
@@ -143,6 +172,7 @@ describe("UserMessage – IME composition handling", () => {
 		await user.click(screen.getByText("Update this"))
 
 		expect(screen.getByRole("button", { name: "Reset Chat" })).toBeEnabled()
+		await waitFor(() => expect(screen.getByRole("button", { name: "Reset Code" })).not.toHaveAttribute("aria-busy"))
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
 		expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await user.click(resetCode)
@@ -158,6 +188,7 @@ describe("UserMessage – IME composition handling", () => {
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
+		await waitFor(() => expect(screen.getByRole("button", { name: "Reset Code" })).not.toHaveAttribute("aria-busy"))
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
 		act(() => resetCode.focus())
 		expect(resetCode).toHaveFocus()
@@ -176,7 +207,7 @@ describe("UserMessage – IME composition handling", () => {
 
 		await user.click(screen.getByText("Update this"))
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
-		await waitFor(() => expect(CheckpointsServiceClient.checkpointExistsForMessage).toHaveBeenCalledTimes(1))
+		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
 		expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await user.hover(resetCode)
 		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()

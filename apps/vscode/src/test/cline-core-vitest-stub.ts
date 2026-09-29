@@ -186,6 +186,15 @@ export function readSessionCheckpointHistory(session: { metadata?: Record<string
 	})
 }
 
+export function createRestoredCheckpointMetadata(
+	session: { metadata?: Record<string, unknown> } | undefined,
+	runCount: number,
+): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
+	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
+	const latest = history.at(-1)
+	return latest ? { latest, history } : undefined
+}
+
 export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
 	return history.reduce<CheckpointEntry | undefined>((best, entry) => {
 		if (entry.runCount > runCount) {

@@ -99,6 +99,7 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
+import { readCurrentMessages } from "./session-host"
 import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command-expansion"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
@@ -1548,19 +1549,17 @@ export class Controller {
 			throw new Error("Only user messages can be edited")
 		}
 
-		const userOrdinal = clineMessages
-			.slice(0, targetIndex + 1)
-			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
+		const userOrdinal = clineMessages.slice(0, targetIndex + 1).filter(isVisibleCheckpointUserMessage).length
 		const canRestoreWorkspace = getCheckpointRunCountForMessage(clineMessages, targetIndex) !== undefined
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
 		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
-			sdkMessages = (await sessionHost.readMessages(sourceSessionId)) as SdkUserMessage[]
+			sdkMessages = (await readCurrentMessages(sessionHost, sourceSessionId)) as SdkUserMessage[]
 			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 			if (sdkTargetIndex === -1) {
-				throw new Error("Could not map edited message to persisted conversation history")
+				throw new Error("Could not map edited message to the conversation history")
 			}
 			const checkpointRunCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkTargetIndex)
 
@@ -1813,9 +1812,13 @@ export class Controller {
 	/**
 	 * Whether Reset Code can restore the workspace from the user message with
 	 * the given ts. Answered when the user opens the message for editing, so
-	 * the checkpoint written for the latest turn is visible: a running session
-	 * is read from its live conversation, because the persisted transcript
-	 * lags the turn-complete event.
+	 * the checkpoint written for the latest turn is visible. The message is
+	 * mapped to its run the same way editMessageAndRegenerate maps it, so a
+	 * positive answer means that edit will find the checkpoint too.
+	 *
+	 * After a window reload the latest task is shown from history without a
+	 * live session; then, as in editMessageAndRegenerate, a temporary host is
+	 * created for the read and disposed afterwards.
 	 */
 	async hasWorkspaceCheckpointForMessage(messageTs: number): Promise<boolean> {
 		const activeSession = this.sessions.getActiveSession()
@@ -1835,7 +1838,7 @@ export class Controller {
 			const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 			const [sessionRecord, sdkMessages] = await Promise.all([
 				sessionHost.get(sessionId),
-				(sessionHost.readLiveMessages?.(sessionId) ?? sessionHost.readMessages(sessionId)) as Promise<SdkUserMessage[]>,
+				readCurrentMessages(sessionHost, sessionId) as Promise<SdkUserMessage[]>,
 			])
 			const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 			if (sdkIndex === -1) {
