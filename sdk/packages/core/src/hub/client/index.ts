@@ -183,6 +183,8 @@ export interface HubClientOptions {
 	displayName?: string;
 	/** Version reported to the hub; defaults to the @cline/core version. */
 	clientVersion?: string;
+	/** Additional registration metadata; version and pid are owned by the client. */
+	metadata?: Record<string, unknown>;
 	workspaceRoot?: string;
 	cwd?: string;
 	/** Hub token sent with the `cline-hub-auth.*` WebSocket subprotocol. */
@@ -437,8 +439,8 @@ export class NodeHubClient {
 					actorKind: "client",
 					capabilities: this.capabilities,
 					metadata: {
-						version:
-							this.options.clientVersion ?? String(corePackage.version),
+						...this.options.metadata,
+						version: this.options.clientVersion ?? String(corePackage.version),
 						pid: process.pid,
 					},
 					workspaceContext: {
