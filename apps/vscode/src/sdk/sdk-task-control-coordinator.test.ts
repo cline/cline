@@ -79,12 +79,56 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.clearTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(state.task).toBeUndefined()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+	})
+
+	it("waits for the task-transition boundary before ending the active session", async () => {
+		let releaseRebuild: () => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
+				}),
+		)
+
+		const clear = coordinator.clearTask()
+		await Promise.resolve()
+
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
+
+		releaseRebuild()
+		await clear
+
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
+	})
+
+	it("does not end the session when a task selection supersedes clearTask during the rebuild wait", async () => {
+		let releaseRebuild: () => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
+				}),
+		)
+
+		const clear = coordinator.clearTask()
+		void coordinator.showTaskWithId("missing-task")
+		releaseRebuild()
+		await clear
+
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalledWith("clearTask")
 	})
 
 	it("drops the task-scoped settings overlay when the task is cleared (#13260)", async () => {
@@ -114,6 +158,7 @@ describe("SdkTaskControlCoordinator", () => {
 
 		await coordinator.showTaskWithId("task-1")
 
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
 		// The overlay must be gone before the new proxy is installed.
 		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(options.setTask.mock.invocationCallOrder[0])
@@ -494,6 +539,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		clearTaskSettings: vi.fn().mockResolvedValue(undefined),
+		rebuilds: {
+			runTaskTransition: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+		},
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -518,6 +566,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		clearTaskSettings: ReturnType<typeof vi.fn>
+		rebuilds: { runTaskTransition: ReturnType<typeof vi.fn> }
 	}
 
 	return {
