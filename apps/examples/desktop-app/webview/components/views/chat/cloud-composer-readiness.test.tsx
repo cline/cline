@@ -276,24 +276,25 @@ it("retains the draft after a failed check and enables sending after a successfu
 	expect(onSend).toHaveBeenCalledExactlyOnceWith("Run task");
 });
 
-it("offers an enabled retry when a failed picker request supersedes the initial check", async () => {
+it("shares the initial check with the picker and offers an enabled retry on failure", async () => {
 	const initialCheck = deferredRepositories();
 	repositoryCheck.mockReturnValue(initialCheck.promise);
 	const onSend = vi.fn();
 	await act(async () => root.render(<Composer onSend={onSend} />));
-	repositoryCheck.mockRejectedValue(new Error("offline"));
+	const callsBeforePicker = repositoryCheck.mock.calls.length;
 	const picker = container.querySelector<HTMLButtonElement>(
 		`button[title="${rememberedRepo}"]`,
 	);
 	expect(picker).not.toBeNull();
 	await act(async () => picker?.click());
+	expect(repositoryCheck).toHaveBeenCalledTimes(callsBeforePicker);
+	await act(async () => initialCheck.reject(new Error("offline")));
 	expect(container.textContent).toContain("Could not reach Cline Cloud");
 	const retry = Array.from(container.querySelectorAll("button")).find(
 		(button) => button.textContent === "Retry",
 	);
 	expect(retry).toBeDefined();
 	expect(retry?.disabled).toBe(false);
-	await act(async () => initialCheck.resolve(repositories()));
 	expect(sendButton().disabled).toBe(true);
 	repositoryCheck.mockResolvedValue(repositories());
 	await act(async () => retry?.click());
@@ -334,14 +335,12 @@ it("does not reuse prior validation when a picker refresh fails after returning 
 	const check = deferredRepositories();
 	repositoryCheck.mockReturnValue(check.promise);
 	await act(async () => root.render(<Composer onSend={onSend} />));
-	repositoryCheck.mockRejectedValue(new Error("offline"));
 	const picker = container.querySelector<HTMLButtonElement>(
 		`button[title="${rememberedRepo}"]`,
 	);
 	await act(async () => picker?.click());
+	await act(async () => check.reject(new Error("offline")));
 	expect(container.textContent).toContain("Could not reach Cline Cloud");
-	expect(sendButton().disabled).toBe(true);
-	await act(async () => check.resolve(repositories()));
 	expect(sendButton().disabled).toBe(true);
 	expect(onSend).not.toHaveBeenCalled();
 });
@@ -362,6 +361,72 @@ it("clears a previously validated repo when a successful refresh revokes its acc
 	expect(input().value).toBe("Run task");
 	await trySending();
 	expect(onSend).not.toHaveBeenCalled();
+});
+
+it.each([
+	"focus",
+	"picker",
+])("shares a pending revocation check when %s starts first", async (first) => {
+	repositoryCheck.mockResolvedValue(repositories());
+	const onSend = vi.fn();
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	const check = deferredRepositories();
+	const priorCalls = repositoryCheck.mock.calls.length;
+	repositoryCheck
+		.mockReturnValueOnce(check.promise)
+		.mockRejectedValue(new Error("offline"));
+	const picker = container.querySelector<HTMLButtonElement>(
+		`button[title="${rememberedRepo}"]`,
+	);
+	const focus = () => window.dispatchEvent(new Event("focus"));
+	await act(async () => {
+		if (first === "focus") focus();
+		else picker?.click();
+	});
+	await act(async () => {
+		if (first === "focus") picker?.click();
+		else focus();
+	});
+	expect(repositoryCheck).toHaveBeenCalledTimes(priorCalls + 1);
+	expect(sendButton().disabled).toBe(true);
+	await trySending();
+	expect(onSend).not.toHaveBeenCalled();
+	await act(async () =>
+		check.resolve(repositories("https://github.com/another/repo")),
+	);
+	expect(sendButton().disabled).toBe(true);
+	expect(container.textContent).toContain("Repository required");
+	expect(input().value).toBe("Run task");
+});
+
+it.each([
+	"resolve",
+	"reject",
+])("does not let an old scope %s settle the new scope's pending check", async (outcome) => {
+	const oldCheck = deferredRepositories();
+	repositoryCheck.mockReturnValue(oldCheck.promise);
+	const onSend = vi.fn();
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	await act(async () =>
+		root.render(<Composer executionTarget="local" onSend={onSend} />),
+	);
+	const newCheck = deferredRepositories();
+	repositoryCheck.mockReturnValue(newCheck.promise);
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	await act(async () => {
+		if (outcome === "resolve") oldCheck.resolve(repositories());
+		else oldCheck.reject(new Error("old scope offline"));
+	});
+	expect(sendButton().disabled).toBe(true);
+	const callsBeforePicker = repositoryCheck.mock.calls.length;
+	const picker = container.querySelector<HTMLButtonElement>(
+		`button[title="${rememberedRepo}"]`,
+	);
+	await act(async () => picker?.click());
+	expect(repositoryCheck).toHaveBeenCalledTimes(callsBeforePicker);
+	await act(async () => newCheck.resolve(repositories()));
+	expect(sendButton().disabled).toBe(false);
+	expect(input().value).toBe("Run task");
 });
 
 it.each([

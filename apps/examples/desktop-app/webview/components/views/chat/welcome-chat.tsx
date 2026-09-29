@@ -104,6 +104,8 @@ export function WelcomeScreen({
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
 	const cloudSetupRequestRef = useRef(0);
+	const cloudSetupInFlightRef =
+		useRef<Promise<CloudRepositoryListResult> | null>(null);
 	// Request whose result `cloudSetup` currently reflects (every fetch that
 	// applies a result records it). The access guard only acts once this has
 	// caught up with the latest request, so a re-activated composer is never
@@ -143,34 +145,40 @@ export function WelcomeScreen({
 			),
 		[],
 	);
-	const listCloudRepositories = useCallback(async () => {
-		// Keep stale-selection checks aligned with the latest account scope.
+	const listCloudRepositories = useCallback(() => {
+		// The picker and background access check must observe the same result.
+		// A failed refresh must never supersede a concurrent revocation result.
+		if (cloudSetupInFlightRef.current) return cloudSetupInFlightRef.current;
 		const requestId = ++cloudSetupRequestRef.current;
-		try {
-			const result = await fetchCloudRepositories();
-			if (cloudSetupRequestRef.current === requestId) {
-				applyCloudSetupResult(result);
-				cloudSetupResultRequestRef.current = requestId;
+		setCloudSetupChecking(true);
+		const request = (async () => {
+			try {
+				const result = await fetchCloudRepositories();
+				if (cloudSetupRequestRef.current === requestId) {
+					applyCloudSetupResult(result);
+					cloudSetupResultRequestRef.current = requestId;
+				}
+				return result;
+			} catch (error) {
+				if (cloudSetupRequestRef.current === requestId) {
+					// Network failure does not revoke confirmed access. Scope
+					// changes clear ready state before starting their own check.
+					setCloudSetup((prev) => ({
+						...prev,
+						status: prev.status === "ready" ? "ready" : "error",
+					}));
+					cloudSetupResultRequestRef.current = requestId;
+				}
+				throw error;
+			} finally {
+				if (cloudSetupRequestRef.current === requestId) {
+					cloudSetupInFlightRef.current = null;
+					setCloudSetupChecking(false);
+				}
 			}
-			return result;
-		} catch (error) {
-			if (cloudSetupRequestRef.current === requestId) {
-				// A picker refresh failure does not revoke confirmed access.
-				// A new account/activation clears ready state before requesting,
-				// so an unvalidated composer still gets the setup retry UI.
-				setCloudSetup((prev) =>
-					prev.status === "ready" ? prev : { ...prev, status: "error" },
-				);
-				cloudSetupResultRequestRef.current = requestId;
-			}
-			throw error;
-		} finally {
-			// A picker request can supersede the welcome check. It then owns
-			// clearing the checking state so the retry action stays usable.
-			if (cloudSetupRequestRef.current === requestId) {
-				setCloudSetupChecking(false);
-			}
-		}
+		})();
+		cloudSetupInFlightRef.current = request;
+		return request;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
 	const listCloudBranches = useCallback(
 		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
@@ -212,24 +220,17 @@ export function WelcomeScreen({
 	cloudSetupStatusRef.current = cloudSetup.status;
 
 	const checkCloudSetup = useCallback(async () => {
-		const requestId = ++cloudSetupRequestRef.current;
-		setCloudSetupChecking(true);
 		try {
-			const result = await fetchCloudRepositories();
-			if (cloudSetupRequestRef.current !== requestId) return;
-			applyCloudSetupResult(result);
-			cloudSetupResultRequestRef.current = requestId;
+			await listCloudRepositories();
 		} catch {
-			if (cloudSetupRequestRef.current !== requestId) return;
-			setCloudSetup((prev) => ({ ...prev, status: "error" }));
-			cloudSetupResultRequestRef.current = requestId;
-		} finally {
-			if (cloudSetupRequestRef.current === requestId) {
-				setCloudSetupChecking(false);
-			}
+			// The shared request publishes the setup error; picker callers also
+			// receive the rejection to render their own retry state.
 		}
-	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	}, [listCloudRepositories]);
 	const markCloudScopeStale = useCallback(() => {
+		// A new account or activation must not reuse the old scope's request.
+		++cloudSetupRequestRef.current;
+		cloudSetupInFlightRef.current = null;
 		setCloudSetup((prev) => ({
 			...prev,
 			status: "checking",
@@ -415,6 +416,7 @@ export function WelcomeScreen({
 		executionTarget !== "cloud" ||
 		(cloudAgentsEnabled &&
 			signedIn &&
+			!cloudSetupChecking &&
 			checkedUserIdRef.current === accountUserId &&
 			cloudSetup.status === "ready" &&
 			cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl)));
