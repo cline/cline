@@ -4009,18 +4009,20 @@ export function useChatSession(environmentId: string) {
 				// Advisory only: the Hub is the authority and refuses the rebuild on
 				// send (session_wrong_client), so the composer stays usable and the
 				// notice cannot go stale in a way that blocks the user.
-				if (attached?.ownedByAnotherClient) {
-					addMessage({
-						id: makeId("status"),
-						sessionId: session.sessionId,
-						role: "status",
-						content:
-							"This session is live in another Cline client. You can follow it here; sending will be refused until that client finishes or stops it.",
-						createdAt: Date.now(),
-					});
-				}
+				const ownershipNotice: ChatMessage | undefined =
+					attached?.ownedByAnotherClient
+						? {
+								id: makeId("status"),
+								sessionId: session.sessionId,
+								role: "status",
+								content:
+									"This session is live in another Cline client. You can follow it here; sending will be refused until that client finishes or stops it.",
+								createdAt: Date.now(),
+							}
+						: undefined;
 
 				if (historyMessages.length > 0) {
+					if (ownershipNotice) addMessage(ownershipNotice);
 					setStatus(
 						session.origin === "cloud"
 							? (mapCloudRuntimeStatus(attached?.status || session.status) ??
@@ -4049,6 +4051,9 @@ export function useChatSession(environmentId: string) {
 						createdAt: Date.now(),
 					});
 				}
+				// Hydration below replaces the message list, so the notice rides
+				// along with it instead of being added first and wiped.
+				if (ownershipNotice) synthesized.push(ownershipNotice);
 				void refreshPromptsInQueue(session.sessionId);
 				applyHydratedMessages(
 					synthesized,

@@ -168,6 +168,28 @@ describe("HubServerTransport boundaries", () => {
 			});
 			expect(startSession).toHaveBeenCalledOnce();
 		});
+
+		it("transfers ownership to the client whose create succeeded", async () => {
+			const { transport, ctx, startSession } =
+				createOwnedTransport("completed");
+			startSession.mockResolvedValue({
+				sessionId: "shared-task",
+				manifest: {
+					session_id: "shared-task",
+					status: "idle",
+					started_at: new Date(0).toISOString(),
+					workspace_root: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+				manifestPath: "",
+				messagesPath: "",
+			});
+			const reply = await createFrom(transport, "second-client");
+			expect(reply).toMatchObject({ ok: true });
+			expect(ctx.sessionState.get("shared-task")?.createdByClientId).toBe(
+				"second-client",
+			);
+		});
 	});
 
 	it("serializes duplicate session creation as session_already_exists", async () => {
