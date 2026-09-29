@@ -147,12 +147,26 @@ export function WelcomeScreen({
 	const listCloudRepositories = useCallback(async () => {
 		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
-		const result = await fetchCloudRepositories();
-		if (cloudSetupRequestRef.current === requestId) {
-			applyCloudSetupResult(result);
-			cloudSetupResultRequestRef.current = requestId;
+		try {
+			const result = await fetchCloudRepositories();
+			if (cloudSetupRequestRef.current === requestId) {
+				applyCloudSetupResult(result);
+				cloudSetupResultRequestRef.current = requestId;
+			}
+			return result;
+		} catch (error) {
+			if (cloudSetupRequestRef.current === requestId) {
+				setCloudSetup((prev) => ({ ...prev, status: "error" }));
+				cloudSetupResultRequestRef.current = requestId;
+			}
+			throw error;
+		} finally {
+			// A picker request can supersede the welcome check. It then owns
+			// clearing the checking state so the retry action stays usable.
+			if (cloudSetupRequestRef.current === requestId) {
+				setCloudSetupChecking(false);
+			}
 		}
-		return result;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
 	const listCloudBranches = useCallback(
 		async (repositoryId: number, options: CloudBranchListOptions = {}) => {

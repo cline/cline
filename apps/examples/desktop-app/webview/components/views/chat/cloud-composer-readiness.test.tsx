@@ -276,6 +276,33 @@ it("retains the draft after a failed check and enables sending after a successfu
 	expect(onSend).toHaveBeenCalledExactlyOnceWith("Run task");
 });
 
+it("offers an enabled retry when a failed picker request supersedes the initial check", async () => {
+	const initialCheck = deferredRepositories();
+	repositoryCheck.mockReturnValue(initialCheck.promise);
+	const onSend = vi.fn();
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	repositoryCheck.mockRejectedValue(new Error("offline"));
+	const picker = container.querySelector<HTMLButtonElement>(
+		`button[title="${rememberedRepo}"]`,
+	);
+	expect(picker).not.toBeNull();
+	await act(async () => picker?.click());
+	expect(container.textContent).toContain("Could not reach Cline Cloud");
+	const retry = Array.from(container.querySelectorAll("button")).find(
+		(button) => button.textContent === "Retry",
+	);
+	expect(retry).toBeDefined();
+	expect(retry?.disabled).toBe(false);
+	await act(async () => initialCheck.resolve(repositories()));
+	expect(sendButton().disabled).toBe(true);
+	repositoryCheck.mockResolvedValue(repositories());
+	await act(async () => retry?.click());
+	expect(sendButton().disabled).toBe(false);
+	expect(input().value).toBe("Run task");
+	await act(async () => sendButton().click());
+	expect(onSend).toHaveBeenCalledExactlyOnceWith("Run task");
+});
+
 it.each([
 	{ executionTarget: "local" as const, hasActiveSession: false },
 	{ executionTarget: "cloud" as const, hasActiveSession: true },
