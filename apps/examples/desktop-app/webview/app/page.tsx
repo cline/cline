@@ -58,6 +58,7 @@ import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
+import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -296,6 +297,8 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 
 export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
+	// Outlive keyed chat panes without re-rendering the app on every keystroke.
+	const [promptDrafts] = useState(() => new Map<string, string>());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -340,6 +343,12 @@ export default function Home() {
 	>(null);
 	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
+	useEffect(() => {
+		const threadIds = new Set(threads.map((thread) => thread.id));
+		for (const threadId of promptDrafts.keys()) {
+			if (!threadIds.has(threadId)) promptDrafts.delete(threadId);
+		}
+	}, [promptDrafts, threads]);
 	const { activeThreadId, settingsSection, view } = navigation.current;
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
@@ -715,12 +724,13 @@ export default function Home() {
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
-			handleNewThread();
+			selectEnvironmentDraft(activeEnvironmentId);
+			requestPromptInputFocus();
 			return;
 		}
 		navigateWith({ view: "chat" });
 		requestPromptInputFocus();
-	}, [activeThread, handleNewThread, navigateWith]);
+	}, [activeThread, activeEnvironmentId, selectEnvironmentDraft, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
 			navigateWith({ view: nextView });
@@ -972,6 +982,7 @@ export default function Home() {
 												)?.status ?? activeThread.historySession?.status
 											}
 											initialPromptDraft={activeThread.initialPromptDraft}
+											promptDrafts={promptDrafts}
 											knownWorkspacePaths={historyWorkspacePaths}
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
@@ -1084,6 +1095,7 @@ let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
 	threadId,
+	promptDrafts,
 	environmentId,
 	environmentProfiles,
 	environmentProfilesLoading,
@@ -1108,6 +1120,7 @@ function ChatThreadPane({
 	onThreadStarted,
 }: {
 	threadId: string;
+	promptDrafts: Map<string, string>;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
@@ -1182,18 +1195,12 @@ function ChatThreadPane({
 			onThreadStarted?.(threadId, sessionId);
 		}
 	}, [onThreadStarted, sessionId, threadId]);
-	// The live composer text lives inside ChatInputBar so typing does not
-	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
-	// pushes external updates (quick actions, undo, resets) via promptDraft.
-	const promptInputRef = useRef("");
-	const [promptDraft, setPromptDraft] = useState({ version: 0, value: "" });
-	const setPromptInput = useCallback((value: string) => {
-		promptInputRef.current = value;
-		setPromptDraft((prev) => ({ version: prev.version + 1, value }));
-	}, []);
-	const handlePromptInputChange = useCallback((value: string) => {
-		promptInputRef.current = value;
-	}, []);
+	const {
+		promptInputRef,
+		promptDraft,
+		setPromptInput,
+		handlePromptInputChange,
+	} = usePromptDraft(promptDrafts, threadId);
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
@@ -1815,18 +1822,10 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPromptInput("");
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [
-		historySession,
-		manualTitle,
-		reset,
-		threadId,
-		setPromptInput,
-		setPendingAttachments,
-	]);
+	}, [historySession, manualTitle, reset, threadId, setPendingAttachments]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -1836,8 +1835,8 @@ function ChatThreadPane({
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
-		setPromptInput(initialPromptDraft ?? "");
 		if (initialPromptDraft !== undefined) {
+			setPromptInput(initialPromptDraft);
 			onInitialPromptDraftConsumed?.(threadId);
 		}
 		setPendingAttachments([]);
@@ -1931,6 +1930,7 @@ function ChatThreadPane({
 			isNewThread,
 			onThreadStarted,
 			pendingAttachments,
+			promptInputRef,
 			sendPrompt,
 			sessionId,
 			setPendingAttachments,
