@@ -94,6 +94,7 @@ import {
 	isUnsupportedImageAttachment,
 } from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
+import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -318,6 +319,10 @@ export default function Home() {
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
 	const environmentSelectionRevision = useRef(0);
+	const localEnvironmentSelection = useMemo(
+		createLocalEnvironmentSelection,
+		[],
+	);
 	const [activeRemoteEnvironment, setActiveRemoteEnvironment] =
 		useState<RemoteWorkspaceEnvironment | null>(null);
 	const [remoteEnvironmentProfiles, setRemoteEnvironmentProfiles] = useState<
@@ -485,18 +490,21 @@ export default function Home() {
 			}
 			try {
 				if (environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID) {
-					if (activeRemoteEnvironment) {
-						await desktopClient.invoke(
-							"disconnect_remote_environment",
-							{ id: activeRemoteEnvironment.id },
-							{ timeoutMs: null },
-						);
-					}
-					// The new Local draft reads this preference when it mounts.
-					// Persist only after disconnect succeeds, before creating it.
-					writeExecutionTargetToWindow("local");
-					setActiveRemoteEnvironment(null);
-					selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+					await localEnvironmentSelection.select(
+						async () => {
+							if (activeRemoteEnvironment) {
+								await desktopClient.invoke(
+									"disconnect_remote_environment",
+									{ id: activeRemoteEnvironment.id },
+									{ timeoutMs: null },
+								);
+							}
+						},
+						() => {
+							setActiveRemoteEnvironment(null);
+							selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+						},
+					);
 					return;
 				}
 
@@ -545,7 +553,11 @@ export default function Home() {
 				throw error;
 			}
 		},
-		[activeRemoteEnvironment, selectEnvironmentDraft],
+		[
+			activeRemoteEnvironment,
+			localEnvironmentSelection,
+			selectEnvironmentDraft,
+		],
 	);
 	const pickRemoteWorkspaceDirectory = useCallback(
 		(environment: RemoteWorkspaceEnvironment): Promise<string | null> => {
@@ -590,14 +602,21 @@ export default function Home() {
 					environmentSelectionRevision.current += 1;
 					completeRemoteDirectoryPicker(null);
 					setActiveRemoteEnvironment(null);
-					if (view === "chat") {
-						selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
-					} else {
-						selectLocalDraftWhenChatVisibleRef.current = true;
-					}
+					localEnvironmentSelection.onDisconnected(() => {
+						if (view === "chat") {
+							selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+						} else {
+							selectLocalDraftWhenChatVisibleRef.current = true;
+						}
+					});
 				}
 			}),
-		[completeRemoteDirectoryPicker, selectEnvironmentDraft, view],
+		[
+			completeRemoteDirectoryPicker,
+			localEnvironmentSelection,
+			selectEnvironmentDraft,
+			view,
+		],
 	);
 
 	useEffect(() => {
