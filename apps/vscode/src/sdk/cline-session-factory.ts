@@ -121,7 +121,7 @@ function createSdkLogger() {
  * direct API reads would yield non-string values. The hostbridge returns the
  * per-host values (e.g. "Cline for JetBrains" + IDE version on JetBrains).
  */
-export async function resolveHostIdentity() {
+async function resolveHostIdentity() {
 	try {
 		return await HostProvider.env.getHostVersion({})
 	} catch (error) {
@@ -130,12 +130,40 @@ export async function resolveHostIdentity() {
 	}
 }
 
-export async function resolveIsMultiRootWorkspace(): Promise<boolean> {
+async function resolveIsMultiRootWorkspace(): Promise<boolean> {
 	try {
 		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
 		return paths.length > 1
 	} catch {
 		return false
+	}
+}
+
+/**
+ * Client identity the SDK reports for this host: the session's
+ * `extensionContext.client`, and the source of the Cline surface headers
+ * (`X-CLIENT-TYPE`, `X-PLATFORM`, …). Standalone requests (commit message
+ * generation) call this too, so a one-shot request and a task from the same
+ * host report the same client by construction — there is no second mapping
+ * to keep in step. Falls back to the extension's own identity when the host
+ * bridge can't answer.
+ */
+export interface HostClientContext {
+	name: string
+	version: string
+	platform?: string
+	platformVersion?: string
+	isMultiRoot: boolean
+}
+
+export async function resolveClineRequestClientContext(): Promise<HostClientContext> {
+	const [hostIdentity, isMultiRoot] = await Promise.all([resolveHostIdentity(), resolveIsMultiRootWorkspace()])
+	return {
+		name: hostIdentity?.clineType || ClineClient.VSCode,
+		version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
+		platform: hostIdentity?.platform || undefined,
+		platformVersion: hostIdentity?.version || undefined,
+		isMultiRoot,
 	}
 }
 
@@ -1022,8 +1050,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
-	const hostIdentity = await resolveHostIdentity()
-	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	const client = await resolveClineRequestClientContext()
 	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
 	try {
 		// Constructing the settings manager loads providers.json and models.json into
@@ -1109,13 +1136,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		logger: sdkLogger,
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
-			client: {
-				name: hostIdentity?.clineType || ClineClient.VSCode,
-				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
-				platform: hostIdentity?.platform || undefined,
-				platformVersion: hostIdentity?.version || undefined,
-				isMultiRoot,
-			},
+			client,
 			workspace: {
 				rootPath: workspaceRoot,
 				cwd,

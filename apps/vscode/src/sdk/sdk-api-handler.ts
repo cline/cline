@@ -17,29 +17,16 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import {
+	type HostClientContext,
 	resolveApiKey,
 	resolveBaseUrl,
-	resolveHostIdentity,
-	resolveIsMultiRootWorkspace,
+	resolveClineRequestClientContext,
 	resolveModelId,
 	resolveOllamaProviderConfig,
 	resolveVertexProviderConfig,
 } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
-
-/**
- * Client identity for the Cline surface headers, resolved from the host (see
- * `resolveClineRequestClientContext`). Shaped like the session path's
- * `extensionContext.client` so both build the same headers.
- */
-export interface ApiHandlerClientContext {
-	name?: string
-	version?: string
-	platform?: string
-	platformVersion?: string
-	isMultiRoot?: boolean
-}
 
 /**
  * Surface tag for standalone requests, mirroring `SessionSource.VSCODE` in
@@ -64,7 +51,7 @@ const REQUEST_HEADER_SOURCE = "vscode"
  */
 function resolveRequestHeaders(
 	providerId: string,
-	client: ApiHandlerClientContext | undefined,
+	client: Partial<HostClientContext> | undefined,
 ): Record<string, string> | undefined {
 	return resolveProviderRequestHeaders({
 		providerId,
@@ -99,24 +86,6 @@ function resolveStoredProviderHeaders(providerId: string): Record<string, string
 	}
 }
 
-/**
- * Resolve the host's client identity for the Cline surface headers.
- *
- * Mirrors the session factory's client context so a standalone request reports
- * the same client/platform as a task from the same host (e.g. "Cline for
- * JetBrains" + IDE version when this bundle runs inside cline-core).
- */
-export async function resolveClineRequestClientContext(): Promise<ApiHandlerClientContext> {
-	const [hostIdentity, isMultiRoot] = await Promise.all([resolveHostIdentity(), resolveIsMultiRootWorkspace()])
-	return {
-		name: hostIdentity?.clineType || ClineClient.VSCode,
-		version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
-		platform: hostIdentity?.platform || undefined,
-		platformVersion: hostIdentity?.version || undefined,
-		isMultiRoot,
-	}
-}
-
 export interface BuildApiHandlerOptions {
 	/**
 	 * Disable extended thinking/reasoning for this handler. Standalone utility
@@ -132,7 +101,7 @@ export interface BuildApiHandlerOptions {
 	 * `buildApiHandlerWithHostContext`; when omitted we fall back to the
 	 * extension's own identity.
 	 */
-	client?: ApiHandlerClientContext
+	client?: Partial<HostClientContext>
 }
 
 /**
