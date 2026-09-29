@@ -24,6 +24,17 @@ vi.mock("./legacy-provider-credentials", () => ({
 	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
 }));
 
+// Exercise shared auth against the same controlled token resolver as the host.
+vi.mock(
+	"../../../../sdk/packages/core/src/runtime/orchestration/runtime-oauth-token-manager",
+	async (importOriginal) => ({
+		...(await importOriginal<object>()),
+		RuntimeOAuthTokenManager: class {
+			resolveProviderApiKey = resolveProviderApiKeyMock;
+		},
+	}),
+);
+
 vi.mock("@cline/core", async () => {
 	const actual =
 		await vi.importActual<typeof import("@cline/core")>("@cline/core");

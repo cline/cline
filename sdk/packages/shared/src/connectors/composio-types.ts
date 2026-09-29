@@ -1,7 +1,6 @@
 /**
  * Shared shapes for the Composio connectors feature (Gmail, Google Calendar,
- * GitHub, and the wider Composio toolkit catalog). Imported by both the
- * webview and the sidecar, mirroring `cline-integrations-types.ts`.
+ * GitHub, and the wider Composio toolkit catalog). Shared by core, CLI, and desktop hosts.
  */
 
 /** A Composio toolkit slug, e.g. "gmail", "googlecalendar", "github". */

@@ -1,5 +1,6 @@
 export * from "./agent";
 export * from "./agents";
+export * from "./connectors/composio-types";
 export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,

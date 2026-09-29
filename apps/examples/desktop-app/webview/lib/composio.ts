@@ -3,7 +3,7 @@ import type {
 	ComposioConnectResponse,
 	ComposioStatusResponse,
 	ComposioToolkitSlug,
-} from "./composio-types";
+} from "@cline/shared";
 import { desktopClient } from "./desktop-client";
 
 /**

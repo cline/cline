@@ -1,5 +1,9 @@
 "use client";
 
+import type {
+	ComposioStatusResponse,
+	ComposioToolkitSlug,
+} from "@cline/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	cancelComposioConnect,
@@ -7,10 +11,6 @@ import {
 	disconnectComposioIntegration,
 	fetchComposioStatus,
 } from "./composio";
-import type {
-	ComposioStatusResponse,
-	ComposioToolkitSlug,
-} from "./composio-types";
 
 const CONNECT_POLL_INTERVAL_MS = 3_000;
 

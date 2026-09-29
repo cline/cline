@@ -34,27 +34,34 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	type ClineAccountUser,
+	cancelComposioConnect,
 	clearAccountTelemetryIdentity,
+	connectComposioToolkit,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
+	disconnectComposioToolkit,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
 	fetchClineRecommendedModels,
+	getComposioStatus,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	listComposioToolkits,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	parseComposioToolkitSlug,
 	parseMcpServerRegistration,
 	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
 	resolveClineAccountTelemetryIdentity,
+	resolveFreshClineAuthToken,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -91,7 +98,6 @@ import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
-import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
@@ -101,14 +107,6 @@ import {
 	listClineIntegrations,
 	resolveGitHubInstallUrl,
 } from "./commands-integrations";
-import {
-	cancelComposioConnect,
-	connectComposioToolkit,
-	disconnectComposioToolkit,
-	getComposioStatus,
-	listComposioToolkits,
-	parseComposioToolkitSlug,
-} from "./composio";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,

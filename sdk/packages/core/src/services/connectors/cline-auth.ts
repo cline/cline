@@ -1,15 +1,15 @@
-import {
-	captureAuthRefreshSoftFailure,
-	getProviderAuthHandler,
-	OAuthReauthRequiredError,
-	ProviderSettingsManager,
-	RuntimeOAuthTokenManager,
-} from "@cline/core";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
+import {
+	OAuthReauthRequiredError,
+	RuntimeOAuthTokenManager,
+} from "../../runtime/orchestration/runtime-oauth-token-manager";
+import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import { captureAuthRefreshSoftFailure } from "../telemetry/core-events";
 
 /**
- * Shared Cline-account auth for the sidecar: one refresh-aware OAuth manager
+ * Shared Cline-account auth for hosts: one refresh-aware OAuth manager
  * for every caller (account requests, integrations, the connectors proxy).
  * The singleton coalesces local callers; RuntimeOAuthTokenManager also locks
  * refresh/read/save across processes sharing the provider settings file.

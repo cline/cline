@@ -56,7 +56,7 @@
 		"prepublishOnly": "bun script/guard-direct-publish.ts",
 		"publish:npm": "bun script/publish-npm.ts",
 		"publish:npm:dry": "bun script/publish-npm.ts --dry-run",
-		"dev": "CLINE_BUILD_ENV=development bun --conditions=development ./src/index.ts",
+		"dev": "CLINE_BUILD_ENV=development bun --env-file=../../.env --env-file=.env --conditions=development ./src/index.ts",
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts",

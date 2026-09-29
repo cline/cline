@@ -1,5 +1,11 @@
 "use client";
 
+import type {
+	ComposioCatalogToolkit,
+	ComposioIntegrationStatus,
+	ComposioIntegrationSummary,
+	ComposioToolkitSlug,
+} from "@cline/shared";
 import { GitHubIcon } from "@cline/ui";
 import { CalendarDays, Loader2, Mail, Search, Store } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -15,12 +21,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { fetchComposioToolkitCatalog } from "@/lib/composio";
-import type {
-	ComposioCatalogToolkit,
-	ComposioIntegrationStatus,
-	ComposioIntegrationSummary,
-	ComposioToolkitSlug,
-} from "@/lib/composio-types";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 
 /** Shared connector browser for Customize and Marketplace. */
