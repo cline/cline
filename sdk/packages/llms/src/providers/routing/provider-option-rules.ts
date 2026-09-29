@@ -122,10 +122,12 @@ const directAnthropicProviderRule: ProviderOptionRule = {
 	id: "provider.anthropic.direct",
 	phase: "provider",
 	description:
-		"Direct Anthropic owns the anthropic bucket built by the base patch.",
+		"Direct Anthropic enables its recommended server-side refusal fallback.",
 	applies: (input) => input.request.providerId === "anthropic",
 	suppresses: { genericFanout: true },
-	build: () => undefined,
+	// The Anthropic adapter adds the required beta header. This option is
+	// specific to the Claude API, not Claude models served by other gateways.
+	build: () => ({ anthropic: { fallbacks: "default" } }),
 };
 
 const directGoogleProviderRule: ProviderOptionRule = {
