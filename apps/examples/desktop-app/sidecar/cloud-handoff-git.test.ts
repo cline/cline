@@ -41,7 +41,9 @@ vi.mock("node:child_process", async (original) => {
 		}
 		const push = args.indexOf("push");
 		if (push >= 0 && transport.rejectPush) {
-			queueMicrotask(() => callback(new Error("rejected"), "", ""));
+			queueMicrotask(() =>
+				callback(new Error("rejected: synthetic-private-token"), "", ""),
+			);
 			return;
 		}
 		const mapped = [...args];
@@ -93,6 +95,42 @@ beforeEach(() => {
 afterEach(() => rmSync(temporary, { recursive: true, force: true }));
 
 describe("cloud handoff Git preparation", () => {
+	it.each([
+		["--skip-worktree", false],
+		["--assume-unchanged", false],
+		["--skip-worktree", true],
+		["--assume-unchanged", true],
+	] as const)("rejects %s (after preview: %s) without changing Git state", async (flag, afterPreview) => {
+		const credentials = join(repo, "credentials.json");
+		writeFileSync(credentials, "synthetic baseline\n");
+		git("add", "credentials.json");
+		git("commit", "-m", "synthetic baseline");
+		writeFileSync(join(repo, "new.txt"), "visible change\n");
+		const plan = afterPreview ? await inspectHandoffGit(repo) : undefined;
+		git("update-index", flag, "credentials.json");
+		const localContent = afterPreview
+			? "synthetic baseline\n"
+			: "synthetic local-only value\n";
+		writeFileSync(credentials, localContent);
+		expect(git("status", "--porcelain")).toBe("?? new.txt");
+		const head = git("rev-parse", "HEAD");
+		const index = readFileSync(join(repo, ".git/index"));
+		const remoteRefs = git("ls-remote", "origin");
+
+		await expect(
+			plan ? applyHandoffGit(plan) : inspectHandoffGit(repo),
+		).rejects.toThrow("skip-worktree or assume-unchanged");
+
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(git("rev-parse", "HEAD")).toBe(head);
+		expect(readFileSync(join(repo, ".git/index"))).toEqual(index);
+		expect(readFileSync(credentials, "utf8")).toBe(localContent);
+		expect(readFileSync(join(repo, "new.txt"), "utf8")).toBe(
+			"visible change\n",
+		);
+		expect(git("ls-remote", "origin")).toBe(remoteRefs);
+	});
+
 	it("previews all staged/unstaged/new files from a subdirectory without changing the index or branch, then publishes the exact checkpoint", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "staged\n");
 		git("add", ".");
@@ -162,7 +200,9 @@ describe("cloud handoff Git preparation", () => {
 		writeFileSync(join(repo, "tracked.txt"), "keep this");
 		const plan = await inspectHandoffGit(repo);
 		transport.rejectPush = true;
-		await expect(applyHandoffGit(plan)).rejects.toThrow("were not rolled back");
+		await expect(applyHandoffGit(plan)).rejects.toMatchObject({
+			message: `Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying.`,
+		});
 		expect(git("branch", "--show-current")).toBe(plan.branch);
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("keep this");
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");

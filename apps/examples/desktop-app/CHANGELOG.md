@@ -1,5 +1,12 @@
 # Cline Desktop Changelog
 
+## 0.0.37
+
+- Settings has a new **About** page. It shows your version and channel, has **Check for updates** and **Restart to update** buttons, and lists the release notes for recent versions with links to each GitHub release and the full changelog. **Report an issue** is there too
+- After an update, a one-time **What's new** dialog now catches you up on recent features. The first one covers SSH remotes, worktrees, pull request status in the composer, and parallel sub-agents. To see it again, use **Highlights** on the About page
+- On macOS, **Help → Export Diagnostics…** now opens the diagnostics export directly, so you don't have to find it in Settings
+- On Amazon Bedrock, OpenAI models reached through inference profiles (`us.openai.…`, `global.openai.…`) no longer fail with "Unknown parameter: 'reasoningConfig'" when reasoning effort is set
+
 ## 0.0.36
 
 - The app now starts on machines that set a system HTTP(S) proxy, such as Clash, v2ray, or a corporate proxy. Before, the backend sent its local connection checks through the proxy, so it couldn't find its own hub and failed with "No compatible hub runtime is available." Local connections now skip the proxy, and any proxy exemptions you already had are kept
