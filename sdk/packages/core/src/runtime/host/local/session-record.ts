@@ -1,3 +1,7 @@
+import {
+	resolveToolPresetName,
+	ToolPresets,
+} from "../../../extensions/tools/presets";
 import { resolveWorkspacePath } from "../../../services/config";
 import type { FileSessionService } from "../../../session/services/file-session-service";
 import type { CoreSessionService } from "../../../session/services/session-service";
@@ -7,6 +11,8 @@ import type { SessionRecord } from "../../../types/sessions";
 export type SessionBackend = CoreSessionService | FileSessionService;
 
 export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
+	const preset =
+		ToolPresets[resolveToolPresetName({ mode: session.config.mode })];
 	return {
 		sessionId: session.sessionId,
 		source: session.source,
@@ -22,8 +28,8 @@ export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		workspaceRoot: resolveWorkspacePath(session.config),
 		teamName: session.config.teamName?.trim() || undefined,
 		enableTools: session.config.enableTools,
-		enableSpawn: session.config.enableSpawnAgent,
-		enableTeams: session.config.enableAgentTeams,
+		enableSpawn: session.config.enableSpawnAgent ?? preset.enableSpawnAgent,
+		enableTeams: session.config.enableAgentTeams ?? preset.enableAgentTeams,
 		parentSessionId:
 			typeof session.sessionMetadata?.parentSessionId === "string"
 				? session.sessionMetadata.parentSessionId

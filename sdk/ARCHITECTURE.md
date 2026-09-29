@@ -1051,6 +1051,11 @@ effect when constructing child tools. Inherited runtime hooks are unchanged.
 
 ### Unattended session mode defaults
 
+Hub session creation preserves omitted mode and spawn/team flags on the wire.
+The hub applies the shared unattended-mode resolver before selecting session tools,
+using the same effective approval policy passed to the local host; explicit modes
+and tool flags remain authoritative.
+
 `LocalRuntimeHost.startSession` resolves an omitted mode to `yolo` when the
 session is non-interactive and its effective wildcard tool policy auto-approves.
 Explicit modes are preserved. Clients constructing mode-specific system prompts

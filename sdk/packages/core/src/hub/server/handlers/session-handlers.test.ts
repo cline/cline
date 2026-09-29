@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import type { HubCommandEnvelope } from "@cline/shared";
+import { describe, expect, it, vi } from "vitest";
+import type { StartSessionInput } from "../../../runtime/host/runtime-host";
+import type { HubTransportContext } from "./context";
 import {
+	handleSessionCreate,
 	readHubClientContext,
 	readHubUserContext,
 	readSessionConnectionUpdate,
@@ -138,5 +142,179 @@ describe("resolveSessionAutoApproveTools", () => {
 		expect(
 			resolveSessionAutoApproveTools(undefined, { autoApproveTools: true }),
 		).toBe(true);
+	});
+});
+
+// Exercise the real command handler with the JSON payload sent by SDK clients.
+describe("handleSessionCreate unattended defaults", () => {
+	it.each<{
+		name: string;
+		payload: NonNullable<HubCommandEnvelope["payload"]>;
+		mode: StartSessionInput["config"]["mode"];
+		autoApprove: boolean;
+	}>([
+		{
+			name: "SDK wildcard auto-approval",
+			payload: { toolPolicies: { "*": { autoApprove: true } } },
+			mode: "yolo",
+			autoApprove: true,
+		},
+		{
+			name: "config wildcard auto-approval",
+			payload: {
+				sessionConfig: { toolPolicies: { "*": { autoApprove: true } } },
+			},
+			mode: "yolo",
+			autoApprove: true,
+		},
+		{
+			name: "runtime auto-approval",
+			payload: { runtimeOptions: { autoApproveTools: true } },
+			mode: "yolo",
+			autoApprove: true,
+		},
+		{
+			name: "explicit act",
+			payload: {
+				sessionConfig: { mode: "act" },
+				toolPolicies: { "*": { autoApprove: true } },
+			},
+			mode: "act",
+			autoApprove: true,
+		},
+		{
+			name: "explicit runtime act",
+			payload: { runtimeOptions: { mode: "act", autoApproveTools: true } },
+			mode: "act",
+			autoApprove: true,
+		},
+		{
+			name: "explicit plan",
+			payload: {
+				sessionConfig: { mode: "plan" },
+				toolPolicies: { "*": { autoApprove: true } },
+			},
+			mode: "plan",
+			autoApprove: true,
+		},
+		{
+			name: "interactive auto-approval",
+			payload: {
+				metadata: { interactive: true },
+				toolPolicies: { "*": { autoApprove: true } },
+			},
+			mode: undefined,
+			autoApprove: true,
+		},
+		{
+			name: "no approval policy",
+			payload: {},
+			mode: undefined,
+			autoApprove: false,
+		},
+		{
+			name: "empty policy overrides runtime approval",
+			payload: { toolPolicies: {}, runtimeOptions: { autoApproveTools: true } },
+			mode: undefined,
+			autoApprove: false,
+		},
+		{
+			name: "empty policy overrides config approval",
+			payload: {
+				toolPolicies: {},
+				sessionConfig: { toolPolicies: { "*": { autoApprove: true } } },
+			},
+			mode: undefined,
+			autoApprove: false,
+		},
+		{
+			name: "disabled runtime approval overrides config",
+			payload: {
+				runtimeOptions: { autoApproveTools: false },
+				sessionConfig: { toolPolicies: { "*": { autoApprove: true } } },
+			},
+			mode: undefined,
+			autoApprove: false,
+		},
+	])("resolves $name before selecting tools", async ({
+		payload,
+		mode,
+		autoApprove,
+	}) => {
+		const startSession = vi
+			.fn()
+			.mockResolvedValue({ sessionId: "session-test" });
+		const ctx = {
+			sessionHost: {
+				startSession,
+				getSession: vi.fn().mockResolvedValue(undefined),
+			},
+			sessionState: new Map(),
+			sessionTools: [tool("tasks"), tool("custom_tool")],
+		} as unknown as HubTransportContext;
+		const reply = await handleSessionCreate(
+			ctx,
+			{
+				version: "v1",
+				requestId: "request-test",
+				clientId: "client-test",
+				command: "session.create",
+				payload: JSON.parse(
+					JSON.stringify({ metadata: { interactive: false }, ...payload }),
+				),
+			},
+			vi.fn().mockResolvedValue({ approved: true }),
+		);
+		expect(reply.ok).toBe(true);
+		const input = startSession.mock.calls[0]?.[0] as StartSessionInput;
+		expect(input.config.mode).toBe(mode);
+		expect(input.config.enableSpawnAgent).toBeUndefined();
+		expect(input.config.enableAgentTeams).toBeUndefined();
+		expect(input.sessionMetadata?.autoApproveTools).toBe(autoApprove);
+		expect(input.localRuntime?.extraTools?.map((entry) => entry.name)).toEqual(
+			mode === "yolo" ? ["custom_tool"] : ["tasks", "custom_tool"],
+		);
+	});
+
+	it.each([
+		true,
+		false,
+	])("preserves explicit spawn/team settings: %s", async (enabled) => {
+		const startSession = vi
+			.fn()
+			.mockResolvedValue({ sessionId: "session-test" });
+		const ctx = {
+			sessionHost: {
+				startSession,
+				getSession: vi.fn().mockResolvedValue(undefined),
+			},
+			sessionState: new Map(),
+		} as unknown as HubTransportContext;
+		await handleSessionCreate(
+			ctx,
+			{
+				version: "v1",
+				requestId: "request-test",
+				command: "session.create",
+				payload: {
+					metadata: { interactive: false },
+					runtimeOptions: {
+						autoApproveTools: true,
+						enableSpawn: enabled,
+						enableTeams: enabled,
+					},
+				},
+			},
+			vi.fn().mockResolvedValue({ approved: true }),
+		);
+		expect(startSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					mode: "yolo",
+					enableSpawnAgent: enabled,
+					enableAgentTeams: enabled,
+				}),
+			}),
+		);
 	});
 });

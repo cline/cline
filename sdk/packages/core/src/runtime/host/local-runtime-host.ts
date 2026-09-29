@@ -27,6 +27,10 @@ import {
 	RunCommandExecutionController,
 } from "../../extensions/tools";
 import { cleanupStaleDetachedCommandLogs } from "../../extensions/tools/executors/bash";
+import {
+	resolveToolPresetName,
+	ToolPresets,
+} from "../../extensions/tools/presets";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -404,7 +408,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 	}
 
-	private applyNonInteractiveMode(input: StartSessionInput): StartSessionInput {
+	private applySessionDefaults(input: StartSessionInput): StartSessionInput {
 		const mode = resolveNonInteractiveMode({
 			mode: input.config.mode,
 			interactive: input.interactive === true,
@@ -413,15 +417,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 				input.config.toolPolicies ??
 				this.defaultToolPolicies)?.["*"]?.autoApprove,
 		});
-		return mode === input.config.mode
-			? input
-			: { ...input, config: { ...input.config, mode } };
+		const preset = ToolPresets[resolveToolPresetName({ mode })];
+		return {
+			...input,
+			config: {
+				...input.config,
+				mode,
+				enableSpawnAgent:
+					input.config.enableSpawnAgent ?? preset.enableSpawnAgent,
+				enableAgentTeams:
+					input.config.enableAgentTeams ?? preset.enableAgentTeams,
+			},
+		};
 	}
 
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(rawInput: StartSessionInput): Promise<StartSessionResult> {
-		const input = this.applyNonInteractiveMode(rawInput);
+		const input = this.applySessionDefaults(rawInput);
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const isReadOnlyResumeStart =

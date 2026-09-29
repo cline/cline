@@ -413,7 +413,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 		try {
-			await manager.startSession({
+			const started = await manager.startSession({
 				interactive,
 				toolPolicies,
 				config: {
@@ -422,8 +422,6 @@ describe("LocalRuntimeHost", () => {
 					cwd: isolatedHomeDir,
 					systemPrompt: "Test",
 					enableTools: true,
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
 					mode,
 					toolPolicies:
 						autoApprove === undefined ? undefined : { "*": { autoApprove } },
@@ -434,6 +432,10 @@ describe("LocalRuntimeHost", () => {
 					config: expect.objectContaining({ mode: expected }),
 				}),
 			);
+			expect(await manager.getSession(started.sessionId)).toMatchObject({
+				enableSpawn: expected !== "yolo",
+				enableTeams: expected !== "yolo",
+			});
 		} finally {
 			await manager.dispose();
 		}

@@ -122,6 +122,54 @@ describe("HubSessionClient", () => {
 		client.close();
 	});
 
+	it.each([
+		undefined,
+		true,
+		false,
+	])("preserves omitted or explicit session defaults: %s", async (enabled) => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.create", {
+			session: { sessionId: "session-test" },
+		});
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		try {
+			await client.connect();
+			await client.startRuntimeSession({
+				workspaceRoot: "/hub/workspace",
+				enableTools: true,
+				provider: "cline",
+				model: "test-model",
+				interactive: false,
+				autoApproveTools: true,
+				mode: enabled === undefined ? undefined : "act",
+				enableSpawn: enabled,
+				enableTeams: enabled,
+			});
+			const payload = MockWebSocket.sentCommands.find(
+				(entry) => entry.command === "session.create",
+			)?.payload;
+			const config = payload?.sessionConfig as Record<string, unknown>;
+			if (enabled === undefined) {
+				expect(config).not.toHaveProperty("mode");
+				expect(config).not.toHaveProperty("enableSpawnAgent");
+				expect(config).not.toHaveProperty("enableAgentTeams");
+			} else {
+				expect(config).toMatchObject({
+					mode: "act",
+					enableSpawnAgent: enabled,
+					enableAgentTeams: enabled,
+				});
+			}
+			expect(payload?.metadata).toMatchObject({ interactive: false });
+			expect(payload?.runtimeOptions).toMatchObject({ autoApproveTools: true });
+		} finally {
+			client.close();
+		}
+	});
+
 	it("normalizes run.failed events to include a top-level error", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		const client = new HubSessionClient({
