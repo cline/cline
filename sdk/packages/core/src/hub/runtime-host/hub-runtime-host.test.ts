@@ -82,6 +82,64 @@ describe("HubRuntimeHost", () => {
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
 	});
 
+	it("attaches without restarting and receives turns submitted by another client", async () => {
+		const listeners: Array<(event: HubEventEnvelope) => void> = [];
+		subscribeMock.mockImplementation((listener) => {
+			listeners.push(listener);
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "shared",
+					runtimeSession: { agentId: "resident" },
+				},
+				snapshot: {
+					version: 1,
+					sessionId: "shared",
+					source: SessionSource.DESKTOP,
+					status: "idle",
+					createdAt: new Date(0).toISOString(),
+					interactive: true,
+					workspace: { cwd: "/tmp", root: "/tmp" },
+					model: { providerId: "cline", modelId: "model" },
+					capabilities: {
+						enableTools: true,
+						enableSpawn: false,
+						enableTeams: false,
+					},
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const desktop = new HubRuntimeHost({ url: "ws://localhost/hub" });
+		const cli = new HubRuntimeHost({ url: "ws://localhost/hub" });
+		const desktopEvents: unknown[] = [],
+			cliEvents: unknown[] = [];
+		desktop.subscribe((event) => desktopEvents.push(event));
+		cli.subscribe((event) => cliEvents.push(event));
+		await expect(desktop.attachSession("shared")).resolves.toMatchObject({
+			sessionId: "shared",
+		});
+		await expect(cli.attachSession("shared")).resolves.toMatchObject({
+			sessionId: "shared",
+		});
+		expect(
+			commandMock.mock.calls.every(([command]) => command === "session.attach"),
+		).toBe(true);
+		for (const text of ["from CLI", "from desktop"]) {
+			for (const listener of listeners)
+				listener({
+					version: "v1",
+					event: "assistant.delta",
+					sessionId: "shared",
+					payload: { text, stream: "text" },
+				});
+		}
+		expect(desktopEvents).toEqual(cliEvents);
+		expect(desktopEvents).toHaveLength(2);
+	});
+
 	it("does not auto-start a run during session creation", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		commandMock.mockResolvedValue({

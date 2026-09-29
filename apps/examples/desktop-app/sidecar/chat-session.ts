@@ -1014,21 +1014,26 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
-		source: SessionSource.DESKTOP,
-		interactive: true,
-		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(config),
-		sessionMetadata:
-			binding.kind === "ssh"
-				? {
-						remoteEnvironmentId: binding.environmentId,
-						remoteEnvironmentName: binding.remote?.profile.name,
-						remoteHost: binding.remote?.profile.host,
-					}
-				: undefined,
-	});
+	const attached = requestedSessionId
+		? await manager.attach(requestedSessionId)
+		: undefined;
+	const startResult =
+		attached ??
+		(await manager.start({
+			...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
+			source: SessionSource.DESKTOP,
+			interactive: true,
+			...(initialMessages ? { initialMessages } : {}),
+			toolPolicies: resolveToolPolicies(config),
+			sessionMetadata:
+				binding.kind === "ssh"
+					? {
+							remoteEnvironmentId: binding.environmentId,
+							remoteEnvironmentName: binding.remote?.profile.name,
+							remoteHost: binding.remote?.profile.host,
+						}
+					: undefined,
+		}));
 	const sessionId = startResult.sessionId;
 	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
@@ -1051,7 +1056,7 @@ async function handleStart(
 				requestedSessionId && binding.kind === "local"
 					? readSessionMetadataTitle(requestedSessionId)
 					: undefined,
-			status: "idle",
+			status: startResult.manifest.status,
 		},
 	);
 	ctx.liveSessions.set(sessionId, session);

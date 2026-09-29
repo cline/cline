@@ -380,6 +380,8 @@ export interface ListSessionsOptions {
  */
 export interface RuntimeHost {
 	readonly runtimeAddress?: string;
+	/** Subscribe to a resident session without replacing its runtime or owner. */
+	attachSession(sessionId: string): Promise<StartSessionResult | undefined>;
 	startSession(input: StartSessionInput): Promise<StartSessionResult>;
 	runTurn(input: SendSessionInput): Promise<AgentResult | undefined>;
 	restoreSession(input: RestoreSessionInput): Promise<RestoreSessionResult>;

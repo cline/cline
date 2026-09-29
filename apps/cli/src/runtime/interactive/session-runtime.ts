@@ -251,19 +251,21 @@ export function createInteractiveSessionRuntime(input: {
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
-		const started = await manager.start({
-			source: SessionSource.CLI,
-			config: {
-				...buildSessionConfig(),
-				sessionId: resumeId,
-			},
-			toolPolicies: input.config.toolPolicies,
-			interactive: true,
-			initialMessages: initial,
-			localRuntime: {
-				onTeamRestored: () => {},
-			},
-		});
+		const started =
+			(await manager.attach(resumeId)) ??
+			(await manager.start({
+				source: SessionSource.CLI,
+				config: {
+					...buildSessionConfig(),
+					sessionId: resumeId,
+				},
+				toolPolicies: input.config.toolPolicies,
+				interactive: true,
+				initialMessages: initial,
+				localRuntime: {
+					onTeamRestored: () => {},
+				},
+			}));
 		if (generation !== sessionStartGeneration) {
 			await manager.stop(started.sessionId).catch(() => {});
 			return;

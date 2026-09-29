@@ -2,6 +2,10 @@ import type * as LlmsProviders from "@cline/llms";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { SessionRecord } from "../types/sessions";
+import {
+	type SessionManifest,
+	SessionManifestSchema,
+} from "./models/session-manifest";
 
 export interface CoreSessionCheckpointSnapshot {
 	enabled?: boolean;
@@ -207,4 +211,30 @@ export function coreSessionSnapshotToRecord(
 		updatedAt: snapshot.updatedAt,
 		messagesPath: snapshot.artifacts?.messagesPath,
 	};
+}
+
+export function sessionSnapshotToManifest(
+	snapshot: CoreSessionSnapshot,
+	prompt?: string,
+): SessionManifest {
+	return SessionManifestSchema.parse({
+		version: 1,
+		session_id: snapshot.sessionId,
+		source: snapshot.source,
+		pid: process.pid,
+		started_at: snapshot.createdAt,
+		status: snapshot.status,
+		interactive: snapshot.interactive,
+		provider: snapshot.model.providerId,
+		model: snapshot.model.modelId,
+		cwd: snapshot.workspace.cwd,
+		workspace_root: snapshot.workspace.root,
+		team_name: snapshot.team?.name,
+		enable_tools: snapshot.capabilities.enableTools,
+		enable_spawn: snapshot.capabilities.enableSpawn,
+		enable_teams: snapshot.capabilities.enableTeams,
+		prompt: (snapshot.prompt ?? prompt?.trim()) || undefined,
+		metadata: snapshot.metadata,
+		messages_path: snapshot.artifacts?.messagesPath,
+	});
 }

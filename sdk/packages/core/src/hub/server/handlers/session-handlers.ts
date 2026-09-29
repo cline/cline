@@ -909,7 +909,11 @@ export async function handleSessionAttach(
 			sessionId,
 		),
 	);
-	return okReply(envelope, { session: attachedSession ?? session });
+	const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
+	return okReply(envelope, {
+		session: attachedSession ?? session,
+		...(snapshot ? { snapshot } : {}),
+	});
 }
 
 export async function handleSessionDetach(

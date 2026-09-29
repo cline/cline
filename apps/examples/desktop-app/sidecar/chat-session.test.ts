@@ -99,7 +99,10 @@ function localRuntimeContext(
 					environmentId: "local",
 					kind: "local" as const,
 					workspaceRoot,
-					sessionManager,
+					sessionManager: {
+						attach: vi.fn().mockResolvedValue(undefined),
+						...sessionManager,
+					},
 					hubClient: {
 						command: vi.fn(async () => undefined),
 					},
@@ -129,6 +132,7 @@ describe("starting SSH sessions", () => {
 	const transcript = [{ role: "user" as const, content: "earlier prompt" }];
 
 	function setup() {
+		const attach = vi.fn().mockResolvedValue(undefined);
 		const readMessages = vi.fn(async () => transcript);
 		const start = vi.fn(async (_input: unknown) => ({
 			sessionId,
@@ -143,7 +147,7 @@ describe("starting SSH sessions", () => {
 					{
 						environmentId,
 						kind: "ssh",
-						sessionManager: { readMessages, start },
+						sessionManager: { readMessages, start, attach },
 					},
 				],
 			]),
@@ -152,10 +156,29 @@ describe("starting SSH sessions", () => {
 		return {
 			ctx: getEnvironmentContext(ctx, environmentId),
 			config,
+			attach,
 			readMessages,
 			start,
 		};
 	}
+
+	it("reopens a resident session without replacing the shared runtime", async () => {
+		const { ctx, config, attach, start } = setup();
+		attach.mockResolvedValue({
+			sessionId,
+			manifest: {
+				cwd: "/remote/project",
+				workspace_root: "/remote/project",
+				status: "running",
+			},
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "start", config }),
+		).resolves.toMatchObject({ sessionId, environmentId });
+		expect(attach).toHaveBeenCalledWith(sessionId);
+		expect(start).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.get(sessionId)?.status).toBe("running");
+	});
 
 	it.each([
 		new SessionNotFoundError(sessionId),

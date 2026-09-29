@@ -282,6 +282,7 @@ export class ClineCore {
 	 * This overload allows specifying local runtime options and config overrides.
 	 */
 	start(input: ClineCoreStartInput): Promise<StartSessionResult>;
+
 	async start(
 		input: StartSessionInput | ClineCoreStartInput,
 	): Promise<StartSessionResult> {
@@ -327,6 +328,10 @@ export class ClineCore {
 			throw error;
 		}
 	}
+	/** Attach to a resident session without restarting it; undefined means it needs starting. */
+	attach: RuntimeHost["attachSession"] = (...args) =>
+		this.host.attachSession(...args);
+
 	/**
 	 * Sends a message or command to an active session.
 	 *
@@ -341,6 +346,7 @@ export class ClineCore {
 	 * });
 	 * ```
 	 */
+
 	send: RuntimeHost["runTurn"] = (...args) => this.host.runTurn(...args);
 	/**
 	 * Retrieves accumulated token and cost usage for a session.

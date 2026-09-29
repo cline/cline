@@ -144,6 +144,7 @@ function makeManager() {
 	});
 	return {
 		start,
+		attach: vi.fn().mockResolvedValue(undefined),
 		stop: vi.fn(async () => {}),
 		send: vi.fn(),
 		getAccumulatedUsage: vi.fn(),
@@ -240,6 +241,23 @@ describe("createInteractiveSessionRuntime", () => {
 		loadInteractiveResumeMessagesMock.mockResolvedValue([]);
 		subscribeToAgentEventsMock.mockReturnValue(() => {});
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
+	});
+
+	it("attaches to a live resumed session without restarting its owner", async () => {
+		const manager = makeManager();
+		manager.attach.mockResolvedValue({
+			sessionId: "shared",
+			manifest: createManifest("shared"),
+			manifestPath: "",
+			messagesPath: "",
+		});
+		const runtime = await makeRuntime(manager, { resumeSessionId: "shared" });
+		await runtime.ensureReady();
+		expect(manager.attach).toHaveBeenCalledWith("shared");
+		expect(manager.start).not.toHaveBeenCalled();
+		expect(setActiveCliSessionMock).toHaveBeenCalledWith({
+			manifest: createManifest("shared"),
+		});
 	});
 
 	it("manual compact updates the active session sidecar without restarting", async () => {
@@ -652,6 +670,7 @@ describe("createInteractiveSessionRuntime", () => {
 	it("starts fresh after resetting an initially resumed session", async () => {
 		let startCount = 0;
 		const manager = {
+			attach: vi.fn().mockResolvedValue(undefined),
 			start: vi.fn().mockImplementation(async () => {
 				startCount += 1;
 				const sessionId = `session-${startCount}`;
