@@ -811,6 +811,21 @@ export function createSkillsTool(
 }
 
 /**
+ * Frame the user's answer so the model treats it as the reply to its question
+ * and keeps working; a bare answer such as "Option 2" reads like the end of
+ * the exchange. An empty answer (dismissed, timed out, session torn down) is
+ * an error so the model never assumes an answer the user did not give.
+ */
+function formatAskQuestionResult(question: string, answer: string): string {
+	if (!answer.trim()) {
+		throw new Error(
+			"The user did not answer. Do not assume an answer: make a reasonable choice and say so, or stop and report what you need.",
+		);
+	}
+	return `The user answered your question ${JSON.stringify(question)} with: ${JSON.stringify(answer)}. Continue the task using this answer.`;
+}
+
+/**
  * Create the ask_question tool
  *
  * Asks the user a single clarifying question with 2-5 selectable options.
@@ -825,13 +840,19 @@ export function createAskQuestionTool(
 			"For example, ask the user clarifying questions about a key implementation decision. " +
 			"You should only ask one question. " +
 			"Provide an array of 2-5 options for the user to choose from. " +
-			"Never include an option to toggle to Act mode.",
+			"Never include an option to toggle to Act mode. " +
+			"The run continues after the user answers: keep working on the task using their answer.",
 		inputSchema: zodToJsonSchema(AskQuestionInputSchema),
 		retryable: false,
 		maxRetries: 0,
 		execute: async (input, context) => {
 			const validatedInput = validateWithZod(AskQuestionInputSchema, input);
-			return executor(validatedInput.question, validatedInput.options, context);
+			const answer = await executor(
+				validatedInput.question,
+				validatedInput.options,
+				context,
+			);
+			return formatAskQuestionResult(validatedInput.question, answer);
 		},
 	};
 }

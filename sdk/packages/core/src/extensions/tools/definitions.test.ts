@@ -193,7 +193,9 @@ describe("default ask_question tool", () => {
 			},
 		);
 
-		expect(result).toBe("asked");
+		expect(result).toBe(
+			'The user answered your question "Which approach should I take?" with: "asked". Continue the task using this answer.',
+		);
 		expect(execute).toHaveBeenCalledWith(
 			"Which approach should I take?",
 			["Option 1", "Option 2"],
@@ -261,10 +263,40 @@ describe("default ask_question tool", () => {
 
 			expect(settled).toBeUndefined();
 			resolveAnswer("Option 2");
-			await expect(pending).resolves.toBe("Option 2");
+			await expect(pending).resolves.toContain('with: "Option 2"');
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("keeps answers with $ patterns and quotes intact", async () => {
+		const askTool = createDefaultTools({
+			executors: { askQuestion: async () => 'use $& and "$1"' },
+			enableAskQuestion: true,
+		}).find((tool) => tool.name === "ask_question");
+		const result = await askTool?.execute(
+			{ question: "Which?", options: ["a", "b"] },
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+		expect(result).toBe(
+			`The user answered your question "Which?" with: ${JSON.stringify('use $& and "$1"')}. Continue the task using this answer.`,
+		);
+	});
+
+	it.each([
+		"",
+		"   ",
+	])("errors instead of returning empty answer %j", async (answer) => {
+		const askTool = createDefaultTools({
+			executors: { askQuestion: async () => answer },
+			enableAskQuestion: true,
+		}).find((tool) => tool.name === "ask_question");
+		await expect(
+			askTool?.execute(
+				{ question: "Which?", options: ["a", "b"] },
+				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			),
+		).rejects.toThrow("The user did not answer");
 	});
 });
 
