@@ -86,6 +86,32 @@ function distanceFromBottom(viewport: HTMLDivElement): number {
 	return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
 }
 
+type ReadingAnchor = { element: Element; offsetTop: number };
+
+/**
+ * The first row whose bottom edge is below the viewport top: the thing the
+ * reader is looking at. Its position relative to the viewport is what must
+ * not move when content elsewhere changes height. Consumers wrap the rows in
+ * layout containers, so descend through single-child wrappers to the list.
+ */
+function findReadingAnchor(
+	viewport: HTMLDivElement,
+	content: HTMLDivElement,
+): ReadingAnchor | null {
+	let list: Element = content;
+	while (list.children.length === 1) {
+		list = list.children[0];
+	}
+	const viewportTop = viewport.getBoundingClientRect().top;
+	for (const element of list.children) {
+		const rect = element.getBoundingClientRect();
+		if (rect.bottom > viewportTop) {
+			return { element, offsetTop: rect.top - viewportTop };
+		}
+	}
+	return null;
+}
+
 /**
  * The reader owns their scroll position. Only their own input un-pins the
  * view from the bottom, and only reaching the bottom (by scrolling, the
@@ -106,8 +132,14 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 		const [showScrollButton, setShowScrollButton] = useState(false);
 		const pinnedRef = useRef(isPinned);
 		const ourScrollTarget = useRef<number | null>(null);
-		const lastScrollHeight = useRef(0);
-		const initialScrollTop = useRef(initialScrollState?.scrollTop ?? 0);
+		// A remembered position the transcript is not yet tall enough to reach.
+		// Held until the content grows enough, then applied once.
+		const pendingRestore = useRef<number | null>(
+			initialScrollState && !initialScrollState.pinned
+				? initialScrollState.scrollTop
+				: null,
+		);
+		const anchor = useRef<ReadingAnchor | null>(null);
 		const onScrollStateChangeRef = useRef(onScrollStateChange);
 		onScrollStateChangeRef.current = onScrollStateChange;
 
@@ -124,7 +156,6 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 				ourScrollTarget.current =
 					clampedTop !== target.scrollTop ? clampedTop : null;
 				target.scrollTo({ top: clampedTop, behavior });
-				lastScrollHeight.current = target.scrollHeight;
 			},
 			[],
 		);
@@ -135,12 +166,17 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 				const prefersReducedMotion =
 					typeof window.matchMedia === "function" &&
 					window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+				pendingRestore.current = null;
 				setPinned(true);
 				writeScrollTop(
 					viewport,
 					viewport.scrollHeight,
 					prefersReducedMotion ? "auto" : behavior,
 				);
+				onScrollStateChangeRef.current?.({
+					pinned: true,
+					scrollTop: viewport.scrollTop,
+				});
 			},
 			[setPinned, viewport, writeScrollTop],
 		);
@@ -160,11 +196,15 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					}
 					ourScrollTarget.current = null;
 				}
+				pendingRestore.current = null;
 				const distance = distanceFromBottom(viewport);
-				setPinned(distance <= PINNED_THRESHOLD_PX);
+				const pinned = distance <= PINNED_THRESHOLD_PX;
+				setPinned(pinned);
 				setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
+				anchor.current =
+					!pinned && content ? findReadingAnchor(viewport, content) : null;
 				onScrollStateChangeRef.current?.({
-					pinned: distance <= PINNED_THRESHOLD_PX,
+					pinned,
 					scrollTop: viewport.scrollTop,
 				});
 			};
@@ -175,7 +215,10 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 			const handleWheel = (event: WheelEvent) => {
 				if (event.deltaY < 0) setPinned(false);
 			};
+			// Arrow keys inside a focused child (a button, a code block) are
+			// that control's business, not a scroll.
 			const handleKeyDown = (event: KeyboardEvent) => {
+				if (event.target !== viewport) return;
 				if (["ArrowUp", "PageUp", "Home"].includes(event.key)) {
 					setPinned(false);
 				}
@@ -189,37 +232,58 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 				viewport.removeEventListener("wheel", handleWheel);
 				viewport.removeEventListener("keydown", handleKeyDown);
 			};
-		}, [setPinned, viewport]);
+		}, [content, setPinned, viewport]);
+
+		// The transcript may still be loading when a remembered position is
+		// applied, so the target is kept until the content can reach it.
+		const restoreIfReachable = useCallback(() => {
+			if (!viewport || !content || pendingRestore.current === null) return;
+			const maxTop = viewport.scrollHeight - viewport.clientHeight;
+			if (maxTop < pendingRestore.current) return;
+			writeScrollTop(viewport, pendingRestore.current, "auto");
+			pendingRestore.current = null;
+			anchor.current = findReadingAnchor(viewport, content);
+			setShowScrollButton(
+				distanceFromBottom(viewport) > SCROLL_BUTTON_THRESHOLD_PX,
+			);
+		}, [content, viewport, writeScrollTop]);
 
 		useLayoutEffect(() => {
 			if (!viewport || !content) return;
 			if (pinnedRef.current) {
 				scrollToBottom("auto");
-				return;
+			} else {
+				restoreIfReachable();
 			}
-			writeScrollTop(viewport, initialScrollTop.current, "auto");
-			setShowScrollButton(
-				distanceFromBottom(viewport) > SCROLL_BUTTON_THRESHOLD_PX,
-			);
-		}, [content, scrollToBottom, viewport, writeScrollTop]);
+		}, [content, restoreIfReachable, scrollToBottom, viewport]);
 
-		// WebKit has no CSS scroll anchoring, so while un-pinned we shift
-		// scrollTop by the content's height delta to keep the reader's text
-		// from moving under them.
+		// WebKit has no CSS scroll anchoring. While un-pinned, keep the row the
+		// reader is looking at where it is: growth below them must not move it,
+		// and growth or shrinkage above them must be absorbed by scrollTop.
 		useEffect(() => {
 			if (!content || !viewport || typeof ResizeObserver === "undefined")
 				return;
-			lastScrollHeight.current = viewport.scrollHeight;
 			const observer = new ResizeObserver(() => {
 				if (pinnedRef.current) {
 					scrollToBottom("auto");
 					return;
 				}
-				const delta = viewport.scrollHeight - lastScrollHeight.current;
-				lastScrollHeight.current = viewport.scrollHeight;
-				// A reader at the very top wants to see content added above.
-				if (delta !== 0 && viewport.scrollTop > 0) {
-					writeScrollTop(viewport, viewport.scrollTop + delta, "auto");
+				if (pendingRestore.current !== null) {
+					restoreIfReachable();
+					return;
+				}
+				const current = anchor.current;
+				if (current?.element.isConnected) {
+					const viewportTop = viewport.getBoundingClientRect().top;
+					const drift =
+						current.element.getBoundingClientRect().top -
+						viewportTop -
+						current.offsetTop;
+					if (Math.abs(drift) > 1) {
+						writeScrollTop(viewport, viewport.scrollTop + drift, "auto");
+					}
+				} else {
+					anchor.current = findReadingAnchor(viewport, content);
 				}
 				setShowScrollButton(
 					distanceFromBottom(viewport) > SCROLL_BUTTON_THRESHOLD_PX,
@@ -228,7 +292,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 			observer.observe(content);
 			observer.observe(viewport);
 			return () => observer.disconnect();
-		}, [content, scrollToBottom, viewport, writeScrollTop]);
+		}, [content, restoreIfReachable, scrollToBottom, viewport, writeScrollTop]);
 
 		const value = useMemo<ConversationContextValue>(
 			() => ({

@@ -1982,21 +1982,36 @@ describe("ChatMessages send auto-scroll", () => {
 		);
 	});
 
-	it("does not treat a session hydrating from empty as a send", async () => {
-		await renderMessages([]);
+	it("does not treat a single-turn session hydrating as a send", async () => {
+		await renderMessages([], { isSessionSwitching: true });
 		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
 		scrollTo.mockClear();
 
-		await renderMessages([
-			...baseMessages,
-			{
-				id: "user-2",
-				sessionId: "session-1",
-				role: "user",
-				content: "Second",
-				createdAt: 4_000,
-			},
-		]);
+		await renderMessages(baseMessages, { isSessionSwitching: true });
+		await renderMessages(baseMessages, { isSessionSwitching: false });
+		expect(scrollTo).not.toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+	});
+
+	it("does not treat a session hydrating from empty as a send", async () => {
+		await renderMessages([], { isSessionSwitching: true });
+		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
+		scrollTo.mockClear();
+
+		await renderMessages(
+			[
+				...baseMessages,
+				{
+					id: "user-2",
+					sessionId: "session-1",
+					role: "user",
+					content: "Second",
+					createdAt: 4_000,
+				},
+			],
+			{ isSessionSwitching: true },
+		);
 		expect(scrollTo).not.toHaveBeenCalledWith(
 			expect.objectContaining({ behavior: "smooth" }),
 		);

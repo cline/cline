@@ -822,7 +822,10 @@ function ChatMessagesImpl({
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />
-			<AutoScrollOnSend messages={messages} />
+			<AutoScrollOnSend
+				isSessionSwitching={isSessionSwitching}
+				messages={messages}
+			/>
 			<ReaderPinnedSync onChange={setReaderPinned} />
 			{visibleExpandedImage ? (
 				<ChatImageLightbox
@@ -929,10 +932,16 @@ function ReaderPinnedSync({
  * user message lands in the transcript, scroll to the bottom even if the user
  * had scrolled up. Keyed off the count (not the id) because optimistic user
  * bubbles are re-keyed to their runtime id, which must not re-trigger.
- * Hydrating a session takes the count from 0 to N in one step; that is a
- * load, not a send, and must leave a restored scroll position alone.
+ * A session loading its history also grows the count; that is not a send
+ * and must leave a restored scroll position alone.
  */
-function AutoScrollOnSend({ messages }: { messages: ChatMessage[] }) {
+function AutoScrollOnSend({
+	isSessionSwitching,
+	messages,
+}: {
+	isSessionSwitching: boolean;
+	messages: ChatMessage[];
+}) {
 	const { scrollToBottom } = useConversation();
 	const userMessageCount = useMemo(
 		() =>
@@ -944,12 +953,13 @@ function AutoScrollOnSend({ messages }: { messages: ChatMessage[] }) {
 	);
 	const previousCount = useRef(userMessageCount);
 	useEffect(() => {
-		const isSend = userMessageCount === previousCount.current + 1;
+		const isSend =
+			!isSessionSwitching && userMessageCount === previousCount.current + 1;
 		if (isSend) {
 			scrollToBottom();
 		}
 		previousCount.current = userMessageCount;
-	}, [scrollToBottom, userMessageCount]);
+	}, [isSessionSwitching, scrollToBottom, userMessageCount]);
 	return null;
 }
 
