@@ -911,6 +911,80 @@ describe("ProviderSettingsManager", () => {
 			});
 		});
 
+		it("does not pick a phantom entry over a configured provider, before or after an unrelated write", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					"openai-compatible": openAiCompatible,
+					// A phantom from an earlier migration: newer, but no credentials.
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						...at("2026-09-10T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe(
+				"openai-compatible",
+			);
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			// The unrelated save neither promotes the phantom nor itself.
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"openai-compatible",
+			);
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe(
+				"openai-compatible",
+			);
+		});
+
+		it("reports no provider when the only entries are unusable", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						...at("2026-09-10T00:00:00.000Z"),
+					},
+					// A keyless local provider still needs a base URL and a model.
+					"openai-compatible": {
+						settings: { provider: "openai-compatible", model: "qwen3-coder" },
+						...at("2026-09-01T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+		});
+
+		it("lets a keyless local endpoint stand in when it has a base URL and a model", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						...at("2026-09-10T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "openai-compatible",
+				baseUrl: "http://127.0.0.1:8080/v1",
+			});
+		});
+
 		it("persists the repaired selection on the next write", () => {
 			const { filePath, manager } = setup({
 				version: 1,
