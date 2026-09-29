@@ -49,6 +49,7 @@ type CloudSetupState = {
 		| "ready"
 		| "not_connected"
 		| "no_repositories"
+		| "restore_error"
 		| "error";
 	connectUrl: string;
 	scope: string | null;
@@ -295,7 +296,11 @@ export function WelcomeScreen({
 				onRepoUrlChange(saved.repoUrl);
 				onCloudBranchChange(branch);
 			})
-			.catch(() => undefined);
+			.catch(() => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				setCloudSetup((prev) => ({ ...prev, status: "restore_error" }));
+			});
 		return () => {
 			cancelled = true;
 		};
@@ -314,7 +319,8 @@ export function WelcomeScreen({
 			!cloudModeActive ||
 			!cloudScope ||
 			cloudSetup.scope !== cloudScope ||
-			cloudSetup.status !== "ready" ||
+			(cloudSetup.status !== "ready" &&
+				cloudSetup.status !== "restore_error") ||
 			!repoUrl ||
 			!cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl))
 		)
@@ -323,6 +329,9 @@ export function WelcomeScreen({
 			repoUrl: normalizeCloudRepositoryUrl(repoUrl),
 			branch: cloudBranch,
 		});
+		if (cloudSetup.status === "restore_error") {
+			setCloudSetup((prev) => ({ ...prev, status: "ready" }));
+		}
 	}, [cloudModeActive, cloudScope, cloudSetup, repoUrl, cloudBranch]);
 
 	const agenda = useAgendaTasks(
@@ -436,10 +445,13 @@ export function WelcomeScreen({
 				? "not_connected"
 				: cloudSetup.status === "no_repositories"
 					? "no_repositories"
-					: cloudSetup.status === "error"
+					: cloudSetup.status === "error" ||
+							cloudSetup.status === "restore_error"
 						? "error"
 						: null;
-	const showCloudOnboarding = cloudOnboardingVariant !== null;
+	// A failed restore must still allow a manual repository selection.
+	const showCloudOnboarding =
+		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";
 
 	return (
 		<AgentConversationLayout
@@ -491,7 +503,7 @@ export function WelcomeScreen({
 				</div>
 			}
 			welcomeSetup={
-				showCloudOnboarding ? (
+				cloudOnboardingVariant !== null ? (
 					<div className="mt-4 w-full">
 						<CloudOnboardingCard
 							checking={cloudSetupChecking}

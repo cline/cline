@@ -156,7 +156,11 @@ async function clickButton(
 }
 
 describe("WelcomeScreen", () => {
-	it("remembers the selected Cloud repository and branch for the next new chat", async () => {
+	it.each([
+		"none",
+		"retry",
+		"manual",
+	])("remembers the Cloud repository and branch (failure recovery: %s)", async (recovery) => {
 		accountRef.user = { id: "user-1" };
 		const scope = JSON.stringify([
 			getClineEnvironmentConfig().appBaseUrl,
@@ -219,6 +223,38 @@ describe("WelcomeScreen", () => {
 		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
 		await act(async () => repoCheck.resolve(repositories));
 		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		if (recovery !== "none") {
+			await act(async () =>
+				branchCheck.reject(new Error("Branch lookup failed")),
+			);
+			expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+			expect(container.textContent).toContain("Select repository");
+			expect(readCloudRepositorySelection(scope)).toEqual({
+				repoUrl,
+				branch: "feature",
+			});
+			if (recovery === "manual") {
+				await clickButton("Select repository");
+				await clickButton("org/repo");
+				expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+				expect(onCloudBranchChange).toHaveBeenLastCalledWith("main");
+				await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "main" });
+				expect(readCloudRepositorySelection(scope)).toEqual({
+					repoUrl,
+					branch: "main",
+				});
+				expect(container.textContent).not.toContain(
+					"Could not reach Cline Cloud",
+				);
+				return;
+			}
+			invokeMock.mockImplementation(async (command) =>
+				command === "list_cloud_repositories"
+					? repositories
+					: { available: true, branches: ["feature"] },
+			);
+			await clickButton("Retry");
+		}
 		await act(async () =>
 			branchCheck.resolve({ available: true, branches: ["feature"] }),
 		);
