@@ -68,7 +68,6 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -1631,11 +1630,13 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			// Not sourced from the core catalog: it only lists web_search for a
+			// specific provider/model, and this listing is session-agnostic.
 			{
 				id: "web_search",
 				name: "web_search",
 				description:
-					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support web search. Applies to new sessions.",
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support it; applies to new sessions.",
 				enabled: isModelToolEnabledGlobally("web_search"),
 				source: "builtin",
 			},
@@ -3620,10 +3621,6 @@ export async function handleCommand(
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
 		for (const name of new Set(toolNames)) {
-			if (name === "web_search") {
-				setModelToolEnabledGlobally("web_search", args?.disabled !== true);
-				continue;
-			}
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,
