@@ -138,6 +138,7 @@ Design rules:
 - `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
 - `cloud/models` owns cloud model eligibility; `CloudHandoffCoordinator` and `services/cloud-handoff` own transfer orchestration, Git preflight, fingerprints, and transcript verification. Hosts own source locks, persistence, feature gating, and UI.
+- The cloud controller resumes suspended sessions and restores saved tasks. The runtime serializes starts for the same session ID and rejects duplicates.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -177,7 +178,7 @@ field.
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
@@ -480,6 +481,12 @@ Design implication:
   root usage and teammate usage as separate buckets, then derives aggregate
   totals from those buckets while telemetry remains scoped to the primary
   lead/root agent.
+- Usage events report non-reasoning `outputTokens` and a separate optional
+  `reasoningTokenCount` delta. `RuntimeEventAdapter` derives both deltas from
+  cumulative runtime usage; the hub's `usage.updated.delta` payload preserves
+  them when `HubRuntimeHost` reconstructs the event. `task.tokens` telemetry
+  likewise reports reasoning separately from `tokensOut`. Provider billing
+  still includes reasoning tokens at the output rate.
 
 ### 4. Settings Mutation Boundary
 

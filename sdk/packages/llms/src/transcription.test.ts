@@ -19,7 +19,7 @@ vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: createOpenAIMock,
 }));
 vi.mock("ai", () => ({
-	experimental_transcribe: transcribeMock,
+	transcribe: transcribeMock,
 }));
 
 import {
@@ -74,7 +74,7 @@ describe("transcribeAudio", () => {
 				baseUrl: "https://audio.example/v1/",
 			}),
 		).toMatchObject({
-			transport: "openai-compatible",
+			transport: "openai-native",
 			endpoint: "https://audio.example/v1/audio/transcriptions",
 		});
 	});
@@ -128,6 +128,9 @@ describe("transcribeAudio", () => {
 	});
 
 	it("uses Vercel AI Gateway's native transcription model transport", async () => {
+		transcribeMock.mockImplementationOnce(
+			(await vi.importActual<typeof import("ai")>("ai")).transcribe,
+		);
 		const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
 			expect(input).toBe(
 				"https://ai-gateway.vercel.sh/v4/ai/transcription-model",
@@ -142,8 +145,9 @@ describe("transcribeAudio", () => {
 			expect(headers.get("ai-model-id")).toBe("openai/whisper-1");
 			expect(headers.get("content-type")).toBe("application/json");
 			expect(JSON.parse(String(init?.body))).toEqual({
-				audio: "AQID",
-				mediaType: "audio/mp4",
+				audio: Buffer.from("RIFF0000WAVE").toString("base64"),
+				mediaType: "audio/wav",
+				providerOptions: {},
 			});
 			return new Response(
 				JSON.stringify({
@@ -165,18 +169,18 @@ describe("transcribeAudio", () => {
 					fetch: fetchImpl,
 				},
 				modelId: "openai/whisper-1",
-				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/mp4; codecs=mp4a.40.2",
+				audio: Buffer.from("RIFF0000WAVE"),
 				maxRetries: 0,
 			}),
 		).resolves.toEqual({
 			text: "gateway transcript",
+			segments: [],
+			warnings: [],
 			language: "en",
 			durationInSeconds: 1.5,
 		});
 
 		expect(fetchImpl).toHaveBeenCalledOnce();
-		expect(transcribeMock).not.toHaveBeenCalled();
 		expect(createOpenAIMock).not.toHaveBeenCalled();
 	});
 
@@ -217,6 +221,8 @@ describe("transcribeAudio", () => {
 			}),
 		).resolves.toEqual({
 			transport: "vercel-ai-gateway",
+			modelId: "openai/gpt-realtime-whisper",
+			baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 			sampleRate: 24_000,
 			token: "vcst_short_lived",
 			url: "wss://ai-gateway.vercel.sh/v4/ai/transcription-model?ai-model-id=openai%2Fgpt-realtime-whisper",
@@ -322,8 +328,7 @@ describe("transcribeAudio", () => {
 					fetch: fetchImpl,
 				},
 				modelId: "scribe_v2",
-				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm;codecs=opus",
+				audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
 			}),
 		).resolves.toEqual({
 			text: "native ElevenLabs transcript",
@@ -356,5 +361,67 @@ describe("transcribeAudio", () => {
 			}),
 		).rejects.toThrow('Provider "groq" is missing credentials');
 		expect(transcribeMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("native OpenAI streaming sessions", () => {
+	it("mints a transcription-bound ephemeral token without exposing the API key", async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ value: "ek_short", expires_at: 1234 }),
+		);
+		const session = await createStreamingAudioTranscriptionSession({
+			providerConfig: {
+				providerId: "openai-native",
+				modelId: "",
+				apiKey: "secret",
+				baseUrl: "https://openai.test/v1",
+				fetch: fetchMock as unknown as typeof fetch,
+			},
+			modelId: "gpt-realtime-whisper",
+		});
+		expect(session).toMatchObject({
+			transport: "openai-native",
+			token: "ek_short",
+			modelId: "gpt-realtime-whisper",
+			baseUrl: "https://openai.test/v1",
+			sampleRate: 24000,
+		});
+		expect(JSON.stringify(session)).not.toContain("secret");
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe("https://openai.test/v1/realtime/client_secrets");
+		expect(new Headers(init.headers).get("Authorization")).toBe(
+			"Bearer secret",
+		);
+		expect(JSON.parse(String(init.body))).toMatchObject({
+			session: {
+				type: "transcription",
+				audio: {
+					input: {
+						transcription: { model: "gpt-realtime-whisper" },
+						turn_detection: null,
+					},
+				},
+			},
+			expires_after: { anchor: "created_at", seconds: 60 },
+		});
+	});
+	it.each([
+		Response.json({}, { status: 401 }),
+		Response.json({}),
+	])("rejects failed or malformed token responses", async (response) => {
+		await expect(
+			createStreamingAudioTranscriptionSession({
+				providerConfig: {
+					providerId: "openai-native",
+					modelId: "",
+					apiKey: "secret",
+					fetch: (async () => response) as typeof fetch,
+				},
+				modelId: "gpt-realtime-whisper",
+			}),
+		).rejects.toThrow();
 	});
 });

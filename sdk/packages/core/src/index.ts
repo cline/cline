@@ -640,6 +640,15 @@ export {
 	uninstallMcpServer,
 } from "./services/mcp-install";
 export type {
+	PluginCommandResult,
+	PluginCommandService,
+	PluginSlashCommand,
+} from "./services/plugin-commands";
+export {
+	createPluginCommandService,
+	normalizePluginCommandName,
+} from "./services/plugin-commands";
+export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
 	PluginInstallResult,
@@ -947,6 +956,8 @@ export {
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
 	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	computePatchChanges,

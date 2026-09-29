@@ -1355,11 +1355,18 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		});
 
 		const { ensureCompatibleLocalHubUrl } = await import(".");
+		const onStartupError = vi.fn();
 
 		await expect(
-			ensureCompatibleLocalHubUrl({ workspaceRoot: "/tmp/project" }),
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				onStartupError,
+			}),
 		).resolves.toBeUndefined();
 		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(onStartupError).toHaveBeenCalledWith(
+			new Error("could not retire stale hub"),
+		);
 	});
 
 	it("resolves managed shared discovery in development builds", async () => {

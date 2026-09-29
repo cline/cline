@@ -508,6 +508,24 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		expect(models.map((m) => m.id).sort()).toEqual(["model-x", "model-y"]);
 	});
 
+	it("surfaces a failing Ollama modelsSourceUrl fetch instead of an empty list", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://ollama.corp.invalid:11434/v1",
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockRejectedValue(new Error("Unable to connect")),
+		);
+
+		await expect(
+			getLocalProviderModels(
+				"ollama",
+				manager.getProviderConfig("ollama", { includeKnownModels: false }),
+			),
+		).rejects.toThrow(/Unable to connect/);
+	});
+
 	it("parses Ollama-style { models: [{ name }] } payloads", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -1257,6 +1275,28 @@ describe("addLocalProvider – capabilities", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(models).toEqual([]);
 	});
+
+	it("surfaces the LiteLLM model refresh failure instead of an empty list", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key-catalog",
+				baseUrl: "https://litellm.corp.invalid",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockRejectedValue(new Error("unable to get local issuer certificate")),
+		);
+
+		await expect(
+			getLocalProviderModels("litellm", manager.getProviderConfig("litellm")),
+		).rejects.toThrow(/unable to get local issuer certificate/);
+	});
 });
 
 describe("audio transcription", () => {
@@ -1329,14 +1369,12 @@ describe("audio transcription", () => {
 				providerId: "groq",
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 			}),
 		).resolves.toEqual({ text: "transcribed text" });
 		expect(transcribeSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 				providerConfig: expect.objectContaining({
 					providerId: "groq",
 					apiKey: "audio-key",
@@ -1345,41 +1383,39 @@ describe("audio transcription", () => {
 		);
 	});
 
-	it("persists and uses the configured voice input model", async () => {
+	it.each([
+		["openai-native", "gpt-realtime-whisper"],
+		["elevenlabs", "scribe_v2_realtime"],
+	])("offers and saves streaming transcription for %s", async (providerId, modelId) => {
+		manager.saveProviderSettings(
+			{ provider: providerId, apiKey: "audio-key" },
+			{ setLastUsed: false },
+		);
+		const { models } = await getLocalTranscriptionModels(providerId);
+		expect(models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: modelId, operationModes: ["streaming"] }),
+			]),
+		);
+		await saveVoiceInputSettings(manager, { providerId, modelId });
+		expect(manager.getVoiceInputSettings()).toMatchObject({
+			providerId,
+			modelId,
+		});
+	});
+
+	it("rejects batch-only models for voice input", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
 				providerId: "groq",
 				modelId: "whisper-large-v3",
 			}),
-		).resolves.toMatchObject({
-			voiceInput: {
-				providerId: "groq",
-				modelId: "whisper-large-v3",
-			},
-		});
-
-		const transcribeSpy = vi
-			.spyOn(LlmsModels, "transcribeAudio")
-			.mockResolvedValue({ text: "configured transcript" });
-		await expect(
-			transcribeConfiguredVoiceInput(manager, {
-				audio: new Uint8Array([4, 5, 6]),
-				mediaType: "audio/webm",
-			}),
-		).resolves.toEqual({ text: "configured transcript" });
-		expect(transcribeSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				modelId: "whisper-large-v3",
-				providerConfig: expect.objectContaining({
-					providerId: "groq",
-				}),
-			}),
-		);
+		).rejects.toThrow("does not support streaming transcription");
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
 	});
 
 	it.each([
 		["groq", "realtime-whisper"],
-		["elevenlabs", "scribe_v2_realtime"],
 	])("rejects streaming models on the batch-only %s transport", async (providerId, modelId) => {
 		manager.saveProviderSettings(
 			{ provider: providerId, apiKey: "audio-key" },
@@ -1433,7 +1469,6 @@ describe("audio transcription", () => {
 				providerId: "elevenlabs",
 				modelId: "scribe_v2",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 			}),
 		).resolves.toEqual({ text: "ElevenLabs transcript" });
 		expect(transcribeSpy).toHaveBeenCalledWith(
@@ -1476,6 +1511,7 @@ describe("authoritative voice model validation", () => {
 				modalities: { input: ["audio"], output: ["text"] },
 				id: "new/voice-model",
 				type: "transcription",
+				tags: ["websocket-transcription"],
 				supported_specifications: ["v4"],
 			},
 			{
@@ -1555,6 +1591,8 @@ describe("authoritative voice model validation", () => {
 			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
 			.mockResolvedValue({
 				transport: "vercel-ai-gateway",
+				modelId: "google/gemini-3.5-transcribe-live",
+				baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 				sampleRate: 24_000,
 				token: "short-lived",
 				url: "wss://gateway.test",

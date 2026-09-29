@@ -14,12 +14,16 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentConversationHeader,
+	AgentConversationLayout,
+	AgentSessionContent,
 	AgentChangedFile,
 	AgentChangesPanel,
 	AgentPullRequestBar,
 	AgentCommandOutput,
 	AgentImageLightboxContent,
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
 	AttachmentDropZone,
 	AgentAurora,
@@ -78,6 +82,9 @@ if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
 if (
+	!AgentConversationHeader ||
+	!AgentConversationLayout ||
+	!AgentSessionContent ||
 	!AgentChangedFile ||
 	!AgentChangesPanel ||
 	!AgentPullRequestBar ||
@@ -86,6 +93,7 @@ if (
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentWelcomeHero ||

@@ -341,7 +341,7 @@ describe("transcription model selection", () => {
 		).toBe(false);
 	});
 
-	it("selects only the explicitly configured enabled model", () => {
+	it("rejects a configured batch-only transcription model", () => {
 		const providers: Provider[] = [
 			{
 				id: "groq",
@@ -384,13 +384,7 @@ describe("transcription model selection", () => {
 				providerId: "nvidia",
 				modelId: "whisper-large-v3",
 			}),
-		).toEqual({
-			providerId: "nvidia",
-			providerName: "Nvidia",
-			modelId: "whisper-large-v3",
-			modelName: "Whisper",
-			supportsStreaming: false,
-		});
+		).toBeNull();
 		expect(selectTranscriptionModel(providers, undefined)).toBeNull();
 	});
 
@@ -404,9 +398,10 @@ describe("transcription model selection", () => {
 			enabled: true,
 			modelList: [
 				{
-					id: "scribe_v2",
+					id: "scribe_v2_realtime",
 					name: "Scribe v2",
 					operation: "transcription",
+					operationModes: ["streaming"],
 					inputModalities: ["audio"],
 					outputModalities: ["text"],
 				},
@@ -415,15 +410,15 @@ describe("transcription model selection", () => {
 
 		const selection = {
 			providerId: "elevenlabs",
-			modelId: "scribe_v2",
+			modelId: "scribe_v2_realtime",
 		};
 		const catalog = buildProviderModelCatalog([elevenLabs], selection);
 		expect(catalog.enabledProviderIds).toEqual([]);
 		expect(catalog.providerModels.elevenlabs).toEqual([]);
 		expect(catalog.voiceInput).toMatchObject({
 			providerId: "elevenlabs",
-			modelId: "scribe_v2",
-			supportsStreaming: false,
+			modelId: "scribe_v2_realtime",
+			supportsStreaming: true,
 		});
 	});
 

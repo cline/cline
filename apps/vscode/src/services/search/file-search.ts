@@ -1,3 +1,4 @@
+import { toPosixSeparators } from "@cline/shared"
 import type { WorkspaceRoot } from "@shared/multi-root/types"
 import * as childProcess from "child_process"
 import * as fs from "fs"
@@ -18,15 +19,6 @@ import { getBinaryLocation } from "@/utils/fs"
  * - `ripgrep`:    served by the bundled ripgrep walker (default everywhere).
  */
 export type FileSearchSource = "host_index" | "ripgrep"
-
-// Mention paths are displayed, deduped and stored with forward slashes (the
-// webview basename check, the open-tabs dedupe below, task history shared
-// across OSes), while ripgrep and host indexes hand back platform separators.
-// Split on the platform separator only: on POSIX a backslash is an ordinary
-// filename character. Same approach as the SDK's workspace file-indexer.
-function toPosixSeparators(p: string): string {
-	return p.split(path.sep).join("/")
-}
 
 // Wrapper function for childProcess.spawn
 type SpawnFunction = typeof childProcess.spawn

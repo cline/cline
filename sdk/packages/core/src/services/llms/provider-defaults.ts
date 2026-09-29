@@ -953,9 +953,9 @@ export async function resolveProviderConfig(
 		// Public (keyless) live model sources run whenever `modelsSourceUrl` is
 		// registered for the provider — even if the caller didn't pass a
 		// `config`. Falls back to the spec's default base URL so a fresh install
-		// still hits the default local model endpoint. Failures are swallowed
-		// below, so an unreachable server just leaves the picker on the bundled
-		// catalog.
+		// still hits the default local model endpoint. Unless the caller opted
+		// into `failOnError`, failures are swallowed below so an unreachable
+		// server just leaves the picker on the bundled catalog.
 		const hasPublicModelSource = Boolean(
 			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider
 				.modelsSourceUrl,
@@ -972,7 +972,10 @@ export async function resolveProviderConfig(
 					providerId,
 					modelCatalog,
 					publicConfig,
-				).catch(() => ({}))
+				).catch((error: unknown) => {
+					if (modelCatalog?.failOnError) throw error;
+					return {};
+				})
 			: {};
 		const knownModels = await mergeKnownModels(
 			providerId,

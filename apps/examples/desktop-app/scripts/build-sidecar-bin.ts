@@ -64,6 +64,13 @@ const buildSidecar = async (
 	const runtimeIsolationArgs = [
 		"--no-compile-autoload-dotenv",
 		"--no-compile-autoload-bunfig",
+		// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS to
+		// intranet endpoints signed by a corporate CA (LiteLLM proxies, MITM
+		// firewalls) fails with "unable to get local issuer certificate". Bake
+		// --use-system-ca into the runtime so the sidecar and the Hub daemon it
+		// re-executes from this binary also trust the OS Keychain/cert store,
+		// matching the CLI wrapper's OS trust-anchor harvesting.
+		"--compile-exec-argv=--use-system-ca",
 	];
 	if (bunTarget) {
 		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;

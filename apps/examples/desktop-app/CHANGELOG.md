@@ -1,5 +1,39 @@
 # Cline Desktop Changelog
 
+## 0.0.37
+
+- Settings has a new **About** page. It shows your version and channel, has **Check for updates** and **Restart to update** buttons, and lists the release notes for recent versions with links to each GitHub release and the full changelog. **Report an issue** is there too
+- After an update, a one-time **What's new** dialog now catches you up on recent features. The first one covers SSH remotes, worktrees, pull request status in the composer, and parallel sub-agents. To see it again, use **Highlights** on the About page
+- On macOS, **Help → Export Diagnostics…** now opens the diagnostics export directly, so you don't have to find it in Settings
+- On Amazon Bedrock, OpenAI models reached through inference profiles (`us.openai.…`, `global.openai.…`) no longer fail with "Unknown parameter: 'reasoningConfig'" when reasoning effort is set
+
+## 0.0.36
+
+- The app now starts on machines that set a system HTTP(S) proxy, such as Clash, v2ray, or a corporate proxy. Before, the backend sent its local connection checks through the proxy, so it couldn't find its own hub and failed with "No compatible hub runtime is available." Local connections now skip the proxy, and any proxy exemptions you already had are kept
+- On small or scaled displays, the main window now fits on screen. A 1080p laptop at 150% scaling used to open the window larger than the screen, which pushed the settings and account controls out of reach. An oversized window now shrinks to fit the screen (not counting the taskbar) and opens centered
+- Plugin slash commands like `/goal` no longer vanish from the slash menu the first time you use them. Plugin commands now load as soon as a workspace opens instead of on your first `/`. If that first load is slow or fails, the app retries in the background, so the command no longer gets sent to the model as plain text
+- The Providers settings (renamed from API Providers) now keep the model list inside the panel. Long model lists scroll in place, and the model controls stay reachable in short windows
+- In SSH settings, **Save** is disabled until you change a saved host, and the button for a new host now says **Add**
+- On Amazon Bedrock, OpenAI GPT-6 and GPT-5.6 models now work without turning on cross-region inference. They used to fail with "on-demand throughput isn't supported." India regions (ap-south-1/2) now use the `in.` inference profile
+
+## 0.0.35
+
+- Cline Desktop now runs on Linux. Each release ships x64 `.deb` and `.rpm` packages alongside the macOS and Windows builds. **Open folder…** uses the native GTK picker, and updates download in the background and install when you choose **Restart now**, so you are never hit with a surprise password prompt. There is no AppImage for now
+- Plugin slash commands now work in the desktop app. Commands a plugin registers, like `/goal`, used to be sent to the model as plain text; they now run the plugin's handler, show its reply, and start a turn only when the command asks for one. Enabled plugin commands appear in the slash menu, skills and workflows in that menu now come from the conversation's own workspace (including worktrees), and a broken plugin no longer makes every slash prompt fail
+- Settings has a new **Diagnostics** row. **Export…** writes a single text file to your Downloads folder with the app version, OS, settings, recent sidecar and hub logs, and the manifests of the sessions you pick. API keys, credential-shaped values, your prompts, and your home directory path are stripped, so the file is safe to attach to a GitHub issue
+- Voice input works again with provider-backed transcription, and it streams live. OpenAI, Vercel AI Gateway, and ElevenLabs transcribe as you speak; when the network drops mid-recording, the app falls back to the browser's recognizer and retries the provider next time. The model picker labels which voice models are realtime and which transcribe recordings
+- Your reasoning effort choice is now remembered per provider. Reopening a session reset the thinking picker to Low, and that Low was sent with your next message; switching providers now applies the effort you last picked for that provider
+- Model lists for LiteLLM, Baseten, Hicap, Poolside, Ollama, and LM Studio now show the actual error when your endpoint can't be reached, instead of an empty list or a placeholder model. The app also trusts your operating system's certificate store, so endpoints signed by a corporate CA stop failing with "unable to get local issuer certificate"
+- When the backend's hub fails to start, the error now says why, and the app waits up to 15 seconds for it instead of 8. The first launch after an install or update can take 8 to 13 seconds on Windows while the new binary is scanned
+- Renaming a session now sticks after a relaunch, and renaming no longer clears other state such as pinning
+- CLI sessions that were opened and closed without a prompt no longer show up as empty entries in the sidebar
+- Arrow-key navigation in the slash command and @-mention menus now scrolls the highlighted option into view
+- Free models under the picker's Free header no longer carry a redundant FREE badge on every row
+- Short session titles now have room to edit
+- Long replies on local models (llama.cpp, Ollama, LM Studio) that hit the output-token limit now compact the conversation and retry once instead of failing the run
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan
+- Refreshed the model catalog to 6,386 models. The default model changes for 19 providers, 11 of them to Claude Opus 5.5 (including GitHub Copilot and Vertex). If you use one of those providers without picking a model, expect a different default
+
 ## 0.0.34
 
 - Composio connectors now load all their tools, not just the first 20. Google Calendar, for example, showed only 20 of its 47 tools, and the Installed view wrongly said "20/20." The full list is now fetched and the tool cache refreshes instead of staying stale forever

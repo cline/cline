@@ -43,6 +43,14 @@ export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
 	});
 }
 
+/** Voice input requires continuous transcript updates, not recorded-file uploads. */
+export function isStreamingTranscriptionModel(model: ProviderModel): boolean {
+	return (
+		isDedicatedTranscriptionModel(model) &&
+		model.operationModes?.includes("streaming") === true
+	);
+}
+
 export function supportsAudio(model: ProviderModel): boolean {
 	return (
 		model.inputModalities?.includes("audio") === true ||
@@ -83,7 +91,7 @@ export function selectTranscriptionModel(
 	const model = provider?.modelList?.find(
 		(candidate) =>
 			candidate.id === selection.modelId &&
-			isDedicatedTranscriptionModel(candidate),
+			isStreamingTranscriptionModel(candidate),
 	);
 	return provider && model
 		? {

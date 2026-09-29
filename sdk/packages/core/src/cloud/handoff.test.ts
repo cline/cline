@@ -74,7 +74,6 @@ function fixture() {
 			repoUrl: "https://github.com/cline/test",
 			branch: "main",
 			headSha: "abc123",
-			remoteName: "origin",
 			workspaceRelativePath: "subdir",
 		})),
 	};
@@ -122,7 +121,6 @@ describe("shared cloud handoff transaction", () => {
 			repoUrl: "https://github.com/cline/test",
 			branch: "changed",
 			headSha: "abc123",
-			remoteName: "origin",
 		});
 		await expect(f.coordinator.execute(prepared)).rejects.toThrow("changed");
 		expect(f.cloud.create).not.toHaveBeenCalled();

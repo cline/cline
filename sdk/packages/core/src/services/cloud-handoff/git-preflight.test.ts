@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CloudHandoffGitPreflightError,
@@ -55,7 +56,6 @@ describe("preflightCloudHandoffGit", () => {
 		).resolves.toEqual({
 			repoUrl: "https://github.com/cline/cline",
 			branch: "feature/handoff",
-			remoteName: "origin",
 			headSha: HEAD,
 		});
 		expect(git).toHaveBeenCalledWith(
@@ -65,29 +65,75 @@ describe("preflightCloudHandoffGit", () => {
 				"--untracked-files=all",
 				"--ignore-submodules=none",
 			],
-			expect.objectContaining({ cwd: "/repo" }),
+			expect.objectContaining({ cwd: resolve("/repo") }),
 		);
 	});
 
-	it("preserves a workspace path relative to the repository root", async () => {
+	it("uses the configured upstream instead of origin or the local branch name", async () => {
+		const git = fakeGit({
+			"config --get branch.feature/handoff.remote": "upstream\n",
+			"config --get branch.feature/handoff.merge": "refs/heads/published\n",
+			"remote get-url upstream": "git@github.com:other/repo.git\n",
+			"ls-remote --exit-code upstream refs/heads/published": `${HEAD}\trefs/heads/published\n`,
+		});
 		await expect(
-			preflightCloudHandoffGit({
-				cwd: "/repo/apps/desktop",
-				git: fakeGit({ "rev-parse --show-prefix": "apps/desktop/\n" }),
-			}),
-		).resolves.toEqual(
-			expect.objectContaining({ workspaceRelativePath: "apps/desktop" }),
-		);
+			preflightCloudHandoffGit({ cwd: "/repo", git }),
+		).resolves.toEqual({
+			repoUrl: "https://github.com/other/repo",
+			branch: "published",
+			headSha: HEAD,
+		});
 	});
 
-	it("preserves significant whitespace in repository-relative workspace paths", async () => {
+	it("forwards cancellation to every Git query", async () => {
+		const git = vi.mocked(fakeGit());
+		const signal = new AbortController().signal;
+		await preflightCloudHandoffGit({ cwd: "/repo", git, signal });
+		for (const [, options] of git.mock.calls) {
+			expect(options).toEqual({ cwd: resolve("/repo"), signal });
+		}
+	});
+
+	it.each([
+		"false\n",
+		Object.assign(new Error("not a git repository"), {
+			code: 128,
+			stderr: "fatal: not a git repository",
+		}),
+	])("rejects non-worktrees before further inspection (%s)", async (output) => {
+		const git = fakeGit({ "rev-parse --is-inside-work-tree": output });
+		await expect(
+			preflightCloudHandoffGit({ cwd: "/repo", git }),
+		).rejects.toMatchObject({ code: "not_git_repository" });
+		expect(git).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		"",
+		".",
+		new Error("missing config"),
+	])("rejects a missing remote upstream (%s)", async (remote) => {
 		await expect(
 			preflightCloudHandoffGit({
-				cwd: "/repo/ leading ",
-				git: fakeGit({ "rev-parse --show-prefix": " leading /\n" }),
+				cwd: "/repo",
+				git: fakeGit({
+					"config --get branch.feature/handoff.remote": remote,
+				}),
+			}),
+		).rejects.toMatchObject({ code: "missing_upstream" });
+	});
+
+	it.each([
+		"apps/desktop",
+		" leading ",
+	])("preserves repository-relative workspace path %j", async (path) => {
+		await expect(
+			preflightCloudHandoffGit({
+				cwd: `/repo/${path}`,
+				git: fakeGit({ "rev-parse --show-prefix": `${path}/\n` }),
 			}),
 		).resolves.toEqual(
-			expect.objectContaining({ workspaceRelativePath: " leading " }),
+			expect.objectContaining({ workspaceRelativePath: path }),
 		);
 	});
 
@@ -205,6 +251,22 @@ describe("preflightCloudHandoffGit", () => {
 		expect(error.cause).toBeUndefined();
 	});
 
+	it("does not expose remote verification errors in the message or cause", async () => {
+		const error = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"ls-remote --exit-code origin refs/heads/feature/handoff":
+					Object.assign(new Error("https://secret@github.com/other/repo"), {
+						code: 128,
+						stderr: "https://secret@github.com/other/repo",
+					}),
+			}),
+		}).catch((caught) => caught);
+		expect(error.code).toBe("git_command_failed");
+		expect(error.message).not.toContain("secret");
+		expect(error.cause).toBeUndefined();
+	});
+
 	it("supports a GitHub URL configured directly as the branch remote", async () => {
 		const remote = "https://github_pat_secret@github.com/cline/cline.git";
 		await expect(
@@ -218,7 +280,6 @@ describe("preflightCloudHandoffGit", () => {
 		).resolves.toEqual(
 			expect.objectContaining({
 				repoUrl: "https://github.com/cline/cline",
-				remoteName: "https://github.com/cline/cline",
 			}),
 		);
 	});

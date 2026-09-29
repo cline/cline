@@ -410,6 +410,7 @@ describe("createHubEventProjector", () => {
 					delta: {
 						inputTokens: 10,
 						outputTokens: 5,
+						reasoningTokenCount: 3,
 						cacheReadTokens: 2,
 						cacheWriteTokens: 1,
 						totalCost: 0.01,
@@ -444,6 +445,7 @@ describe("createHubEventProjector", () => {
 							parentAgentId: "agent-0",
 							inputTokens: 10,
 							outputTokens: 5,
+							reasoningTokenCount: 3,
 							cacheReadTokens: 2,
 							cacheWriteTokens: 1,
 							cost: 0.01,

@@ -20,7 +20,12 @@ describe("cloud handoff metadata", () => {
 
 	it("merges, reads, and clears handoff metadata without losing siblings", () => {
 		const merged = mergeCloudHandoffMetadata(
-			{ title: "Local work", nested: { keep: true } },
+			{
+				title: "Local work",
+				nested: { keep: true },
+				cloudHandoffSeedDispatched: true,
+				cloudHandoffIntent: { fingerprint },
+			},
 			{
 				toCloudSessionId: "ses-1",
 				handedOffAt: "2026-08-18T12:00:00.000Z",

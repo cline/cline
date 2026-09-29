@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	SessionAlreadyExistsError,
 	SessionNotFoundError,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -59,6 +60,34 @@ describe("HubServerTransport boundaries", () => {
 	function getContext(transport: HubServerTransport): HubTransportContext {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
+
+	it("serializes duplicate session creation as session_already_exists", async () => {
+		const transport = createTransport({
+			sessionHost: {
+				startSession: vi
+					.fn()
+					.mockRejectedValue(new SessionAlreadyExistsError("restored-task")),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "duplicate-restore",
+				command: "session.create",
+				clientId: "second-viewer",
+				payload: { sessionConfig: { sessionId: "restored-task" } },
+			});
+			expect(reply).toMatchObject({
+				ok: false,
+				error: {
+					code: "session_already_exists",
+					message: "session already exists: restored-task",
+				},
+			});
+		} finally {
+			await transport.stop();
+		}
+	});
 
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
@@ -1284,6 +1313,30 @@ describe("HubServerTransport boundaries", () => {
 
 		expect(updateSession).toHaveBeenCalledWith("session-1", {
 			metadata: { title: "safe title" },
+		});
+	});
+
+	it("forwards explicit session title and prompt updates to the session host", async () => {
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const transport = createTransport({
+			sessionHost: {
+				updateSession,
+			},
+		});
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-rename",
+			command: "session.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { title: "Renamed session", prompt: null },
+		});
+
+		expect(updateSession).toHaveBeenCalledWith("session-1", {
+			metadata: undefined,
+			title: "Renamed session",
+			prompt: null,
 		});
 	});
 

@@ -118,6 +118,7 @@ export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	builtinProviderSupportsModelOperation,
+	getBuiltinStreamingTranscriptionModels,
 	providerManifestSupportsModelOperation,
 	resolveModelOperation,
 } from "./providers/model-operations";
