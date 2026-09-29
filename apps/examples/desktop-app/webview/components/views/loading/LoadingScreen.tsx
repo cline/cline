@@ -1,7 +1,9 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
+import { desktopClient } from "@/lib/desktop-client";
 
 export function LoadingScreen({
 	readiness,
@@ -10,6 +12,21 @@ export function LoadingScreen({
 }) {
 	const connected = readiness.transport === "connected";
 	const { hub, startup } = readiness;
+	const [exportStatus, setExportStatus] = useState<string | null>(null);
+	// The sidecar writes the diagnostics report without the Hub, so the
+	// existing export works over the transport while the session service
+	// is still failing.
+	const exportDiagnostics = async () => {
+		setExportStatus("Exporting diagnostics…");
+		try {
+			const result = await desktopClient.invoke<{ path: string }>(
+				"export_diagnostics",
+			);
+			setExportStatus(`Diagnostics saved to ${result.path}`);
+		} catch (error) {
+			setExportStatus(error instanceof Error ? error.message : String(error));
+		}
+	};
 	const failed =
 		!readiness.retrying &&
 		(connected
@@ -76,13 +93,29 @@ export function LoadingScreen({
 							</pre>
 						</details>
 					)}
-					<button
-						type="button"
-						onClick={() => void readiness.retry()}
-						className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
-					>
-						Retry
-					</button>
+					<div className="flex flex-wrap items-center justify-center gap-2">
+						<button
+							type="button"
+							onClick={() => void readiness.retry()}
+							className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
+						>
+							Retry
+						</button>
+						{connected && (
+							<button
+								type="button"
+								onClick={() => void exportDiagnostics()}
+								className="rounded-md border border-border px-4 py-2 text-foreground hover:bg-surface-hover"
+							>
+								Export diagnostics
+							</button>
+						)}
+					</div>
+					{exportStatus && (
+						<p className="break-all text-xs text-muted-foreground">
+							{exportStatus}
+						</p>
+					)}
 				</div>
 			)}
 		</main>
