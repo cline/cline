@@ -264,6 +264,11 @@ export class SdkFollowupCoordinator {
 
 		this.options.sessions.setRunning(true)
 		this.options.onFollowUpStarting()
+		// Bump the epoch before echoing the bubble, as resumeSessionFromTask does.
+		// Echoed first, the bubble would carry the old epoch while a state snapshot
+		// built moments later carries the new one; that snapshot replaces the
+		// webview transcript wholesale, and the bubble's stale-epoch copies are
+		// then dropped for good.
 		this.options.resetMessageTranslator()
 		if (prompt?.trim() || images?.length || files?.length) {
 			this.emitUserFeedback(sessionId, prompt, images, files)
