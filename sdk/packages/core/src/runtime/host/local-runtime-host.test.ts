@@ -317,17 +317,17 @@ describe("LocalRuntimeHost", () => {
 					code: "session_already_exists",
 				});
 				agent.canStartRun.mockReturnValue(true);
-				// ...and a rebuild whose build throws still releases the resident
-				// runtime instead of stranding it, so the id stops resolving live.
+				// ...and a rebuild that throws before the replacement registers
+				// leaves the working resident in place, untouched and reachable.
 				agent.shutdown.mockClear();
 				runtimeBuilder.build.mockRejectedValueOnce(new Error("rebuild failed"));
 				await expect(manager.startSession(input)).rejects.toThrow(
 					"rebuild failed",
 				);
-				expect(agent.shutdown).toHaveBeenCalledWith("session_replaced");
+				expect(agent.shutdown).not.toHaveBeenCalled();
 				await expect(
 					manager.updateSessionConnection("restored-task", {}),
-				).rejects.toMatchObject({ code: "session_not_found" });
+				).resolves.toBeUndefined();
 			}
 		} finally {
 			release();

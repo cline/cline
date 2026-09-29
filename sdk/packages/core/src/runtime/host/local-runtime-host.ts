@@ -437,9 +437,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// only detaches), so a start that names one is how they rebuild it:
 			// desktop resume and provider switches, CLI plan/act toggles and
 			// `--resume`. Build the replacement first so the id keeps resolving to a
-			// live session throughout (no session_not_found window), then release the
-			// old runtime whether the rebuild succeeded or threw, so it is never
-			// stranded. The release guard leaves a live replacement in place; a run
+			// live session throughout (no session_not_found window). Afterwards,
+			// release the old runtime only once it has been displaced from its slot:
+			// by a live replacement, or by a replacement that registered and then
+			// failed (its own cleanup empties the slot), so it is never stranded. A
+			// rebuild that threw before registering leaves the idle resident in
+			// place and reachable. The release guard keeps a live replacement; a run
 			// that raced the rebuild onto the old runtime is aborted by the release,
 			// the intended teardown now that the id belongs to the replacement. Only
 			// a session already mid-turn when the start arrives is protected above.
@@ -451,7 +454,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					requestedSessionId,
 				);
 			} finally {
-				if (resident) {
+				if (resident && this.sessions.get(sessionId) !== resident) {
 					await this.releaseSessionRuntime(
 						resident,
 						"session_replaced",
