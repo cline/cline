@@ -37,42 +37,69 @@ export function CloudHandoffGitConfirmation({
 		>
 			<AlertDialogContent>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Prepare and continue in cloud?</AlertDialogTitle>
+					<AlertDialogTitle>Continue in cloud?</AlertDialogTitle>
 					<AlertDialogDescription>
-						Cline will switch this checkout from {plan.sourceBranch} to{" "}
-						{plan.branch}, commit the files below, and publish to {plan.repoUrl}{" "}
-						({plan.remote}). Your current staging selections will be replaced.
-						Ignored files are not transferred.
+						Cline will switch this checkout to a new branch and push it to
+						GitHub to continue your conversation in cloud.
+						{plan.files.length > 0 && (
+							<span className="mt-2 block">
+								{plan.files.length} changed/new{" "}
+								{plan.files.length === 1 ? "file" : "files"} will be committed.
+								Any staging selections will be replaced. Ignored files are
+								excluded.
+							</span>
+						)}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
-				<div className="max-h-64 overflow-auto text-sm">
-					<p className="font-medium">{plan.files.length} changed/new files</p>
-					<ul>
-						{plan.files.map((file) => (
-							<li className="break-all font-mono text-xs" key={file.path}>
-								{file.status} {file.path}
-							</li>
-						))}
-					</ul>
-					<p className="mt-3 font-medium">Local history being published</p>
-					<p className="text-xs text-muted-foreground">
-						The branch includes the current commit and its ancestors, plus the
-						checkpoint. These commits are not confirmed present on the remote:
-					</p>
-					<ul>
-						{plan.commits.map((commit) => (
-							<li className="break-all font-mono text-xs" key={commit}>
-								{commit}
-							</li>
-						))}
-					</ul>
-				</div>
+				<dl className="space-y-2 text-sm">
+					<div>
+						<dt className="text-muted-foreground">Repository</dt>
+						<dd className="break-all">
+							{plan.repoUrl} ({plan.remote})
+						</dd>
+					</div>
+					<div>
+						<dt className="text-muted-foreground">New branch</dt>
+						<dd className="break-all font-mono text-xs">{plan.branch}</dd>
+					</div>
+				</dl>
+				<details className="text-sm">
+					<summary className="cursor-pointer">Details</summary>
+					<div className="mt-2 max-h-48 space-y-2 overflow-auto text-xs">
+						<p className="break-all text-muted-foreground">
+							Current branch: {plan.sourceBranch}
+						</p>
+						{plan.files.length > 0 && (
+							<ul>
+								{plan.files.map((file) => (
+									<li className="break-all font-mono" key={file.path}>
+										{file.status} {file.path}
+									</li>
+								))}
+							</ul>
+						)}
+						{plan.commits.length > 0 && (
+							<>
+								<p className="text-muted-foreground">
+									Commits not confirmed on the remote:
+								</p>
+								<ul>
+									{plan.commits.map((commit) => (
+										<li className="break-all font-mono" key={commit}>
+											{commit}
+										</li>
+									))}
+								</ul>
+							</>
+						)}
+					</div>
+				</details>
 				<AlertDialogFooter>
 					<AlertDialogCancel onClick={() => onDecision(false)}>
 						Cancel
 					</AlertDialogCancel>
 					<AlertDialogAction onClick={() => onDecision(true)}>
-						Prepare and continue
+						Push and continue
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

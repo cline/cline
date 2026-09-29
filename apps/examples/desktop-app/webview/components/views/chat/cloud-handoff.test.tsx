@@ -57,7 +57,7 @@ describe("CloudHandoffProgress", () => {
 describe("CloudHandoffGitConfirmation", () => {
 	it.each([
 		"Cancel",
-		"Prepare and continue",
+		"Push and continue",
 	])("discloses scope and requires an explicit %s decision", (label) => {
 		const onDecision = vi.fn();
 		render(
@@ -75,11 +75,23 @@ describe("CloudHandoffGitConfirmation", () => {
 			/>,
 		);
 		const dialog = document.querySelector('[role="alertdialog"]');
-		expect(dialog?.textContent).toContain("new.txt");
-		expect(dialog?.textContent).toContain("abc local commit");
+		expect(dialog?.textContent).toContain("https://github.com/cline/todo-app");
+		expect(dialog?.textContent).toContain("cline/handoff-test");
+		expect(dialog?.textContent).toContain(
+			"1 changed/new file will be committed",
+		);
+		const details = dialog?.querySelector("details");
+		expect(details?.open).toBe(false);
+		expect(details?.textContent).toContain("new.txt");
+		expect(details?.textContent).toContain("abc local commit");
 		expect(dialog?.textContent).toContain(
 			"staging selections will be replaced",
 		);
+		act(() => details?.querySelector("summary")?.click());
+		expect(details?.open).toBe(true);
+		expect(onDecision).not.toHaveBeenCalled();
+		act(() => details?.querySelector("summary")?.click());
+		expect(details?.open).toBe(false);
 		expect(onDecision).not.toHaveBeenCalled();
 		act(() =>
 			Array.from(dialog?.querySelectorAll("button") ?? [])
@@ -87,6 +99,31 @@ describe("CloudHandoffGitConfirmation", () => {
 				?.click(),
 		);
 		expect(onDecision.mock.calls[0]).toEqual([label !== "Cancel"]);
+	});
+
+	it("omits file and staging warnings for a clean checkout", () => {
+		render(
+			<CloudHandoffGitConfirmation
+				plan={{
+					id: "plan",
+					repoUrl: "https://github.com/cline/todo-app",
+					remote: "origin",
+					sourceBranch: "main",
+					branch: "cline/handoff-test",
+					files: [],
+					commits: ["abc local commit"],
+				}}
+				onDecision={vi.fn()}
+			/>,
+		);
+		const dialog = document.querySelector('[role="alertdialog"]');
+		expect(dialog?.textContent).not.toContain("changed/new");
+		expect(dialog?.textContent).not.toContain("staging");
+		expect(dialog?.textContent).not.toContain("will be committed");
+		expect(dialog?.querySelector("details")?.textContent).toContain(
+			"abc local commit",
+		);
+		expect(dialog?.textContent).toContain("Push and continue");
 	});
 });
 
