@@ -292,6 +292,52 @@ Do not remove `src-tauri/entitlements.plist` or the `bundle.macOS.entitlements` 
 
 ## Runtime Overview
 
+```mermaid
+flowchart TB
+    subgraph App["Cline Desktop app bundle"]
+        subgraph Tauri["Tauri shell (Rust) - src-tauri/src/main.rs"]
+            Shell["Window, tray, menus<br/>updater, notifications, single-instance"]
+            Native["Native commands<br/>get_desktop_backend_endpoint, pick_workspace_directory,<br/>open_mcp_settings_file, set_tray_status, ..."]
+        end
+        subgraph Webview["Webview - Next.js (webview/)"]
+            UI["React views, hooks, contexts<br/>use-chat-session, sessions, settings<br/>dev: next dev :3125 / prod: static export in webview/out"]
+            Client["lib/desktop-client.ts<br/>invoke() / subscribe()"]
+        end
+        subgraph Sidecar["Bun sidecar - code-sidecar binary (sidecar/)"]
+            Server["server.ts<br/>HTTP + WebSocket /transport"]
+            Commands["commands.ts<br/>command router"]
+            Chat["chat-session.ts<br/>ClineCore (backendMode: hub)"]
+            Cloud["cloud-sessions.ts<br/>CloudSessionManager"]
+            Remote["remote-helper.ts<br/>SSH remote environments"]
+            Misc["providers, MCP, git, settings,<br/>marketplace, telemetry"]
+        end
+    end
+
+    Hub["Shared Cline Hub daemon<br/>same code-sidecar binary via claimHubDaemonProcess,<br/>or the one already started by the CLI"]
+    SDK["@cline/core, @cline/llms, @cline/shared"]
+    LLM["LLM providers"]
+    CloudAPI["Cline Cloud API<br/>account, auth, cloud sessions"]
+    SSHHost["Remote SSH host<br/>Hub protocol forwarded over SSH"]
+    Data["~/.cline<br/>sessions (SQLite + JSON), settings, logs"]
+
+    Shell -- "spawns and supervises" --> Sidecar
+    UI --> Client
+    Client -- "Tauri invoke() (native-only ops)" --> Native
+    Client -- "ws://127.0.0.1:3126/transport<br/>command / response / event JSON" --> Server
+    Server --> Commands
+    Commands --> Chat
+    Commands --> Cloud
+    Commands --> Remote
+    Commands --> Misc
+    Chat -- "Hub client: discover or start daemon" --> Hub
+    Hub --> LLM
+    Hub --> Data
+    Cloud -- "REST + sandbox Hub proxy" --> CloudAPI
+    Remote -- "SSH tunnel" --> SSHHost
+    Sidecar -.-> SDK
+    Hub -.-> SDK
+```
+
 Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
