@@ -110,13 +110,13 @@ export function EnvironmentSelector({
 			return;
 		setInternalSwitchingId(environmentId);
 		try {
-			// Picking "Local" is an explicit choice over Cloud even from an SSH
-			// host, where Cloud is not offered; make the remembered target follow.
-			if (cloudSelected || environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID)
-				onSelectExecutionTarget?.("local");
 			if (environmentId !== activeEnvironmentId) {
 				await onSelectEnvironment(environmentId);
 			}
+			// Picking "Local" is an explicit choice over Cloud even from an SSH
+			// host. Commit that choice only after the environment switch succeeds.
+			if (cloudSelected || environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID)
+				onSelectExecutionTarget?.("local");
 		} catch {
 			// The parent owns connection errors and their user-facing presentation;
 			// reopen so the failed choice does not strand the user at a closed menu.

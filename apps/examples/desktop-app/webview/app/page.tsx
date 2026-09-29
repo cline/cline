@@ -492,6 +492,9 @@ export default function Home() {
 							{ timeoutMs: null },
 						);
 					}
+					// The new Local draft reads this preference when it mounts.
+					// Persist only after disconnect succeeds, before creating it.
+					writeExecutionTargetToWindow("local");
 					setActiveRemoteEnvironment(null);
 					selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
 					return;

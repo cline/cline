@@ -270,6 +270,52 @@ describe("EnvironmentSelector", () => {
 			);
 	});
 
+	it.each([
+		{
+			activeEnvironmentId: "pi-server",
+			executionTarget: "local" as const,
+			choice: "Local",
+		},
+		{
+			activeEnvironmentId: "local",
+			executionTarget: "cloud" as const,
+			choice: "Build box",
+		},
+	])("keeps the target unchanged when switching from $activeEnvironmentId to $choice fails", async ({
+		activeEnvironmentId,
+		executionTarget,
+		choice,
+	}) => {
+		let rejectSwitch!: (error: Error) => void;
+		const onSelectEnvironment = vi.fn(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectSwitch = reject;
+				}),
+		);
+		const onSelectExecutionTarget = vi.fn();
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId={activeEnvironmentId}
+					executionTarget={executionTarget}
+					cloudEnabled
+					profiles={profiles}
+					onAddSshHost={vi.fn()}
+					onSelectEnvironment={onSelectEnvironment}
+					onSelectExecutionTarget={onSelectExecutionTarget}
+				/>,
+			),
+		);
+		await pointerDown(trigger());
+		await click(menuItemContaining(choice));
+		expect(onSelectExecutionTarget).not.toHaveBeenCalled();
+		await act(async () => rejectSwitch(new Error("switch failed")));
+		expect(onSelectExecutionTarget).not.toHaveBeenCalled();
+		expect(menuItemContaining(choice)).toBeDefined();
+		expect(trigger().disabled).toBe(false);
+	});
+
 	it("reopens the menu after a rejected environment switch", async () => {
 		const onSelectEnvironment = vi
 			.fn()
