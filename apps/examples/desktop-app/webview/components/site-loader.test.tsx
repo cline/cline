@@ -6,6 +6,11 @@ import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./views/loading/LoadingScreen";
 import { SiteLoader } from "./views/loading/SiteLoader";
 
+const invoke = vi.fn();
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke: (...args: unknown[]) => invoke(...args) },
+}));
+
 const container = document.createElement("div");
 document.body.append(container);
 let root = createRoot(container);
@@ -43,6 +48,37 @@ it("distinguishes hub failure and allows retry", () => {
 	expect(container.textContent).toContain("Hub initialization timed out");
 	act(() => container.querySelector("button")?.click());
 	expect(state.retry).toHaveBeenCalledOnce();
+});
+it("exports diagnostics over the transport when the hub has failed", async () => {
+	invoke.mockResolvedValueOnce({ path: "/tmp/cline-diagnostics.txt" });
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: "failed", attempt: 4, message: "Hub failed" };
+	act(() => root.render(<LoadingScreen readiness={state} />));
+	const buttons = [...container.querySelectorAll("button")];
+	expect(buttons.map((button) => button.textContent)).toEqual([
+		"Retry",
+		"Export diagnostics",
+	]);
+	await act(async () => buttons[1].click());
+	expect(invoke).toHaveBeenCalledWith("export_diagnostics");
+	expect(container.textContent).toContain(
+		"Diagnostics saved to /tmp/cline-diagnostics.txt",
+	);
+});
+it("offers no export while the desktop transport is unavailable", () => {
+	const state = readiness();
+	state.transport = "unavailable";
+	state.startup = {
+		state: "failed",
+		error: "Sidecar exited",
+		exitStatus: null,
+		diagnostics: [],
+	};
+	act(() => root.render(<LoadingScreen readiness={state} />));
+	expect(
+		[...container.querySelectorAll("button")].map((b) => b.textContent),
+	).toEqual(["Retry"]);
 });
 it("shows actionable native startup diagnostics independently of authentication", () => {
 	const state = readiness();
