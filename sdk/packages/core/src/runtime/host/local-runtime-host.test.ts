@@ -231,16 +231,25 @@ describe("LocalRuntimeHost", () => {
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
+		// One shared shutdown/activate pair so call order across the resident
+		// and its replacement can be asserted.
+		const runtimeShutdown = vi.fn().mockResolvedValue(undefined);
+		const runtimeActivate = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn(async () => ({
 				tools: [],
-				shutdown: vi.fn().mockResolvedValue(undefined),
+				shutdown: runtimeShutdown,
+				activate: runtimeActivate,
 			})),
 		};
 		runtimeBuilder.build.mockImplementationOnce(async () => {
 			await gate;
 			if (failFirst) throw new Error("bootstrap failed");
-			return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
+			return {
+				tools: [],
+				shutdown: runtimeShutdown,
+				activate: runtimeActivate,
+			};
 		});
 		const agent = {
 			run: vi.fn().mockResolvedValue(createResult()),
@@ -306,7 +315,11 @@ describe("LocalRuntimeHost", () => {
 				).resolves.toBeUndefined();
 				// A later start naming the resident idle session rebuilds it in
 				// place (hub clients have no other way to restart a session)...
-				const seededUsage = { inputTokens: 40, outputTokens: 2, totalCost: 0.5 };
+				const seededUsage = {
+					inputTokens: 40,
+					outputTokens: 2,
+					totalCost: 0.5,
+				};
 				await expect(
 					manager.startSession({
 						...input,
@@ -325,6 +338,15 @@ describe("LocalRuntimeHost", () => {
 				await expect(
 					manager.getAccumulatedUsage("restored-task"),
 				).resolves.toMatchObject({ usage: seededUsage });
+				// The first start activated its runtime right away; the rebuilt
+				// runtime was activated only after the resident's was shut down.
+				expect(runtimeActivate).toHaveBeenCalledTimes(2);
+				const replacedShutdown =
+					runtimeShutdown.mock.invocationCallOrder.at(-1);
+				const replacementActivate =
+					runtimeActivate.mock.invocationCallOrder.at(-1);
+				expect(runtimeShutdown).toHaveBeenLastCalledWith("session_replaced");
+				expect(replacementActivate).toBeGreaterThan(replacedShutdown ?? 0);
 				// ...a session mid-turn is protected from replacement...
 				agent.canStartRun.mockReturnValue(false);
 				await expect(manager.startSession(input)).rejects.toMatchObject({

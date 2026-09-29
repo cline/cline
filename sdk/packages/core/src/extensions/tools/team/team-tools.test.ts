@@ -3,7 +3,7 @@ import { resolveTeamDataDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDelegatedAgentConfigProvider } from "./delegated-agent";
 import { AgentTeamsRuntime } from "./multi-agent";
-import { createAgentTeamsTools } from "./team-tools";
+import { bootstrapAgentTeams, createAgentTeamsTools } from "./team-tools";
 
 type EnvSnapshot = {
 	CLINE_DATA_DIR: string | undefined;
@@ -987,5 +987,41 @@ describe("createAgentTeamsTools runtime behavior", () => {
 				}),
 			],
 		});
+	});
+});
+
+describe("bootstrapAgentTeams restored teammates", () => {
+	const specs = [{ agentId: "restored-1", rolePrompt: "Persisted teammate" }];
+
+	it("respawns persisted teammates during bootstrap by default", () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const result = bootstrapAgentTeams({
+			runtime,
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			restoredTeammates: specs,
+			restoredFromPersistence: true,
+		});
+		expect(result.restoredTeammates).toEqual(["restored-1"]);
+		expect(runtime.isTeammateActive("restored-1")).toBe(true);
+		runtime.shutdownTeammate("restored-1", "test");
+	});
+
+	it("holds the respawn until restoreTeammates() when deferred, and only once", () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const result = bootstrapAgentTeams({
+			runtime,
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			restoredTeammates: specs,
+			restoredFromPersistence: true,
+			deferTeammateRestore: true,
+		});
+		expect(result.restoredTeammates).toEqual([]);
+		expect(runtime.isTeammateActive("restored-1")).toBe(false);
+
+		expect(result.restoreTeammates()).toEqual(["restored-1"]);
+		expect(runtime.isTeammateActive("restored-1")).toBe(true);
+		// Already active teammates are left alone.
+		expect(result.restoreTeammates()).toEqual([]);
+		runtime.shutdownTeammate("restored-1", "test");
 	});
 });

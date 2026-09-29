@@ -120,7 +120,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		const onTeamRestored = vi.fn();
 
-		await new DefaultRuntimeBuilder().build({
+		const built = await new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -141,11 +141,18 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			expect.objectContaining({
 				restoredFromPersistence: true,
 				restoredTeammates: [expect.objectContaining({ agentId: "restored-1" })],
+				deferTeammateRestore: true,
 				teammateConfigProvider: expect.objectContaining({
 					getRuntimeConfig: expect.any(Function),
 				}),
 			}),
 		);
+		// Building prepares the team; nothing is re-dispatched until the host
+		// activates the runtime (after any resident it replaces is released).
+		expect(onTeamRestored).not.toHaveBeenCalled();
+		expect(runtimeInstance?.recoverActiveRuns).not.toHaveBeenCalled();
+		built.activate?.();
+		built.activate?.();
 		const bootstrapCall = (
 			bootstrapAgentTeamsMock.mock.calls as unknown as Array<[BootstrapCall]>
 		)[0]?.[0];

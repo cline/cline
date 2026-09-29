@@ -452,13 +452,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 					input,
 					sessionId,
 					requestedSessionId,
+					{
+						// The replacement's team (persisted teammates, interrupted runs)
+						// comes to life only after the resident's has been released, so
+						// two runtimes never work the same team at once.
+						deferTeamActivation: resident !== undefined,
+					},
 				);
 			} finally {
 				if (resident && this.sessions.get(sessionId) !== resident) {
-					await this.releaseSessionRuntime(
-						resident,
-						"session_replaced",
-					).catch(() => undefined);
+					await this.releaseSessionRuntime(resident, "session_replaced").catch(
+						() => undefined,
+					);
+					this.sessions.get(sessionId)?.runtime.activate?.();
 				}
 			}
 		})().finally(() => this.sessionStarts.delete(sessionId));
@@ -470,6 +476,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		input: StartSessionInput,
 		sessionId: string,
 		requestedSessionId: string,
+		options: { deferTeamActivation?: boolean } = {},
 	): Promise<StartSessionResult> {
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
@@ -497,6 +504,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			requestedSessionId.length > 0,
 			existingResumeManifest,
+			options,
 		);
 	}
 
@@ -505,6 +513,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		sessionId: string,
 		wasSessionIdRequested: boolean,
 		existingResumeManifest?: SessionManifest,
+		options: { deferTeamActivation?: boolean } = {},
 	): Promise<StartSessionResult> {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
@@ -1073,6 +1082,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		this.emitStatus(sessionId, active.status);
+		// A start that runs its turn here needs the team now, deferred or not.
+		if (!options.deferTeamActivation || startInput.prompt?.trim()) {
+			runtime.activate?.();
+		}
 
 		let result: AgentResult | undefined;
 		try {

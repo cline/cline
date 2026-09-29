@@ -55,6 +55,14 @@ export interface BuiltRuntime {
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
+	/**
+	 * Bring the runtime's side effects to life: respawn persisted teammates and
+	 * re-dispatch their interrupted runs. Kept out of `build()` so a host that
+	 * builds a replacement for a still-resident session can release the
+	 * resident's teammates first. Idempotent; a runtime without a team is a
+	 * no-op.
+	 */
+	activate?: () => void;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 
