@@ -1,6 +1,6 @@
-import { isClineAccountFeatureEnabled } from "@cline/core";
+import type { ComposioToolkitSlug } from "@cline/shared";
 import { type BasicLogger, FeatureFlag } from "@cline/shared";
-import type { ComposioToolkitSlug } from "../webview/lib/composio-types";
+import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
 import {
 	type ClineAuthTelemetryContext,
 	getClineAccountId,

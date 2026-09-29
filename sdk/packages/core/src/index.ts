@@ -1005,6 +1005,16 @@ export {
 } from "./extensions/tools";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
+export { resolveFreshClineAuthToken } from "./services/connectors/cline-auth";
+export {
+	abandonComposioConnectsForOwner,
+	cancelComposioConnect,
+	connectComposioToolkit,
+	disconnectComposioToolkit,
+	getComposioStatus,
+	listComposioToolkits,
+	parseComposioToolkitSlug,
+} from "./services/connectors/composio";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
 	applyClineFeaturedModels,

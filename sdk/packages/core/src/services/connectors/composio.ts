@@ -8,12 +8,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import {
-	isClineAccountFeatureEnabled,
-	resolveComposioToolsStatePath,
-} from "@cline/core";
-import { type BasicLogger, FeatureFlag } from "@cline/shared";
-import { resolveClineDir } from "@cline/shared/storage";
-import {
+	type BasicLogger,
 	COMPOSIO_RECOMMENDED_TOOLKITS,
 	type ComposioCatalogResponse,
 	type ComposioCatalogToolkit,
@@ -22,9 +17,13 @@ import {
 	type ComposioIntegrationSummary,
 	type ComposioStatusResponse,
 	type ComposioToolkitSlug,
+	FeatureFlag,
 	findRecommendedToolkit,
 	isComposioToolkitSlug,
-} from "../webview/lib/composio-types";
+} from "@cline/shared";
+import { resolveClineDir } from "@cline/shared/storage";
+import { resolveComposioToolsStatePath } from "../../extensions/composio/composio-tools-extension";
+import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
 import {
 	type ClineAuthTelemetryContext,
 	getClineAccountId,
@@ -50,7 +49,7 @@ import {
  * account — a client-held key can't be user-scoped, so the proxy is what
  * keeps one install from acting as another user. There is no local API key.
  *
- * The sidecar still owns connection bookkeeping and the OAuth-completion
+ * This service owns connection bookkeeping and the OAuth-completion
  * wait, and persists connection state plus fetched tool schemas to
  * `<cline-data>/settings/composio/<account-hash>.json`, which core's built-in
  * `composio-tools` extension (`@cline/core`, composio-tools-extension.ts)

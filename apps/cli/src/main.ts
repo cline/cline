@@ -280,6 +280,24 @@ export async function runCli(): Promise<void> {
 			await realCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
+	program
+		.command("connector")
+		.helpOption(false)
+		.description("Browse and install Cline marketplace connectors")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.action(async (_opts: unknown, cmd: Command) => {
+			const { createConnectorCommand } = await import("./commands/connector");
+			await createConnectorCommand(
+				io,
+				(code) => {
+					ctx.exitCode = code;
+				},
+				() => Boolean(program.opts().json),
+			).parseAsync(cmd.args, { from: "user" });
+		});
+
 	const pluginCmd = program
 		.command("plugin")
 		.description("Manage Cline Plugins")

@@ -373,3 +373,13 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) for local development setup, monorepo str
 ## License
 
 [Apache 2.0 © Cline Bot Inc.](https://github.com/cline/cline/blob/main/LICENSE)
+
+### Marketplace connectors
+
+Connect services such as Gmail, Google Calendar, and GitHub to give new Cline sessions access to their tools. Sign in with `cline auth`; connectors must be enabled for your Cline account.
+
+- `cline config connectors` lists installed connectors and tool counts.
+- `cline connector list` browses the Cline connector marketplace. In an interactive terminal, select a connector to install it.
+- `cline connector install <slug>` starts installation directly, for example `cline connector install github`. Complete authorization in the browser and keep the CLI running until installation completes. If a browser cannot open, use the printed authorization URL. Press Ctrl+C to cancel.
+
+All three commands support `--json`. Marketplace listing with JSON or redirected input/output does not prompt; use `install <slug>` to install. CLI and desktop share account-scoped connections. Start a new session after installation to load the connector tools.

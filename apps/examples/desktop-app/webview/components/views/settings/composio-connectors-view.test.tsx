@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
+
+import type { ComposioIntegrationSummary } from "@cline/shared";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { ComposioIntegrationSummary } from "@/lib/composio-types";
 
 const mocks = vi.hoisted(() => ({
 	integrations: [] as ComposioIntegrationSummary[],

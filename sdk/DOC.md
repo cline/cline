@@ -297,3 +297,7 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+### Connector management
+
+`@cline/core` exports `listComposioToolkits`, `getComposioStatus`, `connectComposioToolkit`, `cancelComposioConnect`, `disconnectComposioToolkit`, and `abandonComposioConnectsForOwner`. CLI and desktop use the same account-scoped service and refresh-aware Cline authentication. Browser launch and user prompts belong to the host. A connect response can be pending: the host must remain alive and observe status until completion, or cancel the attempt when the user exits. `@cline/shared` exports the browser-safe catalog and connection contracts. New sessions load the materialized connector tools from the shared account state.

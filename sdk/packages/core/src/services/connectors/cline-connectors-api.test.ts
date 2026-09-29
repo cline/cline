@@ -10,8 +10,10 @@ const identity = vi.hoisted(() => ({
 	accountId: "account-a" as string | undefined,
 }));
 const beta = vi.hoisted(() => ({ enabled: true }));
-vi.mock("@cline/core", async () => ({
-	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
+vi.mock("../feature-flags/cline-account-feature-flags", async () => ({
+	...(await vi.importActual<
+		typeof import("../feature-flags/cline-account-feature-flags")
+	>("../feature-flags/cline-account-feature-flags")),
 	isClineAccountFeatureEnabled: async () => beta.enabled,
 }));
 

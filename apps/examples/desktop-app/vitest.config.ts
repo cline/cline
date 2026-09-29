@@ -3,9 +3,18 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	resolve: {
-		alias: {
-			"@": fileURLToPath(new URL("./webview", import.meta.url)),
-		},
+		alias: [
+			{
+				find: /^@cline\/core$/,
+				replacement: fileURLToPath(
+					new URL("../../../sdk/packages/core/src/index.ts", import.meta.url),
+				),
+			},
+			{
+				find: "@",
+				replacement: fileURLToPath(new URL("./webview", import.meta.url)),
+			},
+		],
 	},
 	test: {
 		environment: "node",
