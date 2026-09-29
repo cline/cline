@@ -59,13 +59,17 @@ type NodeWebSocketLike = {
 	on(event: "message", listener: (data: unknown) => void): void;
 	on(event: "close", listener: () => void): void;
 	on(event: "pong", listener: () => void): void;
-	once(event: "close", listener: () => void): void;
+	once(
+		event: "close",
+		listener: (code?: number, reason?: unknown) => void,
+	): void;
 	ping?(): void;
 	terminate?(): void;
 };
 
 type TrackedNodeWebSocket = NodeWebSocketLike & {
 	isAlive?: boolean;
+	heartbeatTerminated?: boolean;
 };
 
 type NodeUpgradeSocketLike = {
@@ -645,6 +649,7 @@ export async function startHubWebSocketServer(
 	heartbeatTimer = setInterval(() => {
 		for (const websocket of sockets) {
 			if (websocket.isAlive === false) {
+				websocket.heartbeatTerminated = true;
 				try {
 					websocket.terminate?.();
 				} catch {
@@ -700,6 +705,17 @@ export async function startHubWebSocketServer(
 						tracked.isAlive = true;
 					});
 					sockets.add(tracked);
+					// Clients only see "Hub connection closed (code=1006)"; this is
+					// the one place that knows whether the heartbeat sweep dropped
+					// the socket, the server was closing, or the peer went away.
+					tracked.once("close", (code, reason) => {
+						logHubMessage("info", "socket.closed", {
+							code,
+							reason: decodeSocketData(reason).slice(0, 200) || undefined,
+							heartbeatTerminated: tracked.heartbeatTerminated ?? false,
+							serverClosing: closeHandle !== undefined,
+						});
+					});
 					const detach = adapter.attach(wrapWsSocket(websocket), {
 						allowRegisteredWorkspace: isTokenAuthorized,
 					});
@@ -748,6 +764,12 @@ export async function startHubWebSocketServer(
 		if (heartbeatTimer) {
 			clearInterval(heartbeatTimer);
 			heartbeatTimer = undefined;
+		}
+		// A bind failure while the singleton lock is held means the occupant
+		// is not a live Hub for this owner; record which case this was.
+		if (error instanceof Error) {
+			(error as Error & { hubInstanceLockHeld?: boolean }).hubInstanceLockHeld =
+				instanceLock.held;
 		}
 		await settlesWithin(
 			Promise.resolve().then(() => transport.stop()),

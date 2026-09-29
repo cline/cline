@@ -1008,6 +1008,12 @@ function mapFinishReason(
 	if (value === "length" || value === "max_tokens") {
 		return "max-tokens";
 	}
+	// Kept distinct from the `stop` fallback below: a filtered turn that
+	// produced no content must not be reported (or retried) as a transient
+	// empty response — see `AgentModelFinishReason`.
+	if (value === "content-filter" || value === "content_filter") {
+		return "content-filter";
+	}
 	if (value === "error") {
 		return "error";
 	}
@@ -1085,6 +1091,8 @@ const REASONING_TOKEN_PATHS: UsagePath[] = [
 	["outputTokenDetails", "reasoningTokens"],
 	["output_tokens_details", "reasoning_tokens"],
 	["completion_tokens_details", "reasoning_tokens"],
+	// AI SDK v4's nested outputTokens shape ({ total, text, reasoning, ... }).
+	["outputTokens", "reasoning"],
 	["reasoningTokens"],
 	["reasoning_tokens"],
 ];
@@ -1335,6 +1343,19 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		// Providers report reasoning tokens as a subset of outputTokens (e.g.
+		// OpenAI's completion_tokens_details.reasoning_tokens), not additional
+		// to it. Strip them back out here so outputTokens reflects the actual
+		// non-reasoning output, with reasoningTokenCount tracked separately —
+		// otherwise every downstream consumer (session totals, telemetry,
+		// Harbor's n_output_tokens) double-books reasoning as both its own
+		// count and part of "output". Cost above is computed from the
+		// pre-subtraction outputTokens, since reasoning tokens are still
+		// billed at the output rate.
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
