@@ -304,9 +304,48 @@ describe("LocalRuntimeHost", () => {
 				await expect(
 					manager.updateSessionConnection("restored-task", {}),
 				).resolves.toBeUndefined();
+				// A later start naming the resident idle session rebuilds it in
+				// place (hub clients have no other way to restart a session)...
+				const seededUsage = { inputTokens: 40, outputTokens: 2, totalCost: 0.5 };
+				await expect(
+					manager.startSession({
+						...input,
+						initialMessages: [
+							{ role: "user", content: "seed" },
+							{
+								role: "assistant",
+								content: "ok",
+								metrics: { inputTokens: 40, outputTokens: 2, cost: 0.5 },
+							},
+						],
+					}),
+				).resolves.toMatchObject({ sessionId: "restored-task" });
+				expect(agent.shutdown).toHaveBeenCalledWith("session_replaced");
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
+				await expect(
+					manager.getAccumulatedUsage("restored-task"),
+				).resolves.toMatchObject({ usage: seededUsage });
+				// ...a session mid-turn is protected from replacement...
+				agent.canStartRun.mockReturnValue(false);
 				await expect(manager.startSession(input)).rejects.toMatchObject({
 					code: "session_already_exists",
 				});
+				agent.canStartRun.mockReturnValue(true);
+				// ...and a rebuild that throws before the replacement registers
+				// leaves the working resident in place: reachable, and with its
+				// usage totals intact even though the failed input carried none.
+				agent.shutdown.mockClear();
+				runtimeBuilder.build.mockRejectedValueOnce(new Error("rebuild failed"));
+				await expect(manager.startSession(input)).rejects.toThrow(
+					"rebuild failed",
+				);
+				expect(agent.shutdown).not.toHaveBeenCalled();
+				await expect(
+					manager.updateSessionConnection("restored-task", {}),
+				).resolves.toBeUndefined();
+				await expect(
+					manager.getAccumulatedUsage("restored-task"),
+				).resolves.toMatchObject({ usage: seededUsage });
 			}
 		} finally {
 			release();
