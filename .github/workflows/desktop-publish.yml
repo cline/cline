@@ -959,13 +959,17 @@ jobs:
       # tray icon, librsvg for icons, xdo for the window helpers) plus upx:
       # build-sidecar-bin.ts UPX-packs the Linux SSH remote helpers and fails
       # the CI build without it. rpm packages are written by the bundler's own
-      # Rust rpm implementation, so rpmbuild is not needed.
+      # Rust rpm implementation, so rpmbuild is not needed. patchelf is what
+      # linuxdeploy calls to fix up rpaths — the build wrapper shims it, but
+      # the real tool must exist — and libfuse is not needed because the
+      # bundler runs linuxdeploy with APPIMAGE_EXTRACT_AND_RUN.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev libxdo-dev libssl-dev build-essential upx-ucl
+            librsvg2-dev libxdo-dev libssl-dev build-essential patchelf \
+            upx-ucl
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
@@ -973,7 +977,8 @@ jobs:
           toolchain: stable
 
       # No Rust build cache, mirroring the other build jobs: this job holds
-      # the updater signing key.
+      # the updater signing key, and a restored cache archive is
+      # attacker-controlled once the Actions cache is poisoned.
 
       - name: Install dependencies
         run: bun install
@@ -992,13 +997,19 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
+      # Not `bunx tauri build` directly: the AppImage target hands the AppDir
+      # to linuxdeploy, which sets an rpath on every executable it stages and
+      # so corrupts the Bun-compiled sidecar. The wrapper points linuxdeploy's
+      # $PATCHELF at a guard that leaves that binary (and the UPX-packed SSH
+      # remote helpers) alone; see scripts/elf-rewrite-guard.ts.
+      # Explicit bundles rather than the config's "all": "all" pulls in targets
+      # this release does not ship — an NSIS installer needs a makensis the
+      # runner does not have, and older CLIs also emitted a pacman package —
+      # and a failure in any of them fails the whole build.
+      # $CONFIG_ARGS is deliberately unquoted: it must word-split into flags.
       - name: Build desktop bundles
         working-directory: apps/examples/desktop-app
-        # deb and rpm only. The AppImage target is excluded because linuxdeploy
-        # cannot process the Bun-compiled sidecar (ldd fails on it and patchelf
-        # corrupts it), which aborts the bundle step. $CONFIG_ARGS is
-        # deliberately unquoted: it must word-split into separate flags.
-        run: bunx tauri build --bundles deb,rpm $CONFIG_ARGS
+        run: bun run scripts/tauri-build-linux.ts --bundles deb,rpm,appimage $CONFIG_ARGS
         env:
           CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
           # Telemetry inlined into the sidecar at compile time, same as macOS.
@@ -1073,6 +1084,30 @@ jobs:
             exit 1
           fi
 
+      # The one failure mode unique to this platform. linuxdeploy sets an
+      # rpath on every executable it stages, which corrupts a `bun build
+      # --compile` binary; the build wrapper's $PATCHELF guard stops it, and
+      # this proves it did. Byte equality against the sidecar that passed the
+      # telemetry check above is the whole assertion — any rewrite differs,
+      # and the copy inside the AppImage is what users actually run.
+      - name: Verify the AppImage ships an intact sidecar
+        working-directory: apps/examples/desktop-app
+        run: |
+          APPIMAGE=$(find "$PWD/src-tauri/target/release/bundle/appimage" -maxdepth 1 -name '*.AppImage' -print -quit)
+          if [ -z "$APPIMAGE" ]; then
+            echo "no AppImage produced; the Tauri updater cannot ship Linux without one"
+            exit 1
+          fi
+
+          EXTRACT_DIR="$RUNNER_TEMP/appimage"
+          mkdir -p "$EXTRACT_DIR"
+          (cd "$EXTRACT_DIR" && "$APPIMAGE" --appimage-extract >/dev/null)
+
+          BUNDLED="$EXTRACT_DIR/squashfs-root/usr/bin/code-sidecar"
+          cmp "$BUNDLED" src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu
+          "$BUNDLED" --telemetry-selfcheck >/dev/null
+          echo "AppImage sidecar is byte-identical to the built sidecar and still runs."
+
       # Same release-time gate as the macOS job; see the comment there.
       - name: Smoke-test the packaged sidecar against an isolated Hub
         working-directory: apps/examples/desktop-app
@@ -1093,10 +1128,22 @@ jobs:
           # "Cline" -> Cline, "Cline Beta" -> Cline-Beta
           PREFIX="${PRODUCT// /-}"
 
-          # The packages are the updater artifacts; the .sig is the minisign
-          # signature the manifest generator needs for the linux-x86_64-deb and
-          # linux-x86_64-rpm entries. The arch suffixes are what
-          # generate-update-manifest.ts keys on.
+          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -maxdepth 1 -name '*.AppImage' -print -quit)
+          # The AppImage is both the first-install download and the updater
+          # artifact (createUpdaterArtifacts signs it in place). The arch token
+          # in its name is what generate-update-manifest.ts maps to the
+          # linux-x86_64 feed key, so keep the `_amd64` suffix when renaming.
+          if [ -z "$APPIMAGE" ] || [ ! -f "${APPIMAGE}.sig" ]; then
+            echo "AppImage or updater signature missing under $BUNDLE_DIR/appimage"
+            exit 1
+          fi
+          cp "$APPIMAGE" "$OUT/${PREFIX}_${VERSION}_amd64.AppImage"
+          cp "${APPIMAGE}.sig" "$OUT/${PREFIX}_${VERSION}_amd64.AppImage.sig"
+
+          # The packages carry their own updater artifacts; the .sig files are
+          # the minisign signatures the manifest generator needs for the
+          # linux-x86_64-deb and linux-x86_64-rpm entries. The arch suffixes are
+          # what generate-update-manifest.ts keys on.
           DEB=$(find "$BUNDLE_DIR/deb" -name '*.deb' -print -quit)
           if [ -z "$DEB" ] || [ ! -f "${DEB}.sig" ]; then
             echo "deb package or updater signature missing under $BUNDLE_DIR/deb"
@@ -1315,7 +1362,7 @@ jobs:
               - type: "context"
                 elements:
                   - type: "mrkdwn"
-                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download installers> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
+                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Downloads (macOS, Windows, Linux)> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
 
   announce-nightly:
     name: Tag and announce nightly
