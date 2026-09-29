@@ -303,6 +303,67 @@ it("offers an enabled retry when a failed picker request supersedes the initial 
 	expect(onSend).toHaveBeenCalledExactlyOnceWith("Run task");
 });
 
+it("keeps a validated composer usable when the repository picker refresh fails", async () => {
+	repositoryCheck.mockResolvedValue(repositories());
+	const onSend = vi.fn();
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	const originalInput = input();
+	expect(sendButton().disabled).toBe(false);
+	repositoryCheck.mockRejectedValue(new Error("offline"));
+	const picker = container.querySelector<HTMLButtonElement>(
+		`button[title="${rememberedRepo}"]`,
+	);
+	await act(async () => picker?.click());
+	expect(container.textContent).toContain("Could not load repositories.");
+	expect(container.textContent).not.toContain("Could not reach Cline Cloud");
+	expect(input()).toBe(originalInput);
+	expect(input().closest(".hidden")).toBeNull();
+	expect(input().value).toBe("Run task");
+	expect(sendButton().disabled).toBe(false);
+	await act(async () => sendButton().click());
+	expect(onSend).toHaveBeenCalledExactlyOnceWith("Run task");
+});
+
+it("does not reuse prior validation when a picker refresh fails after returning to Cloud", async () => {
+	repositoryCheck.mockResolvedValue(repositories());
+	const onSend = vi.fn();
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	await act(async () =>
+		root.render(<Composer executionTarget="local" onSend={onSend} />),
+	);
+	const check = deferredRepositories();
+	repositoryCheck.mockReturnValue(check.promise);
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	repositoryCheck.mockRejectedValue(new Error("offline"));
+	const picker = container.querySelector<HTMLButtonElement>(
+		`button[title="${rememberedRepo}"]`,
+	);
+	await act(async () => picker?.click());
+	expect(container.textContent).toContain("Could not reach Cline Cloud");
+	expect(sendButton().disabled).toBe(true);
+	await act(async () => check.resolve(repositories()));
+	expect(sendButton().disabled).toBe(true);
+	expect(onSend).not.toHaveBeenCalled();
+});
+
+it("clears a previously validated repo when a successful refresh revokes its access", async () => {
+	repositoryCheck.mockResolvedValue(repositories());
+	const onSend = vi.fn();
+	await act(async () => root.render(<Composer onSend={onSend} />));
+	repositoryCheck.mockResolvedValue(
+		repositories("https://github.com/another/repo"),
+	);
+	const picker = container.querySelector<HTMLButtonElement>(
+		`button[title="${rememberedRepo}"]`,
+	);
+	await act(async () => picker?.click());
+	expect(sendButton().disabled).toBe(true);
+	expect(container.textContent).toContain("Repository required");
+	expect(input().value).toBe("Run task");
+	await trySending();
+	expect(onSend).not.toHaveBeenCalled();
+});
+
 it.each([
 	{ executionTarget: "local" as const, hasActiveSession: false },
 	{ executionTarget: "cloud" as const, hasActiveSession: true },

@@ -155,7 +155,12 @@ export function WelcomeScreen({
 			return result;
 		} catch (error) {
 			if (cloudSetupRequestRef.current === requestId) {
-				setCloudSetup((prev) => ({ ...prev, status: "error" }));
+				// A picker refresh failure does not revoke confirmed access.
+				// A new account/activation clears ready state before requesting,
+				// so an unvalidated composer still gets the setup retry UI.
+				setCloudSetup((prev) =>
+					prev.status === "ready" ? prev : { ...prev, status: "error" },
+				);
 				cloudSetupResultRequestRef.current = requestId;
 			}
 			throw error;
