@@ -20,7 +20,11 @@ import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
 	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
 	normalizeCloudRepositoryUrl,
+	readCloudRepositorySelection,
+	resolveRememberedCloudBranch,
+	writeCloudRepositorySelection,
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
@@ -47,6 +51,9 @@ type CloudSetupState = {
 		| "no_repositories"
 		| "error";
 	connectUrl: string;
+	scope: string | null;
+	requestId: number;
+	repositories: CloudRepositoryOption[];
 	/** Normalized URLs of repositories the account can currently access. */
 	repositoryUrls: string[];
 };
@@ -93,11 +100,21 @@ export function WelcomeScreen({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
+	const cloudScope = user
+		? JSON.stringify([
+				getClineEnvironmentConfig().appBaseUrl,
+				user.id,
+				activeOrganization?.organizationId ?? null,
+			])
+		: null;
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
+		scope: null,
+		requestId: 0,
+		repositories: [],
 		repositoryUrls: [],
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
@@ -111,8 +128,11 @@ export function WelcomeScreen({
 		selectChat,
 	} = useWorkspace();
 	const applyCloudSetupResult = useCallback(
-		(result: CloudRepositoryListResult) => {
+		(result: CloudRepositoryListResult, requestId: number) => {
 			setCloudSetup({
+				scope: cloudScope,
+				requestId,
+				repositories: result.repositories,
 				status:
 					result.connected === false
 						? "not_connected"
@@ -125,7 +145,7 @@ export function WelcomeScreen({
 				),
 			});
 		},
-		[],
+		[cloudScope],
 	);
 	const fetchCloudRepositories = useCallback(
 		() =>
@@ -140,7 +160,7 @@ export function WelcomeScreen({
 		const requestId = ++cloudSetupRequestRef.current;
 		const result = await fetchCloudRepositories();
 		if (cloudSetupRequestRef.current === requestId) {
-			applyCloudSetupResult(result);
+			applyCloudSetupResult(result, requestId);
 		}
 		return result;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
@@ -189,7 +209,7 @@ export function WelcomeScreen({
 		try {
 			const result = await fetchCloudRepositories();
 			if (cloudSetupRequestRef.current !== requestId) return;
-			applyCloudSetupResult(result);
+			applyCloudSetupResult(result, requestId);
 		} catch {
 			if (cloudSetupRequestRef.current !== requestId) return;
 			setCloudSetup((prev) => ({ ...prev, status: "error" }));
@@ -243,6 +263,67 @@ export function WelcomeScreen({
 			void checkCloudSetup();
 		});
 	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
+
+	// Like local workspace restoration, publish the saved selection only once
+	// it is usable. Until then the existing empty-repository send guard applies.
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			repoUrl ||
+			cloudSetup.status !== "ready" ||
+			cloudSetup.scope !== cloudScope ||
+			cloudSetup.requestId !== cloudSetupRequestRef.current
+		)
+			return;
+		const saved = readCloudRepositorySelection(cloudScope);
+		const repository = cloudSetup.repositories.find(
+			(candidate) =>
+				normalizeCloudRepositoryUrl(candidate.url) === saved?.repoUrl,
+		);
+		if (!saved || !repository) return;
+		let cancelled = false;
+		void resolveRememberedCloudBranch(
+			repository.id,
+			saved.branch,
+			repository.defaultBranch,
+			listCloudBranches,
+		)
+			.then((branch) => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				onRepoUrlChange(saved.repoUrl);
+				onCloudBranchChange(branch);
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudModeActive,
+		cloudScope,
+		cloudSetup,
+		repoUrl,
+		listCloudBranches,
+		onRepoUrlChange,
+		onCloudBranchChange,
+	]);
+
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			cloudSetup.scope !== cloudScope ||
+			cloudSetup.status !== "ready" ||
+			!repoUrl ||
+			!cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl))
+		)
+			return;
+		writeCloudRepositorySelection(cloudScope, {
+			repoUrl: normalizeCloudRepositoryUrl(repoUrl),
+			branch: cloudBranch,
+		});
+	}, [cloudModeActive, cloudScope, cloudSetup, repoUrl, cloudBranch]);
 
 	const agenda = useAgendaTasks(
 		{
