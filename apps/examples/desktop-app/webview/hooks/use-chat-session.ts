@@ -4143,7 +4143,8 @@ export function useChatSession(environmentId: string) {
 	const steerPromptInQueue = useCallback(
 		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId) return;
+			if (isCloudSessionExpired || isSessionReadOnly || !activeSessionId)
+				return;
 			if (promptId === undefined) {
 				// Enter targets the first server queue entry. The composer can
 				// already be empty while its optimistic entry is still being sent.
@@ -4190,13 +4191,18 @@ export function useChatSession(environmentId: string) {
 				);
 			}
 		},
-		[isCloudSessionExpired, postSession, setPromptsInQueue],
+		[isCloudSessionExpired, isSessionReadOnly, postSession, setPromptsInQueue],
 	);
 
 	const updatePromptInQueue = useCallback(
 		async (promptId: string, prompt: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
+			if (
+				isCloudSessionExpired ||
+				isSessionReadOnly ||
+				!activeSessionId ||
+				!promptId.trim()
+			) {
 				return;
 			}
 			const payload = await postSession({
@@ -4209,13 +4215,18 @@ export function useChatSession(environmentId: string) {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[isCloudSessionExpired, postSession, setPromptsInQueue],
+		[isCloudSessionExpired, isSessionReadOnly, postSession, setPromptsInQueue],
 	);
 
 	const removePromptInQueue = useCallback(
 		async (promptId: string): Promise<PromptInQueue | undefined> => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
+			if (
+				isCloudSessionExpired ||
+				isSessionReadOnly ||
+				!activeSessionId ||
+				!promptId.trim()
+			) {
 				return undefined;
 			}
 			const payload = await postSession({
@@ -4228,7 +4239,7 @@ export function useChatSession(environmentId: string) {
 			);
 			return payload.prompt;
 		},
-		[isCloudSessionExpired, postSession, setPromptsInQueue],
+		[isCloudSessionExpired, isSessionReadOnly, postSession, setPromptsInQueue],
 	);
 
 	const summary = useMemo(

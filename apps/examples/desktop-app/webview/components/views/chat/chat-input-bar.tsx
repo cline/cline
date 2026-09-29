@@ -1111,12 +1111,14 @@ function ChatInputBarImpl({
 					variant={variant}
 					hasQueue={promptsInQueue.length > 0}
 				>
-					<AgentPromptQueue
-						items={displayPromptsInQueue}
-						onEdit={onEditPromptInQueue}
-						onRemove={onRemovePromptInQueue}
-						onSteer={onSteerPromptInQueue}
-					/>
+					<fieldset disabled={readOnly}>
+						<AgentPromptQueue
+							items={displayPromptsInQueue}
+							onEdit={onEditPromptInQueue}
+							onRemove={onRemovePromptInQueue}
+							onSteer={onSteerPromptInQueue}
+						/>
+					</fieldset>
 					<div className="relative">
 						{slashOpen && (
 							<div

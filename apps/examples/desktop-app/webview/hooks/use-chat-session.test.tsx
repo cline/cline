@@ -462,6 +462,9 @@ describe("useChatSession", () => {
 		invokeMock.mockClear();
 		await act(async () => {
 			expect(await current.sendPrompt("hello")).toBe(false);
+			await current.steerPromptInQueue("queued");
+			await current.updatePromptInQueue("queued", "changed");
+			await current.removePromptInQueue("queued");
 		});
 		expect(invokeMock).not.toHaveBeenCalled();
 		await act(async () =>

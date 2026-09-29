@@ -1017,8 +1017,12 @@ async function handleStart(
 	const attached = requestedSessionId
 		? await manager.attach(requestedSessionId)
 		: undefined;
+	const foreignAttachment = attached?.ownedByAnotherClient
+		? attached
+		: undefined;
+	// Reopening our own runtime must apply the requested configuration.
 	const startResult =
-		attached ??
+		foreignAttachment ??
 		(await manager.start({
 			...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 			source: SessionSource.DESKTOP,
@@ -1042,6 +1046,12 @@ async function handleStart(
 	const session = createLiveSession(
 		{
 			...request.config,
+			...(foreignAttachment
+				? {
+						provider: foreignAttachment.manifest.provider,
+						model: foreignAttachment.manifest.model,
+					}
+				: {}),
 			cwd,
 			workspaceRoot,
 			environmentId: binding.environmentId,
@@ -1990,6 +2000,18 @@ async function handlePendingPrompts(
 	};
 }
 
+async function requireWritableQueue(
+	manager: ClineCore,
+	sessionId: string,
+): Promise<void> {
+	const attached = await manager.attach(sessionId);
+	if (attached?.ownedByAnotherClient) {
+		throw new Error(
+			"This session is open in another client. Continue there to change its queued prompts.",
+		);
+	}
+}
+
 async function handleSteerPrompt(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -2000,6 +2022,7 @@ async function handleSteerPrompt(
 	if (request.promptId !== undefined && !promptId)
 		throw new Error("promptId cannot be empty");
 	const manager = getSessionManager(ctx, sessionId, request.config);
+	await requireWritableQueue(manager, sessionId);
 	const result = promptId
 		? await manager.pendingPrompts.update({
 				sessionId,
@@ -2033,6 +2056,7 @@ async function handleUpdatePendingPrompt(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
+	await requireWritableQueue(manager, sessionId);
 	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
 	// Queued prompts are delivered by the runtime without another pass
 	// through handleSend, so resolve slash commands here too.
@@ -2068,6 +2092,7 @@ async function handleRemovePendingPrompt(
 		throw new Error("sessionId and promptId are required");
 	}
 	const manager = getSessionManager(ctx, sessionId, request.config);
+	await requireWritableQueue(manager, sessionId);
 	const result = await manager.pendingPrompts.delete({
 		sessionId,
 		promptId,
