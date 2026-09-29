@@ -436,15 +436,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// Hub clients cannot stop a resident session (HubRuntimeHost.stopSession
 			// only detaches), so a start that names one is how they rebuild it:
 			// desktop resume and provider switches, CLI plan/act toggles and
-			// `--resume`. Release the idle runtime and start over from the caller's
-			// config and history; only a session mid-turn is protected above.
-			// Cleanup failures are already logged and captured by the release.
+			// `--resume`. Build the replacement first so the id never goes missing
+			// and a failed rebuild leaves the idle resident untouched, then release
+			// the old runtime; only a session mid-turn is protected above. Release
+			// failures are already logged and captured, and the replacement is live.
+			const result = await this.startNewSession(
+				input,
+				sessionId,
+				requestedSessionId,
+			);
 			if (resident) {
 				await this.releaseSessionRuntime(resident, "session_replaced").catch(
 					() => undefined,
 				);
 			}
-			return await this.startNewSession(input, sessionId, requestedSessionId);
+			return result;
 		})().finally(() => this.sessionStarts.delete(sessionId));
 		this.sessionStarts.set(sessionId, starting);
 		return await starting;
@@ -2547,7 +2553,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
+		// A replacement started under the same id may already own the slot.
+		if (this.sessions.get(session.sessionId) === session) {
+			this.sessions.delete(session.sessionId);
+		}
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];
 		}

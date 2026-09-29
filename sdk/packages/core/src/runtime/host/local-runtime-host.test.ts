@@ -311,6 +311,16 @@ describe("LocalRuntimeHost", () => {
 				});
 				expect(agent.shutdown).toHaveBeenCalledWith("session_replaced");
 				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
+				// ...a rebuild that fails leaves the resident session untouched...
+				agent.shutdown.mockClear();
+				runtimeBuilder.build.mockRejectedValueOnce(new Error("rebuild failed"));
+				await expect(manager.startSession(input)).rejects.toThrow(
+					"rebuild failed",
+				);
+				expect(agent.shutdown).not.toHaveBeenCalled();
+				await expect(
+					manager.updateSessionConnection("restored-task", {}),
+				).resolves.toBeUndefined();
 				// ...but a session mid-turn is protected from replacement.
 				agent.canStartRun.mockReturnValue(false);
 				await expect(manager.startSession(input)).rejects.toMatchObject({
