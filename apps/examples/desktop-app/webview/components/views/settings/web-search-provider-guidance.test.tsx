@@ -30,6 +30,12 @@ it("offers provider setup and refreshes readiness when provider settings change"
 			),
 		);
 		expect(container.textContent).toContain("this setting has no effect yet");
+		catalog.fetch.mockRejectedValueOnce(new Error("Temporary catalog failure"));
+		await act(async () => catalog.invalidate());
+		expect(container.textContent).toContain("this setting has no effect yet");
+		expect(container.querySelector("button")?.textContent).toContain(
+			"Connect a provider",
+		);
 		await act(async () => container.querySelector("button")?.click());
 		expect(navigate).toHaveBeenCalledOnce();
 		catalog.fetch.mockResolvedValue({
@@ -41,6 +47,10 @@ it("offers provider setup and refreshes readiness when provider settings change"
 		await act(async () => catalog.invalidate());
 		expect(container.textContent).toContain("Ready to use with Anthropic");
 		expect(container.textContent).not.toContain("OpenAI");
+		expect(container.querySelector("button")).toBeNull();
+		catalog.fetch.mockRejectedValueOnce(new Error("Temporary catalog failure"));
+		await act(async () => catalog.invalidate());
+		expect(container.textContent).toContain("Ready to use with Anthropic");
 		expect(container.querySelector("button")).toBeNull();
 	} finally {
 		await act(async () => root.unmount());

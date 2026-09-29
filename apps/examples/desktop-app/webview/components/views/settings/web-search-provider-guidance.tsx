@@ -17,7 +17,6 @@ export function WebSearchProviderGuidance({
 		let generation = 0;
 		const load = () => {
 			const request = ++generation;
-			setReadyProviders(null);
 			void fetchProviderCatalog()
 				.then((payload) => {
 					if (request !== generation) return;
@@ -32,7 +31,7 @@ export function WebSearchProviderGuidance({
 					);
 				})
 				.catch(() => {
-					// The setting remains usable if readiness cannot be loaded.
+					// Preserve the last successful guidance during a temporary failure.
 				});
 		};
 		const unsubscribe = subscribeToProviderCatalogInvalidation(load);
