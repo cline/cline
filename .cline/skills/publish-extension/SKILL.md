@@ -1,6 +1,6 @@
 ---
 name: publish-extension
-description: Use when releasing the Cline VS Code extension — stable (standalone SDK build of main via ext-vscode-publish), nightly (ext-vscode-publish-nightly, manual dispatch), or an emergency legacy-branch hotfix (ext-vscode-publish-legacy). Guides version selection, changelog, workflow dispatch, environment approvals, tagging, post-publish verification, and the remaining retirement of the finished A/B rollout machinery.
+description: Use when releasing the Cline VS Code extension — stable (standalone SDK build of main via ext-vscode-publish), nightly (the same workflow with nightly=true), or an emergency legacy-branch hotfix (ext-vscode-publish-legacy). Guides version selection, changelog, workflow dispatch, environment approvals, tagging, post-publish verification, and the remaining retirement of the finished A/B rollout machinery.
 ---
 
 # VS Code Extension Release
@@ -22,10 +22,10 @@ History, for context only: the A/B era ran `4.1.0` → `4.1.19` (Jul–Sep 2026)
 | Channel | Marketplace ID | Workflow | Trigger | Version |
 |---|---|---|---|---|
 | **Stable** | `saoudrizwan.claude-dev` | `ext-vscode-publish.yml` | dispatch, from `main` | `apps/vscode/package.json` on `main`; the `version` input must equal it |
-| Nightly | `saoudrizwan.cline-nightly` | `ext-vscode-publish-nightly.yml` | **manual dispatch only** (cron deliberately removed) | auto `<major>.<minor>.<unix-ts>` from main's `apps/vscode/package.json` |
+| Nightly | `saoudrizwan.cline-nightly` | `ext-vscode-publish.yml` with `nightly=true` | dispatch, from `main` (no cron) | auto `<major>.<minor>.<unix-ts>` from main's `apps/vscode/package.json`; `version` input ignored |
 | Legacy hotfix (emergency only) | `saoudrizwan.claude-dev` | `ext-vscode-publish-legacy.yml` | dispatch | `apps/vscode/package.json` on `legacy-extension` |
 
-Stable runs four jobs: `preflight` (input regex, main-only publish, Marketplace monotonicity) and the reusable bun suite (`ext-vscode-test.yml`, tests the dispatch SHA) ungated → `build` (no environment; packages the `.vsix` as a run artifact, so `publish=false` rehearsals need no approval) → `publish` (`publish` environment — required reviewers approve in the Actions UI; uploads the artifact, then tag/release/Slack). Nightly uses `PublishNightly` (branch policy only). Nightly **still builds the combined loader VSIX** (loader + `next/` + `legacy/`) until it is converted back to a plain build — that conversion is on the retirement list below.
+The workflow runs four jobs: `preflight` (input regex, main-only publish, Marketplace monotonicity) and the reusable bun suite (`ext-vscode-test.yml`, tests the dispatch SHA) ungated → `build` (no environment; packages the `.vsix` as a run artifact, so `publish=false` rehearsals need no approval) → `publish` (`publish` environment — required reviewers approve in the Actions UI; uploads the artifact, then tag/release/Slack). With `nightly=true` the build job rewrites the manifest to the `cline-nightly` identity at a computed version (via `apps/vscode-rollout/scripts/nightlify.mjs`), the version/changelog/monotonicity checks and the tag/release/Slack bookkeeping are skipped, and the publish goes through the same `publish` environment.
 
 ## Golden rules (read before any release)
 
@@ -106,16 +106,14 @@ There is no pre-release input (the A/B path never had one either); every publish
 
 ## Nightly release
 
-**Manual dispatch only.** The cron was removed on purpose: the `PublishNightly` environment made scheduled runs sit `waiting`, hold the concurrency group, and silently cancel every later scheduled run behind them. A stale nightly listing is therefore expected, not a bug.
+**Manual dispatch only** (no cron: an unattended run would sit `waiting` on the `publish` environment, hold the concurrency group, and cancel every later scheduled run behind it — that is what killed 20 consecutive nightlies in Aug 2026 on the old dedicated nightly workflow). A stale nightly listing is therefore expected, not a bug.
 
 ```bash
-gh workflow run ext-vscode-publish-nightly.yml --ref main                 # real publish
-gh workflow run ext-vscode-publish-nightly.yml --ref main -f dry-run=true # artifact only
+gh workflow run ext-vscode-publish.yml --ref main -f nightly=true -f publish=true   # real publish (waits on `publish` approval)
+gh workflow run ext-vscode-publish.yml --ref main -f nightly=true -f publish=false  # artifact only, no approval
 ```
 
-No changelog/version prep — the version is computed. Verify with the Marketplace query against `saoudrizwan.cline-nightly`. Until converted, nightly still ships the combined loader VSIX with a `legacy/` bundle built from `legacy-extension`.
-
-**Red run ≠ failed publish** on this path: its tag-push step runs *after* publishing and fails whenever main's HEAD touches `.github/workflows/**`. If "Published" appears in the logs, the release went out; push the `nightly-main-<UTC ts>-<sha12>` tag manually with user credentials.
+No changelog/version prep — the version is computed and the `version` input is ignored. Nightly runs share the `ext-vscode-publish-nightly` concurrency group. No tag, GitHub release, or Slack post is created; the run's SHA is the record of what shipped. Verify with the Marketplace query against `saoudrizwan.cline-nightly`.
 
 ## Emergency rollback
 
@@ -137,7 +135,7 @@ The npm suite runs ungated, the publish job waits on the `publish` environment, 
 
 The rollout is done but the scaffolding is still in the repo. Retire it in this order, each as its own PR:
 
-1. **Nightly → plain build of `main`**: drop the loader/`legacy-src` stitching from `ext-vscode-publish-nightly.yml` so nightly matches stable. Preserve the `|| 'default'` fallbacks for `inputs.*` while editing.
+1. ~~Nightly → plain build of `main`~~ — done; nightly is now `ext-vscode-publish.yml` with `nightly=true` and the dedicated nightly workflow is deleted. `apps/vscode-rollout/scripts/nightlify.mjs` (+ its test) is the one file that path still uses — move it to `apps/vscode/scripts/` when removing the directory in step 3.
 2. Once `ext-vscode-publish.yml` has shipped a release, delete `ext-vscode-publish-stable.yml` (the repack path that timed out on 4.1.18) and `ext-vscode-ab-package.yml`; and, once the emergency path above is judged unnecessary, `ext-vscode-publish-legacy.yml`; keep the `legacy-extension` branch for history. `apps/vscode/scripts/publish-marketplace.mjs` and the `publish:marketplace*` package scripts only serve the deleted stable workflow (nightly has its own script) — remove them in the same PR.
 3. Remove `apps/vscode-rollout/` and the rollout-only code paths in `apps/vscode/src/services/telemetry/rollout-metadata.ts` (the `extension_variant` metadata and `extension.rollout.bundle_activated` event).
 4. ~~Port the marketplace-monotonicity preflight~~ — done; `ext-vscode-publish.yml` carries both copies of the check.
@@ -160,7 +158,7 @@ The rollout is done but the scaffolding is still in the repo. Retire it in this 
    })()' "$KEY"
    ```
 
-6. Update this skill: delete this section and the combined-loader notes under Nightly.
+6. Update this skill: delete this section.
 
 ## Gotchas index
 

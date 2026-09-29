@@ -24,17 +24,28 @@ name: ext-vscode-publish
 # the retry below covers a transient Marketplace hang without risking a
 # double publish (with --skip-duplicate, vsce checks the listing first and
 # exits 0 on "already published"; without it a duplicate is an error).
+#
+# `nightly=true` runs the same pipeline for the saoudrizwan.cline-nightly
+# listing: the manifest is rewritten to the nightly identity with a computed
+# <major>.<minor>.<unix-seconds> version, so the version/changelog/
+# monotonicity gates and the tag/release/Slack bookkeeping are skipped. The
+# publish still goes through the `publish` environment.
 
 on:
     workflow_dispatch:
         inputs:
             version:
-                description: "Version to release — must equal apps/vscode/package.json and exceed every previously published version (e.g. 4.1.20)"
-                required: true
+                description: "Version to release — must equal apps/vscode/package.json and exceed every previously published version (e.g. 4.1.20). Ignored for nightly."
+                required: false
                 type: string
             publish:
                 description: "Publish to the VS Code Marketplace and Open VSX (unchecked: just build the .vsix artifact)"
                 required: true
+                default: false
+                type: boolean
+            nightly:
+                description: "Build cline-nightly instead of claude-dev (computed version, no changelog/tag/release/Slack)"
+                required: false
                 default: false
                 type: boolean
 
@@ -42,7 +53,7 @@ permissions:
     contents: read
 
 concurrency:
-    group: ext-vscode-publish-${{ github.event.inputs.version }}
+    group: ext-vscode-publish-${{ inputs.nightly && 'nightly' || github.event.inputs.version }}
     cancel-in-progress: false
 
 jobs:
@@ -60,6 +71,7 @@ jobs:
             # makes the plain-string `${{ inputs.version }}` interpolations
             # downstream safe.
             - name: Validate version format
+              if: ${{ !inputs.nightly }}
               env:
                   VERSION: ${{ github.event.inputs.version }}
               run: |
@@ -89,7 +101,7 @@ jobs:
             # re-checks right before publishing — the environment-approval
             # wait can last days. Keep both copies of this check in sync.
             - name: Verify version exceeds the live Marketplace version
-              if: ${{ github.event.inputs.publish == 'true' }}
+              if: ${{ github.event.inputs.publish == 'true' && !inputs.nightly }}
               env:
                   VERSION: ${{ github.event.inputs.version }}
               run: |
@@ -126,6 +138,8 @@ jobs:
         name: Build VSIX
         needs: [preflight, test]
         runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.identity.outputs.version }}
         steps:
             # Pin the checkout to the exact revision the test gate ran against:
             # a moving branch name could otherwise drift past the tested commit
@@ -141,6 +155,7 @@ jobs:
             # repo must already carry the release version (bumped via the
             # release-prep PR).
             - name: Verify version matches apps/vscode/package.json
+              if: ${{ !inputs.nightly }}
               env:
                   VERSION: ${{ github.event.inputs.version }}
               run: |
@@ -155,7 +170,7 @@ jobs:
             # Fail fast (before the build) if a real publish is missing its
             # changelog entry. Build-only rehearsals are exempt.
             - name: Verify changelog entry
-              if: ${{ github.event.inputs.publish == 'true' }}
+              if: ${{ github.event.inputs.publish == 'true' && !inputs.nightly }}
               run: |
                   EXPECTED_HEADING="## [${{ github.event.inputs.version }}]"
                   FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
@@ -202,6 +217,29 @@ jobs:
                   fi
                   echo "Found better-sqlite3 native binary: $NODE_FILE"
 
+            # Stable ships apps/vscode as-is at the confirmed version. Nightly
+            # rewrites the manifest in this disposable checkout to the
+            # cline-nightly identity (name, display name, `cline.*` IDs) at
+            # <major>.<minor>.<unix-seconds> of the base version — the same
+            # mutation every previous nightly applied — so the packaged VSIX
+            # installs alongside stable and vsce publishes it to the nightly
+            # listing. Runs after install (bun's workspace self-link keys off
+            # the original name) and before the build (runtime IDs derive
+            # from the manifest).
+            - name: Resolve extension identity
+              id: identity
+              env:
+                  NIGHTLY: ${{ inputs.nightly }}
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  if [[ "$NIGHTLY" == "true" ]]; then
+                    BASE=$(node -p "require('./apps/vscode/package.json').version")
+                    VERSION="$(echo "$BASE" | cut -d. -f1,2).$(date +%s)"
+                    node apps/vscode-rollout/scripts/nightlify.mjs --dir apps/vscode --version "$VERSION"
+                  fi
+                  echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+                  echo "Building version $VERSION"
+
             # `vsce package` runs vscode:prepublish (`bun run package`:
             # check-types + build:webview + lint + esbuild --production) itself,
             # so this single step is the whole build. The env is inlined by
@@ -239,7 +277,7 @@ jobs:
                   # exemption carried over from every previous ext workflow. No
                   # SendGrid credential is intentionally supplied; inspect the
                   # reported artifact before widening it.
-                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-${{ github.event.inputs.version }}.vsix"
+                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-${{ steps.identity.outputs.version }}.vsix"
 
             # Publish uploads this file as-is, so check the bytes that will
             # ship rather than the source tree: identity + version of the
@@ -254,14 +292,15 @@ jobs:
             - name: Assert packaged identity and inlined env
               working-directory: apps/vscode
               env:
-                  EXPECTED_VERSION: ${{ github.event.inputs.version }}
-                  VSIX: cline-${{ github.event.inputs.version }}.vsix
+                  EXPECTED_NAME: ${{ inputs.nightly && 'cline-nightly' || 'claude-dev' }}
+                  EXPECTED_VERSION: ${{ steps.identity.outputs.version }}
+                  VSIX: cline-${{ steps.identity.outputs.version }}.vsix
               run: |
                   unzip -p "$VSIX" extension/package.json > /tmp/packaged-package.json
                   node -e '
                     const assert = require("node:assert");
                     const pkg = require("/tmp/packaged-package.json");
-                    assert.equal(pkg.name, "claude-dev", `unexpected name ${pkg.name}`);
+                    assert.equal(pkg.name, process.env.EXPECTED_NAME, `unexpected name ${pkg.name}`);
                     assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
                     assert.equal(pkg.version, process.env.EXPECTED_VERSION, `unexpected version ${pkg.version}`);
                     console.log(`identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
@@ -285,8 +324,8 @@ jobs:
             - name: Upload VSIX artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: cline-${{ github.event.inputs.version }}
-                  path: apps/vscode/cline-${{ github.event.inputs.version }}.vsix
+                  name: cline-${{ steps.identity.outputs.version }}
+                  path: apps/vscode/cline-${{ steps.identity.outputs.version }}.vsix
                   if-no-files-found: error
 
     publish:
@@ -316,7 +355,7 @@ jobs:
             - name: Download VSIX artifact
               uses: actions/download-artifact@v4
               with:
-                  name: cline-${{ github.event.inputs.version }}
+                  name: cline-${{ needs.build.outputs.version }}
                   path: staging
 
             - name: Install Publishing Tools
@@ -327,6 +366,7 @@ jobs:
             # otherwise be silently superseded by this older code line. Keep in
             # sync with the preflight copy of this check.
             - name: Re-verify version exceeds the live Marketplace version
+              if: ${{ !inputs.nightly }}
               env:
                   VERSION: ${{ github.event.inputs.version }}
               run: |
@@ -382,7 +422,7 @@ jobs:
                   # would skip the tag/release/Slack bookkeeping. Without the
                   # flag vsce throws "already exists".
                   for attempt in 1 2 3; do
-                    if vsce publish --no-dependencies --skip-duplicate --packagePath "cline-${{ github.event.inputs.version }}.vsix"; then
+                    if vsce publish --no-dependencies --skip-duplicate --packagePath "cline-${{ needs.build.outputs.version }}.vsix"; then
                       exit 0
                     fi
                     echo "vsce publish attempt $attempt failed."
@@ -397,7 +437,7 @@ jobs:
               working-directory: staging
               env:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
-              run: npx ovsx publish --packagePath "cline-${{ github.event.inputs.version }}.vsix" --pat "$OVSX_PAT"
+              run: npx ovsx publish --packagePath "cline-${{ needs.build.outputs.version }}.vsix" --pat "$OVSX_PAT"
 
             # ---- Post-publish bookkeeping (tag / GitHub Release / Slack) ----
             # Every step here is continue-on-error, and gated on the MARKETPLACE
@@ -408,10 +448,13 @@ jobs:
             # (tag pushes fail whenever the built commit touches
             # .github/workflows/** — no grantable permission fixes that; push
             # the tag manually in that case, see the publish-extension skill).
+            # Nightlies skip all of it: no changelog, no v-tag (a timestamp
+            # version would outrank every real release in the prev-tag lookup),
+            # no release, no Slack post.
 
             - name: Extract changelog entry
               id: changelog
-              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' && !inputs.nightly }}
               continue-on-error: true
               run: |
                   CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
@@ -452,7 +495,7 @@ jobs:
 
             - name: Resolve previous release tag
               id: prev_tag
-              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' && !inputs.nightly }}
               continue-on-error: true
               run: |
                   # ls-remote needs no local tag objects; take the highest v* tag
@@ -465,7 +508,7 @@ jobs:
                   echo "prev_tag=$PREV" >> "$GITHUB_OUTPUT"
 
             - name: Create and push release tag
-              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' && !inputs.nightly }}
               continue-on-error: true
               run: |
                   TAG="v${{ github.event.inputs.version }}"
@@ -474,7 +517,7 @@ jobs:
                   echo "Pushed $TAG at $(git rev-parse HEAD)"
 
             - name: Create GitHub Release
-              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' && !inputs.nightly }}
               continue-on-error: true
               uses: softprops/action-gh-release@v1
               with:
@@ -488,7 +531,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Post release to Slack
-              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' && !inputs.nightly }}
               continue-on-error: true
               uses: slackapi/slack-github-action@v3.0.1
               with:
