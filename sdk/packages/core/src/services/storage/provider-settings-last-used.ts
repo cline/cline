@@ -4,6 +4,7 @@ import {
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
 	type StoredProviderSettings,
 } from "../../types/provider-settings";
+import { isProviderSettingsUsable } from "../providers/provider-readiness";
 
 /**
  * Resolve the settings a provider id denotes within a stored state, honoring
@@ -47,9 +48,30 @@ function hasResolvableSettings(
 }
 
 /**
+ * Whether a provider can stand in for a dangling pointer: not merely present,
+ * but holding credentials or a resolvable endpoint. A settings entry alone
+ * proves little — migrations and empty "connect" saves create entries that
+ * cannot serve a turn, such as a phantom `sapaicore` with no credentials.
+ */
+function isUsableFallback(
+	state: StoredProviderSettings,
+	providerId: string,
+): boolean {
+	try {
+		return isProviderSettingsUsable(
+			providerId,
+			resolveStoredProviderSettings(state, providerId),
+		);
+	} catch {
+		return false;
+	}
+}
+
+/**
  * The provider id `lastUsedProvider` effectively denotes: the stored id while
- * it still resolves to settings, otherwise the most recently saved provider
- * that does, and undefined only when nothing is configured.
+ * it still resolves to settings — including a signed-out `cline` entry, which
+ * keeps its sign-in flow — otherwise the most recently saved provider that is
+ * usable, and undefined when nothing is.
  *
  * The stored id can outlive its entry — another Cline surface sharing
  * providers.json removed the provider, or a migration carried a stale pointer
@@ -69,7 +91,7 @@ export function resolveEffectiveLastUsedProviderId(
 	let fallback: string | undefined;
 	let fallbackUpdatedAt = Number.NEGATIVE_INFINITY;
 	for (const [providerId, entry] of Object.entries(state.providers)) {
-		if (!hasResolvableSettings(state, providerId)) {
+		if (!isUsableFallback(state, providerId)) {
 			continue;
 		}
 		const parsed = Date.parse(entry.updatedAt);
