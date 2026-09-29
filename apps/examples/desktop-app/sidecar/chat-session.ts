@@ -1095,7 +1095,16 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
-	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
+	const attachReply = await binding.hubClient.command(
+		"session.attach",
+		{ sessionId },
+		sessionId,
+	);
+	// The Hub refuses to rebuild a session another connected client is driving
+	// (session_wrong_client on start); it reports that here so the webview can
+	// say so up front.
+	const ownedByAnotherClient =
+		attachReply?.payload?.ownedByAnotherClient === true;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
@@ -1149,6 +1158,7 @@ async function handleAttach(
 		workspaceRoot: session.workspaceRoot,
 		prompt: session.prompt,
 		metadata,
+		ownedByAnotherClient,
 	};
 }
 

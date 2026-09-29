@@ -224,7 +224,10 @@ export function ensureSessionState(
 		if (options.interactive !== undefined) {
 			existing.interactive = options.interactive;
 		}
-		if (role === "creator" && !existing.createdByClientId) {
+		// Whoever just (re)built the runtime drives it: a successful create or
+		// restore transfers ownership, so a client that resumed a finished
+		// session is not later refused as if the previous creator still owned it.
+		if (role === "creator") {
 			existing.createdByClientId = clientId;
 		}
 		if (!existing.participants.has(clientId)) {

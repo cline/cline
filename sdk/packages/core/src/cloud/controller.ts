@@ -2614,7 +2614,11 @@ export class CloudSessionController {
 				throw new Error("Cloud Hub did not restore the requested session.");
 			}
 		} catch (error) {
-			if ((error as { code?: string })?.code !== "session_already_exists")
+			// Another viewer restored the task first: concurrently (the Hub
+			// serialized the two starts) or earlier (it now owns the live
+			// runtime). Either way the runtime exists; attach to it.
+			const code = (error as { code?: string })?.code;
+			if (code !== "session_already_exists" && code !== "session_wrong_client")
 				throw error;
 			this.assertSessionActive(connection.remote.id, connection);
 			await probe();

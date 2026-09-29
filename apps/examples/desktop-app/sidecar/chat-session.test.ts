@@ -413,6 +413,44 @@ describe("pathless session starts", () => {
 });
 
 describe("environment-bound session attach", () => {
+	it.each([
+		true,
+		false,
+	])("forwards the Hub's ownedByAnotherClient=%s verdict to the webview", async (ownedByAnotherClient) => {
+		const sessionId = "shared-session";
+		const get = vi.fn(async () => ({
+			sessionId,
+			status: "idle",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+		}));
+		const command = vi.fn(async () => ({
+			ok: true,
+			payload: { session: { sessionId }, ownedByAnotherClient },
+		}));
+		const ctx = {
+			...localRuntimeContext({ get }, { sessionIds: [sessionId] }),
+			liveSessions: new Map(),
+		} as unknown as SidecarContext;
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing local test binding");
+		binding.hubClient = { command } as unknown as typeof binding.hubClient;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "attach",
+			sessionId,
+		})) as { ownedByAnotherClient?: boolean };
+
+		expect(command).toHaveBeenCalledWith(
+			"session.attach",
+			{ sessionId },
+			sessionId,
+		);
+		expect(result.ownedByAnotherClient).toBe(ownedByAnotherClient);
+	});
+
 	it("does not fall through to another host when the requested environment lacks the session", async () => {
 		const sessionId = "same-session-id";
 		const localGet = vi.fn(async () => ({
