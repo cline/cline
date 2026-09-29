@@ -61,6 +61,115 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
+	describe("session.create against a session another client is driving", () => {
+		const liveSession = {
+			sessionId: "shared-task",
+			status: "idle",
+			startedAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			workspaceRoot: "/tmp/project",
+			cwd: "/tmp/project",
+		};
+
+		function createOwnedTransport(status = "idle") {
+			const startSession = vi
+				.fn()
+				.mockRejectedValue(new SessionAlreadyExistsError("shared-task"));
+			const transport = createTransport({
+				sessionHost: {
+					startSession,
+					getSession: vi.fn().mockResolvedValue({ ...liveSession, status }),
+				},
+			});
+			const ctx = getContext(transport);
+			ctx.clients.set("owner-client", {
+				clientId: "owner-client",
+				clientType: "cli",
+				displayName: "Cline CLI",
+			} as never);
+			ensureSessionState(ctx, "shared-task", "owner-client", "creator");
+			return { transport, ctx, startSession };
+		}
+
+		const createFrom = (transport: HubServerTransport, clientId: string) =>
+			transport.handleCommand({
+				version: "v1",
+				requestId: `create-${clientId}`,
+				command: "session.create",
+				clientId,
+				payload: { sessionConfig: { sessionId: "shared-task" } },
+			});
+
+		it("refuses another connected client and names the owner", async () => {
+			const { transport, startSession } = createOwnedTransport();
+			const reply = await createFrom(transport, "second-client");
+			expect(reply).toMatchObject({
+				ok: false,
+				error: {
+					code: "session_wrong_client",
+					message: expect.stringContaining("Cline CLI (owner-client)"),
+				},
+			});
+			expect(startSession).not.toHaveBeenCalled();
+		});
+
+		it("lets the owner rebuild its own session", async () => {
+			const { transport, startSession } = createOwnedTransport();
+			const reply = await createFrom(transport, "owner-client");
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_already_exists" },
+			});
+			expect(startSession).toHaveBeenCalledOnce();
+		});
+
+		it("frees the id once the owner disconnects", async () => {
+			const { transport, startSession } = createOwnedTransport();
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "bye",
+				command: "client.unregister",
+				clientId: "owner-client",
+			});
+			const reply = await createFrom(transport, "second-client");
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_already_exists" },
+			});
+			expect(startSession).toHaveBeenCalledOnce();
+		});
+
+		it("session.attach reports the same judgement to viewers", async () => {
+			const { transport } = createOwnedTransport();
+			const attachFrom = (clientId: string) =>
+				transport.handleCommand({
+					version: "v1",
+					requestId: `attach-${clientId}`,
+					command: "session.attach",
+					clientId,
+					sessionId: "shared-task",
+				});
+			expect(await attachFrom("second-client")).toMatchObject({
+				ok: true,
+				payload: { ownedByAnotherClient: true },
+			});
+			expect(await attachFrom("owner-client")).toMatchObject({
+				ok: true,
+				payload: { ownedByAnotherClient: false },
+			});
+		});
+
+		it("does not treat a finished session's stale creator as an owner", async () => {
+			const { transport, startSession } = createOwnedTransport("completed");
+			const reply = await createFrom(transport, "second-client");
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_already_exists" },
+			});
+			expect(startSession).toHaveBeenCalledOnce();
+		});
+	});
+
 	it("serializes duplicate session creation as session_already_exists", async () => {
 		const transport = createTransport({
 			sessionHost: {

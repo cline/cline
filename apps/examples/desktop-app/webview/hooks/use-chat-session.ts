@@ -3938,6 +3938,7 @@ export function useChatSession(environmentId: string) {
 						branch?: string;
 						prompt?: string;
 						environmentId?: string;
+						ownedByAnotherClient?: boolean;
 					}>("chat_session_command", {
 						request: {
 							action: "attach",
@@ -4005,6 +4006,19 @@ export function useChatSession(environmentId: string) {
 							: "This cloud session has expired and no archived history is available. Start a new cloud session to continue.",
 					);
 				}
+				// Advisory only: the Hub is the authority and refuses the rebuild on
+				// send (session_wrong_client), so the composer stays usable and the
+				// notice cannot go stale in a way that blocks the user.
+				if (attached?.ownedByAnotherClient) {
+					addMessage({
+						id: makeId("status"),
+						sessionId: session.sessionId,
+						role: "status",
+						content:
+							"This session is live in another Cline client. You can follow it here; sending will be refused until that client finishes or stops it.",
+						createdAt: Date.now(),
+					});
+				}
 
 				if (historyMessages.length > 0) {
 					setStatus(
@@ -4053,6 +4067,7 @@ export function useChatSession(environmentId: string) {
 			}
 		},
 		[
+			addMessage,
 			applyCloudSnapshotMessages,
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,

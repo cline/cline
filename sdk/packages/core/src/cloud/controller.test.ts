@@ -495,7 +495,10 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("attaches when another viewer restores the same saved task first", async () => {
+	it.each([
+		["concurrently", "session_already_exists"],
+		["earlier and still owns it", "session_wrong_client"],
+	])("attaches when another viewer restored the same saved task %s", async (_when, code) => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
 		const original = f.command.getMockImplementation()!;
@@ -507,9 +510,7 @@ describe("CloudSessionController neutral host contract", () => {
 				});
 			}
 			if (args[0] === "session.create") {
-				throw Object.assign(new Error("Already restored"), {
-					code: "session_already_exists",
-				});
+				throw Object.assign(new Error("Already restored"), { code });
 			}
 			return original(...args);
 		});

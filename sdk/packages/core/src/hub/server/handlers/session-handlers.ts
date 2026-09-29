@@ -1,5 +1,6 @@
 import type {
 	ClientContext,
+	HubClientRecord,
 	HubCommandEnvelope,
 	HubCommandInput,
 	HubReplyEnvelope,
@@ -28,6 +29,7 @@ import {
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
 import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
+import { isNonTerminalSessionStatus } from "../../../types/common";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
@@ -204,6 +206,35 @@ function getCapabilityOwnerClientId(
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
+/**
+ * The client currently driving a session's resident runtime, if any.
+ *
+ * Ownership is recorded when a client's `session.create` succeeds and is
+ * cleared when that client detaches or disconnects, so a stale owner cannot
+ * outlive its connection. It can outlive the runtime, though (a one-shot that
+ * finished, a session released without the creator detaching), so a
+ * terminal session status means "nothing live to own" and yields undefined.
+ */
+async function resolveLiveSessionOwner(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<HubClientRecord | undefined> {
+	const ownerClientId = getCapabilityOwnerClientId(ctx, sessionId);
+	if (!ownerClientId) return undefined;
+	const owner = ctx.clients.get(ownerClientId);
+	if (!owner) return undefined;
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (!session || !isNonTerminalSessionStatus(session.status)) {
+		return undefined;
+	}
+	return owner;
+}
+
+function describeLiveSessionOwner(owner: HubClientRecord): string {
+	const label = owner.displayName?.trim() || owner.clientType;
+	return `${label} (${owner.clientId})`;
+}
+
 /** `null` is meaningful for prompt/title updates (it clears the field). */
 function asNullableString(value: unknown): string | null | undefined {
 	return typeof value === "string" || value === null ? value : undefined;
@@ -363,6 +394,19 @@ async function createSession(
 			? sessionConfig.sessionId.trim()
 			: "";
 	const sessionId = requestedSessionId || createSessionId();
+	if (requestedSessionId) {
+		// Naming a resident session rebuilds it in place. Another connected
+		// client that is driving it must not have its runtime pulled out from
+		// under it; once that client detaches or disconnects the id is free.
+		const owner = await resolveLiveSessionOwner(ctx, sessionId);
+		if (owner && owner.clientId !== clientId) {
+			return errorReply(
+				envelope,
+				"session_wrong_client",
+				`Session ${sessionId} is live in another Cline client, ${describeLiveSessionOwner(owner)}. Wait for it to finish there or stop it before continuing here.`,
+			);
+		}
+	}
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
@@ -901,7 +945,15 @@ export async function handleSessionAttach(
 			sessionId,
 		),
 	);
-	return okReply(envelope, { session: attachedSession ?? session });
+	// Same judgement session.create makes, so a viewer can tell in advance
+	// that a rebuild from here would be refused.
+	const owner = await resolveLiveSessionOwner(ctx, sessionId);
+	return okReply(envelope, {
+		session: attachedSession ?? session,
+		ownedByAnotherClient: Boolean(
+			owner && owner.clientId !== (envelope.clientId?.trim() || "hub-client"),
+		),
+	});
 }
 
 export async function handleSessionDetach(
