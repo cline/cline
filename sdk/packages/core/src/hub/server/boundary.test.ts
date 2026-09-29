@@ -63,19 +63,26 @@ describe("HubServerTransport boundaries", () => {
 	}
 
 	it.each([
-		true,
-		false,
-	])("reports actual runtime attachment without agent metadata (resident=%s)", async (resident) => {
+		[true, "owner-client"],
+		[true, "second-client"],
+		[false, "second-client"],
+	] as const)("reports runtime residency and ownership (%s, %s)", async (resident, clientId) => {
 		const attachSession = vi
 			.fn()
 			.mockResolvedValue(resident ? { sessionId: "session-1" } : undefined);
 		const transport = createTransport({ sessionHost: { attachSession } });
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"owner-client",
+			"creator",
+		);
 		try {
 			const reply = await transport.handleCommand({
 				version: "v1",
 				requestId: "attach-resident",
 				command: "session.attach",
-				clientId: "second-client",
+				clientId,
 				sessionId: "session-1",
 			});
 			expect(attachSession).toHaveBeenCalledWith("session-1");
@@ -83,6 +90,7 @@ describe("HubServerTransport boundaries", () => {
 				ok: true,
 				payload: {
 					runtimeAttached: resident,
+					ownedByAnotherClient: resident && clientId !== "owner-client",
 					snapshot: { sessionId: "session-1" },
 				},
 			});

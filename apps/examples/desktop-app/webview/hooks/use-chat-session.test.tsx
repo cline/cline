@@ -435,6 +435,39 @@ describe("useChatSession", () => {
 		workspaceRoot: "/workspace",
 	};
 
+	it("blocks submitting to another client's session and clears read-only state on reset", async () => {
+		invokeMock.mockImplementation(async (command, args) => {
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "attach"
+			) {
+				return {
+					sessionId: "external-session",
+					status: "idle",
+					readOnly: true,
+					...cloudSessionConfig,
+				};
+			}
+			return [];
+		});
+		await act(async () =>
+			current.hydrateSession({
+				sessionId: "external-session",
+				status: "completed",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(true);
+		invokeMock.mockClear();
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+		});
+		expect(invokeMock).not.toHaveBeenCalled();
+		await act(async () => current.reset());
+		expect(current.isSessionReadOnly).toBe(false);
+	});
+
 	it("accepts a running snapshot when a repeated prompt has a new canonical id", async () => {
 		const sessionId = "session-repeated-status";
 		invokeMock.mockImplementation(

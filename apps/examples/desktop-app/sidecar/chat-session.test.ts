@@ -1403,6 +1403,31 @@ describe("first-send connection updates", () => {
 		}
 	});
 
+	it.each([
+		true,
+		false,
+	])("reports desktop read-only access for external ownership (%s)", async (ownedByAnotherClient) => {
+		const { ctx, sessionId } = createContext();
+		const manager = localSessionManager(ctx) as unknown as Record<
+			string,
+			unknown
+		>;
+		manager.get = vi
+			.fn()
+			.mockResolvedValue({
+				status: "idle",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+			});
+		manager.attach = vi
+			.fn()
+			.mockResolvedValue({ sessionId, ownedByAnotherClient });
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ sessionId, readOnly: ownedByAnotherClient });
+	});
+
 	it("preserves tracked attachments across re-attach", async () => {
 		const { ctx, sessionId } = createContext();
 		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;

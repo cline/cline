@@ -30,6 +30,7 @@ import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
+	AttachSessionResult,
 	ListSessionsOptions,
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
@@ -842,7 +843,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async attachSession(
 		sessionId: string,
-	): Promise<StartSessionResult | undefined> {
+	): Promise<AttachSessionResult | undefined> {
 		const target = sessionId.trim();
 		if (!target) return undefined;
 		const subscribed = this.hasSessionSubscription(target);
@@ -862,6 +863,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				throw new Error("Hub attach did not return a session snapshot");
 			return {
 				sessionId: target,
+				ownedByAnotherClient: reply.payload?.ownedByAnotherClient === true,
 				manifest: sessionSnapshotToManifest(snapshot),
 				manifestPath: "",
 				messagesPath: "",

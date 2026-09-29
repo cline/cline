@@ -1100,6 +1100,7 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
+	const attachment = await manager.attach(sessionId);
 	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
@@ -1148,6 +1149,7 @@ async function handleAttach(
 		sessionId,
 		environmentId: binding.environmentId,
 		status: session.status,
+		readOnly: attachment?.ownedByAnotherClient === true,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,

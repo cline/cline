@@ -914,6 +914,11 @@ export async function handleSessionAttach(
 	return okReply(envelope, {
 		session: attachedSession ?? session,
 		runtimeAttached: resident !== undefined,
+		ownedByAnotherClient: Boolean(
+			resident &&
+				getCapabilityOwnerClientId(ctx, sessionId) &&
+				getCapabilityOwnerClientId(ctx, sessionId) !== envelope.clientId,
+		),
 		...(snapshot ? { snapshot } : {}),
 	});
 }

@@ -256,6 +256,11 @@ export interface StartSessionResult {
 	result?: AgentResult;
 }
 
+export interface AttachSessionResult extends StartSessionResult {
+	/** A different client owns the resident runtime and its capabilities. */
+	ownedByAnotherClient: boolean;
+}
+
 export interface SendSessionInput {
 	sessionId: string;
 	prompt: string;
@@ -381,7 +386,7 @@ export interface ListSessionsOptions {
 export interface RuntimeHost {
 	readonly runtimeAddress?: string;
 	/** Subscribe to a resident session without replacing its runtime or owner. */
-	attachSession(sessionId: string): Promise<StartSessionResult | undefined>;
+	attachSession(sessionId: string): Promise<AttachSessionResult | undefined>;
 	startSession(input: StartSessionInput): Promise<StartSessionResult>;
 	runTurn(input: SendSessionInput): Promise<AgentResult | undefined>;
 	restoreSession(input: RestoreSessionInput): Promise<RestoreSessionResult>;

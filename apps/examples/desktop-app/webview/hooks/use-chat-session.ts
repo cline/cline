@@ -562,6 +562,11 @@ export function useChatSession(environmentId: string) {
 		[environmentId],
 	);
 	const [sessionId, setSessionId] = useState<string | null>(null);
+	const [readOnlySessionId, setReadOnlySessionId] = useState<string | null>(
+		null,
+	);
+	const isSessionReadOnly =
+		sessionId !== null && readOnlySessionId === sessionId;
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
 	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
@@ -2701,7 +2706,7 @@ export function useChatSession(environmentId: string) {
 				inNewWorktree?: boolean;
 			},
 		): Promise<boolean> => {
-			if (isCloudSessionExpired) return false;
+			if (isCloudSessionExpired || isSessionReadOnly) return false;
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
 
@@ -3558,6 +3563,7 @@ export function useChatSession(environmentId: string) {
 			environmentId,
 			hydratedHistorySessionId,
 			isCloudSessionExpired,
+			isSessionReadOnly,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
 			reportSessionStartFailure,
@@ -3749,6 +3755,7 @@ export function useChatSession(environmentId: string) {
 		hydrationRequestIdRef.current += 1;
 		const activeSessionId = sessionId;
 		setSessionId(null);
+		setReadOnlySessionId(null);
 		setStatus("idle");
 		setIsHydratingSession(false);
 		setIsCloudSessionExpired(false);
@@ -3930,6 +3937,7 @@ export function useChatSession(environmentId: string) {
 				const attached = await desktopClient
 					.invoke<{
 						sessionId?: string;
+						readOnly?: boolean;
 						status?: string;
 						provider?: string;
 						model?: string;
@@ -3962,6 +3970,7 @@ export function useChatSession(environmentId: string) {
 						return undefined;
 					});
 				if (hydrationRequestIdRef.current !== requestId) return;
+				setReadOnlySessionId(attached?.readOnly ? session.sessionId : null);
 				if (
 					attached?.environmentId !== undefined &&
 					attached.environmentId !== environmentId
@@ -4225,6 +4234,7 @@ export function useChatSession(environmentId: string) {
 
 	return {
 		sessionId,
+		isSessionReadOnly,
 		status,
 		isCloudSessionExpired,
 		chatTransportState,

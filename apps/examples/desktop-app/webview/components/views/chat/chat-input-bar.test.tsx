@@ -195,6 +195,7 @@ async function renderVoiceComposer({
 	promptVersion = 0,
 	status = "idle",
 	readOnly = false,
+	readOnlyReason,
 	executionTarget,
 	onAttachFiles = vi.fn(),
 }: {
@@ -208,6 +209,7 @@ async function renderVoiceComposer({
 	promptVersion?: number;
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
+	readOnlyReason?: string;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
@@ -216,6 +218,7 @@ async function renderVoiceComposer({
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
 					readOnly={readOnly}
+					readOnlyReason={readOnlyReason}
 					executionTarget={executionTarget}
 					attachments={attachments}
 					gitBranch="main"
@@ -254,6 +257,32 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("explains external ownership and disables the composer without discarding its draft", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({
+			readOnly: true,
+			readOnlyReason: "This session is open in another client.",
+			prompt: "draft",
+			onSend,
+		});
+		expect(container.textContent).toContain(
+			"This session is open in another client.",
+		);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("draft");
+		expect(textarea?.matches(":disabled")).toBe(true);
+		expect(
+			container
+				.querySelector('[aria-label="Send message"]')
+				?.matches(":disabled"),
+		).toBe(true);
+		expect(onSend).not.toHaveBeenCalled();
+		await renderVoiceComposer({ prompt: "draft", onSend });
+		expect(container.querySelector("textarea")?.matches(":disabled")).toBe(
+			false,
+		);
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });

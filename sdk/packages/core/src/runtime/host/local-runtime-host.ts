@@ -130,6 +130,7 @@ import {
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
 import type {
+	AttachSessionResult,
 	ListSessionsOptions,
 	PendingPromptsServiceApi,
 	ResolvedStartSessionInput,
@@ -417,7 +418,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async attachSession(
 		sessionId: string,
-	): Promise<StartSessionResult | undefined> {
+	): Promise<AttachSessionResult | undefined> {
 		const active = this.sessions.get(sessionId.trim());
 		if (!active) return undefined;
 		const snapshot = createCoreSessionSnapshot({
@@ -425,6 +426,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 		return {
 			sessionId: active.sessionId,
+			ownedByAnotherClient: false,
 			manifest: sessionSnapshotToManifest(snapshot),
 			manifestPath: active.artifacts?.manifestPath ?? "",
 			messagesPath: active.artifacts?.messagesPath ?? "",

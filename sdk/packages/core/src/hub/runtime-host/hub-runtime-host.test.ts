@@ -91,6 +91,7 @@ describe("HubRuntimeHost", () => {
 		commandMock.mockResolvedValue({
 			payload: {
 				runtimeAttached: true,
+				ownedByAnotherClient: true,
 				session: {
 					sessionId: "shared",
 				},
@@ -120,6 +121,7 @@ describe("HubRuntimeHost", () => {
 		cli.subscribe((event) => cliEvents.push(event));
 		await expect(desktop.attachSession("shared")).resolves.toMatchObject({
 			sessionId: "shared",
+			ownedByAnotherClient: true,
 		});
 		await expect(cli.attachSession("shared")).resolves.toMatchObject({
 			sessionId: "shared",
