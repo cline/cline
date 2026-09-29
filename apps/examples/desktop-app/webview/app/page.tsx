@@ -81,13 +81,6 @@ import {
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
-	readExecutionTargetSelectionFromWindow,
-	writeCloudBranchToWindow,
-	writeCloudModelToWindow,
-	writeCloudRepoUrlToWindow,
-	writeExecutionTargetToWindow,
-} from "@/lib/execution-target-selection";
-import {
 	cloudImageAttachmentError,
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
@@ -95,6 +88,11 @@ import {
 } from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
+import {
+	readModelSelectionStorageFromWindow,
+	writeExecutionTargetToWindow,
+	writeModelSelectionStorageToWindow,
+} from "@/lib/model-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -2135,17 +2133,15 @@ function ChatThreadPane({
 						workspaceRoot: prev.workspaceRoot,
 						cwd: prev.cwd,
 					};
-					// Same model and repo a new Cloud thread would open on.
-					const remembered = readExecutionTargetSelectionFromWindow();
+					// Restore the model remembered for Cloud.
+					const remembered = readModelSelectionStorageFromWindow("cloud");
 					return {
 						...prev,
 						executionTarget: "cloud",
 						provider: "cline",
 						model:
-							remembered.cloudModel ||
+							remembered.lastModelByProvider.cline ||
 							(prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID),
-						repoUrl: remembered.cloudRepoUrl || undefined,
-						branch: remembered.cloudBranch || undefined,
 						apiKey: providerCredentials.cline?.apiKey ?? "",
 						workspaceRoot: "",
 						cwd: "",
@@ -2221,12 +2217,8 @@ function ChatThreadPane({
 		sessionId,
 	]);
 
-	// Only a real pick is remembered: the composer also clears the repo/branch
-	// itself (e.g. while GitHub is not connected for the current account), and
-	// that must not erase the memory.
 	const handleCloudRepoUrlChange = useCallback(
 		(repoUrl: string) => {
-			if (repoUrl.trim()) writeCloudRepoUrlToWindow(repoUrl);
 			setConfig((prev) =>
 				prev.repoUrl === repoUrl ? prev : { ...prev, repoUrl },
 			);
@@ -2236,7 +2228,6 @@ function ChatThreadPane({
 
 	const handleCloudBranchChange = useCallback(
 		(branch: string) => {
-			if (branch.trim()) writeCloudBranchToWindow(branch);
 			setConfig((prev) =>
 				prev.branch === branch ? prev : { ...prev, branch },
 			);
@@ -2272,7 +2263,17 @@ function ChatThreadPane({
 			// The model picker only persists local picks (the cloud catalog
 			// differs), so cloud picks are remembered here instead.
 			if (config.executionTarget === "cloud") {
-				writeCloudModelToWindow(nextModel);
+				try {
+					writeModelSelectionStorageToWindow(
+						{
+							lastProvider: "cline",
+							lastModelByProvider: { cline: nextModel },
+						},
+						"cloud",
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 			}
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
@@ -2498,13 +2499,8 @@ function ChatThreadPane({
 		);
 	}
 
-	const composer = ({
-		cloudRepositoryReady,
-	}: {
-		cloudRepositoryReady: boolean;
-	}) => (
+	const composer = (
 		<ChatInputBar
-			cloudRepositoryReady={cloudRepositoryReady}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}

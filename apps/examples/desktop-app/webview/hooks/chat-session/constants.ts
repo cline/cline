@@ -2,9 +2,9 @@ import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
 	type ExecutionTarget,
-	readExecutionTargetSelectionFromWindow,
-} from "@/lib/execution-target-selection";
-import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
+	readExecutionTargetFromWindow,
+	readModelSelectionStorageFromWindow,
+} from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
@@ -75,11 +75,10 @@ export function getInitialChatConfig(
 		cwd: workspaceSelection.lastWorkspace,
 	};
 	// Cloud is only offered for the local environment; SSH hosts run locally.
-	const remembered = readExecutionTargetSelectionFromWindow();
 	const executionTarget =
 		options?.executionTarget ??
 		(environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
-			? remembered.target
+			? readExecutionTargetFromWindow()
 			: "local");
 	if (executionTarget !== "cloud") {
 		return local;
@@ -90,12 +89,10 @@ export function getInitialChatConfig(
 		executionTarget: "cloud",
 		provider: DEFAULT_CHAT_CONFIG.provider,
 		model:
-			remembered.cloudModel ||
+			readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
 			(provider === DEFAULT_CHAT_CONFIG.provider
 				? model
 				: DEFAULT_CHAT_CONFIG.model),
-		repoUrl: remembered.cloudRepoUrl || undefined,
-		branch: remembered.cloudBranch || undefined,
 		workspaceRoot: "",
 		cwd: "",
 	};

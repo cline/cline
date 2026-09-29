@@ -2,11 +2,11 @@
 
 import { beforeEach, expect, it, vi } from "vitest";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import {
-	readExecutionTargetSelectionFromWindow,
-	writeExecutionTargetToWindow,
-} from "./execution-target-selection";
 import { createLocalEnvironmentSelection } from "./local-environment-selection";
+import {
+	readExecutionTargetFromWindow,
+	writeExecutionTargetToWindow,
+} from "./model-selection";
 
 beforeEach(() => {
 	window.localStorage.clear();
@@ -36,7 +36,7 @@ it("waits for an explicit Local switch before mounting a draft when the event ar
 		return disconnect.promise;
 	}, selectDraft);
 	expect(selectDraft).not.toHaveBeenCalled();
-	expect(readExecutionTargetSelectionFromWindow().target).toBe("cloud");
+	expect(readExecutionTargetFromWindow()).toBe("cloud");
 	disconnect.resolve();
 	await switched;
 	expect(mountedTargets).toEqual(["local"]);
@@ -64,10 +64,10 @@ it("keeps Cloud remembered after failure and continues handling unsolicited disc
 	disconnect.reject(new Error("disconnect failed"));
 	await expect(switched).rejects.toThrow("disconnect failed");
 	expect(selectDraft).not.toHaveBeenCalled();
-	expect(readExecutionTargetSelectionFromWindow().target).toBe("cloud");
+	expect(readExecutionTargetFromWindow()).toBe("cloud");
 	selection.onDisconnected(selectDraft);
 	expect(selectDraft).toHaveBeenCalledTimes(1);
-	expect(readExecutionTargetSelectionFromWindow().target).toBe("cloud");
+	expect(readExecutionTargetFromWindow()).toBe("cloud");
 });
 
 it("retains event coordination until overlapping explicit switches have both settled", async () => {

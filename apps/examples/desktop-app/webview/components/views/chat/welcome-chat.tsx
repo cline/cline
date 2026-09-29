@@ -74,9 +74,7 @@ export function WelcomeScreen({
 }: {
 	active: boolean;
 	body: ReactNode;
-	composer:
-		| ReactNode
-		| ((state: { cloudRepositoryReady: boolean }) => ReactNode);
+	composer: ReactNode;
 	/** Rendered above the composer on the welcome state (e.g. setup notice). */
 	notice?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
@@ -104,14 +102,6 @@ export function WelcomeScreen({
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
 	const cloudSetupRequestRef = useRef(0);
-	const cloudSetupInFlightRef =
-		useRef<Promise<CloudRepositoryListResult> | null>(null);
-	// Request whose result `cloudSetup` currently reflects (every fetch that
-	// applies a result records it). The access guard only acts once this has
-	// caught up with the latest request, so a re-activated composer is never
-	// judged against the previous activation's stale results — a request
-	// starts synchronously, before any re-render.
-	const cloudSetupResultRequestRef = useRef(0);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -145,40 +135,14 @@ export function WelcomeScreen({
 			),
 		[],
 	);
-	const listCloudRepositories = useCallback(() => {
-		// The picker and background access check must observe the same result.
-		// A failed refresh must never supersede a concurrent revocation result.
-		if (cloudSetupInFlightRef.current) return cloudSetupInFlightRef.current;
+	const listCloudRepositories = useCallback(async () => {
+		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
-		setCloudSetupChecking(true);
-		const request = (async () => {
-			try {
-				const result = await fetchCloudRepositories();
-				if (cloudSetupRequestRef.current === requestId) {
-					applyCloudSetupResult(result);
-					cloudSetupResultRequestRef.current = requestId;
-				}
-				return result;
-			} catch (error) {
-				if (cloudSetupRequestRef.current === requestId) {
-					// Network failure does not revoke confirmed access. Scope
-					// changes clear ready state before starting their own check.
-					setCloudSetup((prev) => ({
-						...prev,
-						status: prev.status === "ready" ? "ready" : "error",
-					}));
-					cloudSetupResultRequestRef.current = requestId;
-				}
-				throw error;
-			} finally {
-				if (cloudSetupRequestRef.current === requestId) {
-					cloudSetupInFlightRef.current = null;
-					setCloudSetupChecking(false);
-				}
-			}
-		})();
-		cloudSetupInFlightRef.current = request;
-		return request;
+		const result = await fetchCloudRepositories();
+		if (cloudSetupRequestRef.current === requestId) {
+			applyCloudSetupResult(result);
+		}
+		return result;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
 	const listCloudBranches = useCallback(
 		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
@@ -220,45 +184,36 @@ export function WelcomeScreen({
 	cloudSetupStatusRef.current = cloudSetup.status;
 
 	const checkCloudSetup = useCallback(async () => {
+		const requestId = ++cloudSetupRequestRef.current;
+		setCloudSetupChecking(true);
 		try {
-			await listCloudRepositories();
+			const result = await fetchCloudRepositories();
+			if (cloudSetupRequestRef.current !== requestId) return;
+			applyCloudSetupResult(result);
 		} catch {
-			// The shared request publishes the setup error; picker callers also
-			// receive the rejection to render their own retry state.
+			if (cloudSetupRequestRef.current !== requestId) return;
+			setCloudSetup((prev) => ({ ...prev, status: "error" }));
+		} finally {
+			if (cloudSetupRequestRef.current === requestId) {
+				setCloudSetupChecking(false);
+			}
 		}
-	}, [listCloudRepositories]);
-	const markCloudScopeStale = useCallback(() => {
-		// A new account or activation must not reuse the old scope's request.
-		++cloudSetupRequestRef.current;
-		cloudSetupInFlightRef.current = null;
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const invalidateCloudScope = useCallback(() => {
 		setCloudSetup((prev) => ({
 			...prev,
 			status: "checking",
 			repositoryUrls: [],
 		}));
-	}, []);
-	const invalidateCloudScope = useCallback(() => {
-		markCloudScopeStale();
 		onRepoUrlChange("");
 		onCloudBranchChange("");
-	}, [markCloudScopeStale, onCloudBranchChange, onRepoUrlChange]);
+	}, [onCloudBranchChange, onRepoUrlChange]);
 
-	// Only a switch to another user invalidates the picked repo eagerly. The
-	// first check of a composer (launch, Local → Cloud) keeps a remembered
-	// repo and lets the access guard below drop it once the result is known.
-	const checkedUserIdRef = useRef<string | null>(null);
 	// GitHub setup finishes in the browser; poll while onboarding is visible.
 	useEffect(() => {
+		void accountUserId;
 		if (!cloudModeActive || !signedIn) return;
-		if (
-			checkedUserIdRef.current !== null &&
-			checkedUserIdRef.current !== accountUserId
-		) {
-			invalidateCloudScope();
-		} else {
-			markCloudScopeStale();
-		}
-		checkedUserIdRef.current = accountUserId;
+		invalidateCloudScope();
 		void checkCloudSetup();
 		const handleFocus = () => void checkCloudSetup();
 		window.addEventListener("focus", handleFocus);
@@ -277,7 +232,6 @@ export function WelcomeScreen({
 		checkCloudSetup,
 		cloudModeActive,
 		invalidateCloudScope,
-		markCloudScopeStale,
 		signedIn,
 	]);
 
@@ -360,10 +314,6 @@ export function WelcomeScreen({
 		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
 			return;
 		}
-		// A check is in flight for this activation; wait for its result.
-		if (cloudSetupResultRequestRef.current !== cloudSetupRequestRef.current) {
-			return;
-		}
 		const normalized = normalizeCloudRepositoryUrl(repoUrl);
 		if (!normalized) return;
 		if (!cloudSetup.repositoryUrls.includes(normalized)) {
@@ -409,28 +359,13 @@ export function WelcomeScreen({
 						? "error"
 						: null;
 	const showCloudOnboarding = cloudOnboardingVariant !== null;
-	// A restored URL is only a preference until the current account's
-	// repository list confirms access. Keep the draft mounted while checking.
-	const cloudRepositoryReady =
-		!active ||
-		executionTarget !== "cloud" ||
-		(cloudAgentsEnabled &&
-			signedIn &&
-			!cloudSetupChecking &&
-			checkedUserIdRef.current === accountUserId &&
-			cloudSetup.status === "ready" &&
-			cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl)));
-	const composerContent =
-		typeof composer === "function"
-			? composer({ cloudRepositoryReady })
-			: composer;
 
 	return (
 		<AgentConversationLayout
 			welcome={active}
 			body={body}
 			bodyClassName="cline-view-enter"
-			composer={composerContent}
+			composer={composer}
 			notice={notice && !showCloudOnboarding ? notice : null}
 			hideWelcomeComposer={showCloudOnboarding}
 			welcomeHeader={

@@ -317,8 +317,6 @@ type ChatInputBarProps = {
 	gitBranch: string | null;
 	executionTarget?: "local" | "cloud";
 	repoUrl?: string;
-	/** Whether the welcome screen has confirmed access to the selected repo. */
-	cloudRepositoryReady?: boolean;
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
@@ -368,7 +366,6 @@ function ChatInputBarImpl({
 	gitBranch,
 	executionTarget = "local",
 	repoUrl,
-	cloudRepositoryReady = true,
 	cloudBranch,
 	hasActiveSession = false,
 	promptDraft,
@@ -475,11 +472,6 @@ function ChatInputBarImpl({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
-	const checkingCloudRepository =
-		executionTarget === "cloud" &&
-		!hasActiveSession &&
-		!needsCloudRepository &&
-		!cloudRepositoryReady;
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
@@ -543,11 +535,7 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend =
-		hasDraft &&
-		!speechInputActive &&
-		!needsCloudRepository &&
-		!checkingCloudRepository &&
-		!readOnly;
+		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -575,7 +563,7 @@ function ChatInputBarImpl({
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository || checkingCloudRepository) return;
+		if (needsCloudRepository) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -588,7 +576,6 @@ function ChatInputBarImpl({
 		setPromptInput("");
 		onSend(prompt);
 	}, [
-		checkingCloudRepository,
 		needsCloudRepository,
 		readOnly,
 		onSend,
@@ -1389,14 +1376,12 @@ function ChatInputBarImpl({
 							value={promptInput}
 						/>
 						<AgentComposerActions variant={variant}>
-							{needsCloudRepository || checkingCloudRepository ? (
+							{needsCloudRepository ? (
 								<span
 									aria-live="polite"
 									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
 								>
-									{needsCloudRepository
-										? "Repository required"
-										: "Checking repository access…"}
+									Repository required
 								</span>
 							) : null}
 							{canAbort && (
@@ -1445,9 +1430,7 @@ function ChatInputBarImpl({
 									title={
 										needsCloudRepository
 											? "Choose a repository"
-											: checkingCloudRepository
-												? "Checking repository access…"
-												: "Send (Enter)"
+											: "Send (Enter)"
 									}
 									type="button"
 								>

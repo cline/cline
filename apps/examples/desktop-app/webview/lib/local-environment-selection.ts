@@ -1,4 +1,4 @@
-import { writeExecutionTargetToWindow } from "./execution-target-selection";
+import { writeExecutionTargetToWindow } from "./model-selection";
 
 /** Coordinate the disconnect event with the command that explicitly picks Local. */
 export function createLocalEnvironmentSelection() {
