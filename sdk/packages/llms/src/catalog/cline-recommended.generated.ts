@@ -5,6 +5,18 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "anthropic/claude-sonnet-5.5",
+				name: "claude-sonnet-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
+				id: "anthropic/claude-opus-5.5",
+				name: "claude-opus-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "spacexai/grok-4.7",
 				name: "grok-4.7",
 				description: "",
@@ -23,14 +35,14 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 					"Kimi K3 is Moonshot AI’s new flagship MoE model for agentic coding",
 				tags: ["NEW"],
 			},
-			{
-				id: "anthropic/claude-opus-5",
-				name: "claude-opus-5",
-				description: "",
-				tags: ["NEW"],
-			},
 		],
 		free: [
+			{
+				id: "stealth/pixel-canary",
+				name: "Pixel Canary",
+				description: "Anonymous large model with strong coding capabilities",
+				tags: [],
+			},
 			{
 				id: "stealth/space-bunny-alpha",
 				name: "space-bunny-alpha",
@@ -115,15 +127,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{
