@@ -167,6 +167,8 @@ export function createPullRequestStatusReader({
 		);
 		const repository = githubRepository(remote);
 		if (!repository) return null;
+		let base: string | undefined;
+		let pr: GitHubPullRequest | null;
 		try {
 			if (!(await isAvailable(cwd))) return null;
 			const repo = JSON.parse(
@@ -176,7 +178,7 @@ export function createPullRequestStatusReader({
 					cwd,
 				),
 			) as { defaultBranchRef: { name: string } | null };
-			const base = repo.defaultBranchRef?.name;
+			base = repo.defaultBranchRef?.name;
 			// The default branch can have years-old PRs from earlier branch workflows.
 			// Those do not describe the current work, and it is not a PR source branch.
 			if (branch === base) return null;
@@ -211,7 +213,7 @@ export function createPullRequestStatusReader({
 			);
 			const candidate =
 				candidates.find((pr) => pr.state === "OPEN") ?? candidates[0];
-			const pr = candidate
+			pr = candidate
 				? (JSON.parse(
 						await run(
 							"gh",
@@ -228,8 +230,23 @@ export function createPullRequestStatusReader({
 						),
 					) as GitHubPullRequest)
 				: null;
-			let createUrl: string | null = null;
-			if (!pr && base) {
+		} catch (error) {
+			// Only gh failures can invalidate availability shared across workspaces.
+			if (
+				commandErrorCode(error) === "ENOENT" ||
+				isAuthenticationFailure(error)
+			) {
+				markUnavailable();
+				return null;
+			}
+			throw new Error(
+				"Could not load pull request status. Check your connection and try again.",
+			);
+		}
+
+		let createUrl: string | null = null;
+		if (!pr && base) {
+			try {
 				// Query origin directly: local tracking refs can be stale or absent.
 				const branchRef = `refs/heads/${branch}`;
 				const remoteRefs = await run(
@@ -244,39 +261,32 @@ export function createPullRequestStatusReader({
 				) {
 					createUrl = `https://github.com/${repository}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}?expand=1`;
 				}
+			} catch {
+				// Git transport credentials are independent of gh authentication.
+				throw new Error(
+					"Could not load pull request status. Check your connection and try again.",
+				);
 			}
-			return {
-				repository,
-				branch,
-				createUrl,
-				pullRequest: pr
-					? {
-							number: pr.number,
-							title: pr.title,
-							url: pr.url,
-							state: pr.state,
-							isDraft: pr.isDraft,
-							mergeable: pr.mergeable,
-							mergeStateStatus: pr.mergeStateStatus,
-							additions: pr.additions,
-							deletions: pr.deletions,
-							checks: (pr.statusCheckRollup ?? []).map(normalizeCheck),
-						}
-					: null,
-			};
-		} catch (error) {
-			// Authentication can expire while a positive availability result is cached.
-			if (
-				commandErrorCode(error) === "ENOENT" ||
-				isAuthenticationFailure(error)
-			) {
-				markUnavailable();
-				return null;
-			}
-			throw new Error(
-				"Could not load pull request status. Check your connection and try again.",
-			);
 		}
+		return {
+			repository,
+			branch,
+			createUrl,
+			pullRequest: pr
+				? {
+						number: pr.number,
+						title: pr.title,
+						url: pr.url,
+						state: pr.state,
+						isDraft: pr.isDraft,
+						mergeable: pr.mergeable,
+						mergeStateStatus: pr.mergeStateStatus,
+						additions: pr.additions,
+						deletions: pr.deletions,
+						checks: (pr.statusCheckRollup ?? []).map(normalizeCheck),
+					}
+				: null,
+		};
 	};
 }
 

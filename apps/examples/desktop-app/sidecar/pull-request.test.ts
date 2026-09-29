@@ -134,6 +134,47 @@ describe("pull request status", () => {
 		expect((await read("/repo"))?.createUrl).toBeTruthy();
 	});
 	it.each([
+		{ name: "HTTP 401", code: 128, stderr: "remote: HTTP 401" },
+		{ name: "bad credentials", code: 128, stderr: "remote: Bad credentials" },
+		{ name: "missing Git", code: "ENOENT", stderr: "" },
+		{ name: "timeout", code: "ETIMEDOUT", stderr: "" },
+		{ name: "network failure", code: 128, stderr: "Could not resolve host" },
+	])("keeps shared gh availability after a Git $name failure", async (failure) => {
+		const healthy = runner();
+		const failing = runner([]);
+		let remoteFailed = true;
+		const run = vi.fn(async (file: string, args: string[], cwd: string) => {
+			if (cwd === "/healthy") return healthy(file, args, cwd);
+			if (file === "git" && args[0] === "ls-remote" && remoteFailed) {
+				throw Object.assign(new Error("private Git error"), {
+					code: failure.code,
+					stderr: failure.stderr,
+				});
+			}
+			return failing(file, args, cwd);
+		});
+		// Freeze the clock: other workspaces and retries must not need the cooldown.
+		const read = createPullRequestStatusReader({ run, now: () => 0 });
+		expect((await read("/healthy"))?.pullRequest?.number).toBe(42);
+		await expect(read("/failing")).rejects.toEqual(
+			new Error(
+				"Could not load pull request status. Check your connection and try again.",
+			),
+		);
+		const previousCalls = healthy.mock.calls.length;
+		expect((await read("/healthy"))?.pullRequest?.number).toBe(42);
+		expect(healthy.mock.calls.length).toBeGreaterThan(previousCalls);
+		remoteFailed = false;
+		expect((await read("/failing"))?.createUrl).toBe(
+			"https://github.com/cline/cline/compare/main...feature%2Fpr-ui?expand=1",
+		);
+		expect(
+			run.mock.calls.filter(
+				([file, args]) => file === "gh" && args[0] === "auth",
+			),
+		).toHaveLength(1);
+	});
+	it.each([
 		"OPEN",
 		"MERGED",
 		"CLOSED",
