@@ -815,6 +815,7 @@ export function MarketplaceExplorerView() {
 						{showConnectors ? (
 							<section className="grid gap-1" aria-label="Connectors">
 								<h2 className="flex items-center gap-1.5 px-2.5 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+									<Badge className="normal-case tracking-normal">Beta</Badge>
 									<Cable className="size-3.5 text-primary" />
 									Connectors
 									<span className="font-normal text-muted-foreground/70">

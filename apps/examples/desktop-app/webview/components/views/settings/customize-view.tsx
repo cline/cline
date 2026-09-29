@@ -2,6 +2,7 @@
 
 import { Store } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	fetchComposioStatus,
@@ -170,6 +171,7 @@ export function CustomizeView({
 							variant="ghost"
 						>
 							{customizeTab.label}
+							{customizeTab.id === "integrations" ? <Badge>Beta</Badge> : null}
 							{typeof count === "number" ? (
 								<span
 									className={cn(
