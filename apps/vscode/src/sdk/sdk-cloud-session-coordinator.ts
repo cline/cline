@@ -739,9 +739,10 @@ export class SdkCloudSessionCoordinator {
 	/**
 	 * Fetches the recommendation list so the composer label moves from the
 	 * built-in fallback to the live recommendation before the user submits.
-	 * State is re-posted when the list lands. A fetch that fails to populate
-	 * the cache releases the handle, so the next state post retries instead of
-	 * pinning the fallback until restart.
+	 * State is re-posted only when the list lands, because that post reads
+	 * the model again and would otherwise start the next fetch. A fetch that
+	 * leaves the cache empty just releases the handle, so the next state post
+	 * the user causes retries instead of pinning the fallback until restart.
 	 */
 	private warmRecommendedModels(): void {
 		if (this.recommendedModelsWarmup || getCachedClineRecommendedModels()) {
@@ -749,7 +750,9 @@ export class SdkCloudSessionCoordinator {
 		}
 		const warmup = refreshClineRecommendedModels()
 			.then(() => {
-				if (!this.disposed) this.options.postStateToWebview().catch(() => {})
+				if (!this.disposed && getCachedClineRecommendedModels()) {
+					this.options.postStateToWebview().catch(() => {})
+				}
 			})
 			.catch(() => undefined)
 			.finally(() => {
