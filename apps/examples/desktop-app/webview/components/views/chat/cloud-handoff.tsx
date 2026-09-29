@@ -2,6 +2,16 @@
 
 import { Cloud, Copy, ExternalLink, GitFork, Loader2, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -9,6 +19,66 @@ import type {
 	HandoffReceipt as HandoffReceiptValue,
 } from "@/lib/cloud-handoff";
 import { HANDOFF_PROGRESS_LABELS } from "@/lib/cloud-handoff";
+import type { HandoffGitPreview } from "../../../../sidecar/cloud-handoff-git";
+
+export function CloudHandoffGitConfirmation({
+	plan,
+	onDecision,
+}: {
+	plan: HandoffGitPreview;
+	onDecision: (approved: boolean) => void;
+}) {
+	return (
+		<AlertDialog
+			open
+			onOpenChange={(open) => {
+				if (!open) onDecision(false);
+			}}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Prepare and continue in cloud?</AlertDialogTitle>
+					<AlertDialogDescription>
+						Cline will switch this checkout from {plan.sourceBranch} to{" "}
+						{plan.branch}, commit the files below, and publish to {plan.repoUrl}{" "}
+						({plan.remote}). Your current staging selections will be replaced.
+						Ignored files are not transferred.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<div className="max-h-64 overflow-auto text-sm">
+					<p className="font-medium">{plan.files.length} changed/new files</p>
+					<ul>
+						{plan.files.map((file) => (
+							<li className="break-all font-mono text-xs" key={file.path}>
+								{file.status} {file.path}
+							</li>
+						))}
+					</ul>
+					<p className="mt-3 font-medium">Local history being published</p>
+					<p className="text-xs text-muted-foreground">
+						The branch includes the current commit and its ancestors, plus the
+						checkpoint. These commits are not confirmed present on the remote:
+					</p>
+					<ul>
+						{plan.commits.map((commit) => (
+							<li className="break-all font-mono text-xs" key={commit}>
+								{commit}
+							</li>
+						))}
+					</ul>
+				</div>
+				<AlertDialogFooter>
+					<AlertDialogCancel onClick={() => onDecision(false)}>
+						Cancel
+					</AlertDialogCancel>
+					<AlertDialogAction onClick={() => onDecision(true)}>
+						Prepare and continue
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
 
 export function CloudHandoffProgress({
 	phase,

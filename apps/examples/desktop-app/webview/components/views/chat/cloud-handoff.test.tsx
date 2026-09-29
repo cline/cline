@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	CloudHandoffGitConfirmation,
 	CloudHandoffProgress,
 	CloudHandoffReceipt,
 	CloudHandoffRecoveryNotice,
@@ -14,8 +15,11 @@ const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
 vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
 
 let container: HTMLDivElement | null = null;
+let root: ReturnType<typeof createRoot> | null = null;
 
 afterEach(() => {
+	act(() => root?.unmount());
+	root = null;
 	container?.remove();
 	container = null;
 	toastMock.mockReset();
@@ -24,8 +28,8 @@ afterEach(() => {
 function render(node: React.ReactNode) {
 	container = document.createElement("div");
 	document.body.append(container);
-	const root = createRoot(container);
-	act(() => root.render(node));
+	root = createRoot(container);
+	act(() => root?.render(node));
 	return container;
 }
 
@@ -47,6 +51,42 @@ describe("CloudHandoffProgress", () => {
 		);
 		act(() => button?.click());
 		expect(onOpenCloud).toHaveBeenCalledOnce();
+	});
+});
+
+describe("CloudHandoffGitConfirmation", () => {
+	it.each([
+		"Cancel",
+		"Prepare and continue",
+	])("discloses scope and requires an explicit %s decision", (label) => {
+		const onDecision = vi.fn();
+		render(
+			<CloudHandoffGitConfirmation
+				plan={{
+					id: "plan",
+					repoUrl: "https://github.com/cline/todo-app",
+					remote: "origin",
+					sourceBranch: "main",
+					branch: "cline/handoff-test",
+					files: [{ path: "new.txt", status: "??" }],
+					commits: ["abc local commit"],
+				}}
+				onDecision={onDecision}
+			/>,
+		);
+		const dialog = document.querySelector('[role="alertdialog"]');
+		expect(dialog?.textContent).toContain("new.txt");
+		expect(dialog?.textContent).toContain("abc local commit");
+		expect(dialog?.textContent).toContain(
+			"staging selections will be replaced",
+		);
+		expect(onDecision).not.toHaveBeenCalled();
+		act(() =>
+			Array.from(dialog?.querySelectorAll("button") ?? [])
+				.find((button) => button.textContent === label)
+				?.click(),
+		);
+		expect(onDecision.mock.calls[0]).toEqual([label !== "Cancel"]);
 	});
 });
 
