@@ -14,7 +14,12 @@ import {
 	getDesktopFeatureFlagsService,
 	resetDesktopFeatureFlagsForTesting,
 } from "./feature-flags";
-import type { SidecarContext } from "./types";
+import { recordHubActivity } from "./hub-admin";
+import {
+	LOCAL_ENVIRONMENT_ID,
+	type SessionRuntimeBinding,
+	type SidecarContext,
+} from "./types";
 
 function createContext(): {
 	ctx: SidecarContext;
@@ -47,6 +52,36 @@ afterEach(() => {
 });
 
 describe("desktop settings commands", () => {
+	it("only returns hub notification content to trusted desktop connections", async () => {
+		const { ctx } = createContext();
+		const command = vi
+			.fn()
+			.mockResolvedValue({ ok: true, payload: { clients: [] } });
+		ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+			hubClient: { command, getUrl: () => "ws://127.0.0.1:1234/hub" },
+		} as unknown as SessionRuntimeBinding);
+		recordHubActivity(ctx, {
+			event: "ui.notify",
+			payload: { title: "Task completed", body: "Private task reply" },
+		});
+		await expect(handleCommand(ctx, "get_hub_status")).rejects.toThrow(
+			"hub status requires a trusted desktop connection",
+		);
+		await expect(
+			handleCommand(ctx, "get_hub_status", undefined, {
+				connection: { send: vi.fn(), data: { canApproveTools: false } },
+			}),
+		).rejects.toThrow("hub status requires a trusted desktop connection");
+		expect(command).not.toHaveBeenCalled();
+		const result = await handleCommand(ctx, "get_hub_status", undefined, {
+			connection: { send: vi.fn(), data: { canApproveTools: true } },
+		});
+		expect(command).toHaveBeenCalledWith("client.list");
+		expect(result).toMatchObject({
+			events: [{ title: "Task completed", detail: "Private task reply" }],
+		});
+	});
+
 	it("rejects hub restarts from untrusted connections", async () => {
 		const { ctx } = createContext();
 		await expect(handleCommand(ctx, "restart_hub")).rejects.toThrow(

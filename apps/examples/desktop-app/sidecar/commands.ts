@@ -2229,6 +2229,9 @@ export async function handleCommand(
 	}
 
 	if (command === "get_hub_status") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub status requires a trusted desktop connection");
+		}
 		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
 	}
 	if (command === "restart_hub") {
