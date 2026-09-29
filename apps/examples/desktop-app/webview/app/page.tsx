@@ -1144,6 +1144,7 @@ function ChatThreadPane({
 		abort,
 		hydrateSession,
 		isSessionReadOnly,
+		isCheckingSessionAccess,
 	} = useChatSession(environmentId);
 	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
 	// the sidebar) can close this pane even when it was not opened from history.
@@ -2410,11 +2411,15 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
-			readOnly={isCloudSessionExpired || isSessionReadOnly}
+			readOnly={
+				isCloudSessionExpired || isSessionReadOnly || isCheckingSessionAccess
+			}
 			readOnlyReason={
-				isSessionReadOnly
-					? "This session is open in another client. Continue there; live updates will appear here."
-					: undefined
+				isCheckingSessionAccess
+					? "Checking session access…"
+					: isSessionReadOnly
+						? "This session is open in another client. Continue there; live updates will appear here."
+						: undefined
 			}
 			attachments={attachmentList}
 			environmentId={environmentId}

@@ -1463,36 +1463,6 @@ describe("first-send connection updates", () => {
 		).resolves.toMatchObject({ sessionId, readOnly: ownedByAnotherClient });
 	});
 
-	it.each([
-		"steer_prompt",
-		"update_pending_prompt",
-		"remove_pending_prompt",
-	] as const)("rejects %s from a read-only viewer before changing the queue", async (action) => {
-		const { ctx, sessionId } = createContext();
-		const manager = localSessionManager(ctx) as unknown as Record<
-			string,
-			unknown
-		>;
-		manager.attach = vi
-			.fn()
-			.mockResolvedValue({ sessionId, ownedByAnotherClient: true });
-		const update = vi.fn(),
-			remove = vi.fn(),
-			steerFirst = vi.fn();
-		manager.pendingPrompts = { update, delete: remove, steerFirst };
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action,
-				sessionId,
-				promptId: "queued",
-				prompt: "changed",
-			}),
-		).rejects.toThrow("open in another client");
-		expect(update).not.toHaveBeenCalled();
-		expect(remove).not.toHaveBeenCalled();
-		expect(steerFirst).not.toHaveBeenCalled();
-	});
-
 	it("preserves tracked attachments across re-attach", async () => {
 		const { ctx, sessionId } = createContext();
 		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;

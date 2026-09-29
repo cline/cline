@@ -276,6 +276,13 @@ describe("ChatInputBar", () => {
 		const textarea = container.querySelector("textarea");
 		expect(textarea?.value).toBe("draft");
 		expect(textarea?.readOnly).toBe(true);
+		for (const label of ["Model and provider"]) {
+			const control = container.querySelector<HTMLButtonElement>(
+				`[aria-label="${label}"]`,
+			);
+			expect(control, label).not.toBeNull();
+			expect(control?.disabled, label).toBe(true);
+		}
 		const remove = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Remove draft.txt"]',
 		);
@@ -292,6 +299,19 @@ describe("ChatInputBar", () => {
 		expect(container.querySelector("textarea")?.matches(":disabled")).toBe(
 			false,
 		);
+	});
+
+	it("ignores Escape in a running read-only session", async () => {
+		const onAbort = vi.fn();
+		await renderVoiceComposer({ readOnly: true, status: "running", onAbort });
+		await act(async () => {
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+				);
+		});
+		expect(onAbort).not.toHaveBeenCalled();
 	});
 
 	it("prevents sending from a read-only session", async () => {

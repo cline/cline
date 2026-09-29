@@ -291,3 +291,20 @@ export function ensureSessionParticipant(
 	ctx.sessionState.set(sessionId, state);
 	return state;
 }
+
+/** Check the current owner at the mutation boundary, not at attachment time. */
+export function authorizeSessionMutation(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): HubReplyEnvelope | undefined {
+	const sessionId = extractSessionId(envelope);
+	const owner = ctx.sessionState.get(sessionId)?.createdByClientId;
+	if (owner && owner !== envelope.clientId?.trim()) {
+		return errorReply(
+			envelope,
+			"session_wrong_client",
+			`Session ${sessionId} is owned by ${owner}`,
+		);
+	}
+	return undefined;
+}

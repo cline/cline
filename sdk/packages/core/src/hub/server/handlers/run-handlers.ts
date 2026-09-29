@@ -14,6 +14,7 @@ import { logHubMessage } from "../hub-server-logging";
 import { cancelPendingApprovals } from "./approval-handlers";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
+	authorizeSessionMutation,
 	errorReply,
 	extractSessionId,
 	type HubTransportContext,
@@ -245,6 +246,8 @@ export async function handleSessionInput(
 	if (!session) {
 		return sessionNotFoundReply(envelope, sessionId);
 	}
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	ctx.publish(
 		ctx.buildEvent(
 			"run.started",
@@ -340,6 +343,8 @@ export async function handleRunAbort(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	const sessionId = extractSessionId(envelope);
 	const reason =
 		typeof envelope.payload?.reason === "string"
@@ -374,6 +379,8 @@ export async function handleRunProceedWhileRunning(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	const sessionId = extractSessionId(envelope);
 	if (!sessionId) {
 		return errorReply(

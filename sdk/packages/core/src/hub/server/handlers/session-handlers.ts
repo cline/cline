@@ -39,6 +39,7 @@ import {
 	asPlainRecord,
 	ensureSessionParticipant,
 	ensureSessionState,
+	authorizeSessionMutation,
 	errorReply,
 	extractSessionId,
 	type HubTransportContext,
@@ -1130,6 +1131,8 @@ export async function handleSessionUpdateConnection(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	const sessionId = extractSessionId(envelope);
 	if (!sessionId) {
 		return errorReply(
@@ -1258,6 +1261,8 @@ export async function handleSessionSteerFirstPendingPrompt(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	const sessionId = extractSessionId(envelope);
 	const service = ctx.sessionHost.pendingPrompts;
 	if (!service) {
@@ -1278,6 +1283,8 @@ export async function handleSessionUpdatePendingPrompt(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	const sessionId = extractSessionId(envelope);
 	const promptId =
 		typeof envelope.payload?.promptId === "string"
@@ -1316,6 +1323,8 @@ export async function handleSessionRemovePendingPrompt(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
+	const denied = authorizeSessionMutation(ctx, envelope);
+	if (denied) return denied;
 	const sessionId = extractSessionId(envelope);
 	const promptId =
 		typeof envelope.payload?.promptId === "string"

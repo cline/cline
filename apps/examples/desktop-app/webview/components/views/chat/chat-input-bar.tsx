@@ -1341,7 +1341,7 @@ function ChatInputBarImpl({
 										setDismissedMentionKey(mentionKey);
 										return;
 									}
-									if (e.key === "Escape" && canAbort) {
+									if (e.key === "Escape" && canAbort && !readOnly) {
 										e.preventDefault();
 										onAbort();
 										return;
@@ -1519,6 +1519,7 @@ function ChatInputBarImpl({
 						/>
 						<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 							<button
+								disabled={readOnly}
 								aria-pressed={mode === "plan"}
 								className={cn(
 									"rounded px-2 py-1 ",
@@ -1534,6 +1535,7 @@ function ChatInputBarImpl({
 								Plan
 							</button>
 							<button
+								disabled={readOnly}
 								aria-pressed={mode === "act"}
 								className={cn(
 									"rounded px-2 py-1 ",
@@ -1556,9 +1558,9 @@ function ChatInputBarImpl({
 										? CLINE_ONLY_PROVIDER_IDS
 										: undefined
 								}
-								autoCorrectModel={!cloudSettingsLocked}
+								autoCorrectModel={!cloudSettingsLocked && !readOnly}
 								includeCloudModels={executionTarget === "cloud"}
-								isBusy={isBusy}
+								isBusy={isBusy || readOnly}
 								model={model}
 								onModelChange={onModelChange}
 								onModelSupportsImagesChange={handleModelSupportsImagesChange}
@@ -1572,7 +1574,11 @@ function ChatInputBarImpl({
 							/>
 						</div>
 						<Select
-							disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
+							disabled={
+								readOnly ||
+								cloudSettingsLocked ||
+								modelSupportsReasoning !== true
+							}
 							onValueChange={handleEffortChange}
 							value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 						>
@@ -2073,6 +2079,7 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
+			if (isBusy) return;
 			if (value === ADD_PROVIDER_OPTION_VALUE) {
 				setMobileOpen(false);
 				onOpenModelSettings?.();
@@ -2099,6 +2106,7 @@ const ModelSelector = memo(function ModelSelector({
 			}
 		},
 		[
+			isBusy,
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
@@ -2111,10 +2119,11 @@ const ModelSelector = memo(function ModelSelector({
 	);
 	const handleModelSelect = useCallback(
 		(value: string) => {
+			if (isBusy) return;
 			rememberSelection(resolvedProvider, value);
 			onModelChange(value);
 		},
-		[onModelChange, rememberSelection, resolvedProvider],
+		[isBusy, onModelChange, rememberSelection, resolvedProvider],
 	);
 	// The picker only lists providers with saved settings, so it is also the
 	// natural place to reach the rest of the catalog.

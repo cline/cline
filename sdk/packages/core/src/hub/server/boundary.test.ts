@@ -102,6 +102,56 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it.each([
+		"run.start",
+		"run.abort",
+		"run.proceed_while_running",
+		"session.steer_first_pending_prompt",
+		"session.update_pending_prompt",
+		"session.remove_pending_prompt",
+	] as const)("rejects %s after ownership changes following attachment", async (command) => {
+		const mutate = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				runTurn: mutate,
+				abort: mutate,
+				proceedWhileRunning: mutate,
+				pendingPrompts: { update: mutate, delete: mutate, steerFirst: mutate },
+			},
+		});
+		try {
+			const state = ensureSessionState(
+				getContext(transport),
+				"session-1",
+				"viewer",
+				"creator",
+			);
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "attach",
+				command: "session.attach",
+				clientId: "viewer",
+				sessionId: "session-1",
+			});
+			state.createdByClientId = "new-owner";
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "mutation",
+				command,
+				clientId: "viewer",
+				sessionId: "session-1",
+				payload: { prompt: "change", promptId: "queued" },
+			});
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "session_wrong_client" },
+			});
+			expect(mutate).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("serializes duplicate session creation as session_already_exists", async () => {
 		const transport = createTransport({
 			sessionHost: {
@@ -1064,6 +1114,7 @@ describe("HubServerTransport boundaries", () => {
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-abort",
+			clientId: "client-1",
 			command: "run.abort",
 			sessionId: "session-1",
 			payload: { reason: "user cancelled" },
