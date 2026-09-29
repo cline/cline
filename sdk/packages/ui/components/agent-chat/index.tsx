@@ -25,7 +25,7 @@ import {
 	useDisclosureState,
 } from "./disclosure.js";
 
-const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
+const PINNED_THRESHOLD_PX = 24;
 const SCROLL_BUTTON_THRESHOLD_PX = 120;
 
 function classNames(...values: Array<string | undefined | false>): string {
@@ -42,10 +42,17 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
 	}
 }
 
+export type ConversationScrollState = {
+	/** Follow new content to the bottom. When true, `scrollTop` is ignored. */
+	pinned: boolean;
+	scrollTop: number;
+};
+
 export type ConversationContextValue = {
 	setContent: (element: HTMLDivElement | null) => void;
 	setViewport: (element: HTMLDivElement | null) => void;
 	showScrollButton: boolean;
+	isPinned: boolean;
 	scrollToBottom: (behavior?: ScrollBehavior) => void;
 };
 
@@ -68,166 +75,170 @@ export function useConversation(): ConversationContextValue {
 	return context;
 }
 
-export type ConversationProps = HTMLAttributes<HTMLDivElement>;
+export type ConversationProps = HTMLAttributes<HTMLDivElement> & {
+	/** Applied on first mount only; later changes are ignored. */
+	initialScrollState?: ConversationScrollState;
+	/** Fires for the reader's own scrolls, never for programmatic ones. */
+	onScrollStateChange?: (state: ConversationScrollState) => void;
+};
 
+function distanceFromBottom(viewport: HTMLDivElement): number {
+	return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+}
+
+/**
+ * The reader owns their scroll position. Only their own input un-pins the
+ * view from the bottom, and only reaching the bottom (by scrolling, the
+ * scroll button, or `scrollToBottom()`) re-pins it. Programmatic scrolls
+ * are tracked via `ourScrollTarget` so their scroll events are never
+ * mistaken for the reader's.
+ */
 export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
-	({ children, className, ...props }, ref) => {
+	(
+		{ children, className, initialScrollState, onScrollStateChange, ...props },
+		ref,
+	) => {
 		const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
 		const [content, setContent] = useState<HTMLDivElement | null>(null);
+		const [isPinned, setIsPinned] = useState(
+			initialScrollState?.pinned ?? true,
+		);
 		const [showScrollButton, setShowScrollButton] = useState(false);
-		const shouldStickToBottom = useRef(true);
-		const isProgrammaticScroll = useRef(false);
-		const lastProgrammaticScrollTop = useRef(0);
-		const lastObservedScrollTop = useRef(0);
-		const programmaticScrollTimer = useRef<number | null>(null);
+		const pinnedRef = useRef(isPinned);
+		const ourScrollTarget = useRef<number | null>(null);
+		const lastScrollHeight = useRef(0);
+		const initialScrollTop = useRef(initialScrollState?.scrollTop ?? 0);
+		const onScrollStateChangeRef = useRef(onScrollStateChange);
+		onScrollStateChangeRef.current = onScrollStateChange;
 
-		const clearProgrammaticScroll = useCallback(() => {
-			if (programmaticScrollTimer.current !== null) {
-				window.clearTimeout(programmaticScrollTimer.current);
-				programmaticScrollTimer.current = null;
-			}
+		const setPinned = useCallback((pinned: boolean) => {
+			pinnedRef.current = pinned;
+			setIsPinned(pinned);
+			if (pinned) setShowScrollButton(false);
 		}, []);
 
-		const updateScrollPosition = useCallback(() => {
-			if (!viewport) return;
-			const distance =
-				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-			const scrolledUp = viewport.scrollTop < lastObservedScrollTop.current - 1;
-			lastObservedScrollTop.current = viewport.scrollTop;
-			if (isProgrammaticScroll.current) {
-				if (viewport.scrollTop + 1 < lastProgrammaticScrollTop.current) {
-					isProgrammaticScroll.current = false;
-					clearProgrammaticScroll();
-				} else {
-					lastProgrammaticScrollTop.current = viewport.scrollTop;
-					shouldStickToBottom.current = true;
-					setShowScrollButton(false);
-					if (distance <= STICK_TO_BOTTOM_THRESHOLD_PX) {
-						isProgrammaticScroll.current = false;
-						clearProgrammaticScroll();
-					}
-					return;
-				}
-			}
-			// Sticking is an intent, not a position: content growing under a
-			// pinned viewport briefly widens `distance` before the resize
-			// observer re-pins, and a scroll event landing in that window must
-			// not read as the user leaving the bottom. Only an actual upward
-			// scroll releases the pin; reaching the bottom always restores it.
-			if (distance <= STICK_TO_BOTTOM_THRESHOLD_PX) {
-				shouldStickToBottom.current = true;
-			} else if (scrolledUp) {
-				shouldStickToBottom.current = false;
-			}
-			setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
-		}, [clearProgrammaticScroll, viewport]);
+		const writeScrollTop = useCallback(
+			(target: HTMLDivElement, top: number, behavior: ScrollBehavior) => {
+				const maxTop = Math.max(0, target.scrollHeight - target.clientHeight);
+				const clampedTop = Math.min(Math.max(0, top), maxTop);
+				ourScrollTarget.current =
+					clampedTop !== target.scrollTop ? clampedTop : null;
+				target.scrollTo({ top: clampedTop, behavior });
+				lastScrollHeight.current = target.scrollHeight;
+			},
+			[],
+		);
 
 		const scrollToBottom = useCallback(
 			(behavior: ScrollBehavior = "smooth") => {
 				if (!viewport) return;
-				clearProgrammaticScroll();
 				const prefersReducedMotion =
-					behavior === "smooth" &&
 					typeof window.matchMedia === "function" &&
 					window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-				const effectiveBehavior = prefersReducedMotion ? "auto" : behavior;
-				const isSmooth = effectiveBehavior === "smooth";
-				isProgrammaticScroll.current = isSmooth;
-				lastProgrammaticScrollTop.current = viewport.scrollTop;
-				shouldStickToBottom.current = true;
-				viewport.scrollTo({
-					top: viewport.scrollHeight,
-					behavior: effectiveBehavior,
-				});
-				lastObservedScrollTop.current = viewport.scrollTop;
-				setShowScrollButton(false);
-				if (!isSmooth) return;
-				programmaticScrollTimer.current = window.setTimeout(() => {
-					isProgrammaticScroll.current = false;
-					programmaticScrollTimer.current = null;
-					updateScrollPosition();
-				}, 1500);
+				setPinned(true);
+				writeScrollTop(
+					viewport,
+					viewport.scrollHeight,
+					prefersReducedMotion ? "auto" : behavior,
+				);
 			},
-			[clearProgrammaticScroll, updateScrollPosition, viewport],
+			[setPinned, viewport, writeScrollTop],
 		);
 
 		useEffect(() => {
 			if (!viewport) return;
-			updateScrollPosition();
-			viewport.addEventListener("scroll", updateScrollPosition);
-			const cancelProgrammaticScroll = () => {
-				if (!isProgrammaticScroll.current) return;
-				isProgrammaticScroll.current = false;
-				clearProgrammaticScroll();
-				updateScrollPosition();
+
+			const handleScroll = () => {
+				if (ourScrollTarget.current !== null) {
+					const arrived =
+						Math.abs(viewport.scrollTop - ourScrollTarget.current) <= 1;
+					// A smooth scroll emits many events before arriving; all of them
+					// are ours unless the reader un-pinned mid-flight.
+					if (arrived || pinnedRef.current) {
+						if (arrived) ourScrollTarget.current = null;
+						return;
+					}
+					ourScrollTarget.current = null;
+				}
+				const distance = distanceFromBottom(viewport);
+				setPinned(distance <= PINNED_THRESHOLD_PX);
+				setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
+				onScrollStateChangeRef.current?.({
+					pinned: distance <= PINNED_THRESHOLD_PX,
+					scrollTop: viewport.scrollTop,
+				});
 			};
-			viewport.addEventListener("touchstart", cancelProgrammaticScroll, {
-				passive: true,
-			});
-			viewport.addEventListener("pointerdown", cancelProgrammaticScroll, {
-				passive: true,
-			});
-			const cancelProgrammaticScrollOnKeydown = (event: KeyboardEvent) => {
-				if (
-					[
-						"ArrowDown",
-						"ArrowUp",
-						"End",
-						"Home",
-						"PageDown",
-						"PageUp",
-						" ",
-					].includes(event.key)
-				) {
-					cancelProgrammaticScroll();
+
+			// Un-pin on input, not on the resulting scroll event: the event is
+			// async, and streamed content landing before it would snap the
+			// reader back to the bottom.
+			const handleWheel = (event: WheelEvent) => {
+				if (event.deltaY < 0) setPinned(false);
+			};
+			const handleKeyDown = (event: KeyboardEvent) => {
+				if (["ArrowUp", "PageUp", "Home"].includes(event.key)) {
+					setPinned(false);
 				}
 			};
-			viewport.addEventListener("keydown", cancelProgrammaticScrollOnKeydown);
-			viewport.addEventListener("wheel", cancelProgrammaticScroll, {
-				passive: true,
-			});
-			return () => {
-				viewport.removeEventListener("scroll", updateScrollPosition);
-				viewport.removeEventListener("touchstart", cancelProgrammaticScroll);
-				viewport.removeEventListener("pointerdown", cancelProgrammaticScroll);
-				viewport.removeEventListener(
-					"keydown",
-					cancelProgrammaticScrollOnKeydown,
-				);
-				viewport.removeEventListener("wheel", cancelProgrammaticScroll);
-			};
-		}, [clearProgrammaticScroll, updateScrollPosition, viewport]);
 
-		useEffect(() => () => clearProgrammaticScroll(), [clearProgrammaticScroll]);
+			viewport.addEventListener("scroll", handleScroll, { passive: true });
+			viewport.addEventListener("wheel", handleWheel, { passive: true });
+			viewport.addEventListener("keydown", handleKeyDown);
+			return () => {
+				viewport.removeEventListener("scroll", handleScroll);
+				viewport.removeEventListener("wheel", handleWheel);
+				viewport.removeEventListener("keydown", handleKeyDown);
+			};
+		}, [setPinned, viewport]);
 
 		useLayoutEffect(() => {
 			if (!viewport || !content) return;
-			scrollToBottom("auto");
-		}, [content, scrollToBottom, viewport]);
+			if (pinnedRef.current) {
+				scrollToBottom("auto");
+				return;
+			}
+			writeScrollTop(viewport, initialScrollTop.current, "auto");
+			setShowScrollButton(
+				distanceFromBottom(viewport) > SCROLL_BUTTON_THRESHOLD_PX,
+			);
+		}, [content, scrollToBottom, viewport, writeScrollTop]);
 
+		// WebKit has no CSS scroll anchoring, so while un-pinned we shift
+		// scrollTop by the content's height delta to keep the reader's text
+		// from moving under them.
 		useEffect(() => {
 			if (!content || !viewport || typeof ResizeObserver === "undefined")
 				return;
+			lastScrollHeight.current = viewport.scrollHeight;
 			const observer = new ResizeObserver(() => {
-				if (shouldStickToBottom.current) {
+				if (pinnedRef.current) {
 					scrollToBottom("auto");
-				} else {
-					updateScrollPosition();
+					return;
 				}
+				const delta = viewport.scrollHeight - lastScrollHeight.current;
+				lastScrollHeight.current = viewport.scrollHeight;
+				// A reader at the very top wants to see content added above.
+				if (delta !== 0 && viewport.scrollTop > 0) {
+					writeScrollTop(viewport, viewport.scrollTop + delta, "auto");
+				}
+				setShowScrollButton(
+					distanceFromBottom(viewport) > SCROLL_BUTTON_THRESHOLD_PX,
+				);
 			});
 			observer.observe(content);
 			observer.observe(viewport);
 			return () => observer.disconnect();
-		}, [content, scrollToBottom, updateScrollPosition, viewport]);
+		}, [content, scrollToBottom, viewport, writeScrollTop]);
 
 		const value = useMemo<ConversationContextValue>(
 			() => ({
+				isPinned,
 				scrollToBottom,
 				setContent,
 				setViewport,
 				showScrollButton,
 			}),
-			[scrollToBottom, showScrollButton],
+			[isPinned, scrollToBottom, showScrollButton],
 		);
 
 		return (
