@@ -902,6 +902,7 @@ export async function handleSessionAttach(
 		"participant",
 	);
 	const attachedSession = await readHubSessionRecord(ctx, sessionId);
+	const resident = await ctx.sessionHost.attachSession(sessionId);
 	ctx.publish(
 		ctx.buildEvent(
 			"session.attached",
@@ -912,6 +913,7 @@ export async function handleSessionAttach(
 	const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
 	return okReply(envelope, {
 		session: attachedSession ?? session,
+		runtimeAttached: resident !== undefined,
 		...(snapshot ? { snapshot } : {}),
 	});
 }

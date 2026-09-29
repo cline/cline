@@ -853,8 +853,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				{ sessionId: target },
 				target,
 			);
-			const session = reply.payload?.session as HubSessionRecord | undefined;
-			if (!session?.runtimeSession) {
+			if (reply.payload?.runtimeAttached !== true) {
 				if (!subscribed) this.disposeSessionSubscription(target);
 				return undefined;
 			}

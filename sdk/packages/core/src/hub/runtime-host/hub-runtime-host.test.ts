@@ -90,9 +90,9 @@ describe("HubRuntimeHost", () => {
 		});
 		commandMock.mockResolvedValue({
 			payload: {
+				runtimeAttached: true,
 				session: {
 					sessionId: "shared",
-					runtimeSession: { agentId: "resident" },
 				},
 				snapshot: {
 					version: 1,
@@ -138,6 +138,24 @@ describe("HubRuntimeHost", () => {
 		}
 		expect(desktopEvents).toEqual(cliEvents);
 		expect(desktopEvents).toHaveLength(2);
+	});
+
+	it("does not treat persisted agent metadata as a resident runtime", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			payload: {
+				runtimeAttached: false,
+				session: {
+					sessionId: "saved",
+					runtimeSession: { agentId: "old-agent" },
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://localhost/hub" });
+		await expect(host.attachSession("saved")).resolves.toBeUndefined();
+		expect(unsubscribe).toHaveBeenCalledOnce();
 	});
 
 	it("does not auto-start a run during session creation", async () => {

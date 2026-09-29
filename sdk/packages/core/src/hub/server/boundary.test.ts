@@ -33,6 +33,7 @@ describe("HubServerTransport boundaries", () => {
 			sessionHost: {
 				subscribe: vi.fn(),
 				startSession: vi.fn(),
+				attachSession: vi.fn(),
 				stopSession: vi.fn(),
 				runTurn: vi.fn(),
 				abort: vi.fn(),
@@ -60,6 +61,38 @@ describe("HubServerTransport boundaries", () => {
 	function getContext(transport: HubServerTransport): HubTransportContext {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
+
+	it.each([
+		true,
+		false,
+	])("reports actual runtime attachment without agent metadata (resident=%s)", async (resident) => {
+		const attachSession = vi
+			.fn()
+			.mockResolvedValue(resident ? { sessionId: "session-1" } : undefined);
+		const transport = createTransport({ sessionHost: { attachSession } });
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "attach-resident",
+				command: "session.attach",
+				clientId: "second-client",
+				sessionId: "session-1",
+			});
+			expect(attachSession).toHaveBeenCalledWith("session-1");
+			expect(reply).toMatchObject({
+				ok: true,
+				payload: {
+					runtimeAttached: resident,
+					snapshot: { sessionId: "session-1" },
+				},
+			});
+			expect(
+				(reply.payload?.session as { runtimeSession?: unknown }).runtimeSession,
+			).toBeUndefined();
+		} finally {
+			await transport.stop();
+		}
+	});
 
 	it("serializes duplicate session creation as session_already_exists", async () => {
 		const transport = createTransport({
