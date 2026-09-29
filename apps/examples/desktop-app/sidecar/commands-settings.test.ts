@@ -47,6 +47,12 @@ afterEach(() => {
 });
 
 describe("desktop settings commands", () => {
+	it("rejects hub restarts from untrusted connections", async () => {
+		const { ctx } = createContext();
+		await expect(handleCommand(ctx, "restart_hub")).rejects.toThrow(
+			"trusted desktop connection",
+		);
+	});
 	it("lists only current gateway transcription models for voice input", async () => {
 		const { ctx } = createContext();
 		vi.stubGlobal(
