@@ -29,10 +29,19 @@ const pr = {
 	],
 };
 
-function runner(prs: unknown[] = [pr], branch = "feature/pr-ui") {
+function runner(
+	prs: unknown[] = [pr],
+	branch = "feature/pr-ui",
+	published = true,
+) {
 	return vi.fn(async (file: string, args: string[], _cwd: string) => {
-		if (file === "git")
-			return args[0] === "branch" ? branch : "git@github.com:cline/cline.git";
+		if (file === "git") {
+			if (args[0] === "branch") return branch;
+			if (args[0] === "remote") return "git@github.com:cline/cline.git";
+			if (args[0] === "ls-remote")
+				return published ? `${"a".repeat(40)}\trefs/heads/${branch}` : "";
+			throw new Error(`Unexpected git command: ${args.join(" ")}`);
+		}
 		if (args[0] === "pr" && args[1] === "view")
 			return JSON.stringify(
 				prs.find((item) => (item as typeof pr).number === Number(args[2])),
@@ -53,22 +62,89 @@ describe("pull request status", () => {
 		const result = await createPullRequestStatusReader({ run })("/worktree");
 		expect(result?.pullRequest?.number).toBe(42);
 		expect(result?.pullRequest?.checks[0].state).toBe("success");
-		expect(result?.createUrl).toBe(
-			"https://github.com/cline/cline/compare/main...feature%2Fpr-ui?expand=1",
-		);
+		expect(result?.createUrl).toBeNull();
 		expect(run.mock.calls.every((call) => call[2] === "/worktree")).toBe(true);
 		expect(run.mock.calls.find((call) => call[1][0] === "pr")?.[1]).toContain(
 			"feature/pr-ui",
 		);
 	});
-	it("offers creation for a feature branch and hides it for the default branch", async () => {
+	it("offers creation for a branch on origin without requiring a local upstream", async () => {
+		const run = runner([]);
+		const result = await createPullRequestStatusReader({ run })("/repo");
+		expect(result?.pullRequest).toBeNull();
+		expect(result?.createUrl).toBe(
+			"https://github.com/cline/cline/compare/main...feature%2Fpr-ui?expand=1",
+		);
+		expect(run).toHaveBeenCalledWith(
+			"git",
+			["ls-remote", "--heads", "origin", "refs/heads/feature/pr-ui"],
+			"/repo",
+		);
+	});
+	it("hides creation for the default branch", async () => {
+		const run = runner([], "main");
+		expect(await createPullRequestStatusReader({ run })("/repo")).toBeNull();
+		expect(run.mock.calls.some((call) => call[1][0] === "ls-remote")).toBe(
+			false,
+		);
+	});
+	it("hides creation for a local-only branch", async () => {
+		const result = await createPullRequestStatusReader({
+			run: runner([], "feature/pr-ui", false),
+		})("/repo");
+		expect(result?.pullRequest).toBeNull();
+		expect(result?.createUrl).toBeNull();
+	});
+	it("requires the exact branch ref on origin", async () => {
+		const base = runner([]);
+		const run = (file: string, args: string[], cwd: string) =>
+			args[0] === "ls-remote"
+				? Promise.resolve(`${"a".repeat(40)}\trefs/heads/other/feature/pr-ui`)
+				: base(file, args, cwd);
 		expect(
-			(await createPullRequestStatusReader({ run: runner([]) })("/repo"))
-				?.pullRequest,
+			(await createPullRequestStatusReader({ run })("/repo"))?.createUrl,
 		).toBeNull();
-		expect(
-			await createPullRequestStatusReader({ run: runner([], "main") })("/repo"),
-		).toBeNull();
+	});
+	it("rechecks origin after a branch is pushed or deleted remotely", async () => {
+		let published = false;
+		const run = (file: string, args: string[], cwd: string) =>
+			runner([], "feature/pr-ui", published)(file, args, cwd);
+		const read = createPullRequestStatusReader({ run });
+		expect((await read("/repo"))?.createUrl).toBeNull();
+		published = true;
+		expect((await read("/repo"))?.createUrl).toBe(
+			"https://github.com/cline/cline/compare/main...feature%2Fpr-ui?expand=1",
+		);
+		published = false;
+		expect((await read("/repo"))?.createUrl).toBeNull();
+	});
+	it("does not offer creation when the remote branch check fails and retries on refresh", async () => {
+		let failed = true;
+		const base = runner([]);
+		const run = (file: string, args: string[], cwd: string) => {
+			if (args[0] === "ls-remote" && failed)
+				throw Object.assign(new Error("private stderr"), { code: 128 });
+			return base(file, args, cwd);
+		};
+		const read = createPullRequestStatusReader({ run });
+		await expect(read("/repo")).rejects.toThrow(
+			"Could not load pull request status. Check your connection and try again.",
+		);
+		failed = false;
+		expect((await read("/repo"))?.createUrl).toBeTruthy();
+	});
+	it.each([
+		"OPEN",
+		"MERGED",
+		"CLOSED",
+	])("keeps an existing %s PR visible without checking whether its branch still exists", async (state) => {
+		const run = runner([{ ...pr, state }], "feature/pr-ui", false);
+		const result = await createPullRequestStatusReader({ run })("/repo");
+		expect(result?.pullRequest?.state).toBe(state);
+		expect(result?.createUrl).toBeNull();
+		expect(run.mock.calls.some((call) => call[1][0] === "ls-remote")).toBe(
+			false,
+		);
 	});
 	it("keeps merged and closed PR states", async () => {
 		for (const state of ["MERGED", "CLOSED"] as const) {

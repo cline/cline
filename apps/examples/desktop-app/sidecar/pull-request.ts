@@ -228,13 +228,27 @@ export function createPullRequestStatusReader({
 						),
 					) as GitHubPullRequest)
 				: null;
+			let createUrl: string | null = null;
+			if (!pr && base) {
+				// Query origin directly: local tracking refs can be stale or absent.
+				const branchRef = `refs/heads/${branch}`;
+				const remoteRefs = await run(
+					"git",
+					["ls-remote", "--heads", "origin", branchRef],
+					cwd,
+				);
+				if (
+					remoteRefs
+						.split("\n")
+						.some((line) => line.split("\t")[1] === branchRef)
+				) {
+					createUrl = `https://github.com/${repository}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}?expand=1`;
+				}
+			}
 			return {
 				repository,
 				branch,
-				createUrl:
-					base && branch !== base
-						? `https://github.com/${repository}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}?expand=1`
-						: null,
+				createUrl,
 				pullRequest: pr
 					? {
 							number: pr.number,

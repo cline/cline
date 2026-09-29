@@ -174,6 +174,22 @@ it("offers the compare form when no PR exists", async () => {
 	);
 	expect(openExternalUrl).toHaveBeenCalledWith(data.createUrl);
 });
+it("hides creation until the branch is published and updates on refresh", async () => {
+	invoke.mockResolvedValue({ ...data, pullRequest: null, createUrl: null });
+	await render();
+	// A successful status lookup alone must not expose an unpublished branch.
+	expect(container.textContent).toBe("");
+	expect(telemetryEvents()).toEqual([]);
+	invoke.mockResolvedValue({ ...data, pullRequest: null });
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(30_000);
+	});
+	expect(container.textContent).toContain("Create PR");
+	invoke.mockResolvedValue({ ...data, createUrl: null });
+	await clickRefreshViaFocus();
+	expect(container.textContent).toContain("#42");
+	expect(container.textContent).not.toContain("Create PR");
+});
 it("discards late responses after switching workspaces", async () => {
 	let finish!: (value: PullRequestStatus) => void;
 	invoke
