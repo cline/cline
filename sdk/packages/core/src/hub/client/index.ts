@@ -344,6 +344,7 @@ export class NodeHubClient {
 	private readonly lastEventSequenceByKey = new Map<string, number>();
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
+	private cancelRegistrationBackoff: (() => void) | undefined;
 	private closedByClient = false;
 	// Invalidates connection work superseded by close() or a newer attempt.
 	private connectGeneration = 0;
@@ -420,6 +421,7 @@ export class NodeHubClient {
 			);
 		}
 
+		this.cancelRegistrationBackoff?.();
 		const generation = ++this.connectGeneration;
 		const connectPromise = this.openSocket(url, authToken, generation);
 		let attemptSocket: WebSocketLike | undefined;
@@ -466,8 +468,10 @@ export class NodeHubClient {
 						throw error;
 					}
 					// Bound retries so a genuinely duplicate live client still fails.
-					await new Promise<void>((resolve) =>
-						setTimeout(resolve, 50 * 2 ** attempt),
+					await this.waitForRegistrationRetry(
+						socket,
+						generation,
+						50 * 2 ** attempt,
 					);
 				}
 			}
@@ -513,6 +517,33 @@ export class NodeHubClient {
 			}
 			throw error;
 		}
+	}
+
+	private waitForRegistrationRetry(
+		socket: WebSocketLike,
+		generation: number,
+		delayMs: number,
+	): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			if (
+				this.closedByClient ||
+				generation !== this.connectGeneration ||
+				this.socket !== socket ||
+				socket.readyState !== 1
+			) {
+				reject(this.lastCloseError);
+				return;
+			}
+			const timer = setTimeout(() => {
+				this.cancelRegistrationBackoff = undefined;
+				resolve();
+			}, delayMs);
+			this.cancelRegistrationBackoff = () => {
+				clearTimeout(timer);
+				this.cancelRegistrationBackoff = undefined;
+				reject(this.lastCloseError);
+			};
+		});
 	}
 
 	private async openSocket(
@@ -669,6 +700,7 @@ export class NodeHubClient {
 				);
 				suppressCloseMessage = true;
 				this.registered = false;
+				this.cancelRegistrationBackoff?.();
 				for (const pending of this.pendingReplies.values()) {
 					pending.reject(this.lastCloseError);
 				}
@@ -687,6 +719,7 @@ export class NodeHubClient {
 				this.sawSocketClose = true;
 			}
 			this.registered = false;
+			this.cancelRegistrationBackoff?.();
 			for (const pending of this.pendingReplies.values()) {
 				pending.reject(this.lastCloseError);
 			}
@@ -934,6 +967,7 @@ export class NodeHubClient {
 				DEFAULT_HUB_CLOSED_MESSAGE,
 			);
 		}
+		this.cancelRegistrationBackoff?.();
 		for (const pending of this.pendingReplies.values()) {
 			pending.reject(this.lastCloseError);
 		}

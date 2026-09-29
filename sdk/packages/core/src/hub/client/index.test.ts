@@ -165,6 +165,7 @@ describe("NodeHubClient", () => {
 			"cleanup",
 			"duplicate",
 			"close",
+			"socket-close",
 		] as const)("handles registration conflicts during reconnect: %s", async (outcome) => {
 			vi.useFakeTimers();
 			vi.stubGlobal("WebSocket", MockWebSocket);
@@ -212,18 +213,27 @@ describe("NodeHubClient", () => {
 						? expect(commands).resolves.toHaveLength(2)
 						: expect(commands).rejects.toMatchObject({
 								code:
-									outcome === "close"
+									outcome === "close" || outcome === "socket-close"
 										? "hub_connection_closed"
 										: "client_already_registered",
 							});
 				await vi.advanceTimersByTimeAsync(0);
 				expect(registrations).toBe(1);
 				expect(MockWebSocket.instances[1].sentFrames).toHaveLength(1);
-				if (outcome === "close") client.close();
-				await vi.advanceTimersByTimeAsync(4000);
+				if (outcome === "close" || outcome === "socket-close") {
+					// Enter the longest backoff, then close without advancing its timer.
+					await vi.advanceTimersByTimeAsync(1550);
+					expect(registrations).toBe(6);
+					if (outcome === "close") client.close();
+					else MockWebSocket.instances[1].close();
+					await checked;
+					expect(vi.getTimerCount()).toBe(0);
+				} else {
+					await vi.advanceTimersByTimeAsync(4000);
+				}
 				await checked;
 				expect(registrations).toBe(
-					outcome === "cleanup" ? 3 : outcome === "duplicate" ? 7 : 1,
+					outcome === "cleanup" ? 3 : outcome === "duplicate" ? 7 : 6,
 				);
 				expect(MockWebSocket.instances).toHaveLength(2);
 				expect(client.isConnected()).toBe(outcome === "cleanup");
