@@ -45,6 +45,7 @@ import {
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
@@ -1635,7 +1636,7 @@ async function listUserInstructionConfigs(
 				name: "web_search",
 				description:
 					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support web search. Applies to new sessions.",
-				enabled: readGlobalSettings().tools?.web_search?.enabled === true,
+				enabled: isModelToolEnabledGlobally("web_search"),
 				source: "builtin",
 			},
 			...builtinToolCatalog.map((tool) => ({
