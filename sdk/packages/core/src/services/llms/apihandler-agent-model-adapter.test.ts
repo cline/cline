@@ -156,6 +156,25 @@ describe("createAgentModelFromApiHandler", () => {
 		});
 	});
 
+	it("maps a done chunk with a content-filter incompleteReason to content-filter", async () => {
+		const handler = fakeHandler([
+			{
+				type: "done",
+				success: true,
+				incompleteReason: "content_filter",
+				id: "x",
+			},
+		]);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+		// Must not collapse into "stop": a filtered turn that produced no
+		// content is not a retryable empty response.
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "content-filter",
+		});
+	});
+
 	it("does not append a finish when the handler emits a done chunk", async () => {
 		const handler = fakeHandler([
 			{ type: "text", text: "x", id: "x" },
