@@ -7,8 +7,6 @@ import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
-export const TOOL_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000
-const TOOL_APPROVAL_TIMEOUT_REASON = "Tool approval timed out after 5 minutes, so the tool was not executed."
 const TOOL_APPROVAL_DELIVERY_FAILED_REASON = "The tool approval request could not be displayed, so the tool was not executed."
 
 export interface ToolApprovalRequest {
@@ -56,7 +54,6 @@ export interface SdkInteractionCoordinatorOptions {
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
-	private pendingToolApprovalTimeout: ReturnType<typeof setTimeout> | undefined
 	private pendingToolApprovalMessage:
 		| {
 				toolCallId: string
@@ -123,26 +120,30 @@ export class SdkInteractionCoordinator {
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
 		this.options.setTurnPhase?.("awaiting_approval", toolAskMessage.ts)
+		Logger.log(`[SdkController] Awaiting tool approval: tool=${request.toolName}`)
 
+		// Register the resolver before posting state: the ask row reaches the webview through
+		// appendAndEmit above, so the user can click Approve/Reject while the post is in flight.
+		let resolveApproval!: (result: { approved: boolean; reason?: string }) => void
 		const approval = new Promise<{ approved: boolean; reason?: string }>((resolve) => {
-			this.pendingToolApprovalResolve = resolve
-			this.pendingToolApprovalMessage = {
-				toolCallId: request.toolCallId,
-				messageTs: toolAskMessage.ts,
-				toolName: request.toolName,
-			}
-			this.pendingToolApprovalTimeout = setTimeout(() => {
-				Logger.warn(`[SdkController] Tool approval timed out: tool=${request.toolName}`)
-				if (this.denyPendingToolApproval(TOOL_APPROVAL_TIMEOUT_REASON)) {
-					this.options.setTurnPhase?.("streaming")
-				}
-			}, TOOL_APPROVAL_TIMEOUT_MS)
+			resolveApproval = resolve
 		})
+		this.pendingToolApprovalResolve = resolveApproval
+		this.pendingToolApprovalMessage = {
+			toolCallId: request.toolCallId,
+			messageTs: toolAskMessage.ts,
+			toolName: request.toolName,
+		}
 
 		void Promise.resolve()
 			.then(() => this.options.postStateToWebview())
 			.catch((error) => {
 				Logger.warn(`[SdkController] Failed to display tool approval: ${error}`)
+				// The post can fail after this approval was answered and a later one is pending;
+				// only deny the approval this post was made for.
+				if (this.pendingToolApprovalResolve !== resolveApproval) {
+					return
+				}
 				if (this.denyPendingToolApproval(TOOL_APPROVAL_DELIVERY_FAILED_REASON)) {
 					this.options.setTurnPhase?.("streaming")
 				}
@@ -198,7 +199,6 @@ export class SdkInteractionCoordinator {
 
 		this.pendingToolApprovalResolve = undefined
 		this.pendingToolApprovalMessage = undefined
-		this.clearPendingToolApprovalTimeout()
 
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
@@ -287,7 +287,6 @@ export class SdkInteractionCoordinator {
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalResolve = undefined
 		this.pendingToolApprovalMessage = undefined
-		this.clearPendingToolApprovalTimeout()
 		// Record before resolving: the denial unblocks the core, which emits the
 		// tool's lifecycle events before the caller's abort lands. Unless the
 		// denial is already recorded, the translator renders those events as a
@@ -297,13 +296,6 @@ export class SdkInteractionCoordinator {
 		}
 		resolve({ approved: false, reason })
 		return true
-	}
-
-	private clearPendingToolApprovalTimeout(): void {
-		if (this.pendingToolApprovalTimeout) {
-			clearTimeout(this.pendingToolApprovalTimeout)
-			this.pendingToolApprovalTimeout = undefined
-		}
 	}
 
 	/**
