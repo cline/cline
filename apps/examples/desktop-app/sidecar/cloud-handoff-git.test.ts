@@ -105,6 +105,7 @@ describe("cloud handoff Git preparation", () => {
 		writeFileSync(credentials, "synthetic baseline\n");
 		git("add", "credentials.json");
 		git("commit", "-m", "synthetic baseline");
+		git("push", "origin", "main");
 		writeFileSync(join(repo, "new.txt"), "visible change\n");
 		const plan = afterPreview ? await inspectHandoffGit(repo) : undefined;
 		git("update-index", flag, "credentials.json");
@@ -185,7 +186,9 @@ describe("cloud handoff Git preparation", () => {
 
 	it("publishes an unpushed commit without an upstream and without an extra empty commit", async () => {
 		git("switch", "-c", "local-only");
-		git("commit", "--allow-empty", "-m", "local work");
+		writeFileSync(join(repo, ".env.example"), "PUBLIC_EXAMPLE=value\n");
+		git("add", ".env.example");
+		git("commit", "-m", "local work");
 		const head = git("rev-parse", "HEAD");
 		const plan = await inspectHandoffGit(repo);
 		expect(plan.commits).toEqual([expect.stringContaining("local work")]);
@@ -235,6 +238,30 @@ describe("cloud handoff Git preparation", () => {
 		writeFileSync(join(repo, name), "private");
 		await expect(inspectHandoffGit(repo)).rejects.toThrow("sensitive files");
 		expect(git("diff", "--cached", "--name-only")).toBe("");
+	});
+
+	it.each([
+		false,
+		true,
+	])("rejects sensitive unpublished history (deleted later: %s) without mutation", async (deleted) => {
+		writeFileSync(join(repo, ".env"), "SYNTHETIC_LOCAL_ONLY=value\n");
+		git("add", ".env");
+		git("commit", "-m", "local credentials");
+		if (deleted) {
+			git("rm", ".env");
+			git("commit", "-m", "remove credentials");
+		}
+		const head = git("rev-parse", "HEAD");
+		const index = readFileSync(join(repo, ".git/index"));
+		const remoteRefs = git("ls-remote", "origin");
+		expect(git("status", "--porcelain")).toBe("");
+		await expect(inspectHandoffGit(repo)).rejects.toThrow(
+			"unpublished history",
+		);
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(git("rev-parse", "HEAD")).toBe(head);
+		expect(readFileSync(join(repo, ".git/index"))).toEqual(index);
+		expect(git("ls-remote", "origin")).toBe(remoteRefs);
 	});
 
 	it("rejects different push repositories before any local mutation", async () => {

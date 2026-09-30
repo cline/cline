@@ -103,8 +103,10 @@ async function assertHandoffIdle(
 		workspacePathKey(live?.config) ?? workspacePathKey(persisted);
 	if (
 		workspaceKey &&
-		[...ctx.restoringWorkspacePaths].some((locked) =>
-			workspaceIsWithin(workspaceKey, locked),
+		[...ctx.restoringWorkspacePaths].some(
+			(locked) =>
+				workspaceIsWithin(workspaceKey, locked) ||
+				workspaceIsWithin(locked, workspaceKey),
 		)
 	) {
 		throw new Error(
