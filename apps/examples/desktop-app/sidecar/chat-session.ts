@@ -2285,13 +2285,14 @@ export async function handleChatSessionCommand(
 					sessionId,
 					prompt,
 					request.attachments?.userImages ?? [],
-					() =>
+					(lifecycle) =>
 						cloud.send(
 							sessionId,
 							prompt,
 							request.delivery,
 							modelId || undefined,
 							request.attachments?.userImages,
+							lifecycle,
 						),
 				);
 			}

@@ -7,6 +7,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import type { CloudSendLifecycle } from "@cline/core/cloud";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
 export type CloudHandoffFollowUp = {
@@ -67,28 +69,70 @@ export function clearCloudHandoffFollowUp(targetSessionId: string): void {
 	rmSync(followUpPath(targetSessionId), { force: true });
 }
 
-export async function sendWithCloudHandoffFollowUp<T>(
+export function updateCloudHandoffFollowUp(
+	targetSessionId: string,
+	expected: CloudHandoffFollowUp,
+	action: "restore" | "dismiss",
+): CloudHandoffFollowUp | null {
+	const saved = readCloudHandoffFollowUp(targetSessionId);
+	if (!saved || !isDeepStrictEqual(saved, expected))
+		throw new Error(
+			"The saved follow-up changed. Reopen the cloud session to check it.",
+		);
+	if (action === "dismiss") {
+		clearCloudHandoffFollowUp(targetSessionId);
+		return null;
+	}
+	const { unconfirmed: _, ...restored } = saved;
+	saveCloudHandoffFollowUp(targetSessionId, restored);
+	return restored;
+}
+
+export async function sendWithCloudHandoffFollowUp<
+	T extends { ok: true; recoveredAfterDisconnect?: boolean },
+>(
 	targetSessionId: string,
 	command: string,
 	userImages: string[],
-	send: () => Promise<T>,
+	send: (lifecycle?: CloudSendLifecycle) => Promise<T>,
 ): Promise<T> {
 	const saved = readCloudHandoffFollowUp(targetSessionId);
-	if (!saved || saved.unconfirmed) return await send();
-	// Persist before dispatch so a crash cannot offer a possibly sent prompt again.
-	saveCloudHandoffFollowUp(targetSessionId, {
-		...saved,
-		command,
-		userImages,
-		unconfirmed: true,
-	});
-	const result = await send();
-	try {
-		clearCloudHandoffFollowUp(targetSessionId);
-	} catch {
-		console.warn(
-			"Could not clear the confirmed cloud follow-up recovery copy.",
+	const matches = (record: CloudHandoffFollowUp | null) =>
+		Boolean(
+			record &&
+				saved &&
+				record.sourceSessionId === saved.sourceSessionId &&
+				record.command.trim() === command.trim() &&
+				isDeepStrictEqual(record.userImages, userImages),
 		);
-	}
+	if (!saved || (saved.unconfirmed && !matches(saved))) return await send();
+	if (!matches(saved))
+		saveCloudHandoffFollowUp(targetSessionId, {
+			...saved,
+			command,
+			userImages,
+		});
+	const clearAccepted = () => {
+		try {
+			if (matches(readCloudHandoffFollowUp(targetSessionId)))
+				clearCloudHandoffFollowUp(targetSessionId);
+		} catch {
+			console.warn(
+				"Could not clear the confirmed cloud follow-up recovery copy.",
+			);
+		}
+	};
+	const result = await send({
+		beforeDispatch: () => {
+			const current = readCloudHandoffFollowUp(targetSessionId);
+			if (matches(current) && current)
+				saveCloudHandoffFollowUp(targetSessionId, {
+					...current,
+					unconfirmed: true,
+				});
+		},
+		onAccepted: clearAccepted,
+	});
+	if (!result.recoveredAfterDisconnect) clearAccepted();
 	return result;
 }
