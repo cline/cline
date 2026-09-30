@@ -429,7 +429,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 			throw new SessionAlreadyExistsError(sessionId);
 		}
 		const resident = this.sessions.get(sessionId);
-		if (resident && !resident.agent.canStartRun()) {
+		// Only an idle, turn-less start rebuilds a resident: a run in progress
+		// is protected, and a prompted start would run its turn while the
+		// resident (and its team) are still alive. No hub client does the
+		// latter; one-shot runs mint fresh ids.
+		if (
+			resident &&
+			(!resident.agent.canStartRun() || Boolean(input.prompt?.trim()))
+		) {
 			throw new SessionAlreadyExistsError(sessionId);
 		}
 		const starting = (async () => {
@@ -464,12 +471,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 					await this.releaseSessionRuntime(resident, "session_replaced").catch(
 						() => undefined,
 					);
-					this.sessions.get(sessionId)?.runtime.activate?.();
+					const replacement = this.sessions.get(sessionId);
+					if (replacement) {
+						await this.activateSessionRuntime(replacement);
+					}
 				}
 			}
 		})().finally(() => this.sessionStarts.delete(sessionId));
 		this.sessionStarts.set(sessionId, starting);
 		return await starting;
+	}
+
+	/**
+	 * Bring a registered session's runtime to life (persisted teammates,
+	 * interrupted runs). Activation runs after registration, so a failure
+	 * must not leave the id occupied by a half-restored runtime: release it
+	 * and surface the error as the start's failure, the way a bootstrap
+	 * failure before registration would have.
+	 */
+	private async activateSessionRuntime(session: ActiveSession): Promise<void> {
+		try {
+			session.runtime.activate?.();
+		} catch (error) {
+			await this.releaseSessionRuntime(session, "session_start_failed").catch(
+				() => undefined,
+			);
+			throw error;
+		}
 	}
 
 	private async startNewSession(
@@ -1082,9 +1110,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		this.emitStatus(sessionId, active.status);
-		// A start that runs its turn here needs the team now, deferred or not.
-		if (!options.deferTeamActivation || startInput.prompt?.trim()) {
-			runtime.activate?.();
+		if (!options.deferTeamActivation) {
+			await this.activateSessionRuntime(active);
 		}
 
 		let result: AgentResult | undefined;

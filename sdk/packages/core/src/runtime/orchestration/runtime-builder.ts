@@ -850,8 +850,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			delegatedAgentConfigProvider,
 			activate: () => {
 				if (teamActivated) return;
-				teamActivated = true;
+				// Marked only once restoration completed, so a failed attempt can
+				// be retried instead of silently leaving teammates unrestored.
 				activateTeam?.();
+				teamActivated = true;
 			},
 			extensions: runtimeExtensions,
 			completionPolicy,

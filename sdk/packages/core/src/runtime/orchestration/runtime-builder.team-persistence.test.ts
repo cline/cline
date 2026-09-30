@@ -151,6 +151,12 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		// activates the runtime (after any resident it replaces is released).
 		expect(onTeamRestored).not.toHaveBeenCalled();
 		expect(runtimeInstance?.recoverActiveRuns).not.toHaveBeenCalled();
+		// A failed activation is not recorded as done, so it can be retried.
+		runtimeInstance?.recoverActiveRuns.mockImplementationOnce(() => {
+			throw new Error("recovery failed");
+		});
+		expect(() => built.activate?.()).toThrow("recovery failed");
+		expect(onTeamRestored).not.toHaveBeenCalled();
 		built.activate?.();
 		built.activate?.();
 		const bootstrapCall = (
