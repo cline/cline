@@ -266,7 +266,7 @@ export function StatusBar(props: StatusBarProps) {
 			{autoApproveAll ? (
 				<text fg={defaultFg}>
 					<span fg={successColor}>
-						{"\u23f5\u23f5"} Auto-approve all enabled
+						{"\u25b6\u25b6"} Auto-approve all enabled
 					</span>
 					<span fg="gray"> (Shift+Tab)</span>
 				</text>
