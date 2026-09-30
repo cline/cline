@@ -1,12 +1,24 @@
 import { expect, test } from "@playwright/test";
+import {
+	latestWhatsNew,
+	WHATS_NEW_STORAGE_KEY,
+} from "../webview/lib/whats-new";
 
 test("shows the welcome chat view", async ({ page }) => {
-	await page.addInitScript(() => {
-		window.localStorage.setItem(
-			"cline.code.onboarding.v1",
-			JSON.stringify({ completedAt: new Date().toISOString() }),
-		);
-	});
+	await page.addInitScript(
+		({ whatsNewId, whatsNewStorageKey }) => {
+			window.localStorage.setItem(
+				"cline.code.onboarding.v1",
+				JSON.stringify({ completedAt: new Date().toISOString() }),
+			);
+			if (whatsNewId)
+				window.localStorage.setItem(whatsNewStorageKey, whatsNewId);
+		},
+		{
+			whatsNewId: latestWhatsNew()?.id,
+			whatsNewStorageKey: WHATS_NEW_STORAGE_KEY,
+		},
+	);
 	await page.goto("/");
 
 	await expect(
@@ -22,8 +34,10 @@ test("shows the welcome chat view", async ({ page }) => {
 
 	const providerOptions = page.getByRole("option");
 	await expect(providerOptions).not.toHaveCount(0);
-	await expect(page.getByRole("option", {
-		name: /^Cline(?: Usage-Billing)?$/,
-		exact: true,
-	})).toBeVisible();
+	await expect(
+		page.getByRole("option", {
+			name: /^Cline(?: Usage-Billing)?$/,
+			exact: true,
+		}),
+	).toBeVisible();
 });
