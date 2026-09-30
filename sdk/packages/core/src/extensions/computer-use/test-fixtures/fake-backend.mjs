@@ -22,12 +22,22 @@ const server = net.createServer((socket) => {
 				continue;
 			}
 			const request = JSON.parse(line);
+			const shuttingDown = request.action === "shutdown_backend";
+			const displayBroken =
+				process.argv.includes("display-error") &&
+				request.action === "get_display_info";
+			const ignoreShutdown = process.argv.includes("ignore-shutdown");
 			socket.write(
 				`${JSON.stringify({
 					id: request.id,
-					ok: true,
-					display: { widthPx: 100, heightPx: 100 },
+					ok: !displayBroken,
+					...(displayBroken ? { error: "screen handle is invalid" } : {}),
+					...(shuttingDown ? {} : { display: { widthPx: 100, heightPx: 100 } }),
 				})}\n`,
+				() => {
+					if (shuttingDown && !ignoreShutdown)
+						server.close(() => process.exit(0));
+				},
 			);
 		}
 	});

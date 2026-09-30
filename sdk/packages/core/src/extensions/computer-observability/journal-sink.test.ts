@@ -65,7 +65,7 @@ describe("createJournalEventSink", () => {
 
 		expect(status.status).toBe("degraded");
 		expect(status.lastClientSequence).toBe(2);
-		expect(status.lastAcknowledgedSequence).toBe(2);
+		expect(status.lastAcknowledgedSequence).toBe(0);
 	});
 
 	it("treats a not-ok response as degradation", async () => {
@@ -76,5 +76,48 @@ describe("createJournalEventSink", () => {
 		const status = await sink.flush();
 		expect(status.status).toBe("degraded");
 		expect(status.lastAcknowledgedSequence).toBe(0);
+	});
+
+	it("bounds pending events and keeps the newest when the transport stalls", async () => {
+		let releaseFirstSend: (() => void) | undefined;
+		const firstSend = new Promise<void>((resolve) => {
+			releaseFirstSend = resolve;
+		});
+		let resolveLastSend: (() => void) | undefined;
+		const lastSend = new Promise<void>((resolve) => {
+			resolveLastSend = resolve;
+		});
+		const sent: number[] = [];
+		const sink = createJournalEventSink({
+			send: async (request) => {
+				const sequence = (request.payload as ComputerTaskArtifactEvent)
+					.clientSequence;
+				sent.push(sequence);
+				if (sequence === 1) {
+					await firstSend;
+				}
+				if (sequence === 600) {
+					resolveLastSend?.();
+				}
+				return { id: sequence, ok: true } satisfies ComputerUseResponse;
+			},
+		});
+
+		for (let sequence = 1; sequence <= 600; sequence++) {
+			sink.emit(makeEvent(sequence));
+		}
+		await Promise.resolve();
+		releaseFirstSend?.();
+		await lastSend;
+		const status = await sink.flush();
+
+		expect(sent).toHaveLength(501);
+		expect(sent[0]).toBe(1);
+		expect(sent[1]).toBe(101);
+		expect(sent.at(-1)).toBe(600);
+		expect(status).toMatchObject({
+			status: "degraded",
+			lastClientSequence: 600,
+		});
 	});
 });

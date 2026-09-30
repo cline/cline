@@ -93,9 +93,9 @@ Cline CLI runs in a few different shapes depending on what you need:
 
 ### Computer use (experimental)
 
-Start qbt before the interactive CLI and set `CLINE_COMPUTER_USE_PORT` to its agent port. The computer-user helper requires a configured direct Anthropic provider. Optionally set `CLINE_COMPUTER_USE_BACKEND_COMMAND` to a shell command that starts qbt: this adds `computer_user_restart_backend` for recovery when qbt becomes unreachable, not automatic startup. Set these variables before launching the CLI and restart it after changes.
+Set `CLINE_COMPUTER_USE_PORT` to qbt's agent port. By default the driver gets the `computer` tool directly; set `CLINE_COMPUTER_USER_MODEL` to use the separate computer-user helper on a configured direct Anthropic provider. Set `CLINE_COMPUTER_USE_BACKEND_COMMAND="qbt serve 1234 5678"` to let Cline start qbt before its first display query; helper mode can also recover it later. The command runs from the CLI workspace directory. Set these variables before launching the CLI and restart it after changes.
 
-See the [computer-use setup and backend recovery command](../../sdk/packages/core/src/extensions/computer-use/README.md#backend-recovery-command) for a Windows example, shell rules, ports, and process ownership.
+Plain `cargo install qbt` installs an unrelated qBittorrent client. Install qwanban's binary with `cargo install --git https://github.com/dominiccooney/qwanban.git qbt`, then see the [computer-use setup and backend command](../../sdk/packages/core/src/extensions/computer-use/README.md#backend-command) for shell rules, ports, and process ownership.
 
 ## Headless mode for CI/CD
 

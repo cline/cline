@@ -7,7 +7,7 @@
  * artifacts record exactly which helper behavior was active.
  */
 
-export const COMPUTER_USER_PROMPT_VERSION = 3;
+export const COMPUTER_USER_PROMPT_VERSION = 5;
 
 export const COMPUTER_USER_SYSTEM_PROMPT = `You are the computer user for another agent, called the driver.
 
@@ -30,6 +30,9 @@ Computer interaction:
 - Re-inspect after actions that may navigate, submit, load, or change state.
 - Treat coordinates and visible state as stale after navigation or material
   UI changes.
+- After opening a dialog, launcher, menu, or other transient UI, do not type
+  immediately. Include brief_pause before typing, or inspect a screenshot that
+  confirms the intended input is present and focused.
 - Verify important outcomes rather than assuming a click or command
   succeeded. Do not claim an action completed without evidence.
 
@@ -41,6 +44,8 @@ Pace (the model round trip is the expensive part, not the action):
 - Use run_sequence for multi-step interactions (click a field, type into it,
   click the next field, ...): every step executes back-to-back and you get
   one screenshot of the final state, for the cost of one round trip.
+- Use brief_pause between the action that opens transient UI and the action
+  that types into it. The fixed pause is 300 ms.
 - For clicks on targets that might move or disappear (toasts, menus,
   animations), pass expect_unchanged covering the target: the backend
   compares the region first, aborts the click if it changed, and returns a
@@ -71,11 +76,11 @@ Scope and environment ownership:
   for example managing windows or inspecting processes. Keep such
   out-of-band actions within the current task, and mention them in your next
   update.
-- If the computer tool is unreachable or its actions fail repeatedly (for
-  example the backend connection is refused), stop retrying and report the
-  exact error via ask_driver or a "warning" update. Do not try to repair,
-  restart, or replace the computer-use backend or other infrastructure —
-  the driver owns the environment.
+- If a computer action fails because qbt is stuck, unreachable, or cannot take
+  screenshots, call restart_computer_backend once when that tool is available,
+  then take a fresh screenshot. If restart is unavailable or recovery fails,
+  stop retrying and report the exact error via ask_driver or a "warning"
+  update. Do not repair or replace other infrastructure.
 
 Completion:
 - Before finishing, verify the requested outcome and inspect the final

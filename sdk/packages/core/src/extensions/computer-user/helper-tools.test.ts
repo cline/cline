@@ -91,4 +91,31 @@ describe("computer-user collaboration tools", () => {
 		);
 		expect(output).toEqual({ delivered: true });
 	});
+
+	it("gives the helper an explicit backend force-restart tool", async () => {
+		const controller = new AbortController();
+		const coordinator = new ComputerUserCoordinator({
+			host: makeIdleHost(),
+			helperConfig: {},
+			notifyDriver: () => {},
+		});
+		const tools = createComputerUserCollaborationTools(coordinator, {
+			backendRestart: {
+				budgetMs: 1_000,
+				ensureRunning: async () => ({ status: "already_running" }),
+				forceRestart: async (signal) => {
+					expect(signal).toBe(controller.signal);
+					return { status: "started" };
+				},
+			},
+		});
+		const restart = tools.find(
+			(tool) => tool.name === "restart_computer_backend",
+		);
+
+		expect(restart?.timeoutMs).toBe(61_000);
+		await expect(
+			restart?.execute({}, { ...ctx, signal: controller.signal }),
+		).resolves.toMatchObject({ status: "started" });
+	});
 });

@@ -76,14 +76,14 @@ describe("createComputerUseTool", () => {
 		server = undefined;
 	});
 
-	it("maps run_sequence steps and expect_unchanged onto the wire format", async () => {
+	it("maps run_sequence steps, brief_pause, and expect_unchanged onto the wire format", async () => {
 		const seen: Array<Record<string, unknown>> = [];
 		const started = await startFakeBackend((request) => {
 			seen.push(request);
 			return {
 				id: request.id as number,
 				ok: true,
-				text: "Executed 2 actions.",
+				text: "Executed 3 actions.",
 				image: { data: "aGk=", mediaType: "image/png" },
 			};
 		});
@@ -112,6 +112,7 @@ describe("createComputerUseTool", () => {
 						coordinate: [10, 20],
 						expect_unchanged: [0, 0, 30, 40],
 					},
+					{ action: "brief_pause" },
 					{ action: "zoom", region: [0, 0, 30, 40] },
 				],
 			},
@@ -126,12 +127,13 @@ describe("createComputerUseTool", () => {
 					coordinate: [10, 20],
 					expectUnchanged: [0, 0, 30, 40],
 				},
+				{ action: "brief_pause" },
 				{ action: "zoom", region: [0, 0, 30, 40] },
 			],
 		});
 		expect(output[0]).toMatchObject({
 			type: "text",
-			text: "Executed 2 actions.",
+			text: "Executed 3 actions.",
 		});
 		expect(output[1]).toMatchObject({ type: "image" });
 	});
@@ -247,6 +249,61 @@ describe("createComputerUseTool", () => {
 			{ type: "text", text: "screenshot taken" },
 			{ type: "image", data: "ZmFrZS1wbmc=", mediaType: "image/png" },
 		]);
+	});
+
+	it("ensures the backend is running before each action", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true, text: "ready" };
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const readiness: string[] = [];
+		const tool = await createComputerUseTool({
+			port: started.port,
+			client,
+			backendAvailability: {
+				budgetMs: 1_000,
+				ensureRunning: async () => {
+					readiness.push("checked");
+					return { status: "already_running" };
+				},
+			},
+		});
+
+		await expect(tool.execute({ action: "screenshot" }, ctx)).resolves.toBe(
+			"ready",
+		);
+		expect(readiness).toEqual(["checked"]);
+		expect(seen).toEqual(["screenshot"]);
+		expect(tool.timeoutMs).toBe(31_000);
+	});
+
+	it("does not send the action when backend recovery fails", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const tool = await createComputerUseTool({
+			port: started.port,
+			client,
+			backendAvailability: {
+				budgetMs: 1_000,
+				ensureRunning: async () => ({
+					status: "failed_to_start",
+					error: "launch failed",
+				}),
+			},
+		});
+
+		await expect(tool.execute({ action: "screenshot" }, ctx)).rejects.toThrow(
+			"Computer-use backend recovery failed: launch failed",
+		);
+		expect(seen).toEqual([]);
 	});
 
 	it("returns plain text when the backend does not return an image", async () => {

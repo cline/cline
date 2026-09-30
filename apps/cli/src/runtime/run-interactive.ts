@@ -1,5 +1,4 @@
 import {
-	createComputerUseToolFromEnv,
 	getCurrentContextSize,
 	type ProviderSettings,
 	ProviderSettingsManager,
@@ -52,7 +51,7 @@ import {
 } from "./active-runtime";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
-import { createInteractiveComputerUser } from "./interactive/computer-user";
+import { createInteractiveComputerUse } from "./interactive/computer-user";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
 import {
 	formatInteractiveExitSummary,
@@ -269,16 +268,14 @@ export async function runInteractive(
 
 	const providerSettingsManager = new ProviderSettingsManager();
 
-	// Computer-use support, enabled when CLINE_COMPUTER_USE_PORT points at a
-	// running backend. Preferred shape: the asynchronous computer user (a
-	// dedicated Anthropic helper session behind computer_user_* tools). When
-	// the Anthropic provider is not configured, fall back to giving the
-	// driver the raw `computer` tool directly.
+	// Computer-use support is enabled by CLINE_COMPUTER_USE_PORT. The driver
+	// gets the raw tool unless CLINE_COMPUTER_USER_MODEL explicitly selects the
+	// asynchronous helper. Both modes publish the driver's observatory lane.
 	//
 	// notifyDriver closes over sessionRuntime (declared below) but only runs
 	// after a driver turn has started, long after initialization. It resolves
 	// the driver session id at call time, so session rebuilds are safe.
-	const computerUser = await createInteractiveComputerUser({
+	const computerUse = await createInteractiveComputerUse({
 		config,
 		providerSettingsManager,
 		notifyDriver: (prompt, delivery) => {
@@ -295,13 +292,7 @@ export async function runInteractive(
 				});
 		},
 	});
-	const computerUseTool = computerUser
-		? undefined
-		: await createComputerUseToolFromEnv();
-	const persistentExtraTools = [
-		...(computerUser ? computerUser.driverTools : []),
-		...(computerUseTool ? [computerUseTool] : []),
-	];
+	const persistentExtraTools = computerUse?.driverTools ?? [];
 
 	config.extraTools = buildInteractiveExtraTools({
 		mode: config.mode === "plan" ? "plan" : "act",
@@ -338,7 +329,7 @@ export async function runInteractive(
 		// Record the driver's transcript to the computer-use backend's
 		// journal so the observatory can show it beside the computer user's
 		// transcript and screenshots.
-		extraAgentHooks: computerUser?.driverRecordingHooks,
+		extraAgentHooks: computerUse?.driverRecordingHooks,
 		onAgentEvent: (event) => {
 			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
 		},
@@ -453,7 +444,7 @@ export async function runInteractive(
 			try {
 				exitSummary = await sessionRuntime.cleanup();
 			} finally {
-				await computerUser?.dispose().catch(() => {});
+				await computerUse?.dispose().catch(() => {});
 				await workspaceResources?.dispose();
 				setActiveRuntimeAbort(undefined);
 				setActiveRuntimeCleanup(undefined);

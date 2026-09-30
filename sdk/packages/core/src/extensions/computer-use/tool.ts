@@ -1,10 +1,13 @@
 import type { AgentTool, AgentToolContext } from "@cline/shared";
 import { createTool } from "@cline/shared";
+import type { ComputerBackendRestartCapability } from "./backend-restart";
 import { ComputerUseClient, type ComputerUseClientOptions } from "./client";
 import type {
 	ComputerUseAction,
 	ComputerUseCoordinate,
 	ComputerUseRequest,
+	ComputerUseSequenceAction,
+	ComputerUseSequenceItem,
 } from "./protocol";
 
 export interface ComputerUseToolOptions extends ComputerUseClientOptions {
@@ -15,6 +18,11 @@ export interface ComputerUseToolOptions extends ComputerUseClientOptions {
 	 * from the other options.
 	 */
 	client?: ComputerUseClient;
+	/** Starts an absent backend before each action and provides its wait budget. */
+	backendAvailability?: Pick<
+		ComputerBackendRestartCapability,
+		"budgetMs" | "ensureRunning"
+	>;
 }
 
 /** Raw tool input shape as sent by the model (mirrors Anthropic's `computer` tool). */
@@ -27,9 +35,15 @@ interface ComputerToolInput {
 	scroll_direction?: "up" | "down" | "left" | "right";
 	scroll_amount?: number;
 	region?: readonly [number, number, number, number];
-	/** Steps for the run_sequence action, in the same input shape. */
-	actions?: ComputerToolInput[];
+	/** Steps for run_sequence; internal and nested sequence actions are excluded. */
+	actions?: ComputerToolSequenceInput[];
 	expect_unchanged?: readonly [number, number, number, number];
+}
+
+interface ComputerToolSequenceInput
+	extends Omit<ComputerToolInput, "action" | "actions"> {
+	action: ComputerUseSequenceAction;
+	actions?: never;
 }
 
 const COMPUTER_TOOL_NAME = "computer";
@@ -52,6 +66,7 @@ const ACTION_PROPERTY = {
 		"hold_key",
 		"type",
 		"scroll",
+		"brief_pause",
 		"wait",
 		"zoom",
 	],
@@ -155,11 +170,23 @@ function toComputerUseRequest(
 		scrollAmount: input.scroll_amount,
 		region: input.region,
 		expectUnchanged: input.expect_unchanged,
-		...(input.actions
-			? {
-					actions: input.actions.map((step) => toComputerUseRequest(step)),
-				}
-			: {}),
+		...(input.actions ? { actions: input.actions.map(toSequenceItem) } : {}),
+	};
+}
+
+function toSequenceItem(
+	input: ComputerToolSequenceInput,
+): ComputerUseSequenceItem {
+	return {
+		action: input.action,
+		coordinate: input.coordinate,
+		startCoordinate: input.start_coordinate,
+		text: input.text,
+		durationSeconds: input.duration,
+		scrollDirection: input.scroll_direction,
+		scrollAmount: input.scroll_amount,
+		region: input.region,
+		expectUnchanged: input.expect_unchanged,
 	};
 }
 
@@ -196,6 +223,9 @@ export async function createComputerUseTool(
 			`The display is ${widthPx}x${heightPx} pixels. ` +
 			`Use "screenshot" to see the current screen before acting, since the environment ` +
 			`may change between turns. Coordinates are [x, y] pixels from the top-left corner. ` +
+			`After opening a dialog, launcher, menu, or other transient UI, do not type ` +
+			`immediately: include "brief_pause" before typing, or inspect a screenshot ` +
+			`that confirms the intended input is present and focused. ` +
 			`Every click, type, key, scroll, and drag action returns a screenshot of the ` +
 			`resulting state — do not take a separate screenshot just to see what an action ` +
 			`did; reserve standalone screenshots for navigation, loading, or uncertain state. ` +
@@ -208,10 +238,22 @@ export async function createComputerUseTool(
 		inputSchema: COMPUTER_TOOL_INPUT_SCHEMA,
 		// Screenshots and round trips to an external process are slower than
 		// in-process tools; give this more room than the SDK's 30s default.
-		timeoutMs: 30_000,
+		timeoutMs: options.backendAvailability
+			? options.backendAvailability.budgetMs + 30_000
+			: 30_000,
 		retryable: false,
 		execute: async (input: unknown, context: AgentToolContext) => {
 			const parsedInput = input as ComputerToolInput;
+			if (options.backendAvailability) {
+				const readiness = await options.backendAvailability.ensureRunning(
+					context.signal,
+				);
+				if (readiness.status === "failed_to_start") {
+					throw new Error(
+						`Computer-use backend recovery failed: ${readiness.error}`,
+					);
+				}
+			}
 			// Forward the runtime's abort signal so a cancelled helper run
 			// stops waiting on the backend. An already-delivered input event
 			// cannot be recalled; the caller re-screenshots before trusting

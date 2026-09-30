@@ -20,12 +20,18 @@ export {
 	type HelperRun,
 } from "./coordinator";
 export type { ComputerUserDriverToolOptions } from "./driver-tools";
-export { createComputerUserDriverTools } from "./driver-tools";
+export {
+	createComputerBackendRestartTool,
+	createComputerUserDriverTools,
+} from "./driver-tools";
 export {
 	COMPUTER_USER_PROMPT_VERSION,
 	COMPUTER_USER_SYSTEM_PROMPT,
 } from "./helper-prompt";
-export { createComputerUserCollaborationTools } from "./helper-tools";
+export {
+	type ComputerUserCollaborationToolOptions,
+	createComputerUserCollaborationTools,
+} from "./helper-tools";
 export {
 	type ComputerUserTranscriptEntry,
 	ComputerUserTranscriptLog,

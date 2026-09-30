@@ -11,7 +11,9 @@
 export {
 	type ComputerBackendEnsureResult,
 	ComputerBackendRestart,
+	type ComputerBackendRestartCapability,
 	type ComputerBackendRestartOptions,
+	isComputerUseLoopbackHost,
 } from "./backend-restart";
 export {
 	ComputerUseClient,
@@ -32,10 +34,12 @@ export type {
 	ComputerUseImage,
 	ComputerUseRequest,
 	ComputerUseResponse,
+	ComputerUseSequenceItem,
 } from "./protocol";
 export {
 	GET_DISPLAY_INFO_ACTION,
 	isComputerUseResponse,
 	PUBLISH_EVENT_ACTION,
+	SHUTDOWN_BACKEND_ACTION,
 } from "./protocol";
 export { type ComputerUseToolOptions, createComputerUseTool } from "./tool";
