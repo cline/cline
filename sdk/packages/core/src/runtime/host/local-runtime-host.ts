@@ -288,7 +288,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		string,
 		{
 			promise: Promise<StartSessionResult>;
-			abortRequested: boolean;
+			/** Turns that have queued up behind this start, in arrival order. */
+			waiters: number;
+			/**
+			 * Index of the waiter an abort cancelled. Mirrors a live session,
+			 * where abort stops the running turn and leaves queued prompts:
+			 * only the earliest waiter (the turn that would be running) is
+			 * cancelled; later ones run on the result.
+			 */
+			abortedWaiter?: number;
 			abortReason?: unknown;
 		}
 	>();
@@ -468,10 +476,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			}
 		})().finally(() => this.sessionStarts.delete(sessionId));
-		this.sessionStarts.set(sessionId, {
-			promise: starting,
-			abortRequested: false,
-		});
+		this.sessionStarts.set(sessionId, { promise: starting, waiters: 0 });
 		return await starting;
 	}
 
@@ -1177,13 +1182,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// be replaced and then aborted with it. The start's own outcome is not
 		// this turn's concern: on failure the surviving resident serves it.
 		const pendingStart = this.sessionStarts.get(input.sessionId);
+		const waiterIndex = pendingStart ? pendingStart.waiters++ : -1;
 		if (pendingStart) {
 			await pendingStart.promise.catch(() => undefined);
 		}
 		const session = this.getSessionOrThrow(input.sessionId);
-		// An abort issued while this turn was waiting applies to this turn: the
-		// user cancelled it before anything ran, so nothing runs.
-		if (pendingStart?.abortRequested) {
+		// An abort issued while this turn was the one waiting to run applies to
+		// it: the user cancelled it before anything ran, so nothing runs.
+		if (pendingStart && pendingStart.abortedWaiter === waiterIndex) {
 			if (session.interactive) {
 				return await this.completeAbortedInteractiveTurn(session);
 			}
@@ -1272,11 +1278,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
-		// Turns waiting on an in-flight start for this id are cancelled too;
-		// aborting only the current resident would let them run afterwards.
+		// A turn waiting on an in-flight start for this id is the one that would
+		// be running; aborting only the current resident would let it run
+		// afterwards. Later waiters are the equivalent of queued prompts, which
+		// an abort leaves alone.
 		const pendingStart = this.sessionStarts.get(sessionId);
-		if (pendingStart) {
-			pendingStart.abortRequested = true;
+		if (
+			pendingStart &&
+			pendingStart.waiters > 0 &&
+			pendingStart.abortedWaiter === undefined
+		) {
+			pendingStart.abortedWaiter = 0;
 			pendingStart.abortReason = reason;
 		}
 		const session = this.sessions.get(sessionId);
@@ -2507,10 +2519,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const displaced = () => this.sessions.get(session.sessionId) !== session;
 		if (session.artifacts && !displaced()) {
 			await this.refreshActiveSessionGitMetadata(session);
-			try {
-				await this.updateStatus(session, input.status, input.exitCode);
-			} catch (error) {
-				recordCleanupError("update_status", error);
+			// The refresh awaited; the slot may have changed hands meanwhile.
+			if (!displaced()) {
+				try {
+					await this.updateStatus(session, input.status, input.exitCode);
+				} catch (error) {
+					recordCleanupError("update_status", error);
+				}
 			}
 		}
 		try {
