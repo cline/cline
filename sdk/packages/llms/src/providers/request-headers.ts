@@ -1,4 +1,5 @@
 import { decodeJwtPayload } from "@cline/shared";
+import { buildClineClientHeaders } from "./cline-client-headers";
 
 export interface ProviderRequestHeaderClientContext {
 	name?: string;
@@ -31,13 +32,6 @@ export interface ResolveProviderRequestHeadersInput {
 	openAiCodex?: OpenAICodexRequestHeaderContext;
 	headers?: ProviderRequestHeaderLayers;
 }
-
-export const DEFAULT_CLINE_REQUEST_HEADERS: Record<string, string> = {
-	"HTTP-Referer": "https://cline.bot",
-	"X-Title": "Cline",
-	"X-IS-MULTIROOT": "false",
-	"X-CLIENT-TYPE": "cline-sdk",
-};
 
 function isClineBillingProvider(providerId: string): boolean {
 	return providerId === "cline" || providerId === "cline-pass";
@@ -78,13 +72,13 @@ function buildClineRequestHeaders(
 	const platformVersion =
 		trimNonEmpty(input.client?.platformVersion) ?? clientVersion;
 	return {
-		...DEFAULT_CLINE_REQUEST_HEADERS,
-		"User-Agent": `Cline/${clientVersion}`,
-		"X-IS-MULTIROOT": input.client?.isMultiRoot === true ? "true" : "false",
-		"X-CLIENT-TYPE": clientType,
-		"X-CLIENT-VERSION": clientVersion,
-		"X-PLATFORM": platform,
-		"X-PLATFORM-VERSION": platformVersion,
+		...buildClineClientHeaders({
+			name: clientType,
+			version: clientVersion,
+			platform,
+			platformVersion,
+			isMultiRoot: input.client?.isMultiRoot,
+		}),
 		"X-CORE-VERSION": input.coreVersion,
 		"X-Task-ID": input.sessionId,
 	};

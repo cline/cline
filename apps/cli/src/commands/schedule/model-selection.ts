@@ -1,5 +1,6 @@
-import { type ProviderSettings, ProviderSettingsManager } from "@cline/core";
+import type { ProviderSettings } from "@cline/core";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+import { getCliProviderSettingsManager } from "../../utils/provider-settings";
 
 export const DEFAULT_SCHEDULE_PROVIDER = "cline";
 
@@ -26,7 +27,7 @@ export function resolveScheduleModelSelection(
 		return { provider: explicitProvider, model: explicitModel };
 	}
 
-	const manager = providerSettingsManager ?? new ProviderSettingsManager();
+	const manager = providerSettingsManager ?? getCliProviderSettingsManager();
 	const lastUsedSettings = manager.getLastUsedProviderSettings();
 	const provider =
 		explicitProvider ??

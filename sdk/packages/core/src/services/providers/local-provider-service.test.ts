@@ -14,6 +14,7 @@ import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
 } from "../llms/provider-defaults";
+import { resolveFileMutationLockDir } from "../storage/file-mutation-lock";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import * as LocalProviderRegistry from "./local-provider-registry";
 import {
@@ -687,6 +688,51 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		);
 	});
 
+	it("waits for another process's catalog lock before rewriting models.json", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockImplementation(async () =>
+					Response.json({ data: [{ id: "model" }] }),
+				),
+		);
+		const modelsPath = resolveModelsRegistryPath(manager);
+		await addLocalProvider(manager, {
+			providerId: "ours",
+			name: "Ours",
+			baseUrl: "https://ours.example/v1",
+			modelsSourceUrl: "https://ours.example/v1/models",
+			models: [],
+		});
+		// Another live process holds the lock while it rewrites models.json.
+		const lockDir = resolveFileMutationLockDir(path.resolve(modelsPath));
+		mkdirSync(lockDir);
+		writeFileSync(
+			path.join(lockDir, "owner.json"),
+			JSON.stringify({
+				pid: process.ppid,
+				acquiredAt: new Date().toISOString(),
+			}),
+		);
+		const save = saveLocalProviderSettings(manager, {
+			providerId: "ours",
+			apiKey: "new-key",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 150));
+		expect(manager.getProviderSettings("ours")?.apiKey).toBeUndefined();
+		const external = await readModelsFile(modelsPath);
+		external.providers.theirs = {
+			...structuredClone(external.providers.ours),
+		} as (typeof external.providers)[string];
+		await LocalProviderRegistry.writeModelsFile(modelsPath, external);
+		rmSync(lockDir, { recursive: true, force: true });
+		await save;
+		const final = await readModelsFile(modelsPath);
+		expect(Object.keys(final.providers).sort()).toEqual(["ours", "theirs"]);
+		expect(manager.getProviderSettings("ours")?.apiKey).toBe("new-key");
+	});
+
 	it("saves credentials when the new catalog source lists no models", async () => {
 		const fetchMock = vi
 			.fn()
@@ -925,9 +971,8 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline");
 
-		// models.dev and the recommended feed populate the live catalog; the
-		// recommended feed is fetched once more for the featured-tier overlay.
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// models.dev and one shared recommendation request populate both catalog and tiers.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
 			id: liveModelId,
 			name: "Live Cline Model",
@@ -987,9 +1032,8 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		const { models } = await getLocalProviderModels("cline-pass");
 
 		// models.dev, the recommended-models feed via the live catalog, and
-		// the recommended-models feed again for the featured-tier overlay
-		// (separately cached; both caches are cold here).
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// the same recommendation payload supplies the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -1042,7 +1086,7 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			loadLatest: true,
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models).toContainEqual(
 			expect.objectContaining({
 				id: "cline-cloud/claude-sonnet-4.6",
@@ -1088,9 +1132,8 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		const { models } = await getLocalProviderModels("cline-pass");
 
 		// models.dev, the recommended-models feed via the live catalog, and
-		// the recommended-models feed again for the featured-tier overlay
-		// (separately cached; both caches are cold here).
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// the same recommendation payload supplies the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);
@@ -2849,7 +2892,7 @@ describe("listLocalProviders", () => {
 			await LlmsModels.getModelsForProvider("cline"),
 		);
 		const [recommendedId, freeId] = clineModelIds;
-		await getCachedClineRecommendedModels({
+		const context = {
 			baseUrl: "https://api.example.test",
 			fetchImpl: async () =>
 				new Response(
@@ -2868,7 +2911,12 @@ describe("listLocalProviders", () => {
 					{ status: 200, headers: { "Content-Type": "application/json" } },
 				),
 			catalogLoader: async () => ({}),
+		};
+		manager = new ProviderSettingsManager({
+			filePath: manager.getFilePath(),
+			...context,
 		});
+		await getCachedClineRecommendedModels(context);
 
 		const { providers } = await listLocalProviders(manager);
 		const modelList =

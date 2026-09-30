@@ -1,10 +1,7 @@
 import {
-	fetchClineRecommendedModels,
 	getProviderConfigFields,
 	Llms,
-	ProviderSettingsManager,
 	refreshProviderModelsFromSource,
-	resolveProviderConfig,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -16,6 +13,7 @@ import {
 	isOAuthProvider,
 	isProviderConfigured,
 } from "../../utils/provider-auth";
+import { getCliProviderSettingsManager } from "../../utils/provider-settings";
 import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
@@ -56,11 +54,11 @@ async function getProviderDisplayName(providerId: string): Promise<string> {
 }
 
 async function refreshCurrentProviderModels(config: Config): Promise<void> {
-	const manager = new ProviderSettingsManager();
+	const manager = getCliProviderSettingsManager();
 	await refreshProviderModelsFromSource(manager, config.providerId).catch(
 		() => {},
 	);
-	const resolved = await resolveProviderConfig(
+	const resolved = await manager.resolveModelsConfig(
 		config.providerId,
 		{
 			loadLatestOnInit: true,
@@ -93,7 +91,7 @@ async function fetchOpenAiCompatibleModelIds(
 	providerId: string,
 ): Promise<string[]> {
 	try {
-		const manager = new ProviderSettingsManager();
+		const manager = getCliProviderSettingsManager();
 		const config = manager.getProviderConfig(providerId, {
 			includeKnownModels: false,
 		});
@@ -172,7 +170,7 @@ async function runProviderChange(
 	});
 	if (!newProviderId) return false;
 
-	const manager = new ProviderSettingsManager();
+	const manager = getCliProviderSettingsManager();
 	const displayName = await withLoadingDialog(
 		dialog,
 		"Loading provider...",
@@ -307,7 +305,7 @@ async function runProviderChange(
 
 			config.providerId = newProviderId;
 			config.apiKey = newApiKey;
-			const resolved = await resolveProviderConfig(
+			const resolved = await manager.resolveModelsConfig(
 				newProviderId,
 				{
 					loadLatestOnInit: true,
@@ -455,7 +453,7 @@ export function useModelSelector(opts: {
 								loadEntries={async () =>
 									buildFeaturedModelEntries(
 										featuredProviderId,
-										await fetchClineRecommendedModels(),
+										await getCliProviderSettingsManager().getRecommendedModels(),
 									)
 								}
 							/>

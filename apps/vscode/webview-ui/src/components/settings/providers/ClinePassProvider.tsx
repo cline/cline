@@ -47,7 +47,7 @@ function clinePassFallbackModelInfo(modelId: string): ModelInfo {
 }
 
 // Names arrive display-ready from the recommended-models RPC (the extension
-// host resolves them against the model catalog in fetchClineRecommendedModels)
+// host resolves them against the model catalog in ProviderSettingsManager.getRecommendedModels)
 
 function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "description">): FeaturedTabEntry | null {
 	if (!model.id) {

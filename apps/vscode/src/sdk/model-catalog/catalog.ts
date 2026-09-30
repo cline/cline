@@ -1,7 +1,7 @@
-import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
+import { type ModelCatalogConfig } from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
-import { getProviderSettingsManager } from "../provider-migration"
+import { getModelProviderSettingsManager } from "../model-provider-settings"
 import type {
 	CatalogError,
 	Disposable,
@@ -189,8 +189,8 @@ function toProviderListing(provider: ProviderListItem): ProviderListing {
 }
 
 async function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
-	const manager = getProviderSettingsManager()
-	const { providers } = await listLocalProviders(manager, {
+	const manager = await getModelProviderSettingsManager()
+	const { providers } = await manager.listProviders({
 		isClinePassEnabled: true,
 	})
 	return providers.map(toProviderListing)
@@ -204,7 +204,7 @@ async function resolveSdkModels(
 	now: () => number,
 ): Promise<ProviderModelsRecord> {
 	const sdkProviderId = toSdkProviderId(providerId)
-	const resolved = await resolveProviderConfig(
+	const resolved = await (await getModelProviderSettingsManager()).resolveModelsConfig(
 		sdkProviderId,
 		DEFAULT_MODEL_CATALOG_CONFIG,
 		toSdkProviderConfig(config, selection),

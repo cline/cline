@@ -1,4 +1,4 @@
-import { ClineAccountService, ProviderSettingsManager } from "@cline/core";
+import { ClineAccountService } from "@cline/core";
 import {
 	type CloudCreationOptions,
 	CloudSessionApi,
@@ -15,6 +15,7 @@ import {
 	handleHubLiveEvent,
 	sendEvent,
 } from "./context";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 import { readSessionMessagesSync } from "./session-data/messages";
 import type { LiveSession, SidecarContext } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
@@ -219,7 +220,7 @@ export function getCloudSessionManager(
 		return existing;
 	}
 	const environment = getClineEnvironmentConfig();
-	const providerSettingsManager = new ProviderSettingsManager();
+	const providerSettingsManager = getDesktopProviderSettingsManager();
 	const getAuthToken = () =>
 		resolveFreshClineAuthToken(providerSettingsManager, ctx);
 	const api = new CloudSessionApi({

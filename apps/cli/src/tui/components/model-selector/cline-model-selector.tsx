@@ -76,7 +76,7 @@ export function ClineModelSelectorContent(
 				rows.push({
 					key: entry.model.id,
 					kind: "model",
-					// Names arrive display-ready from fetchClineRecommendedModels
+					// Names arrive display-ready from ProviderSettingsManager.getRecommendedModels
 					label: entry.model.name || entry.model.id,
 					tags: entry.model.tags,
 					isCurrent: currentModel === entry.model.id,

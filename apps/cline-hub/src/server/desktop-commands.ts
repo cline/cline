@@ -5,11 +5,9 @@ import {
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
 	formatProviderOAuthApiKey,
-	getLocalProviderModels,
 	getPersistedProviderApiKey,
 	getProviderOAuthCredentialsFromSettings,
 	getValidClineCredentials,
-	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
@@ -101,18 +99,13 @@ export async function handleDesktopCommand(
 ): Promise<unknown> {
 	if (command === "list_provider_catalog") {
 		await ensureCustomProvidersLoaded(providerSettingsManager);
-		return await listLocalProviders(providerSettingsManager, {
+		return await providerSettingsManager.listProviders({
 			isClinePassEnabled: true,
 		});
 	}
 	if (command === "list_provider_models") {
 		const provider = String(args?.provider ?? "").trim();
-		return await getLocalProviderModels(
-			provider,
-			providerSettingsManager.getProviderConfig(provider, {
-				includeKnownModels: false,
-			}),
-		);
+		return await providerSettingsManager.getModels(provider);
 	}
 	if (command === "save_provider_settings") {
 		return saveLocalProviderSettings(providerSettingsManager, {

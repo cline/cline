@@ -70,7 +70,11 @@ describe("live catalog request bounds", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		now.mockReturnValue(1_101);
 		await getLiveModelsCatalog({ cacheTtlMs: 100 });
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// The raw recommendation feed has its own shared five-minute TTL.
+		now.mockReturnValue(301_001);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(5);
 	});
 });
 

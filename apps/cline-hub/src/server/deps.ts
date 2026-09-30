@@ -18,7 +18,9 @@ export const cliIndexPath = normalize(
 	join(appSrcDir, "../../cli/src/index.ts"),
 );
 
-export const providerSettingsManager = new ProviderSettingsManager();
+export const providerSettingsManager = new ProviderSettingsManager({
+	client: { name: "cline-hub" },
+});
 
 export const browserConfig: BrowserConfig = {
 	inviteRequired: Boolean(roomSecret),

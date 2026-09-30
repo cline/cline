@@ -1,14 +1,8 @@
-import { getClineClientIdentity, setClineClientIdentity } from "@cline/shared";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { buildClineClientHeaders } from "./cline-client-headers";
-
-afterEach(() => {
-	setClineClientIdentity(undefined);
-});
 
 describe("buildClineClientHeaders", () => {
 	it("falls back to the SDK client type when no identity is registered", () => {
-		expect(getClineClientIdentity()).toBeUndefined();
 		expect(buildClineClientHeaders()).toEqual({
 			"HTTP-Referer": "https://cline.bot",
 			"X-Title": "Cline",
@@ -22,14 +16,14 @@ describe("buildClineClientHeaders", () => {
 	});
 
 	it("stamps the registered client identity", () => {
-		setClineClientIdentity({
+		const identity = {
 			name: "VSCode Extension",
 			version: "3.40.0",
 			platform: "Visual Studio Code",
 			platformVersion: "1.100.0",
-		});
+		};
 
-		expect(buildClineClientHeaders()).toMatchObject({
+		expect(buildClineClientHeaders(identity)).toMatchObject({
 			"User-Agent": "Cline/3.40.0",
 			"X-CLIENT-TYPE": "VSCode Extension",
 			"X-CLIENT-VERSION": "3.40.0",
@@ -39,9 +33,9 @@ describe("buildClineClientHeaders", () => {
 	});
 
 	it("ignores blank identity fields and honors an explicit override", () => {
-		setClineClientIdentity({ name: "  ", version: "9.9.9" });
+		const identity = { name: "  ", version: "9.9.9" };
 
-		expect(buildClineClientHeaders()).toMatchObject({
+		expect(buildClineClientHeaders(identity)).toMatchObject({
 			"X-CLIENT-TYPE": "cline-sdk",
 			"X-CLIENT-VERSION": "9.9.9",
 			"X-PLATFORM": "cline-sdk",

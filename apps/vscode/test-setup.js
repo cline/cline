@@ -92,6 +92,9 @@ Module.prototype.require = function (id) {
 		})
 
 		class ProviderSettingsManager {
+			async getRecommendedModels() {
+				return { recommended: [], free: [], clinePass: [] }
+			}
 			constructor(_options) {
 				this.state = { providers: {}, lastUsedProvider: undefined }
 			}
@@ -219,7 +222,6 @@ Module.prototype.require = function (id) {
 			listLocalProviders,
 			resolveProviderConfig: async () => undefined,
 			getProviderConfigFields: () => [],
-			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
 			readGlobalSettings: () => ({ telemetryOptOut: false }),
 			setTelemetryOptOutGlobally: () => undefined,
 			prepareRemoteConfigCoreIntegration: () => undefined,

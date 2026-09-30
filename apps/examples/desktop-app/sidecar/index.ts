@@ -14,10 +14,8 @@ import {
 	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
 	ensureLoopbackProxyBypass,
-	setClineClientIdentity,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
-import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
 	broadcastEvent,
@@ -240,7 +238,6 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
-	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 
 	disableCurrentDirectoryExecutableSearch();
 	// Before the Hub daemon and agent-spawned processes inherit this env.

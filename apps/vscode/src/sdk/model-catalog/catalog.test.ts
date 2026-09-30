@@ -28,6 +28,13 @@ vi.mock("@cline/core", async (importOriginal: any) => {
 	}
 })
 
+vi.mock("../model-provider-settings", () => ({
+	getModelProviderSettingsManager: async () => ({
+		resolveModelsConfig: mocks.resolveProviderConfig,
+		listProviders: mocks.listLocalProviders,
+	}),
+}))
+
 vi.mock("@/services/feature-flags", () => ({
 	getFeatureFlagsService: () => ({
 		getBooleanFlagEnabled: mocks.getBooleanFlagEnabled,
@@ -333,7 +340,7 @@ describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
 
 		const first = catalog.resolveModels(providerId)
 		const second = catalog.resolveModels(providerId)
-		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1)
+		await vi.waitFor(() => expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(1))
 		pending.resolve({ modelId: "m", knownModels: { m: { id: "m" } } })
 
 		expect(await second).toBe(await first)
@@ -354,7 +361,7 @@ describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
 		reader.setConfig({ providerId, apiKey: "b" })
 		const second = catalog.resolveModels(providerId)
 
-		expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2)
+		await vi.waitFor(() => expect(mocks.resolveProviderConfig).toHaveBeenCalledTimes(2))
 		firstPending.resolve({ modelId: "a", knownModels: { a: { id: "a" } } })
 		secondPending.resolve({ modelId: "b", knownModels: { b: { id: "b" } } })
 		const firstResult = await first
@@ -551,7 +558,7 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		})
 		expect(listings[0]).not.toHaveProperty("models")
 		expect(mocks.listLocalProviders).toHaveBeenCalledTimes(1)
-		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: true })
+		expect(mocks.listLocalProviders).toHaveBeenCalledWith({ isClinePassEnabled: true })
 	})
 
 	it("passes the SDK's subscription usage-cost display through to listings", async () => {

@@ -39,17 +39,14 @@ import {
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
-	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
-	getLocalProviderModels,
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
 	isModelToolEnabledGlobally,
 	listHookConfigFiles,
-	listLocalProviders,
 	normalizeOAuthProvider,
-	ProviderSettingsManager,
+	type ProviderSettingsManager,
 	parseMcpServerRegistration,
 	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
@@ -166,6 +163,7 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 import {
 	getPluginCommandService,
 	warmPluginCommandService,
@@ -2780,7 +2778,7 @@ export async function handleCommand(
 	if (command === "cline_account") {
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		// Signed out is an expected state, not a command failure: resolve the
 		// token up front and return a typed result the webview can act on
 		// instead of letting the account service throw a generic error that
@@ -2818,7 +2816,7 @@ export async function handleCommand(
 	if (command === "cline_integrations") {
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 
 		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
@@ -2889,38 +2887,40 @@ export async function handleCommand(
 
 	// ── Provider management ────────────────────────────────────────────
 	if (command === "list_provider_catalog") {
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager, { isClinePassEnabled: true });
+		return await manager.listProviders({ isClinePassEnabled: true });
 	}
 	if (command === "list_transcription_models") {
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
 		return getLocalTranscriptionModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
+			manager.getCatalogContext(),
 		);
 	}
 	if (command === "list_provider_models") {
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
 		const includeCloudModels =
 			providerId === "cline" &&
 			args?.includeCloudModels === true &&
 			isCloudAgentsEnabled();
-		return await getLocalProviderModels(
-			providerId,
-			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
-		);
+		// Known models are merged in unfiltered after the provider's own model
+		// rules run, so including them here would leak e.g. the full OpenAI
+		// catalog into the ChatGPT Subscription (codex) picker.
+		return await manager.getModels(providerId, {
+			loadLatest: includeCloudModels,
+		});
 	}
 	if (command === "list_cline_recommended_models") {
 		// Tiered picker data (recommended / free / clinePass) with
 		// display-ready names; falls back to a bundled list offline.
-		return await fetchClineRecommendedModels();
+		return await getDesktopProviderSettingsManager().getRecommendedModels();
 	}
 	if (command === "create_streaming_transcription_session") {
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const selection = manager.getVoiceInputSettings();
 		const providerConfig = selection
 			? manager.getProviderConfig(selection.providerId, {
@@ -2988,7 +2988,7 @@ export async function handleCommand(
 				`recorded audio exceeds the ${MAX_RECORDED_AUDIO_BYTES} byte limit`,
 			);
 		}
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const selection = manager.getVoiceInputSettings();
 		const providerConfig = selection
 			? manager.getProviderConfig(selection.providerId, {
@@ -3042,7 +3042,7 @@ export async function handleCommand(
 				"voice input provider and model must both be set or both be cleared",
 			);
 		}
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const result = await saveVoiceInputSettings(
 			manager,
 			providerId && modelId ? { providerId, modelId } : undefined,
@@ -3055,7 +3055,7 @@ export async function handleCommand(
 		return result;
 	}
 	if (command === "save_provider_settings") {
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
 		const storageProviderId =
 			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
@@ -3106,7 +3106,7 @@ export async function handleCommand(
 		return saved;
 	}
 	if (command === "add_provider") {
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
 		return await addLocalProvider(manager, {
 			providerId: String(args?.provider_id ?? ""),
@@ -3145,7 +3145,7 @@ export async function handleCommand(
 	}
 	if (command === "update_provider_models") {
 		const providerId = String(args?.provider ?? "").trim();
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
 		return await updateLocalProvider(manager, {
 			providerId,
@@ -3156,7 +3156,7 @@ export async function handleCommand(
 	}
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
-		const manager = new ProviderSettingsManager();
+		const manager = getDesktopProviderSettingsManager();
 		const result = await runCancellableProviderOAuthLogin(
 			manager,
 			providerId,

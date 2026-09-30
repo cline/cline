@@ -40,6 +40,23 @@ flowchart LR
   apps --> core
 ```
 
+## Model catalog ownership
+
+Each host configures a `ProviderSettingsManager` with its `ClientContext` and
+transport. The manager is the application entry point for provider listings,
+model lists, recommendation buckets, and live model configuration. It delegates
+to shared catalog services; clients retain their settings managers when using
+hub-backed session execution. The browser hub server owns its own configured
+manager for its provider endpoints.
+
+The `@cline/llms` recommendation loader deduplicates the raw endpoint request
+across the live catalog overlay, featured picker data, and free-cost lookup.
+Catalog and inference requests use the same client header builder. No global
+client identity is registered. Cache keys include normalized API endpoint,
+client headers, and transport identity; a host must resolve asynchronous identity
+before constructing its manager. VS Code uses its proxy-aware transport for both
+catalog sources.
+
 ## Package Responsibilities
 
 ### `@cline/shared`

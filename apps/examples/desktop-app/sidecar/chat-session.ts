@@ -12,7 +12,6 @@ import {
 	getCoreBuiltinToolCatalog,
 	isSessionNotFoundError,
 	isSkillsToolAvailable,
-	ProviderSettingsManager,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
@@ -56,6 +55,7 @@ import {
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 import { runPluginSlashCommand } from "./plugin-commands";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
@@ -877,7 +877,7 @@ async function withRemoteProviderCredentials(
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
 	if (!providerId) return config;
 
-	const manager = new ProviderSettingsManager();
+	const manager = getDesktopProviderSettingsManager();
 	const settings = manager.getProviderSettings(providerId);
 	if (!settings) return config;
 	const modelId = String(

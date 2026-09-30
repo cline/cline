@@ -27,7 +27,6 @@ import {
 import {
 	applyClineFeaturedModels,
 	getCachedClineRecommendedModels,
-	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
 import {
 	getLiveModelsCatalog,
@@ -43,6 +42,7 @@ import {
 	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
+import { withFileMutationLock } from "../storage/file-mutation-lock";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -175,7 +175,10 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
-	options: { loadLatest?: boolean } = {},
+	options: {
+		loadLatest?: boolean;
+		context?: LlmsModels.ClineCatalogContext;
+	} = {},
 ): Promise<Record<string, ModelInfo>> {
 	const [registeredModels, registeredModelOverrides] = await Promise.all([
 		LlmsModels.getModelsForProvider(providerId),
@@ -205,6 +208,7 @@ async function resolveProviderModelMap(
 				Boolean(provider?.modelsSourceUrl),
 		},
 		config,
+		options.context,
 	);
 
 	if (providerId === "litellm" && resolved?.knownModels) {
@@ -456,6 +460,10 @@ function removeProviderFromSettingsState(
 
 // Provider-service mutations share one queue per file, including across manager
 // instances. Locking by provider would still lose other providers' catalog edits.
+// Within the queue, each mutation also holds a cross-process lock so another
+// Cline process (CLI, sidecar, hub) cannot interleave a models.json rewrite
+// between our read and write. The lock is not reentrant; the in-process queue
+// guarantees this process holds it at most once per file.
 const providerMutations = new Map<string, Promise<void>>();
 
 function withProviderMutation<T>(
@@ -464,7 +472,19 @@ function withProviderMutation<T>(
 ): Promise<T> {
 	const key = resolve(resolveModelsRegistryPath(manager));
 	const previous = providerMutations.get(key) ?? Promise.resolve();
-	const result = previous.then(mutation);
+	const result = previous.then(() =>
+		withFileMutationLock(
+			key,
+			{
+				label: "provider catalog",
+				// Model discovery runs inside the lock (5 s fetch timeout), so allow
+				// a queued holder's discovery to finish before giving up.
+				waitMs: 30_000,
+				maxAgeMs: 60_000,
+			},
+			mutation,
+		),
+	);
 	const settled = result.then(
 		() => {},
 		() => {},
@@ -962,7 +982,7 @@ export async function listLocalProviders(
 	// feed, else the bundled fallback). This keeps even the very first picker
 	// paint after a cold boot sectioned; the per-provider model-list path
 	// (getLocalProviderModels) then refreshes with live feed data.
-	const featuredData = peekClineRecommendedModels();
+	const featuredData = manager.peekRecommendedModels();
 
 	const providerEntries = await Promise.all(
 		ids.map(
@@ -1083,7 +1103,7 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
-	options?: { loadLatest?: boolean },
+	options?: { loadLatest?: boolean; context?: LlmsModels.ClineCatalogContext },
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config, options);
@@ -1096,14 +1116,14 @@ export async function getLocalProviderModels(
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(
-				options?.loadLatest
-					? {
-							catalogLoader: () =>
-								getLiveModelsCatalog({ includeClineCloudModels: true }),
-						}
-					: undefined,
-			),
+			await getCachedClineRecommendedModels({
+				...options?.context,
+				catalogLoader: () =>
+					getLiveModelsCatalog(
+						{ includeClineCloudModels: options?.loadLatest },
+						options?.context,
+					),
+			}),
 		);
 	}
 	return { providerId: id, models };
@@ -1113,6 +1133,7 @@ export async function getLocalProviderModels(
 export async function getLocalTranscriptionModels(
 	providerId: string,
 	config?: ProviderConfig,
+	context?: LlmsModels.ClineCatalogContext,
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const providerConfig = config ?? { providerId: id, modelId: "" };
@@ -1130,7 +1151,7 @@ export async function getLocalTranscriptionModels(
 			),
 		};
 	}
-	const modelMap = await resolveProviderModelMap(id, config);
+	const modelMap = await resolveProviderModelMap(id, config, { context });
 	const models = toSortedProviderModels({
 		...modelMap,
 		...LlmsModels.getBuiltinStreamingTranscriptionModels(
@@ -1171,7 +1192,11 @@ export async function transcribeLocalAudio(
 		);
 	}
 
-	const { models } = await getLocalTranscriptionModels(providerId, config);
+	const { models } = await getLocalTranscriptionModels(
+		providerId,
+		config,
+		manager.getCatalogContext(),
+	);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -1215,7 +1240,11 @@ export async function saveVoiceInputSettings(
 	const config = manager.getProviderConfig(providerId, {
 		includeKnownModels: false,
 	});
-	const { models } = await getLocalTranscriptionModels(providerId, config);
+	const { models } = await getLocalTranscriptionModels(
+		providerId,
+		config,
+		manager.getCatalogContext(),
+	);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -1268,6 +1297,7 @@ export async function createConfiguredStreamingTranscriptionSession(
 	const { models } = await getLocalTranscriptionModels(
 		selection.providerId,
 		config,
+		manager.getCatalogContext(),
 	);
 	const model = models.find((candidate) => candidate.id === selection.modelId);
 	if (

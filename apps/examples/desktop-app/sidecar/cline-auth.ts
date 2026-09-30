@@ -2,11 +2,12 @@ import {
 	captureAuthRefreshSoftFailure,
 	getProviderAuthHandler,
 	OAuthReauthRequiredError,
-	ProviderSettingsManager,
+	type ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
 } from "@cline/core";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 
 /**
  * Shared Cline-account auth for the sidecar: one refresh-aware OAuth manager
@@ -76,7 +77,7 @@ export async function resolveFreshClineAuthToken(
  * no-await state-mutation windows the connector lifecycle relies on.
  */
 export function getClineAccountId(): string | undefined {
-	const accountId = new ProviderSettingsManager()
+	const accountId = getDesktopProviderSettingsManager()
 		.getProviderSettings("cline")
 		?.auth?.accountId?.trim();
 	return accountId || undefined;
@@ -85,7 +86,7 @@ export function getClineAccountId(): string | undefined {
 /** Base URL of the Cline API (https://api.cline.bot in production), honoring
  * a per-provider baseUrl override and the environment config. */
 export function getClineApiBaseUrl(): string {
-	const override = new ProviderSettingsManager()
+	const override = getDesktopProviderSettingsManager()
 		.getProviderSettings("cline")
 		?.baseUrl?.trim();
 	return (override || getClineEnvironmentConfig().apiBaseUrl).replace(
@@ -111,7 +112,7 @@ export async function resolveConnectorsApiAuth(
 	const accountId = getClineAccountId();
 	if (!accountId) return undefined;
 	const token = await resolveFreshClineAuthToken(
-		new ProviderSettingsManager(),
+		getDesktopProviderSettingsManager(),
 		ctx,
 	);
 	if (!token || getClineAccountId() !== accountId) {
