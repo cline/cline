@@ -119,6 +119,41 @@ describe("desktopAppReducer", () => {
 		expect(consumed?.initialHandoffFollowUpId).toBeUndefined();
 	});
 
+	it("does not reapply recovery to the active cloud composer, but restores it after leaving", () => {
+		const open = {
+			type: "open-session" as const,
+			session: { ...createSession("cloud-target"), origin: "cloud" as const },
+			environmentId: "local",
+			initialPromptDraft: "Saved follow-up",
+			initialAttachments: [new File(["image"], "test.png")],
+			initialHandoffFollowUpId: "saved-draft",
+		};
+		let state = desktopAppReducer(
+			createDesktopAppState("welcome", settingsSection, "local"),
+			open,
+		);
+		const threadId = state.navigation.current.activeThreadId;
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId,
+		});
+		expect(desktopAppReducer(state, open)).toBe(state);
+
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("another-session"),
+			environmentId: "local",
+		});
+		state = desktopAppReducer(state, open);
+		expect(
+			state.threads.find((thread) => thread.id === threadId),
+		).toMatchObject({
+			initialPromptDraft: open.initialPromptDraft,
+			initialAttachments: open.initialAttachments,
+			initialHandoffFollowUpId: open.initialHandoffFollowUpId,
+		});
+	});
+
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {

@@ -20,6 +20,7 @@ const transport = vi.hoisted(() => ({
 	fetchUrl: "https://github.com/cline/todo-app",
 	pushUrl: "https://github.com/cline/todo-app",
 	rejectPush: false,
+	rejectFetch: false,
 }));
 vi.mock("node:child_process", async (original) => {
 	const actual = await original<typeof import("node:child_process")>();
@@ -40,7 +41,10 @@ vi.mock("node:child_process", async (original) => {
 			return;
 		}
 		const push = args.indexOf("push");
-		if (push >= 0 && transport.rejectPush) {
+		if (
+			(push >= 0 && transport.rejectPush) ||
+			(args[0] === "fetch" && transport.rejectFetch)
+		) {
 			queueMicrotask(() =>
 				callback(new Error("rejected: synthetic-private-token"), "", ""),
 			);
@@ -82,6 +86,7 @@ beforeEach(() => {
 	transport.remote = join(temporary, "remote.git");
 	transport.fetchUrl = transport.pushUrl = "https://github.com/cline/todo-app";
 	transport.rejectPush = false;
+	transport.rejectFetch = false;
 	git("init", "-b", "main");
 	git("config", "user.email", "qa@example.com");
 	git("config", "user.name", "QA");
@@ -95,6 +100,66 @@ beforeEach(() => {
 afterEach(() => rmSync(temporary, { recursive: true, force: true }));
 
 describe("cloud handoff Git preparation", () => {
+	it.each([
+		"tracked.txt",
+		"credentials.json",
+	])("excludes published %s history when the remote advances beyond local objects", async (path) => {
+		writeFileSync(join(repo, path), "synthetic published content\n");
+		git("add", path);
+		git("commit", "-m", "published change");
+		git("push", "origin", "main");
+		const other = join(temporary, "other");
+		git("clone", "--branch", "main", transport.remote, other);
+		git(
+			"-C",
+			other,
+			"-c",
+			"user.name=QA",
+			"-c",
+			"user.email=qa@example.com",
+			"commit",
+			"--allow-empty",
+			"-m",
+			"remote advance",
+		);
+		git("-C", other, "push", "origin", "main");
+		const remoteHead = git("-C", other, "rev-parse", "HEAD");
+		expect(() => git("cat-file", "-e", remoteHead)).toThrow();
+		writeFileSync(join(repo, "new.txt"), "local change\n");
+		writeFileSync(join(repo, ".git/FETCH_HEAD"), "preserve fetch state\n");
+		git("config", "fetch.prune", "true");
+		git("config", "fetch.pruneTags", "true");
+		git("tag", "local-only");
+		const refs = git("show-ref");
+		const index = git("write-tree");
+		const status = git("status", "--porcelain");
+		const remoteRefs = git("ls-remote", "origin");
+
+		const plan = await inspectHandoffGit(repo);
+
+		expect(plan.commits).toEqual([]);
+		expect(plan.files.map((file) => file.path)).toEqual(["new.txt"]);
+		expect(git("cat-file", "-t", remoteHead)).toBe("commit");
+		expect(git("show-ref")).toBe(refs);
+		expect(git("write-tree")).toBe(index);
+		expect(git("status", "--porcelain")).toBe(status);
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(readFileSync(join(repo, ".git/FETCH_HEAD"), "utf8")).toBe(
+			"preserve fetch state\n",
+		);
+		expect(git("ls-remote", "origin")).toBe(remoteRefs);
+	});
+
+	it("stops preparation when remote objects cannot be fetched", async () => {
+		transport.rejectFetch = true;
+		const refs = git("show-ref");
+		const index = git("write-tree");
+		await expect(inspectHandoffGit(repo)).rejects.toThrow("Git fetch failed");
+		expect(git("show-ref")).toBe(refs);
+		expect(git("write-tree")).toBe(index);
+		expect(git("status", "--porcelain")).toBe("");
+	});
+
 	it.each([
 		["--skip-worktree", false],
 		["--assume-unchanged", false],

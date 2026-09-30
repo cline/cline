@@ -149,23 +149,29 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 		.split("\n")
 		.map((line) => line.split(/\s/)[0] ?? "")
 		.filter((sha) => /^[0-9a-f]{40,64}$/.test(sha));
+	if (knownHeads.length) {
+		await git(root, [
+			"fetch",
+			"--no-prune",
+			"--no-tags",
+			"--no-write-fetch-head",
+			"--no-recurse-submodules",
+			"--refmap=",
+			remote,
+			...knownHeads,
+		]);
+	}
 	const unpublishedRange = [
 		headSha,
 		...(knownHeads.length ? ["--not", ...knownHeads] : []),
 	];
 	const commits = (
-		await git(root, [
-			"log",
-			"--ignore-missing",
-			"--format=%h %s",
-			...unpublishedRange,
-		])
+		await git(root, ["log", "--format=%h %s", ...unpublishedRange])
 	)
 		.split("\n")
 		.filter(Boolean);
 	const historicalPaths = await git(root, [
 		"log",
-		"--ignore-missing",
 		"--format=",
 		"--name-only",
 		"-z",

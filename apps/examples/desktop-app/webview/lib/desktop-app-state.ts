@@ -182,6 +182,14 @@ export function desktopAppReducer<SettingsSection extends string>(
 			const existingIdx = state.threads.findIndex(
 				(thread) => thread.id === threadId,
 			);
+			if (
+				existingIdx >= 0 &&
+				action.session.origin === "cloud" &&
+				state.navigation.current.view === "chat" &&
+				state.navigation.current.activeThreadId === threadId
+			) {
+				return state;
+			}
 			const threads =
 				existingIdx >= 0
 					? state.threads.map((thread, index) =>
