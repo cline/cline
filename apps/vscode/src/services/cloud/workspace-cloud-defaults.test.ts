@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { resolveWorkspaceCloudDefaults } from "./getWorkspaceCloudDefaults"
+import { resolveWorkspaceCloudDefaults } from "./workspace-cloud-defaults"
 
 const execFileAsync = promisify(execFile)
 

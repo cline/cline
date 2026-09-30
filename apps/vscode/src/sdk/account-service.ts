@@ -41,11 +41,6 @@ export class ClineAccountService {
 		this.accountChangeBoundary = boundary
 	}
 
-	/** Resolves when no account switch is in flight. */
-	get switchSettled(): Promise<void> {
-		return this.pendingSwitch ?? Promise.resolve()
-	}
-
 	/**
 	 * Returns the singleton instance of ClineAccountService
 	 */
