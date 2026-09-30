@@ -859,6 +859,19 @@ export class AgentRuntime {
 					continue;
 				}
 				if (finishReason === "aborted") {
+					// A stop mid-stream still produced visible work: keep the
+					// partial turn in the transcript so a follow-up turn sees
+					// the response that was cut off. Without it the last user
+					// message looks unanswered and continue() would regenerate
+					// it (the aborted response "resuming" in place of the new
+					// prompt's answer).
+					if (
+						message.content.length > 0 ||
+						this.hasModelToolActivity(message)
+					) {
+						finalAssistantMessage = message;
+						await this.recordAssistantMessage(message, finishReason);
+					}
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
@@ -1796,218 +1809,233 @@ export class AgentRuntime {
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
 
-		for await (const event of stream) {
-			if (steerController.signal.aborted) break;
-			this.throwIfAborted();
-			switch (event.type) {
-				case "text-delta": {
-					accumulatedText += event.text;
-					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "text") {
-						last.part.text += event.text;
-					} else {
-						sequence.push({
-							type: "part",
-							part: { type: "text", text: event.text },
-						});
-					}
-					await this.emit({
-						type: "assistant-text-delta",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						text: event.text,
-						accumulatedText,
-					});
+		// A run-level abort tears the provider stream down mid-turn (usually
+		// surfaced as an AbortError, or observed on the next iteration). Catch
+		// it here so the visible partial can still be assembled and recorded —
+		// mirroring the steer-interruption path — instead of being discarded
+		// with the frame. Any other failure propagates unchanged.
+		let runAborted = false;
+		try {
+			for await (const event of stream) {
+				if (steerController.signal.aborted) break;
+				if (this.abortController?.signal.aborted) {
+					runAborted = true;
 					break;
 				}
-				case "media": {
-					sequence.push({
-						type: "part",
-						part: {
-							type: "media",
-							media: event.media,
-						},
-					});
-					await this.emit({
-						type: "assistant-media",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						media: event.media,
-					});
-					break;
-				}
-				case "reasoning-delta": {
-					accumulatedReasoning += event.text;
-					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "reasoning") {
-						last.part.text += event.text;
-						last.part.redacted = event.redacted ?? last.part.redacted;
-						last.part.metadata = event.metadata ?? last.part.metadata;
-					} else {
-						sequence.push({
-							type: "part",
-							part: {
-								type: "reasoning",
-								text: event.text,
-								redacted: event.redacted,
-								metadata: event.metadata,
-							},
-						});
-					}
-					await this.emit({
-						type: "assistant-reasoning-delta",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						text: event.text,
-						accumulatedText: accumulatedReasoning,
-						redacted: event.redacted,
-						metadata: event.metadata,
-					});
-					break;
-				}
-				case "tool-call-delta": {
-					if (event.execution) {
-						const toolCall: AgentToolCallPart = {
-							type: "tool-call",
-							toolCallId: event.toolCallId ?? createUID("model_tool"),
-							toolName: event.toolName ?? "tool",
-							input: event.input,
-							metadata: event.metadata,
-							execution: event.execution,
-						};
-						modelToolActivities.set(toolCall.toolCallId, {
-							toolCallId: toolCall.toolCallId,
-							toolName: toolCall.toolName,
-							execution: event.execution,
-							input: toolCall.input,
-						});
+				switch (event.type) {
+					case "text-delta": {
+						accumulatedText += event.text;
+						const last = sequence.at(-1);
+						if (last?.type === "part" && last.part.type === "text") {
+							last.part.text += event.text;
+						} else {
+							sequence.push({
+								type: "part",
+								part: { type: "text", text: event.text },
+							});
+						}
 						await this.emit({
-							type: "tool-started",
+							type: "assistant-text-delta",
 							snapshot: this.snapshot(),
 							iteration: this.state.iteration,
-							toolCall,
+							text: event.text,
+							accumulatedText,
 						});
 						break;
 					}
-					const key =
-						event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
-					if (event.index == null && event.toolCallId == null) {
-						nextToolIndex += 1;
-					}
-					let assembly = toolAssemblies.get(key);
-					if (!assembly) {
-						assembly = {
-							toolCallId: event.toolCallId ?? createUID("tool"),
-							inputText: "",
-						};
-						toolAssemblies.set(key, assembly);
-						sequence.push({ type: "tool", key });
-					}
-					if (event.toolCallId) {
-						assembly.toolCallId = event.toolCallId;
-					}
-					if (event.toolName) {
-						assembly.toolName = event.toolName;
-					}
-					if (event.input !== undefined) {
-						assembly.inputValue = event.input;
-					}
-					if (event.metadata !== undefined) {
-						assembly.metadata = mergeToolMetadata(
-							assembly.metadata,
-							event.metadata,
-						);
-					}
-					if (event.inputText) {
-						assembly.inputText = mergeToolInputText(
-							assembly.inputText,
-							event.inputText,
-						);
-					}
-					break;
-				}
-				case "tool-result": {
-					const existing = modelToolActivities.get(event.toolCallId);
-					const activity = {
-						...existing,
-						toolCallId: event.toolCallId,
-						toolName: event.toolName,
-						execution: event.execution,
-						input: event.input === undefined ? existing?.input : event.input,
-						output: event.output,
-						isError: event.isError,
-					};
-					modelToolActivities.set(event.toolCallId, activity);
-					const toolCall: AgentToolCallPart = {
-						type: "tool-call",
-						toolCallId: event.toolCallId,
-						toolName: event.toolName,
-						input: activity.input,
-						execution: event.execution,
-					};
-					await this.emit({
-						type: "tool-finished",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						toolCall,
-						message: createMessage("tool", [
-							{
-								type: "tool-result",
-								toolCallId: event.toolCallId,
-								toolName: event.toolName,
-								output: event.output,
-								isError: event.isError,
-								execution: event.execution,
+					case "media": {
+						sequence.push({
+							type: "part",
+							part: {
+								type: "media",
+								media: event.media,
 							},
-						]),
-					});
-					break;
-				}
-				case "usage": {
-					// Record the provider's own input-token count for this request so
-					// the prepare-turn pipeline can trigger compaction on real usage
-					// rather than a character-based estimate.
-					if (
-						typeof event.usage.inputTokens === "number" &&
-						event.usage.inputTokens > 0
-					) {
-						this.state.lastRequestInputTokens = event.usage.inputTokens;
+						});
+						await this.emit({
+							type: "assistant-media",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							media: event.media,
+						});
+						break;
 					}
-					await this.updateUsage(event.usage);
-					break;
-				}
-				case "finish": {
-					finishReason = event.reason;
-					requestId = event.requestId;
-					if (event.error) {
-						this.state.lastError = event.error;
-						// Models that classify at their own error boundary (where the
-						// raw provider error is still structured) win. Anything else —
-						// custom `AgentModel` implementations, adapters that carry only
-						// a flattened message — is classified from the message so it
-						// stays eligible for overflow recovery.
-						this.state.lastErrorClass =
-							event.errorClass ?? classifyProviderError(event.error);
-						// Prefer the boundary's typed `isRetryable` signal; fall back to
-						// classifying the flattened message for models that do not carry
-						// it.
-						this.state.lastErrorRetryable =
-							event.errorRetryable ?? isRetryableProviderError(event.error);
-						this.state.lastErrorReported = event.errorReported === true;
+					case "reasoning-delta": {
+						accumulatedReasoning += event.text;
+						const last = sequence.at(-1);
+						if (last?.type === "part" && last.part.type === "reasoning") {
+							last.part.text += event.text;
+							last.part.redacted = event.redacted ?? last.part.redacted;
+							last.part.metadata = event.metadata ?? last.part.metadata;
+						} else {
+							sequence.push({
+								type: "part",
+								part: {
+									type: "reasoning",
+									text: event.text,
+									redacted: event.redacted,
+									metadata: event.metadata,
+								},
+							});
+						}
+						await this.emit({
+							type: "assistant-reasoning-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							text: event.text,
+							accumulatedText: accumulatedReasoning,
+							redacted: event.redacted,
+							metadata: event.metadata,
+						});
+						break;
 					}
-					break;
+					case "tool-call-delta": {
+						if (event.execution) {
+							const toolCall: AgentToolCallPart = {
+								type: "tool-call",
+								toolCallId: event.toolCallId ?? createUID("model_tool"),
+								toolName: event.toolName ?? "tool",
+								input: event.input,
+								metadata: event.metadata,
+								execution: event.execution,
+							};
+							modelToolActivities.set(toolCall.toolCallId, {
+								toolCallId: toolCall.toolCallId,
+								toolName: toolCall.toolName,
+								execution: event.execution,
+								input: toolCall.input,
+							});
+							await this.emit({
+								type: "tool-started",
+								snapshot: this.snapshot(),
+								iteration: this.state.iteration,
+								toolCall,
+							});
+							break;
+						}
+						const key =
+							event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
+						if (event.index == null && event.toolCallId == null) {
+							nextToolIndex += 1;
+						}
+						let assembly = toolAssemblies.get(key);
+						if (!assembly) {
+							assembly = {
+								toolCallId: event.toolCallId ?? createUID("tool"),
+								inputText: "",
+							};
+							toolAssemblies.set(key, assembly);
+							sequence.push({ type: "tool", key });
+						}
+						if (event.toolCallId) {
+							assembly.toolCallId = event.toolCallId;
+						}
+						if (event.toolName) {
+							assembly.toolName = event.toolName;
+						}
+						if (event.input !== undefined) {
+							assembly.inputValue = event.input;
+						}
+						if (event.metadata !== undefined) {
+							assembly.metadata = mergeToolMetadata(
+								assembly.metadata,
+								event.metadata,
+							);
+						}
+						if (event.inputText) {
+							assembly.inputText = mergeToolInputText(
+								assembly.inputText,
+								event.inputText,
+							);
+						}
+						break;
+					}
+					case "tool-result": {
+						const existing = modelToolActivities.get(event.toolCallId);
+						const activity = {
+							...existing,
+							toolCallId: event.toolCallId,
+							toolName: event.toolName,
+							execution: event.execution,
+							input: event.input === undefined ? existing?.input : event.input,
+							output: event.output,
+							isError: event.isError,
+						};
+						modelToolActivities.set(event.toolCallId, activity);
+						const toolCall: AgentToolCallPart = {
+							type: "tool-call",
+							toolCallId: event.toolCallId,
+							toolName: event.toolName,
+							input: activity.input,
+							execution: event.execution,
+						};
+						await this.emit({
+							type: "tool-finished",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCall,
+							message: createMessage("tool", [
+								{
+									type: "tool-result",
+									toolCallId: event.toolCallId,
+									toolName: event.toolName,
+									output: event.output,
+									isError: event.isError,
+									execution: event.execution,
+								},
+							]),
+						});
+						break;
+					}
+					case "usage": {
+						// Record the provider's own input-token count for this request so
+						// the prepare-turn pipeline can trigger compaction on real usage
+						// rather than a character-based estimate.
+						if (
+							typeof event.usage.inputTokens === "number" &&
+							event.usage.inputTokens > 0
+						) {
+							this.state.lastRequestInputTokens = event.usage.inputTokens;
+						}
+						await this.updateUsage(event.usage);
+						break;
+					}
+					case "finish": {
+						finishReason = event.reason;
+						requestId = event.requestId;
+						if (event.error) {
+							this.state.lastError = event.error;
+							// Models that classify at their own error boundary (where the
+							// raw provider error is still structured) win. Anything else —
+							// custom `AgentModel` implementations, adapters that carry only
+							// a flattened message — is classified from the message so it
+							// stays eligible for overflow recovery.
+							this.state.lastErrorClass =
+								event.errorClass ?? classifyProviderError(event.error);
+							// Prefer the boundary's typed `isRetryable` signal; fall back to
+							// classifying the flattened message for models that do not carry
+							// it.
+							this.state.lastErrorRetryable =
+								event.errorRetryable ?? isRetryableProviderError(event.error);
+							this.state.lastErrorReported = event.errorReported === true;
+						}
+						break;
+					}
 				}
 			}
+		} catch (error) {
+			if (!this.abortController?.signal.aborted) throw error;
+			runAborted = true;
 		}
-		this.throwIfAborted();
+		if (this.abortController?.signal.aborted) runAborted = true;
 		const interrupted = steerController.signal.aborted;
 		if (interrupted) finishReason = "stop";
+		if (runAborted) finishReason = "aborted";
 
 		for (const item of sequence) {
 			// A cancelled stream may contain incomplete tool JSON or unsigned
 			// reasoning. Keep only replayable visible content from that response.
 			if (
-				interrupted &&
+				(interrupted || runAborted) &&
 				(item.type === "tool" || item.part.type === "reasoning")
 			)
 				continue;
