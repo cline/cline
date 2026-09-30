@@ -140,7 +140,14 @@ function resolveFactory(
 	}
 }
 
-async function resolveProviderRegistration(
+/**
+ * Bridge a provider from the model catalog (builtins routed under a custom id,
+ * providers.json/models.json registrations) into a `GatewayProviderRegistration`
+ * the gateway can execute. Returns `undefined` for builtin ids the gateway
+ * already knows and for ids unknown to the catalog, in which case the gateway's
+ * own resolution (and error reporting) applies.
+ */
+export async function resolveGatewayProviderRegistration(
 	config: ProviderConfig,
 ): Promise<GatewayProviderRegistration | undefined> {
 	const providerId = normalizeProviderId(config.providerId);
@@ -206,7 +213,8 @@ async function resolveProviderRegistration(
 	};
 }
 
-function resolveProviderRegistrationSync(
+/** Synchronous variant of {@link resolveGatewayProviderRegistration}. */
+export function resolveGatewayProviderRegistrationSync(
 	config: ProviderConfig,
 ): GatewayProviderRegistration | undefined {
 	const providerId = normalizeProviderId(config.providerId);
@@ -634,7 +642,7 @@ class GatewayApiHandler implements ApiHandler {
 			logger: this.config.logger ?? this.config.extensionContext?.logger,
 			telemetry: this.config.extensionContext?.telemetry,
 		});
-		const registration = resolveProviderRegistrationSync(this.config);
+		const registration = resolveGatewayProviderRegistrationSync(this.config);
 		if (registration) {
 			gateway.registerProvider(registration);
 		}
@@ -688,7 +696,7 @@ export async function createGatewayApiHandlerAsync(
 		logger: config.logger ?? config.extensionContext?.logger,
 		telemetry: config.extensionContext?.telemetry,
 	});
-	const registration = await resolveProviderRegistration(config);
+	const registration = await resolveGatewayProviderRegistration(config);
 	if (registration) {
 		gateway.registerProvider(registration);
 	}

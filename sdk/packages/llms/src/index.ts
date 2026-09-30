@@ -100,6 +100,8 @@ export {
 	type ProviderApiLine,
 	registerAsyncHandler,
 	registerHandler,
+	resolveGatewayProviderRegistration,
+	resolveGatewayProviderRegistrationSync,
 	resolveProviderApiLineBaseUrl,
 } from "./providers";
 export {
