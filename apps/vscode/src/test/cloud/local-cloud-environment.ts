@@ -494,7 +494,12 @@ export async function startLocalCloudEnvironment(
 						upstream.on("message", (data: RawData, binary: boolean) => downstream.send(data, { binary }))
 						downstream.once("close", () => upstream.close())
 						upstream.once("close", () => downstream.close())
-						for (const ws of [downstream, upstream]) ws.once("close", () => bridgedSockets.delete(ws))
+						for (const ws of [downstream, upstream]) {
+							ws.once("close", () => bridgedSockets.delete(ws))
+							// An extension host that reloads or exits drops its socket without a
+							// close frame; an unhandled "error" would exit the fixture process.
+							ws.on("error", () => ws.terminate())
+						}
 					})
 				})
 				upstream.once("error", () => socket.destroy())
