@@ -24,15 +24,6 @@ describe("session memory result cache", () => {
 		expect(uri).not.toBe("");
 		expect(cache.read(uri)).toContain("recover me");
 	});
-	it("wraps long cache lines without splitting Unicode code points", () => {
-		const cache = new ToolResultCache("session");
-		const original = "🙂".repeat(2500);
-		const uri = cache.store("call", original) ?? "";
-		const lines = cache.read(uri).split("\n");
-		expect(lines).toHaveLength(3);
-		expect(lines.join("")).toBe(original);
-		for (const line of lines) expect(line.length).toBeLessThanOrEqual(2000);
-	});
 	it("uses a unique URI for each execution and scopes reads to the owning session", () => {
 		const first = new ToolResultCache("root@one+two");
 		const second = new ToolResultCache("other");

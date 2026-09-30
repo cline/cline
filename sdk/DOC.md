@@ -1,7 +1,7 @@
 
 ## Oversized tool result recovery
 
-Recovery URIs are issued only when `read_files` is available. Cached text excludes native image data and wraps source lines longer than 1,000 Unicode characters into cache lines; `start_line`/`end_line` address this wrapped view so long single-line responses remain recoverable.
+Cached text excludes native image data. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
 
 Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core enables this for MCP and Composio tools. Original output remains in history and events; synchronous model preparation sends a bounded preview with a `cline://cache/<encoded-session-id>/<result-id>.result.txt` URI for cached oversized responses. Use `read_files` with `start_line`/`end_line` to read omitted content. Shell and filesystem search tools do not support these URIs. The stateless agent runtime does not own a cache.
 

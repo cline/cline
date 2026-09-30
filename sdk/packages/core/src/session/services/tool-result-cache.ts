@@ -29,9 +29,6 @@ export class ToolResultCache {
 	) {}
 
 	store(toolCallId: string, text: string): string | undefined {
-		// Cache lines are a recoverable view, not source line numbers. Wrapping
-		// prevents read_files' per-line cap from discarding long-line content.
-		text = text.replace(/([^\r\n]{1000})(?=[^\r\n])/gu, "$1\n");
 		const bytes = Buffer.byteLength(text);
 		const previous = this.referencesByToolCall.get(toolCallId);
 		if (previous) this.remove(previous.id);
