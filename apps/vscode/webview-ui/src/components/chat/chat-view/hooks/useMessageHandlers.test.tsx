@@ -871,6 +871,37 @@ describe("useMessageHandlers — send routing", () => {
 		expect(trackIntent).toHaveBeenCalledWith(expect.objectContaining({ action: "new_task_clicked", source: "navbar" }))
 	})
 
+	it("keeps a draft typed while a new task's RPC is still pending", async () => {
+		mockTurnState = { phase: "idle", seq: 1 }
+		let resolveNewTask: () => void = () => {}
+		newTask.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveNewTask = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState([])
+			return { chatState, handlers: useMessageHandlers([], chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("start a task"))
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("start a task", [], [])
+			await Promise.resolve()
+		})
+		expect(result.current.chatState.inputValue).toBe("")
+		// The composer disables submit while the task provisions, so the draft stays in the input.
+		act(() => result.current.chatState.setInputValue("follow up"))
+
+		await act(async () => {
+			resolveNewTask()
+			await sendPromise
+		})
+		expect(result.current.chatState.inputValue).toBe("follow up")
+	})
+
 	it("preserves edits made while a recovery response succeeds", async () => {
 		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
 		const failedConversation: ClineMessage[] = [
