@@ -657,6 +657,10 @@ export function handleCoreSessionEvent(
 				if (status !== "running") {
 					// The turn that consumed submitted attachments has finished.
 					flushConsumedAttachments(sessionId, session);
+				}
+				// `pending` (waiting on a tool approval) is still mid-turn; only a
+				// settled status can release an abandoned session.
+				if (status !== "running" && status !== "pending") {
 					releaseAbandonedSession(ctx, sessionId, session);
 				}
 			}

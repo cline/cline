@@ -1411,6 +1411,14 @@ describe("first-send connection updates", () => {
 			expect(ctx.liveSessions.get(sessionId)?.status).toBe("running");
 			expect(existsSync(queuedFile)).toBe(true);
 
+			// Waiting on a tool approval is still mid-turn: the entry stays.
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "pending" },
+			} as never);
+			expect(ctx.liveSessions.has(sessionId)).toBe(true);
+			expect(existsSync(queuedFile)).toBe(true);
+
 			// While a prompt is still queued the run is not over: settling to
 			// idle keeps the entry (the Hub is about to start the next turn).
 			session.promptsInQueue = [
