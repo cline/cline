@@ -89,7 +89,13 @@ export function buildSdkProviderConfig(
 		return { ...base, thinking: false }
 	}
 
-	if (reasoningEffort === "low" || reasoningEffort === "medium" || reasoningEffort === "high" || reasoningEffort === "xhigh") {
+	if (
+		reasoningEffort === "low" ||
+		reasoningEffort === "medium" ||
+		reasoningEffort === "high" ||
+		reasoningEffort === "xhigh" ||
+		reasoningEffort === "max"
+	) {
 		return { ...base, reasoningEffort }
 	}
 	// An explicit "none" wins over any stored legacy budget.
