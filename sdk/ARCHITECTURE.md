@@ -385,6 +385,16 @@ different process.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
 
+### Temporary external tool result recovery
+
+MCP and Composio tools declare `resultPolicy: "cache-oversized"` at registration. Core retains their original outputs in conversation history and tool events. During model preparation, `MessageBuilder.buildForApiWithRecovery` projects oversized text into a bounded preview with a recovery instruction, preserving native images. Other tools keep their existing projection behavior; custom tools may explicitly opt in.
+
+Recovery files live under the configured Cline data directory at `cache/sessions/<encoded-session-id>/<result-id>.result.txt`. Result IDs hash the tool-call ID and original content, so follow-ups reuse existing files without rewriting them, while changed/imported results cannot overwrite another execution. Writes are atomic and private; model recovery instructions are generated only after successful writes. Failed saves retain bounded previews and do not fail the tool call. Recovery instructions are model-only objects, never trusted from tool payload metadata or persisted in canonical history.
+
+The cache is disposable: expiry is 24 hours after last use, with opportunistic cleanup when caching starts and hourly while a cache is open. Live runtimes in the same process lease their session directories against cleanup. Shutdown releases the lease; deleting a session also removes its cache and indexed child caches. Cleanup failures do not affect session execution. No cleanup process runs while the host is stopped, and other processes do not share runtime leases.
+
+Resume, copied sessions, and manually deleted/expired files need no recovery-file migration: model preparation regenerates needed files from the retained original history. Original history remains subject to normal session retention; the cache TTL does not delete transcript content. Per-result and aggregate model budgets still apply, including on storage failures. Generated recovery instructions reserve at most half the aggregate budget; instructions that cannot fit are omitted.
+
 ### Connector Persistence and Recovery
 
 1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.

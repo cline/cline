@@ -106,6 +106,7 @@ export function getMessageBuilderOptionsFromEnv(
  * Builds an API-safe message copy without mutating original conversation history.
  */
 export class MessageBuilder {
+	private readonly recoveryNotices = new WeakSet<object>();
 	private indexedMessageCount = 0;
 	private indexedTailRef: Message | undefined;
 	private readonly toolNameByIdCache = new Map<string, string>();
@@ -161,6 +162,88 @@ export class MessageBuilder {
 	resetConversationState(): void {
 		this.resetIndexes();
 		this.committedOutdatedRewrites.clear();
+	}
+
+	/** Project opted-in external results without changing canonical history or UI output. */
+	async buildForApiWithRecovery(
+		messages: Message[],
+		options: {
+			shouldCache: (toolName: string) => boolean;
+			save: (toolCallId: string, text: string) => Promise<string>;
+			onSaveFailure?: (error: unknown) => void;
+		},
+	): Promise<Message[]> {
+		this.reindex(messages);
+		const generatedNotices = new WeakSet<object>();
+		const projected = await Promise.all(
+			messages.map(async (message) => {
+				if (!Array.isArray(message.content)) return message;
+				const content = await Promise.all(
+					message.content.map(async (block) => {
+						if (
+							block.type !== "tool_result" ||
+							!options.shouldCache(this.resolveToolName(block) ?? "")
+						)
+							return block;
+						const images: ImageContent[] = [];
+						const textual = extractToolResultImages(block.content, images);
+						const fullText =
+							typeof textual === "string"
+								? textual
+								: JSON.stringify(textual, null, 2);
+						if (
+							typeof fullText !== "string" ||
+							fullText.length <= this.maxToolResultChars
+						)
+							return block;
+						const entries: ToolResultContent["content"] = [
+							{ type: "text", text: this.truncateMiddle(fullText) },
+							...images,
+						];
+						try {
+							// Save the original response, including any native media metadata.
+							const original =
+								typeof block.content === "string"
+									? block.content
+									: JSON.stringify(block.content, null, 2);
+							const path = await options.save(block.tool_use_id, original);
+							const notice: TextContent = {
+								type: "text",
+								text: `Full result cached temporarily at ${path}. Search this file or read a bounded range to recover omitted content.`,
+							};
+							entries.push(notice);
+							generatedNotices.add(notice);
+						} catch (error) {
+							options.onSaveFailure?.(error);
+						}
+						return { ...block, content: entries };
+					}),
+				);
+				return { ...message, content };
+			}),
+		);
+		// Reserve at most half the request budget for intact recovery instructions.
+		// These objects are generated here, never trusted from tool-supplied metadata.
+		const notices = projected.flatMap((message) => {
+			if (!Array.isArray(message.content)) return [];
+			return message.content.flatMap((block) =>
+				block.type === "tool_result" && Array.isArray(block.content)
+					? block.content.filter(
+							(entry): entry is TextContent =>
+								entry.type === "text" && generatedNotices.has(entry),
+						)
+					: [],
+			);
+		});
+		let noticeBytes = 0;
+		for (const notice of notices) {
+			const bytes = utf8ByteLength(notice.text);
+			if (noticeBytes + bytes <= this.maxTotalTextBytes / 2) {
+				this.recoveryNotices.add(notice);
+				noticeBytes += bytes;
+			} else notice.text = "";
+		}
+		return this.buildForApi(projected);
 	}
 
 	buildForApi(messages: Message[]): Message[] {
@@ -1068,6 +1151,7 @@ export class MessageBuilder {
 			return this.truncateMiddle(content);
 		}
 		return content.map((entry) => {
+			if (this.recoveryNotices.has(entry)) return entry;
 			if (entry.type === "file") {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
@@ -1171,23 +1255,39 @@ export class MessageBuilder {
 			}
 			return {
 				...message,
-				content: message.content.map((block) =>
-					cloneContentBlockForMutation(block),
-				),
+				content: message.content.map((block) => {
+					const cloned = cloneContentBlockForMutation(block);
+					if (
+						block.type === "tool_result" &&
+						cloned.type === "tool_result" &&
+						Array.isArray(block.content) &&
+						Array.isArray(cloned.content)
+					) {
+						block.content.forEach((entry, index) => {
+							if (this.recoveryNotices.has(entry))
+								this.recoveryNotices.add(cloned.content[index] as object);
+						});
+					}
+					return cloned;
+				}),
 			};
 		});
 
 		const candidates = this.collectTruncationCandidates(next);
+		const retentionFloor = Math.floor(
+			this.maxTotalTextBytes / (2 * Math.max(1, candidates.length)),
+		);
 		for (const candidate of candidates) {
 			if (totalBytes <= this.maxTotalTextBytes) {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
-			if (currentBytes <= candidate.minBytes) {
+			const minBytes = Math.min(candidate.minBytes, retentionFloor);
+			if (currentBytes <= minBytes) {
 				continue;
 			}
 			const overflow = totalBytes - this.maxTotalTextBytes;
-			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
+			const targetBytes = Math.max(minBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
 				targetBytes,
@@ -1294,6 +1394,7 @@ export class MessageBuilder {
 					continue;
 				}
 				for (const entry of block.content) {
+					if (this.recoveryNotices.has(entry)) continue;
 					if (entry.type === "text") {
 						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),
@@ -1567,7 +1668,7 @@ function truncateMiddleToBytes(
 	// Binary search the largest char-length whose UTF-8 byte length fits.
 	let low = 0;
 	let high = text.length;
-	let best = truncateMiddleByChars(text, 0, makeMarker);
+	let best = "";
 	while (low <= high) {
 		const mid = (low + high) >>> 1;
 		const candidate = truncateMiddleByChars(text, mid, makeMarker);
@@ -1722,6 +1823,28 @@ function deepCloneJsonLike(value: unknown): unknown {
 			out[key] = deepCloneJsonLike(item);
 		}
 		return out;
+	}
+	return value;
+}
+
+/** Native images stay on the model media path rather than becoming base64 text. */
+function extractToolResultImages(
+	value: unknown,
+	images: ImageContent[],
+): unknown {
+	if (isImageContentWithData(value)) {
+		images.push(value);
+		return "[image attached]";
+	}
+	if (Array.isArray(value))
+		return value.map((entry) => extractToolResultImages(entry, images));
+	if (value !== null && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value).map(([key, entry]) => [
+				key,
+				extractToolResultImages(entry, images),
+			]),
+		);
 	}
 	return value;
 }

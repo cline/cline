@@ -1,4 +1,10 @@
 
+## Oversized tool result recovery
+
+Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core automatically enables this policy for MCP and Composio tools. It retains original tool output in session history and events, while model requests receive a bounded preview and a temporary file path for oversized responses. The stateless agent runtime does not perform caching.
+
+Files live under `<cline-data-dir>/cache/sessions/<encoded-session-id>/`, with a 24-hour expiry after last use. Cleanup runs opportunistically when caching starts and hourly while a cache is open; live runtimes in the same process protect their session directories. Session deletion removes the associated cache. Missing or expired files are regenerated from original history before the model receives a recovery instruction. Storage failures leave a bounded preview without a file notice.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed

@@ -65,6 +65,7 @@ import {
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
+import { createToolResultCache } from "../../session/services/tool-result-cache";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -326,6 +327,7 @@ export class SessionRuntime {
 	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
+	private toolResultCache?: ReturnType<typeof createToolResultCache>;
 	private pendingTerminalError:
 		| Extract<AgentEvent, { type: "error" }>
 		| undefined;
@@ -686,6 +688,7 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
+		this.toolResultCache?.close();
 	}
 
 	// -------------------------------------------------------------------
@@ -1217,7 +1220,27 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		return this.messageBuilder.buildForApi(providerMessages);
+		const tools = new Map(
+			[
+				...this.contributionRegistry.getRegisteredTools(),
+				...this.config.tools,
+			].map((tool) => [tool.name.toLowerCase(), tool]),
+		);
+		return this.messageBuilder.buildForApiWithRecovery(providerMessages, {
+			shouldCache: (name) =>
+				tools.get(name)?.resultPolicy === "cache-oversized",
+			save: (toolCallId, text) => {
+				this.toolResultCache ??= createToolResultCache(
+					this.config.sessionId ?? this.agentId,
+				);
+				return this.toolResultCache.save(toolCallId, text);
+			},
+			onSaveFailure: () =>
+				this.logger?.log(
+					"Unable to cache full tool result; continuing with bounded preview",
+					{ severity: "warn" },
+				),
+		});
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {
