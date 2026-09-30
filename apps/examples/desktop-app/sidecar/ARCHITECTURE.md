@@ -214,6 +214,7 @@ Supported commands:
 | `get_desktop_settings` | `readDesktopSettings()` |
 | `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
 | `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |

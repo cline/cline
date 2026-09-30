@@ -1,5 +1,12 @@
 # Cline SDK Changelog
 
+## 0.0.89
+
+- Oversized MCP and Composio tool results can now be recovered in full. Core caches the oversized output in a per-session in-memory cache and sends the model a bounded preview plus a `cline://cache/...` URI that `read_files` can page through by line range. Custom tools can opt in with `resultPolicy: "cache-oversized"` on `createTool`. Entries expire after five model iterations without a read, the cache is capped at 16 MiB per session, and original output stays in history and tool events
+- Custom providers from `providers.json`/`models.json` now run on the agent path. They appeared in pickers but failed with `Unknown or disabled provider "<id>"`, because `createAgentModelFromConfig` only registered builtin providers with the gateway. `@cline/llms` now exports `resolveGatewayProviderRegistration(Sync)`
+- Provider settings saves are more robust. Settings still save when model discovery fails, mutations are serialized, a failed catalog write restores the previous settings, and persistence errors propagate to the caller (`saveLocalProviderSettings` is now async). Model source requests are authenticated, and source catalogs refresh when credentials or endpoints change
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol and drops the Pixel Canary stealth model. Default models change for 302.AI (Claude Sonnet 5.5), NanoGPT (Ling 3.1 Flash), Vivgrid (GPT-6.1 Sol), and Vultr (MiMo V2.6 Flash RL). Vultr's model ids were renamed upstream (for example `zai-org/GLM-5.2-FP8` is now `glm-5.2`), so a pinned Vultr model may need to be re-selected
+
 ## 0.0.88
 
 - Direct Anthropic requests now ask the Claude API for its recommended server-side refusal fallback (`anthropic.fallbacks: "default"`), and OpenRouter and Cline requests for Anthropic models set `provider.allow_fallbacks` so a request can fail over to another upstream provider instead of failing outright

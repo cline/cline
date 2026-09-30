@@ -2231,6 +2231,9 @@ export async function handleCommand(
 			}),
 		};
 	}
+	if (command === "list_cloud_models") {
+		return await getCloudSessionManager(ctx).listModels();
+	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
 	}
