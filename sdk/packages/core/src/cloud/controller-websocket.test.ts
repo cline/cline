@@ -252,7 +252,7 @@ describe("cloud REST and WebSocket integration", () => {
 				});
 			await vi.waitFor(() => expect(accepted).toHaveBeenCalledOnce());
 			expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce();
-			expect(lifecycle.onAccepted).toHaveBeenCalledOnce();
+			expect(lifecycle.onAccepted).not.toHaveBeenCalled();
 			expect(completed).toBe(false);
 			expect(accepted).toHaveBeenCalledWith({
 				type: "prompt_accepted",
