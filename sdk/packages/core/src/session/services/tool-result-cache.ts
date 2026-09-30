@@ -97,9 +97,9 @@ export class ToolResultCache {
 	}
 }
 
-/** Use the same image-free text for cache admission and model previews. */
-export function prepareToolResultRecovery(output: unknown): {
-	text: string | undefined;
+/** Keep native images on the media path for both text representations. */
+function splitToolResultMedia(output: unknown): {
+	textual: unknown;
 	images: ImageContent[];
 } {
 	const images: ImageContent[] = [];
@@ -123,7 +123,28 @@ export function prepareToolResultRecovery(output: unknown): {
 		}
 		return value;
 	}
-	const textual = extract(output);
+	return { textual: extract(output), images };
+}
+
+/** Size and truncate the persisted representation sent to the model. */
+export function prepareToolResultPreview(content: unknown): {
+	text: string | undefined;
+	images: ImageContent[];
+} {
+	const { textual, images } = splitToolResultMedia(content);
+	return {
+		text:
+			typeof textual === "string" ? textual : JSON.stringify(textual, null, 2),
+		images,
+	};
+}
+
+/** YAML is only the readable recovery copy, not the truncation threshold. */
+export function prepareToolResultRecovery(output: unknown): {
+	text: string | undefined;
+	images: ImageContent[];
+} {
+	const { textual, images } = splitToolResultMedia(output);
 	return {
 		text:
 			typeof textual === "string"

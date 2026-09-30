@@ -62,12 +62,14 @@ import {
 	captureMistakeLimitReached,
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
 import {
+	prepareToolResultPreview,
 	prepareToolResultRecovery,
 	ToolResultCache,
 } from "../../session/services/tool-result-cache";
@@ -1160,12 +1162,16 @@ export class SessionRuntime {
 				const control = await hooks.afterTool?.(ctx);
 				const result = control?.result ?? ctx.result;
 				if (ctx.tool.resultPolicy === "cache-oversized") {
-					const { text } = prepareToolResultRecovery(result.output);
+					const { text: previewText } = prepareToolResultPreview(
+						toPersistedToolResultContent(result.output),
+					);
 					if (
-						typeof text === "string" &&
-						text.length > this.maxCachedResultChars
+						typeof previewText === "string" &&
+						previewText.length > this.maxCachedResultChars
 					) {
-						this.toolResultCache.store(ctx.toolCall.toolCallId, text);
+						const { text } = prepareToolResultRecovery(result.output);
+						if (typeof text === "string")
+							this.toolResultCache.store(ctx.toolCall.toolCallId, text);
 					}
 				}
 				return control;

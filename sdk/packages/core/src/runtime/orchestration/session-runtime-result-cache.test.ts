@@ -8,7 +8,10 @@ import type {
 import { describe, expect, it } from "vitest";
 import { createDefaultTools } from "../../extensions/tools/definitions";
 import { createFileReadExecutor } from "../../extensions/tools/executors/file-read";
-import { TOOL_RESULT_CACHE_MISS } from "../../session/services/tool-result-cache";
+import {
+	prepareToolResultRecovery,
+	TOOL_RESULT_CACHE_MISS,
+} from "../../session/services/tool-result-cache";
 import { SessionRuntime } from "./session-runtime-orchestrator";
 
 function findResult(
@@ -24,6 +27,90 @@ function findResult(
 }
 
 describe("runtime memory result recovery", () => {
+	it("caches quote-heavy MCP output when persisted JSON exceeds the limit but YAML does not", async () => {
+		const output = {
+			content: [
+				{
+					type: "text",
+					text: Array.from({ length: 100 }, () => '"'.repeat(50)).join("\n"),
+				},
+			],
+		};
+		expect(JSON.stringify(output).length).toBeGreaterThan(8000);
+		expect(prepareToolResultRecovery(output).text?.length).toBeLessThan(8000);
+		let calls = 0;
+		const model: AgentModel = {
+			async stream(request) {
+				const call = calls++;
+				let uri = "";
+				if (call === 1) {
+					const projected = JSON.stringify(
+						findResult(request.messages, "external")?.output,
+					);
+					expect(projected).toContain("truncated");
+					uri =
+						projected.match(/cline:\/\/cache\/[^ ]+\.result\.txt/)?.[0] ?? "";
+					expect(uri).not.toBe("");
+				} else if (call === 2) {
+					const recovered = findResult(request.messages, "read_files")
+						?.output as Array<{ result: string; success: boolean }>;
+					expect(recovered[0].success).toBe(true);
+					expect(recovered[0].result).toContain('"'.repeat(50));
+					expect(recovered[0].result).not.toContain("[line truncated]");
+				}
+				return (async function* () {
+					if (call < 2) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: `quote_${call}`,
+							toolName: call === 0 ? "external" : "read_files",
+							inputText:
+								call === 0
+									? "{}"
+									: JSON.stringify({
+											files: [{ path: uri, start_line: 103, end_line: 103 }],
+										}),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "done" };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			{
+				providerId: "anthropic",
+				modelId: "claude-3-5-sonnet",
+				apiKey: "test",
+				sessionId: "quotes",
+				systemPrompt: "test",
+				tools: [
+					{
+						name: "external",
+						description: "test",
+						inputSchema: { type: "object" },
+						resultPolicy: "cache-oversized",
+						execute: async () => output,
+					},
+					...createDefaultTools({
+						executors: { readFile: createFileReadExecutor() },
+					}),
+				],
+			},
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		try {
+			expect((await session.run("go")).text).toBe("done");
+			expect(calls).toBe(3);
+		} finally {
+			await session.shutdown();
+		}
+	});
 	it("reads omitted content through the real read_files tool and expires across follow-up turns", async () => {
 		const full = Array.from(
 			{ length: 4000 },

@@ -24,7 +24,7 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
-import { prepareToolResultRecovery } from "./tool-result-cache";
+import { prepareToolResultPreview } from "./tool-result-cache";
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
@@ -263,7 +263,7 @@ export class MessageBuilder {
 			name: toolName ?? block.name,
 		});
 		if (recovery) {
-			const { text, images } = prepareToolResultRecovery(block.content);
+			const { text, images } = prepareToolResultPreview(block.content);
 			if (typeof text === "string" && text.length > this.maxToolResultChars) {
 				const content: ToolResultContent["content"] = [
 					{ type: "text", text: this.truncateMiddle(text) },
