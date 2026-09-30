@@ -469,6 +469,30 @@ describe("hub server startup", () => {
 		expect(payload.buildId).toBe(resolveHubBuildId());
 	});
 
+	it("points HTTP probes of the root and unknown paths at the real endpoints", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-root-probe");
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.add(requireServer(result.server));
+		const base = toHubHealthUrl(result.url);
+
+		const root = await fetch(new URL("/", base));
+		expect(root.status).toBe(200);
+		const rootBody = await root.text();
+		expect(rootBody).toContain("Cline Hub");
+		expect(rootBody).toContain(result.url);
+		expect(rootBody).toContain("/health");
+
+		const unknown = await fetch(new URL("/hub", base));
+		expect(unknown.status).toBe(404);
+		expect(await unknown.text()).toContain(result.url);
+	});
+
 	it("does not reuse managed discovery from an older build", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-stale-build");
 		vi.stubEnv("CLINE_HUB_BUILD_ID", "old-build");

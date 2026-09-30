@@ -642,8 +642,22 @@ export async function startHubWebSocketServer(
 			});
 			return;
 		}
+		// People diagnosing a stuck install probe the port in a browser or
+		// with curl; a bare 404 there reads as "the hub is broken". Say what
+		// this server is and where its real endpoints live instead.
+		if (requestUrl.pathname === "/") {
+			res.statusCode = 200;
+			res.setHeader("content-type", "text/plain; charset=utf-8");
+			res.end(
+				`Cline Hub ${versionPayload.coreVersion} is running.\nWebSocket endpoint: ${url}\nHealth check: /health\n`,
+			);
+			return;
+		}
 		res.statusCode = 404;
-		res.end("Not found");
+		res.setHeader("content-type", "text/plain; charset=utf-8");
+		res.end(
+			`Not found. This is the Cline Hub: the WebSocket endpoint is ${url} and the health check is /health.\n`,
+		);
 	});
 	const wss = new WebSocketServer({ noServer: true });
 	heartbeatTimer = setInterval(() => {
