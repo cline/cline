@@ -12,10 +12,8 @@ const saved = {
 };
 beforeEach(() => vi.resetAllMocks());
 
-it("restores a history-open after reload with no source UI state, then consumes recovery", async () => {
-	vi.mocked(desktopClient.invoke)
-		.mockResolvedValueOnce(saved)
-		.mockResolvedValueOnce(true);
+it("restores the command and images again after opening without sending", async () => {
+	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
 	const open = vi.fn();
 	const delivered = vi.fn();
 	expect(
@@ -31,13 +29,18 @@ it("restores a history-open after reload with no source UI state, then consumes 
 	expect(images[0].type).toBe("image/png");
 	expect(await images[0].text()).toBe("image");
 	expect(delivered).toHaveBeenCalledExactlyOnceWith(saved.sourceSessionId);
-	expect(desktopClient.invoke).toHaveBeenLastCalledWith(
-		"clear_cloud_handoff_follow_up",
-		{ sessionId: "cloud-target" },
-	);
-	expect(open.mock.invocationCallOrder[0]).toBeLessThan(
-		vi.mocked(desktopClient.invoke).mock.invocationCallOrder[1],
-	);
+	await openWithCloudHandoffFollowUp({
+		targetSessionId: "cloud-target",
+		canOpen: () => true,
+		open,
+		delivered,
+	});
+	expect(open.mock.calls[1][0]).toBe(saved.command);
+	expect(await open.mock.calls[1][1][0].text()).toBe("image");
+	expect(vi.mocked(desktopClient.invoke).mock.calls).toEqual([
+		["get_cloud_handoff_follow_up", { sessionId: "cloud-target" }],
+		["get_cloud_handoff_follow_up", { sessionId: "cloud-target" }],
+	]);
 });
 
 it.each([
@@ -85,21 +88,26 @@ it("keeps explicitly supplied draft/files and leaves normal cloud opens unchange
 	expect(delivered).not.toHaveBeenCalled();
 });
 
-it("does not report opening as failed if clearing the delivered backup fails", async () => {
-	vi.mocked(desktopClient.invoke)
-		.mockResolvedValueOnce(saved)
-		.mockRejectedValueOnce(new Error("disk unavailable"));
+it("does not offer an unconfirmed send for resubmission, even with stale initial props", async () => {
+	vi.mocked(desktopClient.invoke).mockResolvedValue({
+		...saved,
+		unconfirmed: true,
+	});
+	const open = vi.fn();
 	expect(
 		await openWithCloudHandoffFollowUp({
 			targetSessionId: "cloud-target",
+			initialPromptDraft: saved.command,
+			initialAttachments: [new File(["image"], "image.png")],
 			canOpen: () => true,
-			open: vi.fn(),
+			open,
 			delivered: vi.fn(),
 		}),
 	).toBe(true);
+	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined);
 	expect(toast).toHaveBeenCalledWith(
 		expect.objectContaining({
-			title: expect.stringContaining("could not be cleared"),
+			title: "Follow-up delivery is unconfirmed",
 		}),
 	);
 });
