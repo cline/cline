@@ -276,7 +276,7 @@ export class MessageBuilder {
 				if (recovery.uri) {
 					const notice: TextContent = {
 						type: "text",
-						text: `Full result is temporarily available at ${recovery.uri}. Use read_files with start_line/end_line to recover omitted content.`,
+						text: `Full result is temporarily saved to ${recovery.uri}. Use read_files with specific line ranges (start_line/end_line) if omitted content is needed.`,
 					};
 					const bytes = utf8ByteLength(notice.text);
 					if (this.recoveryNoticeBytes + bytes <= this.maxTotalTextBytes / 2) {
@@ -1625,6 +1625,7 @@ function truncateMiddleToBytes(
 	// Binary search the largest char-length whose UTF-8 byte length fits.
 	let low = 0;
 	let high = text.length;
+	// Even the truncation marker may exceed the remaining byte budget.
 	let best = "";
 	while (low <= high) {
 		const mid = (low + high) >>> 1;
