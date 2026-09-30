@@ -1,5 +1,5 @@
 import type { ImageContent, Message, ToolResultContent } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MessageBuilder } from "./message-builder";
 
 function history(
@@ -25,50 +25,45 @@ function result(messages: Message[]): ToolResultContent {
 	throw new Error("Missing tool result");
 }
 
-describe("model-only tool result recovery", () => {
-	it("awaits a successful save before exposing the recovery path and preserves original history", async () => {
+describe("synchronous model-only recovery", () => {
+	it("keeps buildForApi synchronous and preserves canonical history", () => {
 		const full = "original response\n".repeat(1000);
 		const messages = history(full);
-		let resolveSave!: (path: string) => void;
-		const save = vi.fn(
-			() =>
-				new Promise<string>((resolve) => {
-					resolveSave = resolve;
-				}),
-		);
-		const pending = new MessageBuilder({
+		const builder = new MessageBuilder({
 			maxToolResultChars: 500,
-		}).buildForApiWithRecovery(messages, { shouldCache: () => true, save });
-		let completed = false;
-		void pending.then(() => {
-			completed = true;
+			getToolResultRecovery: () => ({
+				uri: "cline://cache/session/result.result.txt",
+			}),
 		});
-		await Promise.resolve();
-		expect(completed).toBe(false);
-		resolveSave("/cache/full.txt");
-		const prepared = result(await pending);
-		expect(JSON.stringify(prepared.content)).toContain("/cache/full.txt");
-		expect(JSON.stringify(prepared.content)).not.toContain(full);
-		expect(save).toHaveBeenCalledWith("call", full);
+		const prepared = builder.buildForApi(messages);
+		expect(prepared).not.toBeInstanceOf(Promise);
+		expect(JSON.stringify(result(prepared))).toContain(
+			"cline://cache/session/result.result.txt",
+		);
+		expect(JSON.stringify(result(prepared))).not.toContain(full);
 		expect(result(messages).content).toBe(full);
 	});
 
-	it("caches a whole structured response made of many small fields", async () => {
+	it("bounds structured results made of many small fields without a live cache URI", () => {
 		const rows = Array.from({ length: 300 }, (_, id) => ({
 			id,
 			title: "small item",
 		}));
 		const messages = history(rows as unknown as ToolResultContent["content"]);
-		const save = vi.fn(async () => "/cache/rows.txt");
-		const prepared = await new MessageBuilder({
+		const builder = new MessageBuilder({
 			maxToolResultChars: 500,
-		}).buildForApiWithRecovery(messages, { shouldCache: () => true, save });
-		expect(save).toHaveBeenCalledWith("call", JSON.stringify(rows, null, 2));
-		expect(JSON.stringify(prepared)).toContain("/cache/rows.txt");
+			getToolResultRecovery: () => ({}),
+		});
+		const content = result(builder.buildForApi(messages)).content as Array<{
+			text?: string;
+		}>;
+		expect(
+			content.reduce((chars, entry) => chars + (entry.text?.length ?? 0), 0),
+		).toBeLessThanOrEqual(500);
 		expect(result(messages).content).toBe(rows);
 	});
 
-	it("keeps native images attached while bounding text", async () => {
+	it("preserves native images with oversized text", () => {
 		const image: ImageContent = {
 			type: "image",
 			data: "aGVsbG8=",
@@ -78,45 +73,37 @@ describe("model-only tool result recovery", () => {
 			{ type: "text", text: "x".repeat(10000) },
 			image,
 		]);
-		const prepared = await new MessageBuilder({
+		const builder = new MessageBuilder({
 			maxToolResultChars: 500,
-		}).buildForApiWithRecovery(messages, {
-			shouldCache: () => true,
-			save: async () => "/cache/media.txt",
+			getToolResultRecovery: () => ({
+				uri: "cline://cache/session/result.result.txt",
+			}),
 		});
-		expect(result(prepared).content).toContainEqual(image);
+		expect(result(builder.buildForApi(messages)).content).toContainEqual(image);
 		expect(result(messages).content).toContainEqual(image);
 	});
 
-	it("does not cache short responses or tools that did not opt in", async () => {
-		const save = vi.fn(async () => "/cache/full.txt");
-		const builder = new MessageBuilder({ maxToolResultChars: 500 });
-		await builder.buildForApiWithRecovery(history("short"), {
-			shouldCache: () => true,
-			save,
-		});
-		await builder.buildForApiWithRecovery(
-			history("x".repeat(10000), "team_list_runs"),
-			{ shouldCache: () => false, save },
+	it("leaves tools without a recovery policy on the original projection", () => {
+		const rows = [{ query: "run", result: "x".repeat(10000), success: true }];
+		const messages = history(
+			rows as unknown as ToolResultContent["content"],
+			"team_list_runs",
 		);
-		expect(save).not.toHaveBeenCalled();
+		const builder = new MessageBuilder({ maxToolResultChars: 500 });
+		expect(result(builder.buildForApi(messages)).content).toMatchObject([
+			{ query: "run", success: true },
+		]);
 	});
 
 	it.each([
 		40, 1000,
-	])("keeps a failed save bounded by a %i-byte aggregate budget", async (maxTotalTextBytes) => {
+	])("keeps an expired result bounded by a %i-byte aggregate budget", (maxTotalTextBytes) => {
 		const messages = history("x".repeat(500000));
-		const onSaveFailure = vi.fn();
-		const prepared = await new MessageBuilder({
+		const builder = new MessageBuilder({
 			maxTotalTextBytes,
-		}).buildForApiWithRecovery(messages, {
-			shouldCache: () => true,
-			save: async () => {
-				throw new Error("disk full");
-			},
-			onSaveFailure,
+			getToolResultRecovery: () => ({}),
 		});
-		const content = result(prepared).content;
+		const content = result(builder.buildForApi(messages)).content;
 		const text =
 			typeof content === "string"
 				? content
@@ -125,21 +112,19 @@ describe("model-only tool result recovery", () => {
 						.map((entry) => entry.text)
 						.join("");
 		expect(Buffer.byteLength(text)).toBeLessThanOrEqual(maxTotalTextBytes);
-		expect(text).not.toContain("cached temporarily");
-		expect(onSaveFailure).toHaveBeenCalledOnce();
+		expect(text).not.toContain("cline://cache/");
 		expect(result(messages).content).toHaveLength(500000);
 	});
 
-	it("keeps generated recovery instructions intact under aggregate truncation", async () => {
-		const path = `/cache/${"nested/".repeat(30)}full.txt`;
-		const prepared = await new MessageBuilder({
+	it("protects generated instructions within the aggregate budget", () => {
+		const uri = "cline://cache/session/result.result.txt";
+		const builder = new MessageBuilder({
 			maxToolResultChars: 1000,
 			maxTotalTextBytes: 1000,
-		}).buildForApiWithRecovery(history("x".repeat(10000)), {
-			shouldCache: () => true,
-			save: async () => path,
+			getToolResultRecovery: () => ({ uri }),
 		});
-		expect(JSON.stringify(result(prepared))).toContain(path);
+		const prepared = builder.buildForApi(history("x".repeat(10000)));
+		expect(JSON.stringify(result(prepared))).toContain(uri);
 		const entries = result(prepared).content as Array<{ text?: string }>;
 		expect(
 			entries.some((entry) => entry.text?.includes("provider request budget")),

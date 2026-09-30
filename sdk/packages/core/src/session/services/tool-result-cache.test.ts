@@ -1,121 +1,60 @@
-import {
-	mkdtemp,
-	readdir,
-	readFile,
-	rm,
-	stat,
-	utimes,
-	writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	createToolResultCache,
-	deleteToolResultCache,
-	pruneToolResultCache,
-	TOOL_RESULT_CACHE_TTL_MS,
-} from "./tool-result-cache";
+import { describe, expect, it } from "vitest";
+import { TOOL_RESULT_CACHE_MISS, ToolResultCache } from "./tool-result-cache";
 
-describe("temporary tool result cache", () => {
-	let root: string;
-	const caches: ReturnType<typeof createToolResultCache>[] = [];
-	function cache(session = "session") {
-		const value = createToolResultCache(session, { root });
-		caches.push(value);
-		return value;
-	}
-	beforeEach(async () => {
-		root = await mkdtemp(join(tmpdir(), "tool-result-cache-"));
-	});
-	afterEach(async () => {
-		for (const value of caches.splice(0)) value.close();
-		await rm(root, { recursive: true, force: true });
+describe("session memory result cache", () => {
+	it("uses a unique URI for each execution and scopes reads to the owning session", () => {
+		const first = new ToolResultCache("root@one+two");
+		const second = new ToolResultCache("other");
+		const uri = first.store("call", "full response") ?? "";
+		expect(uri).toMatch(/^cline:\/\/cache\/root%40one%2Btwo\/.+\.result\.txt$/);
+		expect(first.read(uri)).toBe("full response");
+		expect(() => second.read(uri)).toThrow("for this session"); // Cross-session reads must not fall through to disk.
 	});
 
-	it("reuses a completed file without rewriting it and refreshes last use", async () => {
-		const value = cache();
-		const path = await value.save("call", "original\nresponse");
-		const before = await stat(path);
-		const old = new Date(Date.now() - TOOL_RESULT_CACHE_TTL_MS * 2);
-		await utimes(path, old, old);
-		expect(await value.save("call", "original\nresponse")).toBe(path);
-		const after = await stat(path);
-		expect(after.ino).toBe(before.ino);
-		expect(after.mtimeMs).toBeGreaterThan(old.getTime());
-		expect(await readFile(path, "utf8")).toBe("original\nresponse");
-		expect(await readdir(dirname(path))).toEqual([path.split("/").at(-1)]);
-		expect(after.mode & 0o777).toBe(0o600);
+	it("repeated lookups do not refresh the five-iteration expiry", () => {
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("call", "original") ?? "";
+		for (let index = 0; index < 4; index++) {
+			cache.advanceIteration();
+			expect(cache.uriFor("call")).toBe(uri);
+		}
+		cache.advanceIteration();
+		expect(cache.uriFor("call")).toBeUndefined();
+		expect(() => cache.read(uri)).toThrow(TOOL_RESULT_CACHE_MISS);
 	});
 
-	it("isolates sessions, repeated executions, and changed imported results", async () => {
-		const first = cache("root@one+two");
-		const second = cache("../other");
-		const paths = await Promise.all([
-			first.save("call", "first"),
-			first.save("another-call", "first"),
-			first.save("call", "changed"),
-			second.save("call", "first"),
-		]);
-		expect(new Set(paths).size).toBe(4);
-		for (const path of paths) expect(path.startsWith(`${root}/`)).toBe(true);
+	it("explicit reads refresh expiry", () => {
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("call", "full") ?? "";
+		for (let index = 0; index < 4; index++) cache.advanceIteration();
+		expect(cache.read(uri)).toBe("full");
+		for (let index = 0; index < 4; index++) cache.advanceIteration();
+		expect(cache.uriFor("call")).toBe(uri);
+		cache.advanceIteration();
+		expect(() => cache.read(uri)).toThrow(TOOL_RESULT_CACHE_MISS);
 	});
 
-	it("deduplicates concurrent saves and regenerates missing files", async () => {
-		const value = cache();
-		const paths = await Promise.all(
-			Array.from({ length: 10 }, () => value.save("call", "full")),
-		);
-		expect(new Set(paths).size).toBe(1);
-		await rm(paths[0]);
-		expect(await cache().save("call", "full")).toBe(paths[0]);
-		expect(await readFile(paths[0], "utf8")).toBe("full");
+	it("bounds cached bytes and evicts the least recently read result", () => {
+		const cache = new ToolResultCache("session", 8);
+		const first = cache.store("first", "1111") ?? "";
+		const second = cache.store("second", "2222") ?? "";
+		cache.read(first);
+		cache.store("third", "3333");
+		expect(() => cache.read(second)).toThrow(TOOL_RESULT_CACHE_MISS);
+		expect(cache.read(first)).toBe("1111");
+		expect(cache.store("too-large", "x".repeat(9))).toBeUndefined();
+		expect(cache.uriFor("first")).toBe(first);
 	});
 
-	it("expires idle files after one day while retaining recently used files", async () => {
-		const value = cache();
-		const expired = await value.save("old", "old");
-		const fresh = await value.save("new", "new");
-		const old = new Date(Date.now() - TOOL_RESULT_CACHE_TTL_MS - 1000);
-		await utimes(expired, old, old);
-		value.close();
-		await pruneToolResultCache(root);
-		await expect(stat(expired)).rejects.toMatchObject({ code: "ENOENT" });
-		expect(await readFile(fresh, "utf8")).toBe("new");
-	});
-
-	it("protects live sessions until every runtime lease has closed", async () => {
-		const first = cache();
-		const second = cache();
-		const path = await first.save("call", "full");
-		const old = new Date(Date.now() - TOOL_RESULT_CACHE_TTL_MS * 2);
-		await utimes(path, old, old);
-		first.close();
-		first.close();
-		await pruneToolResultCache(root);
-		expect(await readFile(path, "utf8")).toBe("full");
-		second.close();
-		await pruneToolResultCache(root);
-		await expect(stat(dirname(path))).rejects.toMatchObject({ code: "ENOENT" });
-	});
-
-	it("deletes only the requested session cache", async () => {
-		const first = await cache("first").save("call", "first");
-		const second = await cache("second").save("call", "second");
-		await deleteToolResultCache("first", root);
-		await expect(stat(first)).rejects.toMatchObject({ code: "ENOENT" });
-		expect(await readFile(second, "utf8")).toBe("second");
-	});
-
-	it("allows retry after a failed write without retaining a rejected promise", async () => {
-		const blocked = join(root, "blocked");
-		await writeFile(blocked, "blocked");
-		const value = createToolResultCache("session", { root: blocked });
-		caches.push(value);
-		await expect(value.save("call", "full")).rejects.toThrow();
-		await rm(blocked);
-		expect(await readFile(await value.save("call", "full"), "utf8")).toBe(
-			"full",
-		);
+	it("counts multibyte text, replaces repeated IDs, and clears entries", () => {
+		const cache = new ToolResultCache("session", 8);
+		const old = cache.store("call", "🙂🙂") ?? "";
+		expect(cache.store("another", "🙂🙂🙂")).toBeUndefined();
+		const current = cache.store("call", "new") ?? "";
+		expect(current).not.toBe(old);
+		expect(() => cache.read(old)).toThrow(TOOL_RESULT_CACHE_MISS);
+		expect(cache.read(current)).toBe("new");
+		cache.clear();
+		expect(() => cache.read(current)).toThrow(TOOL_RESULT_CACHE_MISS);
 	});
 });

@@ -75,6 +75,10 @@ interface TruncationCandidate {
 }
 
 export interface MessageBuilderOptions {
+	/** Synchronous Core-owned recovery lookup; undefined leaves the normal result projection unchanged. */
+	getToolResultRecovery?: (
+		result: ToolResultContent,
+	) => { uri?: string } | undefined;
 	maxToolResultChars?: number;
 	maxFileContentChars?: number;
 	maxTotalTextBytes?: number;
@@ -107,6 +111,8 @@ export function getMessageBuilderOptionsFromEnv(
  */
 export class MessageBuilder {
 	private readonly recoveryNotices = new WeakSet<object>();
+	private readonly getToolResultRecovery?: MessageBuilderOptions["getToolResultRecovery"];
+	private recoveryNoticeBytes = 0;
 	private indexedMessageCount = 0;
 	private indexedTailRef: Message | undefined;
 	private readonly toolNameByIdCache = new Map<string, string>();
@@ -132,6 +138,7 @@ export class MessageBuilder {
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
 	constructor(options: MessageBuilderOptions = {}) {
+		this.getToolResultRecovery = options.getToolResultRecovery;
 		this.maxToolResultChars = normalizePositiveLimit(
 			options.maxToolResultChars,
 			DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -164,89 +171,8 @@ export class MessageBuilder {
 		this.committedOutdatedRewrites.clear();
 	}
 
-	/** Project opted-in external results without changing canonical history or UI output. */
-	async buildForApiWithRecovery(
-		messages: Message[],
-		options: {
-			shouldCache: (toolName: string) => boolean;
-			save: (toolCallId: string, text: string) => Promise<string>;
-			onSaveFailure?: (error: unknown) => void;
-		},
-	): Promise<Message[]> {
-		this.reindex(messages);
-		const generatedNotices = new WeakSet<object>();
-		const projected = await Promise.all(
-			messages.map(async (message) => {
-				if (!Array.isArray(message.content)) return message;
-				const content = await Promise.all(
-					message.content.map(async (block) => {
-						if (
-							block.type !== "tool_result" ||
-							!options.shouldCache(this.resolveToolName(block) ?? "")
-						)
-							return block;
-						const images: ImageContent[] = [];
-						const textual = extractToolResultImages(block.content, images);
-						const fullText =
-							typeof textual === "string"
-								? textual
-								: JSON.stringify(textual, null, 2);
-						if (
-							typeof fullText !== "string" ||
-							fullText.length <= this.maxToolResultChars
-						)
-							return block;
-						const entries: ToolResultContent["content"] = [
-							{ type: "text", text: this.truncateMiddle(fullText) },
-							...images,
-						];
-						try {
-							// Save the original response, including any native media metadata.
-							const original =
-								typeof block.content === "string"
-									? block.content
-									: JSON.stringify(block.content, null, 2);
-							const path = await options.save(block.tool_use_id, original);
-							const notice: TextContent = {
-								type: "text",
-								text: `Full result cached temporarily at ${path}. Search this file or read a bounded range to recover omitted content.`,
-							};
-							entries.push(notice);
-							generatedNotices.add(notice);
-						} catch (error) {
-							options.onSaveFailure?.(error);
-						}
-						return { ...block, content: entries };
-					}),
-				);
-				return { ...message, content };
-			}),
-		);
-		// Reserve at most half the request budget for intact recovery instructions.
-		// These objects are generated here, never trusted from tool-supplied metadata.
-		const notices = projected.flatMap((message) => {
-			if (!Array.isArray(message.content)) return [];
-			return message.content.flatMap((block) =>
-				block.type === "tool_result" && Array.isArray(block.content)
-					? block.content.filter(
-							(entry): entry is TextContent =>
-								entry.type === "text" && generatedNotices.has(entry),
-						)
-					: [],
-			);
-		});
-		let noticeBytes = 0;
-		for (const notice of notices) {
-			const bytes = utf8ByteLength(notice.text);
-			if (noticeBytes + bytes <= this.maxTotalTextBytes / 2) {
-				this.recoveryNotices.add(notice);
-				noticeBytes += bytes;
-			} else notice.text = "";
-		}
-		return this.buildForApi(projected);
-	}
-
 	buildForApi(messages: Message[]): Message[] {
+		this.recoveryNoticeBytes = 0;
 		this.reindex(messages);
 		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
@@ -331,6 +257,37 @@ export class MessageBuilder {
 		}
 
 		const toolName = this.resolveToolName(block);
+		const recovery = this.getToolResultRecovery?.({
+			...block,
+			name: toolName ?? block.name,
+		});
+		if (recovery) {
+			const images: ImageContent[] = [];
+			const textual = extractToolResultImages(block.content, images);
+			const text =
+				typeof textual === "string"
+					? textual
+					: JSON.stringify(textual, null, 2);
+			if (typeof text === "string" && text.length > this.maxToolResultChars) {
+				const content: ToolResultContent["content"] = [
+					{ type: "text", text: this.truncateMiddle(text) },
+					...images,
+				];
+				if (recovery.uri) {
+					const notice: TextContent = {
+						type: "text",
+						text: `Full result is temporarily available at ${recovery.uri}. Use read_files with start_line/end_line to recover omitted content.`,
+					};
+					const bytes = utf8ByteLength(notice.text);
+					if (this.recoveryNoticeBytes + bytes <= this.maxTotalTextBytes / 2) {
+						this.recoveryNoticeBytes += bytes;
+						this.recoveryNotices.add(notice);
+						content.push(notice);
+					}
+				}
+				return { ...block, content };
+			}
+		}
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {

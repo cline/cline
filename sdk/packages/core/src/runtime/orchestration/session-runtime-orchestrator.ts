@@ -62,10 +62,11 @@ import {
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
 import {
+	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
-import { createToolResultCache } from "../../session/services/tool-result-cache";
+import { ToolResultCache } from "../../session/services/tool-result-cache";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -327,7 +328,9 @@ export class SessionRuntime {
 	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
-	private toolResultCache?: ReturnType<typeof createToolResultCache>;
+	private readonly toolResultCache: ToolResultCache;
+	private cacheableToolNames = new Set<string>();
+	private readonly maxCachedResultChars: number;
 	private pendingTerminalError:
 		| Extract<AgentEvent, { type: "error" }>
 		| undefined;
@@ -423,7 +426,19 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
+		this.toolResultCache = new ToolResultCache(
+			config.sessionId ?? this.agentId,
+		);
+		const messageBuilderOptions = getMessageBuilderOptionsFromEnv();
+		this.maxCachedResultChars =
+			messageBuilderOptions.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS;
+		this.messageBuilder = new MessageBuilder({
+			...messageBuilderOptions,
+			getToolResultRecovery: (result) =>
+				this.cacheableToolNames.has(result.name ?? "")
+					? { uri: this.toolResultCache.uriFor(result.tool_use_id) }
+					: undefined,
+		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,
@@ -583,6 +598,7 @@ export class SessionRuntime {
 	}
 
 	private resetConversationBoundaryTrackers(): void {
+		this.toolResultCache.clear();
 		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
 		this.loopTracker.reset();
@@ -688,7 +704,7 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
-		this.toolResultCache?.close();
+		this.toolResultCache.clear();
 	}
 
 	// -------------------------------------------------------------------
@@ -979,6 +995,11 @@ export class SessionRuntime {
 		const initialMessages = messagesToAgentMessages(
 			this.conversation.getMessages(),
 		);
+		this.cacheableToolNames = new Set(
+			tools
+				.filter((tool) => tool.resultPolicy === "cache-oversized")
+				.map((tool) => tool.name.toLowerCase()),
+		);
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
 			sessionId: this.config.sessionId,
@@ -992,6 +1013,7 @@ export class SessionRuntime {
 			toolContextMetadata: {
 				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...this.config.toolContextMetadata,
+				toolResultCache: this.toolResultCache,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
@@ -1132,6 +1154,23 @@ export class SessionRuntime {
 		]);
 		return {
 			...hooks,
+			afterTool: async (ctx) => {
+				const control = await hooks.afterTool?.(ctx);
+				const result = control?.result ?? ctx.result;
+				if (ctx.tool.resultPolicy === "cache-oversized") {
+					const text =
+						typeof result.output === "string"
+							? result.output
+							: JSON.stringify(result.output, null, 2);
+					if (
+						typeof text === "string" &&
+						text.length > this.maxCachedResultChars
+					) {
+						this.toolResultCache.store(ctx.toolCall.toolCallId, text);
+					}
+				}
+				return control;
+			},
 			beforeModel: async (ctx) => {
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {
@@ -1220,27 +1259,7 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		const tools = new Map(
-			[
-				...this.contributionRegistry.getRegisteredTools(),
-				...this.config.tools,
-			].map((tool) => [tool.name.toLowerCase(), tool]),
-		);
-		return this.messageBuilder.buildForApiWithRecovery(providerMessages, {
-			shouldCache: (name) =>
-				tools.get(name)?.resultPolicy === "cache-oversized",
-			save: (toolCallId, text) => {
-				this.toolResultCache ??= createToolResultCache(
-					this.config.sessionId ?? this.agentId,
-				);
-				return this.toolResultCache.save(toolCallId, text);
-			},
-			onSaveFailure: () =>
-				this.logger?.log(
-					"Unable to cache full tool result; continuing with bounded preview",
-					{ severity: "warn" },
-				),
-		});
+		return this.messageBuilder.buildForApi(providerMessages);
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {
@@ -1255,6 +1274,7 @@ export class SessionRuntime {
 				break;
 			}
 			case "turn-started": {
+				this.toolResultCache.advanceIteration();
 				// Reset per-turn tool-outcome counters used by the
 				// MistakeTracker wiring. Parity with pre-Step-9
 				// agent.ts which accumulates per-iteration success/fail

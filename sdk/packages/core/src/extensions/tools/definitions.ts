@@ -275,6 +275,7 @@ export function createReadFilesTool(
 		name: "read_files",
 		description:
 			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
+			"Also reads temporary cline://cache/ tool-result URIs from this session. Expired results require refetching with an appropriate read/query tool; do not repeat side-effecting actions. " +
 			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
 			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
 			"Binary files that are not image and large files are not supported. " +

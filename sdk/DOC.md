@@ -1,9 +1,9 @@
 
 ## Oversized tool result recovery
 
-Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core automatically enables this policy for MCP and Composio tools. It retains original tool output in session history and events, while model requests receive a bounded preview and a temporary file path for oversized responses. The stateless agent runtime does not perform caching.
+Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core enables this for MCP and Composio tools. Original output remains in history and events; synchronous model preparation sends a bounded preview with a `cline://cache/<encoded-session-id>/<result-id>.result.txt` URI for cached oversized responses. Use `read_files` with `start_line`/`end_line` to read omitted content. Shell and filesystem search tools do not support these URIs. The stateless agent runtime does not own a cache.
 
-Files live under `<cline-data-dir>/cache/sessions/<encoded-session-id>/`, with a 24-hour expiry after last use. Cleanup runs opportunistically when caching starts and hourly while a cache is open; live runtimes in the same process protect their session directories. Session deletion removes the associated cache. Missing or expired files are regenerated from original history before the model receives a recovery instruction. Storage failures leave a bounded preview without a file notice.
+Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output.
 
 ## Shared agent review UI
 

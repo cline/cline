@@ -1,144 +1,97 @@
-import { createHash, randomUUID } from "node:crypto";
-import type { Dirent } from "node:fs";
-import {
-	mkdir,
-	readdir,
-	rename,
-	rm,
-	rmdir,
-	stat,
-	utimes,
-	writeFile,
-} from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { resolveClineDataDir } from "@cline/shared/storage";
+import { randomUUID } from "node:crypto";
 
-export const TOOL_RESULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-const activeDirectories = new Map<string, number>();
+export const TOOL_RESULT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
+export const TOOL_RESULT_CACHE_IDLE_ITERATIONS = 5;
+export const TOOL_RESULT_CACHE_MISS =
+	"This cached tool result is no longer available. Refetch current data with the original read/query tool if needed; do not repeat side-effecting actions just to recover their output.";
 
-function sessionDirectory(root: string, sessionId: string): string {
-	if (!sessionId)
-		throw new Error("A session ID is required for tool result caching");
-	const encoded = encodeURIComponent(sessionId).replace(/\./g, "%2E");
-	const key =
-		encoded.length <= 160
-			? encoded
-			: `@${createHash("sha256").update(sessionId).digest("hex")}`;
-	return join(root, key);
+interface CachedResult {
+	toolCallId: string;
+	uri: string;
+	text: string;
+	bytes: number;
+	lastReadIteration: number;
 }
 
-export function toolResultCacheRoot(): string {
-	return join(resolveClineDataDir(), "cache", "sessions");
-}
+/** Session-owned volatile text cache. Looking up a URI never extends its lifetime. */
+export class ToolResultCache {
+	private readonly entries = new Map<string, CachedResult>();
+	private readonly idsByToolCall = new Map<string, string>();
+	private iteration = 0;
+	private bytes = 0;
 
-/** Expiry is based on last use. Live runtimes hold a lease on their session directory. */
-export async function pruneToolResultCache(
-	root = toolResultCacheRoot(),
-	now = Date.now(),
-): Promise<void> {
-	let sessions: Dirent[];
-	try {
-		sessions = await readdir(root, { withFileTypes: true });
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-		throw error;
+	constructor(
+		private readonly sessionId: string,
+		private readonly maxBytes = TOOL_RESULT_CACHE_MAX_BYTES,
+	) {}
+
+	store(toolCallId: string, text: string): string | undefined {
+		const bytes = Buffer.byteLength(text);
+		const previous = this.idsByToolCall.get(toolCallId);
+		if (previous) this.remove(previous);
+		if (bytes > this.maxBytes) return undefined;
+		while (this.bytes + bytes > this.maxBytes) {
+			const oldest = this.entries.keys().next().value;
+			if (oldest === undefined) break;
+			this.remove(oldest);
+		}
+		const id = randomUUID();
+		const uri = `cline://cache/${encodeURIComponent(this.sessionId)}/${id}.result.txt`;
+		this.entries.set(id, {
+			toolCallId,
+			uri,
+			text,
+			bytes,
+			lastReadIteration: this.iteration,
+		});
+		this.idsByToolCall.set(toolCallId, id);
+		this.bytes += bytes;
+		return uri;
 	}
-	for (const session of sessions) {
-		if (!session.isDirectory()) continue;
-		const directory = join(root, session.name);
-		if (activeDirectories.has(directory)) continue;
-		try {
-			for (const file of await readdir(directory, { withFileTypes: true })) {
-				if (activeDirectories.has(directory)) break;
-				if (!file.isFile() || !/\.(result\.txt|tmp)$/.test(file.name)) continue;
-				const path = join(directory, file.name);
-				if (now - (await stat(path)).mtimeMs > TOOL_RESULT_CACHE_TTL_MS)
-					await rm(path, { force: true });
-			}
-			// Nonempty directories and concurrent deletions are harmless.
-			await rmdir(directory);
-		} catch {
-			/* Cache maintenance must not interrupt a session. */
+
+	uriFor(toolCallId: string): string | undefined {
+		const id = this.idsByToolCall.get(toolCallId);
+		return id ? this.entries.get(id)?.uri : undefined;
+	}
+
+	read(uri: string): string {
+		const match = /^cline:\/\/cache\/([^/]+)\/([a-f0-9-]+)\.result\.txt$/.exec(
+			uri,
+		);
+		if (!match || decodeURIComponent(match[1]) !== this.sessionId) {
+			throw new Error("Invalid tool result cache URI for this session");
+		}
+		const entry = this.entries.get(match[2]);
+		if (!entry) throw new Error(TOOL_RESULT_CACHE_MISS);
+		entry.lastReadIteration = this.iteration;
+		// Explicit reads refresh LRU order. Model projection calls only uriFor.
+		this.entries.delete(match[2]);
+		this.entries.set(match[2], entry);
+		return entry.text;
+	}
+
+	advanceIteration(): void {
+		this.iteration++;
+		for (const [id, entry] of this.entries) {
+			if (
+				this.iteration - entry.lastReadIteration >=
+				TOOL_RESULT_CACHE_IDLE_ITERATIONS
+			)
+				this.remove(id);
 		}
 	}
-}
 
-export async function deleteToolResultCache(
-	sessionId: string,
-	root = toolResultCacheRoot(),
-): Promise<void> {
-	await rm(sessionDirectory(root, sessionId), { recursive: true, force: true });
-}
+	clear(): void {
+		this.entries.clear();
+		this.idsByToolCall.clear();
+		this.bytes = 0;
+	}
 
-/** Disposable recovery cache. It owns no transcript, save records, or resume state. */
-export function createToolResultCache(
-	sessionId: string,
-	options: {
-		root?: string;
-		onError?: (error: unknown) => void;
-	} = {},
-) {
-	const root = resolve(options.root ?? toolResultCacheRoot());
-	const directory = sessionDirectory(root, sessionId);
-	activeDirectories.set(directory, (activeDirectories.get(directory) ?? 0) + 1);
-	const cleanup = () => {
-		void pruneToolResultCache(root).catch(options.onError ?? (() => {}));
-	};
-	cleanup();
-	const timer = setInterval(cleanup, CLEANUP_INTERVAL_MS);
-	timer.unref();
-	const pending = new Map<string, Promise<string>>();
-	let closed = false;
-	return {
-		async save(toolCallId: string, text: string): Promise<string> {
-			if (closed) throw new Error("Tool result cache is closed");
-			const id = createHash("sha256")
-				.update(`${toolCallId.length}:`)
-				.update(toolCallId)
-				.update(text)
-				.digest("hex");
-			const path = join(directory, `${id}.result.txt`);
-			const existing = pending.get(path);
-			if (existing) return existing;
-			const write = (async () => {
-				try {
-					if ((await stat(path)).isFile()) {
-						const now = new Date();
-						await utimes(path, now, now);
-						return path;
-					}
-				} catch (error) {
-					if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-				}
-				await mkdir(directory, { recursive: true, mode: 0o700 });
-				const temporary = join(directory, `${randomUUID()}.tmp`);
-				try {
-					await writeFile(temporary, text, {
-						encoding: "utf8",
-						mode: 0o600,
-						flag: "wx",
-					});
-					await rename(temporary, path);
-					return path;
-				} finally {
-					await rm(temporary, { force: true });
-				}
-			})();
-			pending.set(path, write);
-			try {
-				return await write;
-			} finally {
-				pending.delete(path);
-			}
-		},
-		close() {
-			if (closed) return;
-			closed = true;
-			clearInterval(timer);
-			const count = activeDirectories.get(directory) ?? 1;
-			if (count === 1) activeDirectories.delete(directory);
-			else activeDirectories.set(directory, count - 1);
-		},
-	};
+	private remove(id: string): void {
+		const entry = this.entries.get(id);
+		if (!entry) return;
+		this.bytes -= entry.bytes;
+		this.idsByToolCall.delete(entry.toolCallId);
+		this.entries.delete(id);
+	}
 }

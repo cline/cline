@@ -35,7 +35,6 @@ import type { SessionCompactionState } from "../models/session-compaction";
 import type { SessionRow } from "../models/session-row";
 import { SessionManifestStore } from "../stores/session-manifest-store";
 import { TeamChildSessionManager } from "../team";
-import { deleteToolResultCache } from "./tool-result-cache";
 
 export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
@@ -593,7 +592,6 @@ export class UnifiedSessionPersistenceService {
 		if (!row) return { deleted: false };
 
 		await this.adapter.deleteSession(id, false);
-		await deleteToolResultCache(id).catch(() => {});
 
 		if (!row.isSubagent) {
 			const children = await this.adapter.listSessions({
@@ -603,7 +601,6 @@ export class UnifiedSessionPersistenceService {
 			await this.adapter.deleteSession(id, true);
 			await Promise.allSettled(
 				children.map(async (child) => {
-					await deleteToolResultCache(child.sessionId).catch(() => {});
 					await deleteCheckpointRefs(child.cwd, child.sessionId);
 					unlinkIfExists(child.messagesPath);
 					await this.deleteSessionCompactionStateIfExists(child.sessionId);
