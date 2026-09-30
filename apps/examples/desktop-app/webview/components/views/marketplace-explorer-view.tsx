@@ -521,12 +521,18 @@ function DetailPane({
 	);
 }
 
-export function MarketplaceExplorerView() {
+export type MarketplaceTypeFilter = MarketplacePrimitiveType | "connector";
+
+export function MarketplaceExplorerView({
+	initialTypeFilter = null,
+}: {
+	initialTypeFilter?: MarketplaceTypeFilter | null;
+}) {
 	const directory = useMarketplaceDirectory();
 	const [query, setQuery] = useState("");
-	const [typeFilter, setTypeFilter] = useState<
-		MarketplacePrimitiveType | "connector" | null
-	>(null);
+	const [typeFilter, setTypeFilter] = useState<MarketplaceTypeFilter | null>(
+		initialTypeFilter,
+	);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -815,6 +821,7 @@ export function MarketplaceExplorerView() {
 						{showConnectors ? (
 							<section className="grid gap-1" aria-label="Connectors">
 								<h2 className="flex items-center gap-1.5 px-2.5 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+									<Badge className="normal-case tracking-normal">Beta</Badge>
 									<Cable className="size-3.5 text-primary" />
 									Connectors
 									<span className="font-normal text-muted-foreground/70">

@@ -201,7 +201,7 @@ Releases are built, signed, notarized, and published by the `desktop-publish`
 GitHub workflow as a single universal macOS DMG — one download that runs
 natively on both Apple Silicon and Intel (macOS picks the matching slice at
 launch, so users never choose an architecture) — plus a Windows x64 NSIS
-installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
+installer and Linux x64 and arm64 `.deb` and `.rpm` packages. The step-by-step flow
 (version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
 skill (`.cline/skills/publish-desktop/SKILL.md`).
 
@@ -223,14 +223,17 @@ can't verify new updates).
 ### Linux
 
 Linux ships as `.deb` (Debian, Ubuntu and derivatives) and `.rpm` (Fedora,
-RHEL, openSUSE) packages for x86_64, built on Ubuntu 22.04 so they run on
-distros with at least that era's glibc and WebKitGTK 4.1. Install from the
-release page with the system package manager so the runtime dependencies
-(`libwebkit2gtk-4.1-0`, `libgtk-3-0`, `libayatana-appindicator3-1`) resolve:
+RHEL, openSUSE) packages for x86_64 and arm64 (aarch64), each built natively
+on Ubuntu 22.04 so they run on distros with at least that era's glibc and
+WebKitGTK 4.1. Install from the release page with the system package manager
+so the runtime dependencies (`libwebkit2gtk-4.1-0`, `libgtk-3-0`,
+`libayatana-appindicator3-1`) resolve:
 
 ```bash
-sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu
-sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL
+sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu (x86_64)
+sudo apt install ./Cline_<version>_arm64.deb     # Debian / Ubuntu (arm64)
+sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL (x86_64)
+sudo dnf install ./Cline_<version>_aarch64.rpm   # Fedora / RHEL (arm64)
 ```
 
 The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
