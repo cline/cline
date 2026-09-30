@@ -240,7 +240,8 @@ The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
 sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
 `/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
 GNOME with the AppIndicator extension); without one the app still runs but the
-tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
+tray menu is unavailable, and closing the window quits the app instead of
+hiding it to the tray. There is no AppImage: linuxdeploy cannot process the
 Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
 AppImage target is excluded from `tauri build` on Linux. A Linux desktop
 cannot use a Mac as an SSH remote host (see the changelog).

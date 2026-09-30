@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(target_os = "linux")]
+mod linux_tray;
+#[cfg(target_os = "linux")]
 mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
@@ -1563,6 +1565,15 @@ fn main() {
             if window.label() == MAIN_WINDOW_LABEL {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
+                    // Without a tray (Linux with no StatusNotifier host, e.g.
+                    // stock GNOME) nothing could bring a hidden window back or
+                    // quit the app, so close quits instead, through the same
+                    // exit path as the tray's Quit item.
+                    #[cfg(target_os = "linux")]
+                    if !linux_tray::status_notifier_host_registered() {
+                        window.app_handle().exit(0);
+                        return;
+                    }
                     hide_main_window(window);
                 }
             }
