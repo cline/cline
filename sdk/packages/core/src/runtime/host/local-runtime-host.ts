@@ -291,12 +291,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			/** Turns that have queued up behind this start, in arrival order. */
 			waiters: number;
 			/**
-			 * Index of the waiter an abort cancelled. Mirrors a live session,
-			 * where abort stops the running turn and leaves queued prompts:
-			 * only the earliest waiter (the turn that would be running) is
-			 * cancelled; later ones run on the result.
+			 * How many of those waiters aborts have cancelled, from the front.
+			 * Mirrors a live session, where each abort stops the turn that is
+			 * running and the next queued prompt then takes its place: the
+			 * first abort cancels the earliest waiter, a second abort the one
+			 * behind it, and the rest run on the result.
 			 */
-			abortedWaiter?: number;
+			abortedWaiters: number;
 			abortReason?: unknown;
 		}
 	>();
@@ -497,7 +498,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			}
 		})().finally(() => this.sessionStarts.delete(sessionId));
-		this.sessionStarts.set(sessionId, { promise: starting, waiters: 0 });
+		this.sessionStarts.set(sessionId, {
+			promise: starting,
+			waiters: 0,
+			abortedWaiters: 0,
+		});
 		return await starting;
 	}
 
@@ -1234,7 +1239,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const session = this.getSessionOrThrow(input.sessionId);
 		// An abort issued while this turn was the one waiting to run applies to
 		// it: the user cancelled it before anything ran, so nothing runs.
-		if (pendingStart && pendingStart.abortedWaiter === waiterIndex) {
+		if (pendingStart && waiterIndex < pendingStart.abortedWaiters) {
 			if (session.interactive) {
 				return await this.completeAbortedInteractiveTurn(session);
 			}
@@ -1323,17 +1328,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
-		// A turn waiting on an in-flight start for this id is the one that would
-		// be running; aborting only the current resident would let it run
-		// afterwards. Later waiters are the equivalent of queued prompts, which
-		// an abort leaves alone.
+		// The earliest turn still waiting on an in-flight start for this id is
+		// the one that would be running; aborting only the current resident
+		// would let it run afterwards. Each abort cancels the next such waiter,
+		// as each abort on a live session stops the turn that is running while
+		// the prompts queued behind it stay.
 		const pendingStart = this.sessionStarts.get(sessionId);
-		if (
-			pendingStart &&
-			pendingStart.waiters > 0 &&
-			pendingStart.abortedWaiter === undefined
-		) {
-			pendingStart.abortedWaiter = 0;
+		if (pendingStart && pendingStart.abortedWaiters < pendingStart.waiters) {
+			pendingStart.abortedWaiters += 1;
 			pendingStart.abortReason = reason;
 		}
 		const session = this.sessions.get(sessionId);
