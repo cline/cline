@@ -1,4 +1,9 @@
-export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+/** @deprecated Import from `@cline/shared`; kept for compatibility. */
+export {
+	CLINE_DEFAULT_MODEL_ID,
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "@cline/shared";
 export type {
 	GetModelsForProviderOptions,
 	ModelCollection,

@@ -392,6 +392,18 @@ class ModelDiscoveryError extends Error {
 	}
 }
 
+/** Discovery succeeded but the source listed no models. */
+class EmptyModelCatalogError extends ModelDiscoveryError {
+	constructor() {
+		super(
+			new Error(
+				"at least one model is required (manual or via modelsSourceUrl)",
+			),
+		);
+		this.name = "EmptyModelCatalogError";
+	}
+}
+
 async function resolveModelIds(params: {
 	providerId: string;
 	baseUrl: string;
@@ -760,7 +772,15 @@ async function prepareProviderUpdate(
 		request.headers === undefined
 			? existingSettings?.headers
 			: normalizeHeaders(request.headers);
-	const previousDiscoveredIds = new Set(existingEntry.discoveredModelIds);
+	// Entries saved before ownership tracking have no `discoveredModelIds`. For
+	// source-backed catalogs, treat their models as discovered so a refresh can
+	// prune models the source no longer lists.
+	const previousDiscoveredIds = new Set(
+		existingEntry.discoveredModelIds ??
+			(existingEntry.provider.modelsSourceUrl
+				? Object.keys(existingEntry.models ?? {})
+				: []),
+	);
 	const explicitModels =
 		request.models === undefined
 			? Object.keys(existingEntry.models ?? {}).filter(
@@ -796,6 +816,11 @@ async function prepareProviderUpdate(
 		shouldRecompute: shouldRecomputeModels,
 	});
 	if (modelIds.length === 0) {
+		// An empty source is a discovery outcome, which credential saves treat
+		// as best-effort; an explicitly emptied model list is a validation error.
+		if (request.models === undefined && nextModelsSourceUrl) {
+			throw new EmptyModelCatalogError();
+		}
 		throw new Error(
 			"at least one model is required (manual or via modelsSourceUrl)",
 		);
@@ -850,7 +875,7 @@ async function prepareProviderUpdate(
 		discoveredModelIds: nextModelsSourceUrl
 			? shouldRecomputeModels
 				? modelIds.filter((id) => !explicitModels.includes(id))
-				: existingEntry.discoveredModelIds
+				: (existingEntry.discoveredModelIds ?? [...previousDiscoveredIds])
 			: undefined,
 	};
 	return {

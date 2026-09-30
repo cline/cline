@@ -687,6 +687,64 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		);
 	});
 
+	it("saves credentials when the new catalog source lists no models", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(Response.json({ data: [{ id: "existing-model" }] }));
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "empty-tenant";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Empty Tenant",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			apiKey: "old-key",
+			models: [],
+		});
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		fetchMock.mockImplementation(async () => Response.json({ data: [] }));
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "new-key" });
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new-key",
+			model: "existing-model",
+		});
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			catalog,
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "other-key" }),
+		).rejects.toThrow("at least one model is required");
+	});
+
+	it("prunes models from source-backed entries saved before discovery ownership", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				Response.json({ data: [{ id: "kept" }, { id: "removed" }] }),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "legacy-source";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Legacy Source",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			models: [],
+		});
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const legacy = await readModelsFile(modelsPath);
+		const legacyEntry = legacy.providers[providerId];
+		if (!legacyEntry) throw new Error("expected provider entry");
+		delete legacyEntry.discoveredModelIds;
+		await LocalProviderRegistry.writeModelsFile(modelsPath, legacy);
+
+		fetchMock.mockResolvedValue(Response.json({ data: [{ id: "kept" }] }));
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "key" });
+		const entry = (await readModelsFile(modelsPath)).providers[providerId];
+		expect(Object.keys(entry?.models ?? {})).toEqual(["kept"]);
+		expect(entry?.discoveredModelIds).toEqual(["kept"]);
+	});
+
 	it.each([
 		"settings",
 		"update",

@@ -1,6 +1,9 @@
 "use client";
 
-import { formatDisplayUserInput } from "@cline/shared/browser";
+import {
+	formatDisplayUserInput,
+	type ProviderAuthInfo,
+} from "@cline/shared/browser";
 import {
 	createElement,
 	useCallback,
@@ -895,6 +898,7 @@ export function useChatSession(environmentId: string) {
 			detail: string,
 			ownedGeneration?: number,
 			ownedProviderId?: string,
+			ownedProviderAuth?: ProviderAuthInfo,
 		) => {
 			const generation = ownedGeneration ?? failureTurnGenerationRef.current;
 			const isCurrentTurn =
@@ -908,15 +912,17 @@ export function useChatSession(environmentId: string) {
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
 			const providerId = ownedProviderId ?? providerIdRef.current;
-			const content = formatRunError(
-				description,
-				providerId,
-				providerAuthRef.current,
-			);
+			// Use the auth facts captured with the submitted provider; the current
+			// selection may have changed since the turn started.
+			const providerAuth =
+				ownedProviderId === undefined
+					? providerAuthRef.current
+					: ownedProviderAuth;
+			const content = formatRunError(description, providerId, providerAuth);
 			const meta = {
 				providerId,
 				...(looksCredentialRelated
-					? credentialFailureMeta(providerId, providerAuthRef.current)
+					? credentialFailureMeta(providerId, providerAuth)
 					: {}),
 			};
 			const shown = shownTurnFailureRef.current;
@@ -3484,6 +3490,7 @@ export function useChatSession(environmentId: string) {
 						runError || toolError?.trim() || "",
 						failureGenerationAtSubmission,
 						parsed.provider,
+						parsed.providerAuth,
 					);
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
