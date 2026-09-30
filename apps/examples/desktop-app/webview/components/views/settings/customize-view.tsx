@@ -2,6 +2,7 @@
 
 import { Store } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	fetchComposioStatus,
@@ -61,9 +62,11 @@ function asCount(value: unknown): number {
 }
 
 export function CustomizeView({
+	onOpenModelProviders,
 	onOpenMarketplace,
 }: {
-	onOpenMarketplace?: () => void;
+	onOpenMarketplace?: (filter?: "connector") => void;
+	onOpenModelProviders?: () => void;
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
@@ -134,7 +137,7 @@ export function CustomizeView({
 				actions={
 					onOpenMarketplace ? (
 						<Button
-							onClick={onOpenMarketplace}
+							onClick={() => onOpenMarketplace()}
 							size="sm"
 							type="button"
 							variant="outline"
@@ -170,6 +173,7 @@ export function CustomizeView({
 							variant="ghost"
 						>
 							{customizeTab.label}
+							{customizeTab.id === "integrations" ? <Badge>Beta</Badge> : null}
 							{typeof count === "number" ? (
 								<span
 									className={cn(
@@ -207,7 +211,9 @@ export function CustomizeView({
 			) : tab === "integrations" ? (
 				<ComposioConnectorsView
 					onChanged={handleInventoryChanged}
-					onOpenMarketplace={onOpenMarketplace}
+					onOpenMarketplace={
+						onOpenMarketplace ? () => onOpenMarketplace("connector") : undefined
+					}
 					variant="installed"
 				/>
 			) : tab === "plugins" ? (
@@ -235,6 +241,7 @@ export function CustomizeView({
 					chrome="embedded"
 					onInventoryChanged={handleInventoryChanged}
 					section="Tools"
+					onOpenModelProviders={onOpenModelProviders}
 				/>
 			)}
 		</PageFrame>
