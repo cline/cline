@@ -42,6 +42,7 @@ import {
 	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
+import { withFileMutationLock } from "../storage/file-mutation-lock";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -459,6 +460,10 @@ function removeProviderFromSettingsState(
 
 // Provider-service mutations share one queue per file, including across manager
 // instances. Locking by provider would still lose other providers' catalog edits.
+// Within the queue, each mutation also holds a cross-process lock so another
+// Cline process (CLI, sidecar, hub) cannot interleave a models.json rewrite
+// between our read and write. The lock is not reentrant; the in-process queue
+// guarantees this process holds it at most once per file.
 const providerMutations = new Map<string, Promise<void>>();
 
 function withProviderMutation<T>(
@@ -467,7 +472,19 @@ function withProviderMutation<T>(
 ): Promise<T> {
 	const key = resolve(resolveModelsRegistryPath(manager));
 	const previous = providerMutations.get(key) ?? Promise.resolve();
-	const result = previous.then(mutation);
+	const result = previous.then(() =>
+		withFileMutationLock(
+			key,
+			{
+				label: "provider catalog",
+				// Model discovery runs inside the lock (5 s fetch timeout), so allow
+				// a queued holder's discovery to finish before giving up.
+				waitMs: 30_000,
+				maxAgeMs: 60_000,
+			},
+			mutation,
+		),
+	);
 	const settled = result.then(
 		() => {},
 		() => {},

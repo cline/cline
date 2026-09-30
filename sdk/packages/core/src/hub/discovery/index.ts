@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
 	ensureLoopbackProxyBypass,
@@ -10,6 +10,7 @@ import {
 } from "@cline/shared";
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
+import { withFileMutationLock } from "../../services/storage/file-mutation-lock";
 
 declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
 declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
@@ -70,53 +71,8 @@ function hashValue(value: string): string {
 	return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
-function isPidAlive(pid: number | undefined): boolean {
-	if (!Number.isInteger(pid) || !pid || pid <= 0) {
-		return false;
-	}
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (error) {
-		return error instanceof Error && "code" in error
-			? String((error as NodeJS.ErrnoException).code) === "EPERM"
-			: false;
-	}
-}
-
 export function createHubAuthToken(): string {
 	return randomBytes(32).toString("hex");
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getHubLockDir(lockBasis: string): string {
-	return `${lockBasis}.lock`;
-}
-
-async function readHubLockRecord(
-	lockDir: string,
-): Promise<{ pid: number; acquiredAt: string } | undefined> {
-	try {
-		const parsed = JSON.parse(
-			await readFile(join(lockDir, "owner.json"), "utf8"),
-		) as Partial<{ pid: number; acquiredAt: string }>;
-		if (
-			typeof parsed.pid !== "number" ||
-			typeof parsed.acquiredAt !== "string"
-		) {
-			return undefined;
-		}
-		return { pid: parsed.pid, acquiredAt: parsed.acquiredAt };
-	} catch {
-		return undefined;
-	}
-}
-
-async function removeHubLock(lockDir: string): Promise<void> {
-	await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
 }
 
 export function resolveHubBuildId(): string {
@@ -461,65 +417,21 @@ export async function clearHubDiscoveryIfOwned(
 	});
 }
 
-async function withHubLock<T>(
+function withHubLock<T>(
 	lockBasis: string,
 	label: string,
 	callback: () => Promise<T>,
 ): Promise<T> {
-	const lockDir = getHubLockDir(lockBasis);
-	await mkdir(dirname(lockDir), { recursive: true });
-	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
-
-	while (true) {
-		try {
-			await mkdir(lockDir, { recursive: false });
-		} catch (error) {
-			const code =
-				error instanceof Error && "code" in error
-					? String((error as NodeJS.ErrnoException).code)
-					: "";
-			if (code !== "EEXIST") {
-				throw error;
-			}
-			const record = await readHubLockRecord(lockDir);
-			if (!record) {
-				// The winner creates the directory before it can publish owner.json.
-				// Do not steal that initialization window. A genuinely abandoned
-				// empty lock is reclaimed only after the bounded wait.
-				if (Date.now() >= deadline) {
-					await removeHubLock(lockDir);
-					continue;
-				}
-				await sleep(HUB_STARTUP_LOCK_POLL_MS);
-				continue;
-			}
-			const lockAge = Date.now() - Date.parse(record.acquiredAt);
-			if (!isPidAlive(record.pid) || lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS) {
-				await removeHubLock(lockDir);
-				continue;
-			}
-			if (Date.now() >= deadline) {
-				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
-			}
-			await sleep(HUB_STARTUP_LOCK_POLL_MS);
-			continue;
-		}
-
-		try {
-			await writeFile(
-				join(lockDir, "owner.json"),
-				`${JSON.stringify(
-					{ pid: process.pid, acquiredAt: new Date().toISOString() },
-					null,
-					2,
-				)}\n`,
-				"utf8",
-			);
-			return await callback();
-		} finally {
-			await removeHubLock(lockDir);
-		}
-	}
+	return withFileMutationLock(
+		lockBasis,
+		{
+			label: `hub ${label}`,
+			waitMs: HUB_STARTUP_LOCK_WAIT_MS,
+			maxAgeMs: HUB_STARTUP_LOCK_MAX_AGE_MS,
+			pollMs: HUB_STARTUP_LOCK_POLL_MS,
+		},
+		callback,
+	);
 }
 
 function withHubDiscoveryMutationLock<T>(
