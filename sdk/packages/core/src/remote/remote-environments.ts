@@ -75,6 +75,7 @@ export interface RemoteCommandInput {
 	command: string;
 	args: string[];
 	cwd?: string;
+	env?: Record<string, string>;
 }
 
 export interface RemoteCommandResult {
@@ -174,6 +175,17 @@ const DEFAULT_HUB_SHUTDOWN_TIMEOUT_MS = 2_000;
 const REMOTE_HELPER_DIRECTORY = ".cline/remote";
 const REMOTE_DISCOVERY_DIRECTORY = ".cline/data/remote";
 const REMOTE_INSPECTION_SENTINEL = "CLINE_REMOTE_INSPECT_V1";
+/**
+ * Bun 1.4.x drops a compiled executable's source-text pages with
+ * madvise(MADV_DONTNEED) shortly after startup, assuming they are file-backed.
+ * The UPX-packed Linux helpers unpack into anonymous memory instead, so the
+ * dropped pages read back zero-filled and the first function JSC lazily
+ * parses after that point throws `SyntaxError: Invalid character: '\0'`
+ * (oven-sh/bun#42509, cline/cline#14683). The flag skips the hint; the
+ * detached Hub daemon inherits it from the helper. Remove once the helpers
+ * are built with a Bun release that includes oven-sh/bun#42515.
+ */
+const REMOTE_HELPER_ENV = { BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE: "1" };
 
 export class RemoteEnvironmentService {
 	private readonly profilesPath: string;
@@ -352,6 +364,7 @@ export class RemoteEnvironmentService {
 					"--discovery-path",
 					discoveryPath,
 				],
+				env: REMOTE_HELPER_ENV,
 			});
 			const hub = parseRemoteHubResult(ensureResult.stdout);
 			const localPort = await this.dependencies.reservePort();
@@ -421,6 +434,7 @@ export class RemoteEnvironmentService {
 							"--discovery-path",
 							bootstrap.discoveryPath,
 						],
+						env: REMOTE_HELPER_ENV,
 					});
 				} catch (failure) {
 					cleanupError = failure;
@@ -692,7 +706,12 @@ export class RemoteEnvironmentService {
 		input: RemoteCommandInput,
 	): Promise<RemoteCommandResult> {
 		validateCommandInput(input);
-		const command = buildRemoteCommand(input.command, input.args, input.cwd);
+		const command = buildRemoteCommand(
+			input.command,
+			input.args,
+			input.cwd,
+			input.env,
+		);
 		return this.dependencies.runProcess(
 			this.sshPath,
 			[...this.buildSshArgs(profile), this.destination(profile), command],
@@ -869,6 +888,7 @@ export class RemoteEnvironmentService {
 			await this.execRemote(cleanupProfile, {
 				command: helper,
 				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
+				env: REMOTE_HELPER_ENV,
 			});
 			await rm(path, { force: true });
 		}
@@ -1289,8 +1309,20 @@ function buildRemoteCommand(
 	command: string,
 	args: string[],
 	cwd?: string,
+	env?: Record<string, string>,
 ): string {
-	const invocation = [command, ...args].map(shellQuote).join(" ");
+	// `env` sets variables portably; `VAR=value cmd` is a POSIX-shell-only form
+	// and login shells such as csh/fish do not accept it.
+	const environment = Object.entries(env ?? {}).map(
+		([name, value]) => `${name}=${value}`,
+	);
+	const invocation = [
+		...(environment.length > 0 ? ["env", ...environment] : []),
+		command,
+		...args,
+	]
+		.map(shellQuote)
+		.join(" ");
 	return cwd
 		? `cd ${shellQuote(cwd)} && exec ${invocation}`
 		: `exec ${invocation}`;

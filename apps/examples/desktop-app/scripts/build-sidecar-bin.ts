@@ -87,7 +87,10 @@ const buildSidecar = async (
 // so nothing downstream changes: the installer, the SSH upload, and the remote
 // run all see one ordinary executable. `strip` is not an option here; it
 // discards Bun's appended module payload. Requires upx on PATH; the publish
-// workflow installs it on every runner.
+// workflow installs it on every runner. One caveat: Bun 1.4.x madvise()s the
+// bundle's source pages away after startup, which zero-fills UPX's anonymous
+// mappings (oven-sh/bun#42509), so RemoteEnvironmentService launches the helper
+// with BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1.
 const compressRemoteHelper = async (outfile: string): Promise<void> => {
 	if (!Bun.which("upx")) {
 		if (process.env.CI) {

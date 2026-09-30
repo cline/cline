@@ -480,9 +480,10 @@ describe("RemoteEnvironmentService", () => {
 		const ensure = invocations.find((invocation) =>
 			invocation.args.at(-1)?.includes("--remote-hub-ensure"),
 		);
-		expect(ensure?.args.at(-1)).toContain("'/home/dev'");
+		// The UPX-packed helper needs Bun's source-page madvise hint disabled
+		// (oven-sh/bun#42509); `env` keeps the prefix independent of the login shell.
 		expect(ensure?.args.at(-1)).toMatch(
-			/\/home\/dev\/\.cline\/data\/remote\/[a-f0-9-]+\.json/,
+			/^exec 'env' 'BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1' '\/home\/dev\/\.cline\/remote\/cline-remote-helper-linux-arm64-abcdef0123456789' '--remote-hub-ensure' '--cwd' '\/home\/dev' '--discovery-path' '\/home\/dev\/\.cline\/data\/remote\/[a-f0-9-]+\.json'$/,
 		);
 		expect(spawnTunnel).toHaveBeenCalledWith(
 			"ssh",
@@ -546,7 +547,9 @@ describe("RemoteEnvironmentService", () => {
 		const stop = commands.find((command) =>
 			command.includes("--remote-hub-stop"),
 		);
-		expect(stop).toBeDefined();
+		expect(stop).toMatch(
+			/^exec 'env' 'BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1' '\/home\/dev\/\.cline\/remote\/cline-remote-helper-linux-arm64-abcdef0123456789' '--remote-hub-stop' /,
+		);
 		expect(stop?.split("'--discovery-path' ")[1]).toBe(
 			ensure?.split("'--discovery-path' ")[1],
 		);
