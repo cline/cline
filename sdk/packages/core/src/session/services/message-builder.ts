@@ -272,7 +272,7 @@ export class MessageBuilder {
 				if (recovery.uri) {
 					const notice: TextContent = {
 						type: "text",
-						text: `Full result is temporarily saved to ${recovery.uri}. Use read_files with specific line ranges (start_line/end_line) if omitted content is needed.`,
+						text: `Full result is temporarily saved to ${recovery.uri}. Only read_files can access this cache URI. Use read_files with specific line ranges if omitted content is needed.`,
 					};
 					const bytes = utf8ByteLength(notice.text);
 					if (this.recoveryNoticeBytes + bytes <= this.maxTotalTextBytes / 2) {
