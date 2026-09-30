@@ -2177,11 +2177,14 @@ export class Controller {
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const sessionHistory = await this.taskHistory.listHistory({
-			hydrate: false,
-			limit: limit + 1,
-			offset,
-		})
+		// Cloud tasks are a small minority of the merged list, so page them after
+		// filtering: a page cut from the merged list first can hold none of them
+		// while cloud tasks exist further down. Other filters keep the cheaper
+		// pre-filter pagination the local-only history has always used.
+		const paginateAfterFilter = !!cloudOnly
+		const sessionHistory = await this.taskHistory.listHistory(
+			paginateAfterFilter ? { hydrate: false } : { hydrate: false, limit: limit + 1, offset },
+		)
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -2247,7 +2250,10 @@ export class Controller {
 			}
 		})
 
-		const hasMore = sessionHistory.length > limit
+		if (paginateAfterFilter) {
+			filteredTasks = filteredTasks.slice(offset)
+		}
+		const hasMore = paginateAfterFilter ? filteredTasks.length > limit : sessionHistory.length > limit
 		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
