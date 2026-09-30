@@ -1,4 +1,9 @@
-import type { AgentConfig, AgentModel, ITelemetryService } from "@cline/shared";
+import type {
+	AgentConfig,
+	AgentModel,
+	ITelemetryService,
+	ModelInfo,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
@@ -19,6 +24,8 @@ vi.mock("@cline/llms", async (importOriginal) => ({
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
+	resolveModelIdAlias: (await importOriginal<typeof import("@cline/llms")>())
+		.resolveModelIdAlias,
 	// Capability translation is the behaviour under test in the gateway model
 	// assertions below, so use the real translator rather than a stub that
 	// would re-implement (and could disagree with) it.
@@ -26,6 +33,83 @@ vi.mock("@cline/llms", async (importOriginal) => ({
 		await importOriginal<typeof import("@cline/llms")>()
 	).toGatewayModelCapabilities,
 }));
+
+describe("resolveKnownModelsFromConfig", () => {
+	const liveFlash: ModelInfo = {
+		id: "deepseek-flash",
+		contextWindow: 777_777,
+		maxInputTokens: 777_777,
+		maxTokens: 22_222,
+		capabilities: ["reasoning", "tools"],
+		pricing: { input: 1.23, output: 4.56, cacheRead: 0.12 },
+	};
+	const baseConfig = {
+		providerId: "deepseek",
+		modelId: "deepseek-v4-flash",
+		systemPrompt: "",
+		tools: [],
+	} satisfies AgentConfig;
+
+	it.each([
+		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+	])("uses live canonical metadata only for the selected alias %s", async (modelId) => {
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+		const knownModels = { "deepseek-flash": liveFlash };
+		const resolved = resolveKnownModelsFromConfig({
+			...baseConfig,
+			modelId,
+			knownModels,
+		});
+
+		expect(resolved?.[modelId]).toEqual({ ...liveFlash, id: modelId });
+		expect(Object.keys(resolved ?? {}).sort()).toEqual(
+			["deepseek-flash", modelId].sort(),
+		);
+		expect(knownModels).toEqual({ "deepseek-flash": liveFlash });
+	});
+
+	it("preserves explicit alias metadata over canonical metadata", async () => {
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+		const selectedOverride: ModelInfo = {
+			id: baseConfig.modelId,
+			contextWindow: 333_333,
+			pricing: { input: 8.88, output: 9.99 },
+		};
+		const resolved = resolveKnownModelsFromConfig({
+			...baseConfig,
+			providerConfig: {
+				providerId: baseConfig.providerId,
+				modelId: baseConfig.modelId,
+				knownModels: {
+					"deepseek-flash": liveFlash,
+					[baseConfig.modelId]: selectedOverride,
+				},
+			},
+		});
+
+		expect(resolved?.[baseConfig.modelId]).toEqual({
+			...liveFlash,
+			...selectedOverride,
+		});
+	});
+
+	it("does not invent metadata or resolve another provider's model IDs", async () => {
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+		const emptyModels = {};
+		expect(
+			resolveKnownModelsFromConfig({ ...baseConfig, knownModels: emptyModels }),
+		).toBe(emptyModels);
+		const knownModels = { "deepseek-flash": liveFlash };
+		expect(
+			resolveKnownModelsFromConfig({
+				...baseConfig,
+				providerId: "openai-compatible",
+				knownModels,
+			}),
+		).toBe(knownModels);
+	});
+});
 
 describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {

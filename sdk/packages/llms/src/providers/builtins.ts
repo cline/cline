@@ -805,7 +805,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "openai-compatible",
 		popular: 10,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "deepseek-v4-flash",
+		defaultModelId: "deepseek-flash",
 		apiKeyEnv: ["DEEPSEEK_API_KEY"],
 		defaults: { baseUrl: "https://api.deepseek.com/v1" },
 	},

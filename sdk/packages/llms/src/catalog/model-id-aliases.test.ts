@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
 	isCanonicalModelIdForAliasRules,
 	preferCanonicalModelIds,
+	resolveModelIdAlias,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./model-id-aliases";
 
 describe("model id aliases", () => {
+	it.each([
+		["openai-compatible", "deepseek-v4-flash"],
+		["openrouter", "deepseek/deepseek-v4-flash"],
+		["deepseek", "deepseek-v4-pro"],
+		["deepseek", "deepseek-v4-flash-custom"],
+	])("leaves unrelated %s/%s model IDs unchanged", (providerId, modelId) => {
+		expect(resolveModelIdAlias(providerId, modelId)).toBe(modelId);
+	});
+
 	it("recognizes canonical model ids for configured alias rules", () => {
 		expect(
 			isCanonicalModelIdForAliasRules(

@@ -29,6 +29,7 @@ export {
 	registerModel,
 	registerProvider,
 	resetRegistry,
+	resolveModelIdAlias,
 	unregisterProvider,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";

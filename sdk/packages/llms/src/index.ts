@@ -35,6 +35,7 @@ export {
 	registerModel,
 	registerProvider,
 	resetRegistry,
+	resolveModelIdAlias,
 	sortModelsByReleaseDate,
 	unregisterModel,
 	unregisterProvider,

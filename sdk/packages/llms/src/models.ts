@@ -13,6 +13,7 @@ export type { ModelIdAliasRule } from "./catalog/model-id-aliases";
 export {
 	isCanonicalModelIdForAliasRules,
 	preferCanonicalModelIds,
+	resolveModelIdAlias,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./catalog/model-id-aliases";
 export type {
