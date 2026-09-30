@@ -100,6 +100,7 @@ export const MessageBubble = memo(function MessageBubble({
 	onCopyMessage,
 	onExpandImage,
 	onEditMessage,
+	onEditLastMessage,
 	editDisabled = false,
 	editPending = false,
 	editError,
@@ -126,6 +127,12 @@ export const MessageBubble = memo(function MessageBubble({
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
+	/** Set only on the last user message: refill it in the current pane. */
+	onEditLastMessage?: (
 		messageId: string,
 		content: string,
 		runCount: number,
@@ -185,11 +192,17 @@ export const MessageBubble = memo(function MessageBubble({
 		!isError &&
 		Boolean(displayContent.trim()) &&
 		Boolean(onCopyMessage || onForkSession);
+	const canEditLastMessage = Boolean(
+		onEditLastMessage &&
+			runCount &&
+			(displayContent.trim() || message.images?.length),
+	);
 	const shouldRenderUserActions =
 		isUser &&
 		Boolean(
 			onCopyMessage ||
 				checkpoint ||
+				canEditLastMessage ||
 				(onEditMessage && runCount && displayContent.trim()),
 		);
 	const keepUserActionsVisible =
@@ -290,19 +303,35 @@ export const MessageBubble = memo(function MessageBubble({
 								)}
 							</MessageAction>
 						) : null}
-						{onEditMessage && runCount && displayContent.trim() ? (
+						{canEditLastMessage && onEditLastMessage && runCount ? (
 							<MessageAction
 								disabled={editDisabled || editPending}
 								label="Edit user message"
 								onClick={() =>
-									void onEditMessage(message.id, displayContent, runCount)
+									void onEditLastMessage(message.id, displayContent, runCount)
 								}
-								title="Edit message and restart from this point"
+								title="Edit message - resend it in this session"
 							>
 								{editPending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
 								) : (
 									<PencilIcon className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
+						) : null}
+						{onEditMessage && runCount && displayContent.trim() ? (
+							<MessageAction
+								disabled={editDisabled || editPending}
+								label="Fork from user message"
+								onClick={() =>
+									void onEditMessage(message.id, displayContent, runCount)
+								}
+								title="Fork from this message - start a new session from this point"
+							>
+								{editPending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<SplitIcon className="h-3.5 w-3.5 rotate-90" />
 								)}
 							</MessageAction>
 						) : null}

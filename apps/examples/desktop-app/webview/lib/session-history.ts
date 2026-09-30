@@ -23,6 +23,8 @@ export type SessionMetadata = {
 		version?: string;
 		trigger?: string;
 	};
+	/** Hide an edit predecessor while its replacement is available. */
+	supersededBy?: string;
 	/**
 	 * Provenance the cron runner stamps onto sessions it starts (see
 	 * `buildRunSessionMetadata` in @cline/core). The sidebar groups a

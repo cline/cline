@@ -4111,6 +4111,80 @@ export function useChatSession(environmentId: string) {
 		[config, environmentId, postSession, status],
 	);
 
+	// Rewrites the last user turn in place: the conversation is trimmed before
+	// that turn and the UI swaps onto the trimmed session like a checkpoint
+	// restore does, leaving the workspace untouched.
+	const editLastMessage = useCallback(
+		async (beforeRunCount: number) => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId) {
+				throw new Error("No active session to edit.");
+			}
+			if (BUSY_STATUSES.has(status)) {
+				throw new Error("Wait for the current turn to finish before editing.");
+			}
+			const hydrationRequestId = hydrationRequestIdRef.current;
+			const payload = (await postSession({
+				action: "fork",
+				sessionId: activeSessionId,
+				config,
+				forkBeforeRunCount: beforeRunCount,
+			})) as { sessionId?: string; messages?: unknown };
+			const nextSessionId =
+				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+			if (!nextSessionId) {
+				throw new Error("Edit did not return a new session id.");
+			}
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
+						sessionId: nextSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
+			if (
+				activeSessionIdRef.current !== activeSessionId ||
+				hydrationRequestIdRef.current !== hydrationRequestId
+			) {
+				throw new Error("The active session changed while editing.");
+			}
+			discardPendingStream();
+			resetStreamDedupe();
+			clearAbortFallbackTimeout();
+			setError(null);
+			activeAssistantMessageIdRef.current = null;
+			setActiveAssistantMessageId(null);
+			setPendingToolApprovals([]);
+			setPendingAskQuestions([]);
+			setPromptsInQueue([]);
+			clearLiveToolRefs();
+			setConfig((current) => ({ ...current, sessionId: nextSessionId }));
+			setSessionId(nextSessionId);
+			activeSessionIdRef.current = nextSessionId;
+			setMessages(nextMessages);
+			setRawTranscript("");
+			setStatus(nextMessages.length > 0 ? "completed" : "idle");
+			resetCounters();
+			void refreshSessionDiffSummary(nextSessionId);
+			void refreshPromptsInQueue(nextSessionId);
+			return { previousSessionId: activeSessionId, nextSessionId };
+		},
+		[
+			clearAbortFallbackTimeout,
+			clearLiveToolRefs,
+			discardPendingStream,
+			resetStreamDedupe,
+			config,
+			environmentId,
+			postSession,
+			refreshPromptsInQueue,
+			refreshSessionDiffSummary,
+			resetCounters,
+			setPromptsInQueue,
+			status,
+		],
+	);
+
 	const steerPromptInQueue = useCallback(
 		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
@@ -4254,6 +4328,7 @@ export function useChatSession(environmentId: string) {
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		editLastMessage,
 		proceedWhileRunning,
 		abort,
 		stop: abort,

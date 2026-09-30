@@ -31,6 +31,7 @@ import { formatRunError } from "@/lib/run-error";
 import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 import { ImportedSessionNotice } from "./imported-session-notice";
+import { formatChatMessageContent } from "./message-content";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
 	buildPreviousTimestampMap,
@@ -75,6 +76,10 @@ type ChatMessagesProps = {
 		answer: string,
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
+	onEditLastMessage?: (
+		prompt: { content: string; images: ChatMessageImage[] },
+		runCount: number,
+	) => void | Promise<void>;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -121,6 +126,7 @@ function ChatMessagesImpl({
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
 	onEditMessage,
+	onEditLastMessage,
 	onForkSession,
 	startingLabel,
 	errorAction,
@@ -266,6 +272,18 @@ function ChatMessagesImpl({
 		() => buildUserRunCountMap(messages),
 		[messages],
 	);
+
+	const lastUserMessage = useMemo(() => {
+		let last: ChatMessage | undefined;
+		let lastRunCount = 0;
+		for (const [message, runCount] of userRunCountByMessage) {
+			if (runCount >= lastRunCount) {
+				last = message;
+				lastRunCount = runCount;
+			}
+		}
+		return last;
+	}, [userRunCountByMessage]);
 
 	useEffect(() => {
 		void sessionId;
@@ -462,6 +480,36 @@ function ChatMessagesImpl({
 		},
 		[onEditMessage],
 	);
+	const handleEditLastMessage = useCallback(
+		async (messageId: string, _content: string, runCount: number) => {
+			if (!onEditLastMessage) {
+				return;
+			}
+			setEditingMessageId(messageId);
+			setEditErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(
+					onEditLastMessage(collectRunPrompt(messages, messageId), runCount),
+				);
+			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "Could not edit this message.";
+				setEditErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setEditingMessageId((current) =>
+					current === messageId ? null : current,
+				);
+			}
+		},
+		[messages, onEditLastMessage],
+	);
 	const requestEditMessage = useCallback(
 		(messageId: string, content: string, runCount: number) => {
 			setEditConfirmation({ messageId, content, runCount });
@@ -656,8 +704,13 @@ function ChatMessagesImpl({
 											onEditMessage={
 												onEditMessage ? requestEditMessage : undefined
 											}
+											onEditLastMessage={
+												onEditLastMessage && message === lastUserMessage
+													? handleEditLastMessage
+													: undefined
+											}
 											editDisabled={
-												!onEditMessage ||
+												(!onEditMessage && !onEditLastMessage) ||
 												status === "starting" ||
 												status === "running" ||
 												status === "stopping" ||
@@ -854,11 +907,11 @@ function ChatMessagesImpl({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogTitle>Fork from here?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This creates a new session and restores the workspace to its
-							checkpoint before placing this message in the composer. Workspace
-							and conversation changes after this point will be discarded.
+							This creates a new session with the conversation up to this
+							message and places the message in the composer. Your workspace
+							files are not changed; use revert to roll them back.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -887,6 +940,47 @@ function ChatMessagesImpl({
 }
 
 export const ChatMessages = memo(ChatMessagesImpl);
+
+/**
+ * A persisted user message can project into several text segments around
+ * tool blocks; only the first represents the run. Editing must refill the
+ * whole prompt, so gather the anchor's text and images together with the
+ * segments that follow it from the same persisted message.
+ */
+function collectRunPrompt(
+	messages: ChatMessage[],
+	anchorId: string,
+): { content: string; images: ChatMessageImage[] } {
+	const anchorIndex = messages.findIndex((message) => message.id === anchorId);
+	const anchor = messages[anchorIndex];
+	if (!anchor) {
+		return { content: "", images: [] };
+	}
+	const baseId = (id: string) => id.replace(/_text_\d+$/, "");
+	const segments = [anchor];
+	for (const message of messages.slice(anchorIndex + 1)) {
+		if (
+			message.role === "user" &&
+			message.meta?.userRunSpan === 0 &&
+			baseId(message.id) === baseId(anchorId)
+		) {
+			segments.push(message);
+		}
+	}
+	return {
+		content: segments
+			.map((message) =>
+				formatChatMessageContent(
+					message.role,
+					message.content,
+					message.meta?.providerId,
+				),
+			)
+			.filter((text) => text.trim())
+			.join("\n"),
+		images: segments.flatMap((message) => message.images ?? []),
+	};
+}
 
 /**
  * Sending a message returns the reader to the newest content: whenever a new

@@ -1094,12 +1094,12 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		const editButton = container.querySelectorAll<HTMLButtonElement>(
-			'button[aria-label="Edit user message"]',
+			'button[aria-label="Fork from user message"]',
 		)[1];
 		await act(async () => editButton?.click());
 
 		expect(onEditMessage).not.toHaveBeenCalled();
-		expect(document.body.textContent).toContain("Edit and restart from here?");
+		expect(document.body.textContent).toContain("Fork from here?");
 
 		const continueButton = [...document.body.querySelectorAll("button")].find(
 			(button) => button.textContent === "Continue",
@@ -1111,6 +1111,116 @@ describe("ChatMessages tool disclosures", () => {
 			"editable-user",
 			"Original prompt",
 			2,
+		);
+	});
+
+	it("edits only the last user message in place", async () => {
+		const onEditLastMessage = vi.fn(async () => undefined);
+		await renderMessages(
+			[
+				{
+					id: "first-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "First prompt",
+					createdAt: 1,
+				},
+				{
+					id: "first-assistant",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "First response",
+					createdAt: 2,
+				},
+				{
+					id: "last-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "Last prompt",
+					createdAt: 3,
+				},
+			],
+			{ onEditLastMessage },
+		);
+
+		const editButtons = container.querySelectorAll<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		expect(editButtons).toHaveLength(1);
+		await act(async () => editButtons[0]?.click());
+
+		expect(onEditLastMessage).toHaveBeenCalledWith(
+			{ content: "Last prompt", images: [] },
+			2,
+		);
+	});
+
+	it("allows editing an image-only last user message", async () => {
+		const onEditLastMessage = vi.fn(async () => undefined);
+		const images = [
+			{ id: "image", mediaType: "image/png" as const, data: "aGk=" },
+		];
+		await renderMessages(
+			[
+				{
+					id: "image-user",
+					sessionId: "session-1",
+					role: "user",
+					content: "",
+					images,
+					createdAt: 1,
+				},
+			],
+			{ onEditLastMessage },
+		);
+		const button = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		expect(button).not.toBeNull();
+		await act(async () => button?.click());
+		expect(onEditLastMessage).toHaveBeenCalledWith({ content: "", images }, 1);
+	});
+
+	it("refills the whole prompt, images included, when editing a segmented user message", async () => {
+		const onEditLastMessage = vi.fn(async () => undefined);
+		const image = {
+			id: "img-1",
+			mediaType: "image/png" as const,
+			data: "aGk=",
+		};
+		await renderMessages(
+			[
+				{
+					id: "user_text_0",
+					sessionId: "session-1",
+					role: "user",
+					content: "Before the tool",
+					images: [image],
+					createdAt: 1,
+				},
+				{
+					id: "user_text_1",
+					sessionId: "session-1",
+					role: "user",
+					content: "[SYSTEM] This is still user text",
+					createdAt: 2,
+					meta: { userRunSpan: 0 },
+				},
+			],
+			{ onEditLastMessage },
+		);
+
+		const editButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Edit user message"]',
+		);
+		await act(async () => editButton?.click());
+
+		expect(onEditLastMessage).toHaveBeenCalledWith(
+			{
+				content: "Before the tool\n[SYSTEM] This is still user text",
+				images: [image],
+			},
+			1,
 		);
 	});
 
@@ -1264,7 +1374,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		const editButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Edit user message"]',
+			'button[aria-label="Fork from user message"]',
 		);
 		await act(async () => editButton?.click());
 		const continueButton = [...document.body.querySelectorAll("button")].find(
@@ -1303,7 +1413,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		const editButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Edit user message"]',
+			'button[aria-label="Fork from user message"]',
 		);
 		await act(async () => editButton?.click());
 		const continueButton = [...document.body.querySelectorAll("button")].find(
@@ -1334,7 +1444,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		expect(
-			container.querySelector('button[aria-label="Edit user message"]'),
+			container.querySelector('button[aria-label="Fork from user message"]'),
 		).toBeNull();
 	});
 

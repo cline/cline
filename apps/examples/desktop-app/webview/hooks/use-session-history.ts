@@ -823,9 +823,26 @@ export function useSessionHistory({
 					.filter(isValidHistorySession)
 					.filter((session) => !session.isSubagent && !session.parentSessionId)
 					.sort(compareSessionsByActivityDesc);
+				// Hide an edit predecessor only while its replacement is available
+				// in this environment. Deleting the replacement restores access to
+				// the retained history (also for chains of repeated edits).
+				const availableSessionIds = new Set(topLevelSessions.map(sessionKey));
+				const visibleSessions = topLevelSessions.filter((session) => {
+					const successor = session.metadata?.supersededBy;
+					return (
+						!successor ||
+						successor === session.sessionId ||
+						!availableSessionIds.has(
+							sessionKey({
+								sessionId: successor,
+								environmentId: session.environmentId,
+							}),
+						)
+					);
+				});
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
-					topLevelSessions,
+					visibleSessions,
 				);
 
 				setSessions((current) =>
@@ -1206,6 +1223,27 @@ export function useSessionHistory({
 			scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 		};
 
+		const handleSessionSuperseded = (event: Event) => {
+			const detail = (event as SessionDeletedEvent).detail;
+			const sessionId = detail?.sessionId?.trim()
+				? sessionKey(detail)
+				: undefined;
+			if (!sessionId) {
+				return;
+			}
+			setSessions((current) =>
+				current.filter((session) => sessionKey(session) !== sessionId),
+			);
+			setThreads((current) =>
+				current.filter((thread) => thread.id !== sessionId),
+			);
+			scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
+		};
+
+		window.addEventListener(
+			"cline:session-superseded",
+			handleSessionSuperseded as EventListener,
+		);
 		window.addEventListener(
 			"cline:session-title-updated",
 			handleTitleUpdated as EventListener,
@@ -1374,6 +1412,10 @@ export function useSessionHistory({
 			},
 		);
 		return () => {
+			window.removeEventListener(
+				"cline:session-superseded",
+				handleSessionSuperseded as EventListener,
+			);
 			window.removeEventListener(
 				"cline:session-title-updated",
 				handleTitleUpdated as EventListener,

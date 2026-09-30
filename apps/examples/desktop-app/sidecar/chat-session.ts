@@ -8,7 +8,6 @@ import {
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
-	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
 	isSessionNotFoundError,
 	isSkillsToolAvailable,
@@ -16,7 +15,6 @@ import {
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
-	readSessionCheckpointHistory,
 	resolveProviderApiKeyFromSettings,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
@@ -1619,31 +1617,12 @@ async function handleFork(
 	) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
-	if (forkBeforeRunCount === undefined) {
-		return handleForkUnlocked(
-			ctx,
-			request,
-			sourceSessionId,
-			forkBeforeRunCount,
-			sourceSession,
-		);
-	}
-	const restoreWorkspacePath =
-		readWorkspacePath(sourceSession) ??
-		readWorkspacePath(liveSourceSession?.config) ??
-		readWorkspacePath(request.config);
-	if (!restoreWorkspacePath) {
-		throw new Error("cwd or workspaceRoot is required to edit a message");
-	}
-	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
-		handleForkUnlocked(
-			ctx,
-			request,
-			sourceSessionId,
-			forkBeforeRunCount,
-			sourceSession,
-			restoreWorkspacePath,
-		),
+	return handleForkUnlocked(
+		ctx,
+		request,
+		sourceSessionId,
+		forkBeforeRunCount,
+		sourceSession,
 	);
 }
 
@@ -1653,7 +1632,6 @@ async function handleForkUnlocked(
 	sourceSessionId: string,
 	forkBeforeRunCount: number | undefined,
 	sourceSession: SessionRecord | undefined,
-	restoreWorkspacePath?: string,
 ): Promise<unknown> {
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -1725,8 +1703,18 @@ async function handleForkUnlocked(
 		forkBeforeRunCount === undefined
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
+	// A trimmed fork keeps the source's checkpoint refs under the source id
+	// only, so inheriting the source's checkpoint history would list
+	// checkpoints for turns the fork no longer contains and point at snapshots
+	// it can't restore. Carry it under `fork.checkpoints` for lineage instead.
+	const inheritedMetadata: JsonRecord = { ...(sourceMetadata ?? {}) };
+	// Supersession belongs to the source, never to its new fork.
+	delete inheritedMetadata.supersededBy;
+	if (forkBeforeRunCount !== undefined) {
+		delete inheritedMetadata.checkpoint;
+	}
 	const forkMetadata: JsonRecord = {
-		...(sourceMetadata ?? {}),
+		...inheritedMetadata,
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
@@ -1758,48 +1746,13 @@ async function handleForkUnlocked(
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	};
-	// Sessions without a checkpoint at or before the edited run (imported
-	// transcripts, checkpoints disabled) have no workspace state to roll back,
-	// so fork the trimmed messages onto the current workspace instead of
-	// failing the edit.
-	const canRestoreWorkspace =
-		forkBeforeRunCount !== undefined &&
-		findCheckpointForRun(
-			readSessionCheckpointHistory({ metadata: sourceMetadata }),
-			forkBeforeRunCount,
-		) !== undefined;
-	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
-		const cwd =
-			restoreWorkspacePath ||
-			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
-			(typeof forkConfig.workspaceRoot === "string" &&
-				forkConfig.workspaceRoot.trim()) ||
-			"";
-		if (!cwd) {
-			throw new Error("cwd or workspaceRoot is required to edit a message");
-		}
-		const restored = await manager.restore({
-			sessionId: sourceSessionId,
-			checkpointRunCount: forkBeforeRunCount,
-			cwd,
-			restore: {
-				messages: true,
-				workspace: true,
-				omitCheckpointMessageFromSession: true,
-			},
-			start: startInput,
-		});
-		if (!restored.sessionId) {
-			throw new Error("Message edit restore did not return a new session");
-		}
-		newSessionId = restored.sessionId;
-	} else {
-		const started = await manager.start({
-			...startInput,
-			initialMessages: forkMessages,
-		});
-		newSessionId = started.sessionId;
-	}
+	// Forking never touches the workspace; reverting files is the checkpoint
+	// restore's job, so a fork can't fail on commits made after the checkpoint.
+	const started = await manager.start({
+		...startInput,
+		initialMessages: forkMessages,
+	});
+	newSessionId = started.sessionId;
 	try {
 		const read = await manager.readMessages(newSessionId);
 		if (forkBeforeRunCount !== undefined || read.length > 0) {
