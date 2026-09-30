@@ -1,11 +1,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { normalizeGitHubRemoteUrl } from "@shared/cloud/cloud-sessions"
-import { WorkspaceCloudDefaults } from "@shared/proto/cline/cloud"
-import type { EmptyRequest } from "@shared/proto/cline/common"
 import { getGitRemoteUrls } from "@/utils/git"
-import { getWorkspacePath } from "@/utils/path"
-import type { Controller } from "../index"
 
 const execFileAsync = promisify(execFile)
 
@@ -53,12 +49,4 @@ export async function resolveWorkspaceCloudDefaults(cwd: string): Promise<{ repo
 		return {}
 	}
 	return { repoUrl, branch: await remoteBranchForCheckout(cwd, origin.name) }
-}
-
-export async function getWorkspaceCloudDefaults(
-	_controller: Controller,
-	_request: EmptyRequest,
-): Promise<WorkspaceCloudDefaults> {
-	const cwd = await getWorkspacePath()
-	return WorkspaceCloudDefaults.create(cwd ? await resolveWorkspaceCloudDefaults(cwd) : {})
 }

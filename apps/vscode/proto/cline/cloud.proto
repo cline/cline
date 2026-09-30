@@ -10,16 +10,15 @@ option java_package = "bot.cline.proto";
 
 // Cline Cloud sessions: run a task in a hosted sandbox instead of the local workspace.
 service CloudService {
-  // GitHub App connection status and the repositories it can access, for the active account scope
-  rpc getGitHubConnection(EmptyRequest) returns (GitHubConnection);
+  // GitHub App connection status and the repositories it can access, for the active account scope.
+  // Cached per account; `refresh` re-asks the control plane.
+  rpc getGitHubConnection(GitHubConnectionRequest) returns (GitHubConnection);
   // Opens the GitHub App install / manage-access page in the browser
   rpc connectGitHub(EmptyRequest) returns (Empty);
   // Lists branches of an accessible repository
   rpc getRepositoryBranches(RepositoryBranchesRequest) returns (CloudBranchList);
-  // Suggested repository/branch for the open workspace, derived from its git remote
-  rpc getWorkspaceCloudDefaults(EmptyRequest) returns (WorkspaceCloudDefaults);
-  // Persists the user's Local/Cloud choice and repository selection for new tasks
-  rpc setCloudTaskTarget(CloudTaskTarget) returns (Empty);
+  // Records one user choice about where new tasks run: Local/Cloud, a repository, or a branch
+  rpc chooseCloudTaskTarget(CloudTaskTargetChoice) returns (Empty);
   // Opens the Cline Cloud dashboard page for a cloud session
   rpc openCloudSessionDashboard(StringRequest) returns (Empty);
   // Resolves live agent status for only the cloud sessions currently displayed
@@ -32,6 +31,11 @@ message GitHubRepository {
   string full_name = 3;
   string url = 4;
   string default_branch = 5;
+}
+
+message GitHubConnectionRequest {
+  Metadata metadata = 1;
+  bool refresh = 2;
 }
 
 message GitHubConnection {
@@ -53,19 +57,16 @@ message CloudBranchList {
   repeated string branches = 1;
 }
 
-message WorkspaceCloudDefaults {
-  // Normalized https://github.com/owner/repo URL of the workspace's origin remote, if any
-  optional string repo_url = 1;
-  optional string branch = 2;
-}
-
-message CloudTaskTarget {
+// Exactly one field is set: the choice the user just made. Choosing a
+// repository forgets the branch chosen for the previous one.
+message CloudTaskTargetChoice {
   Metadata metadata = 1;
-  // "local" | "cloud"
-  string target = 2;
-  optional string repo_url = 3;
-  optional int64 repository_id = 4;
-  optional string branch = 5;
+  oneof choice {
+    // "local" | "cloud"
+    string target = 2;
+    int64 repository_id = 3;
+    string branch = 4;
+  }
 }
 
 message CloudSessionStatusRequest {

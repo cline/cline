@@ -10,7 +10,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
-import type { CloudTaskTargetSelection, CurrentCloudTaskInfo } from "./cloud/cloud-sessions"
+import type { CloudTaskTargetView, CurrentCloudTaskInfo } from "./cloud/cloud-sessions"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
@@ -147,8 +147,8 @@ export interface ExtensionState {
 	welcomeBanners?: BannerCardData[]
 	/** Cline Cloud sessions feature flag. */
 	cloudSessionsEnabled?: boolean
-	/** Persisted Local/Cloud choice for new tasks. */
-	cloudTaskTarget?: CloudTaskTargetSelection
+	/** Where a new task runs, resolved from the user's choice, the account's repositories and the workspace. */
+	cloudTaskTarget?: CloudTaskTargetView
 	/** Present while the displayed task runs in Cline Cloud. */
 	currentCloudTask?: CurrentCloudTaskInfo
 	/** Cline model the displayed cloud task runs on, else the one a new cloud task would use. */

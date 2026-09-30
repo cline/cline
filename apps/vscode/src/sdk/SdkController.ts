@@ -76,6 +76,7 @@ import {
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
 import { SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
+import { SdkCloudTaskTarget } from "./sdk-cloud-task-target"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
@@ -206,6 +207,7 @@ export class Controller {
 	private sessionEvents: SdkSessionEventCoordinator
 	private cloud!: SdkCloudSessionCoordinator
 	readonly cloudSessions: CloudSessionsService
+	readonly cloudTaskTarget: SdkCloudTaskTarget
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
@@ -665,6 +667,16 @@ export class Controller {
 		this.cloudSessions = new CloudSessionsService({
 			getAuthToken: () => this.authService.getAuthToken(),
 			getActiveOrganizationId: () => this.authService.getActiveOrganizationId(),
+		})
+		this.cloudTaskTarget = new SdkCloudTaskTarget({
+			cloudSessions: this.cloudSessions,
+			stateManager: this.stateManager,
+			getAccountScope: () => {
+				const userId = this.authService.getInfo().user?.uid
+				return userId ? `${userId}:${this.authService.getActiveOrganizationId() ?? ""}` : undefined
+			},
+			getWorkspaceRoot: () => this.lastKnownWorkspaceRoot,
+			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.cloud = new SdkCloudSessionCoordinator({
 			cloudSessions: this.cloudSessions,
@@ -2572,7 +2584,7 @@ export class Controller {
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
-				cloudTaskTarget: this.stateManager.getGlobalStateKey("cloudTaskTarget"),
+				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask: this.cloud.getCurrentTaskInfo(),
 				cloudModelId: isCloudSessionsFeatureEnabled() ? this.cloud.getCloudModelId() : undefined,
 				stateVersion: minter.nextSeq(),
