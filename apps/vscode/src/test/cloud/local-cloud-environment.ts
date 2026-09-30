@@ -487,22 +487,26 @@ export async function startLocalCloudEnvironment(
 				if (!active.hub) throw new Error("Local cloud session did not start a Hub")
 				const upstream = new WebSocket(active.hub.url, [`${HUB_AUTH_PROTOCOL_PREFIX}${active.hub.authToken}`])
 				bridgedSockets.add(upstream)
+				// Either side can drop without a close frame (an extension host that
+				// reloads, a Hub that is disposed mid-handshake). Every error, at any
+				// point in the socket's life, ends that socket; an unhandled "error"
+				// would exit the fixture process.
+				const bridge = (ws: WebSocket) => {
+					ws.once("close", () => bridgedSockets.delete(ws))
+					ws.on("error", () => ws.terminate())
+				}
+				bridge(upstream)
+				upstream.once("error", () => socket.destroy())
 				upstream.once("open", () => {
 					wss.handleUpgrade(request, socket, head, (downstream: WebSocket) => {
 						bridgedSockets.add(downstream)
+						bridge(downstream)
 						downstream.on("message", (data: RawData, binary: boolean) => upstream.send(data, { binary }))
 						upstream.on("message", (data: RawData, binary: boolean) => downstream.send(data, { binary }))
 						downstream.once("close", () => upstream.close())
 						upstream.once("close", () => downstream.close())
-						for (const ws of [downstream, upstream]) {
-							ws.once("close", () => bridgedSockets.delete(ws))
-							// An extension host that reloads or exits drops its socket without a
-							// close frame; an unhandled "error" would exit the fixture process.
-							ws.on("error", () => ws.terminate())
-						}
 					})
 				})
-				upstream.once("error", () => socket.destroy())
 			})
 			.catch(() => socket.destroy())
 	})
