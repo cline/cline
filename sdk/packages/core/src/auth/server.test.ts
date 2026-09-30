@@ -393,3 +393,30 @@ describe("auth/server startLocalOAuthServer — onListening + onClose together",
 		},
 	);
 });
+
+socketIt(
+	"uses the assigned loopback port and ignores unrelated error callbacks",
+	async () => {
+		const server = await startLocalOAuthServer({
+			host: "127.0.0.1",
+			ports: [0],
+			callbackPath: "/auth/callback",
+			expectedState: "expected",
+		});
+		try {
+			expect(new URL(server.callbackUrl!).port).not.toBe("0");
+			expect(
+				await get(`${server.callbackUrl}?error=access_denied&state=unrelated`),
+			).toMatchObject({ status: 400 });
+			expect(
+				await get(`${server.callbackUrl}?code=valid&state=expected`),
+			).toMatchObject({ status: 200 });
+			expect(await server.waitForCallback()).toMatchObject({
+				code: "valid",
+				state: "expected",
+			});
+		} finally {
+			server.close();
+		}
+	},
+);

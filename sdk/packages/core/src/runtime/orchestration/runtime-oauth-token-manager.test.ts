@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
 	OAuthReauthRequiredError,
@@ -292,5 +293,70 @@ describe("RuntimeOAuthTokenManager", () => {
 		expect(
 			settings.getProviderSettings("cline")?.auth?.accessToken,
 		).toBeUndefined();
+	});
+});
+
+describe("ChatGPT runtime grant enforcement", () => {
+	let directory: string;
+	beforeEach(() => {
+		directory = mkdtempSync(join(tmpdir(), "chatgpt-runtime-"));
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+		rmSync(directory, { recursive: true, force: true });
+	});
+	it("persists a scope-only downgrade and blocks inference even when tokens did not change", async () => {
+		const expires = Date.now() + 3600000;
+		const metadata = {
+			clientId: "oaiapp_test",
+			issuer: "https://auth.openai.com",
+			subject: "subject",
+			scopes: ["chatgpt.tokens.use.direct"],
+		};
+		const settings = {
+			provider: "openai-chatgpt",
+			auth: {
+				accessToken: "access",
+				refreshToken: "refresh",
+				expiresAt: expires,
+				metadata,
+			},
+		};
+		const saveProviderSettings = vi.fn();
+		const handler = getProviderAuthHandler("openai-chatgpt")!;
+		vi.spyOn(handler, "refresh").mockResolvedValue({
+			access: "access",
+			refresh: "refresh",
+			expires,
+			metadata: { ...metadata, scopes: ["openid"] },
+		});
+		const runtime = new RuntimeOAuthTokenManager({
+			providerSettingsManager: {
+				getFilePath: () => join(directory, "providers.json"),
+				getProviderSettings: () => settings,
+				saveProviderSettings,
+			} as never,
+		});
+		await expect(
+			runtime.resolveProviderApiKey({ providerId: "openai-chatgpt" }),
+		).rejects.toBeInstanceOf(OAuthReauthRequiredError);
+		expect(saveProviderSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auth: expect.objectContaining({
+					metadata: expect.objectContaining({ scopes: ["openid"] }),
+				}),
+			}),
+			expect.anything(),
+		);
+	});
+	it("does not let a running session keep using its previous token after local sign-out", async () => {
+		const runtime = new RuntimeOAuthTokenManager({
+			providerSettingsManager: {
+				getProviderSettings: () => undefined,
+			} as never,
+		});
+		await expect(
+			runtime.resolveProviderApiKey({ providerId: "openai-chatgpt" }),
+		).rejects.toBeInstanceOf(OAuthReauthRequiredError);
 	});
 });

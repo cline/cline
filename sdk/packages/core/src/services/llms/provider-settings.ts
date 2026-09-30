@@ -234,7 +234,8 @@ export function toProviderConfig(
 	const routingProviderId =
 		settings.routingProviderId ??
 		(shouldRouteThroughOpenAIResponses(settings) &&
-		normalizedProviderId !== BUILT_IN_PROVIDER.OPENAI_NATIVE
+		normalizedProviderId !== BUILT_IN_PROVIDER.OPENAI_NATIVE &&
+		normalizedProviderId !== BUILT_IN_PROVIDER.OPENAI_CHATGPT
 			? BUILT_IN_PROVIDER.OPENAI_NATIVE
 			: undefined);
 
@@ -247,6 +248,29 @@ export function toProviderConfig(
 
 	const config: ProviderConfig = {
 		providerId,
+		...(normalizedProviderId === "openai-chatgpt"
+			? {
+					chatgptPlan: {
+						clientId:
+							typeof settings.auth?.metadata?.clientId === "string"
+								? settings.auth.metadata.clientId
+								: undefined,
+						subject:
+							typeof settings.auth?.metadata?.subject === "string"
+								? settings.auth.metadata.subject
+								: undefined,
+						issuer:
+							typeof settings.auth?.metadata?.issuer === "string"
+								? settings.auth.metadata.issuer
+								: undefined,
+						scopes: Array.isArray(settings.auth?.metadata?.scopes)
+							? settings.auth.metadata.scopes.filter(
+									(s): s is string => typeof s === "string",
+								)
+							: [],
+					},
+				}
+			: {}),
 		clientType: settings.client,
 		routingProviderId,
 		modelId:

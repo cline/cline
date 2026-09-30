@@ -142,6 +142,13 @@ export async function startLocalOAuthServer(
 					provider: requestUrl.searchParams.get("provider") ?? undefined,
 					error: requestUrl.searchParams.get("error") ?? undefined,
 				};
+				// Error callbacks are part of the OAuth transaction too. An
+				// unrelated request must not cancel a pending sign-in.
+				if (options.expectedState && payload.state !== options.expectedState) {
+					res.statusCode = 400;
+					res.end("State mismatch");
+					return;
+				}
 
 				if (payload.error) {
 					res.statusCode = 400;
@@ -154,12 +161,6 @@ export async function startLocalOAuthServer(
 				if (!payload.code) {
 					res.statusCode = 400;
 					res.end("Missing authorization code");
-					return;
-				}
-
-				if (options.expectedState && payload.state !== options.expectedState) {
-					res.statusCode = 400;
-					res.end("State mismatch");
 					return;
 				}
 
@@ -200,11 +201,12 @@ export async function startLocalOAuthServer(
 		}
 
 		if (bindResult.bound) {
-			boundPort = port;
-			const callbackUrl = `http://${host}:${port}${options.callbackPath}`;
+			const address = server.address();
+			boundPort = address && typeof address !== "string" ? address.port : port;
+			const callbackUrl = `http://${host}:${boundPort}${options.callbackPath}`;
 			if (options.onListening) {
 				await Promise.resolve(
-					options.onListening({ host, port, callbackUrl }),
+					options.onListening({ host, port: boundPort, callbackUrl }),
 				).catch(() => {});
 			}
 			return {

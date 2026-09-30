@@ -7,6 +7,7 @@
 // returned here. Both share the same provider/model/key/baseUrl resolution so
 // there is no second source of truth.
 
+import { RuntimeOAuthTokenManager } from "@cline/core"
 import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
@@ -21,6 +22,7 @@ import {
 	resolveVertexProviderConfig,
 } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { getProviderSettingsManager } from "./provider-migration"
 
 export interface BuildApiHandlerOptions {
 	/**
@@ -83,6 +85,11 @@ export function buildSdkProviderConfig(
 		// Ollama's 4096-token server default.
 		...(providerId === "ollama" ? resolveOllamaProviderConfig(configuration, modelId) : {}),
 	}
+	if (providerId === "openai-chatgpt") {
+		const saved = getProviderSettingsManager().getProviderConfig(providerId)
+		base.apiKey = saved?.apiKey ?? ""
+		base.chatgptPlan = saved?.chatgptPlan
+	}
 
 	if (options?.disableReasoning) {
 		// Explicitly turn reasoning off; do not send effort or budget.
@@ -112,6 +119,18 @@ export function buildSdkProviderConfig(
  */
 export function buildApiHandler(configuration: ApiConfiguration, mode: Mode, options?: BuildApiHandlerOptions): ApiHandler {
 	const providerConfig = buildSdkProviderConfig(configuration, mode, options)
+	if (providerConfig.providerId === "openai-chatgpt") {
+		const tokens = new RuntimeOAuthTokenManager({ providerSettingsManager: getProviderSettingsManager() })
+		// Utility calls bypass the core session loop. Recheck the saved grant and
+		// refresh under the shared lock on every request, including after sign-out.
+		providerConfig.fetch = (async (input, init) => {
+			const credentials = await tokens.resolveProviderApiKey({ providerId: "openai-chatgpt" })
+			if (!credentials) throw new Error("Continue with ChatGPT before inference.")
+			const headers = new Headers(init?.headers)
+			headers.set("Authorization", `Bearer ${credentials.apiKey}`)
+			return fetch(input, { ...init, headers })
+		}) as typeof fetch
+	}
 	const handler = createHandler(providerConfig)
 	const getModel = handler.getModel.bind(handler)
 

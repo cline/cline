@@ -15,6 +15,7 @@ import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
+import { ChatGptPlanProvider } from "./providers/ChatGptPlanProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
@@ -386,6 +387,9 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "openai-codex" && (
 				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+			{apiConfiguration && selectedProvider === "openai-chatgpt" && (
+				<ChatGptPlanProvider currentMode={currentMode} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "qwen" && (

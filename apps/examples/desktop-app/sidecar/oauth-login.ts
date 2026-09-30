@@ -45,9 +45,16 @@ async function loginProviderForDesktop(
 	existing: Parameters<typeof loginLocalProvider>[1],
 	openUrl: (url: string) => void,
 	onUserCode?: (userCode: string) => void,
+	settingsPath?: string,
 ): ReturnType<typeof loginLocalProvider> {
 	if (providerId !== "cline" && providerId !== "cline-pass") {
-		return loginLocalProvider(providerId, existing, openUrl);
+		return loginLocalProvider(
+			providerId,
+			existing,
+			openUrl,
+			undefined,
+			settingsPath,
+		);
 	}
 	const device = await startClineDeviceAuth();
 	onUserCode?.(device.userCode);
@@ -84,7 +91,11 @@ export async function runCancellableProviderOAuthLogin(
 		onUserCode?: (userCode: string) => void;
 	} = {},
 	dependencies: OAuthLoginDependencies = defaultDependencies,
-): Promise<{ provider: string; accessToken: string }> {
+): Promise<{
+	provider: string;
+	accessToken: string;
+	accessTokenPresent?: boolean;
+}> {
 	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
 	const existing = manager.getProviderSettings(storageProviderId);
 
@@ -109,7 +120,13 @@ export async function runCancellableProviderOAuthLogin(
 		// after cancellation is observed and cannot become an unhandled
 		// rejection that kills the sidecar.
 		const credentials = await Promise.race([
-			dependencies.login(providerId, existing, openUrl, options.onUserCode),
+			dependencies.login(
+				providerId,
+				existing,
+				openUrl,
+				options.onUserCode,
+				manager.getFilePath?.(),
+			),
 			cancellation,
 		]);
 		if (entry.cancelled) {
@@ -121,7 +138,12 @@ export async function runCancellableProviderOAuthLogin(
 		}
 		return {
 			provider: providerId,
-			accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "",
+			...(providerId === "openai-chatgpt"
+				? {
+						accessToken: "",
+						accessTokenPresent: Boolean(saved.auth?.accessToken),
+					}
+				: { accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "" }),
 		};
 	} finally {
 		if (pendingOAuthLoginsByProvider.get(providerId) === entry) {

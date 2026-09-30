@@ -90,6 +90,7 @@
 											"provider-config/google-gemini",
 											"provider-config/minimax",
 											"provider-config/openai",
+											"provider-config/chatgpt-plan",
 											"provider-config/openai-compatible",
 											"provider-config/openrouter",
 											"provider-config/poolside",

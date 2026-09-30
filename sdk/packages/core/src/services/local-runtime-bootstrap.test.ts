@@ -88,6 +88,56 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it("carries the saved ChatGPT plan grant into the inference config without the ID token", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const grant = {
+			clientId: "oaiapp_test",
+			subject: "account",
+			issuer: "https://auth.openai.com",
+			scopes: ["chatgpt.tokens.use.direct"],
+		};
+		const providerSettingsManager = createProviderSettingsManager({
+			provider: "openai-chatgpt",
+			auth: {
+				accessToken: "plan-token",
+				refreshToken: "refresh-token",
+				metadata: { ...grant, idToken: "private-identity-token" },
+			},
+		});
+		const hostFetch = vi.fn() as unknown as typeof fetch;
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: {
+				config: {
+					...createStartInput().config,
+					providerId: "openai-chatgpt",
+					modelId: "plan-model",
+					apiKey: undefined,
+					providerConfig: {
+						providerId: "openai-chatgpt",
+						modelId: "plan-model",
+						fetch: hostFetch,
+					},
+				},
+			},
+			sessionId: "plan-session",
+			providerSettingsManager: providerSettingsManager as never,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		expect(bootstrap.providerConfig).toMatchObject({
+			providerId: "openai-chatgpt",
+			apiKey: "plan-token",
+			chatgptPlan: grant,
+			fetch: hostFetch,
+		});
+		expect(bootstrap.providerConfig.chatgptPlan).not.toHaveProperty("idToken");
+	});
+
 	it("discovers user Agent Plugins on the execution host and ignores workspace packages", async () => {
 		const root = realpathSync(
 			mkdtempSync(join(tmpdir(), "core-agent-plugin-bootstrap-")),

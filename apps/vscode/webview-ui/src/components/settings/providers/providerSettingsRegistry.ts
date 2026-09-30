@@ -23,6 +23,7 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"ollama",
 	"openai",
 	"openai-codex",
+	"openai-chatgpt",
 	"openai-native",
 	"openrouter",
 	"qwen",

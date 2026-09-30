@@ -938,6 +938,17 @@ export async function resolveProviderConfig(
 	if (!defaults) {
 		return undefined;
 	}
+	if (providerId === "openai-chatgpt") {
+		// No bundled/public fallback: available models belong to this grant.
+		const knownModels = config?.apiKey
+			? await Llms.fetchChatGPTPlanModels(config)
+			: {};
+		return {
+			...defaults,
+			knownModels,
+			modelId: Object.keys(knownModels)[0] ?? "",
+		};
+	}
 
 	try {
 		const liveCatalog = modelCatalog?.loadLatestOnInit

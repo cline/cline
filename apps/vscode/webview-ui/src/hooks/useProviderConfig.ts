@@ -128,5 +128,5 @@ export function useProviderConfig(providerId: ProviderId) {
 		[providerId, read],
 	)
 
-	return { config, write, commitSelection }
+	return { config, read, write, commitSelection }
 }

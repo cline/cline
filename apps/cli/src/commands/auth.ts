@@ -430,7 +430,7 @@ export async function runAuthProviderCommand(
 ): Promise<number> {
 	if (!isOAuthProvider(providerId)) {
 		io.writeErr(
-			`provider "${providerId}" does not support OAuth login (supported: cline, openai-codex, oca)`,
+			`provider "${providerId}" does not support OAuth login (supported: cline, openai-codex, openai-chatgpt, oca)`,
 		);
 		return 1;
 	}

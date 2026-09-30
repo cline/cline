@@ -25,7 +25,8 @@ function authSettingsEqual(
 		a?.accessToken === b?.accessToken &&
 		a?.refreshToken === b?.refreshToken &&
 		a?.accountId === b?.accountId &&
-		aExpiry === bExpiry
+		aExpiry === bExpiry &&
+		JSON.stringify(a?.metadata) === JSON.stringify(b?.metadata)
 	);
 }
 
@@ -94,6 +95,8 @@ export class RuntimeOAuthTokenManager {
 			!initialSettings ||
 			!getProviderOAuthCredentialsFromSettings(providerId, initialSettings)
 		) {
+			if (providerId === "openai-chatgpt")
+				throw new OAuthReauthRequiredError(providerId);
 			return null;
 		}
 		const originalAuth = initialSettings.auth;
@@ -136,6 +139,8 @@ export class RuntimeOAuthTokenManager {
 			sdkDebug(
 				`oauth.resolve providerId=${providerId} storageProviderId=${storageProviderId} outcome=no_settings`,
 			);
+			if (providerId === "openai-chatgpt")
+				throw new OAuthReauthRequiredError(providerId);
 			return null;
 		}
 
@@ -147,6 +152,8 @@ export class RuntimeOAuthTokenManager {
 			sdkDebug(
 				`oauth.resolve providerId=${providerId} storageProviderId=${storageProviderId} outcome=no_credentials`,
 			);
+			if (providerId === "openai-chatgpt")
+				throw new OAuthReauthRequiredError(providerId);
 			return null;
 		}
 
@@ -165,6 +172,8 @@ export class RuntimeOAuthTokenManager {
 		const latestSettings =
 			this.providerSettingsManager.getProviderSettings(storageProviderId);
 		if (!authSettingsEqual(settings.auth, latestSettings?.auth)) {
+			if (providerId === "openai-chatgpt")
+				throw new OAuthReauthRequiredError(providerId);
 			return null;
 		}
 		if (!nextCredentials) {
@@ -195,8 +204,10 @@ export class RuntimeOAuthTokenManager {
 			sdkDebug(`oauth.resolve providerId=${providerId} outcome=not_refreshed`);
 		}
 
+		const apiKey = handler.getApiKey(nextSettings);
+		if (!apiKey) throw new OAuthReauthRequiredError(providerId);
 		return {
-			apiKey: handler.getApiKey(nextSettings) ?? nextCredentials.access,
+			apiKey,
 			accountId: nextCredentials.accountId,
 			refreshed: wasRefreshed,
 		};

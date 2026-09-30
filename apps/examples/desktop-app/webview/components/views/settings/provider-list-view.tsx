@@ -813,7 +813,9 @@ export function ProviderDetailContent({
 					<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
 						<div className="min-w-0">
 							<p className="text-sm font-medium text-foreground">
-								Signed in via browser
+								{provider.id === "openai-chatgpt"
+									? "Using ChatGPT plan for eligible requests"
+									: "Signed in via browser"}
 							</p>
 							<p className="text-xs text-muted-foreground">
 								This provider authenticates with your account — no API key
@@ -852,7 +854,9 @@ export function ProviderDetailContent({
 								<span>
 									{oauthLoginPending
 										? "Waiting for browser..."
-										: "Sign in with browser"}
+										: provider.id === "openai-chatgpt"
+											? "Continue with ChatGPT"
+											: "Sign in with browser"}
 								</span>
 							</Button>
 						) : null}

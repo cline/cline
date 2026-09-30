@@ -18,6 +18,7 @@ import {
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import { RuntimeOAuthTokenManager } from "../../runtime/orchestration/runtime-oauth-token-manager";
 import {
 	applyClineFeaturedModels,
 	getCachedClineRecommendedModels,
@@ -105,9 +106,11 @@ function resolveVisibleApiKey(settings: {
 	return settings.apiKey ?? settings.auth?.apiKey;
 }
 
-function hasOAuthAccessToken(settings: {
-	auth?: { accessToken?: string };
-}): boolean {
+function hasOAuthAccessToken(settings: ProviderSettings): boolean {
+	if (settings.provider === "openai-chatgpt")
+		return (
+			getProviderAuthHandler(settings.provider)?.isConfigured(settings) ?? false
+		);
 	return (settings.auth?.accessToken?.trim() ?? "").length > 0;
 }
 
@@ -199,7 +202,10 @@ async function resolveProviderModelMap(
 		config,
 	);
 
-	if (providerId === "litellm" && resolved?.knownModels) {
+	if (
+		(providerId === "litellm" || providerId === "openai-chatgpt") &&
+		resolved?.knownModels
+	) {
 		return resolved.knownModels;
 	}
 	if (isClinePass && resolved?.knownModels) {
@@ -831,7 +837,10 @@ export async function listLocalProviders(
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
 						capabilities,
-						authDescription: "This provider uses API keys for authentication.",
+						authDescription:
+							id === "openai-chatgpt"
+								? "Authorize eligible requests using your ChatGPT plan. No API key needed."
+								: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",
 						configFields,
@@ -879,11 +888,29 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
-	options?: { loadLatest?: boolean },
+	options?: {
+		loadLatest?: boolean;
+		providerSettingsManager?: ProviderSettingsManager;
+	},
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
+	const manager = options?.providerSettingsManager;
+	if (
+		id === "openai-chatgpt" &&
+		manager?.getProviderSettings(id)?.auth?.accessToken
+	) {
+		await new RuntimeOAuthTokenManager({
+			providerSettingsManager: manager,
+		}).resolveProviderApiKey({ providerId: id });
+		config = manager.getProviderConfig(id, { includeKnownModels: false });
+	}
 	const modelMap = await resolveProviderModelMap(id, config, options);
-	let models = toSortedProviderModels(modelMap);
+	let models =
+		id === "openai-chatgpt"
+			? Object.entries(modelMap).map(([modelId, info]) =>
+					toProviderModel(modelId, info),
+				)
+			: toSortedProviderModels(modelMap);
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
 		// picker gets Recommended/Free/Subscribed data without fetching and
@@ -1231,6 +1258,7 @@ export async function loginLocalProvider(
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
+	settingsPath?: string,
 ): Promise<ProviderOAuthCredentials> {
 	const handler = getProviderAuthHandler(providerId);
 	if (!handler) {
@@ -1243,7 +1271,12 @@ export async function loginLocalProvider(
 			throw error instanceof Error ? error : new Error(String(error));
 		},
 	});
-	return handler.login({ settings: existing, callbacks, telemetry });
+	return handler.login({
+		settings: existing,
+		callbacks,
+		telemetry,
+		settingsPath,
+	});
 }
 
 export function saveLocalProviderOAuthCredentials(

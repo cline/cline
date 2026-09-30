@@ -993,7 +993,7 @@ function buildRecoverableToolErrorMetadata(input: {
 function resolveAiSdkSystemPrompt(
 	request: GatewayStreamRequest,
 ): string | undefined {
-	return request.providerId === "openai-codex"
+	return ["openai-codex", "openai-chatgpt"].includes(request.providerId)
 		? undefined
 		: request.systemPrompt;
 }

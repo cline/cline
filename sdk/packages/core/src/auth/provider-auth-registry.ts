@@ -5,6 +5,7 @@ import {
 } from "@cline/shared";
 import type { ProviderSettingsManager } from "../services/storage/provider-settings-manager";
 import type { ProviderSettings } from "../types/provider-settings";
+import { hasChatGPTPlanGrant, loginChatGPT, refreshChatGPT } from "./chatgpt";
 import {
 	type ClineOAuthCredentials,
 	getValidClineCredentials,
@@ -19,6 +20,7 @@ const WORKOS_TOKEN_PREFIX = "workos:";
 export type ProviderOAuthCredentials = OAuthCredentials;
 
 export interface ProviderAuthLoginInput {
+	settingsPath?: string;
 	settings?: ProviderSettings;
 	callbacks: OAuthLoginCallbacks;
 	telemetry?: ITelemetryService;
@@ -241,6 +243,32 @@ function createClineAuthHandler(input: {
 }
 
 const providerAuthHandlers = [
+	{
+		...createOAuthHandler({
+			providerId: "openai-chatgpt",
+			login: ({ settings, settingsPath, callbacks }) =>
+				loginChatGPT({
+					callbacks,
+					settingsPath,
+					credentials: settings
+						? createCredentialsFromSettings(settings)
+						: undefined,
+				}),
+			refresh: ({ credentials, forceRefresh }) =>
+				refreshChatGPT(credentials, forceRefresh),
+		}),
+		getApiKey(settings: ProviderSettings | undefined) {
+			return hasChatGPTPlanGrant(settings?.auth?.metadata)
+				? settings?.auth?.accessToken
+				: undefined;
+		},
+		isConfigured(settings: ProviderSettings | undefined) {
+			return Boolean(
+				settings?.auth?.accessToken &&
+					hasChatGPTPlanGrant(settings.auth.metadata),
+			);
+		},
+	},
 	createClineAuthHandler({ providerId: "cline" }),
 	createClineAuthHandler({
 		providerId: "cline-pass",
@@ -319,6 +347,7 @@ export async function loginAndSaveProviderOAuthCredentials(
 	}
 	const existing = manager.getProviderSettings(handler.storageProviderId);
 	const credentials = await handler.login({
+		settingsPath: manager.getFilePath?.(),
 		settings: existing,
 		callbacks: input.callbacks,
 		telemetry: input.telemetry,
@@ -379,15 +408,23 @@ export function getPersistedProviderApiKey(
 
 export function formatProviderOAuthApiKey(
 	providerId: string,
-	credentials: Pick<ProviderOAuthCredentials, "access">,
+	credentials: Pick<ProviderOAuthCredentials, "access" | "metadata">,
 ): string {
 	const handler = getProviderAuthHandler(providerId);
 	if (!handler) return credentials.access;
+	if (
+		handler.providerId === "openai-chatgpt" &&
+		!hasChatGPTPlanGrant(credentials.metadata)
+	) {
+		throw new Error(
+			"ChatGPT plan usage has not been granted. Continue with ChatGPT again.",
+		);
+	}
 
 	return (
 		handler.getApiKey({
 			provider: handler.storageProviderId,
-			auth: { accessToken: credentials.access },
+			auth: { accessToken: credentials.access, metadata: credentials.metadata },
 		}) ?? credentials.access
 	);
 }

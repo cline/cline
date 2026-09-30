@@ -110,6 +110,7 @@ function resolveFactory(
 	const normalized = normalizeProviderId(providerId);
 	switch (normalized) {
 		case "openai-codex":
+		case "openai-chatgpt":
 		case "openai-native":
 			return createOpenAIProvider;
 		case "anthropic":
@@ -147,6 +148,11 @@ async function resolveProviderRegistration(
 	const routedProviderId = normalizeProviderId(
 		resolveRoutingProviderId(config),
 	);
+	if (providerId === "openai-chatgpt" && providerId !== routedProviderId) {
+		throw new Error(
+			"ChatGPT plan credentials cannot be routed to another provider.",
+		);
+	}
 	const builtin = BUILTIN_PROVIDER_MAP.get(providerId);
 	if (builtin && providerId === routedProviderId) {
 		return undefined;
@@ -213,6 +219,11 @@ function resolveProviderRegistrationSync(
 	const routedProviderId = normalizeProviderId(
 		resolveRoutingProviderId(config),
 	);
+	if (providerId === "openai-chatgpt" && providerId !== routedProviderId) {
+		throw new Error(
+			"ChatGPT plan credentials cannot be routed to another provider.",
+		);
+	}
 	const builtin = BUILTIN_PROVIDER_MAP.get(providerId);
 	if (builtin && providerId === routedProviderId) {
 		return undefined;
@@ -493,6 +504,7 @@ function buildGatewayConfig(config: ProviderConfig) {
 		defaultModelId: config.modelId,
 		models: buildGatewayModels(providerId, config),
 		options: {
+			chatgptPlan: config.chatgptPlan,
 			region: config.region ?? config.gcp?.region,
 			project: config.gcp?.projectId,
 			projectId: config.gcp?.projectId,

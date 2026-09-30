@@ -297,3 +297,19 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+
+### Opt-in ChatGPT plan provider
+
+Use provider ID `openai-chatgpt` with the existing OAuth login helpers and
+`ProviderSettingsManager`. It requires an explicit `chatgpt.tokens.use.direct`
+grant from the token response, independently of successful ChatGPT sign-in.
+Keep the manager's settings path stable: it also locates the persistent host and
+issued client registration. `loginLocalProvider` accepts this path as its optional
+fifth argument; `loginAndSaveProviderOAuthCredentials` supplies it automatically.
+
+`@cline/llms` exports `fetchChatGPTPlanModels(config)` for the authenticated model
+catalog. The returned map preserves server order and includes only visible models.
+The provider requires the saved `chatgptPlan` grant metadata as well as the access
+token, and supports only the public streaming Responses route. It does not support
+custom endpoints, API key fallback, or routing to another provider.

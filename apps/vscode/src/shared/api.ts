@@ -14,6 +14,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "openai-codex"
+	| "openai-chatgpt"
 	| "requesty"
 	| "together"
 	| "deepseek"

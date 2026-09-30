@@ -1125,6 +1125,20 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
  */
 const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
+		id: "openai-chatgpt",
+		name: "ChatGPT Plan",
+		description:
+			"Continue with ChatGPT to authorize eligible Responses API requests using your plan allowance.",
+		family: "openai",
+		capabilities: ["reasoning", "oauth", "tools"],
+		modelsFactory: () => ({}),
+		defaultModelId: "",
+		defaults: { baseUrl: "https://api.openai.com/v1" },
+		configFields: [],
+		metadata: { usageCostDisplay: "subscription" },
+		docsUrl: "https://developers.openai.com/siwc/token-sharing-open-source",
+	},
+	{
 		id: "openai-native",
 		name: "OpenAI",
 		description: "Creator of GPT and ChatGPT",

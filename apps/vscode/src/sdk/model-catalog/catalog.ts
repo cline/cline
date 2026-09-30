@@ -1,4 +1,4 @@
-import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
+import { listLocalProviders, type ModelCatalogConfig, RuntimeOAuthTokenManager, resolveProviderConfig } from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
 import { getProviderSettingsManager } from "../provider-migration"
@@ -141,6 +141,9 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 }
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
+	if (config.providerId === "openai-chatgpt") {
+		return getProviderSettingsManager().getProviderConfig("openai-chatgpt") ?? { providerId: "openai-chatgpt", modelId: "" }
+	}
 	return {
 		providerId: toSdkProviderId(config.providerId),
 		modelId: selection?.modelId ?? "",
@@ -204,6 +207,14 @@ async function resolveSdkModels(
 	now: () => number,
 ): Promise<ProviderModelsRecord> {
 	const sdkProviderId = toSdkProviderId(providerId)
+	if (sdkProviderId === "openai-chatgpt") {
+		const manager = getProviderSettingsManager()
+		if (manager.getProviderSettings(sdkProviderId)?.auth?.accessToken) {
+			await new RuntimeOAuthTokenManager({ providerSettingsManager: manager }).resolveProviderApiKey({
+				providerId: sdkProviderId,
+			})
+		}
+	}
 	const resolved = await resolveProviderConfig(
 		sdkProviderId,
 		DEFAULT_MODEL_CATALOG_CONFIG,

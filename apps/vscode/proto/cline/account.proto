@@ -54,6 +54,10 @@ service AccountService {
   // Signs out of OpenAI Codex and clears stored credentials
   rpc openAiCodexSignOut(EmptyRequest) returns (Empty);
 
+  // Official SIWC plan usage, separate from the legacy Codex connection.
+  rpc chatGptPlanSignIn(EmptyRequest) returns (Empty);
+  rpc chatGptPlanSignOut(EmptyRequest) returns (Empty);
+
   // Submits a spend limit increase request to the user's org admin.
   // Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
   rpc submitLimitIncreaseRequest(EmptyRequest) returns (SubmitLimitIncreaseResponse);

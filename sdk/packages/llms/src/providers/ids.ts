@@ -18,6 +18,7 @@ export enum BUILT_IN_PROVIDER {
 	OPENAI_COMPATIBLE = "openai-compatible",
 	OPENAI_NATIVE = "openai-native",
 	OPENAI_CODEX = "openai-codex",
+	OPENAI_CHATGPT = "openai-chatgpt",
 	OPENAI_CODEX_CLI = "openai-codex-cli",
 	// CLI / Subscription-based providers
 	OPENCODE = "opencode",

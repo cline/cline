@@ -95,6 +95,7 @@ export async function loadModels(
 		providerSettingsManager.getProviderConfig(provider, {
 			includeKnownModels: false,
 		}),
+		{ providerSettingsManager },
 	);
 	const models: WebviewProviderModel[] = payload.models
 		.filter((model) =>
