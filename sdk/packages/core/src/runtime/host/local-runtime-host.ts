@@ -278,9 +278,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	/**
+	 * Starts in flight, by session id. Besides serializing same-id starts,
+	 * the entry records an abort issued while the start was pending, so a
+	 * turn that waited on the start can honour it instead of running on the
+	 * result after the user cancelled.
+	 */
 	private readonly sessionStarts = new Map<
 		string,
-		Promise<StartSessionResult>
+		{
+			promise: Promise<StartSessionResult>;
+			abortRequested: boolean;
+			abortReason?: unknown;
+		}
 	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
@@ -418,7 +428,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const pending = this.sessionStarts.get(sessionId);
 		if (pending) {
 			try {
-				await pending;
+				await pending.promise;
 			} catch {
 				return await this.startSession({
 					...input,
@@ -458,7 +468,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			}
 		})().finally(() => this.sessionStarts.delete(sessionId));
-		this.sessionStarts.set(sessionId, starting);
+		this.sessionStarts.set(sessionId, {
+			promise: starting,
+			abortRequested: false,
+		});
 		return await starting;
 	}
 
@@ -1163,8 +1176,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// that start produces, instead of being accepted by the runtime about to
 		// be replaced and then aborted with it. The start's own outcome is not
 		// this turn's concern: on failure the surviving resident serves it.
-		await this.sessionStarts.get(input.sessionId)?.catch(() => undefined);
+		const pendingStart = this.sessionStarts.get(input.sessionId);
+		if (pendingStart) {
+			await pendingStart.promise.catch(() => undefined);
+		}
 		const session = this.getSessionOrThrow(input.sessionId);
+		// An abort issued while this turn was waiting applies to this turn: the
+		// user cancelled it before anything ran, so nothing runs.
+		if (pendingStart?.abortRequested) {
+			if (session.interactive) {
+				return await this.completeAbortedInteractiveTurn(session);
+			}
+			throw pendingStart.abortReason instanceof Error
+				? pendingStart.abortReason
+				: new Error("Turn aborted while its session was being rebuilt.");
+		}
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -1246,6 +1272,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
+		// Turns waiting on an in-flight start for this id are cancelled too;
+		// aborting only the current resident would let them run afterwards.
+		const pendingStart = this.sessionStarts.get(sessionId);
+		if (pendingStart) {
+			pendingStart.abortRequested = true;
+			pendingStart.abortReason = reason;
+		}
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
 		session.config.telemetry?.capture({

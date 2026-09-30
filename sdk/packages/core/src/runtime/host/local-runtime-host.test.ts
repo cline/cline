@@ -447,6 +447,86 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("does not run a turn that was aborted while waiting on a same-id rebuild", async () => {
+		let releaseBuild!: () => void;
+		const buildGate = new Promise<void>((resolve) => {
+			releaseBuild = resolve;
+		});
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockResolvedValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockImplementationOnce(async () => {
+					await buildGate;
+					return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
+				}),
+		};
+		const makeAgent = () => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		});
+		const residentAgent = makeAgent();
+		const replacementAgent = makeAgent();
+		const agents = [residentAgent, replacementAgent];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agents.shift() as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "cancelled-during-rebuild",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+			const rebuild = manager.startSession(input);
+			await vi.waitFor(() =>
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(2),
+			);
+			const turn = manager.runTurn({
+				sessionId: "cancelled-during-rebuild",
+				prompt: "from client B",
+			});
+			// The user cancels before the rebuild completes.
+			await manager.abort("cancelled-during-rebuild", "user cancelled");
+			releaseBuild();
+			await rebuild;
+
+			await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+			expect(residentAgent.run).not.toHaveBeenCalled();
+			expect(replacementAgent.run).not.toHaveBeenCalled();
+			// The replacement is live and takes the next turn normally.
+			await expect(
+				manager.runTurn({
+					sessionId: "cancelled-during-rebuild",
+					prompt: "after the rebuild",
+				}),
+			).resolves.toMatchObject({ finishReason: "completed" });
+			expect(replacementAgent.run).toHaveBeenCalledOnce();
+		} finally {
+			releaseBuild();
+			await manager.dispose();
+		}
+	});
+
 	it("does not let a stop already in flight on the old runtime evict the replacement", async () => {
 		let releaseShutdown!: () => void;
 		const shutdownGate = new Promise<void>((resolve) => {
