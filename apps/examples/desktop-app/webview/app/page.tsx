@@ -698,10 +698,7 @@ export default function Home() {
 		): Promise<boolean> => {
 			const revision = ++sessionOpenRevision.current;
 			const location = activeLocationRef.current;
-			const open = (
-				draft = initialPromptDraft,
-				attachments = initialAttachments,
-			) =>
+			const open = (draft?: string, attachments?: File[]) =>
 				dispatchApp({
 					type: "open-session",
 					session,
@@ -710,7 +707,7 @@ export default function Home() {
 					initialAttachments: attachments,
 				});
 			if (session.origin !== "cloud") {
-				open();
+				open(initialPromptDraft, initialAttachments);
 				return true;
 			}
 			try {
