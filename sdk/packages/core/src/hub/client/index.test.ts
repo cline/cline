@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import corePackage from "../../../package.json";
 import {
 	HubTransportError,
 	isHubReconnectableTransportError,
@@ -159,6 +160,38 @@ describe("NodeHubClient", () => {
 		afterEach(() => {
 			MockWebSocket.reset();
 			vi.unstubAllGlobals();
+		});
+
+		it.each([
+			undefined,
+			"1.2.3",
+		])("registers version %s and process ID", async (clientVersion) => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({
+				url: "ws://127.0.0.1:25463/hub",
+				clientVersion,
+				metadata: { connector: "telegram", version: "invalid", pid: -1 },
+			});
+			try {
+				await client.connect();
+				expect(MockWebSocket.instances[0].sentFrames).toContainEqual(
+					expect.objectContaining({
+						kind: "command",
+						envelope: expect.objectContaining({
+							command: "client.register",
+							payload: expect.objectContaining({
+								metadata: {
+									connector: "telegram",
+									version: clientVersion ?? corePackage.version,
+									pid: process.pid,
+								},
+							}),
+						}),
+					}),
+				);
+			} finally {
+				await client.dispose();
+			}
 		});
 
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
