@@ -324,12 +324,14 @@ export async function loadProviderModelCatalog(options?: {
 	includeVoiceInput?: boolean;
 }): Promise<ProviderModelCatalog> {
 	if (options?.includeCloudModels) {
-		const models =
-			await desktopClient.invoke<CloudModel[]>("list_cloud_models");
-		// Capability metadata is optional: use the local catalog already loaded
-		// by the app rather than delaying cloud choices on provider lookups.
+		const [models, localCatalog] = await Promise.all([
+			desktopClient.invoke<CloudModel[]>("list_cloud_models"),
+			fetchProviderCatalog(),
+		]);
+		// This catalog reads bundled/local metadata, without provider network
+		// discovery. Load it explicitly so capabilities survive a cold cache.
 		const details = new Map(
-			(providerCatalogPayload?.providers ?? []).flatMap((provider) =>
+			(localCatalog.providers ?? []).flatMap((provider) =>
 				(provider.modelList ?? []).map((model) => [model.id, model] as const),
 			),
 		);
