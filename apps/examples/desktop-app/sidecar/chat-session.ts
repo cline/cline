@@ -51,6 +51,7 @@ import {
 	handlePrepareHandoffGit,
 	isCloudHandoffInProgress,
 } from "./cloud-handoff";
+import { sendWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -240,6 +241,21 @@ function hasActiveWorkspaceTurn(session: LiveSession): boolean {
 	);
 }
 
+function assertWorkspaceNotRestoring(
+	ctx: SidecarContext,
+	workspace: string | undefined,
+): void {
+	if (
+		workspace &&
+		[...ctx.restoringWorkspacePaths].some(
+			(locked) =>
+				workspaceIsWithin(workspace, locked) ||
+				workspaceIsWithin(locked, workspace),
+		)
+	)
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+}
+
 async function withWorkspaceRestoreLock<T>(
 	ctx: SidecarContext,
 	workspacePath: string,
@@ -255,8 +271,11 @@ async function withWorkspaceRestoreLock<T>(
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	for (const session of ctx.liveSessions.values()) {
+		const sessionWorkspace = workspacePathKey(session.config);
 		if (
-			workspaceIsWithin(workspacePathKey(session.config), key) &&
+			sessionWorkspace &&
+			(workspaceIsWithin(sessionWorkspace, key) ||
+				workspaceIsWithin(key, sessionWorkspace)) &&
 			hasActiveWorkspaceTurn(session)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
@@ -939,6 +958,8 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
+	const workspace = workspacePathKey(request.config) ?? ctx.localWorkspaceRoot;
+	assertWorkspaceNotRestoring(ctx, workspace);
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
@@ -995,6 +1016,7 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
+	assertWorkspaceNotRestoring(ctx, workspace);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
@@ -1325,14 +1347,7 @@ async function handleSendOnce(
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
-	if (
-		lockedWorkspaceKey &&
-		[...ctx.restoringWorkspacePaths].some((locked) =>
-			workspaceIsWithin(lockedWorkspaceKey, locked),
-		)
-	) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
+	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -1371,14 +1386,7 @@ async function handleSendOnce(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
-	if (
-		lockedWorkspaceKey &&
-		[...ctx.restoringWorkspacePaths].some((locked) =>
-			workspaceIsWithin(lockedWorkspaceKey, locked),
-		)
-	) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
+	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -2273,12 +2281,18 @@ export async function handleChatSessionCommand(
 				const modelId = String(
 					request.config?.model ?? request.config?.modelId ?? "",
 				).trim();
-				return await cloud.send(
+				return await sendWithCloudHandoffFollowUp(
 					sessionId,
 					prompt,
-					request.delivery,
-					modelId || undefined,
-					request.attachments?.userImages,
+					request.attachments?.userImages ?? [],
+					() =>
+						cloud.send(
+							sessionId,
+							prompt,
+							request.delivery,
+							modelId || undefined,
+							request.attachments?.userImages,
+						),
 				);
 			}
 			case "stop":
