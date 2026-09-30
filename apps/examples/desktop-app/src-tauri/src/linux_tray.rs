@@ -19,7 +19,7 @@ const WATCHER_INTERFACE: &str = "org.kde.StatusNotifierWatcher";
 const HOST_REGISTERED_PROPERTY: &str = "IsStatusNotifierHostRegistered";
 /// The probe runs on the GTK main thread from the close handler, so it must
 /// not stall it: a healthy bus answers one property read in a few
-/// milliseconds, and a bus that takes longer is treated as having no host.
+/// milliseconds.
 const PROBE_TIMEOUT: Duration = Duration::from_millis(250);
 
 /// Whether a StatusNotifier host is registered on the session bus right now.
@@ -27,7 +27,7 @@ const PROBE_TIMEOUT: Duration = Duration::from_millis(250);
 /// Probed at close time rather than once at startup so that a host that
 /// appears mid-session (the user enables the GNOME extension) is honored, and
 /// one that disappears (the panel crashes) is too. No session bus, no
-/// watcher on it, a `false` property, or a timeout all mean "no host".
+/// watcher on it, or a `false` property all mean "no host".
 pub fn status_notifier_host_registered() -> bool {
     host_registered_within(read_host_registered_property, PROBE_TIMEOUT)
 }
@@ -50,7 +50,11 @@ fn read_host_registered_property() -> Result<bool, String> {
 }
 
 /// Runs `probe` off the calling thread and decides from whatever it reports
-/// within `timeout`. A probe that overruns is left to finish on its own.
+/// within `timeout`. A probe that overruns is left to finish on its own and
+/// counts as a host being present: a missing bus or missing watcher is
+/// rejected immediately by the bus daemon itself, so only a watcher that is
+/// slow to answer (a busy panel or shell) ever reaches the timeout, and
+/// quitting there would end running sessions on a desktop that has a tray.
 fn host_registered_within(
     probe: impl FnOnce() -> Result<bool, String> + Send + 'static,
     timeout: Duration,
@@ -66,8 +70,8 @@ fn host_registered_within(
             false
         }
         Err(_) => {
-            eprintln!("[tray] no StatusNotifier host: probe timed out");
-            false
+            eprintln!("[tray] StatusNotifier host probe timed out; keeping the window in the tray");
+            true
         }
     }
 }
@@ -98,8 +102,8 @@ mod tests {
     }
 
     #[test]
-    fn slow_probe_means_no_host() {
-        assert!(!host_registered_within(
+    fn slow_probe_keeps_the_tray_behavior() {
+        assert!(host_registered_within(
             || {
                 thread::sleep(Duration::from_secs(5));
                 Ok(true)
