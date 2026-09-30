@@ -320,7 +320,7 @@ const FEATURED_TIER_BUCKETS: Record<
 	],
 };
 
-function idSlug(modelId: string): string {
+export function idSlug(modelId: string): string {
 	return modelId.split("/").at(-1) ?? modelId;
 }
 

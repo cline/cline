@@ -19,8 +19,14 @@ export type WorkspacePathSource = {
 	workspaceRoot?: string;
 	startedAt?: string;
 	endedAt?: string;
+	origin?: string;
 	environmentId: string;
 };
+
+// Do not offer a cloud sandbox path as a local workspace.
+function isLocalWorkspaceSource(session: WorkspacePathSource): boolean {
+	return session.origin !== "cloud";
+}
 
 /** Typed/pasted folder paths in search boxes double as manual path entry. */
 export function looksLikeFolderPath(value: string): boolean {
@@ -140,6 +146,32 @@ export function isExcludedWorkspacePath(path: string): boolean {
 	);
 }
 
+let taskWorktreeRoot = "";
+
+/**
+ * The sidecar creates task worktrees under `<cline dir>/worktrees`, where the
+ * Cline dir honors `CLINE_DIR`, and reports that root through
+ * `get_process_context` so the webview matches the same location it uses.
+ */
+export function registerTaskWorktreeRoot(path: string): void {
+	taskWorktreeRoot = normalizeWorkspacePath(path);
+}
+
+/**
+ * Worktrees the app creates for tasks (`<worktree root>/<id>/<repo>`) are
+ * transient: a task runs there, but they are never the workspace to remember
+ * or to start the next thread in. Only the exact generated shape qualifies.
+ */
+export function isTaskWorktreePath(path: string): boolean {
+	const normalized = normalizeWorkspacePath(path);
+	if (!taskWorktreeRoot || !normalized.startsWith(taskWorktreeRoot)) {
+		return false;
+	}
+	return /^[\\/][^\\/]+[\\/][^\\/]+$/.test(
+		normalized.slice(taskWorktreeRoot.length),
+	);
+}
+
 export function filterWorkspacePaths(paths: readonly string[]): string[] {
 	return paths.filter((path) => !isExcludedWorkspacePath(path));
 }
@@ -154,7 +186,9 @@ export function workspacePathsFromSessions(
 	environmentId: string,
 ): string[] {
 	const scopedSessions = sessions.filter(
-		(session) => session.environmentId === environmentId,
+		(session) =>
+			session.environmentId === environmentId &&
+			isLocalWorkspaceSource(session),
 	);
 	const lastActivityByPath = new Map<string, number>();
 	for (const session of scopedSessions) {

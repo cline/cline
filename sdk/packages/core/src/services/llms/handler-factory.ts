@@ -157,6 +157,11 @@ function toGatewayConfiguredModel(
 		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
+			// Configured models replace gateway catalog entries, so retain the
+			// per-model protocol used by providers with mixed API endpoints.
+			...(model.metadata?.apiProtocol
+				? { apiProtocol: model.metadata.apiProtocol }
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,
@@ -165,21 +170,42 @@ function toGatewayConfiguredModel(
 	};
 }
 
+export type ConnectionConfig = Pick<
+	AgentConfig,
+	"providerId" | "modelId" | "apiKey" | "baseUrl" | "headers" | "providerConfig"
+>;
+
+/**
+ * Resolve the provider connection for a request from the live session config.
+ * Top-level fields win over the nested `providerConfig` snapshot, and the
+ * snapshot only contributes when it describes the same provider, so a token
+ * refresh or connection change written to the top level (see
+ * `syncOAuthCredentials` / `updateConnection`) applies to every request built
+ * afterwards. Every request builder (main agent, compaction summarizer) must
+ * go through this so they never disagree on credentials.
+ */
+export function resolveConnectionProviderConfig(
+	config: ConnectionConfig,
+): ProviderConfig {
+	const pc = config.providerConfig as ProviderConfig | undefined;
+	const base = pc?.providerId === config.providerId ? pc : undefined;
+	return {
+		...(base ?? {}),
+		providerId: config.providerId,
+		modelId: config.modelId,
+		apiKey: config.apiKey ?? base?.apiKey,
+		baseUrl: config.baseUrl ?? base?.baseUrl,
+		headers: config.headers ?? base?.headers,
+	};
+}
+
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
 	telemetry?: ITelemetryService,
 ): AgentModel {
-	const pc = config.providerConfig as ProviderConfig | undefined;
-	const baseProviderConfig =
-		pc?.providerId === config.providerId ? pc : undefined;
 	const normalizedProviderConfig: ProviderConfig = {
-		...(baseProviderConfig ?? {}),
-		providerId: config.providerId,
-		modelId: config.modelId,
-		apiKey: config.apiKey ?? baseProviderConfig?.apiKey,
-		baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
-		headers: config.headers ?? baseProviderConfig?.headers,
+		...resolveConnectionProviderConfig(config),
 		knownModels: resolveKnownModelsFromConfig(config),
 		maxOutputTokens: config.maxTokensPerTurn,
 		temperature: config.temperature,

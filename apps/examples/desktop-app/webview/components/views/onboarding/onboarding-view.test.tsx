@@ -689,9 +689,13 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
-			provider: "cline",
-		});
+		expect(invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			// The browser round-trip must get the extended OAuth deadline, not
+			// the default 120s command deadline (cline/cline#14201).
+			{ timeoutMs: 15 * 60_000 },
+		);
 		expect(container.textContent).toContain("Connect GitHub");
 		await act(async () => {
 			buttonByText("Skip for now").click();

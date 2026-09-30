@@ -140,6 +140,37 @@ describe("desktopAppReducer", () => {
 		);
 	});
 
+	it("closes a thread started in-app when its session is deleted elsewhere", () => {
+		let state = createDesktopAppState("draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "draft",
+		});
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "draft",
+			sessionId: "live-session",
+		});
+		expect(state.threads[0]).toMatchObject({
+			id: "draft",
+			hasStarted: true,
+			sessionId: "live-session",
+		});
+
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "live-session",
+			environmentId: "local",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(state.threads.map((thread) => thread.id)).toEqual(["fallback"]);
+		expect(state.navigation.current).toMatchObject({
+			activeThreadId: "fallback",
+			view: "chat",
+		});
+	});
+
 	it("ignores a duplicate deletion after its thread and history are removed", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {

@@ -160,11 +160,9 @@ describe("EnvironmentSelector", () => {
 		expect(document.body.textContent).not.toContain("Connected");
 		expect(document.body.textContent).toContain("Cloud");
 		expect(document.body.textContent).toContain("Coming soon");
-		expect(
-			Array.from(document.querySelectorAll('[role="menuitem"]')).some((item) =>
-				item.textContent?.includes("Cloud"),
-			),
-		).toBe(false);
+		expect(menuItemContaining("Cloud").getAttribute("aria-disabled")).toBe(
+			"true",
+		);
 
 		await click(menuItemContaining("Local"));
 		await vi.waitFor(() => {
@@ -183,6 +181,65 @@ describe("EnvironmentSelector", () => {
 		);
 		await click(addHost as HTMLElement);
 		expect(onAddSshHost).toHaveBeenCalledTimes(1);
+	});
+
+	it("selects Cloud from the environment menu when enabled", async () => {
+		const onSelectExecutionTarget = vi.fn();
+		const onSelectEnvironment = vi.fn();
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="local"
+					cloudEnabled
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		await pointerDown(trigger());
+		expect(document.body.textContent).not.toContain("Coming soon");
+		await click(menuItemContaining("Cloud"));
+		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("cloud");
+		expect(onSelectEnvironment).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["Local", "local"],
+		["Build box", "build-box"],
+	])("switches from Cloud to %s without leaving Cloud selected", async (label, environmentId) => {
+		const onSelectExecutionTarget = vi.fn();
+		const onSelectEnvironment = vi.fn();
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="local"
+					executionTarget="cloud"
+					cloudEnabled
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		expect(trigger().title).toBe("Environment: Cloud");
+		await pointerDown(trigger());
+		expect(menuItemContaining("Cloud").getAttribute("aria-current")).toBe(
+			"true",
+		);
+		expect(menuItemContaining("Local").hasAttribute("aria-current")).toBe(
+			false,
+		);
+		await click(menuItemContaining(label));
+		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("local");
+		if (environmentId === "local")
+			expect(onSelectEnvironment).not.toHaveBeenCalled();
+		else
+			expect(onSelectEnvironment).toHaveBeenCalledExactlyOnceWith(
+				environmentId,
+			);
 	});
 
 	it("reopens the menu after a rejected environment switch", async () => {

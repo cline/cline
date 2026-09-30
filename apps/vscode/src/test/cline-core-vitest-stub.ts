@@ -13,7 +13,10 @@ export interface StartSessionResult {
 	sessionId: string
 }
 
-export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+export {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/output-limits"
 
 export interface StoredModelEntry {
 	id?: string
@@ -54,6 +57,7 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -63,6 +67,7 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
@@ -109,19 +114,11 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
-export function truncateCommandOutput(output: string): string {
-	return output
-}
-
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""
@@ -187,6 +184,15 @@ export function readSessionCheckpointHistory(session: { metadata?: Record<string
 		const kind = record.kind === "stash" || record.kind === "commit" ? record.kind : undefined
 		return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }]
 	})
+}
+
+export function createRestoredCheckpointMetadata(
+	session: { metadata?: Record<string, unknown> } | undefined,
+	runCount: number,
+): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
+	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
+	const latest = history.at(-1)
+	return latest ? { latest, history } : undefined
 }
 
 export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
@@ -516,3 +522,5 @@ export async function loginOcaOAuth(): Promise<OAuthCredentials> {
 export async function loginOpenAICodex(): Promise<OAuthCredentials> {
 	return {}
 }
+
+export { resolveMessageDisplayRole } from "../../../../sdk/packages/core/src/session/user-run-messages"

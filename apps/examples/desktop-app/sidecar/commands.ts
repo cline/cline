@@ -1,14 +1,24 @@
 import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
 	existsSync,
+	mkdirSync,
 	readdirSync,
 	realpathSync,
 	rmSync,
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join, posix } from "node:path";
-import { promisify } from "node:util";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	posix,
+	sep,
+} from "node:path";
+import { isDeepStrictEqual, promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
 	CoreSettingsSnapshot,
@@ -30,8 +40,10 @@ import {
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
 	getCoreBuiltinToolCatalog,
+	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	normalizeOAuthProvider,
 	type ProviderSettingsManager,
@@ -53,7 +65,6 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -72,16 +83,29 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import { resolveClineDir } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	getCloudSessionManager,
+	resetCloudSessionManager,
+} from "./cloud-sessions";
+import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
 	resolveGitHubInstallUrl,
 } from "./commands-integrations";
+import {
+	cancelComposioConnect,
+	connectComposioToolkit,
+	disconnectComposioToolkit,
+	getComposioStatus,
+	listComposioToolkits,
+	parseComposioToolkitSlug,
+} from "./composio";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -100,7 +124,14 @@ import {
 	sendEventToClient,
 } from "./context";
 import {
+	readDesktopSettings,
+	setCloudSessionsEnabled,
+} from "./desktop-settings";
+import { writeDiagnosticsReport } from "./diagnostics";
+import {
 	identifyDesktopFeatureFlagsAccount,
+	isCloudAgentsAvailable,
+	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
@@ -134,14 +165,28 @@ import {
 	sharedSessionDataDir,
 } from "./paths";
 import { getDesktopProviderSettingsManager } from "./provider-settings";
+import {
+	getPluginCommandService,
+	warmPluginCommandService,
+} from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
-import { normalizeSessionTitle } from "./session-data/common";
-import { discoverChatSessions } from "./session-data/discovery";
-import { readSessionMessages } from "./session-data/messages";
+import {
+	compareSessionRecordsByStartedAtDesc,
+	derivePromptFromMessages,
+	normalizeSessionTitle,
+} from "./session-data/common";
+import {
+	discoverChatSessions,
+	mergeDiscoveredSessionLists,
+} from "./session-data/discovery";
+import {
+	readPersistedChatMessages,
+	readSessionMessages,
+} from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
 	ChatSessionCommandRequest,
@@ -346,6 +391,9 @@ async function getCommandSessionBinding(
 // anything broader (file:, custom app schemes) would let webview content
 // launch arbitrary local handlers.
 const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
+
+// Fall back to cached rows rather than stall the sidebar on the cloud API.
+const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
@@ -603,6 +651,10 @@ async function getSessionFromSidecarManager(
 		: undefined;
 }
 
+function isSidebarSessionWithPrompt(session: JsonRecord): boolean {
+	return typeof session.prompt === "string" && Boolean(session.prompt.trim());
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -632,6 +684,17 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
+				if (!isSidebarSessionWithPrompt(merged)) {
+					// Attachment-only sessions may have no textual prompt metadata.
+					const messages =
+						binding.kind === "local"
+							? readPersistedChatMessages(sessionId)
+							: await binding.sessionManager
+									.readMessages(sessionId)
+									.catch(() => []);
+					merged.prompt = derivePromptFromMessages(messages ?? []);
+				}
+				if (!isSidebarSessionWithPrompt(merged)) continue;
 				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
@@ -652,6 +715,14 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
+			session.prompt =
+				session.prompt?.trim() ||
+				derivePromptFromMessages(
+					readPersistedChatMessages(session.sessionId) ?? [],
+				);
+			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
+				continue;
+			}
 			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
@@ -661,6 +732,10 @@ async function listSessionsFromSidecarManager(
 
 	for (const scoped of getEnvironmentContexts(ctx)) {
 		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			if (session.config.executionTarget === "cloud") continue;
+			const prompt =
+				session.prompt?.trim() || derivePromptFromMessages(session.messages);
+			if (!prompt) continue;
 			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
 			const existing = byId.get(key);
 			byId.set(key, {
@@ -676,7 +751,7 @@ async function listSessionsFromSidecarManager(
 					existing?.workspaceRoot ??
 					existing?.cwd ??
 					"",
-				prompt: session.prompt ?? existing?.prompt,
+				prompt,
 				startedAt:
 					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
 				endedAt:
@@ -825,6 +900,87 @@ async function listGitBranches(
 		.map((v) => v.trim())
 		.filter(Boolean);
 	return { current: current || undefined, branches };
+}
+
+/** Where task worktrees live; honors `CLINE_DIR` like the rest of the Cline dir. */
+function taskWorktreesRoot(): string {
+	return join(resolveClineDir(), "worktrees");
+}
+
+/**
+ * Creates a git worktree for the repo containing `cwd` and checks out a fresh
+ * branch in it, so a task can run isolated from the user's working tree.
+ * Mirrors the CLI's `--worktree` layout: `~/.cline/worktrees/<id>/<repo>`.
+ */
+async function createGitWorktree(
+	cwd: string,
+): Promise<{ path: string; branch: string }> {
+	const { stdout } = await execFileAsync(
+		"git",
+		["rev-parse", "--show-toplevel"],
+		{ cwd, encoding: "utf8" },
+	).catch(() => {
+		throw new Error(`Not a git repository: ${cwd}`);
+	});
+	const repoRoot = stdout.trim();
+	const id = randomUUID().replaceAll("-", "").slice(0, 5);
+	const branch = `cline/${id}`;
+	const worktreePath = join(
+		taskWorktreesRoot(),
+		id,
+		basename(repoRoot) || "workspace",
+	);
+	mkdirSync(dirname(worktreePath), { recursive: true });
+	await execFileAsync(
+		"git",
+		["-C", repoRoot, "worktree", "add", "-b", branch, worktreePath, "HEAD"],
+		{ encoding: "utf8" },
+	);
+	return { path: worktreePath, branch };
+}
+
+/** True for paths of the exact `~/.cline/worktrees/<id>/<repo>` shape. */
+function isTaskWorktreePath(path: string): boolean {
+	return path.length > 0 && dirname(dirname(path)) === taskWorktreesRoot();
+}
+
+/**
+ * Removes a worktree created by `createGitWorktree`, discarding any
+ * uncommitted work in it, and deletes its `cline/<id>` branch. Only that
+ * generated branch is deleted: if the task switched the worktree to another
+ * branch, that branch (and its commits) is kept. Paths outside
+ * `~/.cline/worktrees` are left alone. Best-effort: failures are logged.
+ */
+async function removeTaskWorktree(
+	ctx: SidecarContext,
+	worktreePath: string,
+): Promise<{ path: string; repoRoot?: string }> {
+	const git = (args: string[]) =>
+		execFileAsync("git", ["-C", worktreePath, ...args], {
+			encoding: "utf8",
+		}).then((result) => result.stdout.trim());
+	const branch = `cline/${basename(dirname(worktreePath))}`;
+	let repoRoot: string | undefined;
+	try {
+		const commonDir = await git([
+			"rev-parse",
+			"--path-format=absolute",
+			"--git-common-dir",
+		]);
+		repoRoot = dirname(commonDir);
+		await git(["worktree", "remove", "--force", worktreePath]);
+		await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
+			encoding: "utf8",
+		}).catch(() => undefined);
+	} catch (error) {
+		ctx.logger?.error?.("Failed to remove task worktree", {
+			worktreePath,
+			error,
+		});
+	}
+	// The `<id>` directory that held the worktree.
+	removePathIfExists(dirname(worktreePath), { recursive: true });
+	return { path: worktreePath, repoRoot };
 }
 
 const REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES = 256 * 1024;
@@ -1273,11 +1429,12 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 
 async function listHubSettings(
 	ctx: SidecarContext,
+	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<CoreSettingsSnapshot> {
 	const hubClient = await ensureSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.list", {
-		workspaceRoot: ctx.localWorkspaceRoot,
-		cwd: ctx.localWorkspaceRoot,
+		workspaceRoot,
+		cwd: workspaceRoot,
 	});
 	if (!reply.ok) {
 		throw new Error(
@@ -1313,9 +1470,10 @@ async function toggleHubSetting(
 async function listUserInstructionConfigs(
 	ctx: SidecarContext,
 	settingsSnapshot?: CoreSettingsSnapshot,
+	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<JsonRecord> {
-	const workspaceRoot = ctx.localWorkspaceRoot;
-	const hubSettings = settingsSnapshot ?? (await listHubSettings(ctx));
+	const hubSettings =
+		settingsSnapshot ?? (await listHubSettings(ctx, workspaceRoot));
 	const warnings: string[] = [];
 	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
@@ -1470,6 +1628,16 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			// Not sourced from the core catalog: it only lists web_search for a
+			// specific provider/model, and this listing is session-agnostic.
+			{
+				id: "web_search",
+				name: "web_search",
+				description:
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support it; applies to new sessions.",
+				enabled: isModelToolEnabledGlobally("web_search"),
+				source: "builtin",
+			},
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
@@ -1945,6 +2113,13 @@ export async function handleCommand(
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
 		const sessionId = String(args?.sessionId ?? "").trim();
+		const cloud = getCloudSessionManager(ctx);
+		const maxMessages =
+			typeof args?.maxMessages === "number" ? args.maxMessages : 800;
+		if (cloud.isCloudSession(sessionId)) {
+			const messages = await cloud.readMessages(sessionId);
+			return await readSessionMessages(ctx, sessionId, maxMessages, messages);
+		}
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		const remoteMessages =
 			binding?.kind === "ssh"
@@ -1953,7 +2128,7 @@ export async function handleCommand(
 		return await readSessionMessages(
 			ctx,
 			sessionId,
-			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
+			maxMessages,
 			remoteMessages,
 		);
 	}
@@ -2003,6 +2178,8 @@ export async function handleCommand(
 			workspaceRoot: binding.workspaceRoot,
 			cwd: binding.workspaceRoot,
 			homeDir: binding.remote?.homeDir ?? homedir(),
+			taskWorktreeRoot:
+				binding.kind === "local" ? taskWorktreesRoot() : undefined,
 			platform: binding.remote?.platform ?? process.platform,
 			appVersion: packageJson.version,
 			runningSessionCount,
@@ -2024,6 +2201,35 @@ export async function handleCommand(
 				error: binding.hubClient.getConnectionError()?.message ?? null,
 			},
 		};
+	}
+	if (command === "get_feature_flags") {
+		// Resolve flags in the sidecar: available shows the opt-in;
+		// enabled requires both the rollout flag and the user's opt-in.
+		const snapshot = await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
+		return {
+			...snapshot,
+			cloudAgents: isCloudAgentsEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+			cloudAgentsAvailable: isCloudAgentsAvailable({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+		};
+	}
+	if (command === "list_cloud_repositories") {
+		return await getCloudSessionManager(ctx).listRepositories();
+	}
+	if (command === "list_cloud_branches") {
+		const repositoryId = Number(args?.repositoryId);
+		return await getCloudSessionManager(ctx).listBranches(repositoryId, {
+			cursor: typeof args?.cursor === "string" ? args.cursor : undefined,
+			query: typeof args?.query === "string" ? args.query : undefined,
+		});
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
@@ -2076,7 +2282,11 @@ export async function handleCommand(
 			throw new Error("tool approvals require a trusted desktop connection");
 		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -2090,13 +2300,13 @@ export async function handleCommand(
 			throw new Error("tool approvals require a trusted desktop connection");
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
-		if (!pending || pending.owner !== connection) {
+		if (!pending || (pending.owner && pending.owner !== connection)) {
 			throw new Error("tool approval does not belong to this connection");
 		}
 		if (pending.item.sessionId !== sessionId) {
 			throw new Error("tool approval does not belong to this session");
 		}
-		pending.resolve({
+		await pending.resolve({
 			approved: Boolean(args?.approved),
 			...(typeof args?.reason === "string" && args.reason.trim().length > 0
 				? { reason: args.reason.trim() }
@@ -2104,7 +2314,11 @@ export async function handleCommand(
 		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
@@ -2134,9 +2348,21 @@ export async function handleCommand(
 
 	// ── Session discovery ─────────────────────────────────────────────
 	if (command === "list_chat_sessions") {
-		return discoverChatSessions(
-			ctx,
-			typeof args?.limit === "number" ? args.limit : 300,
+		const limit = typeof args?.limit === "number" ? args.limit : 300;
+		const local = discoverChatSessions(ctx, limit);
+		if (!isCloudAgentsEnabled()) return local;
+		const cloud = await getCloudSessionManager(ctx)
+			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
+			.catch((error) => {
+				// A persistent listing failure silently empties the sidebar's
+				// cloud rows; keep a diagnostic trail.
+				ctx.logger?.error?.("Cloud session discovery failed", { error });
+				return [];
+			});
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
 		);
 	}
 	if (command === "list_cli_sessions") {
@@ -2146,9 +2372,22 @@ export async function handleCommand(
 		);
 	}
 	if (command === "list_discovered_sessions") {
-		return await listSessionsFromSidecarManager(
+		const limit = typeof args?.limit === "number" ? args.limit : 300;
+		const local = (await listSessionsFromSidecarManager(
 			ctx,
-			typeof args?.limit === "number" ? args.limit : 300,
+			limit,
+		)) as JsonRecord[];
+		if (!isCloudAgentsEnabled()) return local;
+		const cloud = await getCloudSessionManager(ctx)
+			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
+			.catch((error) => {
+				ctx.logger?.error?.("Cloud session discovery failed", { error });
+				return [];
+			});
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
 		);
 	}
 	if (command === "search_sessions") {
@@ -2162,6 +2401,14 @@ export async function handleCommand(
 			typeof args?.workspaceRoot === "string"
 				? args.workspaceRoot.trim() || undefined
 				: undefined;
+		// Start now so cloud latency does not add to the local fallback deadline.
+		const cloudDiscovery = (async () => {
+			if (!isCloudAgentsEnabled()) return undefined;
+			const manager = getCloudSessionManager(ctx);
+			const sessions = await manager.listForDiscovery({ timeoutMs: 750 });
+			return { manager, sessions };
+		})().catch(() => undefined);
+		let hits: JsonRecord[] = [];
 		const searchClient =
 			ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
 		if (searchClient) {
@@ -2179,7 +2426,7 @@ export async function handleCommand(
 					Array.isArray(reply.payload?.hits) &&
 					reply.payload.hits.length > 0
 				) {
-					return reply.payload.hits.slice(0, limit).map((hit) => ({
+					hits = reply.payload.hits.map((hit) => ({
 						...hit,
 						title: formatSessionSearchTitle(hit.title),
 						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
@@ -2190,15 +2437,61 @@ export async function handleCommand(
 			}
 		}
 
-		const sessions = await withSearchDeadline(
-			listSessionsFromSidecarManager(ctx, 500),
-			1_000,
-		).catch(() => []);
-		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+		if (hits.length === 0) {
+			const sessions = await withSearchDeadline(
+				listSessionsFromSidecarManager(ctx, 500),
+				1_000,
+			).catch(() => []);
+			hits = metadataSessionSearchHits(sessions, query);
+		}
+		hits = hits.filter(
+			(hit) => !workspaceRoot || hit.workspaceRoot === workspaceRoot,
+		);
+		const cloud = await cloudDiscovery;
+		// Account changes replace the manager; discard any in-flight old scope.
+		if (
+			cloud &&
+			isCloudAgentsEnabled() &&
+			ctx.cloudSessionManager === cloud.manager
+		) {
+			const seen = new Set(hits.map((hit) => hit.sessionId));
+			const cloudHits = metadataSessionSearchHits(cloud.sessions, query)
+				.filter((hit) => {
+					if (
+						(workspaceRoot && hit.workspaceRoot !== workspaceRoot) ||
+						seen.has(hit.sessionId)
+					)
+						return false;
+					seen.add(hit.sessionId);
+					return true;
+				})
+				.sort(compareSessionRecordsByStartedAtDesc);
+			hits.push(...cloudHits);
+		}
+		return hits.slice(0, limit);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			// The active-scope list can omit a session created under another
+			// org scope; fall back to revalidating the cached record by id so
+			// the session stays openable, and to the raw cache when the
+			// account APIs are unavailable entirely.
+			try {
+				const listed = (await cloud.listForDiscovery()).find(
+					(session) => session.sessionId === sessionId,
+				);
+				return (
+					listed ??
+					(await cloud.getCrossScopeDiscoveryRecord(sessionId)) ??
+					null
+				);
+			} catch {
+				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
+			}
+		}
 		return (
 			(await getSessionFromSidecarManager(
 				ctx,
@@ -2262,6 +2555,12 @@ export async function handleCommand(
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		const title = normalizeSessionTitle(String(args?.title ?? ""));
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			if (!title) throw new Error("title is required");
+			await cloud.updateTitle(sessionId, title);
+			return true;
+		}
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		if (!binding) throw new Error(`Session ${sessionId} not found`);
 		const result = await binding.sessionManager.update(sessionId, { title });
@@ -2319,10 +2618,18 @@ export async function handleCommand(
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		const cloud = getCloudSessionManager(ctx);
+		if (cloud.isCloudSession(sessionId)) {
+			await cloud.delete(sessionId);
+			return true;
+		}
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
+		const sessionCwd =
+			row?.cwd?.trim() ||
+			(typeof manifest?.cwd === "string" ? manifest.cwd.trim() : "");
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		let deleted = false;
 		let deleteError: Error | null = null;
@@ -2420,11 +2727,25 @@ export async function handleCommand(
 			sessionId,
 			deleted,
 		});
+		// A task worktree goes with its task, unless another session still
+		// lives in (or under) it, e.g. a second thread started while it was
+		// the workspace. Only the exact `<home>/<id>/<repo>` shape qualifies,
+		// since removal also deletes the `<id>` parent directory.
+		const removedWorktree =
+			deleted &&
+			isTaskWorktreePath(sessionCwd) &&
+			!store.list(10_000).some((other) => {
+				const cwd = other.cwd?.trim() ?? "";
+				return cwd === sessionCwd || cwd.startsWith(sessionCwd + sep);
+			})
+				? await removeTaskWorktree(ctx, sessionCwd)
+				: undefined;
 		if (deleted) {
 			broadcastEvent(ctx, "session_deleted", {
 				sessionId,
 				command,
 				deleted: true,
+				removedWorktree,
 			});
 		}
 		return deleted;
@@ -2482,6 +2803,12 @@ export async function handleCommand(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		if (operation === "switchAccount") {
+			await resetCloudSessionManager(ctx);
+			// The sidebar must re-scope immediately (personal ⇄ org), not on
+			// the next 12s poll.
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		}
 		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
 	}
@@ -2517,19 +2844,76 @@ export async function handleCommand(
 		}
 	}
 
+	// ── Composio connectors (Gmail / Google Calendar / GitHub / catalog) ─
+	if (command === "composio_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+
+		switch (operation) {
+			case "status":
+				return await getComposioStatus({
+					refresh: args?.refresh === true,
+					logger: ctx.logger,
+					telemetry: ctx.telemetry,
+				});
+			case "listToolkits":
+				return await listComposioToolkits(ctx.logger);
+			case "connect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				// Tie the attempt to the initiating webview so it is abandoned
+				// if that connection goes away before the browser flow finishes.
+				const result = await connectComposioToolkit(toolkit, ctx.logger, {
+					owner: options?.connection,
+				});
+				if (result.redirectUrl) {
+					await openUrlInDefaultBrowser(result.redirectUrl);
+				}
+				return result;
+			}
+			case "cancelConnect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				await cancelComposioConnect(toolkit, ctx.logger);
+				return await getComposioStatus({ logger: ctx.logger });
+			}
+			case "disconnect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				return await disconnectComposioToolkit(toolkit, ctx.logger);
+			}
+			default:
+				throw new Error(
+					`Unsupported Composio integrations operation: ${operation}`,
+				);
+		}
+	}
+
 	// ── Provider management ────────────────────────────────────────────
 	if (command === "list_provider_catalog") {
 		const manager = getDesktopProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
 		return await manager.listProviders({ isClinePassEnabled: true });
 	}
+	if (command === "list_transcription_models") {
+		const manager = getDesktopProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
+		return getLocalTranscriptionModels(
+			providerId,
+			manager.getProviderConfig(providerId, { includeKnownModels: false }),
+			manager.getCatalogContext(),
+		);
+	}
 	if (command === "list_provider_models") {
 		const manager = getDesktopProviderSettingsManager();
-		const provider = String(args?.provider ?? "").trim();
+		const providerId = String(args?.provider ?? "").trim();
+		const includeCloudModels =
+			providerId === "cline" &&
+			args?.includeCloudModels === true &&
+			isCloudAgentsEnabled();
 		// Known models are merged in unfiltered after the provider's own model
 		// rules run, so including them here would leak e.g. the full OpenAI
 		// catalog into the ChatGPT Subscription (codex) picker.
-		return await manager.getModels(provider);
+		return await manager.getModels(providerId, {
+			loadLatest: includeCloudModels,
+		});
 	}
 	if (command === "list_cline_recommended_models") {
 		// Tiered picker data (recommended / free / clinePass) with
@@ -2633,7 +3017,6 @@ export async function handleCommand(
 		try {
 			const result = await transcribeConfiguredVoiceInput(manager, {
 				audio: Buffer.from(audioBase64, "base64"),
-				mediaType,
 			});
 			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
 				...diagnostics,
@@ -2674,9 +3057,16 @@ export async function handleCommand(
 	}
 	if (command === "save_provider_settings") {
 		const manager = getDesktopProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
+		const storageProviderId =
+			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
+		const previous =
+			storageProviderId === "cline"
+				? manager.getProviderSettings(storageProviderId)
+				: undefined;
 		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
-			providerId: String(args?.provider ?? ""),
+			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
@@ -2684,9 +3074,6 @@ export async function handleCommand(
 		if (!saved.enabled) {
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
-			const storageProviderId =
-				getProviderAuthHandler(saved.providerId)?.storageProviderId ??
-				saved.providerId;
 			if (storageProviderId !== saved.providerId) {
 				saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
@@ -2698,6 +3085,17 @@ export async function handleCommand(
 			// credentials go too. A failed write throws so the webview reports
 			// the sign-out as failed and resyncs.
 			clearLegacyProviderCredentials(storageProviderId);
+		}
+		if (storageProviderId === "cline") {
+			const current = manager.getProviderSettings(storageProviderId);
+			// Ordinary provider preferences must not interrupt cloud sessions.
+			if (
+				previous?.apiKey !== current?.apiKey ||
+				!isDeepStrictEqual(previous?.auth, current?.auth)
+			) {
+				await resetCloudSessionManager(ctx);
+				broadcastEvent(ctx, "cloud_sessions_changed", {});
+			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
 		// (see signOut in webview settings/account-view.tsx), so this is the
@@ -2760,7 +3158,7 @@ export async function handleCommand(
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		const manager = getDesktopProviderSettingsManager();
-		return await runCancellableProviderOAuthLogin(
+		const result = await runCancellableProviderOAuthLogin(
 			manager,
 			providerId,
 			(url) => {
@@ -2783,6 +3181,14 @@ export async function handleCommand(
 					}),
 			},
 		);
+		const storageProviderId =
+			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
+		if (storageProviderId === "cline") {
+			// Re-scope cached cloud sessions after sign-in.
+			await resetCloudSessionManager(ctx);
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		}
+		return result;
 	}
 	if (command === "cancel_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
@@ -2810,24 +3216,30 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
-	if (command === "set_web_search_enabled") {
-		if (typeof args?.web_search_enabled !== "boolean") {
-			throw new Error("web_search_enabled must be a boolean");
-		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
-		return readGlobalSettings();
+	if (command === "get_desktop_settings") {
+		return readDesktopSettings();
 	}
-
-	// ── Feature flags ──────────────────────────────────────────────────
-	// Flags are evaluated here, not in the webview: the sidecar already has
-	// the PostHog key inlined at build time and evaluates against the same
-	// distinct ID it reports telemetry with. The client just reads the
-	// resolved values.
-	if (command === "get_feature_flags") {
-		return await refreshDesktopFeatureFlags({
-			logger: ctx.logger,
-			telemetry: ctx.telemetry,
+	if (command === "export_diagnostics") {
+		const sessionIds = Array.isArray(args?.sessionIds)
+			? args.sessionIds.filter(
+					(value): value is string => typeof value === "string",
+				)
+			: [];
+		const result = writeDiagnosticsReport(sessionIds);
+		openFileInEditor(dirname(result.path));
+		return result;
+	}
+	if (command === "set_cloud_sessions_enabled") {
+		if (typeof args?.cloud_sessions_enabled !== "boolean") {
+			throw new Error("cloud_sessions_enabled must be a boolean");
+		}
+		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
+		broadcastEvent(ctx, "cloud_sessions_changed", {});
+		broadcastEvent(ctx, "feature_flags_changed", {
+			cloudAgents: isCloudAgentsEnabled(),
+			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
+		return settings;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -3100,6 +3512,22 @@ export async function handleCommand(
 		if (binding.kind === "local") refreshWorkspaceMetadata(targetCwd);
 		return { environmentId: binding.environmentId, branch };
 	}
+	if (command === "create_git_worktree") {
+		const cwd = typeof args?.cwd === "string" ? args.cwd.trim() : "";
+		if (!cwd) throw new Error("cwd is required");
+		return await createGitWorktree(cwd);
+	}
+
+	// Rolls back a worktree from `create_git_worktree` whose session never
+	// started. Only the generated `~/.cline/worktrees/<id>/<repo>` shape is
+	// accepted, since removal also deletes the `<id>` parent directory.
+	if (command === "remove_git_worktree") {
+		const path = typeof args?.path === "string" ? args.path.trim() : "";
+		if (!isTaskWorktreePath(path)) {
+			throw new Error(`Not a task worktree: ${path}`);
+		}
+		return await removeTaskWorktree(ctx, path);
+	}
 
 	// ── Routine schedules ─────────────────────────────────────────────
 	if (
@@ -3127,7 +3555,30 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx);
+		// The composer passes the session's workspace so the slash menu lists
+		// the skills and workflows that will actually expand there.
+		return await listUserInstructionConfigs(
+			ctx,
+			undefined,
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
+		);
+	}
+	if (command === "warm_plugin_commands") {
+		// The webview reports whichever local workspace it has adopted so the
+		// plugin sandbox is loaded before the slash menu first needs it.
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const workspacePath = String(args?.workspacePath ?? "").trim();
+		if (binding.kind === "local" && workspacePath) {
+			warmPluginCommandService(ctx, workspacePath);
+		}
+		return { environmentId: binding.environmentId };
+	}
+	if (command === "list_plugin_commands") {
+		// Same workspace the session will execute in (handleSend), so the menu
+		// only offers commands that can actually run there.
+		const workspacePath =
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
+		return await getPluginCommandService(ctx, workspacePath).listCommands();
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
@@ -3169,7 +3620,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
-		for (const name of toolNames) {
+		for (const name of new Set(toolNames)) {
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,

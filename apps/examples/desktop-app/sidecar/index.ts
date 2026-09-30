@@ -11,7 +11,9 @@ import {
 import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
 import {
 	captureSdkError,
+	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
+	ensureLoopbackProxyBypass,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
@@ -238,6 +240,16 @@ async function runEntrypoint(): Promise<void> {
 	}
 
 	disableCurrentDirectoryExecutableSearch();
+	// Before the Hub daemon and agent-spawned processes inherit this env.
+	ensureLoopbackProxyBypass();
+	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
+	// daemon import resolves to the dist build of @cline/core while this bundle
+	// resolves the source build, and a daemon from the other copy publishes a
+	// different build id, so the sidecar would retire its own Hub on launch.
+	if (claimHubDaemonProcess()) {
+		await import("@cline/core/hub/daemon-entry");
+		return;
+	}
 	if (await runRemoteHelperEntrypoint()) {
 		return;
 	}

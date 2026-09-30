@@ -586,7 +586,11 @@ function toApiStreamChunk(
 				success: event.reason !== "error",
 				error: event.error,
 				incompleteReason:
-					event.reason === "max-tokens" ? "max_tokens" : undefined,
+					event.reason === "max-tokens"
+						? "max_tokens"
+						: event.reason === "content-filter"
+							? "content_filter"
+							: undefined,
 			};
 	}
 }
@@ -603,7 +607,7 @@ function resolveModelInfo(config: ProviderConfig): ModelInfo {
 }
 
 class GatewayApiHandler implements ApiHandler {
-	private abortSignal: AbortSignal | undefined;
+	protected abortSignal: AbortSignal | undefined;
 
 	constructor(private readonly config: ProviderConfig) {
 		this.abortSignal = config.abortSignal;
@@ -699,7 +703,10 @@ export async function createGatewayApiHandlerAsync(
 				systemPrompt,
 				messages,
 				tools,
-				config.abortSignal,
+				// `this.abortSignal`, not `config.abortSignal`: the field starts as
+				// the config value but stays live through `setAbortSignal`, which
+				// the captured config value would silently ignore.
+				this.abortSignal,
 			);
 			const id = `gw_${nanoid(10)}`;
 			const stream = (async function* () {

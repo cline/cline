@@ -1,33 +1,36 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main) or beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
+description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (artifact-only test build of main's HEAD, tagged desktop-nightly-<stamp> after it builds). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
 ---
 
 # Desktop App Release
 
-Use this skill when the user asks to release the desktop app, publish the Cline desktop app, cut a desktop beta, bump the desktop version, create a `desktop-vX.Y.Z` (or `desktop-vX.Y.Z-beta.N`) tag, or trigger the desktop publish workflow.
+Use this skill when the user asks to release the desktop app, publish the Cline desktop app, cut a desktop beta, cut a desktop nightly, bump the desktop version, create a `desktop-vX.Y.Z` (or `desktop-vX.Y.Z-beta.N`) tag, or trigger the desktop publish workflow.
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases ship two platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
+Desktop releases ship three platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Linux: x64 `.deb` and `.rpm` packages (`<Product>_<version>_amd64.deb`, `<Product>_<version>_x86_64.rpm`) built on Ubuntu 22.04 in the `build-linux` job, deb + rpm only (no AppImage: linuxdeploy cannot process the Bun-compiled sidecar). Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
 
 ## Release contract
 
-- Two channels, one workflow (`channel` input on `desktop-publish.yml`):
+- Three channels, one workflow (`channel` input on `desktop-publish.yml`):
   - **stable** — tag `desktop-vX.Y.Z` (no suffix; the workflow rejects prerelease suffixes on this channel), cut from `main`, feeds the rolling `desktop-latest` release, ships as "Cline".
   - **beta** — tag `desktop-vX.Y.Z-beta.N`, cut from `desktop-experimental`, feeds the rolling `desktop-beta` release, ships as "Cline Beta" (separate bundle identifier `bot.cline.app.beta`; installs side by side with stable). Built with the extra `src-tauri/tauri.beta.conf.json` overlay. Process background: `apps/examples/desktop-app/EXPERIMENTAL.md`.
+  - **nightly** — no release tag input, no release, no feed. Builds `main`'s HEAD, ships as "Cline Nightly" (identifier `bot.cline.app.nightly`, empty updater endpoints, `src-tauri/tauri.nightly.conf.json` overlay), uploads the signed installers as Actions artifacts only, then tags the commit `desktop-nightly-<utc stamp>` and announces the changes since the previous nightly or release to Slack. See "Nightly builds" below.
 - Version sources (must match each other and the tag): `apps/examples/desktop-app/package.json` and `apps/examples/desktop-app/src-tauri/tauri.conf.json`. (`src-tauri/Cargo.toml` has its own version but `tauri.conf.json` overrides it; no need to touch it.)
 - Beta versions are prereleases of the **next** stable: stable `0.0.13` → betas `0.0.14-beta.1`, `-beta.2`, … Once a stable ≥ the beta base ships, the next beta bumps its base (`0.0.15-beta.1`).
 - Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update — committed on `main` for stable, on `desktop-experimental` for beta.
-- Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch, requires the tag to exist, point at the checked-out commit, and be reachable from the channel's branch — `origin/main` for stable, `origin/desktop-experimental` for beta).
-- **Both channels dispatch from `main`.** This is a security invariant, not a convenience: the run executes `main`'s workflow copy and only the checkout points at the tag, so the signing-secret gates (the `github.ref == main` check and the PublishDesktop environment's main-only deployment-branch policy) hold for beta too. Never add `desktop-experimental` to the PublishDesktop deployment-branch policy.
-- The workflow creates the tag's GitHub release (universal DMG + macOS updater artifact + Windows NSIS installer with its updater signature + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
+- Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch; for stable and beta it requires the tag to exist, point at the checked-out commit, and be reachable from the channel's branch — `origin/main` for stable, `origin/desktop-experimental` for beta. Nightly takes no tag and validation rejects one).
+- **Every channel dispatches from `main`.** This is a security invariant, not a convenience: the run executes `main`'s workflow copy and only the checkout points at the tag, so the signing-secret gates (the `github.ref == main` check and the PublishDesktop environment's main-only deployment-branch policy) hold for beta too. Never add `desktop-experimental` to the PublishDesktop deployment-branch policy.
+- The workflow creates the tag's GitHub release (universal DMG + macOS updater artifact + Windows NSIS installer and Linux deb/rpm packages, each with its updater signature, + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
 - The changelog's `## <version>` section (exact-match, not "topmost") is extracted verbatim into the GitHub release body, the Slack announcement, and the updater manifest notes.
 - Always ask before pushing commits or tags.
 
 ## Workflow
 
-0. Ask which channel this release is for — **stable or beta** — if the user has not said. Everything below branches on it; never guess.
+0. Ask which channel this release is for — **stable, beta, or nightly** — if the user has not said. Everything below branches on it; never guess.
+
+   For **nightly**, skip steps 1–7 entirely and jump to "Nightly builds".
 
 1. Gather context.
 
@@ -56,7 +59,11 @@ The sidecar bundles `@cline/core` and friends from the monorepo, so SDK changes 
 
 3. Draft user-facing release notes.
 
-Flat bullet list, user-facing language. Present the draft and wait for approval before editing files.
+Flat bullet list, user-facing language.
+
+**Scope notes to the desktop app.** Shared-code commits in the range are often for the CLI or the extension. Keep a bullet only if the change reaches `apps/examples/desktop-app` (CLI subcommands, TUI, and yolo prompt rules don't). Skip items already in the last desktop section, grep any quoted string, and leave out anything uncertain.
+
+Present the draft and wait for approval before editing files.
 
 4. Decide the version bump.
 
@@ -96,13 +103,15 @@ git push origin refs/tags/desktop-vX.Y.Z
 
 8. Publish.
 
-The release commit must be on the channel's branch (`main` for stable, `desktop-experimental` for beta) and the tag pushed first. Dispatch from `main` for **both** channels (see the release contract for why).
+The release commit must be on the channel's branch (`main` for stable, `desktop-experimental` for beta) and the tag pushed first. Dispatch from `main` for **every** channel (see the release contract for why).
 
 ```sh
 # stable:
 gh workflow run desktop-publish.yml --ref main -f git_tag=desktop-vX.Y.Z -f channel=stable -f confirm_publish=publish
 # beta:
 gh workflow run desktop-publish.yml --ref main -f git_tag=desktop-vX.Y.Z-beta.N -f channel=beta -f confirm_publish=publish
+# nightly (no tag — see "Nightly builds"):
+gh workflow run desktop-publish.yml --ref main -f channel=nightly -f confirm_publish=publish
 
 gh run list --workflow=desktop-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
@@ -131,13 +140,67 @@ curl -sL https://github.com/cline/cline/releases/download/desktop-latest/latest.
 curl -sL https://github.com/cline/cline/releases/download/desktop-beta/latest.json | head -30    # beta
 ```
 
-The `version` field must be the new release; both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new universal `.app.tar.gz` asset under the release tag (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact), and the `windows-x86_64` entry must point at the new `*_x64-setup.exe` asset. Installed apps on that channel — including older per-arch installs — pick the update up on next launch or within 2 hours.
+The `version` field must be the new release; both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new universal `.app.tar.gz` asset under the release tag (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact), the `windows-x86_64` entry must point at the new `*_x64-setup.exe` asset, and the `linux-x86_64-deb` / `linux-x86_64-rpm` entries at the new `*_amd64.deb` / `*_x86_64.rpm` assets. Installed apps on that channel — including older per-arch installs — pick the update up on next launch or within 2 hours.
 
 After a **beta** publish, also confirm the stable feed was not touched: `desktop-latest/latest.json` must still serve the previous stable version. (The workflow guards this fail-closed, but it is cheap to verify and catastrophic to miss — the updater comparator is a plain semver "newer than", so a beta manifest on `desktop-latest` would auto-update every stable install onto the beta.)
 
 10. Final response.
 
 Report: channel, version, tag, changelog updated, commit hash, what was pushed, workflow URL, and the feed verification result.
+
+## Nightly builds
+
+A nightly is a **throwaway test build**, not a release: no version bump, no
+changelog, no commit, no GitHub release, and neither auto-update feed is
+touched (the `release` job is gated `if: channel != 'nightly'`, and the nightly
+Tauri overlay ships empty updater endpoints). It exists to hand someone a signed,
+notarized installer of whatever is on `main` right now. The only trace it
+leaves in the repo is a lightweight `desktop-nightly-<stamp>` tag on the built
+commit, which is what the next nightly's announcement compares against.
+
+What the workflow does differently:
+
+- Checks out `github.sha` (i.e. `main`'s HEAD at dispatch) instead of a tag.
+  Passing `git_tag` on this channel is a validation error.
+- Stamps the version itself, in the build jobs only, as
+  `<package.json base version>-nightly.<utcYYYYMMDDHHMMSS>.<run id>.<run attempt>`.
+  Nothing is committed, so the base stays whatever the last stable bumped it to —
+  a nightly therefore sorts *older* than the released stable of the same base by
+  semver. Harmless, because nightlies never reach a feed.
+- Builds as **"Cline Nightly"** with identifier `bot.cline.app.nightly`
+  (`src-tauri/tauri.nightly.conf.json`), so it installs alongside stable and beta.
+- Still signs/notarizes with the real credentials, so it **still requires the
+  PublishDesktop approval** — same wait, same reviewer.
+- Ends at artifacts: `desktop-universal` (macOS), `desktop-windows-x64`, and `desktop-linux-x64`,
+  30-day retention, on the run page.
+- Then the `announce-nightly` job tags the commit `desktop-nightly-<utcYYYYMMDDHHMMSS>`
+  (the stamp from the version) and posts to the Slack release channel: the
+  commits since the nearest `desktop-v*` or `desktop-nightly-*` tag (previous
+  nightly or last release, whichever is closer), scoped to
+  `apps/examples/desktop-app`, `sdk/packages`, and the publish workflow, with
+  PR links and a compare link. The list caps at 15 lines to stay under Slack's
+  3000-character block limit. Never rename `desktop-nightly-*` tags; the
+  stable release compare (`--exclude 'desktop-v*-*'`, `--match 'desktop-v*'`)
+  ignores them by prefix.
+
+Steps: confirm `main` is current (`git fetch origin main && git status -sb`), then
+
+```sh
+gh workflow run desktop-publish.yml --ref main -f channel=nightly -f confirm_publish=publish
+gh run list --workflow=desktop-publish.yml --limit=1 --json url,status,databaseId --jq '.[0]'
+```
+
+Then have the user approve the PublishDesktop gate (never approve it via `gh api`),
+and when the run finishes report the artifact names and the stamped version:
+
+```sh
+gh run view <run-id> --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|{name,conclusion}]}'
+gh api repos/cline/cline/actions/runs/<run-id>/artifacts --jq '.artifacts[].name'
+```
+
+No feed verification step applies — but if you want the reassurance, confirm
+`desktop-latest/latest.json` still serves the previous stable version.
+
 
 ## Publish secrets (one-time setup)
 

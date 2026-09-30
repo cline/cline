@@ -39,6 +39,7 @@ import {
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
+import { WebSearchProviderGuidance } from "./web-search-provider-guidance";
 
 export type CustomizationSection =
 	| "Rules"
@@ -376,6 +377,7 @@ async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse
 }
 
 export function CustomizationSectionView({
+	onOpenModelProviders,
 	catalogPrimitive,
 	chrome = "page",
 	marketplaceVariant = "full",
@@ -383,6 +385,7 @@ export function CustomizationSectionView({
 	section = "Rules",
 	showTabs = false,
 }: {
+	onOpenModelProviders?: () => void;
 	catalogPrimitive?: MarketplacePrimitiveType;
 	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
 	chrome?: "page" | "embedded";
@@ -866,15 +869,20 @@ export function CustomizationSectionView({
 	}, [skills, workflows, workspaceRoot]);
 
 	const { projectRules, globalRules } = useMemo(() => {
-		const normalizedRoot = normalizePath(workspaceRoot);
+		const normalizedRoot = normalizePath(workspaceRoot).replace(/\/+$/, "");
+		const workspaceRuleRoots = workspaceRoot
+			? [`${normalizedRoot}/.clinerules`, `${normalizedRoot}/.cline/rules`]
+			: [];
 		const project: RuleItem[] = [];
 		const global: RuleItem[] = [];
 		for (const rule of rules) {
 			const normalized = normalizePath(rule.path);
+			// Only the workspace's rule roots are local, not similarly named
+			// directories elsewhere beneath it. Equality also covers single-file rules.
 			if (
-				normalizedRoot &&
-				normalized.startsWith(`${normalizedRoot}/`) &&
-				normalized.includes("/.clinerules/")
+				workspaceRuleRoots.some(
+					(root) => normalized === root || normalized.startsWith(`${root}/`),
+				)
 			) {
 				project.push(rule);
 			} else {
@@ -1817,6 +1825,11 @@ export function CustomizationSectionView({
 												{tool.description?.trim() ||
 													"No description available."}
 											</p>
+											{tool.id === "web_search" && (
+												<WebSearchProviderGuidance
+													onOpenModelProviders={onOpenModelProviders}
+												/>
+											)}
 											{!!tool.headlessToolNames?.length &&
 												tool.headlessToolNames?.length > 1 && (
 													<p className="truncate text-xs font-mono text-muted-foreground">

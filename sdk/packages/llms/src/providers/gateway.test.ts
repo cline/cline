@@ -24,6 +24,7 @@ import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
 import {
 	createGateway,
+	DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
 	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
 	resolveGatewayRequestMaxTokens,
 } from "./gateway";
@@ -419,26 +420,62 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("uses the old default output cap when request max tokens are omitted", () => {
+	it("defaults to a fraction of the model's advertised output budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 			}),
+		).toBe(Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION));
+	});
+
+	it("never lowers the default below the flat cap for a model with a small output budget", () => {
+		// The catalog fraction (30% of 8,000 = 2,400) is smaller than the flat
+		// default, so the flat default applies here instead — the model's own
+		// output-budget cap (pushed separately below) is what then clamps the
+		// result down to what this model can actually emit (8,000), not the
+		// fraction shrinking the default further on top of that.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { maxOutputTokens: 8_000, contextWindow: 200_000 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(8_000);
+	});
+
+	it("falls back to the flat default when the model advertises no output budget", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
 		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+	});
+
+	it("honors an explicit caller default over the catalog fraction", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				defaultMaxOutputTokens: 16_000,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(16_000);
 	});
 
 	it("lifts the default output cap above an explicit reasoning budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
-				reasoningBudgetTokens: 50_000,
+				reasoningBudgetTokens: 70_000,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 				outputReserveTokens: 1_024,
 			}),
-		).toBe(51_024);
+		).toBe(71_024);
 
 		// Still clamped by the model's max output tokens.
 		expect(
@@ -523,10 +560,12 @@ describe("sdk-gateway", () => {
 		expect(estimatedTokens).toBeGreaterThan(4_000);
 	});
 
-	it("applies the old default output cap when the request omits max tokens", async () => {
+	it("defaults max tokens to a fraction of the model output budget", async () => {
 		const createProvider = vi.fn(() => ({
 			async *stream(request: { maxTokens?: number }) {
-				expect(request.maxTokens).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+				expect(request.maxTokens).toBe(
+					Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION),
+				);
 				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
 			},
 		}));

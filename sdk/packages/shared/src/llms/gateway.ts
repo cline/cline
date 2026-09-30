@@ -136,6 +136,7 @@ export interface GatewayProviderMetadata {
 	imageTransport?: "openrouter";
 	/** Provider-owned implementation used for the transcription operation. */
 	transcriptionTransport?:
+		| "openai-native"
 		| "openai-compatible"
 		| "vercel-ai-gateway"
 		| "elevenlabs";

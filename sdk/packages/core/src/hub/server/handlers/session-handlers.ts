@@ -203,6 +203,11 @@ function getCapabilityOwnerClientId(
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
+/** `null` is meaningful for prompt/title updates (it clears the field). */
+function asNullableString(value: unknown): string | null | undefined {
+	return typeof value === "string" || value === null ? value : undefined;
+}
+
 function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
@@ -1052,7 +1057,13 @@ export async function handleSessionUpdate(
 	const metadata = stripServerOwnedSessionMetadata(
 		asPlainRecord(envelope.payload?.metadata),
 	);
-	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
+	const prompt = asNullableString(envelope.payload?.prompt);
+	const title = asNullableString(envelope.payload?.title);
+	const updated = await ctx.sessionHost.updateSession(sessionId, {
+		metadata,
+		...(prompt !== undefined ? { prompt } : {}),
+		...(title !== undefined ? { title } : {}),
+	});
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
 		readCoreSessionSnapshot(ctx, sessionId),

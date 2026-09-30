@@ -905,6 +905,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.v0.dev/v1" },
 	},
 	{
+		id: "aiand",
+		name: "ai&",
+		description: "Sovereign inference for open-weight models served from Japan",
+		family: "openai-compatible",
+		defaultModelId: "zai-org/glm-5.3",
+		apiKeyEnv: ["AIAND_API_KEY"],
+		defaults: { baseUrl: "https://api.aiand.com/v1" },
+	},
+	{
 		id: "aihubmix",
 		name: "AI Hub Mix",
 		description: "AI model aggregator",

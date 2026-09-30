@@ -12,6 +12,8 @@ export type DesktopThread = {
 	id: string;
 	environmentId: string;
 	historySession?: SessionHistoryItem;
+	/** Live runtime session bound to the thread once a prompt has started it. */
+	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
 };
@@ -59,7 +61,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			sessionId: string;
 			metadata: SessionMetadata;
 	  }
-	| { type: "thread-started"; threadId: string };
+	| { type: "thread-started"; threadId: string; sessionId?: string };
 
 function areLocationsEqual<SettingsSection extends string>(
 	a: DesktopAppLocation<SettingsSection>,
@@ -234,7 +236,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 						(thread) =>
 							thread.id === action.deletedThreadId ||
 							thread.id === historyThreadId ||
-							(thread.historySession?.sessionId === action.deletedSessionId &&
+							((thread.historySession?.sessionId === action.deletedSessionId ||
+								thread.sessionId === action.deletedSessionId) &&
 								thread.environmentId === (action.environmentId ?? "local")),
 					)
 					.map((thread) => thread.id),
@@ -317,8 +320,15 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				...state,
 				threads: state.threads.map((thread) =>
-					thread.id === action.threadId && !thread.hasStarted
-						? { ...thread, hasStarted: true }
+					thread.id === action.threadId &&
+					(!thread.hasStarted ||
+						(action.sessionId !== undefined &&
+							thread.sessionId !== action.sessionId))
+						? {
+								...thread,
+								hasStarted: true,
+								sessionId: action.sessionId ?? thread.sessionId,
+							}
 						: thread,
 				),
 			};

@@ -8,7 +8,7 @@ import {
 	type SessionCompactionState,
 	toProviderConfig,
 } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { MessageWithMetadata } from "@cline/shared";
 import type { Config } from "../../utils/types";
 
 const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000;
@@ -53,11 +53,11 @@ export async function compactInteractiveMessages(input: {
 	config: Config;
 	providerSettingsManager: ProviderSettingsManager;
 	sessionId: string;
-	messages: Message[];
+	messages: MessageWithMetadata[];
 	abortSignal?: AbortSignal;
 }): Promise<{
 	compacted: boolean;
-	canonicalMessages: Message[];
+	canonicalMessages: MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
 }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
@@ -97,13 +97,16 @@ export async function compactInteractiveMessages(input: {
 	// Manual compaction intentionally summarizes the full canonical transcript
 	// instead of reusing a prior sidecar summary, which avoids summary-of-summary
 	// drift across repeated `/compact` calls.
+	const conversationMessages = input.messages.filter(
+		(message) => message.metadata?.displayOnly !== true,
+	);
 	const result = await compact({
 		agentId: "cli",
 		conversationId: input.sessionId,
 		parentAgentId: null,
 		iteration: 0,
-		messages: input.messages,
-		apiMessages: input.messages,
+		messages: conversationMessages,
+		apiMessages: conversationMessages,
 		abortSignal: input.abortSignal ?? new AbortController().signal,
 		systemPrompt: "",
 		tools: [],

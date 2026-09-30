@@ -20,11 +20,15 @@ const PATH_MARKER_START = "__CLINE_SIDECAR_PATH_START__";
 const PATH_MARKER_END = "__CLINE_SIDECAR_PATH_END__";
 
 /**
- * Kept well under the Tauri shell's 5s endpoint-readiness poll: this
- * resolution overlaps sidecar startup but is awaited before the server
- * starts, so a pathological shell profile must not eat the whole window.
+ * Bounded so a pathological shell profile cannot stall sidecar startup, but
+ * generous enough for slow real-world profiles — nvm initialisation on older
+ * machines regularly needs more than 2s, and a failed probe cascades into
+ * missing runtimes for everything the sidecar spawns (cline/cline#14129).
+ * Worst case both attempts together take 1.5x this budget (see
+ * ensureLoginShellPath), comfortably inside the Tauri shell's 30s
+ * endpoint-readiness wait (apps/examples/desktop-app/src-tauri/src/main.rs).
  */
-const SHELL_TIMEOUT_MS = 2_000;
+const SHELL_TIMEOUT_MS = 5_000;
 
 /**
  * The command every shell is asked to run. $PATH expansion happens inside

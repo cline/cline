@@ -5,6 +5,8 @@ export type ProcessContext = {
 	workspaceRoot: string;
 	cwd: string;
 	homeDir?: string;
+	/** Where the sidecar creates task worktrees (`<root>/<id>/<repo>`). */
+	taskWorktreeRoot?: string;
 	platform?: string;
 	appVersion?: string;
 	activeEnvironmentId?: string;
@@ -131,6 +133,10 @@ export type ChatSessionCommandResponse = {
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	/** A plugin slash command ran in the sidecar and no turn was started. */
+	commandHandled?: boolean;
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
 	promptsInQueue?: PromptInQueue[];
 	prompt?: PromptInQueue;
 	updated?: boolean;

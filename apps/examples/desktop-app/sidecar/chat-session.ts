@@ -10,6 +10,7 @@ import {
 	createUserInstructionConfigService,
 	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
+	isSessionNotFoundError,
 	isSkillsToolAvailable,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
@@ -39,6 +40,10 @@ import {
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
 import {
+	getCloudSessionManager,
+	isCloudOuterSessionId,
+} from "./cloud-sessions";
+import {
 	cancelSidecarMistakeQuestions,
 	emitChunk,
 	findSessionRuntimeBinding,
@@ -48,8 +53,11 @@ import {
 	requestSidecarAskQuestion,
 	sendEvent,
 } from "./context";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { getDesktopProviderSettingsManager } from "./provider-settings";
+import { runPluginSlashCommand } from "./plugin-commands";
+import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -354,19 +362,6 @@ function readSessionMetadata(sessionId: string): JsonRecord | undefined {
 		: undefined;
 }
 
-function derivePromptFromMessages(messages: unknown[]): string {
-	for (const msg of messages) {
-		if (!msg || typeof msg !== "object") continue;
-		const m = msg as JsonRecord;
-		if (m.role !== "user") continue;
-		if (typeof m.content === "string") {
-			const line = m.content.trim().split("\n")[0]?.trim();
-			if (line) return line.slice(0, 200);
-		}
-	}
-	return "";
-}
-
 // ---------------------------------------------------------------------------
 // Live session factory
 // ---------------------------------------------------------------------------
@@ -635,6 +630,9 @@ function buildCoreSessionConfig(
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
 		checkpoint: { enabled: true },
+		// Core auto-compaction is opt-in; without this the 90% trigger never
+		// runs and long desktop sessions overflow the context window.
+		compaction: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
@@ -985,7 +983,14 @@ async function handleStart(
 			? config.initialMessages
 			: requestedSessionId
 				? binding.kind === "ssh"
-					? await manager.readMessages(requestedSessionId)
+					? await manager
+							.readMessages(requestedSessionId)
+							.catch((error: unknown) => {
+								// The desktop supplies an ID before a new remote session exists.
+								// Only this startup read may treat missing history as empty.
+								if (isSessionNotFoundError(error)) return undefined;
+								throw error;
+							})
 					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
@@ -1308,18 +1313,43 @@ async function handleSend(
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
+	const workspacePath =
+		readWorkspacePath(session?.config ?? request.config) ??
+		ctx.localWorkspaceRoot;
+	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
+	// as in the CLI: the handler's reply goes to the webview as a toast and
+	// only its `submitPrompt` (if any) reaches the model.
+	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	const pluginCommand =
+		commandName &&
+		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
+		binding.kind !== "ssh"
+			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
+			: undefined;
+	if (pluginCommand) {
+		if (pluginCommand.reply) {
+			sendEvent(ctx, "chat_command_output", {
+				sessionId,
+				command: commandName,
+				text: pluginCommand.reply,
+			});
+		}
+		if (!pluginCommand.submitPrompt) {
+			return { sessionId, ok: true, commandHandled: true };
+		}
+	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
 		binding.kind === "ssh"
 			? prompt
-			: await resolveDesktopRuntimePrompt(
+			: (pluginCommand?.submitPrompt ??
+				(await resolveDesktopRuntimePrompt(
 					ctx,
-					readWorkspacePath(session?.config ?? request.config) ??
-						ctx.localWorkspaceRoot,
+					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				);
+				)));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -2073,6 +2103,131 @@ export async function handleChatSessionCommand(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
+	const executionTarget = String(request.config?.executionTarget ?? "").trim();
+	const sessionId = request.sessionId?.trim();
+	const existingCloudSession =
+		sessionId &&
+		(isCloudOuterSessionId(sessionId) ||
+			ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud");
+	if (executionTarget === "cloud" || existingCloudSession) {
+		ctx = getEnvironmentContext(ctx, "local");
+		const cloud = getCloudSessionManager(ctx);
+		// The approval preference lives only client-side; keep the live session
+		// current so a lazily created inner session inherits the user's choice.
+		const requestedAutoApprove = request.config?.autoApproveTools;
+		if (typeof requestedAutoApprove === "boolean" && sessionId) {
+			const live = ctx.liveSessions.get(sessionId);
+			if (live) {
+				live.config.autoApproveTools = requestedAutoApprove;
+			}
+		}
+		switch (request.action) {
+			case "start": {
+				const requestedSessionId = String(
+					request.config?.sessionId ?? request.config?.session_id ?? "",
+				).trim();
+				// Server ids attach even with a cold registry; client-planned ids create.
+				if (requestedSessionId && cloud.isCloudSession(requestedSessionId)) {
+					return await cloud.attach(requestedSessionId);
+				}
+				// Gate new sessions only; existing cloud sessions must remain usable.
+				if (!isCloudAgentsEnabled()) {
+					throw new Error(
+						"Cloud sessions are not enabled for this account yet.",
+					);
+				}
+				const repoUrl = String(request.config?.repoUrl ?? "").trim();
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				if (!repoUrl || !modelId) {
+					throw new Error("repoUrl and model are required for a cloud session");
+				}
+				const branch = String(request.config?.branch ?? "").trim();
+				const initialPrompt = request.prompt?.trim();
+				const reasoningEffort = readReasoningEffort(
+					request.config?.reasoningEffort,
+				);
+				return await cloud.create({
+					...(requestedSessionId ? { requestId: requestedSessionId } : {}),
+					repoUrl,
+					modelId,
+					...(initialPrompt ? { initialPrompt } : {}),
+					...(branch ? { branch } : {}),
+					...(typeof request.config?.thinking === "boolean"
+						? { thinking: request.config.thinking }
+						: {}),
+					...(reasoningEffort ? { reasoningEffort } : {}),
+					...(typeof requestedAutoApprove === "boolean"
+						? { autoApproveTools: requestedAutoApprove }
+						: {}),
+				});
+			}
+			case "attach":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.attach(sessionId);
+			case "send": {
+				if (!sessionId) throw new Error("sessionId is required");
+				if (request.attachments?.userFiles?.length) {
+					throw new Error(
+						"File attachments are not supported in cloud sessions",
+					);
+				}
+				const prompt = request.prompt?.trim() ?? "";
+				if (
+					!prompt &&
+					!request.attachments?.userImages?.some((image) => image.trim())
+				) {
+					throw new Error("prompt or image is required");
+				}
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				return await cloud.send(
+					sessionId,
+					prompt,
+					request.delivery,
+					modelId || undefined,
+					request.attachments?.userImages,
+				);
+			}
+			case "stop":
+			case "abort":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.abort(sessionId);
+			case "pending_prompts":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.pendingPrompts(sessionId);
+			case "steer_prompt": {
+				const promptId = request.promptId?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				return await cloud.updatePendingPrompt(sessionId, promptId, {
+					delivery: "steer",
+				});
+			}
+			case "update_pending_prompt": {
+				const promptId = request.promptId?.trim();
+				const prompt = request.prompt?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				if (!prompt) throw new Error("prompt is required");
+				return await cloud.updatePendingPrompt(sessionId, promptId, {
+					prompt,
+				});
+			}
+			case "remove_pending_prompt": {
+				const promptId = request.promptId?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				return await cloud.removePendingPrompt(sessionId, promptId);
+			}
+			default:
+				throw new Error(
+					`${request.action} is not supported for cloud sessions yet`,
+				);
+		}
+	}
 	const handler = ACTION_HANDLERS[request.action];
 	if (!handler) throw new Error("unsupported action");
 	const explicitEnvironment = readEnvironmentId(request.config);
