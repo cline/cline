@@ -1,3 +1,5 @@
+import { redactUrlsInText } from "@/utils/redact-url"
+
 /**
  * Simple Logger utility for the extension's backend code.
  */
@@ -77,8 +79,10 @@ export class Logger {
 	 * deliberately narrow because these lines end up in the output channel and
 	 * in bug reports that users paste publicly: only error messages (never
 	 * stacks, and never other properties of an error), numbers and booleans are
-	 * kept. Strings, objects and everything else are dropped, since they routinely
-	 * carry URLs with OAuth codes, file or terminal contents, and settings.
+	 * kept, and any URL inside an error message is reduced to its origin because
+	 * messages often embed request or config URLs. Strings, objects and
+	 * everything else are dropped, since they routinely carry URLs with OAuth
+	 * codes, file or terminal contents, and settings.
 	 * Callers that need a string in production logs must interpolate it into the
 	 * message themselves, redacted as appropriate.
 	 */
@@ -108,6 +112,11 @@ export class Logger {
 		if (typeof arg === "number" || typeof arg === "boolean") {
 			return String(arg)
 		}
+		const message = Logger.#errorMessageOf(arg)
+		return message === undefined ? undefined : redactUrlsInText(message)
+	}
+
+	static #errorMessageOf(arg: unknown): string | undefined {
 		if (arg instanceof Error) {
 			return Logger.#describeError(arg)
 		}

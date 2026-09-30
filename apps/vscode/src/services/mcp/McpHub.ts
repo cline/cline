@@ -1870,7 +1870,8 @@ export class McpHub {
 
 				const urlValidation = z.string().url().safeParse(expandedConfig.url)
 				if (!urlValidation.success) {
-					throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+					// Echo the URL as entered: the expanded one can contain secrets from the environment.
+					throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
 				}
 
 				const parsedConfig = ServerConfigSchema.parse(expandedConfig)
