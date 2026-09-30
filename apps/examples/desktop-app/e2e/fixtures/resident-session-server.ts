@@ -153,7 +153,9 @@ const control = Bun.serve({
 			if (path === "/requests") return Response.json(requests);
 			return new Response("Unknown fixture command", { status: 404 });
 		} catch (error) {
-			return new Response(String(error), { status: 500 });
+			// Keep error details (which may include stack traces) server-side.
+			console.error("Fixture control command failed:", error);
+			return new Response("Fixture control command failed", { status: 500 });
 		}
 	},
 });
