@@ -721,10 +721,13 @@ describe("cloud handoff transaction", () => {
 	}
 
 	it.each([
-		"idle",
-		"busy",
-		"expanding",
-	])("preparation consumes approval once and locks sibling sessions (%s)", async (state) => {
+		["idle", "/workspace/project/subdirectory"],
+		["busy", "/workspace/project/subdirectory"],
+		["expanding", "/workspace/project/subdirectory"],
+		["idle", "/workspace"],
+		["busy", "/workspace"],
+		["expanding", "/workspace"],
+	])("preparation consumes approval once and locks overlapping sessions (%s, %s)", async (state, cwd) => {
 		const busy = state === "busy";
 		const f = createHandoffFixture();
 		vi.mocked(preflightCloudHandoffGit).mockRejectedValue(
@@ -769,7 +772,7 @@ describe("cloud handoff transaction", () => {
 				...source,
 				busy,
 				status: busy ? "running" : "idle",
-				config: { ...source.config, cwd: "/workspace/project/subdirectory" },
+				config: { ...source.config, cwd },
 			});
 			if (busy) {
 				await expect(
@@ -801,6 +804,12 @@ describe("cloud handoff transaction", () => {
 				await vi.waitFor(() => expect(releaseExpansion).toBeDefined());
 			}
 			apply.mockImplementation(async () => {
+				await expect(
+					handleChatSessionCommand(f.ctx, {
+						action: "start",
+						config: { cwd },
+					}),
+				).rejects.toThrow("workspace");
 				if (sendDuringExpansion) {
 					const rejected =
 						expect(sendDuringExpansion).rejects.toThrow("workspace");
@@ -811,7 +820,7 @@ describe("cloud handoff transaction", () => {
 					handleChatSessionCommand(f.ctx, {
 						action: "send",
 						sessionId: "sibling",
-						config: { cwd: "/workspace/project/subdirectory" },
+						config: { cwd },
 						prompt: "edit this",
 					}),
 				).rejects.toThrow("workspace");
