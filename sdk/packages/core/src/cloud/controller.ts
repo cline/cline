@@ -1379,17 +1379,8 @@ export class CloudSessionController {
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
 		const accept = () => {
-			if (accepted) return;
+			if (accepted || isCancelled()) return;
 			accepted = true;
-			try {
-				lifecycle?.onAccepted?.();
-			} catch (error) {
-				this.options.logger?.error?.(
-					"Cloud prompt acceptance callback failed",
-					{ error },
-				);
-			}
-			if (isCancelled()) return;
 			this.publish({
 				type: "prompt_accepted",
 				sessionId: outerSessionId,
@@ -1428,6 +1419,14 @@ export class CloudSessionController {
 					},
 				},
 			);
+			try {
+				lifecycle?.onAccepted?.();
+			} catch (error) {
+				this.options.logger?.error?.(
+					"Cloud prompt acceptance callback failed",
+					{ error },
+				);
+			}
 			accept();
 			const queued =
 				delivery === "queue" ||

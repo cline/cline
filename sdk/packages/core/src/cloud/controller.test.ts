@@ -830,6 +830,7 @@ describe("CloudSessionController neutral host contract", () => {
 		f.emit("run.started", { requestId: "other-request", clientId: "viewer" });
 		expect(accepted()).toEqual([]);
 		f.emit("run.started", { requestId: "input-request", clientId: "viewer" });
+		expect(lifecycle.onAccepted).not.toHaveBeenCalled();
 		expect(accepted()).toEqual([
 			{
 				type: "prompt_accepted",
