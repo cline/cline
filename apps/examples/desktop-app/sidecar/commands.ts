@@ -92,6 +92,7 @@ import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-acc
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
+import { isCloudHandoffInProgress } from "./cloud-handoff";
 import {
 	clearCloudHandoffFollowUp,
 	readCloudHandoffFollowUp,
@@ -2486,8 +2487,20 @@ export async function handleCommand(
 	) {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
-		if (command === "get_cloud_handoff_follow_up")
-			return readCloudHandoffFollowUp(sessionId);
+		const saved = readCloudHandoffFollowUp(sessionId);
+		if (
+			saved &&
+			isCloudHandoffInProgress(
+				getEnvironmentContext(ctx, "local"),
+				saved.sourceSessionId,
+			)
+		) {
+			if (command === "get_cloud_handoff_follow_up") return null;
+			throw new Error(
+				"Wait for the cloud handoff to finish before changing its follow-up.",
+			);
+		}
+		if (command === "get_cloud_handoff_follow_up") return saved;
 		return updateCloudHandoffFollowUp(
 			sessionId,
 			args?.expected as Parameters<typeof updateCloudHandoffFollowUp>[1],

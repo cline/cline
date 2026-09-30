@@ -19,7 +19,11 @@ import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
-import { saveCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
+import {
+	readCloudHandoffFollowUp,
+	saveCloudHandoffFollowUp,
+	sendWithCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
 import {
 	applyHandoffGit,
 	type HandoffGitPlan,
@@ -877,6 +881,13 @@ async function handleHandoffOnce(
 	const handedOffAt =
 		readCloudHandoffMetadata(latestMetadata)?.handedOffAt ??
 		new Date().toISOString();
+	if (nextCommand) {
+		saveCloudHandoffFollowUp(outerSessionId, {
+			sourceSessionId,
+			command: nextCommand,
+			userImages: request.attachments?.userImages ?? [],
+		});
+	}
 	await updateHandoffMetadataOrThrow(
 		manager,
 		sourceSessionId,
@@ -895,32 +906,32 @@ async function handleHandoffOnce(
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	if (nextCommand) {
 		try {
-			await cloud.send(
+			await sendWithCloudHandoffFollowUp(
 				outerSessionId,
 				nextCommand,
-				"queue",
-				prepared.modelId,
-				request.attachments?.userImages,
+				request.attachments?.userImages ?? [],
+				(lifecycle) =>
+					cloud.send(
+						outerSessionId,
+						nextCommand,
+						"queue",
+						prepared.modelId,
+						request.attachments?.userImages,
+						lifecycle,
+					),
 			);
 		} catch (error) {
 			// An unconfirmed outcome must never read as "not queued": inviting
 			// a resubmission of a durably queued prompt executes it twice.
-			if (error instanceof CloudQueueUnconfirmedError) {
+			if (
+				error instanceof CloudQueueUnconfirmedError ||
+				readCloudHandoffFollowUp(outerSessionId)?.unconfirmed
+			) {
 				warningKind = "unconfirmed";
 				warning = `The handoff completed, but Cline could not confirm whether the follow-up command was queued. Check the cloud session before resending it.`;
 			} else {
 				warningKind = "unqueued";
 				warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
-				try {
-					saveCloudHandoffFollowUp(outerSessionId, {
-						sourceSessionId,
-						command: nextCommand,
-						userImages: request.attachments?.userImages ?? [],
-					});
-				} catch {
-					warning +=
-						" The unsent follow-up could not be saved for restart recovery. Keep this window open until you recover it.";
-				}
 			}
 		}
 	}

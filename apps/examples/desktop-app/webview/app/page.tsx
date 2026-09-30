@@ -60,10 +60,7 @@ import {
 } from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import {
-	serializeAttachments,
-	toChatMessageImages,
-} from "@/hooks/chat-session/attachments";
+import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type {
 	ProcessContext,
@@ -106,14 +103,10 @@ import {
 	prepareHandoffWithGit,
 } from "@/lib/cloud-handoff-preparation";
 import {
-	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
 	hasLivePendingHandoff,
-	matchingUserPromptCount,
-	type PendingHandoffPrompt,
-	pendingHandoffPromptCaughtUp,
 	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
@@ -2365,7 +2358,6 @@ function ChatThreadPane({
 			attachments: SerializedAttachments,
 			sourceSessionId: string,
 			handoffAttemptId: string,
-			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
 				type: "progress",
@@ -2394,7 +2386,6 @@ function ChatThreadPane({
 					result,
 					nextCommand,
 					sourceAttachments,
-					pendingPrompt,
 					isThreadActive,
 				});
 			} catch (error) {
@@ -2482,31 +2473,12 @@ function ChatThreadPane({
 				sourceSessionId,
 				threadId,
 			);
-			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
 				const attachments = await serializeAttachments(sourceAttachments);
-				const pendingPrompt: PendingHandoffPrompt | undefined = nextCommand
-					? {
-							content: nextCommand,
-							submittedAt,
-							baselineOccurrences: matchingUserPromptCount(
-								messages,
-								nextCommand,
-							),
-							baselineTailMessageId: pendingHandoffRecovery
-								? undefined
-								: messages.at(-1)?.id,
-							images: toChatMessageImages(
-								attachments.userImages,
-								`handoff_prompt_${sourceSessionId}`,
-							),
-						}
-					: undefined;
 				onHandoffUiAction({
 					type: "start",
 					sourceSessionId,
-					pendingPrompt,
 				});
 				const preflight = await prepareHandoffWithGit({
 					inspect: () =>
@@ -2558,7 +2530,6 @@ function ChatThreadPane({
 					attachments,
 					sourceSessionId,
 					handoffAttemptId,
-					pendingPrompt,
 				);
 			} catch (error) {
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
@@ -2581,9 +2552,7 @@ function ChatThreadPane({
 			historySession?.sessionId,
 			isCloudSession,
 			isThreadActive,
-			messages,
 			pendingAttachments,
-			pendingHandoffRecovery,
 			promptsInQueue.length,
 			runHandoff,
 			sessionId,
@@ -3151,17 +3120,7 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi
-		? []
-		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
-	useEffect(() => {
-		if (sourceSessionId && pendingHandoffPromptCaughtUp(messages, handoffUi)) {
-			onHandoffUiAction({
-				type: "prompt_reconciled",
-				sourceSessionId,
-			});
-		}
-	}, [handoffUi, messages, onHandoffUiAction, sourceSessionId]);
+	const displayedMessages = hideDeletedSessionUi ? [] : messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)

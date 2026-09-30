@@ -124,7 +124,6 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 				sourceSessionId: SOURCE,
 				receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 				externalPresentation: false,
-				pendingPrompt: undefined,
 			},
 		]);
 		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
@@ -202,14 +201,9 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 		expect(h.toast).not.toHaveBeenCalled();
 	});
 
-	it("(b) unqueued warning: prompt_reconciled + open with draft and attachments + single warning toast quoting the command", async () => {
+	it("(b) unqueued warning: open with draft and attachments + single warning toast quoting the command", async () => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
-		const pendingPrompt = {
-			content: "fix the tests",
-			submittedAt: 1,
-			baselineOccurrences: 0,
-		};
 		await h.lifecycle.onRpcResolved(SOURCE, {
 			result: makeResult({
 				warning: "The follow-up command could not be queued.",
@@ -217,7 +211,6 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 			}),
 			nextCommand: "fix the tests",
 			sourceAttachments: [attachment],
-			pendingPrompt,
 			isThreadActive: () => true,
 		});
 		expect(h.dispatched).toEqual([
@@ -226,12 +219,7 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 				sourceSessionId: SOURCE,
 				receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 				externalPresentation: false,
-				pendingPrompt,
-				retryDraft: "fix the tests",
-				retryAttachments: [attachment],
 			},
-			{ type: "prompt_reconciled", sourceSessionId: TARGET },
-			{ type: "retry_delivered", sourceSessionId: SOURCE },
 		]);
 		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
 			silent: true,
@@ -243,8 +231,6 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 			description:
 				'The follow-up command could not be queued. Your command was kept: "fix the tests" — send it from the cloud session.',
 		});
-		// The optimistic bubble is cleared: the target_prompt entry seeded by
-		// the complete dispatch is removed by prompt_reconciled.
 		expect(h.getState()[TARGET]).toBeUndefined();
 	});
 
@@ -709,9 +695,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		await originalCompletion;
 
 		expect(
-			h.dispatched.filter(
-				(action) => action.type === "progress" && action.phase === "complete",
-			),
+			h.dispatched.filter((action) => action.type === "complete"),
 		).toHaveLength(0);
 		expect(h.dispatched.at(-1)).toMatchObject({
 			type: "progress",
@@ -1088,6 +1072,22 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 });
 
 describe("cloud handoff lifecycle: warning toast claim", () => {
+	it.each([
+		"sessionId",
+		"dashboardUrl",
+	] as const)("ignores a completion missing %s without replacing recovery", async (field) => {
+		const h = makeHarness();
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			error: new Error("connection lost"),
+			nextCommand: "continue",
+			sourceAttachments: [makeAttachment()],
+		});
+		const recovery = h.getState();
+		await h.lifecycle.onEvent(completeEvent({ [field]: "" }));
+		expect(h.getState()).toBe(recovery);
+		expect(h.openSession).not.toHaveBeenCalled();
+	});
+
 	it("(f) duplicate completion events surface exactly one warning toast", () => {
 		const h = makeHarness();
 		const event = completeEvent({
@@ -1205,8 +1205,6 @@ describe("cloud handoff lifecycle: event handling", () => {
 				phase: "seeding",
 				message: "Transferring the conversation...",
 				dashboardUrl: DASHBOARD_URL,
-				sessionId: undefined,
-				destination: undefined,
 			},
 		]);
 		expect(h.toast).not.toHaveBeenCalled();

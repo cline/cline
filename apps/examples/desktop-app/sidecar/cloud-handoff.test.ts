@@ -15,6 +15,7 @@ import {
 	shouldCleanupFailedHandoffVerification,
 	updateHandoffMetadataOrThrow,
 } from "./cloud-handoff";
+import * as followUpRecovery from "./cloud-handoff-follow-up";
 import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import * as gitPreparation from "./cloud-handoff-git";
 import {
@@ -669,11 +670,13 @@ describe("cloud handoff transaction", () => {
 		} as unknown as SidecarContext;
 
 		const verifyHandoffTranscript = vi.fn(async () => undefined);
-		const cloudSend = vi.fn(async () => ({
-			sessionId: "ses-cloud",
-			ok: true as const,
-			queued: true,
-		}));
+		const cloudSend = vi.fn(
+			async (..._args: Parameters<CloudSessionManager["send"]>) => ({
+				sessionId: "ses-cloud",
+				ok: true as const,
+				queued: true,
+			}),
+		);
 		const create = vi.fn(async (input: CreateCloudSessionInput) => {
 			if (created) await input.handoff?.onCreating?.();
 			await input.handoff?.onOuterSessionCreated?.("ses-cloud", { created });
@@ -1378,6 +1381,10 @@ describe("cloud handoff transaction", () => {
 			"queue",
 			modelId,
 			undefined,
+			expect.objectContaining({
+				beforeDispatch: expect.any(Function),
+				onAccepted: expect.any(Function),
+			}),
 		);
 		const complete = events.find(
 			(event) =>
@@ -1465,14 +1472,106 @@ describe("cloud handoff transaction", () => {
 		expect(fixture.cloudSend).not.toHaveBeenCalled();
 	});
 
-	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{
+	it("persists the initial command and images before completion and retains them until acknowledgement", async () => {
+		const f = createHandoffFixture();
+		const userImages = ["data:image/png;base64,aW1hZ2U="];
+		const update = localSessionManager(f.ctx).update as ReturnType<
+			typeof vi.fn<
+				(
+					id: string,
+					input: { metadata: Record<string, unknown> },
+				) => Promise<{ updated: boolean }>
+			>
+		>;
+		const originalUpdate = update.getMockImplementation();
+		if (!originalUpdate) throw new Error("missing fixture update");
+		update.mockImplementation(async (...args) => {
+			if (readCloudHandoffMetadata(args[1].metadata)?.status === "complete") {
+				expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
+					command: "continue in cloud",
+					userImages,
+				});
+			}
+			return originalUpdate(...args);
+		});
+		f.cloudSend.mockImplementationOnce(async (...args) => {
+			expect(readCloudHandoffMetadata(f.getPersistedMetadata())?.status).toBe(
+				"complete",
+			);
+			expect(
+				readCloudHandoffFollowUp("ses-cloud")?.unconfirmed,
+			).toBeUndefined();
+			expect(
+				await handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
+					sessionId: "ses-cloud",
+				}),
+			).toBeNull();
+			for (const command of [
+				"restore_cloud_handoff_follow_up",
+				"dismiss_cloud_handoff_follow_up",
+			]) {
+				await expect(
+					handleCommand(f.ctx, command, {
+						sessionId: "ses-cloud",
+						expected: readCloudHandoffFollowUp("ses-cloud"),
+					}),
+				).rejects.toThrow("Wait for the cloud handoff to finish");
+			}
+			args[5]?.beforeDispatch?.();
+			expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
+				userImages,
+				unconfirmed: true,
+			});
+			args[5]?.onAccepted?.();
+			expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
+			return { sessionId: "ses-cloud", ok: true, queued: true };
+		});
+		const result = await handleChatSessionCommand(f.ctx, {
+			...f.request,
+			nextCommand: "continue in cloud",
+			attachments: { userImages, userFiles: [] },
+		});
+		expect(result).not.toHaveProperty("warning");
+		expect(f.cloudSend).toHaveBeenCalledOnce();
+	});
+
+	it("does not complete or send when the initial follow-up cannot be saved", async () => {
+		const f = createHandoffFixture();
+		const save = vi
+			.spyOn(followUpRecovery, "saveCloudHandoffFollowUp")
+			.mockImplementation(() => {
+				throw new Error("disk full");
+			});
+		try {
+			await expect(
+				handleChatSessionCommand(f.ctx, {
+					...f.request,
+					nextCommand: "continue in cloud",
+				}),
+			).rejects.toThrow("disk full");
+			expect(readCloudHandoffMetadata(f.getPersistedMetadata())?.status).toBe(
+				"pending",
+			);
+			expect(f.cloudSend).not.toHaveBeenCalled();
+		} finally {
+			save.mockRestore();
+		}
+	});
+
+	async function runHandoffWithFailingFollowUp(
+		sendError: Error,
+		dispatched = false,
+	): Promise<{
 		cloudSend: ReturnType<typeof vi.fn>;
 		result: { sessionId: string; warning?: string; warningKind?: string };
 		completeEvent: Record<string, unknown> | undefined;
 	}> {
 		const { ctx, sourceSessionId, modelId, headSha, events, cloudSend } =
 			createHandoffFixture();
-		cloudSend.mockRejectedValueOnce(sendError);
+		cloudSend.mockImplementationOnce(async (...args) => {
+			if (dispatched) args[5]?.beforeDispatch?.();
+			throw sendError;
+		});
 
 		const result = (await handleChatSessionCommand(ctx, {
 			action: "handoff",
@@ -1497,9 +1596,12 @@ describe("cloud handoff transaction", () => {
 		return { cloudSend, result, completeEvent };
 	}
 
-	it("flags an unconfirmed follow-up queue outcome without claiming it was unqueued", async () => {
+	it.each([
+		new CloudQueueUnconfirmedError(),
+		new Error("cancelled after dispatch"),
+	])("retains an uncertain initial follow-up without offering resend (%s)", async (error) => {
 		const { cloudSend, result, completeEvent } =
-			await runHandoffWithFailingFollowUp(new CloudQueueUnconfirmedError());
+			await runHandoffWithFailingFollowUp(error, true);
 
 		expect(cloudSend).toHaveBeenCalledOnce();
 		expect(result.sessionId).toBe("ses-cloud");
@@ -1520,7 +1622,11 @@ describe("cloud handoff transaction", () => {
 		});
 		// ...but never prefill an unconfirmed command for resending.
 		expect(completeEvent).not.toHaveProperty("undeliveredCommand");
-		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
+		expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
+			command: "continue in cloud",
+			userImages: ["data:image/png;base64,aW1hZ2U="],
+			unconfirmed: true,
+		});
 	});
 
 	it("flags a definitively unqueued follow-up with its failure reason", async () => {
