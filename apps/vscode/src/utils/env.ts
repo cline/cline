@@ -1,8 +1,8 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
-import { redactUrlForLog } from "@shared/redact-url"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
+import { redactUrlForLog } from "./redact-url"
 
 /**
  * Writes text to the system clipboard
