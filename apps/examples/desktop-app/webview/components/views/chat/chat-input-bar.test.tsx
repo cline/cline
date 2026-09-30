@@ -20,7 +20,6 @@ import {
 
 const {
 	toastMock,
-	loadCloudModelCatalogMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
@@ -29,7 +28,6 @@ const {
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
 	toastMock: vi.fn(),
-	loadCloudModelCatalogMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	speechInputMockState: {
@@ -89,11 +87,6 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 	};
 });
 
-vi.mock("@/lib/cloud-model-catalog", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@/lib/cloud-model-catalog")>()),
-	loadCloudModelCatalog: loadCloudModelCatalogMock,
-}));
-
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
@@ -129,11 +122,6 @@ beforeEach(() => {
 		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
-	loadCloudModelCatalogMock
-		.mockReset()
-		.mockResolvedValue([
-			{ id: "test-model", name: "test-model", catalogId: "cline" },
-		]);
 	toastMock.mockReset();
 	speechInputMockState.current = null;
 	startStreamingTranscriptionMock.mockReset().mockResolvedValue({
@@ -208,7 +196,6 @@ async function renderVoiceComposer({
 	status = "idle",
 	readOnly = false,
 	executionTarget,
-	repoUrl,
 	onAttachFiles = vi.fn(),
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
@@ -222,7 +209,6 @@ async function renderVoiceComposer({
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
-	repoUrl?: string;
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
 	await act(async () => {
@@ -231,7 +217,6 @@ async function renderVoiceComposer({
 				<ChatInputBar
 					readOnly={readOnly}
 					executionTarget={executionTarget}
-					repoUrl={repoUrl}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
@@ -269,49 +254,6 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
-	it("blocks both button and Enter submission while a cloud catalog awaits a model", async () => {
-		loadCloudModelCatalogMock.mockResolvedValue([
-			{ id: "test-model", name: "Paid", catalogId: "cline" },
-			{ id: "cline-cloud/free", name: "Free model", catalogId: "cline-cloud" },
-		]);
-		const onSend = vi.fn();
-		const props = {
-			executionTarget: "cloud" as const,
-			repoUrl: "https://github.com/cline/cline",
-			prompt: "Run this",
-			onSend,
-		};
-		await renderVoiceComposer(props);
-		const send = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Send message"]',
-		);
-		expect(send?.disabled).toBe(false);
-		await act(async () =>
-			container
-				.querySelector<HTMLButtonElement>('[aria-label^="Provider:"]')
-				?.click(),
-		);
-		const free = [
-			...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
-		].find((button) => button.textContent?.includes("ClineFree"));
-		expect(free).toBeDefined();
-		await act(async () => free?.click());
-		expect(send?.disabled).toBe(true);
-		await act(async () => {
-			send?.click();
-			container
-				.querySelector("textarea")
-				?.dispatchEvent(
-					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-				);
-		});
-		expect(onSend).not.toHaveBeenCalled();
-		await renderVoiceComposer({ ...props, model: "cline-cloud/free" });
-		expect(send?.disabled).toBe(false);
-		await act(async () => send?.click());
-		expect(onSend).toHaveBeenCalledWith("Run this");
-	});
-
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
@@ -496,17 +438,19 @@ describe("ChatInputBar", () => {
 
 	it("blocks cloud images for a model without vision support", async () => {
 		const onAttachFiles = vi.fn();
-		loadCloudModelCatalogMock.mockResolvedValue([
-			{
-				id: "test-model",
-				name: "Text only",
-				catalogId: "cline",
-				inputModalities: ["text"],
+		loadProviderModelCatalogMock.mockResolvedValue({
+			...providerCatalog(null),
+			providerModelDetails: {
+				cline: [
+					{ id: "test-model", name: "Text only", inputModalities: ["text"] },
+				],
 			},
-		]);
+		});
 		await renderVoiceComposer({ executionTarget: "cloud", onAttachFiles });
 		await vi.waitFor(() =>
-			expect(loadCloudModelCatalogMock).toHaveBeenCalled(),
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
 		);
 		const input =
 			container.querySelector<HTMLInputElement>('input[type="file"]');
@@ -605,10 +549,21 @@ describe("ChatInputBar", () => {
 	});
 
 	it("allows cloud image and model selection without replacing local defaults", async () => {
-		loadCloudModelCatalogMock.mockResolvedValue([
-			{ id: "cline-test", name: "cline-test", catalogId: "cline" },
-			{ id: "cline-alt", name: "cline-alt", catalogId: "cline" },
-		]);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline", "cline-pass", "cline-cloud"],
+			providerNames: {
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			},
+			providerModels: {
+				"cline-pass": ["cline-pass/pass-model"],
+				"cline-cloud": ["cline-cloud/free-model"],
+				cline: ["cline-test", "cline-alt"],
+			},
+			providerReasoningModels: { anthropic: [], cline: [] },
+		});
 		const localSelection = {
 			lastProvider: "anthropic",
 			lastModelByProvider: { anthropic: "claude-test" },
@@ -676,7 +631,26 @@ describe("ChatInputBar", () => {
 		await vi.waitFor(() => {
 			expect(onProviderChange).toHaveBeenCalledWith("cline");
 		});
-
+		const initialCatalogLoads = loadProviderModelCatalogMock.mock.calls.length;
+		const catalogInvalidated =
+			subscribeToProviderCatalogInvalidationMock.mock.calls[0]?.[0];
+		await act(async () => catalogInvalidated?.());
+		await vi.waitFor(() => {
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledTimes(
+				initialCatalogLoads + 1,
+			);
+		});
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+			includeCloudModels: true,
+		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
+		const providerModelsListener =
+			subscribeToProviderModelsMock.mock.calls[0]?.[0];
+		await act(async () => {
+			providerModelsListener?.("cline", [
+				{ id: "local-only-model", name: "Local only" },
+			]);
+		});
 		expect(onModelChange).not.toHaveBeenCalled();
 		expect(
 			container.querySelector('[aria-label="Attach images"]'),
@@ -703,9 +677,13 @@ describe("ChatInputBar", () => {
 		const cloudModel = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Model: claude-test"]',
 		);
-		loadCloudModelCatalogMock.mockClear();
+		loadProviderModelsMock.mockClear();
+		loadProviderModelCatalogMock.mockClear();
 		await act(async () => cloudModel?.click());
-		expect(loadCloudModelCatalogMock).toHaveBeenCalledOnce();
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+			includeCloudModels: true,
+		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
 		const alternateModel = Array.from(
 			container.querySelectorAll<HTMLButtonElement>(
 				".cline-ui-search-combobox__option",
@@ -715,6 +693,27 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Local only");
 		await act(async () => alternateModel?.click());
 		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		for (const [label, model] of [
+			["ClinePass", "cline-pass/pass-model"],
+			["ClineFree", "cline-cloud/free-model"],
+		]) {
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>(
+						'[aria-label="Provider: Cline Usage-Billing"]',
+					)
+					?.click(),
+			);
+			const option = [
+				...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((button) => button.textContent?.includes(label));
+			expect(option).toBeDefined();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenLastCalledWith(model);
+		}
+		expect(
+			onProviderChange.mock.calls.every(([provider]) => provider === "cline"),
+		).toBe(true);
 		expect(
 			JSON.parse(
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",

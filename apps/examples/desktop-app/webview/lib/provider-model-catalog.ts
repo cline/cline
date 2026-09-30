@@ -2,8 +2,8 @@
 
 import {
 	isChatCompatibleModel,
-	type ProviderAuthInfo,
 	isTranscriptionModel,
+	type ProviderAuthInfo,
 } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import { isProviderConnected } from "@/lib/provider-connection";
@@ -319,8 +319,38 @@ export function notifyVoiceInputSettingsChanged(settings?: {
 }
 
 export async function loadProviderModelCatalog(options?: {
+	includeCloudModels?: boolean;
 	includeVoiceInput?: boolean;
 }): Promise<ProviderModelCatalog> {
+	if (options?.includeCloudModels) {
+		const [models, cline, pass] = await Promise.all([
+			desktopClient.invoke<CloudModel[]>("list_cloud_models"),
+			loadProviderModels("cline", { includeCloudModels: true }).catch(() => []),
+			loadProviderModels("cline-pass").catch(() => []),
+		]);
+		const details = new Map(
+			[...cline, ...pass].map((model) => [model.id, model]),
+		);
+		// Cloud catalogs are billing choices on the same Cline transport. Only
+		// the account-scoped cloud response determines which models are offered.
+		return buildProviderModelCatalog(
+			Object.entries({
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			}).map(([id, name]) => ({
+				id,
+				name,
+				enabled: true,
+				models: null,
+				color: "",
+				letter: "C",
+				modelList: models
+					.filter((model) => model.catalogId === id)
+					.map((model) => ({ ...details.get(model.id), ...model })),
+			})),
+		);
+	}
 	const payload = await fetchProviderCatalog();
 	const catalog = buildProviderModelCatalog(payload.providers ?? []);
 	// Voice discovery may need the provider network. Chat and routine pickers
