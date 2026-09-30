@@ -29,7 +29,9 @@
  * https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool).
  * `run_sequence` is a backend extension (not one of Anthropic's actions):
  * it executes a queue of the other actions back-to-back and answers with a
- * single screenshot of the final state.
+ * single screenshot of the final state. `brief_pause` is another backend
+ * extension: it waits for a fixed 300 ms so transient UI can become ready
+ * without making the model choose an arbitrary duration.
  */
 export type ComputerUseAction =
 	| "screenshot"
@@ -47,6 +49,7 @@ export type ComputerUseAction =
 	| "hold_key"
 	| "type"
 	| "scroll"
+	| "brief_pause"
 	| "wait"
 	| "zoom"
 	| "run_sequence";
@@ -71,6 +74,20 @@ export const GET_DISPLAY_INFO_ACTION = "get_display_info";
  */
 export const PUBLISH_EVENT_ACTION = "publish_event";
 
+/** Internal request asking the connected qbt process to exit cleanly. */
+export const SHUTDOWN_BACKEND_ACTION = "shutdown_backend";
+
+export type ComputerUseInternalAction =
+	| typeof GET_DISPLAY_INFO_ACTION
+	| typeof PUBLISH_EVENT_ACTION
+	| typeof SHUTDOWN_BACKEND_ACTION;
+
+/** Actions valid as one non-recursive step inside `run_sequence`. */
+export type ComputerUseSequenceAction = Exclude<
+	ComputerUseAction,
+	"run_sequence"
+>;
+
 /** Native display dimensions reported by the backend. */
 export interface ComputerUseDisplayInfo {
 	widthPx: number;
@@ -86,10 +103,7 @@ export type ComputerUseCoordinate = readonly [number, number];
 export interface ComputerUseRequest {
 	/** Monotonically increasing id used to match responses to requests. */
 	id: number;
-	action:
-		| ComputerUseAction
-		| typeof GET_DISPLAY_INFO_ACTION
-		| typeof PUBLISH_EVENT_ACTION;
+	action: ComputerUseAction | ComputerUseInternalAction;
 	/** Event kind, required for "publish_event". */
 	kind?: string;
 	/** Event payload, required for "publish_event". */
@@ -129,7 +143,15 @@ export interface ComputerUseRequest {
  * run_sequence (nesting is rejected server-side), without the envelope id —
  * the backend assigns sequence-local ids.
  */
-export type ComputerUseSequenceItem = Omit<ComputerUseRequest, "id">;
+export type ComputerUseSequenceItem = Omit<
+	ComputerUseRequest,
+	"id" | "action" | "actions" | "kind" | "payload"
+> & {
+	action: ComputerUseSequenceAction;
+	actions?: never;
+	kind?: never;
+	payload?: never;
+};
 
 /** A single image returned by the backend (typically a screenshot). */
 export interface ComputerUseImage {

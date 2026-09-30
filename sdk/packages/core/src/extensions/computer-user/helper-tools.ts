@@ -1,6 +1,7 @@
 import type { AgentTool } from "@cline/shared";
 import { createTool, zodToJsonSchema } from "@cline/shared";
 import { z } from "zod";
+import type { ComputerBackendRestartCapability } from "../computer-use/backend-restart";
 import type { ComputerUserCoordinator } from "./coordinator";
 
 /**
@@ -64,13 +65,20 @@ const FinishComputerTaskInput = z
 	})
 	.strict();
 
+const RestartComputerBackendInput = z.object({}).strict();
+
+export interface ComputerUserCollaborationToolOptions {
+	backendRestart?: ComputerBackendRestartCapability;
+}
+
 /**
- * Builds the three collaboration tools bound to a coordinator. Inputs are
- * validated with the zod schemas inside execute so the tools fit the
- * heterogeneous `AgentTool[]` contract without casts.
+ * Builds the three coordinator collaboration tools and, when configured, a
+ * fourth backend-restart tool. Inputs are validated inside execute so the
+ * tools fit the heterogeneous `AgentTool[]` contract without casts.
  */
 export function createComputerUserCollaborationTools(
 	coordinator: ComputerUserCoordinator,
+	options?: ComputerUserCollaborationToolOptions,
 ): AgentTool[] {
 	const postDriverUpdate = createTool({
 		name: "post_driver_update",
@@ -108,5 +116,35 @@ export function createComputerUserCollaborationTools(
 		},
 	});
 
-	return [postDriverUpdate, askDriver, finishComputerTask];
+	const tools: AgentTool[] = [postDriverUpdate, askDriver, finishComputerTask];
+	if (options?.backendRestart) {
+		const backendRestart = options.backendRestart;
+		tools.push(
+			createTool({
+				name: "restart_computer_backend",
+				description:
+					"Force-restart qbt when computer actions fail because the backend is stuck or cannot take screenshots. Asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement. Does not search for or kill arbitrary processes. Use after a computer action fails with a backend or screenshot error, then take a fresh screenshot.",
+				inputSchema: zodToJsonSchema(RestartComputerBackendInput),
+				timeoutMs: backendRestart.budgetMs + 60_000,
+				retryable: false,
+				execute: async (input: unknown, context) => {
+					RestartComputerBackendInput.parse(input);
+					const result = await backendRestart.forceRestart(context.signal);
+					if (result.status === "failed_to_start") {
+						return {
+							status: result.status,
+							error: result.error,
+							note: "The backend restart failed. Stop computer interaction and report this error to the driver.",
+						};
+					}
+					return {
+						status: result.status,
+						note: "The replacement backend is ready. Take a fresh screenshot before continuing.",
+					};
+				},
+			}),
+		);
+	}
+
+	return tools;
 }

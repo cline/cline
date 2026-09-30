@@ -375,15 +375,13 @@ describe("computer-user driver tools", () => {
 		const controller = new AbortController();
 		const capability: ComputerBackendRestartCapability = {
 			budgetMs: 1_000,
-			ensureRunning: async (signal) => {
+			ensureRunning: async () => ({ status: "already_running" }),
+			forceRestart: async (signal) => {
 				expect(signal).toBe(controller.signal);
-				const status = results.length === 0 ? "started" : "already_running";
+				const status = "started";
 				results.push(status);
-				return { status } as
-					| { status: "started" }
-					| { status: "already_running" };
+				return { status } as { status: "started" };
 			},
-			dispose: async () => {},
 		};
 		const host: ComputerUserSessionHost = {
 			start: async () => ({ sessionId: "helper-session" }),
@@ -418,7 +416,7 @@ describe("computer-user driver tools", () => {
 		)) as {
 			status: string;
 		};
-		expect(second.status).toBe("already_running");
+		expect(second.status).toBe("started");
 		expect(backendTool?.retryable).toBe(false);
 	});
 });

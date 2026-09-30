@@ -1,18 +1,22 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { connect, isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import { ComputerUseClient } from "./client";
-import { GET_DISPLAY_INFO_ACTION } from "./protocol";
+import {
+	type ComputerUseResponse,
+	GET_DISPLAY_INFO_ACTION,
+	SHUTDOWN_BACKEND_ACTION,
+} from "./protocol";
 
 /**
  * Brings the computer-use backend back when its process is gone.
  *
  * The backend (qwanban's qbt) is a separate process the agent host does not
- * own: it may be started by a human, a service, or this module. The single
- * rule that keeps ownership unambiguous: this module only ever terminates a
- * backend it spawned itself. `ensureRunning` therefore probes first and
- * returns `already_running` when the backend answers, spawns the configured
- * launch command only when disconnected, and kills its own spawn if it never
- * becomes ready.
+ * own: it may be started by a human, a service, or this module. `ensureRunning`
+ * never disrupts a responsive backend. Explicit forced recovery may ask the
+ * qbt connected at the configured loopback endpoint to shut itself down; OS
+ * process termination remains limited to a process tree this module spawned.
+ * The replacement is launched only after the old endpoint closes.
  *
  * Readiness is the same query tool construction uses (`get_display_info`):
  * the port accepting is not enough — the backend must actually answer.
@@ -36,6 +40,8 @@ export interface ComputerBackendRestartOptions {
 	 * `host`:`port`.
 	 */
 	command: string;
+	/** Working directory for the launch command. Defaults to the host process cwd. */
+	cwd?: string;
 	/** Per-probe budget. Default 3 s. */
 	probeTimeoutMs?: number;
 	/** Overall wait for the spawned backend to answer. Default 120 s. */
@@ -49,14 +55,39 @@ export type ComputerBackendEnsureResult =
 	| { status: "started" }
 	| { status: "failed_to_start"; error: string };
 
+export interface ComputerBackendRestartCapability {
+	/** Overall wait budget; tool timeouts must outlive this. */
+	budgetMs: number;
+	ensureRunning(signal?: AbortSignal): Promise<ComputerBackendEnsureResult>;
+	forceRestart(signal?: AbortSignal): Promise<ComputerBackendEnsureResult>;
+}
+
+/** Local process management is valid only when the configured backend is local. */
+export function isComputerUseLoopbackHost(host: string | undefined): boolean {
+	if (!host) return true;
+	const normalized = host
+		.trim()
+		.toLowerCase()
+		.replace(/^\[|\]$/g, "");
+	if (normalized === "localhost" || normalized === "localhost.") return true;
+	if (normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
+	if (normalized.startsWith("::ffff:")) {
+		const mappedIpv4 = normalized.slice("::ffff:".length);
+		return isIP(mappedIpv4) === 4 && mappedIpv4.split(".")[0] === "127";
+	}
+	return isIP(normalized) === 4 && normalized.split(".")[0] === "127";
+}
+
 export class ComputerBackendRestart {
 	private readonly options: ComputerBackendRestartOptions;
 	private readonly probeTimeoutMs: number;
 	private readonly readyTimeoutMs: number;
 	private readonly pollIntervalMs: number;
 	private readonly client: ComputerUseClient;
+	private readonly processManagementEnabled: boolean;
 	private run:
 		| {
+				kind: "ensure" | "force";
 				controller: AbortController;
 				promise: Promise<ComputerBackendEnsureResult>;
 		  }
@@ -70,6 +101,7 @@ export class ComputerBackendRestart {
 		this.probeTimeoutMs = options.probeTimeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS;
 		this.readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
 		this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+		this.processManagementEnabled = isComputerUseLoopbackHost(options.host);
 		this.client =
 			options.client ??
 			new ComputerUseClient({
@@ -88,9 +120,33 @@ export class ComputerBackendRestart {
 	/**
 	 * Probes the backend; spawns the launch command only when it is down.
 	 * Concurrent calls share one run, so the backend is never spawned twice.
-	 * Any caller's cancellation cancels that shared run, including owned cleanup.
+	 * Cancellation stops only that caller's wait; disposal owns cancellation of
+	 * the shared lifecycle operation.
 	 */
 	async ensureRunning(
+		signal?: AbortSignal,
+	): Promise<ComputerBackendEnsureResult> {
+		return this.runOperation("ensure", signal);
+	}
+
+	/**
+	 * Replaces the backend process this instance launched, even when it still
+	 * answers probes. This recovers native resources that can become invalid
+	 * while the process remains alive. A responsive process owned by someone
+	 * else is never killed.
+	 */
+	async forceRestart(
+		signal?: AbortSignal,
+	): Promise<ComputerBackendEnsureResult> {
+		while (this.run?.kind === "ensure") {
+			const joined = await this.joinRun(this.run, signal);
+			if (signal?.aborted) return joined;
+		}
+		return this.runOperation("force", signal);
+	}
+
+	private async runOperation(
+		kind: "ensure" | "force",
 		signal?: AbortSignal,
 	): Promise<ComputerBackendEnsureResult> {
 		if (this.disposed || signal?.aborted) {
@@ -106,24 +162,128 @@ export class ComputerBackendRestart {
 			// immediately and are checked after every wait before launch or success.
 			const controller = new AbortController();
 			const run = {
+				kind,
 				controller,
 				promise: Promise.resolve()
-					.then(() => this.ensureRunningUncached(controller.signal))
+					.then(() =>
+						kind === "force"
+							? this.forceRestartUncached(controller.signal)
+							: this.ensureRunningUncached(controller.signal),
+					)
 					.finally(() => {
 						if (this.run === run) this.run = undefined;
 					}),
 			};
 			this.run = run;
 		}
-		const run = this.run;
-		const onAbort = () =>
-			run.controller.abort(new Error("backend restart cancelled"));
+		return this.joinRun(this.run, signal);
+	}
+
+	private async joinRun(
+		run: NonNullable<ComputerBackendRestart["run"]>,
+		signal?: AbortSignal,
+	): Promise<ComputerBackendEnsureResult> {
+		if (!signal) return run.promise;
+		if (signal.aborted) return this.cancelledResult();
+		let onAbort: () => void = () => {};
+		const cancelled = new Promise<ComputerBackendEnsureResult>((resolve) => {
+			onAbort = () => resolve(this.cancelledResult());
+		});
 		signal?.addEventListener("abort", onAbort, { once: true });
 		try {
-			return await run.promise;
+			return await Promise.race([run.promise, cancelled]);
 		} finally {
-			signal?.removeEventListener("abort", onAbort);
+			signal.removeEventListener("abort", onAbort);
 		}
+	}
+
+	private cancelledResult(): ComputerBackendEnsureResult {
+		return { status: "failed_to_start", error: "backend restart cancelled" };
+	}
+
+	private async forceRestartUncached(
+		signal: AbortSignal,
+	): Promise<ComputerBackendEnsureResult> {
+		try {
+			signal.throwIfAborted();
+			if (!this.processManagementEnabled) {
+				throw new Error(
+					"backend process management is disabled for non-loopback hosts",
+				);
+			}
+			if (!this.child) {
+				await this.requestShutdown(signal);
+			}
+			await this.killSpawned();
+			this.client.close();
+			signal.throwIfAborted();
+			return await this.launchBackend(signal);
+		} catch (error) {
+			return {
+				status: "failed_to_start",
+				error: this.errorMessage(signal.aborted ? signal.reason : error),
+			};
+		}
+	}
+
+	private async requestShutdown(signal: AbortSignal): Promise<void> {
+		let response: ComputerUseResponse;
+		try {
+			response = await this.client.send(
+				{ action: SHUTDOWN_BACKEND_ACTION },
+				{ signal },
+			);
+		} catch (error) {
+			signal.throwIfAborted();
+			if ((error as NodeJS.ErrnoException).code !== "ECONNREFUSED") throw error;
+			// A refused connection means there is no process to stop. Other
+			// transport failures do not prove that launching a duplicate is safe.
+			this.client.close();
+			return;
+		}
+		if (!response.ok) {
+			throw new Error(response.error ?? "backend refused shutdown");
+		}
+		this.client.close();
+		const deadline = Date.now() + this.probeTimeoutMs;
+		while (Date.now() < deadline) {
+			signal.throwIfAborted();
+			await delay(Math.min(50, deadline - Date.now()), undefined, { signal });
+			if (await this.backendPortIsClosed(signal)) return;
+		}
+		throw new Error("backend acknowledged shutdown but did not exit");
+	}
+
+	private backendPortIsClosed(signal: AbortSignal): Promise<boolean> {
+		return new Promise((resolve, reject) => {
+			const socket = connect({
+				host: this.options.host ?? "127.0.0.1",
+				port: this.options.port,
+			});
+			let settled = false;
+			const finish = (result: boolean, error?: Error) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				signal.removeEventListener("abort", onAbort);
+				socket.destroy();
+				if (error) reject(error);
+				else resolve(result);
+			};
+			const onAbort = () => finish(false, this.abortError(signal.reason));
+			const timer = setTimeout(() => finish(false), 250);
+			signal.addEventListener("abort", onAbort, { once: true });
+			socket.once("connect", () => finish(false));
+			socket.once("error", (error: NodeJS.ErrnoException) => {
+				if (error.code === "ECONNREFUSED") finish(true);
+				else finish(false, error);
+			});
+			if (signal.aborted) onAbort();
+		});
+	}
+
+	private abortError(reason: unknown): Error {
+		return reason instanceof Error ? reason : new Error(String(reason));
 	}
 
 	/**
@@ -147,18 +307,39 @@ export class ComputerBackendRestart {
 	private async ensureRunningUncached(
 		signal: AbortSignal,
 	): Promise<ComputerBackendEnsureResult> {
-		let launched = false;
 		try {
 			signal.throwIfAborted();
 			const running = await this.probe(signal);
 			signal.throwIfAborted();
 			if (running) return { status: "already_running" };
+			if (!this.processManagementEnabled) {
+				return {
+					status: "failed_to_start",
+					error:
+						"backend process management is disabled for non-loopback hosts",
+				};
+			}
 			await this.killSpawned();
 			signal.throwIfAborted();
+			return await this.launchBackend(signal);
+		} catch (error) {
+			return {
+				status: "failed_to_start",
+				error: this.errorMessage(signal.aborted ? signal.reason : error),
+			};
+		}
+	}
+
+	private async launchBackend(
+		signal: AbortSignal,
+	): Promise<ComputerBackendEnsureResult> {
+		let launched = false;
+		try {
 			const child = spawn(this.options.command, {
 				shell: true,
 				detached: true,
 				stdio: "ignore",
+				cwd: this.options.cwd,
 			});
 			this.child = child;
 			launched = true;
@@ -200,10 +381,7 @@ export class ComputerBackendRestart {
 			throw new Error(`backend did not answer within ${this.readyTimeoutMs}ms`);
 		} catch (error) {
 			const reason = signal.aborted ? signal.reason : error;
-			let message = reason instanceof Error ? reason.message : String(reason);
-			// timers/promises wraps abort reasons in AbortError.cause.
-			if (reason instanceof Error && reason.cause instanceof Error)
-				message = reason.cause.message;
+			let message = this.errorMessage(reason);
 			try {
 				if (launched) await this.killSpawned();
 			} catch (cleanupError) {
@@ -211,6 +389,13 @@ export class ComputerBackendRestart {
 			}
 			return { status: "failed_to_start", error: message };
 		}
+	}
+
+	private errorMessage(reason: unknown): string {
+		if (reason instanceof Error && reason.cause instanceof Error) {
+			return reason.cause.message;
+		}
+		return reason instanceof Error ? reason.message : String(reason);
 	}
 
 	private async probe(
