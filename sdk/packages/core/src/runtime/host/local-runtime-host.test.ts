@@ -547,22 +547,32 @@ describe("LocalRuntimeHost", () => {
 				sessionId: "cancelled-during-rebuild",
 				prompt: "from client B",
 			});
+			// Another client's turn queues up behind it, like a queued prompt.
+			const laterTurn = manager.runTurn({
+				sessionId: "cancelled-during-rebuild",
+				prompt: "from client C",
+			});
 			// The user cancels before the rebuild completes.
 			await manager.abort("cancelled-during-rebuild", "user cancelled");
 			releaseBuild();
 			await rebuild;
 
+			// Like aborting a live session: the turn that would be running is
+			// cancelled without running; the one behind it is not.
 			await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+			await expect(laterTurn).resolves.toMatchObject({
+				finishReason: "completed",
+			});
 			expect(residentAgent.run).not.toHaveBeenCalled();
-			expect(replacementAgent.run).not.toHaveBeenCalled();
-			// The replacement is live and takes the next turn normally.
+			expect(replacementAgent.run).toHaveBeenCalledOnce();
+			// The replacement keeps taking turns normally.
 			await expect(
 				manager.runTurn({
 					sessionId: "cancelled-during-rebuild",
 					prompt: "after the rebuild",
 				}),
 			).resolves.toMatchObject({ finishReason: "completed" });
-			expect(replacementAgent.run).toHaveBeenCalledOnce();
+			expect(replacementAgent.continue).toHaveBeenCalledOnce();
 		} finally {
 			releaseBuild();
 			await manager.dispose();
