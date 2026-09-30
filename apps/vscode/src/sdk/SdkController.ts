@@ -1618,14 +1618,18 @@ export class Controller {
 		}
 
 		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
-			// An expired or failed cloud session has no sandbox to send to.
+			// No sandbox to send to: still provisioning (only reachable through the
+			// extension API, the composer is disabled), or expired / failed.
+			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
 			this.messages.appendAndEmit(
 				[
 					{
 						ts: Date.now(),
 						type: "say",
 						say: "error",
-						text: "This cloud session is no longer running. Start a new cloud task to continue.",
+						text: provisioning
+							? "The cloud sandbox is still starting. Send your message again once it is running."
+							: "This cloud session is no longer running. Start a new cloud task to continue.",
 						partial: false,
 					},
 				],
