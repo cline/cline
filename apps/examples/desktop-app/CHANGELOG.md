@@ -1,5 +1,28 @@
 # Cline Desktop Changelog
 
+## 0.0.39
+
+- On Linux with the proprietary NVIDIA driver, the app window no longer opens blank. The app now turns off WebKitGTK's DMA-BUF renderer when it detects the NVIDIA driver. To keep that renderer on (for example, on a hybrid-GPU system), set `WEBKIT_DISABLE_DMABUF_RENDERER=0`
+- The Linux `.deb` and `.rpm` packages now include app info, so GNOME Software and KDE Discover show Cline's icon and description and list it under Installed
+
+## 0.0.38
+
+- Linux on ARM is now supported: each release ships arm64 `.deb` and `.rpm` packages alongside the x64 ones, and they auto-update like the others
+- Web search settings moved from **General** to **Customize → Tools**, next to the other built-in tools. That page shows whether your provider supports search, and links to provider settings when it doesn't
+- Connectors are labeled **Beta**, and opening the marketplace from Connectors now shows only connectors
+- Pressing **Stop** right after sending a prompt now stops the turn. Before, a stop that landed while the turn was still being set up was ignored: the agent kept editing in the background, and reverting failed with "Wait for all turns in this workspace to finish before restoring it"
+- Inserting a slash command no longer deletes the text after your cursor
+- On Windows, **Export Diagnostics** no longer fails when the output folder already exists
+- Cloud agent sessions now keep their workspace. A suspended cloud session resumes with the same files, history, and reasoning settings
+- When a response is blocked by a content filter, the app now says so and suggests rephrasing, instead of "Model returned empty response"
+- Direct Anthropic requests now use Anthropic's refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request
+- Reasoning tokens are no longer counted twice in token usage. Cost is unchanged
+- On Amazon Bedrock, Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects, and a legacy bare `awsProfile` setting now migrates as profile auth
+- Gateway models keep their own API protocol instead of falling back to the provider-wide default
+- Scheduled task specs saved with a UTF-8 BOM (as Windows Notepad does) now parse, and codebase search now includes PHP projects (Composer's `vendor` folder is skipped)
+- On Windows, a nested `pwsh -Command` keeps your configured shell path instead of picking up a `powershell.exe` from the workspace
+- Refreshed the model catalog. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. New providers are Bee and Pareto
+
 ## 0.0.37
 
 - Settings has a new **About** page. It shows your version and channel, has **Check for updates** and **Restart to update** buttons, and lists the release notes for recent versions with links to each GitHub release and the full changelog. **Report an issue** is there too

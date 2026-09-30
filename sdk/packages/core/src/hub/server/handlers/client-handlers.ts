@@ -37,6 +37,7 @@ export function handleClientRegister(
 			clientId,
 			clientType: payload?.clientType ?? "unknown",
 			displayName: payload?.displayName,
+			metadata: payload?.metadata,
 			connectedAt: Date.now(),
 		}),
 	);

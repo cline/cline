@@ -1,12 +1,17 @@
+import type { ProviderAuthInfo } from "@cline/shared/browser";
 import {
 	isCredentialFailure,
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 
 /** The same presentation for live failures and restored transcript errors. */
-export function formatRunError(detail: string, providerId = ""): string {
+export function formatRunError(
+	detail: string,
+	providerId = "",
+	providerAuth?: ProviderAuthInfo,
+): string {
 	const description = detail.trim();
-	const guidance = resolveCredentialFailureHint(providerId);
+	const guidance = resolveCredentialFailureHint(providerId, providerAuth);
 	const looksCredentialRelated =
 		!description || isCredentialFailure(description);
 	return [
