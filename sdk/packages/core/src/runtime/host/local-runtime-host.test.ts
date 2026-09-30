@@ -306,7 +306,11 @@ describe("LocalRuntimeHost", () => {
 				).resolves.toBeUndefined();
 				// A later start naming the resident idle session rebuilds it in
 				// place (hub clients have no other way to restart a session)...
-				const seededUsage = { inputTokens: 40, outputTokens: 2, totalCost: 0.5 };
+				const seededUsage = {
+					inputTokens: 40,
+					outputTokens: 2,
+					totalCost: 0.5,
+				};
 				await expect(
 					manager.startSession({
 						...input,
@@ -349,6 +353,162 @@ describe("LocalRuntimeHost", () => {
 			}
 		} finally {
 			release();
+			await manager.dispose();
+		}
+	});
+
+	/**
+	 * Two clients on one session: A rebuilds it (same-id start) while B sends a
+	 * turn mid-rebuild. B's turn must not be accepted by the resident only to
+	 * be aborted when it is released; it waits and runs on the replacement.
+	 */
+	it("runs a turn that arrives during a same-id rebuild on the rebuilt session", async () => {
+		let releaseBuild!: () => void;
+		const buildGate = new Promise<void>((resolve) => {
+			releaseBuild = resolve;
+		});
+		const runtimeShutdown = vi.fn().mockResolvedValue(undefined);
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockResolvedValueOnce({ tools: [], shutdown: runtimeShutdown })
+				.mockImplementationOnce(async () => {
+					await buildGate;
+					return { tools: [], shutdown: runtimeShutdown };
+				}),
+		};
+		// One agent per runtime, so where the turn landed is unambiguous: the
+		// resident's agent cannot complete a turn at all.
+		const makeAgent = (label: string) => ({
+			run: vi.fn(async () => {
+				if (label === "resident") {
+					throw new Error("turn ran on the runtime being replaced");
+				}
+				return createResult();
+			}),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue(`${label}-agent`),
+			getConversationId: vi.fn().mockReturnValue("shared-conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		});
+		const residentAgent = makeAgent("resident");
+		const replacementAgent = makeAgent("replacement");
+		const agents = [residentAgent, replacementAgent];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agents.shift() as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "shared-session",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+
+			// Client A: rebuild, held at the runtime build.
+			const rebuild = manager.startSession(input);
+			await vi.waitFor(() =>
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(2),
+			);
+			// Client B: sends while the rebuild is in flight.
+			const turn = manager.runTurn({
+				sessionId: "shared-session",
+				prompt: "from client B",
+			});
+			releaseBuild();
+			await rebuild;
+			await expect(turn).resolves.toMatchObject({ finishReason: "completed" });
+
+			// The turn ran once, on the replacement, after the resident was
+			// released; the resident neither ran nor aborted anything.
+			expect(residentAgent.run).not.toHaveBeenCalled();
+			expect(residentAgent.abort).not.toHaveBeenCalled();
+			expect(replacementAgent.run).toHaveBeenCalledOnce();
+			expect(runtimeShutdown).toHaveBeenCalledWith("session_replaced");
+			expect(replacementAgent.run.mock.invocationCallOrder[0]).toBeGreaterThan(
+				runtimeShutdown.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+			);
+		} finally {
+			releaseBuild();
+			await manager.dispose();
+		}
+	});
+
+	it("does not let a stop already in flight on the old runtime evict the replacement", async () => {
+		let releaseShutdown!: () => void;
+		const shutdownGate = new Promise<void>((resolve) => {
+			releaseShutdown = resolve;
+		});
+		const runtimeBuilder = {
+			build: vi.fn(async () => ({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			})),
+		};
+		// Only the resident's first shutdown (the explicit stop) stalls; the
+		// rebuild's own release of the resident must not.
+		let heldShutdowns = 0;
+		const makeAgent = (holdFirstShutdown: boolean) => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn(async () => {
+				if (holdFirstShutdown && heldShutdowns++ === 0) await shutdownGate;
+			}),
+		});
+		const agents = [makeAgent(true), makeAgent(false)];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agents.shift() as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "stop-race",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+			// A stop begins on the resident and stalls in its agent shutdown...
+			const stopping = manager.stopSession("stop-race");
+			await Promise.resolve();
+			// ...while a same-id start rebuilds it and registers the replacement.
+			await expect(manager.startSession(input)).resolves.toMatchObject({
+				sessionId: "stop-race",
+			});
+			releaseShutdown();
+			await stopping;
+			// The old runtime's teardown must not have removed the replacement.
+			await expect(
+				manager.updateSessionConnection("stop-race", {}),
+			).resolves.toBeUndefined();
+		} finally {
+			releaseShutdown();
 			await manager.dispose();
 		}
 	});

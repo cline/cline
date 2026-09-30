@@ -448,17 +448,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// a session already mid-turn when the start arrives is protected above.
 			// Release failures are already logged and captured internally.
 			try {
-				return await this.startNewSession(
-					input,
-					sessionId,
-					requestedSessionId,
-				);
+				return await this.startNewSession(input, sessionId, requestedSessionId);
 			} finally {
 				if (resident && this.sessions.get(sessionId) !== resident) {
-					await this.releaseSessionRuntime(
-						resident,
-						"session_replaced",
-					).catch(() => undefined);
+					await this.releaseSessionRuntime(resident, "session_replaced").catch(
+						() => undefined,
+					);
 				}
 			}
 		})().finally(() => this.sessionStarts.delete(sessionId));
@@ -1162,6 +1157,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
+		// A turn that arrives while a start for this id is in flight (another
+		// attached client sending during a same-id rebuild) runs on the session
+		// that start produces, instead of being accepted by the runtime about to
+		// be replaced and then aborted with it. The start's own outcome is not
+		// this turn's concern: on failure the surviving resident serves it.
+		await this.sessionStarts.get(input.sessionId)?.catch(() => undefined);
 		const session = this.getSessionOrThrow(input.sessionId);
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
@@ -2488,7 +2489,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
+		// A replacement started under the same id may have taken the slot while
+		// this runtime was shutting down; it must not be evicted by proxy.
+		if (this.sessions.get(session.sessionId) === session) {
+			this.sessions.delete(session.sessionId);
+		}
 		this.emit({
 			type: "ended",
 			payload: {
