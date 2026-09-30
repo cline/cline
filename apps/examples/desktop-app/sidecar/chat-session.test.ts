@@ -539,7 +539,7 @@ describe("session forks", () => {
 		await expect(handoff).rejects.toThrow("was not found");
 	});
 
-	it("blocks handoff while a session metadata update is active", async () => {
+	it("blocks handoff until every metadata update releases, ignoring duplicate releases", async () => {
 		enableCloudHandoffGates();
 		const sessionId = "metadata-update-source";
 		const ctx = {
@@ -550,6 +550,9 @@ describe("session forks", () => {
 			),
 		} as unknown as SidecarContext;
 		const releaseMetadataUpdate = beginSessionMetadataUpdate(ctx, sessionId);
+		const releaseOtherUpdate = beginSessionMetadataUpdate(ctx, sessionId);
+		releaseMetadataUpdate();
+		releaseMetadataUpdate();
 
 		await expect(
 			handleChatSessionCommand(ctx, {
@@ -560,7 +563,10 @@ describe("session forks", () => {
 		).rejects.toThrow(
 			"Wait for the session metadata update to finish before handing off",
 		);
-		releaseMetadataUpdate();
+		releaseOtherUpdate();
+		await expect(
+			handleChatSessionCommand(ctx, { action: "handoff", sessionId }),
+		).rejects.toThrow("Run handoff preflight again");
 	});
 
 	it("blocks handoff while session deletion is starting", async () => {

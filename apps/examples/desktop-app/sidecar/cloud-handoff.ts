@@ -991,26 +991,37 @@ function handoffLockContext(ctx: SidecarContext): SidecarContext {
 	return getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local");
 }
 
-export function beginActiveSessionSend(
+function trackSessionRequest(
+	registry: WeakMap<SidecarContext, Map<string, number>>,
 	ctx: SidecarContext,
 	sessionId: string,
 ): () => void {
-	const lockContext = handoffLockContext(ctx);
-	let requests = activeSendRequests.get(lockContext);
+	let requests = registry.get(ctx);
 	if (!requests) {
 		requests = new Map();
-		activeSendRequests.set(lockContext, requests);
+		registry.set(ctx, requests);
 	}
 	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
 	let finished = false;
 	return () => {
 		if (finished) return;
 		finished = true;
-		const remaining = (requests?.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests?.set(sessionId, remaining);
-		else requests?.delete(sessionId);
-		if (requests?.size === 0) activeSendRequests.delete(lockContext);
+		const remaining = (requests.get(sessionId) ?? 1) - 1;
+		if (remaining > 0) requests.set(sessionId, remaining);
+		else requests.delete(sessionId);
+		if (requests.size === 0) registry.delete(ctx);
 	};
+}
+
+export function beginActiveSessionSend(
+	ctx: SidecarContext,
+	sessionId: string,
+): () => void {
+	return trackSessionRequest(
+		activeSendRequests,
+		handoffLockContext(ctx),
+		sessionId,
+	);
 }
 
 function beginActiveSessionDelete(
@@ -1021,21 +1032,7 @@ function beginActiveSessionDelete(
 	if (isCloudHandoffInProgress(lockContext, sessionId)) {
 		throw new Error("Wait for the cloud handoff to finish before deleting.");
 	}
-	let requests = activeDeleteRequests.get(lockContext);
-	if (!requests) {
-		requests = new Map();
-		activeDeleteRequests.set(lockContext, requests);
-	}
-	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
-	let finished = false;
-	return () => {
-		if (finished) return;
-		finished = true;
-		const remaining = (requests?.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests?.set(sessionId, remaining);
-		else requests?.delete(sessionId);
-		if (requests?.size === 0) activeDeleteRequests.delete(lockContext);
-	};
+	return trackSessionRequest(activeDeleteRequests, lockContext, sessionId);
 }
 
 export function beginSessionMetadataUpdate(
@@ -1048,21 +1045,11 @@ export function beginSessionMetadataUpdate(
 			"Wait for the cloud handoff to finish before updating session metadata.",
 		);
 	}
-	let requests = activeMetadataUpdateRequests.get(lockContext);
-	if (!requests) {
-		requests = new Map();
-		activeMetadataUpdateRequests.set(lockContext, requests);
-	}
-	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
-	let finished = false;
-	return () => {
-		if (finished) return;
-		finished = true;
-		const remaining = (requests?.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests?.set(sessionId, remaining);
-		else requests?.delete(sessionId);
-		if (requests?.size === 0) activeMetadataUpdateRequests.delete(lockContext);
-	};
+	return trackSessionRequest(
+		activeMetadataUpdateRequests,
+		lockContext,
+		sessionId,
+	);
 }
 
 /**

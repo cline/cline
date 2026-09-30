@@ -1,6 +1,5 @@
 import {
 	buildHandoffWarningToast,
-	claimHandoffWarningSurface,
 	type HandoffProgressPhase,
 	type HandoffResult,
 	shouldOpenHandoffInApp,
@@ -79,59 +78,54 @@ export type HandoffRpcRejectedContext = {
 };
 
 export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
-	// Source sessions whose completion warning has already been toasted. The
-	// completion event and the RPC result both carry the warning; whichever
-	// lands first claims it here so the user never sees it twice.
-	const surfacedWarnings = new Set<string>();
-	// Completions recorded SYNCHRONOUSLY by attempt. Besides bridging reducer
-	// lag for event-before-rejection, this makes a trailing/duplicate event a
-	// no-op after either completion path has already updated the UI.
-	const completions = new Map<string, HandoffCompletionRecord>();
-	// Retry payloads belong to the attempt that submitted them. This prevents a
-	// delayed completion for A from ever restoring B's edited command or files.
-	const retryStates = new Map<
-		string,
-		{ command?: string; attachments?: File[] }
-	>();
-	// A duplicate completion event must not retry an in-app recovery open. If
-	// the first attempt fails, the reducer and retry registry remain the user's
-	// recovery surface instead of an event replay repeatedly stealing focus.
-	const targetOpenAttempts = new Set<string>();
-	const latestAttempts = new Map<string, string>();
-	const acceptedAttempts = new Map<string, string>();
-	const attemptOrders = new Map<string, number>();
-	const sourceThreadIds = new Map<string, string>();
+	type Attempt = {
+		order: number;
+		sourceThreadId?: string;
+		completion?: HandoffCompletionRecord;
+		retry?: { command?: string; attachments?: File[] };
+		openAttempted?: boolean;
+	};
+	type Source = {
+		latest?: Attempt;
+		accepted?: Attempt;
+		warningShown?: boolean;
+	};
+	const attempts = new Map<string, Attempt>();
+	const sources = new Map<string, Source>();
 	let nextAttemptOrder = 0;
 
-	const attemptKey = (sourceSessionId: string, attemptId?: string) =>
-		attemptId ?? sourceSessionId;
+	const sourceFor = (sourceSessionId: string): Source => {
+		let source = sources.get(sourceSessionId);
+		if (!source) {
+			source = {};
+			sources.set(sourceSessionId, source);
+		}
+		return source;
+	};
+	const attemptFor = (sourceSessionId: string, attemptId?: string): Attempt => {
+		const key = attemptId ?? sourceSessionId;
+		let attempt = attempts.get(key);
+		if (!attempt) {
+			attempt = { order: 0 };
+			attempts.set(key, attempt);
+		}
+		return attempt;
+	};
 
-	// Correlated progress or a successful RPC positively establishes an
-	// attempt. Missing progress does not: a later completion can still prove
-	// that a newer retry was accepted. The local order lets a positively
-	// established newer attempt reject genuinely stale older events.
+	// Missing progress is not rejection: only a positively accepted newer
+	// attempt can make an older completion stale.
 	const acceptAttempt = (
 		sourceSessionId: string,
 		attemptId?: string,
 	): boolean => {
-		if (!attemptId) {
-			return !latestAttempts.has(sourceSessionId);
-		}
-		const order = attemptOrders.get(attemptId) ?? 0;
-		const accepted = acceptedAttempts.get(sourceSessionId);
-		if (
-			accepted &&
-			accepted !== attemptId &&
-			order < (attemptOrders.get(accepted) ?? 0)
-		) {
-			return false;
-		}
-		acceptedAttempts.set(sourceSessionId, attemptId);
+		const source = sourceFor(sourceSessionId);
+		if (!attemptId) return !source.latest;
+		const attempt = attemptFor(sourceSessionId, attemptId);
+		if (source.accepted && attempt.order < source.accepted.order) return false;
+		source.accepted = attempt;
 		return true;
 	};
 
-	const claimWarningToast = (sourceSessionId: string) =>
-		claimHandoffWarningSurface(surfacedWarnings, sourceSessionId);
 	const toastFailure = (error: unknown) => {
 		const rawError = error instanceof Error ? error.message : String(error);
 		const cloudError = parseCloudSessionError(rawError);
@@ -151,19 +145,16 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		retry: { command?: string; attachments?: File[] } | undefined,
 		openTarget: boolean,
 	): Promise<boolean | undefined> => {
-		if (
-			handoffAttemptId &&
-			acceptedAttempts.get(sourceSessionId) !== handoffAttemptId
-		)
-			return;
-		const key = attemptKey(sourceSessionId, handoffAttemptId);
-		completions.set(key, completion);
-		if (targetOpenAttempts.has(key)) return;
-		if (!retry) retryStates.delete(key);
+		const source = sourceFor(sourceSessionId);
+		const attempt = attemptFor(sourceSessionId, handoffAttemptId);
+		if (handoffAttemptId && source.accepted !== attempt) return;
+		attempt.completion = completion;
+		if (attempt.openAttempted) return;
+		if (!retry) attempt.retry = undefined;
 		let opened: boolean | undefined;
 		if (openTarget) {
-			targetOpenAttempts.add(key);
-			const sourceThreadId = sourceThreadIds.get(key);
+			attempt.openAttempted = true;
+			const { sourceThreadId } = attempt;
 			opened = Boolean(
 				await Promise.resolve()
 					.then(() =>
@@ -180,17 +171,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					)
 					.catch(() => false),
 			);
-			if (
-				handoffAttemptId &&
-				acceptedAttempts.get(sourceSessionId) !== handoffAttemptId
-			)
-				return;
-			if (opened) retryStates.delete(key);
+			if (handoffAttemptId && source.accepted !== attempt) return;
+			if (opened) attempt.retry = undefined;
 		}
-		const latestAttempt = latestAttempts.get(sourceSessionId);
 		const newerRetry =
-			handoffAttemptId && latestAttempt && latestAttempt !== handoffAttemptId
-				? retryStates.get(latestAttempt)
+			handoffAttemptId && source.latest !== attempt
+				? source.latest?.retry
 				: undefined;
 		const retained =
 			newerRetry?.command || newerRetry?.attachments?.length
@@ -219,22 +205,23 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		warning: Parameters<typeof buildHandoffWarningToast>[0],
 	) => {
 		const toast = buildHandoffWarningToast(warning);
-		if (toast && claimWarningToast(sourceSessionId)) effects.toast(toast);
+		const source = sourceFor(sourceSessionId);
+		if (toast && !source.warningShown) {
+			source.warningShown = true;
+			effects.toast(toast);
+		}
 	};
 
 	return {
 		/** Starts a distinct RPC attempt for this source session. */
 		onRpcStarted(sourceSessionId: string, sourceThreadId?: string): string {
 			const attemptId = crypto.randomUUID();
-			attemptOrders.set(attemptId, ++nextAttemptOrder);
-			latestAttempts.set(sourceSessionId, attemptId);
-			if (sourceThreadId) {
-				sourceThreadIds.set(
-					attemptKey(sourceSessionId, attemptId),
-					sourceThreadId,
-				);
-			}
-			surfacedWarnings.delete(sourceSessionId);
+			const attempt = attemptFor(sourceSessionId, attemptId);
+			attempt.order = ++nextAttemptOrder;
+			attempt.sourceThreadId = sourceThreadId;
+			const source = sourceFor(sourceSessionId);
+			source.latest = attempt;
+			source.warningShown = false;
 			return attemptId;
 		},
 
@@ -242,12 +229,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		async onEvent(progress: HandoffProgressEventPayload): Promise<void> {
 			const { sourceSessionId, handoffAttemptId } = progress;
 			if (!acceptAttempt(sourceSessionId, handoffAttemptId)) return;
-			const key = attemptKey(sourceSessionId, handoffAttemptId);
+			const attempt = attemptFor(sourceSessionId, handoffAttemptId);
 			if (progress.phase === "complete") {
-				if (completions.has(key)) return;
+				if (attempt.completion) return;
 				surfaceWarning(sourceSessionId, progress);
 				if (progress.sessionId?.trim() && progress.dashboardUrl?.trim()) {
-					const saved = retryStates.get(key);
+					const saved = attempt.retry;
 					const retry =
 						progress.warningKind === "unqueued" && saved
 							? {
@@ -365,9 +352,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			ctx: HandoffRpcRejectedContext,
 		): Promise<void> {
 			const { error, nextCommand, sourceAttachments } = ctx;
-			const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
+			const attempt = attemptFor(sourceSessionId, ctx.handoffAttemptId);
 
-			const completed = completions.get(key);
+			const completed = attempt.completion;
 			if (completed) {
 				const retry =
 					completed.warningKind === "unqueued"
@@ -394,19 +381,15 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				});
 				return;
 			}
-			// Record the retry payload synchronously: if the authoritative
-			// completion lands after this rejection, the reducer replaces the
-			// failed entry, and the event path restores the command and
-			// attachments from this registry.
-			retryStates.set(key, {
+			attempt.retry = {
 				...(nextCommand.trim() ? { command: nextCommand.trim() } : {}),
 				...(sourceAttachments.length > 0
 					? { attachments: sourceAttachments }
 					: {}),
-			});
+			};
 			if (
 				ctx.handoffAttemptId &&
-				latestAttempts.get(sourceSessionId) !== ctx.handoffAttemptId
+				sourceFor(sourceSessionId).latest !== attempt
 			) {
 				return;
 			}
