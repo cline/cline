@@ -462,11 +462,15 @@ export class SdkCloudSessionCoordinator {
 					seen.add(record.id)
 					this.upsertRecord(record)
 				}
+				// A record that left the account's list was deleted elsewhere (for
+				// example from the dashboard). Close its connection rather than keep
+				// it in History; the task on screen keeps its host so that opening it
+				// can explain the deletion (see explainConnectFailure).
 				for (const [id, entry] of this.entries) {
-					if (!seen.has(id) && !entry.host) {
-						this.entries.delete(id)
-						this.statusResolutionAttempts.delete(id)
-					}
+					if (seen.has(id) || this.isHostInUse(entry)) continue
+					this.entries.delete(id)
+					this.statusResolutionAttempts.delete(id)
+					void entry.host?.dispose("deleted").catch(() => undefined)
 				}
 				this.pruneRememberedStatuses(seen)
 				this.listFetchedAt = Date.now()
@@ -474,7 +478,17 @@ export class SdkCloudSessionCoordinator {
 				// Reset invalidates both successful responses and failed requests.
 				if (generation !== this.scopeGeneration || this.disposed) return
 				if (error instanceof CloudSessionError && error.code === "authentication_required") {
-					this.entries.clear()
+					// The account's credentials no longer work. Drop the rows and close
+					// the retained connections that nothing is using. The displayed task
+					// keeps its entry and host: closing them would leave a task on screen
+					// that cannot continue even after the user signs in again, and its
+					// next interaction reports the authentication failure itself.
+					for (const [id, entry] of this.entries) {
+						if (this.isHostInUse(entry)) continue
+						this.entries.delete(id)
+						this.statusResolutionAttempts.delete(id)
+						void entry.host?.dispose("authenticationRequired").catch(() => undefined)
+					}
 				}
 				// Keep the last snapshot; History still renders local tasks.
 				Logger.warn("[CloudSessions] Failed to refresh cloud session list:", error)
@@ -1132,14 +1146,15 @@ export class SdkCloudSessionCoordinator {
 	 * refusal only as "Unexpected server response", so ask the control plane
 	 * why: a session deleted elsewhere (for example from the dashboard) is
 	 * reported as `deleted` so the caller drops it from History; one retired
-	 * since the list was fetched is shown as expired.
+	 * since the list was fetched is shown as expired. Retirement arrives either
+	 * as a 410 from `/status` or as a 200 whose status is `expired`.
 	 */
 	private async explainConnectFailure(
 		entry: CloudSessionEntry,
 		error: unknown,
 	): Promise<{ messages: ClineMessage[]; deleted: boolean }> {
 		const probe = await this.options.cloudSessions.getStatus(entry.record.id).then(
-			() => undefined,
+			(status) => (status.status?.toLowerCase() === "expired" ? ("session_expired" as const) : undefined),
 			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
 		)
 		if (probe === "session_expired") {
