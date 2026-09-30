@@ -12,6 +12,10 @@ export const CLINE_PASS_PROVIDER_ID = "cline-pass"
  * the state post that re-renders the settings UI — on it. Auth state changes
  * propagate to the webview separately once the switch completes.
  *
+ * The switch runs inside the cloud-session reset, like the Account view's
+ * organization switch, so a displayed organization cloud task and its
+ * authenticated connections are torn down before the account becomes Personal.
+ *
  * This is intentionally best-effort: selecting the provider should still be
  * saved even if the account switch fails.
  */
@@ -25,8 +29,15 @@ export function clearOrganizationForClinePassProviderSelection(
 	) {
 		return
 	}
+	// Every API configuration update passes through here, and the reset clears
+	// the displayed cloud task, so run it only when the account will change.
+	if (!controller.authService.getActiveOrganizationId()) {
+		return
+	}
 
-	controller.accountService.switchAccount(undefined).catch((error) => {
-		Logger.debug("Failed to switch ClinePass to personal account", { error })
-	})
+	controller
+		.resetCloudSessions(() => controller.accountService.switchAccount(undefined))
+		.catch((error) => {
+			Logger.debug("Failed to switch ClinePass to personal account", { error })
+		})
 }
