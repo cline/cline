@@ -7,8 +7,20 @@ import {
 	resolveConnectorsApiAuth,
 } from "./cline-auth";
 
+/** A host-authenticated request to a path beginning with /api/v1/connectors.
+ * The host owns the API origin and authentication, scoped to one user for the
+ * operation (including pagination). Backend authorization remains mandatory.
+ */
+export type ConnectorsRequest = (
+	path: string,
+	init: RequestInit,
+) => Promise<Response>;
+
 export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
 	accountId?: string;
+	/** Omit to use the saved Cline login. Supply to use the host's existing
+	 * authenticated transport without reading local login or feature flags. */
+	request?: ConnectorsRequest;
 };
 
 /**
@@ -23,8 +35,9 @@ export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
  * The backend must also enforce `CLINE_COMPOSIO_BETA` for the authenticated
  * account; client-side rollout checks are not an authorization boundary.
  *
- * Every function resolves the account bearer token itself (shared
- * refresh-aware resolver) and throws {@link ConnectorsApiError} with the
+ * By default, requests resolve the account bearer token using the shared
+ * refresh-aware resolver. Hosts can instead supply `ctx.request`.
+ * Management functions throw {@link ConnectorsApiError} with the
  * HTTP status on failure; a missing sign-in surfaces as status 401.
  */
 
@@ -81,19 +94,16 @@ type ConnectorPage<T> = {
 	nextToken: string;
 };
 
-async function requestConnectorsApi<T>(
-	method: "GET" | "POST" | "DELETE",
+async function requestWithLocalLogin(
 	path: string,
-	options: {
-		body?: unknown;
-		ctx?: ConnectorsRequestContext;
-	} = {},
-): Promise<T> {
-	const accountId = options.ctx?.accountId ?? getClineAccountId();
+	init: RequestInit,
+	ctx?: ConnectorsRequestContext,
+): Promise<Response> {
+	const accountId = ctx?.accountId ?? getClineAccountId();
 	if (!accountId || getClineAccountId() !== accountId) {
 		throw new ConnectorsApiError("The signed-in Cline account changed.", 401);
 	}
-	const auth = await resolveConnectorsApiAuth(options.ctx);
+	const auth = await resolveConnectorsApiAuth(ctx);
 	if (!auth) {
 		throw new ConnectorsApiError(
 			"Sign in to your Cline account to use connectors.",
@@ -102,7 +112,7 @@ async function requestConnectorsApi<T>(
 	}
 	// Revocation remains available for cleanup after beta access is removed.
 	if (
-		method !== "DELETE" &&
+		init.method !== "DELETE" &&
 		!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))
 	) {
 		throw new ConnectorsApiError(
@@ -115,25 +125,45 @@ async function requestConnectorsApi<T>(
 	if (getClineAccountId() !== accountId || auth.accountId !== accountId) {
 		throw new ConnectorsApiError("The signed-in Cline account changed.", 401);
 	}
-	let response: Response;
+	return fetch(`${auth.baseUrl}${path}`, {
+		...init,
+		headers: { ...init.headers, authorization: `Bearer ${auth.token}` },
+	});
+}
+
+async function requestConnectorsResponse(
+	method: "GET" | "POST" | "DELETE",
+	path: string,
+	options: { body?: unknown; ctx?: ConnectorsRequestContext } = {},
+): Promise<Response> {
+	const request: ConnectorsRequest =
+		options.ctx?.request ??
+		((path, init) => requestWithLocalLogin(path, init, options.ctx));
 	try {
-		response = await fetch(`${auth.baseUrl}${CONNECTORS_API_PATH}${path}`, {
+		return await request(`${CONNECTORS_API_PATH}${path}`, {
 			method,
-			headers: {
-				authorization: `Bearer ${auth.token}`,
-				...(options.body !== undefined
+			headers:
+				options.body !== undefined
 					? { "content-type": "application/json" }
-					: {}),
-			},
+					: {},
 			...(options.body !== undefined
 				? { body: JSON.stringify(options.body) }
 				: {}),
 		});
 	} catch (error) {
+		if (error instanceof ConnectorsApiError) throw error;
 		throw new ConnectorsApiError(
 			`Cline API request failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
+}
+
+async function requestConnectorsApi<T>(
+	method: "GET" | "POST" | "DELETE",
+	path: string,
+	options: { body?: unknown; ctx?: ConnectorsRequestContext } = {},
+): Promise<T> {
+	const response = await requestConnectorsResponse(method, path, options);
 	const text = await response.text();
 	let parsed: unknown;
 	try {
@@ -158,7 +188,7 @@ async function requestConnectorsApi<T>(
 		return undefined as T;
 	}
 	// Management routes return lib.Response<T>; execution relays the provider
-	// body directly and is handled by the core tool extension instead.
+	// body directly and is handled by executeConnectorTool below.
 	if (
 		typeof parsed === "object" &&
 		parsed !== null &&
@@ -212,7 +242,9 @@ async function listAllConnectorPages<T>(
 	path: "/connections" | "/toolkits" | `/toolkits/${string}/tools`,
 	ctx?: ConnectorsRequestContext,
 ): Promise<T[]> {
-	ctx = { ...ctx, accountId: ctx?.accountId ?? getClineAccountId() };
+	if (!ctx?.request) {
+		ctx = { ...ctx, accountId: ctx?.accountId ?? getClineAccountId() };
+	}
 	const items: T[] = [];
 	const seenCursors = new Set<string>();
 	let cursor = "";
@@ -333,4 +365,55 @@ export async function waitForConnectionActive(
 	throw new ConnectorsApiError(
 		"Timed out waiting for the connection to be authorized.",
 	);
+}
+
+/** Execute once through the same authenticated transport as discovery.
+ * Preserves the provider response body; failures become structured tool errors.
+ * This function never retries an execution that could have side effects.
+ */
+export async function executeConnectorTool(
+	tool: Pick<ConnectorToolSchema, "slug" | "version">,
+	input: unknown,
+	ctx?: ConnectorsRequestContext,
+): Promise<unknown> {
+	const body: Record<string, unknown> = {
+		arguments: input && typeof input === "object" ? input : {},
+	};
+	if (tool.version) {
+		body.version = tool.version;
+	}
+	let response: Response;
+	try {
+		response = await requestConnectorsResponse(
+			"POST",
+			`/tools/${encodeURIComponent(tool.slug)}/execute`,
+			{ body, ctx },
+		);
+	} catch (error) {
+		return {
+			successful: false,
+			error:
+				error instanceof ConnectorsApiError && error.status
+					? error.message
+					: `Cline connectors request failed: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+	const text = await response.text();
+	let parsed: unknown;
+	try {
+		parsed = text ? JSON.parse(text) : undefined;
+	} catch {
+		parsed = undefined;
+	}
+	if (!response.ok) {
+		const preview =
+			parsed !== undefined
+				? JSON.stringify(parsed).slice(0, 600)
+				: text.slice(0, 600);
+		return {
+			successful: false,
+			error: `Cline connectors proxy returned HTTP ${response.status} for ${tool.slug}${preview ? `: ${preview}` : ""}`,
+		};
+	}
+	return parsed ?? { successful: true };
 }

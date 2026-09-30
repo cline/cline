@@ -944,7 +944,11 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
+export {
+	type ComposioToolsExtensionOptions,
+	createComposioToolsExtension,
+	resolveComposioToolsStatePath,
+} from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
@@ -1006,6 +1010,22 @@ export {
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { resolveFreshClineAuthToken } from "./services/connectors/cline-auth";
+export {
+	type ConnectorCatalogEntry,
+	type ConnectorConnection,
+	type ConnectorInitiateResult,
+	ConnectorsApiError,
+	type ConnectorsRequest,
+	type ConnectorsRequestContext,
+	type ConnectorToolSchema,
+	deleteConnection,
+	executeConnectorTool,
+	fetchConnectableToolkits,
+	initiateConnection,
+	listConnections,
+	listToolkitTools,
+	waitForConnectionActive,
+} from "./services/connectors/cline-connectors-api";
 export {
 	abandonComposioConnectsForOwner,
 	cancelComposioConnect,

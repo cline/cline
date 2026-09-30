@@ -2,6 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	type ConnectorsRequest,
+	listConnections,
+	listToolkitTools,
+} from "../../services/connectors/cline-connectors-api";
 
 /**
  * Connector tools execute through the Cline API connectors proxy, so the
@@ -61,8 +66,10 @@ function writeState(state: unknown): void {
 	writeFileSync(path, JSON.stringify(state, null, "\t"));
 }
 
-async function setupTools(): Promise<RegisteredTool[]> {
-	const extension = await createComposioToolsExtension();
+async function setupTools(
+	options?: Parameters<typeof createComposioToolsExtension>[0],
+): Promise<RegisteredTool[]> {
+	const extension = await createComposioToolsExtension(options);
 	const tools: RegisteredTool[] = [];
 	if (!extension) {
 		return tools;
@@ -348,5 +355,156 @@ describe("createComposioToolsExtension", () => {
 		};
 		expect(result.successful).toBe(false);
 		expect(result.error).toContain("network down");
+	});
+});
+
+describe("host-supplied Composio tools", () => {
+	beforeEach(() => {
+		auth.accountId = undefined;
+		auth.token = undefined;
+		beta.enabled = false;
+	});
+
+	it("uses the existing API lists to register and execute without a local login or state file", async () => {
+		const schema = {
+			slug: "GMAIL_FETCH_EMAILS",
+			version: "20250101_00",
+			input_parameters: {
+				type: "object",
+				properties: { limit: { type: "number" } },
+			},
+		};
+		const request = vi.fn<ConnectorsRequest>(async (path) => {
+			if (path.includes("/connections?")) {
+				return Response.json({
+					success: true,
+					data: {
+						items: [
+							{ id: "c1", toolkit: { slug: "gmail" }, status: "ACTIVE" },
+							{ id: "c2", toolkit: { slug: "gmail" }, status: "ACTIVE" },
+							{
+								id: "c3",
+								toolkit: { slug: "github" },
+								status: "ACTIVE",
+								is_disabled: true,
+							},
+							{ id: "c4", toolkit: { slug: "linear" }, status: "INITIATED" },
+						],
+						nextToken: "",
+					},
+				});
+			}
+			if (path === "/api/v1/connectors/toolkits/gmail/tools?limit=200") {
+				return Response.json({
+					success: true,
+					data: { items: [schema], nextToken: "" },
+				});
+			}
+			if (path === "/api/v1/connectors/tools/GMAIL_FETCH_EMAILS/execute") {
+				return Response.json({ successful: true, data: { messages: [] } });
+			}
+			throw new Error(`Unexpected request: ${path}`);
+		});
+		const globalFetch = vi.fn();
+		vi.stubGlobal("fetch", globalFetch);
+		const ctx = { request };
+		const connections = await listConnections(ctx);
+		const slugs = [
+			...new Set(
+				connections
+					.filter(
+						(connection) =>
+							connection.status === "ACTIVE" && !connection.is_disabled,
+					)
+					.map((connection) => connection.toolkit.slug),
+			),
+		];
+		const toolkits = Object.fromEntries(
+			await Promise.all(
+				slugs.map(
+					async (slug) => [slug, await listToolkitTools(slug, ctx)] as const,
+				),
+			),
+		);
+		const tools = await setupTools({ toolkits, request });
+		expect(tools.map((tool) => tool.name)).toEqual(["gmail_fetch_emails"]);
+		expect(tools[0].retryable).toBe(false);
+		expect(tools[0].inputSchema).toEqual(schema.input_parameters);
+		expect(await tools[0].execute({ limit: 1 })).toEqual({
+			successful: true,
+			data: { messages: [] },
+		});
+		expect(request).toHaveBeenCalledTimes(3);
+		expect(JSON.parse(request.mock.calls[2][1].body as string)).toEqual({
+			arguments: { limit: 1 },
+			version: "20250101_00",
+		});
+		expect(globalFetch).not.toHaveBeenCalled();
+	});
+
+	it("keeps a snapshot and uses the supplied transport even if a desktop user signs in", async () => {
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValue(Response.json({ successful: true }));
+		const toolkits = { gmail: [{ slug: "GMAIL_FETCH_EMAILS", version: "v1" }] };
+		const tools = await setupTools({ toolkits, request });
+		toolkits.gmail[0].version = "v2";
+		auth.accountId = "some-desktop-user";
+		auth.token = "unrelated-token";
+		await tools[0].execute({});
+		expect(JSON.parse(request.mock.calls[0][1].body as string).version).toBe(
+			"v1",
+		);
+		expect(
+			new Headers(request.mock.calls[0][1].headers).has("authorization"),
+		).toBe(false);
+	});
+
+	it("registers nothing for an empty supplied snapshot", async () => {
+		const request = vi.fn<ConnectorsRequest>();
+		expect(
+			await createComposioToolsExtension({ toolkits: {}, request }),
+		).toBeUndefined();
+		expect(
+			await createComposioToolsExtension({ toolkits: { gmail: [] }, request }),
+		).toBeUndefined();
+		expect(request).not.toHaveBeenCalled();
+	});
+
+	it("preserves deduplication and malformed schema handling for supplied tools", async () => {
+		const request = vi.fn<ConnectorsRequest>();
+		const tools = await setupTools({
+			request,
+			toolkits: {
+				gmail: [
+					{ slug: "READ_MAIL" },
+					{
+						slug: "BROKEN",
+						input_parameters: {
+							allOf: [{ type: "string" }, { type: "number" }],
+						},
+					},
+				],
+				other: [{ slug: "READ_MAIL" }],
+			},
+		});
+		expect(tools.map((tool) => tool.name)).toEqual(["read_mail"]);
+	});
+
+	it("surfaces execution revocation without retrying or changing credentials", async () => {
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValue(
+				Response.json({ error: "connection revoked" }, { status: 403 }),
+			);
+		const tools = await setupTools({
+			request,
+			toolkits: { gmail: [{ slug: "GMAIL_FETCH_EMAILS" }] },
+		});
+		expect(await tools[0].execute({})).toMatchObject({
+			successful: false,
+			error: expect.stringContaining("connection revoked"),
+		});
+		expect(request).toHaveBeenCalledOnce();
 	});
 });
