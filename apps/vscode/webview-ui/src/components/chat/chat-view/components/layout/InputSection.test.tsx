@@ -164,6 +164,33 @@ describe("InputSection", () => {
 		mockCloudState.mockReturnValue({})
 	})
 
+	it("keeps submit disabled while a cloud sandbox is still provisioning", () => {
+		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
+		mockCloudState.mockReturnValue({
+			cloudSessionsEnabled: true,
+			currentCloudTask: { sessionId: "cloud-provisioning-1", status: "provisioning" },
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "test" }],
+		})
+		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InputSection
+				chatState={makeChatState({ sendingDisabled: true })}
+				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const composer = screen.getByLabelText("composer")
+		expect(composer).toBeDisabled()
+		fireEvent.keyDown(composer, { key: "Enter" })
+		expect(handleSendMessage).not.toHaveBeenCalled()
+		mockCloudState.mockReturnValue({})
+	})
+
 	it("allows submit after a failed request so the draft can start the next turn", () => {
 		mockTurnState.mockReturnValue({ phase: "error", seq: 1 })
 		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
