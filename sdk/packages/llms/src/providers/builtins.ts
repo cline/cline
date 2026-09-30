@@ -776,7 +776,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		id: "coralbricks",
 		name: "CoralBricks",
 		description:
-			"CoralBricks open-model inference — GLM and Kimi with up to 1M context",
+			"CoralBricks open-model inference — GLM and DeepSeek with up to 1M context",
 		family: "openai-compatible",
 		capabilities: ["prompt-cache", "tools", "reasoning"],
 		defaultModelId: "glm-5.3-fp4",
