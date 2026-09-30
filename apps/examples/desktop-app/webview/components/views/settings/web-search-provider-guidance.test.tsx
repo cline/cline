@@ -40,8 +40,18 @@ it("offers provider setup and refreshes readiness when provider settings change"
 		expect(navigate).toHaveBeenCalledOnce();
 		catalog.fetch.mockResolvedValue({
 			providers: [
-				{ id: "anthropic", name: "Anthropic", enabled: true },
-				{ id: "openai", name: "OpenAI", enabled: false },
+				{
+					id: "anthropic",
+					name: "Anthropic",
+					enabled: true,
+					modelTools: ["web_search"],
+				},
+				{
+					id: "openai",
+					name: "OpenAI",
+					enabled: false,
+					modelTools: ["web_search"],
+				},
 			],
 		});
 		await act(async () => catalog.invalidate());

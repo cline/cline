@@ -495,7 +495,7 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("attaches when another viewer restores the same saved task first", async () => {
+	it("attaches when the runtime reports a concurrent restore conflict", async () => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
 		const original = f.command.getMockImplementation()!;
@@ -1144,7 +1144,11 @@ describe("CloudSessionController neutral host contract", () => {
 	] as const)("clears retained first-task policy after %s", async (action) => {
 		const pendingInitialTasks = new Map<string, CloudCreationOptions>();
 		const f = fixture({ pendingInitialTasks });
-		const options = { autoApproveTools: false, thinking: false };
+		const options = {
+			autoApproveTools: false,
+			thinking: false,
+			reasoningEffort: "high" as const,
+		};
 		try {
 			await f.controller.create({
 				modelId: "model",
@@ -1155,6 +1159,12 @@ describe("CloudSessionController neutral host contract", () => {
 			if (action === "create") {
 				f.setHasInner(false);
 				await f.controller.send(record.id, "First prompt");
+				expect(
+					f.commands.find((c) => c.command === "session.create")?.payload,
+				).toMatchObject({
+					metadata: { thinking: false, reasoningEffort: null },
+					sessionConfig: { thinking: false, reasoningEffort: "high" },
+				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);
 			} else {
@@ -1603,6 +1613,8 @@ describe("seeded cloud handoff controller", () => {
 			toolPolicies: { "*": { autoApprove: false } },
 			metadata: {
 				interactive: true,
+				thinking: true,
+				reasoningEffort: "high",
 				handoff: { sourceSessionId: "local-source", outerSessionId: record.id },
 			},
 		});
