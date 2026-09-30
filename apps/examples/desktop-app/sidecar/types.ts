@@ -50,6 +50,7 @@ export type ChatSessionCommandRequest = {
 	fingerprint?: JsonRecord;
 	/** Opaque webview correlation token echoed on handoff progress events. */
 	handoffAttemptId?: string;
+	handoffFollowUpId?: string;
 	gitPreparationId?: string;
 	/** Optional first prompt to queue after ownership moves to the cloud session. */
 	nextCommand?: string;

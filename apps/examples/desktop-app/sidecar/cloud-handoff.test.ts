@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
 	assertPendingCloudHandoffCompatible,
+	assertSessionDeleteAllowedDuringHandoff,
 	cloudHandoffGitStateMatchesFingerprint,
 	formatPendingHandoffVerificationError,
 	shouldCleanupFailedHandoffVerification,
@@ -908,6 +909,9 @@ describe("cloud handoff transaction", () => {
 		);
 		expect(first.getPersistedMetadata()).toHaveProperty("cloudHandoffIntent");
 		const restarted = createHandoffFixture(true, first.getPersistedMetadata());
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(restarted.ctx, request.sessionId),
+		).rejects.toThrow("Cloud handoff creation is still unconfirmed");
 		restarted.create.mockImplementation(createWithFreshApi);
 		await expect(
 			handleChatSessionCommand(restarted.ctx, request),
@@ -927,6 +931,40 @@ describe("cloud handoff transaction", () => {
 		expect(
 			readCloudHandoffMetadata(recovered.getPersistedMetadata())?.status,
 		).toBe("complete");
+		const release = await assertSessionDeleteAllowedDuringHandoff(
+			recovered.ctx,
+			request.sessionId,
+		);
+		release();
+	});
+
+	it.each([
+		"pending",
+		"complete",
+		undefined,
+	] as const)("permits deletion only without an unresolved handoff (%s)", async (status) => {
+		const f = createHandoffFixture(
+			true,
+			status
+				? {
+						handoff: {
+							status,
+							toCloudSessionId: "ses-cloud",
+							handedOffAt: "2026-09-30T00:00:00.000Z",
+						},
+					}
+				: {},
+		);
+		const deletion = assertSessionDeleteAllowedDuringHandoff(
+			f.ctx,
+			f.sourceSessionId,
+		);
+		if (status === "pending") {
+			await expect(deletion).rejects.toThrow("Cloud handoff is still pending");
+		} else {
+			const release = await deletion;
+			release();
+		}
 	});
 
 	it("clears a definitely rejected create intent and permits retry", async () => {
@@ -1492,6 +1530,7 @@ describe("cloud handoff transaction", () => {
 
 		expect(result.warningKind).toBe("unqueued");
 		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual({
+			draftId: expect.any(String),
 			sourceSessionId: "local-handoff-source",
 			command: "continue in cloud",
 			userImages: ["data:image/png;base64,aW1hZ2U="],

@@ -733,13 +733,14 @@ export default function Home() {
 		): Promise<boolean> => {
 			const revision = ++sessionOpenRevision.current;
 			const location = activeLocationRef.current;
-			const open = (draft?: string, attachments?: File[]) =>
+			const open = (draft?: string, attachments?: File[], draftId?: string) =>
 				dispatchApp({
 					type: "open-session",
 					session,
 					environmentId: session.environmentId,
 					initialPromptDraft: draft,
 					initialAttachments: attachments,
+					initialHandoffFollowUpId: draftId,
 				});
 			if (session.origin !== "cloud") {
 				open(initialPromptDraft, initialAttachments);
@@ -1209,6 +1210,9 @@ export default function Home() {
 											}
 											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
+											initialHandoffFollowUpId={
+												activeThread.initialHandoffFollowUpId
+											}
 											handoffLifecycle={handoffLifecycle}
 											confirmHandoffGit={confirmHandoffGit}
 											knownWorkspacePaths={historyWorkspacePaths}
@@ -1342,6 +1346,7 @@ function ChatThreadPane({
 	liveHistoryStatus,
 	initialAttachments,
 	initialPromptDraft,
+	initialHandoffFollowUpId,
 	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -1372,6 +1377,7 @@ function ChatThreadPane({
 	/** Attachments to restore into the composer alongside initialPromptDraft. */
 	initialAttachments?: File[];
 	initialPromptDraft?: string;
+	initialHandoffFollowUpId?: string;
 	/** Home-level coordinator owning handoff completion/failure ordering. */
 	handoffLifecycle: Pick<
 		HandoffLifecycle,
@@ -1654,6 +1660,7 @@ function ChatThreadPane({
 	const [uncertainFollowUp, setUncertainFollowUp] =
 		useState<CloudHandoffFollowUp | null>(null);
 	const [updatingFollowUp, setUpdatingFollowUp] = useState(false);
+	const restoredFollowUpIdRef = useRef<string | undefined>(undefined);
 	const followUpSessionRef = useRef(sessionId);
 	followUpSessionRef.current = sessionId;
 	const followUpReadRef = useRef(0);
@@ -1696,7 +1703,8 @@ function ChatThreadPane({
 						targetSessionId: sessionId,
 						expected: uncertainFollowUp,
 						canRestore,
-						restore: (draft, attachments) => {
+						restore: (draft, attachments, draftId) => {
+							restoredFollowUpIdRef.current = draftId;
 							setPromptInput(draft);
 							setPendingAttachments(attachments);
 						},
@@ -2232,6 +2240,7 @@ function ChatThreadPane({
 		const hasInitialComposerState =
 			initialPromptDraft !== undefined || initialAttachments !== undefined;
 		if (hasInitialComposerState) {
+			restoredFollowUpIdRef.current = initialHandoffFollowUpId;
 			setPromptInput(initialPromptDraft ?? "");
 			setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
 			onInitialPromptDraftConsumed?.(threadId);
@@ -2241,6 +2250,7 @@ function ChatThreadPane({
 		}
 		hydratedSessionRef.current = historySession.sessionId;
 		if (!hasInitialComposerState) {
+			restoredFollowUpIdRef.current = undefined;
 			setPromptInput("");
 			setPendingAttachments([]);
 		}
@@ -2251,6 +2261,7 @@ function ChatThreadPane({
 		hydrateSession,
 		initialAttachments,
 		initialPromptDraft,
+		initialHandoffFollowUpId,
 		onInitialPromptDraftConsumed,
 		setPendingAttachments,
 		setPromptInput,
@@ -2617,8 +2628,11 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
+			const restoredFollowUpId = restoredFollowUpIdRef.current;
+			restoredFollowUpIdRef.current = undefined;
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
+				handoffFollowUpId: restoredFollowUpId,
 			});
 			const savedFollowUp = await refreshFollowUp().catch(() => undefined);
 			if (promptTaken && !isCloudSession && sourceSessionId) {
@@ -2633,6 +2647,8 @@ function ChatThreadPane({
 				!savedFollowUp?.unconfirmed &&
 				promptInputRef.current.trim() === ""
 			) {
+				if (savedFollowUp?.draftId === restoredFollowUpId)
+					restoredFollowUpIdRef.current = restoredFollowUpId;
 				setPromptInput(trimmed);
 				handleAttachFiles(toSend);
 			}

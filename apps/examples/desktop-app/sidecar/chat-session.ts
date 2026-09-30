@@ -389,12 +389,13 @@ function createLiveSession(
 		config,
 		messages: overrides?.messages ?? [],
 		promptsInQueue: overrides?.promptsInQueue ?? [],
-		busy: false,
+		busy: overrides?.busy ?? false,
 		startedAt: nowMs(),
 		status: overrides?.status ?? "idle",
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		lastHubStatusSequence: overrides?.lastHubStatusSequence,
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -1097,12 +1098,11 @@ async function handleAttach(
 		session.metadata && typeof session.metadata === "object"
 			? (session.metadata as JsonRecord)
 			: undefined;
-	const existing = ctx.liveSessions.get(sessionId);
-	// A live sidecar session has already seen run.started/run.completed and is
-	// more authoritative than Core's persisted `running` process status.
-	// Capture it before session.attach can emit a resident-process snapshot.
-	const attachedStatus = existing?.status ?? session.status;
 	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
+	// Include run events received during attach; Core's running status can
+	// describe an idle resident process rather than an active turn.
+	const existing = ctx.liveSessions.get(sessionId);
+	const attachedStatus = existing?.status ?? session.status;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
@@ -1128,6 +1128,8 @@ async function handleAttach(
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
 			status: attachedStatus,
+			busy: existing?.busy,
+			lastHubStatusSequence: existing?.lastHubStatusSequence,
 			prompt:
 				session.prompt ||
 				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
@@ -2294,6 +2296,7 @@ export async function handleChatSessionCommand(
 							request.attachments?.userImages,
 							lifecycle,
 						),
+					request.handoffFollowUpId,
 				);
 			}
 			case "stop":

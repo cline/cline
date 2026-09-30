@@ -12,6 +12,7 @@ import type { CloudSendLifecycle } from "@cline/core/cloud";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
 export type CloudHandoffFollowUp = {
+	draftId: string;
 	sourceSessionId: string;
 	command: string;
 	userImages: string[];
@@ -29,13 +30,20 @@ function followUpPath(targetSessionId: string): string {
 
 export function saveCloudHandoffFollowUp(
 	targetSessionId: string,
-	followUp: CloudHandoffFollowUp,
+	followUp: Omit<CloudHandoffFollowUp, "draftId"> & { draftId?: string },
 ): void {
 	const path = followUpPath(targetSessionId);
 	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
 	const temporaryPath = `${path}.${randomUUID()}.tmp`;
 	try {
-		writeFileSync(temporaryPath, JSON.stringify(followUp), { mode: 0o600 });
+		writeFileSync(
+			temporaryPath,
+			JSON.stringify({
+				...followUp,
+				draftId: followUp.draftId ?? randomUUID(),
+			}),
+			{ mode: 0o600 },
+		);
 		renameSync(temporaryPath, path);
 	} finally {
 		rmSync(temporaryPath, { force: true });
@@ -58,11 +66,15 @@ export function readCloudHandoffFollowUp(
 		typeof value.command !== "string" ||
 		!Array.isArray(value.userImages) ||
 		!value.userImages.every((image) => typeof image === "string") ||
+		(value.draftId !== undefined && typeof value.draftId !== "string") ||
 		(value.unconfirmed !== undefined && typeof value.unconfirmed !== "boolean")
 	) {
 		throw new Error("The saved cloud follow-up could not be read.");
 	}
-	return value;
+	return {
+		...value,
+		draftId: value.draftId ?? createHash("sha256").update(raw).digest("hex"),
+	};
 }
 
 export function clearCloudHandoffFollowUp(targetSessionId: string): void {
@@ -95,17 +107,23 @@ export async function sendWithCloudHandoffFollowUp<
 	command: string,
 	userImages: string[],
 	send: (lifecycle?: CloudSendLifecycle) => Promise<T>,
+	draftId?: string,
 ): Promise<T> {
 	const saved = readCloudHandoffFollowUp(targetSessionId);
 	const matches = (record: CloudHandoffFollowUp | null) =>
 		Boolean(
 			record &&
 				saved &&
+				record.draftId === saved.draftId &&
 				record.sourceSessionId === saved.sourceSessionId &&
 				record.command.trim() === command.trim() &&
 				isDeepStrictEqual(record.userImages, userImages),
 		);
-	if (!saved || (saved.unconfirmed && !matches(saved))) return await send();
+	if (
+		!saved ||
+		(!matches(saved) && (saved.unconfirmed || saved.draftId !== draftId))
+	)
+		return await send();
 	if (!matches(saved))
 		saveCloudHandoffFollowUp(targetSessionId, {
 			...saved,

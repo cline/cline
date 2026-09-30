@@ -1067,9 +1067,13 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 	try {
 		const manager = getSessionRuntimeBinding(ctx).sessionManager;
 		const persisted = await manager.get(sessionId);
-		const handoff = readCloudHandoffMetadata(
-			persisted?.metadata ?? readSessionMetadata(sessionId),
-		);
+		const metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
+		const handoff = readCloudHandoffMetadata(metadata);
+		if (!handoff && metadata?.cloudHandoffIntent) {
+			throw new Error(
+				"Cloud handoff creation is still unconfirmed. Retry /cloud to recover it before deleting this session.",
+			);
+		}
 		if (handoff?.status === "pending") {
 			throw new Error(
 				`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,

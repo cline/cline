@@ -99,12 +99,14 @@ describe("desktopAppReducer", () => {
 			session: createSession("handoff-target"),
 			environmentId: "local",
 			initialAttachments: [attachment],
+			initialHandoffFollowUpId: "recovery-draft",
 		});
 		const threadId = `session_${sessionKey({ sessionId: "handoff-target", environmentId: "local" })}`;
 
 		const thread = state.threads.find((item) => item.id === threadId);
 		expect(thread?.initialPromptDraft).toBeUndefined();
 		expect(thread?.initialAttachments).toEqual([attachment]);
+		expect(thread?.initialHandoffFollowUpId).toBe("recovery-draft");
 
 		state = desktopAppReducer(state, {
 			type: "consume-initial-prompt-draft",
@@ -114,6 +116,7 @@ describe("desktopAppReducer", () => {
 		const consumed = state.threads.find((item) => item.id === threadId);
 		expect(consumed?.initialPromptDraft).toBeUndefined();
 		expect(consumed?.initialAttachments).toBeUndefined();
+		expect(consumed?.initialHandoffFollowUpId).toBeUndefined();
 	});
 
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
