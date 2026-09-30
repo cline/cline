@@ -1235,7 +1235,7 @@ export function AgentSidebar({
 									{accountInitial}
 								</span>
 								<span className="flex min-w-0 flex-col leading-tight">
-									<span className="truncate text-sm font-medium">
+									<span className="truncate text-sm font-medium text-muted-foreground">
 										{accountName}
 									</span>
 									{accountScope ? (
@@ -1247,12 +1247,7 @@ export function AgentSidebar({
 							</button>
 							<Button
 								aria-label="Settings"
-								className={cn(
-									"size-9 shrink-0 justify-center px-0",
-									view === "settings" &&
-										settingsSection !== "Account" &&
-										"bg-surface-hover text-sidebar-foreground",
-								)}
+								className="size-9 shrink-0 justify-center px-0"
 								onClick={openSettings}
 								title="Settings"
 								type="button"
@@ -1267,8 +1262,6 @@ export function AgentSidebar({
 							className={cn(
 								"min-w-0 justify-start",
 								isCollapsed && "size-9 justify-center px-0",
-								view === "settings" &&
-									"bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={openSettings}
 							title="Settings"
