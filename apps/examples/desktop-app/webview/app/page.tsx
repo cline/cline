@@ -674,14 +674,19 @@ export default function Home() {
 		});
 	}, [handleDeleteSession]);
 
-	const activeHistorySession = threads.find(
-		(thread) => thread.id === activeThreadId,
-	)?.historySession;
-	const activeHistorySessionId = activeHistorySession
-		? sessionKey(activeHistorySession)
-		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	// A thread opened from history carries its session record; one started
+	// fresh in the app only has the runtime session id bound by thread-started.
+	// Both must resolve so the sidebar highlights a session begun in the app.
+	const activeHistorySessionId = activeThread?.historySession
+		? sessionKey(activeThread.historySession)
+		: activeThread?.sessionId
+			? sessionKey({
+					sessionId: activeThread.sessionId,
+					environmentId: activeThread.environmentId,
+				})
+			: null;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			handleNewThread();
