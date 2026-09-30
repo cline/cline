@@ -195,8 +195,10 @@ async function renderVoiceComposer({
 	promptVersion = 0,
 	status = "idle",
 	readOnly = false,
+	readOnlyReason,
 	executionTarget,
 	onAttachFiles = vi.fn(),
+	onRemoveAttachment = vi.fn(),
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -208,7 +210,9 @@ async function renderVoiceComposer({
 	promptVersion?: number;
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
+	readOnlyReason?: string;
 	executionTarget?: "cloud" | "local";
+	onRemoveAttachment?: ReturnType<typeof vi.fn>;
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
 	await act(async () => {
@@ -216,6 +220,7 @@ async function renderVoiceComposer({
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
 					readOnly={readOnly}
+					readOnlyReason={readOnlyReason}
 					executionTarget={executionTarget}
 					attachments={attachments}
 					gitBranch="main"
@@ -234,7 +239,7 @@ async function renderVoiceComposer({
 					onPromptInputChange={onPromptInputChange}
 					onProviderChange={vi.fn()}
 					onReasoningChange={vi.fn()}
-					onRemoveAttachment={vi.fn()}
+					onRemoveAttachment={onRemoveAttachment}
 					onRemovePromptInQueue={vi.fn()}
 					onSend={onSend}
 					onSteerPromptInQueue={vi.fn()}
@@ -254,6 +259,61 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("explains external ownership and disables the composer without discarding its draft", async () => {
+		const onSend = vi.fn();
+		const onRemoveAttachment = vi.fn();
+		await renderVoiceComposer({
+			readOnly: true,
+			attachments: [{ id: "draft-file", name: "draft.txt", isImage: false }],
+			onRemoveAttachment,
+			readOnlyReason: "This session is open in another client.",
+			prompt: "draft",
+			onSend,
+		});
+		expect(container.textContent).toContain(
+			"This session is open in another client.",
+		);
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.value).toBe("draft");
+		expect(textarea?.readOnly).toBe(true);
+		for (const label of ["Model and provider"]) {
+			const control = container.querySelector<HTMLButtonElement>(
+				`[aria-label="${label}"]`,
+			);
+			expect(control, label).not.toBeNull();
+			expect(control?.disabled, label).toBe(true);
+		}
+		const remove = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Remove draft.txt"]',
+		);
+		expect(remove?.matches(":disabled")).toBe(false);
+		await act(async () => remove?.click());
+		expect(onRemoveAttachment).toHaveBeenCalledWith("draft-file");
+		expect(
+			container
+				.querySelector('[aria-label="Send message"]')
+				?.matches(":disabled"),
+		).toBe(true);
+		expect(onSend).not.toHaveBeenCalled();
+		await renderVoiceComposer({ prompt: "draft", onSend });
+		expect(container.querySelector("textarea")?.matches(":disabled")).toBe(
+			false,
+		);
+	});
+
+	it("ignores Escape in a running read-only session", async () => {
+		const onAbort = vi.fn();
+		await renderVoiceComposer({ readOnly: true, status: "running", onAbort });
+		await act(async () => {
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+				);
+		});
+		expect(onAbort).not.toHaveBeenCalled();
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });

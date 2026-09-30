@@ -542,6 +542,13 @@ export function handleCoreSessionEvent(
 	event: CoreSessionEvent,
 ): void {
 	switch (event.type) {
+		case "session_access": {
+			sendEvent(ctx, "chat_session_access", {
+				sessionId: event.payload.sessionId,
+				readOnly: event.payload.ownedByAnotherClient,
+			});
+			break;
+		}
 		case "chunk": {
 			const { sessionId, stream, chunk } = event.payload;
 			if (stream === "agent") break;

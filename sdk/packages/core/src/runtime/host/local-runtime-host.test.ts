@@ -364,6 +364,14 @@ describe("LocalRuntimeHost", () => {
 		});
 		try {
 			await manager.startSession(input);
+			await expect(
+				manager.attachSession("restart-task"),
+			).resolves.toMatchObject({ sessionId: "restart-task" });
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(1);
+			expect(shutdownRuntime).not.toHaveBeenCalled();
+			await expect(
+				manager.attachSession("not-resident"),
+			).resolves.toBeUndefined();
 			const previous = createAgent.mock.results[0]?.value;
 			if (!previous) throw new Error("Initial agent was not created");
 			previous.canStartRun.mockReturnValue(!busy);

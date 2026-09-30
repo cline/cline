@@ -562,8 +562,15 @@ export function useChatSession(environmentId: string) {
 		[environmentId],
 	);
 	const [sessionId, setSessionId] = useState<string | null>(null);
+	const [readOnlySessionId, setReadOnlySessionId] = useState<string | null>(
+		null,
+	);
+	const sessionAccessRevisionRef = useRef(0);
+	const isSessionReadOnly =
+		sessionId !== null && readOnlySessionId === sessionId;
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
+	const [isCheckingSessionAccess, setIsCheckingSessionAccess] = useState(false);
 	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
 		getInitialChatConfig(environmentId),
@@ -2215,6 +2222,22 @@ export function useChatSession(environmentId: string) {
 		};
 	}, [handleIncomingChunk, subscribeToEnvironment]);
 
+	useEffect(
+		() =>
+			subscribeToEnvironment("chat_session_access", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const access = payload as { sessionId?: string; readOnly?: boolean };
+				if (
+					access.sessionId !== activeSessionIdRef.current ||
+					typeof access.readOnly !== "boolean"
+				)
+					return;
+				sessionAccessRevisionRef.current += 1;
+				setReadOnlySessionId(access.readOnly ? access.sessionId : null);
+			}),
+		[subscribeToEnvironment],
+	);
+
 	useEffect(() => {
 		const unsubscribeStatus = subscribeToEnvironment(
 			"chat_session_status",
@@ -2583,6 +2606,7 @@ export function useChatSession(environmentId: string) {
 		): Promise<string> => {
 			hydrationRequestIdRef.current += 1;
 			setIsHydratingSession(false);
+			setIsCheckingSessionAccess(false);
 			const boundConfig = { ...validatedConfig, environmentId };
 			const payload = await postSession({
 				action: "start",
@@ -2654,6 +2678,7 @@ export function useChatSession(environmentId: string) {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(false);
+			setIsCheckingSessionAccess(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
 			discardPendingStream();
@@ -2701,12 +2726,14 @@ export function useChatSession(environmentId: string) {
 				inNewWorktree?: boolean;
 			},
 		): Promise<boolean> => {
-			if (isCloudSessionExpired) return false;
+			if (isCloudSessionExpired || isSessionReadOnly || isCheckingSessionAccess)
+				return false;
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
 
 			setError(null);
 			setIsHydratingSession(false);
+			setIsCheckingSessionAccess(false);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
 			const pendingSessionStart = sessionStartPromiseRef.current;
@@ -3558,6 +3585,8 @@ export function useChatSession(environmentId: string) {
 			environmentId,
 			hydratedHistorySessionId,
 			isCloudSessionExpired,
+			isSessionReadOnly,
+			isCheckingSessionAccess,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
 			reportSessionStartFailure,
@@ -3633,6 +3662,7 @@ export function useChatSession(environmentId: string) {
 			clearAbortFallbackTimeout();
 			setError(null);
 			setIsHydratingSession(false);
+			setIsCheckingSessionAccess(false);
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
 			setPendingToolApprovals([]);
@@ -3686,7 +3716,7 @@ export function useChatSession(environmentId: string) {
 	);
 
 	const abort = useCallback(async () => {
-		if (!sessionId) return;
+		if (!sessionId || isSessionReadOnly || isCheckingSessionAccess) return;
 		const fallbackStatus: ChatSessionStatus =
 			status === "stopping" ? "running" : status;
 		const statusRevisionAtAbort = authoritativeStatusRevisionRef.current;
@@ -3722,7 +3752,14 @@ export function useChatSession(environmentId: string) {
 		} catch {
 			restoreFallbackStatus();
 		}
-	}, [clearAbortFallbackTimeout, postSession, sessionId, status]);
+	}, [
+		clearAbortFallbackTimeout,
+		postSession,
+		sessionId,
+		status,
+		isSessionReadOnly,
+		isCheckingSessionAccess,
+	]);
 
 	const proceedWhileRunning = useCallback(
 		async (targetSessionId: string, toolCallId?: string) => {
@@ -3749,8 +3786,10 @@ export function useChatSession(environmentId: string) {
 		hydrationRequestIdRef.current += 1;
 		const activeSessionId = sessionId;
 		setSessionId(null);
+		setReadOnlySessionId(null);
 		setStatus("idle");
 		setIsHydratingSession(false);
+		setIsCheckingSessionAccess(false);
 		setIsCloudSessionExpired(false);
 		abortedRef.current = false;
 		clearAbortFallbackTimeout();
@@ -3836,6 +3875,7 @@ export function useChatSession(environmentId: string) {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			setIsCheckingSessionAccess(true);
 			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -3927,9 +3967,11 @@ export function useChatSession(environmentId: string) {
 					setIsHydratingSession(false);
 				}
 
+				const accessRevision = sessionAccessRevisionRef.current;
 				const attached = await desktopClient
 					.invoke<{
 						sessionId?: string;
+						readOnly?: boolean;
 						status?: string;
 						provider?: string;
 						model?: string;
@@ -3962,6 +4004,9 @@ export function useChatSession(environmentId: string) {
 						return undefined;
 					});
 				if (hydrationRequestIdRef.current !== requestId) return;
+				if (sessionAccessRevisionRef.current === accessRevision) {
+					setReadOnlySessionId(attached?.readOnly ? session.sessionId : null);
+				}
 				if (
 					attached?.environmentId !== undefined &&
 					attached.environmentId !== environmentId
@@ -4048,6 +4093,7 @@ export function useChatSession(environmentId: string) {
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
 				if (hydrationRequestIdRef.current === requestId) {
+					setIsCheckingSessionAccess(false);
 					setIsHydratingSession(false);
 				}
 			}
@@ -4114,7 +4160,13 @@ export function useChatSession(environmentId: string) {
 	const steerPromptInQueue = useCallback(
 		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId) return;
+			if (
+				isCloudSessionExpired ||
+				isSessionReadOnly ||
+				isCheckingSessionAccess ||
+				!activeSessionId
+			)
+				return;
 			if (promptId === undefined) {
 				// Enter targets the first server queue entry. The composer can
 				// already be empty while its optimistic entry is still being sent.
@@ -4161,13 +4213,25 @@ export function useChatSession(environmentId: string) {
 				);
 			}
 		},
-		[isCloudSessionExpired, postSession, setPromptsInQueue],
+		[
+			isCloudSessionExpired,
+			isSessionReadOnly,
+			isCheckingSessionAccess,
+			postSession,
+			setPromptsInQueue,
+		],
 	);
 
 	const updatePromptInQueue = useCallback(
 		async (promptId: string, prompt: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
+			if (
+				isCloudSessionExpired ||
+				isSessionReadOnly ||
+				isCheckingSessionAccess ||
+				!activeSessionId ||
+				!promptId.trim()
+			) {
 				return;
 			}
 			const payload = await postSession({
@@ -4180,13 +4244,25 @@ export function useChatSession(environmentId: string) {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[isCloudSessionExpired, postSession, setPromptsInQueue],
+		[
+			isCloudSessionExpired,
+			isSessionReadOnly,
+			isCheckingSessionAccess,
+			postSession,
+			setPromptsInQueue,
+		],
 	);
 
 	const removePromptInQueue = useCallback(
 		async (promptId: string): Promise<PromptInQueue | undefined> => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
+			if (
+				isCloudSessionExpired ||
+				isSessionReadOnly ||
+				isCheckingSessionAccess ||
+				!activeSessionId ||
+				!promptId.trim()
+			) {
 				return undefined;
 			}
 			const payload = await postSession({
@@ -4199,7 +4275,13 @@ export function useChatSession(environmentId: string) {
 			);
 			return payload.prompt;
 		},
-		[isCloudSessionExpired, postSession, setPromptsInQueue],
+		[
+			isCloudSessionExpired,
+			isSessionReadOnly,
+			isCheckingSessionAccess,
+			postSession,
+			setPromptsInQueue,
+		],
 	);
 
 	const summary = useMemo(
@@ -4225,6 +4307,8 @@ export function useChatSession(environmentId: string) {
 
 	return {
 		sessionId,
+		isCheckingSessionAccess,
+		isSessionReadOnly,
 		status,
 		isCloudSessionExpired,
 		chatTransportState,

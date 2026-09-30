@@ -30,6 +30,7 @@ import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
+	AttachSessionResult,
 	ListSessionsOptions,
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
@@ -58,6 +59,7 @@ import {
 import {
 	type CoreSessionSnapshot,
 	coreSessionSnapshotToRecord,
+	sessionSnapshotToManifest,
 } from "../../session/session-snapshot";
 import type {
 	CoreSettingsListInput,
@@ -733,32 +735,6 @@ function buildManifest(
 	});
 }
 
-function buildManifestFromSnapshot(
-	snapshot: CoreSessionSnapshot,
-	input: StartSessionInput,
-): SessionManifest {
-	return SessionManifestSchema.parse({
-		version: 1,
-		session_id: snapshot.sessionId,
-		source: snapshot.source,
-		pid: process.pid,
-		started_at: snapshot.createdAt,
-		status: snapshot.status,
-		interactive: snapshot.interactive,
-		provider: snapshot.model.providerId,
-		model: snapshot.model.modelId,
-		cwd: snapshot.workspace.cwd,
-		workspace_root: snapshot.workspace.root,
-		team_name: snapshot.team?.name,
-		enable_tools: snapshot.capabilities.enableTools,
-		enable_spawn: snapshot.capabilities.enableSpawn,
-		enable_teams: snapshot.capabilities.enableTeams,
-		prompt: (snapshot.prompt ?? input.prompt?.trim()) || undefined,
-		metadata: snapshot.metadata,
-		messages_path: snapshot.artifacts?.messagesPath,
-	});
-}
-
 export class HubRuntimeHost implements RuntimeHost {
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
@@ -865,6 +841,40 @@ export class HubRuntimeHost implements RuntimeHost {
 		await this.client.connect();
 	}
 
+	async attachSession(
+		sessionId: string,
+	): Promise<AttachSessionResult | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const subscribed = this.hasSessionSubscription(target);
+		this.ensureSessionSubscription(target);
+		try {
+			const reply = await this.client.command(
+				"session.attach",
+				{ sessionId: target },
+				target,
+			);
+			if (reply.payload?.runtimeAttached !== true) {
+				if (!subscribed) this.disposeSessionSubscription(target);
+				return undefined;
+			}
+			const snapshot = parseCoreSessionSnapshot(reply.payload?.snapshot);
+			if (!snapshot)
+				throw new Error("Hub attach did not return a session snapshot");
+			return {
+				sessionId: target,
+				ownedByAnotherClient: reply.payload?.ownedByAnotherClient === true,
+				manifest: sessionSnapshotToManifest(snapshot),
+				manifestPath: "",
+				messagesPath: "",
+			};
+		} catch (error) {
+			if (!subscribed) this.disposeSessionSubscription(target);
+			if (isSessionNotFoundError(error)) return undefined;
+			throw error;
+		}
+	}
+
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const capabilities = this.resolveCapabilities(input);
 		const clientContributions = buildClientContributionRegistration(
@@ -941,7 +951,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		let manifest: SessionManifest;
 		try {
 			manifest = snapshot
-				? buildManifestFromSnapshot(snapshot, input)
+				? sessionSnapshotToManifest(snapshot, input.prompt)
 				: buildManifest(sessionId, input, session);
 		} catch (error) {
 			this.cleanupPlannedSession(plannedSessionId);
@@ -1129,10 +1139,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					? {
 							sessionId: newSessionId,
 							manifest: snapshot
-								? buildManifestFromSnapshot(
-										snapshot,
-										startConfig ?? ({} as StartSessionInput),
-									)
+								? sessionSnapshotToManifest(snapshot, startConfig?.prompt)
 								: buildManifest(
 										newSessionId,
 										startConfig ?? ({} as StartSessionInput),
@@ -1959,6 +1966,17 @@ export class HubRuntimeHost implements RuntimeHost {
 			case "session.detached": {
 				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
+				if (session) {
+					this.events.emit({
+						type: "session_access",
+						payload: {
+							sessionId,
+							ownedByAnotherClient:
+								session.createdByClientId !== "hub" &&
+								session.createdByClientId !== this.client.getClientId(),
+						},
+					});
+				}
 				if (snapshot) {
 					this.events.emit({
 						type: "session_snapshot",

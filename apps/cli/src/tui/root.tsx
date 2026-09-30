@@ -92,6 +92,7 @@ function isChatBackedStartupTarget(
 
 function App(props: TuiProps) {
 	const session = useSession();
+	const [inputBlockedReason, setInputBlockedReason] = useState<string>();
 	const renderer = useRenderer();
 	const dialog = useDialog();
 	const isDialogOpen = useDialogState((s: { isOpen: boolean }) => s.isOpen);
@@ -218,10 +219,11 @@ function App(props: TuiProps) {
 	);
 
 	const toggleMode = useCallback(() => {
+		if (inputBlockedReason) return;
 		const newMode = session.uiMode === "act" ? "plan" : "act";
 		session.toggleMode();
 		void props.onModeChange(newMode);
-	}, [props, session]);
+	}, [inputBlockedReason, props, session]);
 
 	const handleModelChange = useCallback(async () => {
 		await props.onModelChange();
@@ -865,6 +867,7 @@ function App(props: TuiProps) {
 	});
 
 	const promptInput = usePromptInputController({
+		inputBlockedReason,
 		autocomplete,
 		slashCommandRegistry,
 		handleSlashCommand,
@@ -954,7 +957,7 @@ function App(props: TuiProps) {
 	}, [isDialogOpen, isRuntimeInteractionOpen, appView, focusPromptTextarea]);
 
 	useEffect(() => {
-		if (initialPromptSubmittedRef.current) return;
+		if (initialPromptSubmittedRef.current || inputBlockedReason) return;
 		if (appView === "onboarding") return;
 		if (!props.initialPrompt?.trim()) return;
 		const timeout = setTimeout(() => {
@@ -963,7 +966,7 @@ function App(props: TuiProps) {
 			submitInitialPrompt();
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, submitInitialPrompt, props.initialPrompt]);
+	}, [appView, submitInitialPrompt, props.initialPrompt, inputBlockedReason]);
 
 	useRootKeyboard({
 		isDialogOpen: isDialogOpen || isRuntimeInteractionOpen,
@@ -1000,6 +1003,7 @@ function App(props: TuiProps) {
 
 	const eventBridgeHandlers = useMemo(
 		() => ({
+			onSessionAccess: setInputBlockedReason,
 			onAgentEvent: agentHandlers.handleAgentEvent,
 			onTeamEvent: agentHandlers.handleTeamEvent,
 			onPendingPrompts: handlePendingPrompts,
@@ -1009,6 +1013,7 @@ function App(props: TuiProps) {
 	);
 
 	const viewProps = {
+		inputBlockedReason,
 		config: props.config,
 		inputValue: promptInput.inputValue,
 		inputKey: promptInput.inputKey,

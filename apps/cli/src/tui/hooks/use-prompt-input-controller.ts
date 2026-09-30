@@ -30,6 +30,7 @@ interface PastedImage {
 }
 
 export function usePromptInputController(input: {
+	inputBlockedReason?: string;
 	autocomplete: ReturnType<typeof useAutocomplete>;
 	slashCommandRegistry: SlashCommandRegistry;
 	handleSlashCommand: (
@@ -262,6 +263,7 @@ export function usePromptInputController(input: {
 
 	const submitPrompt = useCallback(
 		async (delivery?: "queue" | "steer") => {
+			if (input.inputBlockedReason) return;
 			if (localCommandInFlightRef.current) return;
 
 			const prompt = inputValueRef.current.trim();
@@ -403,6 +405,7 @@ export function usePromptInputController(input: {
 			configVerbose,
 			inputHistory,
 			modelId,
+			input.inputBlockedReason,
 			onSubmit,
 			providerId,
 			refreshRepoStatus,

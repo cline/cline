@@ -78,7 +78,10 @@ import {
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
-import { createCoreSessionSnapshot } from "../../session/session-snapshot";
+import {
+	createCoreSessionSnapshot,
+	sessionSnapshotToManifest,
+} from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
 import {
 	buildTeamRunContinuationPrompt,
@@ -127,6 +130,7 @@ import {
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
 import type {
+	AttachSessionResult,
 	ListSessionsOptions,
 	PendingPromptsServiceApi,
 	ResolvedStartSessionInput,
@@ -411,6 +415,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Public API ──────────────────────────────────────────────────────
+
+	async attachSession(
+		sessionId: string,
+	): Promise<AttachSessionResult | undefined> {
+		const active = this.sessions.get(sessionId.trim());
+		if (!active) return undefined;
+		const snapshot = createCoreSessionSnapshot({
+			session: toActiveSessionRecord(active),
+		});
+		return {
+			sessionId: active.sessionId,
+			ownedByAnotherClient: false,
+			manifest: sessionSnapshotToManifest(snapshot),
+			manifestPath: active.artifacts?.manifestPath ?? "",
+			messagesPath: active.artifacts?.messagesPath ?? "",
+		};
+	}
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";

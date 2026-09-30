@@ -99,7 +99,10 @@ function localRuntimeContext(
 					environmentId: "local",
 					kind: "local" as const,
 					workspaceRoot,
-					sessionManager,
+					sessionManager: {
+						attach: vi.fn().mockResolvedValue(undefined),
+						...sessionManager,
+					},
 					hubClient: {
 						command: vi.fn(async () => undefined),
 					},
@@ -129,6 +132,7 @@ describe("starting SSH sessions", () => {
 	const transcript = [{ role: "user" as const, content: "earlier prompt" }];
 
 	function setup() {
+		const attach = vi.fn().mockResolvedValue(undefined);
 		const readMessages = vi.fn(async () => transcript);
 		const start = vi.fn(async (_input: unknown) => ({
 			sessionId,
@@ -143,7 +147,7 @@ describe("starting SSH sessions", () => {
 					{
 						environmentId,
 						kind: "ssh",
-						sessionManager: { readMessages, start },
+						sessionManager: { readMessages, start, attach },
 					},
 				],
 			]),
@@ -152,10 +156,66 @@ describe("starting SSH sessions", () => {
 		return {
 			ctx: getEnvironmentContext(ctx, environmentId),
 			config,
+			attach,
 			readMessages,
 			start,
 		};
 	}
+
+	it("attaches to another client without replacing its runtime", async () => {
+		const { ctx, config, attach, start } = setup();
+		attach.mockResolvedValue({
+			ownedByAnotherClient: true,
+			sessionId,
+			manifest: {
+				cwd: "/remote/project",
+				workspace_root: "/remote/project",
+				status: "running",
+			},
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "start", config }),
+		).resolves.toMatchObject({ sessionId, environmentId });
+		expect(attach).toHaveBeenCalledWith(sessionId);
+		expect(start).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.get(sessionId)?.status).toBe("running");
+	});
+
+	it.each([
+		"provider",
+		"model",
+	])("applies changed %s when reopening its own resident runtime", async (field) => {
+		const { ctx, config, attach, start } = setup();
+		attach.mockResolvedValue({
+			sessionId,
+			ownedByAnotherClient: false,
+			manifest: {
+				provider: "old-provider",
+				model: "old-model",
+				cwd: "/remote/project",
+			},
+		});
+		const requested = {
+			...config,
+			provider: "old-provider",
+			model: "old-model",
+			[field]: `new-${field}`,
+		};
+		await handleChatSessionCommand(ctx, { action: "start", config: requested });
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					providerId: requested.provider,
+					modelId: requested.model,
+				}),
+				initialMessages: transcript,
+			}),
+		);
+		expect(ctx.liveSessions.get(sessionId)?.config).toMatchObject({
+			provider: requested.provider,
+			model: requested.model,
+		});
+	});
 
 	it.each([
 		new SessionNotFoundError(sessionId),
@@ -1378,6 +1438,29 @@ describe("first-send connection updates", () => {
 			}
 			rmSync(testSessionDataDir, { recursive: true, force: true });
 		}
+	});
+
+	it.each([
+		true,
+		false,
+	])("reports desktop read-only access for external ownership (%s)", async (ownedByAnotherClient) => {
+		const { ctx, sessionId } = createContext();
+		const manager = localSessionManager(ctx) as unknown as Record<
+			string,
+			unknown
+		>;
+		manager.get = vi.fn().mockResolvedValue({
+			status: "idle",
+			provider: "cline",
+			model: "test-model",
+			cwd: "/workspace",
+		});
+		manager.attach = vi
+			.fn()
+			.mockResolvedValue({ sessionId, ownedByAnotherClient });
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ sessionId, readOnly: ownedByAnotherClient });
 	});
 
 	it("preserves tracked attachments across re-attach", async () => {

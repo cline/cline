@@ -55,6 +55,7 @@ afterEach(() => {
 function runtime() {
 	const ctx = createSidecarContext("/local/workspace");
 	const manager = {
+		attach: vi.fn().mockResolvedValue(undefined),
 		start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
 			sessionId: input.config?.sessionId ?? "remote-session",
 			manifest: {

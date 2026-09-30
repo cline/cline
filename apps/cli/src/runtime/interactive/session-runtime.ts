@@ -106,6 +106,7 @@ export function createInteractiveSessionRuntime(input: {
 	askQuestionRef: AskQuestionRef;
 	resolveMistakeLimitDecision: Config["onConsecutiveMistakeLimitReached"];
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
+	onSessionAccess?: (reason: string | undefined) => void;
 	onAgentEvent: (event: AgentEvent) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
@@ -113,6 +114,20 @@ export function createInteractiveSessionRuntime(input: {
 }) {
 	let sessionManager: CliCore | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
+	let unsubscribeAccess = () => {};
+	const sessionAccess = new Map<string, boolean>();
+	let inputBlockedReason: string | undefined = input.resumeSessionId
+		? "Checking session access…"
+		: undefined;
+	const setSessionAccess = (owned: boolean): void => {
+		inputBlockedReason = owned
+			? "Read-only: this session is controlled by another client."
+			: undefined;
+		input.onSessionAccess?.(inputBlockedReason);
+	};
+	const requireWritableSession = (): void => {
+		if (inputBlockedReason) throw new Error(inputBlockedReason);
+	};
 	let unsubscribeAgent = () => {};
 	let unsubscribePendingPrompts = () => {};
 	let startupPromise: Promise<void> | undefined;
@@ -132,6 +147,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
+		setSessionAccess(false);
 		setActiveCliSession(undefined);
 	};
 
@@ -140,6 +156,7 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		setSessionAccess(sessionAccess.get(started.sessionId) ?? false);
 	};
 
 	const ensureSessionManager = async (): Promise<CliCore> => {
@@ -179,6 +196,12 @@ export function createInteractiveSessionRuntime(input: {
 			throw new Error("interactive runtime shutdown requested");
 		}
 		sessionManager = manager;
+		unsubscribeAccess = manager.subscribe((event) => {
+			if (event.type !== "session_access") return;
+			const { sessionId, ownedByAnotherClient } = event.payload;
+			sessionAccess.set(sessionId, ownedByAnotherClient);
+			if (sessionId === activeSessionId) setSessionAccess(ownedByAnotherClient);
+		});
 		runtimeHooks = createRuntimeHooks({
 			verbose: input.config.verbose,
 			yolo: input.config.mode === "yolo",
@@ -251,19 +274,28 @@ export function createInteractiveSessionRuntime(input: {
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
-		const started = await manager.start({
-			source: SessionSource.CLI,
-			config: {
-				...buildSessionConfig(),
-				sessionId: resumeId,
-			},
-			toolPolicies: input.config.toolPolicies,
-			interactive: true,
-			initialMessages: initial,
-			localRuntime: {
-				onTeamRestored: () => {},
-			},
-		});
+		inputBlockedReason = "Checking session access…";
+		input.onSessionAccess?.(inputBlockedReason);
+		sessionAccess.delete(resumeId);
+		const attached = await manager.attach(resumeId);
+		if (attached && !sessionAccess.has(resumeId)) {
+			sessionAccess.set(resumeId, attached.ownedByAnotherClient);
+		}
+		const started =
+			attached ??
+			(await manager.start({
+				source: SessionSource.CLI,
+				config: {
+					...buildSessionConfig(),
+					sessionId: resumeId,
+				},
+				toolPolicies: input.config.toolPolicies,
+				interactive: true,
+				initialMessages: initial,
+				localRuntime: {
+					onTeamRestored: () => {},
+				},
+			}));
 		if (generation !== sessionStartGeneration) {
 			await manager.stop(started.sessionId).catch(() => {});
 			return;
@@ -515,6 +547,7 @@ export function createInteractiveSessionRuntime(input: {
 		update: SessionConnectionUpdate,
 	): Promise<void> => {
 		await ensureReady();
+		requireWritableSession();
 		const manager = sessionManager;
 		const sessionId = activeSessionId;
 		if (!manager || !sessionId) {
@@ -543,6 +576,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const applyMode = async (mode: "plan" | "act"): Promise<void> => {
+		requireWritableSession();
 		await applyInteractiveModeConfig({
 			config: input.config,
 			mode,
@@ -554,6 +588,7 @@ export function createInteractiveSessionRuntime(input: {
 	const sendCurrentTurn = async (
 		turnInput: CurrentTurnInput,
 	): Promise<CurrentTurnResult> => {
+		requireWritableSession();
 		if (!sessionManager) {
 			throw startupError instanceof Error
 				? startupError
@@ -589,6 +624,7 @@ export function createInteractiveSessionRuntime(input: {
 		prompt?: string;
 		delivery?: "queue" | "steer";
 	}): Promise<PendingPromptMutationResult> => {
+		requireWritableSession();
 		if (!sessionManager) {
 			throw startupError instanceof Error
 				? startupError
@@ -853,7 +889,12 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const abortAll = (): boolean => {
-		if (abortRequested || !sessionManager || !activeSessionId) {
+		if (
+			inputBlockedReason ||
+			abortRequested ||
+			!sessionManager ||
+			!activeSessionId
+		) {
 			return false;
 		}
 		abortRequested = true;
@@ -879,6 +920,7 @@ export function createInteractiveSessionRuntime(input: {
 				await startupPromise?.catch(() => {});
 				await missingSessionRecoveryPromise?.catch(() => {});
 			} finally {
+				unsubscribeAccess();
 				unsubscribeAgent();
 				unsubscribePendingPrompts();
 			}
@@ -920,6 +962,7 @@ export function createInteractiveSessionRuntime(input: {
 		resetAbortRequest,
 		abortAll,
 		cleanup,
+		getInputBlockedReason: () => inputBlockedReason,
 		getActiveSessionId: () => activeSessionId,
 		isShutdownRequested: () => shutdownRequested,
 	};

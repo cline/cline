@@ -305,6 +305,7 @@ type ChatInputBarProps = {
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
+	readOnlyReason?: string;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
 	provider: string;
@@ -355,6 +356,7 @@ function ChatInputBarImpl({
 	environmentId,
 	variant = "conversation",
 	readOnly = false,
+	readOnlyReason,
 	status,
 	hasRunningAgents = false,
 	provider,
@@ -1096,536 +1098,558 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<AgentComposer variant={variant}>
-			{/* Input area */}
-			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
-			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
-				<AgentPromptQueue
-					items={displayPromptsInQueue}
-					onEdit={onEditPromptInQueue}
-					onRemove={onRemovePromptInQueue}
-					onSteer={onSteerPromptInQueue}
-				/>
-				<div className="relative">
-					{slashOpen && (
-						<div
-							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
-							id="slash-command-suggestions"
-							role="listbox"
-						>
-							{filteredSlashCommands.length === 0 ? (
-								<div className="px-3 py-2 text-sm text-muted-foreground">
-									{slashLoading
-										? "Loading commands..."
-										: "No matching commands"}
-								</div>
-							) : (
-								<>
-									{filteredSlashCommands.map((cmd, index) => (
-										<button
-											aria-selected={index === slashSelectedIndex}
-											className={cn(
-												"flex w-full flex-col rounded-md px-3 py-2 text-left text-sm ",
-												index === slashSelectedIndex
-													? "bg-surface-hover text-foreground"
-													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-											)}
-											key={cmd.name}
-											id={`slash-command-option-${index}`}
-											onClick={() => insertSlashCommandItem(cmd.name)}
-											role="option"
-											type="button"
-										>
-											<span className="font-medium">/{cmd.name}</span>
-											{cmd.description && (
-												<span className="text-[10px] opacity-70">
-													{cmd.description}
-												</span>
-											)}
-										</button>
-									))}
-									{slashLoading && (
-										<div className="px-3 py-1 text-[10px] text-muted-foreground">
-											Loading...
-										</div>
-									)}
-								</>
-							)}
-						</div>
-					)}
-					{mentionOpen && (
-						<div
-							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
-							id="mention-file-suggestions"
-							role="listbox"
-						>
-							{mentionFiles.length === 0 ? (
-								<div className="px-3 py-2 text-sm text-muted-foreground">
-									{mentionLoading ? "Searching files..." : "No matching files"}
-								</div>
-							) : (
-								<>
-									{mentionFiles.map((filePath, index) => (
-										<button
-											aria-selected={index === mentionSelectedIndex}
-											className={cn(
-												"block w-full rounded-md px-3 py-2 text-left text-sm ",
-												index === mentionSelectedIndex
-													? "bg-surface-hover text-foreground"
-													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-											)}
-											key={filePath}
-											id={`mention-file-option-${index}`}
-											onClick={() => insertMentionFile(filePath)}
-											role="option"
-											type="button"
-										>
-											{filePath}
-										</button>
-									))}
-									{mentionLoading && (
-										<div className="px-3 py-1 text-[10px] text-muted-foreground">
-											Updating...
-										</div>
-									)}
-								</>
-							)}
-						</div>
-					)}
-					{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
-					<AgentComposerField
-						variant={variant}
-						onMouseDown={(event) => {
-							const target = event.target;
-							if (
-								target instanceof HTMLElement &&
-								target.closest("button, input, textarea")
-							) {
-								return;
-							}
-							event.preventDefault();
-							promptInputRef.current?.focus();
-						}}
-					>
-						{speechInputProcessing && (
-							<output
-								aria-live="polite"
-								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
-							>
-								<Spinner className="size-3.5" />
-								<span className="sr-only">Transcribing voice input</span>
-							</output>
-						)}
-						<AgentComposerTextarea
-							aria-activedescendant={
-								slashOpen && filteredSlashCommands.length > 0
-									? `slash-command-option-${slashSelectedIndex}`
-									: mentionOpen && mentionFiles.length > 0
-										? `mention-file-option-${mentionSelectedIndex}`
-										: undefined
-							}
-							aria-autocomplete="list"
-							aria-controls={
-								slashOpen
-									? "slash-command-suggestions"
-									: mentionOpen
-										? "mention-file-suggestions"
-										: undefined
-							}
-							aria-expanded={slashOpen || mentionOpen}
-							aria-haspopup="listbox"
-							variant={variant}
-							onChange={(e) => {
-								if (speechInputActive) return;
-								setPromptInput(e.target.value);
-								setCursorIndex(
-									e.target.selectionStart ?? e.target.value.length,
-								);
-							}}
-							onClick={(e) =>
-								setCursorIndex(
-									e.currentTarget.selectionStart ?? promptInput.length,
-								)
-							}
-							onBlur={() => setPromptInputFocused(false)}
-							onFocus={() => setPromptInputFocused(true)}
-							onPaste={(e) => {
-								const images = imageFilesFromClipboard(e.clipboardData);
-								if (images.length > 0) {
-									// Attach the image instead of pasting its fallback
-									// text representation (e.g. a file path or URL).
-									e.preventDefault();
-									handleAttachFiles(images);
-								}
-							}}
-							onKeyDown={(e) => {
-								// While an IME (e.g. Chinese/Japanese) is composing, Enter
-								// commits the composition and arrows move between candidates,
-								// so leave those keys to the IME. WebKit can fire the committing
-								// Enter after compositionend with isComposing already false but
-								// the legacy keyCode 229, hence the second check.
-								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-								// Slash command menu takes priority when open.
-								if (slashOpen && filteredSlashCommands.length > 0) {
-									if (e.key === "ArrowDown") {
-										e.preventDefault();
-										setSlashSelectedIndex(
-											(prev) => (prev + 1) % filteredSlashCommands.length,
-										);
-										return;
-									}
-									if (e.key === "ArrowUp") {
-										e.preventDefault();
-										setSlashSelectedIndex(
-											(prev) =>
-												(prev - 1 + filteredSlashCommands.length) %
-												filteredSlashCommands.length,
-										);
-										return;
-									}
-									if (e.key === "Enter" || e.key === "Tab") {
-										e.preventDefault();
-										const selected = filteredSlashCommands[slashSelectedIndex];
-										if (selected) {
-											insertSlashCommandItem(selected.name);
-										}
-										return;
-									}
-								}
-								if (slashOpen && e.key === "Escape") {
-									e.preventDefault();
-									setDismissedSlashKey(slashKey);
-									return;
-								}
-								if (mentionOpen && mentionFiles.length > 0) {
-									if (e.key === "ArrowDown") {
-										e.preventDefault();
-										setMentionSelectedIndex(
-											(prev) => (prev + 1) % mentionFiles.length,
-										);
-										return;
-									}
-									if (e.key === "ArrowUp") {
-										e.preventDefault();
-										setMentionSelectedIndex(
-											(prev) =>
-												(prev - 1 + mentionFiles.length) % mentionFiles.length,
-										);
-										return;
-									}
-									if (e.key === "Enter" || e.key === "Tab") {
-										e.preventDefault();
-										insertMentionFile(mentionFiles[mentionSelectedIndex]);
-										return;
-									}
-								}
-								if (mentionOpen && e.key === "Escape") {
-									e.preventDefault();
-									setDismissedMentionKey(mentionKey);
-									return;
-								}
-								if (e.key === "Escape" && canAbort) {
-									e.preventDefault();
-									onAbort();
-									return;
-								}
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									if (canSend) {
-										handleSend();
-									} else if (
-										!hasDraft &&
-										!speechInputActive &&
-										!e.ctrlKey &&
-										!e.metaKey &&
-										!e.altKey &&
-										!e.repeat
-									) {
-										void steerFirstQueuedPrompt();
-									}
-								}
-							}}
-							onKeyUp={(e) =>
-								setCursorIndex(
-									e.currentTarget.selectionStart ?? promptInput.length,
-								)
-							}
-							placeholder={
-								speechInputProcessing
-									? "Transcribing voice input…"
-									: needsCloudRepository
-										? "Choose a repository"
-										: isBusy && variant !== "welcome"
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
-							}
-							readOnly={speechInputActive || readOnly}
-							ref={promptInputRef}
-							role="combobox"
-							rows={promptInputRows}
-							style={{
-								maxHeight: `${PROMPT_INPUT_MAX_ROWS * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
-								minHeight: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
-							}}
-							value={promptInput}
+		<>
+			<AgentComposer variant={variant}>
+				{readOnly && readOnlyReason ? (
+					<p role="status" className="px-4 py-3 text-sm text-muted-foreground">
+						{readOnlyReason}
+					</p>
+				) : null}
+				{/* Input area */}
+				<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
+				<AgentComposerBody
+					variant={variant}
+					hasQueue={promptsInQueue.length > 0}
+				>
+					<fieldset disabled={readOnly}>
+						<AgentPromptQueue
+							items={displayPromptsInQueue}
+							onEdit={onEditPromptInQueue}
+							onRemove={onRemovePromptInQueue}
+							onSteer={onSteerPromptInQueue}
 						/>
-						<AgentComposerActions variant={variant}>
-							{needsCloudRepository ? (
-								<span
+					</fieldset>
+					<div className="relative">
+						{slashOpen && (
+							<div
+								className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+								id="slash-command-suggestions"
+								role="listbox"
+							>
+								{filteredSlashCommands.length === 0 ? (
+									<div className="px-3 py-2 text-sm text-muted-foreground">
+										{slashLoading
+											? "Loading commands..."
+											: "No matching commands"}
+									</div>
+								) : (
+									<>
+										{filteredSlashCommands.map((cmd, index) => (
+											<button
+												aria-selected={index === slashSelectedIndex}
+												className={cn(
+													"flex w-full flex-col rounded-md px-3 py-2 text-left text-sm ",
+													index === slashSelectedIndex
+														? "bg-surface-hover text-foreground"
+														: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+												)}
+												key={cmd.name}
+												id={`slash-command-option-${index}`}
+												onClick={() => insertSlashCommandItem(cmd.name)}
+												role="option"
+												type="button"
+											>
+												<span className="font-medium">/{cmd.name}</span>
+												{cmd.description && (
+													<span className="text-[10px] opacity-70">
+														{cmd.description}
+													</span>
+												)}
+											</button>
+										))}
+										{slashLoading && (
+											<div className="px-3 py-1 text-[10px] text-muted-foreground">
+												Loading...
+											</div>
+										)}
+									</>
+								)}
+							</div>
+						)}
+						{mentionOpen && (
+							<div
+								className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+								id="mention-file-suggestions"
+								role="listbox"
+							>
+								{mentionFiles.length === 0 ? (
+									<div className="px-3 py-2 text-sm text-muted-foreground">
+										{mentionLoading
+											? "Searching files..."
+											: "No matching files"}
+									</div>
+								) : (
+									<>
+										{mentionFiles.map((filePath, index) => (
+											<button
+												aria-selected={index === mentionSelectedIndex}
+												className={cn(
+													"block w-full rounded-md px-3 py-2 text-left text-sm ",
+													index === mentionSelectedIndex
+														? "bg-surface-hover text-foreground"
+														: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+												)}
+												key={filePath}
+												id={`mention-file-option-${index}`}
+												onClick={() => insertMentionFile(filePath)}
+												role="option"
+												type="button"
+											>
+												{filePath}
+											</button>
+										))}
+										{mentionLoading && (
+											<div className="px-3 py-1 text-[10px] text-muted-foreground">
+												Updating...
+											</div>
+										)}
+									</>
+								)}
+							</div>
+						)}
+						{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
+						<AgentComposerField
+							variant={variant}
+							onMouseDown={(event) => {
+								const target = event.target;
+								if (
+									target instanceof HTMLElement &&
+									target.closest("button, input, textarea")
+								) {
+									return;
+								}
+								event.preventDefault();
+								promptInputRef.current?.focus();
+							}}
+						>
+							{speechInputProcessing && (
+								<output
 									aria-live="polite"
-									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+									className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
 								>
-									Repository required
-								</span>
-							) : null}
-							{canAbort && (
-								<AgentComposerStopButton
-									aria-label="Stop agent"
-									variant={variant}
-									onClick={onAbort}
-									title="Stop the agent (Esc)"
-									type="button"
-								>
-									<CircleStop className="size-3" />
-								</AgentComposerStopButton>
+									<Spinner className="size-3.5" />
+									<span className="sr-only">Transcribing voice input</span>
+								</output>
 							)}
-							{/* The mic button only appears once a voice model is
+							<AgentComposerTextarea
+								aria-activedescendant={
+									slashOpen && filteredSlashCommands.length > 0
+										? `slash-command-option-${slashSelectedIndex}`
+										: mentionOpen && mentionFiles.length > 0
+											? `mention-file-option-${mentionSelectedIndex}`
+											: undefined
+								}
+								aria-autocomplete="list"
+								aria-controls={
+									slashOpen
+										? "slash-command-suggestions"
+										: mentionOpen
+											? "mention-file-suggestions"
+											: undefined
+								}
+								aria-expanded={slashOpen || mentionOpen}
+								aria-haspopup="listbox"
+								variant={variant}
+								onChange={(e) => {
+									if (speechInputActive) return;
+									setPromptInput(e.target.value);
+									setCursorIndex(
+										e.target.selectionStart ?? e.target.value.length,
+									);
+								}}
+								onClick={(e) =>
+									setCursorIndex(
+										e.currentTarget.selectionStart ?? promptInput.length,
+									)
+								}
+								onBlur={() => setPromptInputFocused(false)}
+								onFocus={() => setPromptInputFocused(true)}
+								onPaste={(e) => {
+									const images = imageFilesFromClipboard(e.clipboardData);
+									if (images.length > 0) {
+										// Attach the image instead of pasting its fallback
+										// text representation (e.g. a file path or URL).
+										e.preventDefault();
+										handleAttachFiles(images);
+									}
+								}}
+								onKeyDown={(e) => {
+									// While an IME (e.g. Chinese/Japanese) is composing, Enter
+									// commits the composition and arrows move between candidates,
+									// so leave those keys to the IME. WebKit can fire the committing
+									// Enter after compositionend with isComposing already false but
+									// the legacy keyCode 229, hence the second check.
+									if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+									// Slash command menu takes priority when open.
+									if (slashOpen && filteredSlashCommands.length > 0) {
+										if (e.key === "ArrowDown") {
+											e.preventDefault();
+											setSlashSelectedIndex(
+												(prev) => (prev + 1) % filteredSlashCommands.length,
+											);
+											return;
+										}
+										if (e.key === "ArrowUp") {
+											e.preventDefault();
+											setSlashSelectedIndex(
+												(prev) =>
+													(prev - 1 + filteredSlashCommands.length) %
+													filteredSlashCommands.length,
+											);
+											return;
+										}
+										if (e.key === "Enter" || e.key === "Tab") {
+											e.preventDefault();
+											const selected =
+												filteredSlashCommands[slashSelectedIndex];
+											if (selected) {
+												insertSlashCommandItem(selected.name);
+											}
+											return;
+										}
+									}
+									if (slashOpen && e.key === "Escape") {
+										e.preventDefault();
+										setDismissedSlashKey(slashKey);
+										return;
+									}
+									if (mentionOpen && mentionFiles.length > 0) {
+										if (e.key === "ArrowDown") {
+											e.preventDefault();
+											setMentionSelectedIndex(
+												(prev) => (prev + 1) % mentionFiles.length,
+											);
+											return;
+										}
+										if (e.key === "ArrowUp") {
+											e.preventDefault();
+											setMentionSelectedIndex(
+												(prev) =>
+													(prev - 1 + mentionFiles.length) %
+													mentionFiles.length,
+											);
+											return;
+										}
+										if (e.key === "Enter" || e.key === "Tab") {
+											e.preventDefault();
+											insertMentionFile(mentionFiles[mentionSelectedIndex]);
+											return;
+										}
+									}
+									if (mentionOpen && e.key === "Escape") {
+										e.preventDefault();
+										setDismissedMentionKey(mentionKey);
+										return;
+									}
+									if (e.key === "Escape" && canAbort && !readOnly) {
+										e.preventDefault();
+										onAbort();
+										return;
+									}
+									if (e.key === "Enter" && !e.shiftKey) {
+										e.preventDefault();
+										if (canSend) {
+											handleSend();
+										} else if (
+											!hasDraft &&
+											!speechInputActive &&
+											!e.ctrlKey &&
+											!e.metaKey &&
+											!e.altKey &&
+											!e.repeat
+										) {
+											void steerFirstQueuedPrompt();
+										}
+									}
+								}}
+								onKeyUp={(e) =>
+									setCursorIndex(
+										e.currentTarget.selectionStart ?? promptInput.length,
+									)
+								}
+								placeholder={
+									speechInputProcessing
+										? "Transcribing voice input…"
+										: needsCloudRepository
+											? "Choose a repository"
+											: isBusy && variant !== "welcome"
+												? promptsInQueue.length > 0
+													? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+													: "Agent is working... submit to queue another message"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"
+								}
+								readOnly={speechInputActive || readOnly}
+								ref={promptInputRef}
+								role="combobox"
+								rows={promptInputRows}
+								style={{
+									maxHeight: `${PROMPT_INPUT_MAX_ROWS * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+									minHeight: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+								}}
+								value={promptInput}
+							/>
+							<AgentComposerActions variant={variant}>
+								{needsCloudRepository ? (
+									<span
+										aria-live="polite"
+										className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+									>
+										Repository required
+									</span>
+								) : null}
+								{canAbort && !readOnly && (
+									<AgentComposerStopButton
+										aria-label="Stop agent"
+										variant={variant}
+										onClick={onAbort}
+										title="Stop the agent (Esc)"
+										type="button"
+									>
+										<CircleStop className="size-3" />
+									</AgentComposerStopButton>
+								)}
+								{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
 							    don't get a dead control. Start with the configured provider;
 							    browser recognition is only a fallback for network failures. */}
-							{transcriptionTarget ? (
-								<SpeechInput
-									fallbackOnNetworkError
-									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
-									onActiveChange={setSpeechInputActive}
-									onError={handleSpeechInputError}
-									onNetworkFallback={() =>
-										toast({
-											title: "Switched to browser speech recognition",
-											description:
-												"The voice provider could not be reached. Click the microphone and repeat any missing speech. Browser recognition may also require internet access.",
-										})
-									}
-									onProcessingChange={setSpeechInputProcessing}
-									onStartStreaming={handleStartStreamingTranscription}
-									onStreamingEnd={handleStreamingTranscriptionEnd}
-									onStreamingStart={handleStreamingTranscriptionStart}
-									onTranscriptionChange={handleStreamingTranscriptionChange}
-									recordingMode="streaming"
-									title={`Transcribe live with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
-								/>
-							) : null}
-							{(!isBusy || canSend) && (
-								<AgentComposerSendButton
-									aria-label="Send message"
-									variant={variant}
-									disabled={!canSend}
-									onClick={handleSend}
-									title={
-										needsCloudRepository
-											? "Choose a repository"
-											: "Send (Enter)"
-									}
-									type="button"
-								>
-									<ArrowUp className="size-3" />
-								</AgentComposerSendButton>
-							)}
-						</AgentComposerActions>
-					</AgentComposerField>
-				</div>
-				{unsupportedDraftImageCount > 0 && (
-					<output className="block px-2 text-sm text-destructive">
-						This model doesn’t support the attached images. Remove them or
-						choose a model that supports images before sending.
-					</output>
-				)}
-				{attachments.length > 0 && (
-					<AgentComposerAttachments>
-						{attachments.map((attachment) => (
-							<span
-								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
-								key={attachment.id}
-							>
-								{attachment.isImage ? "image:" : "file:"} {attachment.name}
-								<button
-									aria-label={`Remove ${attachment.name}`}
-									className="rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-									onClick={() => onRemoveAttachment(attachment.id)}
-									type="button"
-								>
-									<X className="h-3 w-3" />
-								</button>
-							</span>
-						))}
-					</AgentComposerAttachments>
-				)}
-			</AgentComposerBody>
-
-			{/* Composer settings */}
-			<AgentComposerSettings>
-				<AgentComposerSettingsGroup>
-					<button
-						aria-label={
-							executionTarget === "cloud" ? "Attach images" : "Attach files"
-						}
-						title={
-							executionTarget === "cloud"
-								? "Attach images"
-								: imagesUnsupported
-									? "Attach files (this model doesn’t support images)"
-									: "Attach files"
-						}
-						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
-						onClick={() => fileInputRef.current?.click()}
-						type="button"
-					>
-						<Paperclip className="size-3" />
-					</button>
-					<input
-						accept={executionTarget === "cloud" ? "image/*" : "*/*"}
-						className="hidden"
-						multiple
-						onChange={(event) => {
-							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) handleAttachFiles(files);
-							event.currentTarget.value = "";
-						}}
-						ref={fileInputRef}
-						type="file"
-					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
-						<button
-							aria-pressed={mode === "plan"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "plan"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "plan") onModeToggle();
-							}}
-							type="button"
-						>
-							Plan
-						</button>
-						<button
-							aria-pressed={mode === "act"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "act"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "act") onModeToggle();
-							}}
-							type="button"
-						>
-							Act
-						</button>
-					</div>
-					<div className="min-w-0 shrink-0">
-						<ModelSelector
-							allowedProviderIds={
-								executionTarget === "cloud"
-									? CLINE_ONLY_PROVIDER_IDS
-									: undefined
-							}
-							autoCorrectModel={!cloudSettingsLocked}
-							includeCloudModels={executionTarget === "cloud"}
-							isBusy={isBusy}
-							model={model}
-							onModelChange={onModelChange}
-							onModelSupportsImagesChange={handleModelSupportsImagesChange}
-							onModelSupportsReasoningChange={
-								handleModelSupportsReasoningChange
-							}
-							onOpenModelSettings={onOpenModelSettings}
-							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
-							provider={provider}
-						/>
-					</div>
-					<Select
-						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
-						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-					>
-						<SelectTrigger
-							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
-							size="sm"
-							title={
-								cloudSettingsLocked
-									? "Thinking level is fixed when a cloud session starts"
-									: modelSupportsReasoning === false
-										? "The selected model does not report reasoning support"
-										: undefined
-							}
-						>
-							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
-								<SelectValue>{effortLabel}</SelectValue>
-							</span>
-						</SelectTrigger>
-						<SelectContent align="start">
-							{EFFORT_LEVELS.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</AgentComposerSettingsGroup>
-
-				<AgentComposerSettingsEnd>
-					{variant === "conversation" ? (
-						<div className="flex min-w-0 items-center gap-0">
-							<div className="min-w-0 overflow-visible">
-								{executionTarget === "cloud" ? (
-									<span
-										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
-										title={cloudContextLabel}
-									>
-										<Cloud className="size-3 shrink-0" />
-										<span className="truncate">{cloudContextLabel}</span>
-									</span>
-								) : (
-									<WorkspaceSelector
-										currentBranch={gitBranch}
-										disabled
-										onListGitBranches={onListGitBranches}
-										onRefreshWorkspaces={onRefreshWorkspaces}
-										onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-										onSwitchGitBranch={onSwitchGitBranch}
-										onSwitchWorkspace={onSwitchWorkspace}
-										workspaces={workspaces}
-										workspaceRoot={workspaceRoot}
+								{transcriptionTarget && !readOnly ? (
+									<SpeechInput
+										fallbackOnNetworkError
+										key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
+										onActiveChange={setSpeechInputActive}
+										onError={handleSpeechInputError}
+										onNetworkFallback={() =>
+											toast({
+												title: "Switched to browser speech recognition",
+												description:
+													"The voice provider could not be reached. Click the microphone and repeat any missing speech. Browser recognition may also require internet access.",
+											})
+										}
+										onProcessingChange={setSpeechInputProcessing}
+										onStartStreaming={handleStartStreamingTranscription}
+										onStreamingEnd={handleStreamingTranscriptionEnd}
+										onStreamingStart={handleStreamingTranscriptionStart}
+										onTranscriptionChange={handleStreamingTranscriptionChange}
+										recordingMode="streaming"
+										title={`Transcribe live with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
 									/>
+								) : null}
+								{(!isBusy || canSend) && (
+									<AgentComposerSendButton
+										aria-label="Send message"
+										variant={variant}
+										disabled={!canSend}
+										onClick={handleSend}
+										title={
+											needsCloudRepository
+												? "Choose a repository"
+												: "Send (Enter)"
+										}
+										type="button"
+									>
+										<ArrowUp className="size-3" />
+									</AgentComposerSendButton>
 								)}
-							</div>
-							<TokenUsageRing
-								usage={{
-									contextWindow: modelContextWindow,
-									tokensIn: summary.tokensIn,
-									tokensOut: summary.tokensOut,
-									cacheReadTokens: summary.cacheReadTokens ?? 0,
-									totalCost: summary.totalCostUsd,
+							</AgentComposerActions>
+						</AgentComposerField>
+					</div>
+					{unsupportedDraftImageCount > 0 && (
+						<output className="block px-2 text-sm text-destructive">
+							This model doesn’t support the attached images. Remove them or
+							choose a model that supports images before sending.
+						</output>
+					)}
+					{attachments.length > 0 && (
+						<AgentComposerAttachments>
+							{attachments.map((attachment) => (
+								<span
+									className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
+									key={attachment.id}
+								>
+									{attachment.isImage ? "image:" : "file:"} {attachment.name}
+									<button
+										aria-label={`Remove ${attachment.name}`}
+										className="rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+										onClick={() => onRemoveAttachment(attachment.id)}
+										type="button"
+									>
+										<X className="h-3 w-3" />
+									</button>
+								</span>
+							))}
+						</AgentComposerAttachments>
+					)}
+				</AgentComposerBody>
+
+				{/* Composer settings */}
+				<AgentComposerSettings>
+					<AgentComposerSettingsGroup>
+						<button
+							aria-label={
+								executionTarget === "cloud" ? "Attach images" : "Attach files"
+							}
+							title={
+								executionTarget === "cloud"
+									? "Attach images"
+									: imagesUnsupported
+										? "Attach files (this model doesn’t support images)"
+										: "Attach files"
+							}
+							className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
+							onClick={() => fileInputRef.current?.click()}
+							type="button"
+						>
+							<Paperclip className="size-3" />
+						</button>
+						<input
+							accept={executionTarget === "cloud" ? "image/*" : "*/*"}
+							className="hidden"
+							multiple
+							onChange={(event) => {
+								const files = Array.from(event.target.files ?? []);
+								if (files.length > 0) handleAttachFiles(files);
+								event.currentTarget.value = "";
+							}}
+							ref={fileInputRef}
+							type="file"
+						/>
+						<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
+							<button
+								disabled={readOnly}
+								aria-pressed={mode === "plan"}
+								className={cn(
+									"rounded px-2 py-1 ",
+									mode === "plan"
+										? "bg-background text-foreground shadow-xs"
+										: "hover:text-foreground",
+								)}
+								onClick={() => {
+									if (mode !== "plan") onModeToggle();
 								}}
+								type="button"
+							>
+								Plan
+							</button>
+							<button
+								disabled={readOnly}
+								aria-pressed={mode === "act"}
+								className={cn(
+									"rounded px-2 py-1 ",
+									mode === "act"
+										? "bg-background text-foreground shadow-xs"
+										: "hover:text-foreground",
+								)}
+								onClick={() => {
+									if (mode !== "act") onModeToggle();
+								}}
+								type="button"
+							>
+								Act
+							</button>
+						</div>
+						<div className="min-w-0 shrink-0">
+							<ModelSelector
+								allowedProviderIds={
+									executionTarget === "cloud"
+										? CLINE_ONLY_PROVIDER_IDS
+										: undefined
+								}
+								autoCorrectModel={!cloudSettingsLocked && !readOnly}
+								includeCloudModels={executionTarget === "cloud"}
+								isBusy={isBusy || readOnly}
+								model={model}
+								onModelChange={onModelChange}
+								onModelSupportsImagesChange={handleModelSupportsImagesChange}
+								onModelSupportsReasoningChange={
+									handleModelSupportsReasoningChange
+								}
+								onOpenModelSettings={onOpenModelSettings}
+								onProviderChange={onProviderChange}
+								persistSelection={executionTarget !== "cloud"}
+								provider={provider}
 							/>
 						</div>
-					) : null}
-				</AgentComposerSettingsEnd>
-			</AgentComposerSettings>
-		</AgentComposer>
+						<Select
+							disabled={
+								readOnly ||
+								cloudSettingsLocked ||
+								modelSupportsReasoning !== true
+							}
+							onValueChange={handleEffortChange}
+							value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+						>
+							<SelectTrigger
+								aria-label="Thinking level"
+								className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+								size="sm"
+								title={
+									cloudSettingsLocked
+										? "Thinking level is fixed when a cloud session starts"
+										: modelSupportsReasoning === false
+											? "The selected model does not report reasoning support"
+											: undefined
+								}
+							>
+								<Brain className="size-3" />
+								<span className="max-[560px]:sr-only">
+									<SelectValue>{effortLabel}</SelectValue>
+								</span>
+							</SelectTrigger>
+							<SelectContent align="start">
+								{EFFORT_LEVELS.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</AgentComposerSettingsGroup>
+
+					<AgentComposerSettingsEnd>
+						{variant === "conversation" ? (
+							<div className="flex min-w-0 items-center gap-0">
+								<div className="min-w-0 overflow-visible">
+									{executionTarget === "cloud" ? (
+										<span
+											className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
+											title={cloudContextLabel}
+										>
+											<Cloud className="size-3 shrink-0" />
+											<span className="truncate">{cloudContextLabel}</span>
+										</span>
+									) : (
+										<WorkspaceSelector
+											currentBranch={gitBranch}
+											disabled
+											onListGitBranches={onListGitBranches}
+											onRefreshWorkspaces={onRefreshWorkspaces}
+											onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+											onSwitchGitBranch={onSwitchGitBranch}
+											onSwitchWorkspace={onSwitchWorkspace}
+											workspaces={workspaces}
+											workspaceRoot={workspaceRoot}
+										/>
+									)}
+								</div>
+								<TokenUsageRing
+									usage={{
+										contextWindow: modelContextWindow,
+										tokensIn: summary.tokensIn,
+										tokensOut: summary.tokensOut,
+										cacheReadTokens: summary.cacheReadTokens ?? 0,
+										totalCost: summary.totalCostUsd,
+									}}
+								/>
+							</div>
+						) : null}
+					</AgentComposerSettingsEnd>
+				</AgentComposerSettings>
+			</AgentComposer>
+		</>
 	);
 }
 
@@ -2055,6 +2079,7 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
+			if (isBusy) return;
 			if (value === ADD_PROVIDER_OPTION_VALUE) {
 				setMobileOpen(false);
 				onOpenModelSettings?.();
@@ -2081,6 +2106,7 @@ const ModelSelector = memo(function ModelSelector({
 			}
 		},
 		[
+			isBusy,
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
@@ -2093,10 +2119,11 @@ const ModelSelector = memo(function ModelSelector({
 	);
 	const handleModelSelect = useCallback(
 		(value: string) => {
+			if (isBusy) return;
 			rememberSelection(resolvedProvider, value);
 			onModelChange(value);
 		},
-		[onModelChange, rememberSelection, resolvedProvider],
+		[isBusy, onModelChange, rememberSelection, resolvedProvider],
 	);
 	// The picker only lists providers with saved settings, so it is also the
 	// natural place to reach the rest of the catalog.

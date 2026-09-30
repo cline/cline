@@ -1014,21 +1014,30 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
-		source: SessionSource.DESKTOP,
-		interactive: true,
-		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(config),
-		sessionMetadata:
-			binding.kind === "ssh"
-				? {
-						remoteEnvironmentId: binding.environmentId,
-						remoteEnvironmentName: binding.remote?.profile.name,
-						remoteHost: binding.remote?.profile.host,
-					}
-				: undefined,
-	});
+	const attached = requestedSessionId
+		? await manager.attach(requestedSessionId)
+		: undefined;
+	const foreignAttachment = attached?.ownedByAnotherClient
+		? attached
+		: undefined;
+	// Reopening our own runtime must apply the requested configuration.
+	const startResult =
+		foreignAttachment ??
+		(await manager.start({
+			...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
+			source: SessionSource.DESKTOP,
+			interactive: true,
+			...(initialMessages ? { initialMessages } : {}),
+			toolPolicies: resolveToolPolicies(config),
+			sessionMetadata:
+				binding.kind === "ssh"
+					? {
+							remoteEnvironmentId: binding.environmentId,
+							remoteEnvironmentName: binding.remote?.profile.name,
+							remoteHost: binding.remote?.profile.host,
+						}
+					: undefined,
+		}));
 	const sessionId = startResult.sessionId;
 	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
@@ -1037,6 +1046,12 @@ async function handleStart(
 	const session = createLiveSession(
 		{
 			...request.config,
+			...(foreignAttachment
+				? {
+						provider: foreignAttachment.manifest.provider,
+						model: foreignAttachment.manifest.model,
+					}
+				: {}),
 			cwd,
 			workspaceRoot,
 			environmentId: binding.environmentId,
@@ -1051,7 +1066,7 @@ async function handleStart(
 				requestedSessionId && binding.kind === "local"
 					? readSessionMetadataTitle(requestedSessionId)
 					: undefined,
-			status: "idle",
+			status: startResult.manifest.status,
 		},
 	);
 	ctx.liveSessions.set(sessionId, session);
@@ -1095,6 +1110,7 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
+	const attachment = await manager.attach(sessionId);
 	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
@@ -1143,6 +1159,7 @@ async function handleAttach(
 		sessionId,
 		environmentId: binding.environmentId,
 		status: session.status,
+		readOnly: attachment?.ownedByAnotherClient === true,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,

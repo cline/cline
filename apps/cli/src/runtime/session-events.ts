@@ -28,6 +28,10 @@ export interface PendingPromptSubmittedEvent {
 }
 
 interface InteractiveEventBridge {
+	on(
+		event: "session-access",
+		listener: (reason: string | undefined) => void,
+	): this;
 	on(event: "agent", listener: (event: AgentEvent) => void): this;
 	on(event: "team", listener: (event: TeamEvent) => void): this;
 	on(
@@ -37,6 +41,10 @@ interface InteractiveEventBridge {
 	on(
 		event: "pending-prompt-submitted",
 		listener: (event: PendingPromptSubmittedEvent) => void,
+	): this;
+	off(
+		event: "session-access",
+		listener: (reason: string | undefined) => void,
 	): this;
 	off(event: "agent", listener: (event: AgentEvent) => void): this;
 	off(event: "team", listener: (event: TeamEvent) => void): this;
@@ -48,6 +56,7 @@ interface InteractiveEventBridge {
 		event: "pending-prompt-submitted",
 		listener: (event: PendingPromptSubmittedEvent) => void,
 	): this;
+	emit(event: "session-access", reason: string | undefined): boolean;
 	emit(event: "agent", payload: AgentEvent): boolean;
 	emit(event: "team", payload: TeamEvent): boolean;
 	emit(event: "pending-prompts", payload: PendingPromptSnapshot): boolean;

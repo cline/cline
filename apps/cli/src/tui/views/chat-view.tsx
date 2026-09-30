@@ -30,6 +30,7 @@ import type {
 } from "../types";
 
 export function ChatView(props: {
+	inputBlockedReason?: string;
 	config: TuiProps["config"];
 	inputValue: string;
 	inputKey: number;
@@ -94,7 +95,9 @@ export function ChatView(props: {
 			/>
 
 			<box flexDirection="column" flexShrink={0}>
-				{runtimeInteraction ? (
+				{props.inputBlockedReason ? (
+					<text>{props.inputBlockedReason}</text>
+				) : runtimeInteraction ? (
 					<box marginBottom={1}>
 						<InlineToolResponse
 							key={runtimeInteraction.id}

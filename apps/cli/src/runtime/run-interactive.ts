@@ -285,6 +285,7 @@ export async function runInteractive(
 		askQuestionRef: tuiAskQuestion,
 		resolveMistakeLimitDecision,
 		switchToActModeTool,
+		onSessionAccess: (reason) => uiEvents.emit("session-access", reason),
 		onAgentEvent: (event) => {
 			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
 		},
@@ -552,16 +553,20 @@ export async function runInteractive(
 		onToggleConfigItem,
 		onDeleteConfigItem,
 		subscribeToEvents: ({
+			onSessionAccess,
 			onAgentEvent: onAgent,
 			onTeamEvent: onTeam,
 			onPendingPrompts,
 			onPendingPromptSubmitted,
 		}) => {
+			onSessionAccess?.(sessionRuntime.getInputBlockedReason());
+			if (onSessionAccess) uiEvents.on("session-access", onSessionAccess);
 			uiEvents.on("agent", onAgent);
 			uiEvents.on("team", onTeam);
 			uiEvents.on("pending-prompts", onPendingPrompts);
 			uiEvents.on("pending-prompt-submitted", onPendingPromptSubmitted);
 			return () => {
+				if (onSessionAccess) uiEvents.off("session-access", onSessionAccess);
 				uiEvents.off("agent", onAgent);
 				uiEvents.off("team", onTeam);
 				uiEvents.off("pending-prompts", onPendingPrompts);

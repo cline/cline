@@ -144,6 +144,7 @@ function makeManager() {
 	});
 	return {
 		start,
+		attach: vi.fn().mockResolvedValue(undefined),
 		stop: vi.fn(async () => {}),
 		send: vi.fn(),
 		getAccumulatedUsage: vi.fn(),
@@ -155,7 +156,7 @@ function makeManager() {
 		updateSessionCompactionState: vi.fn(),
 		readTranscript: vi.fn(),
 		ingestHookEvent: vi.fn(),
-		subscribe: vi.fn(),
+		subscribe: vi.fn((_handler: (event: unknown) => void) => () => {}),
 		updateSessionModel: vi.fn(),
 		updateSessionConnection: vi.fn(async () => {}),
 		pendingPrompts: {
@@ -242,6 +243,90 @@ describe("createInteractiveSessionRuntime", () => {
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
 	});
 
+	it("attaches to a live resumed session without restarting its owner", async () => {
+		const manager = makeManager();
+		manager.attach.mockResolvedValue({
+			sessionId: "shared",
+			manifest: createManifest("shared"),
+			manifestPath: "",
+			messagesPath: "",
+		});
+		const runtime = await makeRuntime(manager, { resumeSessionId: "shared" });
+		await runtime.ensureReady();
+		expect(manager.attach).toHaveBeenCalledWith("shared");
+		expect(manager.start).not.toHaveBeenCalled();
+		expect(setActiveCliSessionMock).toHaveBeenCalledWith({
+			manifest: createManifest("shared"),
+		});
+	});
+
+	it("keeps a foreign attachment read-only until ownership is released", async () => {
+		const manager = makeManager();
+		let receiveEvent: (event: unknown) => void = () => {};
+		manager.subscribe.mockImplementation((handler) => {
+			receiveEvent = handler;
+			return () => {};
+		});
+		manager.attach.mockResolvedValue({
+			sessionId: "shared",
+			manifest: createManifest("shared"),
+			manifestPath: "",
+			messagesPath: "",
+			ownedByAnotherClient: true,
+		});
+		const runtime = await makeRuntime(manager, { resumeSessionId: "shared" });
+		expect(runtime.getInputBlockedReason()).toContain("Checking");
+		await runtime.ensureReady();
+		expect(runtime.getInputBlockedReason()).toContain("Read-only");
+		await expect(runtime.sendCurrentTurn({ prompt: "hello" })).rejects.toThrow(
+			"Read-only",
+		);
+		expect(manager.send).not.toHaveBeenCalled();
+		expect(runtime.abortAll()).toBe(false);
+		expect(manager.abort).not.toHaveBeenCalled();
+		receiveEvent({
+			type: "session_access",
+			payload: { sessionId: "other", ownedByAnotherClient: false },
+		});
+		expect(runtime.getInputBlockedReason()).toContain("Read-only");
+		receiveEvent({
+			type: "session_access",
+			payload: { sessionId: "shared", ownedByAnotherClient: false },
+		});
+		expect(runtime.getInputBlockedReason()).toBeUndefined();
+		manager.send.mockResolvedValue(makeTurnResult());
+		await runtime.sendCurrentTurn({ prompt: "hello" });
+		expect(manager.send).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId: "shared", prompt: "hello" }),
+		);
+		expect(manager.start).not.toHaveBeenCalled();
+	});
+
+	it("uses newer access events instead of a stale attach reply", async () => {
+		const manager = makeManager();
+		let receiveEvent: (event: unknown) => void = () => {};
+		manager.subscribe.mockImplementation((handler) => {
+			receiveEvent = handler;
+			return () => {};
+		});
+		manager.attach.mockImplementation(async () => {
+			receiveEvent({
+				type: "session_access",
+				payload: { sessionId: "shared", ownedByAnotherClient: false },
+			});
+			return {
+				sessionId: "shared",
+				manifest: createManifest("shared"),
+				manifestPath: "",
+				messagesPath: "",
+				ownedByAnotherClient: true,
+			};
+		});
+		const runtime = await makeRuntime(manager, { resumeSessionId: "shared" });
+		await runtime.ensureReady();
+		expect(runtime.getInputBlockedReason()).toBeUndefined();
+	});
+
 	it("manual compact updates the active session sidecar without restarting", async () => {
 		const sessionId = "sess-active";
 		const messages = [
@@ -256,6 +341,7 @@ describe("createInteractiveSessionRuntime", () => {
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 		const manager = {
+			subscribe: vi.fn(() => () => {}),
 			start: vi.fn().mockResolvedValue({
 				sessionId,
 				manifest: createManifest(sessionId),
@@ -332,6 +418,7 @@ describe("createInteractiveSessionRuntime", () => {
 		const sessionId = "sess-running";
 		const messages = [{ role: "user" as const, content: "hello" }];
 		const manager = {
+			subscribe: vi.fn(() => () => {}),
 			start: vi.fn().mockResolvedValue({
 				sessionId,
 				manifest: createManifest(sessionId),
@@ -423,6 +510,7 @@ describe("createInteractiveSessionRuntime", () => {
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 		const manager = {
+			subscribe: vi.fn(() => () => {}),
 			start: vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -495,6 +583,7 @@ describe("createInteractiveSessionRuntime", () => {
 	it("defers creating the replacement session after a new-session reset", async () => {
 		let startCount = 0;
 		const manager = {
+			subscribe: vi.fn(() => () => {}),
 			start: vi.fn().mockImplementation(async () => {
 				startCount += 1;
 				const sessionId = `session-${startCount}`;
@@ -652,6 +741,8 @@ describe("createInteractiveSessionRuntime", () => {
 	it("starts fresh after resetting an initially resumed session", async () => {
 		let startCount = 0;
 		const manager = {
+			subscribe: vi.fn(() => () => {}),
+			attach: vi.fn().mockResolvedValue(undefined),
 			start: vi.fn().mockImplementation(async () => {
 				startCount += 1;
 				const sessionId = `session-${startCount}`;
@@ -728,6 +819,7 @@ describe("createInteractiveSessionRuntime", () => {
 	it("keeps explicit empty restarts eager for config-driven restarts", async () => {
 		let startCount = 0;
 		const manager = {
+			subscribe: vi.fn(() => () => {}),
 			start: vi.fn().mockImplementation(async () => {
 				startCount += 1;
 				const sessionId = `session-${startCount}`;

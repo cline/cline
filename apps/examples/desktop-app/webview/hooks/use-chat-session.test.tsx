@@ -435,6 +435,104 @@ describe("useChatSession", () => {
 		workspaceRoot: "/workspace",
 	};
 
+	it("blocks send and abort while saved history is visible but access is unresolved", async () => {
+		const reply = Promise.withResolvers<{ readOnly: boolean }>();
+		const reached = Promise.withResolvers<void>();
+		invokeMock.mockImplementation(async (command, args) => {
+			if (command === "read_session_messages")
+				return [{ role: "user", content: "history", createdAt: 1 }];
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "attach"
+			) {
+				reached.resolve();
+				return reply.promise;
+			}
+			return [];
+		});
+		let hydrate!: Promise<void>;
+		await act(async () => {
+			hydrate = current.hydrateSession({
+				sessionId: "foreign",
+				status: "running",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			});
+			await reached.promise;
+		});
+		expect(current.isCheckingSessionAccess).toBe(true);
+		invokeMock.mockClear();
+		await act(async () => {
+			expect(await current.sendPrompt("injected")).toBe(false);
+			await current.abort();
+		});
+		expect(invokeMock).not.toHaveBeenCalled();
+		await act(async () => {
+			reply.resolve({ readOnly: true });
+			await hydrate;
+		});
+		expect(current.isCheckingSessionAccess).toBe(false);
+		expect(current.isSessionReadOnly).toBe(true);
+	});
+
+	it("blocks submitting to another client's session and clears read-only state on reset", async () => {
+		invokeMock.mockImplementation(async (command, args) => {
+			if (
+				command === "chat_session_command" &&
+				args?.request?.action === "attach"
+			) {
+				return {
+					sessionId: "external-session",
+					status: "idle",
+					readOnly: true,
+					...cloudSessionConfig,
+				};
+			}
+			return [];
+		});
+		await act(async () =>
+			current.hydrateSession({
+				sessionId: "external-session",
+				status: "completed",
+				...cloudSessionConfig,
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(true);
+		invokeMock.mockClear();
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+			await current.abort();
+			await current.steerPromptInQueue("queued");
+			await current.updatePromptInQueue("queued", "changed");
+			await current.removePromptInQueue("queued");
+		});
+		expect(invokeMock).not.toHaveBeenCalled();
+		await act(async () =>
+			handlerFor("chat_session_access")({
+				sessionId: "unrelated",
+				readOnly: false,
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(true);
+		await act(async () =>
+			handlerFor("chat_session_access")({
+				sessionId: "external-session",
+				readOnly: false,
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(false);
+		await act(async () =>
+			handlerFor("chat_session_access")({
+				sessionId: "external-session",
+				readOnly: true,
+			}),
+		);
+		expect(current.isSessionReadOnly).toBe(true);
+		await act(async () => current.reset());
+		expect(current.isSessionReadOnly).toBe(false);
+	});
+
 	it("accepts a running snapshot when a repeated prompt has a new canonical id", async () => {
 		const sessionId = "session-repeated-status";
 		invokeMock.mockImplementation(
