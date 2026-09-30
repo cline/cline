@@ -1236,7 +1236,6 @@ describe("LocalRuntimeHost", () => {
 			);
 			const persisted = await manager.readSessionMessages("seeded");
 			const wire = JSON.stringify(persisted);
-			expect(wire).not.toContain(sourcePath);
 			if (outcome !== "success") {
 				expect(wire).toContain("saved preview");
 				expect(wire).not.toContain("Full result saved");
@@ -1254,9 +1253,23 @@ describe("LocalRuntimeHost", () => {
 				expect(result?.finishReason).toBe("completed");
 				return;
 			}
-			const match = /Full result saved to (.*?) for search\./.exec(wire);
-			expect(match).not.toBeNull();
-			const path = match?.[1] ?? "";
+			const notices = persisted.flatMap((message) =>
+				Array.isArray(message.content)
+					? message.content.flatMap((block) =>
+							block.type === "tool_result" && Array.isArray(block.content)
+								? block.content.filter(
+										(entry) =>
+											entry.type === "text" &&
+											typeof entry.toolResultFile === "string",
+									)
+								: [],
+						)
+					: [],
+			);
+			expect(notices).toHaveLength(1);
+			const notice = notices[0];
+			const path = notice.type === "text" ? (notice.toolResultFile ?? "") : "";
+			expect(path).not.toBe(sourcePath);
 			expect(path).toContain(join(sessionsDir, "seeded", "tool-results"));
 			rmSync(join(sessionsDir, "source"), { recursive: true });
 			expect(readFileSync(path, "utf8")).toBe(full);
@@ -1270,7 +1283,15 @@ describe("LocalRuntimeHost", () => {
 					],
 				}),
 			);
-			expect(JSON.stringify(initialMessages)).toContain(sourcePath);
+			expect(initialMessages[0].content).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						content: expect.arrayContaining([
+							expect.objectContaining({ toolResultFile: sourcePath }),
+						]),
+					}),
+				]),
+			);
 		} finally {
 			await manager.dispose();
 		}

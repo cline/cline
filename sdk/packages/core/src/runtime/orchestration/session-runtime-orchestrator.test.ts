@@ -41,10 +41,14 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	EMPTY_CONTENT_TEXT,
+	type Message,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
-import { messagesToAgentMessages } from "../config/agent-message-codec";
+import {
+	agentMessagesToMessages,
+	messagesToAgentMessages,
+} from "../config/agent-message-codec";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -53,6 +57,21 @@ import {
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
+
+function expectRecoveryPath(messages: Message[], path: string): void {
+	const results = messages.flatMap((message) =>
+		Array.isArray(message.content)
+			? message.content.flatMap((block) =>
+					block.type === "tool_result" && Array.isArray(block.content)
+						? block.content
+						: [],
+				)
+			: [],
+	);
+	expect(results).toContainEqual(
+		expect.objectContaining({ toolResultFile: path }),
+	);
+}
 
 function makeAgentConfig(overrides: Partial<AgentConfig> = {}): AgentConfig {
 	return {
@@ -668,7 +687,7 @@ describe("SessionRuntime message preparation", () => {
 			const path = join(directory, namespace, "external_call.result.txt");
 			const before = await stat(path);
 			const history = JSON.parse(JSON.stringify(session.getMessages()));
-			expect(JSON.stringify(history)).toContain(path);
+			expectRecoveryPath(history, path);
 			expect(JSON.stringify(history)).not.toContain(full);
 			expect(await readFile(path, "utf8")).toBe(full);
 			await session.run("follow up");
@@ -680,7 +699,7 @@ describe("SessionRuntime message preparation", () => {
 			await resumed.continue();
 			expect((await stat(path)).mtimeMs).toBe(before.mtimeMs);
 			expect(await readdir(directory)).toEqual([namespace]);
-			expect(JSON.stringify(resumed.getMessages())).toContain(path);
+			expectRecoveryPath(resumed.getMessages(), path);
 		} finally {
 			await session.shutdown();
 			await resumed?.shutdown();
@@ -759,7 +778,9 @@ describe("SessionRuntime message preparation", () => {
 			});
 			const [runtimeDir] = await readdir(directory);
 			const path = join(directory, runtimeDir, "call_1.result.txt");
-			expect(JSON.stringify(after?.result?.output)).toContain(path);
+			expect(after?.result?.output).toContainEqual(
+				expect.objectContaining({ toolResultFile: path }),
+			);
 			expect(await readFile(path, "utf8")).toBe(full);
 			const messages = messagesToAgentMessages([
 				{
@@ -778,7 +799,10 @@ describe("SessionRuntime message preparation", () => {
 				snapshot: makeSnapshot(),
 				request: { systemPrompt: "system", tools: [], messages },
 			});
-			expect(JSON.stringify(prepared?.messages)).toContain(path);
+			expectRecoveryPath(
+				agentMessagesToMessages(prepared?.messages ?? []),
+				path,
+			);
 			await session.shutdown();
 			expect(await readFile(path, "utf8")).toBe(full);
 		} finally {

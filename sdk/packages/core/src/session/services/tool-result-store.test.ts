@@ -200,7 +200,7 @@ describe("recorded external tool results", () => {
 		);
 		const path = recoveryPath(history(recorded));
 		const prepared = output(await builder.buildForApi(history(recorded)));
-		expect(JSON.stringify(prepared.content)).toContain(path);
+		expect(recoveryPath(history(prepared))).toBe(path);
 		const textBytes =
 			typeof prepared.content === "string"
 				? Buffer.byteLength(prepared.content)
