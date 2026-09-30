@@ -422,9 +422,8 @@ export class CloudSessionHost implements SdkSessionHost {
 		})
 	}
 
-	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
-		const service = this.host as { updateSessionModel?: (sessionId: string, modelId: string) => Promise<void> }
-		await service.updateSessionModel?.(this.toInner(sessionId), modelId)
-		this.modelId = modelId
-	}
+	// updateSessionModel is deliberately absent: the Hub protocol has no command
+	// to change a running session's model, so the lifecycle reports the
+	// capability as unavailable and sessionModelId keeps naming the model the
+	// sandbox was started on.
 }
