@@ -1,4 +1,4 @@
-import { redactUrlsInText } from "@/utils/redact-url"
+import { redactUrlsInText } from "../redact-url"
 
 /**
  * Simple Logger utility for the extension's backend code.
