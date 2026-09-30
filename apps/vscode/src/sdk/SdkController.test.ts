@@ -1,3 +1,4 @@
+import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
 import { describe, expect, it, vi } from "vitest"
 import { telemetryService } from "@/services/telemetry"
 import { isClineManagedProvider } from "@/shared/utils/cline"
@@ -590,6 +591,74 @@ describe("cancelling a provisioning cloud task", () => {
 
 		expect(cancelPendingStart).toHaveBeenCalledOnce()
 		expect(controller.taskControl.clearTask).toHaveBeenCalledOnce()
+	})
+})
+
+describe("getTaskHistory with Cloud Only", () => {
+	function record(sessionId: string, updatedAt: number, executionTarget?: "cloud") {
+		return {
+			sessionId,
+			prompt: `task ${sessionId}`,
+			startedAt: new Date(updatedAt).toISOString(),
+			updatedAt: new Date(updatedAt).toISOString(),
+			metadata: executionTarget ? { executionTarget } : {},
+		}
+	}
+
+	it("finds cloud tasks that sit behind a full page of newer local tasks", async () => {
+		// 60 local tasks are newer than the 2 cloud tasks, so a page of 50 merged
+		// records holds no cloud task at all.
+		const history = [
+			...Array.from({ length: 60 }, (_, i) => record(`local-${i}`, 2_000_000 - i)),
+			record("ses-a", 1_000_000, "cloud"),
+			record("ses-b", 999_999, "cloud"),
+		]
+		const listHistory = vi.fn(async ({ limit = history.length, offset = 0 }: { limit?: number; offset?: number }) =>
+			history.slice(offset, offset + limit),
+		)
+		const controller = {
+			task: undefined,
+			taskHistory: { listHistory },
+			cloud: { getCurrentTaskInfo: () => undefined },
+			getWorkspaceRoot: async () => "/workspace",
+		}
+
+		const page = await SdkController.prototype.getTaskHistory.call(
+			controller as never,
+			GetTaskHistoryRequest.create({ cloudOnly: true, limit: 50, offset: 0 }),
+		)
+
+		expect(page.tasks.map((task) => task.id)).toEqual(["ses-a", "ses-b"])
+		expect(page.hasMore).toBe(false)
+	})
+
+	it("pages the filtered cloud tasks, not the merged list", async () => {
+		const history = [
+			...Array.from({ length: 5 }, (_, i) => record(`local-${i}`, 2_000_000 - i)),
+			...Array.from({ length: 3 }, (_, i) => record(`ses-${i}`, 1_000_000 - i, "cloud")),
+		]
+		const listHistory = vi.fn(async ({ limit = history.length, offset = 0 }: { limit?: number; offset?: number }) =>
+			history.slice(offset, offset + limit),
+		)
+		const controller = {
+			task: undefined,
+			taskHistory: { listHistory },
+			cloud: { getCurrentTaskInfo: () => undefined },
+			getWorkspaceRoot: async () => "/workspace",
+		}
+		const page = (offset: number) =>
+			SdkController.prototype.getTaskHistory.call(
+				controller as never,
+				GetTaskHistoryRequest.create({ cloudOnly: true, limit: 2, offset }),
+			)
+
+		const first = await page(0)
+		const second = await page(2)
+
+		expect(first.tasks.map((task) => task.id)).toEqual(["ses-0", "ses-1"])
+		expect(first.hasMore).toBe(true)
+		expect(second.tasks.map((task) => task.id)).toEqual(["ses-2"])
+		expect(second.hasMore).toBe(false)
 	})
 })
 
