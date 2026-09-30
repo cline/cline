@@ -385,6 +385,18 @@ different process.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
 
+### Temporary external tool result recovery
+
+Cache admission sizes the persisted result using the same JSON/string preview representation as `MessageBuilder`, ensuring every result truncated by the per-result limit is eligible for recovery. Native images are separated from structured preview text and excluded from the recovery copy. Plain strings remain unchanged, while structured cached text uses YAML with literal multiline blocks and no automatic line wrapping. YAML size controls the cache byte limit, not the truncation threshold. This preserves MCP payload line breaks instead of escaping them into a single JSON line. Recovery requires an available `read_files` tool and uses its existing output and per-line limits. Disabling the reader does not disable caching or remove notices.
+
+MCP and Composio tools declare `resultPolicy: "cache-oversized"` at registration; custom tools may opt in. After result-transforming hooks finish, Core caches oversized output in a session-owned `ToolResultCache` while retaining original output in conversation history and tool events. The existing synchronous `MessageBuilder.buildForApi` produces bounded previews and model-only recovery instructions, preserving native images. Other tools keep their existing projection behavior. No disk cache or asynchronous recovery builder is involved.
+
+Recovery URIs have the form `cline://cache/<encoded-session-id>/<unique-result-id>.result.txt`. Core injects the owning cache into the runtime tool context. The built-in file reader resolves these URIs before filesystem handling and uses the same bounded line reader, inclusive ranges, output caps, and abort handling as ordinary text files. URIs are restricted to the owning session; shell commands and filesystem search do not resolve them.
+
+Entries expire after five additional model iterations without an explicit cache read. A session-level counter spans follow-up turns; including a URI in a model request does not refresh it. Reads refresh both the iteration age and least-recently-used order. Cached text is limited to 16 MiB of UTF-8 bytes per session, evicting the least recently read entry first; individually larger results receive a preview without a URI. Shutdown, history reset, and restore clear the cache. Resume and copied sessions do not rehydrate it from history. Missing entries return an explicit refetch instruction through `read_files`, without automatically repeating tools or side effects.
+
+Cache eviction releases cache-owned text only; original output remains under ordinary history retention. URI references survive eviction so earlier model-facing recovery notices remain unchanged. Cache-miss feedback is emitted only by an attempted read. Generated recovery instructions reserve at most half the aggregate model text budget; instructions that cannot fit are omitted. Tool-returned metadata cannot grant recovery-instruction status.
+
 ### Connector Persistence and Recovery
 
 1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.
