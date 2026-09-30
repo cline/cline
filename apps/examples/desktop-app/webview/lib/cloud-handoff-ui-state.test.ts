@@ -5,6 +5,17 @@ import {
 	resolveHandoffReceipt,
 } from "./cloud-handoff-ui-state";
 
+const RECEIPT = {
+	targetSessionId: "cloud-1",
+	dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+};
+const COMPLETE = {
+	type: "complete" as const,
+	sourceSessionId: "local-1",
+	receipt: RECEIPT,
+	externalPresentation: false,
+};
+
 describe("cloudHandoffUiReducer", () => {
 	it("recognizes live recovery ownership before history refreshes", () => {
 		expect(
@@ -185,10 +196,7 @@ describe("cloudHandoffUiReducer", () => {
 		},
 		{
 			status: "complete" as const,
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
+			receipt: RECEIPT,
 			externalPresentation: false,
 		},
 	])("retains $status ownership state after a stale local send", (entry) => {
@@ -229,49 +237,10 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
-	it("clears same-attempt recovery after a clean authoritative completion", () => {
-		const failed = {
-			"local-1": {
-				status: "failed" as const,
-				retryDraft: "/cloud continue",
-			},
-		};
-		const completed = cloudHandoffUiReducer(failed, {
-			type: "complete",
-			sourceSessionId: "local-1",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
-			externalPresentation: false,
-		});
-
-		expect(completed["local-1"]).toEqual({
-			status: "complete",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
-			externalPresentation: false,
-		});
-	});
-
 	it("keeps the completion receipt when a late failure lands after complete", () => {
-		const completed = cloudHandoffUiReducer(
-			{},
-			{
-				type: "complete",
-				sourceSessionId: "local-1",
-				receipt: {
-					targetSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-				externalPresentation: false,
-			},
-		);
+		const completed = cloudHandoffUiReducer({}, COMPLETE);
 
-		// The RPC transport can fail after the authoritative completion event
-		// already landed; the receipt and its cloud URL must survive.
+		expect(Object.keys(completed)).toEqual(["local-1"]);
 		const withRecovery = cloudHandoffUiReducer(completed, {
 			type: "failed",
 			sourceSessionId: "local-1",
@@ -279,10 +248,7 @@ describe("cloudHandoffUiReducer", () => {
 		});
 		expect(withRecovery["local-1"]).toMatchObject({
 			status: "complete",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
+			receipt: RECEIPT,
 			retryDraft: "/cloud continue",
 		});
 		expect(
@@ -293,18 +259,24 @@ describe("cloudHandoffUiReducer", () => {
 		).toBe(completed);
 		expect(completed["local-1"]).toEqual({
 			status: "complete",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
+			receipt: RECEIPT,
 			externalPresentation: false,
 		});
 	});
 
-	it("dismisses recovery for this app run without accepting late progress", () => {
+	it.each([
+		{ status: "recovery" as const },
+		{
+			status: "retry_restored" as const,
+			retryDraft: "/cloud continue",
+			retryAttachments: [
+				new File(["image"], "diagram.png", { type: "image/png" }),
+			],
+		},
+	])("dismisses $status without losing its payload or accepting late progress", (entry) => {
 		const recovery = {
 			"local-1": {
-				status: "recovery" as const,
+				...entry,
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
 		};
@@ -314,6 +286,7 @@ describe("cloudHandoffUiReducer", () => {
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
 		expect(dismissed["local-1"]).toEqual({
+			...entry,
 			status: "recovery_dismissed",
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
@@ -336,47 +309,8 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
-	it("retains a restored retry payload when recovery is dismissed", () => {
-		const attachment = new File(["image"], "diagram.png", {
-			type: "image/png",
-		});
-		const dismissed = cloudHandoffUiReducer(
-			{
-				"local-1": {
-					status: "retry_restored",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-					retryDraft: "/cloud continue",
-					retryAttachments: [attachment],
-				},
-			},
-			{
-				type: "dismiss_recovery",
-				sourceSessionId: "local-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
-		);
-
-		expect(dismissed["local-1"]).toEqual({
-			status: "recovery_dismissed",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			retryDraft: "/cloud continue",
-			retryAttachments: [attachment],
-		});
-	});
-
 	it("ignores a stale recovery dismissal after completion", () => {
-		const completed = cloudHandoffUiReducer(
-			{},
-			{
-				type: "complete",
-				sourceSessionId: "local-1",
-				receipt: {
-					targetSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-				externalPresentation: false,
-			},
-		);
+		const completed = cloudHandoffUiReducer({}, COMPLETE);
 
 		expect(
 			cloudHandoffUiReducer(completed, {
@@ -385,22 +319,5 @@ describe("cloudHandoffUiReducer", () => {
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			}),
 		).toBe(completed);
-	});
-
-	it("completion only records the source receipt without synthesizing target state", () => {
-		const completed = cloudHandoffUiReducer(
-			{},
-			{
-				type: "complete",
-				sourceSessionId: "local-1",
-				receipt: {
-					targetSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-				externalPresentation: false,
-			},
-		);
-		expect(Object.keys(completed)).toEqual(["local-1"]);
-		expect(completed["local-1"]).toMatchObject({ status: "complete" });
 	});
 });
