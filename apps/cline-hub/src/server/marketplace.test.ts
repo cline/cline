@@ -378,13 +378,17 @@ describe("marketplace installer", () => {
 	it("redacts common secret formats from failed install output", async () => {
 		const homeDir = mkdtempSync(join(tmpdir(), "cline-marketplace-home-"));
 		process.env.HOME = homeDir;
-		const spawnCommand = vi.fn(async () => ({
-			exitCode: 1,
-			stdout:
-				"Authorization: Bearer stdout-token\nAuthorization: Basic basic-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
-			stderr:
-				"TOKEN=stderr-token\npassword is stderr-password\nANTHROPIC_SECRET_KEY=anthropic-secret",
-		}));
+		const spawnCommand = vi.fn(async (command: string) =>
+			command === "git"
+				? { exitCode: 0, stdout: "git version 2.43.0", stderr: "" }
+				: {
+						exitCode: 1,
+						stdout:
+							"Authorization: Bearer stdout-token\nAuthorization: Basic basic-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
+						stderr:
+							"TOKEN=stderr-token\npassword is stderr-password\nANTHROPIC_SECRET_KEY=anthropic-secret",
+					},
+		);
 
 		let message = "";
 		try {
@@ -447,6 +451,33 @@ describe("marketplace installer", () => {
 			"Cannot install skill globally because ~/.agents/skills is not writable",
 		);
 		expect(spawnCommand).not.toHaveBeenCalled();
+	});
+
+	it("rejects skill installs with an actionable error when git is missing", async () => {
+		const homeDir = mkdtempSync(join(tmpdir(), "cline-marketplace-home-"));
+		process.env.HOME = homeDir;
+		const spawnCommand = vi.fn(async (command: string) => {
+			if (command === "git") {
+				throw Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" });
+			}
+			return { exitCode: 0, stdout: "", stderr: "" };
+		});
+
+		await expect(
+			installMarketplaceEntry(
+				{
+					entry: {
+						id: "cline-sdk",
+						type: "skill",
+						name: "Cline SDK",
+						install: { args: ["cline/sdk-skill"] },
+					},
+				},
+				{ spawnCommand },
+			),
+		).rejects.toThrow("Installing skills requires Git");
+		expect(spawnCommand).toHaveBeenCalledTimes(1);
+		expect(spawnCommand).toHaveBeenCalledWith("git", ["--version"]);
 	});
 
 	it("rejects skill installs that do not create a global skill", async () => {

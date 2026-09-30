@@ -203,3 +203,39 @@ describe("official plugin install detection", () => {
 		expect(result.installedKeys).toEqual([]);
 	});
 });
+
+describe("skill install", () => {
+	it("rejects with an actionable error when git is missing", async () => {
+		// Regression for cline/cline#14663: the skills CLI clones with git, and on
+		// a machine without it (Ubuntu desktop) the UI showed a raw
+		// "spawn git ENOENT" stack trace buried in the CLI banner.
+		const previousHome = process.env.HOME;
+		process.env.HOME = tempClineDir;
+		const spawnCommand = vi.fn(async (command: string) => {
+			if (command === "git") {
+				throw Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" });
+			}
+			return { exitCode: 0, stdout: "", stderr: "" };
+		});
+
+		try {
+			await expect(
+				installMarketplaceEntry(
+					{
+						entry: {
+							id: "cline-sdk",
+							type: "skill",
+							name: "Cline SDK",
+							install: { args: ["cline/sdk-skill"] },
+						},
+					},
+					{ spawnCommand },
+				),
+			).rejects.toThrow("Installing skills requires Git");
+		} finally {
+			process.env.HOME = previousHome;
+		}
+		expect(spawnCommand).toHaveBeenCalledTimes(1);
+		expect(spawnCommand).toHaveBeenCalledWith("git", ["--version"]);
+	});
+});

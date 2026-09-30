@@ -669,6 +669,21 @@ function ensureGlobalSkillsDirWritable(): void {
 	}
 }
 
+// The skills CLI clones skill repositories with git. Without it the install
+// fails deep inside the CLI with a raw "spawn git ENOENT" stack trace buried
+// in its banner output; Ubuntu desktop and Windows don't ship git.
+async function ensureGitAvailable(spawnCommand: SpawnCommand): Promise<void> {
+	try {
+		const result = await spawnCommand("git", ["--version"]);
+		if (result.exitCode === 0) return;
+	} catch {
+		// spawn rejects with ENOENT when git isn't on PATH.
+	}
+	throw new Error(
+		"Installing skills requires Git, which was not found on this machine. Install Git (https://git-scm.com/downloads) and try again.",
+	);
+}
+
 function isGlobalSkillInstalled(entry: MarketplaceInstallInput): boolean {
 	return findInstalledGlobalSkillName(entry) !== undefined;
 }
@@ -761,6 +776,7 @@ async function installSkill(
 		};
 	}
 	ensureGlobalSkillsDirWritable();
+	await ensureGitAvailable(spawnCommand);
 	const result = await spawnCommand("npx", [
 		"-y",
 		"skills@latest",
