@@ -197,6 +197,11 @@ export async function performCommitMsgGeneration(controller: Controller, gitDiff
 	// meanwhile and send the request anyway. Read through this local, not the
 	// module slot, so a later generation can't swap the signal an earlier one
 	// checks.
+	//
+	// At most one generation runs: the stop action only reaches the stored
+	// controller, so a new generation (the Generate keybinding stays live while
+	// one runs) cancels the previous one rather than leaving it unstoppable.
+	commitGenerationAbortController?.abort()
 	const abortController = new AbortController()
 	commitGenerationAbortController = abortController
 	try {
