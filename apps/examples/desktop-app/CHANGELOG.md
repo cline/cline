@@ -1,5 +1,10 @@
 # Cline Desktop Changelog
 
+## 0.0.39
+
+- On Linux with the proprietary NVIDIA driver, the app window no longer opens blank. The app now turns off WebKitGTK's DMA-BUF renderer when it detects the NVIDIA driver. To keep that renderer on (for example, on a hybrid-GPU system), set `WEBKIT_DISABLE_DMABUF_RENDERER=0`
+- The Linux `.deb` and `.rpm` packages now include app info, so GNOME Software and KDE Discover show Cline's icon and description and list it under Installed
+
 ## 0.0.38
 
 - Linux on ARM is now supported: each release ships arm64 `.deb` and `.rpm` packages alongside the x64 ones, and they auto-update like the others
