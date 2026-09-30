@@ -19,7 +19,7 @@ describe("session memory result cache", () => {
 			expect(cache.uriFor("call")).toBe(uri);
 		}
 		cache.advanceIteration();
-		expect(cache.uriFor("call")).toBeUndefined();
+		expect(cache.uriFor("call")).toBe(uri);
 		expect(() => cache.read(uri)).toThrow(TOOL_RESULT_CACHE_MISS);
 	});
 
@@ -41,6 +41,7 @@ describe("session memory result cache", () => {
 		cache.read(first);
 		cache.store("third", "3333");
 		expect(() => cache.read(second)).toThrow(TOOL_RESULT_CACHE_MISS);
+		expect(cache.uriFor("second")).toBe(second);
 		expect(cache.read(first)).toBe("1111");
 		expect(cache.store("too-large", "x".repeat(9))).toBeUndefined();
 		expect(cache.uriFor("first")).toBe(first);

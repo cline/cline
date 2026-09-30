@@ -136,11 +136,12 @@ describe("runtime memory result recovery", () => {
 				),
 			).toContain(uri);
 			await session.continue("five iterations since read");
-			expect(
-				JSON.stringify(
-					findResult(captured.at(-1) ?? [], "custom_external_name")?.output,
-				),
-			).not.toContain(uri);
+			expect(findResult(captured.at(-1) ?? [], "custom_external_name")).toEqual(
+				findResult(captured[1], "custom_external_name"),
+			);
+			expect(JSON.stringify(captured.at(-1))).not.toContain(
+				TOOL_RESULT_CACHE_MISS,
+			);
 			readExpired = true;
 			expect((await session.continue("read expired result")).text).toBe("done");
 			const history = session.getMessages();

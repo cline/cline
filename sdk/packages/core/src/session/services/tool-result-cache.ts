@@ -6,8 +6,6 @@ export const TOOL_RESULT_CACHE_MISS =
 	"Cache not found. Make a new tool call for the latest result again if needed. DO NOT repeat side-effecting actions to recover output.";
 
 interface CachedResult {
-	toolCallId: string;
-	uri: string;
 	text: string;
 	bytes: number;
 	lastReadIteration: number;
@@ -16,7 +14,11 @@ interface CachedResult {
 /** Session-owned volatile text cache. Looking up a URI never extends its lifetime. */
 export class ToolResultCache {
 	private readonly entries = new Map<string, CachedResult>();
-	private readonly idsByToolCall = new Map<string, string>();
+	// References outlive cached content so eviction never rewrites old notices.
+	private readonly referencesByToolCall = new Map<
+		string,
+		{ id: string; uri: string }
+	>();
 	private iteration = 0;
 	private bytes = 0;
 
@@ -27,8 +29,9 @@ export class ToolResultCache {
 
 	store(toolCallId: string, text: string): string | undefined {
 		const bytes = Buffer.byteLength(text);
-		const previous = this.idsByToolCall.get(toolCallId);
-		if (previous) this.remove(previous);
+		const previous = this.referencesByToolCall.get(toolCallId);
+		if (previous) this.remove(previous.id);
+		this.referencesByToolCall.delete(toolCallId);
 		if (bytes > this.maxBytes) return undefined;
 		while (this.bytes + bytes > this.maxBytes) {
 			const oldest = this.entries.keys().next().value;
@@ -38,20 +41,17 @@ export class ToolResultCache {
 		const id = randomUUID();
 		const uri = `cline://cache/${encodeURIComponent(this.sessionId)}/${id}.result.txt`;
 		this.entries.set(id, {
-			toolCallId,
-			uri,
 			text,
 			bytes,
 			lastReadIteration: this.iteration,
 		});
-		this.idsByToolCall.set(toolCallId, id);
+		this.referencesByToolCall.set(toolCallId, { id, uri });
 		this.bytes += bytes;
 		return uri;
 	}
 
 	uriFor(toolCallId: string): string | undefined {
-		const id = this.idsByToolCall.get(toolCallId);
-		return id ? this.entries.get(id)?.uri : undefined;
+		return this.referencesByToolCall.get(toolCallId)?.uri;
 	}
 
 	read(uri: string): string {
@@ -83,7 +83,7 @@ export class ToolResultCache {
 
 	clear(): void {
 		this.entries.clear();
-		this.idsByToolCall.clear();
+		this.referencesByToolCall.clear();
 		this.bytes = 0;
 	}
 
@@ -91,7 +91,6 @@ export class ToolResultCache {
 		const entry = this.entries.get(id);
 		if (!entry) return;
 		this.bytes -= entry.bytes;
-		this.idsByToolCall.delete(entry.toolCallId);
 		this.entries.delete(id);
 	}
 }

@@ -393,7 +393,7 @@ Recovery URIs have the form `cline://cache/<encoded-session-id>/<unique-result-i
 
 Entries expire after five additional model iterations without an explicit cache read. A session-level counter spans follow-up turns; including a URI in a model request does not refresh it. Reads refresh both the iteration age and least-recently-used order. Cached text is limited to 16 MiB of UTF-8 bytes per session, evicting the least recently read entry first; individually larger results receive a preview without a URI. Shutdown, history reset, and restore clear the cache. Resume and copied sessions do not rehydrate it from history. Missing entries return an explicit refetch instruction through `read_files`, without automatically repeating tools or side effects.
 
-Cache eviction releases cache-owned text only; original output remains under ordinary history retention. Generated recovery instructions reserve at most half the aggregate model text budget; instructions that cannot fit are omitted. Tool-returned metadata cannot grant recovery-instruction status.
+Cache eviction releases cache-owned text only; original output remains under ordinary history retention. URI references survive eviction so earlier model-facing recovery notices remain unchanged. Cache-miss feedback is emitted only by an attempted read. Generated recovery instructions reserve at most half the aggregate model text budget; instructions that cannot fit are omitted. Tool-returned metadata cannot grant recovery-instruction status.
 
 ### Connector Persistence and Recovery
 
