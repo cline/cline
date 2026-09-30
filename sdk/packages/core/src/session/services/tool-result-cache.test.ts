@@ -1,7 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { TOOL_RESULT_CACHE_MISS, ToolResultCache } from "./tool-result-cache";
+import {
+	prepareToolResultRecovery,
+	TOOL_RESULT_CACHE_MISS,
+	ToolResultCache,
+} from "./tool-result-cache";
 
 describe("session memory result cache", () => {
+	it("excludes native image bytes from recovery text and cache admission", () => {
+		const image = {
+			type: "image" as const,
+			data: "x".repeat(17 * 1024 * 1024),
+			mediaType: "image/png",
+		};
+		const { text, images } = prepareToolResultRecovery([
+			{ type: "text", text: "recover me".repeat(1000) },
+			image,
+		]);
+		expect(images).toEqual([image]);
+		expect(text).toContain("[image attached]");
+		expect(text?.length).toBeLessThan(11000);
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("call", text ?? "") ?? "";
+		expect(uri).not.toBe("");
+		expect(cache.read(uri)).toContain("recover me");
+	});
+	it("wraps long cache lines without splitting Unicode code points", () => {
+		const cache = new ToolResultCache("session");
+		const original = "🙂".repeat(2500);
+		const uri = cache.store("call", original) ?? "";
+		const lines = cache.read(uri).split("\n");
+		expect(lines).toHaveLength(3);
+		expect(lines.join("")).toBe(original);
+		for (const line of lines) expect(line.length).toBeLessThanOrEqual(2000);
+	});
 	it("uses a unique URI for each execution and scopes reads to the owning session", () => {
 		const first = new ToolResultCache("root@one+two");
 		const second = new ToolResultCache("other");

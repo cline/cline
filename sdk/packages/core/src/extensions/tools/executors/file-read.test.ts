@@ -38,8 +38,20 @@ describe("createFileReadExecutor", () => {
 			metadata: { toolResultCache: cache },
 		};
 		const text = await createFileReadExecutor()({ path: uri }, context);
-		expect(String(text)).toContain("[line truncated]");
-		expect(String(text).length).toBeLessThan(2100);
+		expect(String(text)).not.toContain("[line truncated]");
+		expect(String(text).length).toBeLessThan(11000);
+		const executor = createFileReadExecutor({ includeLineNumbers: false });
+		let recovered = "";
+		for (let line = 1; line <= 10; line++) {
+			recovered += await executor(
+				{ path: uri, start_line: line, end_line: line },
+				context,
+			);
+		}
+		expect(recovered).toBe("x".repeat(10000));
+		expect(
+			await executor({ path: uri, start_line: 11, end_line: 11 }, context),
+		).toBe("end");
 		await expect(
 			createFileReadExecutor()(
 				{ path: uri },

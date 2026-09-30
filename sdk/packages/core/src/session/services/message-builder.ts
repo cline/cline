@@ -24,6 +24,7 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
+import { prepareToolResultRecovery } from "./tool-result-cache";
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
@@ -262,12 +263,7 @@ export class MessageBuilder {
 			name: toolName ?? block.name,
 		});
 		if (recovery) {
-			const images: ImageContent[] = [];
-			const textual = extractToolResultImages(block.content, images);
-			const text =
-				typeof textual === "string"
-					? textual
-					: JSON.stringify(textual, null, 2);
+			const { text, images } = prepareToolResultRecovery(block.content);
 			if (typeof text === "string" && text.length > this.maxToolResultChars) {
 				const content: ToolResultContent["content"] = [
 					{ type: "text", text: this.truncateMiddle(text) },
@@ -276,7 +272,7 @@ export class MessageBuilder {
 				if (recovery.uri) {
 					const notice: TextContent = {
 						type: "text",
-						text: `Full result is temporarily saved to ${recovery.uri}. Use read_files with specific line ranges (start_line/end_line) if omitted content is needed.`,
+						text: `Full result is temporarily saved to ${recovery.uri}. Use read_files with specific line ranges (start_line/end_line) if omitted content is needed. Long source lines are wrapped into cache lines.`,
 					};
 					const bytes = utf8ByteLength(notice.text);
 					if (this.recoveryNoticeBytes + bytes <= this.maxTotalTextBytes / 2) {
@@ -1781,28 +1777,6 @@ function deepCloneJsonLike(value: unknown): unknown {
 			out[key] = deepCloneJsonLike(item);
 		}
 		return out;
-	}
-	return value;
-}
-
-/** Native images stay on the model media path rather than becoming base64 text. */
-function extractToolResultImages(
-	value: unknown,
-	images: ImageContent[],
-): unknown {
-	if (isImageContentWithData(value)) {
-		images.push(value);
-		return "[image attached]";
-	}
-	if (Array.isArray(value))
-		return value.map((entry) => extractToolResultImages(entry, images));
-	if (value !== null && typeof value === "object") {
-		return Object.fromEntries(
-			Object.entries(value).map(([key, entry]) => [
-				key,
-				extractToolResultImages(entry, images),
-			]),
-		);
 	}
 	return value;
 }

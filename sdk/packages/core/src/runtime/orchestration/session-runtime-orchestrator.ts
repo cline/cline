@@ -67,7 +67,10 @@ import {
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
-import { ToolResultCache } from "../../session/services/tool-result-cache";
+import {
+	prepareToolResultRecovery,
+	ToolResultCache,
+} from "../../session/services/tool-result-cache";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -331,6 +334,7 @@ export class SessionRuntime {
 	private readonly conversation: ConversationStore;
 	private readonly toolResultCache: ToolResultCache;
 	private cacheableToolNames = new Set<string>();
+	private recoveryReaderAvailable = false;
 	private readonly maxCachedResultChars: number;
 	private pendingTerminalError:
 		| Extract<AgentEvent, { type: "error" }>
@@ -982,6 +986,9 @@ export class SessionRuntime {
 			this.config.toolPolicies,
 		);
 		const tools = toolCallingDisabled ? [] : availableTools;
+		this.recoveryReaderAvailable = tools.some(
+			(tool) => tool.name === "read_files",
+		);
 		const systemPrompt = await this.composeSystemPrompt(
 			new Set(tools.map((tool) => tool.name)),
 		);
@@ -1156,11 +1163,11 @@ export class SessionRuntime {
 			afterTool: async (ctx) => {
 				const control = await hooks.afterTool?.(ctx);
 				const result = control?.result ?? ctx.result;
-				if (ctx.tool.resultPolicy === "cache-oversized") {
-					const text =
-						typeof result.output === "string"
-							? result.output
-							: JSON.stringify(result.output, null, 2);
+				if (
+					this.recoveryReaderAvailable &&
+					ctx.tool.resultPolicy === "cache-oversized"
+				) {
+					const { text } = prepareToolResultRecovery(result.output);
 					if (
 						typeof text === "string" &&
 						text.length > this.maxCachedResultChars

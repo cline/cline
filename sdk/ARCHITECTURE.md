@@ -387,6 +387,8 @@ different process.
 
 ### Temporary external tool result recovery
 
+New recovery entries are created only when `read_files` is available in the current tool set. Cache admission and previews share image-free text serialization; native image data remains on the model media path. Cache text wraps source lines longer than 1,000 Unicode characters into additional cache lines so line-range reads can recover their entire content. The recovery notice explains that cache line numbers refer to this wrapped view; ordinary filesystem reads keep their existing behavior.
+
 MCP and Composio tools declare `resultPolicy: "cache-oversized"` at registration; custom tools may opt in. After result-transforming hooks finish, Core caches oversized output in a session-owned `ToolResultCache` while retaining original output in conversation history and tool events. The existing synchronous `MessageBuilder.buildForApi` produces bounded previews and model-only recovery instructions, preserving native images. Other tools keep their existing projection behavior. No disk cache or asynchronous recovery builder is involved.
 
 Recovery URIs have the form `cline://cache/<encoded-session-id>/<unique-result-id>.result.txt`. Core injects the owning cache into the runtime tool context. The built-in file reader resolves these URIs before filesystem handling and uses the same bounded line reader, inclusive ranges, output caps, and abort handling as ordinary text files. URIs are restricted to the owning session; shell commands and filesystem search do not resolve them.

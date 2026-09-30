@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ImageContent } from "@cline/shared";
 
 export const TOOL_RESULT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 export const TOOL_RESULT_CACHE_IDLE_ITERATIONS = 5;
@@ -28,6 +29,9 @@ export class ToolResultCache {
 	) {}
 
 	store(toolCallId: string, text: string): string | undefined {
+		// Cache lines are a recoverable view, not source line numbers. Wrapping
+		// prevents read_files' per-line cap from discarding long-line content.
+		text = text.replace(/([^\r\n]{1000})(?=[^\r\n])/gu, "$1\n");
 		const bytes = Buffer.byteLength(text);
 		const previous = this.referencesByToolCall.get(toolCallId);
 		if (previous) this.remove(previous.id);
@@ -93,4 +97,38 @@ export class ToolResultCache {
 		this.bytes -= entry.bytes;
 		this.entries.delete(id);
 	}
+}
+
+/** Use the same image-free text for cache admission and model previews. */
+export function prepareToolResultRecovery(output: unknown): {
+	text: string | undefined;
+	images: ImageContent[];
+} {
+	const images: ImageContent[] = [];
+	function extract(value: unknown): unknown {
+		if (value !== null && typeof value === "object") {
+			if (
+				"type" in value &&
+				value.type === "image" &&
+				"data" in value &&
+				typeof value.data === "string" &&
+				"mediaType" in value &&
+				typeof value.mediaType === "string"
+			) {
+				images.push(value as ImageContent);
+				return "[image attached]";
+			}
+			if (Array.isArray(value)) return value.map(extract);
+			return Object.fromEntries(
+				Object.entries(value).map(([key, entry]) => [key, extract(entry)]),
+			);
+		}
+		return value;
+	}
+	const textual = extract(output);
+	return {
+		text:
+			typeof textual === "string" ? textual : JSON.stringify(textual, null, 2),
+		images,
+	};
 }

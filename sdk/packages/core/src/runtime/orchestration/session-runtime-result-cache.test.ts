@@ -24,6 +24,62 @@ function findResult(
 }
 
 describe("runtime memory result recovery", () => {
+	it("does not advertise recovery when read_files is unavailable", async () => {
+		let calls = 0;
+		const model: AgentModel = {
+			async stream(request) {
+				const first = calls++ === 0;
+				if (!first) {
+					const output = findResult(request.messages, "external")?.output;
+					expect(JSON.stringify(output)).not.toContain("cline://cache/");
+					expect(JSON.stringify(output)).not.toContain("Use read_files");
+					expect(JSON.stringify(output)?.length).toBeLessThan(9000);
+				}
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "external-call",
+							toolName: "external",
+							inputText: "{}",
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "done" };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			{
+				providerId: "anthropic",
+				modelId: "claude-3-5-sonnet",
+				apiKey: "test",
+				sessionId: "without-reader",
+				systemPrompt: "test",
+				tools: [
+					{
+						name: "external",
+						description: "test",
+						inputSchema: { type: "object" },
+						resultPolicy: "cache-oversized",
+						execute: async () => "x".repeat(20000),
+					},
+				],
+			},
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		try {
+			expect((await session.run("go")).text).toBe("done");
+			expect(calls).toBe(2);
+		} finally {
+			await session.shutdown();
+		}
+	});
 	it("reads omitted content through the real read_files tool and expires across follow-up turns", async () => {
 		const full = Array.from(
 			{ length: 4000 },
