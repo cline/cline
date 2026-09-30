@@ -206,7 +206,13 @@ async function resolveProviderRegistration(
 	};
 }
 
-function resolveProviderRegistrationSync(
+/**
+ * Build the gateway registration for a provider that is not a builtin (custom
+ * providers from providers.json / models.json, or ids routed through a builtin
+ * transport) from the model catalog. Returns `undefined` when the provider is
+ * already a builtin or is not in the catalog.
+ */
+export function resolveGatewayProviderRegistration(
 	config: ProviderConfig,
 ): GatewayProviderRegistration | undefined {
 	const providerId = normalizeProviderId(config.providerId);
@@ -634,7 +640,7 @@ class GatewayApiHandler implements ApiHandler {
 			logger: this.config.logger ?? this.config.extensionContext?.logger,
 			telemetry: this.config.extensionContext?.telemetry,
 		});
-		const registration = resolveProviderRegistrationSync(this.config);
+		const registration = resolveGatewayProviderRegistration(this.config);
 		if (registration) {
 			gateway.registerProvider(registration);
 		}

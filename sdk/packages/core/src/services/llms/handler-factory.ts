@@ -4,6 +4,7 @@ import {
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	resolveGatewayProviderRegistration,
 	toGatewayModelCapabilities,
 } from "@cline/llms";
 import type {
@@ -232,7 +233,7 @@ export function createAgentModelFromConfig(
 		);
 	}
 
-	return createGateway({
+	const gateway = createGateway({
 		// Forward the host-provided fetch so inference honors proxy/CA config on
 		// JetBrains and CLI, where the global fetch is not proxy-aware. Without
 		// this the agent loop falls back to bare global fetch and corporate
@@ -257,7 +258,20 @@ export function createAgentModelFromConfig(
 		logger,
 		telemetry:
 			telemetry ?? config.telemetry ?? config.extensionContext?.telemetry,
-	}).createAgentModel(
+	});
+
+	// The gateway only knows builtin providers. Custom providers (Add Provider,
+	// providers.json, models.json) live in the model catalog, so bridge them in
+	// the same way the ApiHandler path does; otherwise the run fails with
+	// "Unknown or disabled provider" for an id the picker offered.
+	const registration = resolveGatewayProviderRegistration(
+		normalizedProviderConfig,
+	);
+	if (registration) {
+		gateway.registerProvider(registration);
+	}
+
+	return gateway.createAgentModel(
 		{
 			providerId: normalizedProviderConfig.providerId,
 			modelId: normalizedProviderConfig.modelId,

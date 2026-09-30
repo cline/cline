@@ -35,6 +35,7 @@ import {
 	type ProviderConfig,
 } from "./providers/types";
 
+export { resolveGatewayProviderRegistration } from "./providers/compat";
 export {
 	classifyProviderError,
 	isRetryableProviderError,

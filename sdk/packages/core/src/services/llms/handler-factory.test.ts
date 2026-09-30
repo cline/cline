@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
+	const registerProvider = vi.fn();
 	return {
 		createAgentModel,
-		createGateway: vi.fn(() => ({ createAgentModel })),
+		registerProvider,
+		createGateway: vi.fn(() => ({ createAgentModel, registerProvider })),
 		// Registry helpers used by createAgentModelFromConfig. Default to "no
 		// registered handler" so existing tests exercise the gateway path.
 		hasRegisteredHandler: vi.fn(() => false),
 		createHandlerAsync: vi.fn(),
+		// Default to "builtin provider" (no catalog registration needed).
+		resolveGatewayProviderRegistration: vi.fn(() => undefined),
 	};
 });
 
@@ -18,6 +22,8 @@ vi.mock("@cline/llms", async (importOriginal) => ({
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
+	resolveGatewayProviderRegistration:
+		gatewayMock.resolveGatewayProviderRegistration,
 	normalizeProviderId: (id: string) => id,
 	// Capability translation is the behaviour under test in the gateway model
 	// assertions below, so use the real translator rather than a stub that
@@ -31,12 +37,16 @@ describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {
 		gatewayMock.createAgentModel.mockReset();
 		gatewayMock.createGateway.mockClear();
+		gatewayMock.registerProvider.mockReset();
 		gatewayMock.createGateway.mockImplementation(() => ({
 			createAgentModel: gatewayMock.createAgentModel,
+			registerProvider: gatewayMock.registerProvider,
 		}));
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
 		gatewayMock.createHandlerAsync.mockReset();
+		gatewayMock.resolveGatewayProviderRegistration.mockReset();
+		gatewayMock.resolveGatewayProviderRegistration.mockReturnValue(undefined);
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {
@@ -723,5 +733,45 @@ describe("createAgentModelFromConfig", () => {
 			// drain
 		}
 		expect(gatewayMock.createHandlerAsync).toHaveBeenCalledTimes(1);
+	});
+
+	it("registers catalog-only custom providers with the gateway before resolving the model", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const registration = {
+			manifest: {
+				id: "seloratest",
+				name: "Selora",
+				defaultModelId: "gpt-6-astra",
+				models: [],
+			},
+			createProvider: vi.fn(),
+		};
+		gatewayMock.resolveGatewayProviderRegistration.mockReturnValue(
+			registration,
+		);
+		gatewayMock.createAgentModel.mockReturnValue({} as AgentModel);
+
+		createAgentModelFromConfig(
+			{
+				providerId: "seloratest",
+				modelId: "gpt-6-astra",
+				apiKey: "key",
+				baseUrl: "https://api.selora.example/v1",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.resolveGatewayProviderRegistration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "seloratest",
+				baseUrl: "https://api.selora.example/v1",
+			}),
+		);
+		expect(gatewayMock.registerProvider).toHaveBeenCalledWith(registration);
+		expect(
+			gatewayMock.registerProvider.mock.invocationCallOrder[0],
+		).toBeLessThan(gatewayMock.createAgentModel.mock.invocationCallOrder[0]);
 	});
 });
