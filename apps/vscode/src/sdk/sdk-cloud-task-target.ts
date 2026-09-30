@@ -41,6 +41,14 @@ export interface SdkCloudTaskTargetOptions {
 
 /** How long a failed lookup is left alone before a read retries it. */
 export const LOOKUP_RETRY_MS = 30_000
+/**
+ * How long a loaded input is trusted before a read re-asks in the background.
+ * Repository access changes in the browser (GitHub App install page) and the
+ * git checkout changes in the terminal; neither notifies the extension, so a
+ * read older than this refreshes and the next state post carries the answer.
+ */
+export const REPOSITORIES_MAX_AGE_MS = 60_000
+export const WORKSPACE_MAX_AGE_MS = 10_000
 
 interface WorkspaceDefaults {
 	repoUrl?: string
@@ -56,15 +64,22 @@ interface WorkspaceDefaults {
 class Lookup<T> {
 	private key: string | undefined
 	private value: T | undefined
+	private loadedAt: number | undefined
 	private pending: Promise<void> | undefined
 	private failedAt: number | undefined
 
+	/**
+	 * @param maxAgeMs how long a loaded value is trusted; a read after that
+	 * returns the old value and reloads in the background. Omit for inputs that
+	 * only change with the key.
+	 */
 	constructor(
 		private readonly onLoaded: () => void,
 		private readonly now: () => number,
+		private readonly maxAgeMs?: number,
 	) {}
 
-	/** The cached value for `key`, starting a load in the background when there is none. */
+	/** The cached value for `key`, starting a load in the background when there is none or it has aged out. */
 	read(key: string, load: () => Promise<T>): T | undefined {
 		this.start(key, load, false)
 		return this.value
@@ -80,14 +95,15 @@ class Lookup<T> {
 		if (this.key !== key || refresh) {
 			this.key = key
 			this.value = undefined
+			this.loadedAt = undefined
 			this.pending = undefined
 			this.failedAt = undefined
 		}
-		if (this.value !== undefined) {
-			return Promise.resolve()
-		}
 		if (this.pending) {
 			return this.pending
+		}
+		if (this.value !== undefined && !this.aged()) {
+			return Promise.resolve()
 		}
 		if (this.failedAt !== undefined && this.now() - this.failedAt < LOOKUP_RETRY_MS) {
 			return Promise.resolve()
@@ -99,6 +115,7 @@ class Lookup<T> {
 				}
 				this.pending = undefined
 				this.value = value
+				this.loadedAt = this.now()
 				this.onLoaded()
 			},
 			() => {
@@ -112,6 +129,10 @@ class Lookup<T> {
 		this.pending = pending
 		return pending
 	}
+
+	private aged(): boolean {
+		return this.maxAgeMs !== undefined && this.loadedAt !== undefined && this.now() - this.loadedAt >= this.maxAgeMs
+	}
 }
 
 export class SdkCloudTaskTarget {
@@ -123,8 +144,10 @@ export class SdkCloudTaskTarget {
 		// A landed input posts state so the panel and composer see the new view.
 		const onLoaded = () => void options.postStateToWebview().catch(() => {})
 		const now = () => options.now?.() ?? Date.now()
-		this.connection = new Lookup(onLoaded, now)
-		this.workspace = new Lookup(onLoaded, now)
+		this.connection = new Lookup(onLoaded, now, REPOSITORIES_MAX_AGE_MS)
+		this.workspace = new Lookup(onLoaded, now, WORKSPACE_MAX_AGE_MS)
+		// A branch either exists on GitHub or it does not; a stale "yes" fails at
+		// provisioning with a clear error, and the key changes with the checkout.
 		this.workspaceBranch = new Lookup(onLoaded, now)
 	}
 
