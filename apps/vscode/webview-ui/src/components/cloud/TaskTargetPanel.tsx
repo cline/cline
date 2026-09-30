@@ -50,16 +50,31 @@ export function TaskTargetPanel() {
 		[repositories, cloudTaskTarget?.repositoryId, cloudTaskTarget?.repoUrl],
 	)
 
-	const persist = useCallback((selection: CloudTaskTargetSelection) => {
-		CloudServiceClient.setCloudTaskTarget(
-			CloudTaskTarget.create({
-				target: selection.target,
-				repoUrl: selection.repoUrl,
-				repositoryId: selection.repositoryId,
-				branch: selection.branch,
-			}),
-		).catch((error) => console.error("Failed to save task target:", error))
-	}, [])
+	// The stored target is read here at call time, not captured, so a write that
+	// follows an await (the branch check) sees the selection as it is then.
+	const currentTarget = useRef(cloudTaskTarget)
+	currentTarget.current = cloudTaskTarget
+	const persist = useCallback(
+		(
+			selection:
+				| CloudTaskTargetSelection
+				| ((current: CloudTaskTargetSelection | undefined) => CloudTaskTargetSelection | undefined),
+		) => {
+			const next = typeof selection === "function" ? selection(currentTarget.current) : selection
+			if (!next) {
+				return
+			}
+			CloudServiceClient.setCloudTaskTarget(
+				CloudTaskTarget.create({
+					target: next.target,
+					repoUrl: next.repoUrl,
+					repositoryId: next.repositoryId,
+					branch: next.branch,
+				}),
+			).catch((error) => console.error("Failed to save task target:", error))
+		},
+		[],
+	)
 
 	// Workspace git remote/branch, used to preselect the repository and branch.
 	useEffect(() => {
@@ -70,6 +85,17 @@ export function TaskTargetPanel() {
 			.then((defaults) => setWorkspaceDefaults({ repoUrl: defaults.repoUrl, branch: defaults.branch }))
 			.catch(() => setWorkspaceDefaults({}))
 	}, [isCloud, workspaceRoots, primaryRootIndex])
+
+	// The stored repository belongs to whichever account chose it. Once the
+	// current account's repositories are known and the stored one is not among
+	// them, drop it, so the composer does not treat a repository this account
+	// never selected as ready to submit.
+	useEffect(() => {
+		if (!isCloud || !connection?.connected || selectedRepo || !cloudTaskTarget?.repoUrl) {
+			return
+		}
+		persist({ target: "cloud", repoUrl: undefined, repositoryId: undefined, branch: undefined })
+	}, [isCloud, connection?.connected, selectedRepo, cloudTaskTarget?.repoUrl, persist])
 
 	// Once repositories are known, pick the workspace's repo (or the first one) when nothing valid is selected.
 	useEffect(() => {
@@ -88,7 +114,9 @@ export function TaskTargetPanel() {
 			target: "cloud",
 			repoUrl: normalizeGitHubRemoteUrl(repo.url) ?? repo.url,
 			repositoryId: Number(repo.id),
-			branch: match && workspaceDefaults.branch ? workspaceDefaults.branch : repo.defaultBranch || undefined,
+			// The workspace branch is only a suggestion once GitHub confirms it
+			// exists; a branch deleted on GitHub cannot provision a sandbox.
+			branch: repo.defaultBranch || undefined,
 		})
 	}, [isCloud, connection?.connected, repositories, workspaceDefaults, selectedRepo, persist])
 
@@ -123,6 +151,41 @@ export function TaskTargetPanel() {
 			void loadBranches(selectedRepo)
 		}
 	}, [isCloud, selectedRepo, loadBranches])
+
+	// Suggest the workspace's branch for the workspace's repository once GitHub
+	// confirms it exists. A local remote-tracking ref can outlive the branch on
+	// GitHub, so GitHub is asked for that branch by name rather than trusting
+	// the ref or the first page of the branch list. Asked once per repository,
+	// and applied only while the default branch is still selected, so a branch
+	// the user picks afterwards stays.
+	const suggestedRef = useRef<string>()
+	useEffect(() => {
+		const branch = workspaceDefaults?.branch
+		if (!isCloud || !selectedRepo || !workspaceDefaults?.repoUrl || !branch) {
+			return
+		}
+		if (normalizeGitHubRemoteUrl(selectedRepo.url) !== normalizeGitHubRemoteUrl(workspaceDefaults.repoUrl)) {
+			return
+		}
+		const key = `${selectedRepo.id}:${branch}`
+		if (suggestedRef.current === key) {
+			return
+		}
+		suggestedRef.current = key
+		const repo = selectedRepo
+		void CloudServiceClient.getRepositoryBranches(RepositoryBranchesRequest.create({ repositoryId: repo.id, query: branch }))
+			.then((result) => {
+				if (!result.branches.includes(branch)) {
+					return
+				}
+				persist((current) =>
+					current?.repositoryId === Number(repo.id) && (!current.branch || current.branch === repo.defaultBranch)
+						? { ...current, target: "cloud", branch }
+						: undefined,
+				)
+			})
+			.catch((error) => console.error("Failed to check the workspace branch on GitHub:", error))
+	}, [isCloud, selectedRepo, workspaceDefaults, persist])
 	const onBranchQueryChange = useCallback(
 		(query: string) => void loadBranches(selectedRepo, query || undefined),
 		[loadBranches, selectedRepo],
@@ -146,16 +209,13 @@ export function TaskTargetPanel() {
 		if (!repo) {
 			return
 		}
-		const repoUrl = normalizeGitHubRemoteUrl(repo.url) ?? repo.url
-		const workspaceRepoUrl = workspaceDefaults?.repoUrl ? normalizeGitHubRemoteUrl(workspaceDefaults.repoUrl) : null
+		// Start on the default branch; the workspace branch is suggested once the
+		// repository's live branch list confirms it exists.
 		persist({
 			target: "cloud",
-			repoUrl,
+			repoUrl: normalizeGitHubRemoteUrl(repo.url) ?? repo.url,
 			repositoryId: Number(repo.id),
-			branch:
-				workspaceRepoUrl === repoUrl && workspaceDefaults?.branch
-					? workspaceDefaults.branch
-					: repo.defaultBranch || undefined,
+			branch: repo.defaultBranch || undefined,
 		})
 	}
 
