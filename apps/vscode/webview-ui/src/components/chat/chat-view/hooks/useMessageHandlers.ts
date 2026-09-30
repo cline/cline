@@ -403,10 +403,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 				}
 
-				// New tasks clear optimistically before the RPC; the repeated success cleanup is idempotent.
+				// Every send path clears the draft before its RPC. Do not clear it again
+				// here: the RPC can take a while (a cloud task provisions its sandbox
+				// first) and the user may have typed a new draft in the meantime.
 				if (messageSent) {
-					clearSentMessageState()
-
 					// Reset auto-scroll
 					if ("disableAutoScrollRef" in chatState) {
 						;(chatState as any).disableAutoScrollRef.current = false
