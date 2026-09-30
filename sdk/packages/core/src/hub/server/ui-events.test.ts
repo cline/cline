@@ -154,7 +154,13 @@ describe("hub UI events", () => {
 				)?.metadata,
 			).toEqual(metadata);
 
+			// The server unregisters a client from the old socket's close handler,
+			// so reconnecting before that lands would race the re-registration.
+			const disconnected = waitForEvent<Record<string, unknown>>((resolve) =>
+				monitor.subscribeUI({ onClientDisconnected: resolve }),
+			);
 			newClient.close();
+			await disconnected;
 			const reRegistered = waitForEvent<Record<string, unknown>>((resolve) =>
 				monitor.subscribeUI({ onClientRegistered: resolve }),
 			);
