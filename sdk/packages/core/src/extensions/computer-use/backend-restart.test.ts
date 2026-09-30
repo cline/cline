@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ComputerBackendRestart } from "./backend-restart";
+import {
+	ComputerBackendRestart,
+	isComputerUseLoopbackHost,
+} from "./backend-restart";
 import { ComputerUseClient } from "./client";
 
 const fixturePath = fileURLToPath(
@@ -107,6 +110,18 @@ async function probePort(port: number, timeoutMs: number): Promise<boolean> {
 	}
 }
 
+async function portAcceptsConnections(port: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = net.connect({ host: "127.0.0.1", port });
+		const settle = (accepted: boolean) => {
+			socket.destroy();
+			resolve(accepted);
+		};
+		socket.once("connect", () => settle(true));
+		socket.once("error", () => settle(false));
+	});
+}
+
 /** Spawns the fake backend directly (not via ComputerBackendRestart). */
 async function startFakeBackend(port: number) {
 	const child = spawn(process.execPath, [fixturePath, String(port)], {
@@ -126,6 +141,23 @@ async function startFakeBackend(port: number) {
 }
 
 describe("ComputerBackendRestart", () => {
+	it.each([
+		[undefined, true],
+		["localhost", true],
+		["LOCALHOST.", true],
+		["127.0.0.1", true],
+		["127.42.0.1", true],
+		["::1", true],
+		["[::1]", true],
+		["::ffff:127.0.0.1", true],
+		["example.com", false],
+		["127.example.com", false],
+		["127.0.0.999", false],
+		["::ffff:127.example.com", false],
+	] as const)("classifies %s as loopback=%s", (host, expected) => {
+		expect(isComputerUseLoopbackHost(host)).toBe(expected);
+	});
+
 	it("reuses one shared connection and leaves it open on disposal", async () => {
 		const server = await startProbeServer();
 		const client = new ComputerUseClient({ port: server.port });
@@ -238,7 +270,7 @@ describe("ComputerBackendRestart", () => {
 		"timeout",
 		"cancel",
 		"dispose",
-	])("%s waits for owned process-tree cleanup", async (action) => {
+	])("handles %s without leaking its owned process tree", async (action) => {
 		const port = await freePort();
 		const directory = mkdtempSync(join(tmpdir(), "restart-child-"));
 		const marker = join(directory, "pid");
@@ -271,6 +303,11 @@ describe("ComputerBackendRestart", () => {
 							: "disposed",
 				),
 			});
+			if (action === "cancel") {
+				// A caller's cancellation does not cancel the shared lifecycle run.
+				expect(isAlive(childPid)).toBe(true);
+				await restart.dispose();
+			}
 			await expect.poll(() => isAlive(childPid), { timeout: 2000 }).toBe(false);
 			expect(await probePort(port, 100)).toBe(false);
 		} finally {
@@ -318,6 +355,138 @@ describe("ComputerBackendRestart", () => {
 		await restart.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 300));
 		expect(await probePort(port, 500)).toBe(false);
+	});
+
+	it("force-restarts a backend it launched", async () => {
+		const port = await freePort();
+		const restart = new ComputerBackendRestart({
+			port,
+			command: fixtureLaunchCommand(port),
+			readyTimeoutMs: 15_000,
+			pollIntervalMs: 100,
+		});
+		try {
+			await expect(restart.ensureRunning()).resolves.toMatchObject({
+				status: "started",
+			});
+			await expect(restart.forceRestart()).resolves.toMatchObject({
+				status: "started",
+			});
+			expect(await probePort(port, 1_000)).toBe(true);
+		} finally {
+			await restart.dispose();
+		}
+	});
+
+	it("cooperatively replaces an independently started compatible backend", async () => {
+		const port = await freePort();
+		const original = await startFakeBackend(port);
+		const restart = new ComputerBackendRestart({
+			port,
+			command: fixtureLaunchCommand(port),
+			readyTimeoutMs: 15_000,
+			pollIntervalMs: 100,
+		});
+		try {
+			await expect(restart.forceRestart()).resolves.toMatchObject({
+				status: "started",
+			});
+			await expect
+				.poll(() => original.exitCode, { timeout: 2_000 })
+				.not.toBeNull();
+			expect(await probePort(port, 1_000)).toBe(true);
+		} finally {
+			await restart.dispose();
+			if (original.exitCode === null) original.kill();
+		}
+	});
+
+	it("force-restarts without requiring the old backend to capture the display", async () => {
+		const port = await freePort();
+		const broken = spawn(
+			process.execPath,
+			[fixturePath, String(port), "0", "0", "", "", "display-error"],
+			{ stdio: "ignore" },
+		);
+		await expect
+			.poll(() => portAcceptsConnections(port), { timeout: 5_000 })
+			.toBe(true);
+		await expect(probePort(port, 100)).resolves.toBe(false);
+		const restart = new ComputerBackendRestart({
+			port,
+			command: fixtureLaunchCommand(port),
+			readyTimeoutMs: 15_000,
+			pollIntervalMs: 100,
+		});
+		try {
+			await expect(restart.forceRestart()).resolves.toMatchObject({
+				status: "started",
+			});
+			await expect
+				.poll(() => broken.exitCode, { timeout: 2_000 })
+				.not.toBeNull();
+			expect(await probePort(port, 1_000)).toBe(true);
+		} finally {
+			await restart.dispose();
+			if (broken.exitCode === null) broken.kill();
+		}
+	});
+
+	it("does not launch a duplicate when shutdown is acknowledged but the port stays open", async () => {
+		const port = await freePort();
+		const stuck = spawn(
+			process.execPath,
+			[fixturePath, String(port), "0", "0", "", "", "ignore-shutdown"],
+			{ stdio: "ignore" },
+		);
+		await expect
+			.poll(() => portAcceptsConnections(port), { timeout: 5_000 })
+			.toBe(true);
+		const restart = new ComputerBackendRestart({
+			port,
+			command: fixtureLaunchCommand(port),
+			probeTimeoutMs: 500,
+			readyTimeoutMs: 2_000,
+			pollIntervalMs: 50,
+		});
+		try {
+			await expect(restart.forceRestart()).resolves.toMatchObject({
+				status: "failed_to_start",
+				error: expect.stringContaining(
+					"acknowledged shutdown but did not exit",
+				),
+			});
+			expect(stuck.exitCode).toBeNull();
+			expect(await portAcceptsConnections(port)).toBe(true);
+		} finally {
+			await restart.dispose();
+			if (stuck.exitCode === null) stuck.kill();
+		}
+	});
+
+	it("launches from the configured working directory", async () => {
+		const port = await freePort();
+		const cwd = mkdtempSync(join(tmpdir(), "restart-cwd-"));
+		const marker = join(cwd, "cwd.txt");
+		const command = `${shellQuote(process.execPath)} -e ${shellQuote(
+			`require('node:fs').writeFileSync('cwd.txt', process.cwd())`,
+		)}`;
+		const restart = new ComputerBackendRestart({
+			port,
+			command,
+			cwd,
+			readyTimeoutMs: 5_000,
+			pollIntervalMs: 50,
+		});
+		try {
+			await expect(restart.ensureRunning()).resolves.toMatchObject({
+				status: "failed_to_start",
+			});
+			expect(readFileSync(marker, "utf8")).toBe(cwd);
+		} finally {
+			await restart.dispose();
+			rmSync(cwd, { recursive: true, force: true });
+		}
 	});
 
 	it("reports failed_to_start when the launch command exits immediately", async () => {

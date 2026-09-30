@@ -70,7 +70,7 @@ avoiding protocol overhead, not about avoiding the plugin system.
             "left_click_drag" | "right_click" | "middle_click" |
             "double_click" | "triple_click" | "left_mouse_down" |
             "left_mouse_up" | "key" | "hold_key" | "type" | "scroll" |
-            "wait" | "zoom" | "run_sequence" |
+            "brief_pause" | "wait" | "zoom" | "run_sequence" |
             // Internal query, not one of Anthropic's `computer` tool
             // actions. Sent once at startup to build the tool's
             // description/schema with the real, native display size
@@ -93,6 +93,14 @@ avoiding protocol overhead, not about avoiding the plugin system.
   ]
 }
 ```
+
+`brief_pause` waits for a fixed 300 ms and then returns a screenshot. Use it
+inside `run_sequence` after opening transient UI and before typing into it.
+
+`shutdown_backend` is an internal recovery request. qbt acknowledges it, then
+shuts down its agent and observatory listeners and exits cleanly. Cline uses
+this only for an explicit forced restart; normal computer actions never stop a
+responsive backend.
 
 ### Response (backend -> Cline)
 
@@ -152,41 +160,45 @@ also `async` for the same reason:
 | --- | --- | --- | --- |
 | `CLINE_COMPUTER_USE_PORT` | yes (enables the tool) | — | Backend TCP port |
 | `CLINE_COMPUTER_USE_HOST` | no | `127.0.0.1` | Backend host |
-| `CLINE_COMPUTER_USER_MODEL` | no | Anthropic entry's saved model, else `claude-sonnet-4-6` | Helper (computer user) model. Independent of the driver's model; always on the direct `anthropic` provider (CLI host) |
-| `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Shell command that starts the backend. When set, the driver gets `computer_user_restart_backend`, which launches it if the backend is unreachable (probes first; never kills a backend this process didn't spawn) |
+| `CLINE_COMPUTER_USER_MODEL` | no | — | Enables the separate computer-user helper and selects its model. When unset, the driver uses `computer` directly even if Anthropic credentials are configured. The helper always uses the direct `anthropic` provider (CLI host) |
+| `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Shell command that starts the backend before the initial display query and again if it becomes unreachable. Helper mode also gets `computer_user_restart_backend` |
 
 Display size is deliberately not configurable — see "Display size" above.
 
-### Backend recovery command
+### Backend command
 
-`CLINE_COMPUTER_USE_BACKEND_COMMAND` enables the driver's `computer_user_restart_backend` tool. It is optional: leave it unset if you manage qbt yourself. Set it together with `CLINE_COMPUTER_USE_PORT` before starting the interactive CLI, with an Anthropic provider configured for the computer user. Restart the CLI after changing either variable.
+`CLINE_COMPUTER_USE_BACKEND_COMMAND` is optional: leave it unset if you manage qbt yourself. When set, Cline probes qbt and launches the command if needed before constructing the computer tool and before each computer action. In helper mode it also enables backend restart tools for the driver and computer user. A forced restart asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement. It never searches for processes by name. Restart the CLI after changing these variables.
 
-For this Windows checkout, using an already-built qbt:
+Install qwanban's qbt on PATH from its Git repository. Plain `cargo install qbt` names an unrelated qBittorrent crate.
+
+```sh
+cargo install --git https://github.com/dominiccooney/qwanban.git qbt
+```
+
+Then configure the agent and observatory ports:
 
 ```powershell
 $env:CLINE_COMPUTER_USE_PORT = '1234'
-$env:CLINE_COMPUTER_USE_BACKEND_COMMAND = 'C:\Users\User\clients\cline\qwanban\target\debug\qbt.exe serve 1234 5678'
+$env:CLINE_COMPUTER_USE_BACKEND_COMMAND = 'qbt serve 1234 5678'
 ```
 
 Replace the executable path with your qbt installation. The first port is the agent port and must match `CLINE_COMPUTER_USE_PORT`; the second is the optional observatory WebSocket port.
 
-The command runs on the CLI host through its platform shell (`cmd.exe` on Windows, `/bin/sh` on Unix), inheriting the CLI's working directory and environment. Use an absolute executable path, quote paths containing spaces, or include an explicit directory change. PowerShell syntax inside the command requires an explicit PowerShell invocation. Setting `CLINE_COMPUTER_USE_HOST` does not run the command remotely.
+The command runs on the CLI host through its platform shell (`cmd.exe` on Windows, `/bin/sh` on Unix), from the CLI workspace directory and with the CLI environment. Installing qbt on PATH makes executable lookup independent of that directory. Use an absolute executable path or an explicit directory change for a checkout-local build. PowerShell syntax inside the command requires an explicit PowerShell invocation. Setting `CLINE_COMPUTER_USE_HOST` does not run the command remotely.
 
-When the driver invokes the tool, it probes `get_display_info` first. A responsive backend is left running; otherwise the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
-
-**This is recovery, not automatic startup.** qbt must already be running when the CLI initializes computer use, because initialization queries its display dimensions before registering the recovery tool.
+At startup and on helper-requested recovery, Cline probes `get_display_info` first. A responsive backend is left running; otherwise the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
 
 ## The asynchronous computer user
 
-The raw `computer` tool is one layer. The preferred driver-facing shape is
+The raw `computer` tool is the default. The optional driver-facing shape is
 the **computer user** (`src/extensions/computer-user/`): a persistent helper
 session on the Anthropic provider that owns this tool plus the normal
 built-ins, works in the background, and reports to the driver agent through
 `computer_user_*` tools. The CLI wires it up in
-`apps/cli/src/runtime/interactive/computer-user.ts` when
-`CLINE_COMPUTER_USE_PORT` is set and the Anthropic provider is configured;
-without Anthropic credentials it falls back to giving the driver this raw
-tool directly.
+`apps/cli/src/runtime/interactive/computer-user.ts` when both
+`CLINE_COMPUTER_USE_PORT` and `CLINE_COMPUTER_USER_MODEL` are set and the
+direct Anthropic provider is configured. Without the model opt-in or helper
+credentials, the driver receives the raw tool directly.
 
 Action lifecycles are observable (`ComputerUseClientOptions.observer`) and
 cancellable (`ComputerUseSendOptions.signal`); the observability contract

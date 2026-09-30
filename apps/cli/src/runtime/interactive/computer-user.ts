@@ -7,11 +7,13 @@ import {
 	ComputerUseClient,
 	ComputerUserCoordinator,
 	ComputerUserTranscriptLog,
+	createComputerBackendRestartTool,
 	createComputerUserCollaborationTools,
 	createComputerUserDriverTools,
 	createComputerUseTool,
 	createJournalEventSink,
 	createTranscriptRecordingHooks,
+	isComputerUseLoopbackHost,
 	type ProviderSettingsManager,
 	resolveComputerUseBackendCommandFromEnv,
 	resolveComputerUseTargetFromEnv,
@@ -24,14 +26,13 @@ import type { Config } from "../../utils/types";
 import { acquireAbortRejectionShield } from "../active-runtime";
 
 /**
- * CLI host integration for the asynchronous computer user.
+ * CLI host integration for computer use and its optional asynchronous helper.
  *
- * The driver session gets four `computer_user_*` tools; the helper runs as a
- * dedicated interactive ClineCore session on the Anthropic provider (the
- * computer-use beta header requires the direct provider — see qwanban's
- * README). Enabled by the same `CLINE_COMPUTER_USE_PORT` opt-in as the raw
- * `computer` tool; when the coordinator is active the driver deliberately
- * does NOT get the raw tool, so all GUI work flows through the helper.
+ * `CLINE_COMPUTER_USE_PORT` enables the raw tool and driver observability.
+ * `CLINE_COMPUTER_USER_MODEL` separately opts into a dedicated interactive
+ * ClineCore helper on the direct Anthropic provider. When the helper is active
+ * the driver deliberately does not get the raw tool, so all GUI work flows
+ * through the helper.
  *
  * Helper consistency boundary: provider, credentials, reasoning, tool
  * inventory, and prompt are resolved here, once, when the runtime starts.
@@ -39,7 +40,6 @@ import { acquireAbortRejectionShield } from "../active-runtime";
  */
 
 const HELPER_PROVIDER_ID = "anthropic";
-const HELPER_DEFAULT_MODEL_ID = "claude-sonnet-4-6";
 const HELPER_MODEL_ENV_VAR = "CLINE_COMPUTER_USER_MODEL";
 const HELPER_REASONING = {
 	thinking: true,
@@ -86,43 +86,31 @@ export function withHelperReasoningControls(
 }
 
 /**
- * Resolves the helper's Anthropic model id. The helper's model is chosen
- * independently of the driver's: CLINE_COMPUTER_USER_MODEL wins, then the
- * Anthropic provider entry's saved `model`, then the default. The provider
- * is always the direct `anthropic` provider — the computer-use beta header
- * is only sent on that wire target, so Anthropic models reached through
- * other providers (cline, openrouter, bedrock) would lack the extended
- * action set.
+ * Resolves the explicit helper opt-in and its direct Anthropic model id.
+ * Anthropic models reached through other providers (cline, openrouter,
+ * bedrock) would lack the extended computer-use action set.
  */
 export function resolveHelperModelId(
-	helperSettings: { model?: unknown } | undefined,
 	env: NodeJS.ProcessEnv,
-): string {
+): string | undefined {
 	const fromEnv = env[HELPER_MODEL_ENV_VAR]?.trim();
-	if (fromEnv) {
-		return toDirectAnthropicModelId(fromEnv);
-	}
-	if (
-		typeof helperSettings?.model === "string" &&
-		helperSettings.model.trim()
-	) {
-		return toDirectAnthropicModelId(helperSettings.model.trim());
-	}
-	return HELPER_DEFAULT_MODEL_ID;
+	if (!fromEnv) return undefined;
+	return toDirectAnthropicModelId(fromEnv) || undefined;
 }
 
-export interface InteractiveComputerUser {
+export interface InteractiveComputerUse {
 	driverTools: AgentTool[];
 	/**
 	 * Hooks layer to merge into the driver session's config: records the
 	 * driver's transcript and run status to the backend journal alongside
-	 * the helper's, so the observatory can flip between both timelines.
+	 * the helper's when present. Direct mode therefore still exposes a driver
+	 * lane in the observatory.
 	 */
 	driverRecordingHooks: AgentHooks;
 	dispose(): Promise<void>;
 }
 
-export async function createInteractiveComputerUser(input: {
+export async function createInteractiveComputerUse(input: {
 	config: Config;
 	providerSettingsManager: Pick<ProviderSettingsManager, "getProviderSettings">;
 	/**
@@ -132,21 +120,9 @@ export async function createInteractiveComputerUser(input: {
 	 */
 	notifyDriver: (prompt: string, delivery: "queue" | "steer") => void;
 	env?: NodeJS.ProcessEnv;
-}): Promise<InteractiveComputerUser | undefined> {
-	// Check the local precondition (credentials) before dialing the backend:
-	// tool construction queries the backend for display info and holds a
-	// socket, which would be wasted if the helper cannot be configured.
-	const helperSettings =
-		input.providerSettingsManager.getProviderSettings(HELPER_PROVIDER_ID);
-	const helperApiKey =
-		typeof helperSettings?.apiKey === "string" ? helperSettings.apiKey : "";
-	if (!helperApiKey) {
-		// No silent fallback to the driver's credentials: the helper requires
-		// the Anthropic provider's own configuration.
-		return undefined;
-	}
-
-	const target = resolveComputerUseTargetFromEnv(input.env ?? process.env);
+}): Promise<InteractiveComputerUse | undefined> {
+	const env = input.env ?? process.env;
+	const target = resolveComputerUseTargetFromEnv(env);
 	if (!target) {
 		return undefined;
 	}
@@ -163,34 +139,131 @@ export async function createInteractiveComputerUser(input: {
 		`task_${nanoid(10)}`,
 		createJournalEventSink(computerClient),
 	);
+	const backendRestart = (() => {
+		const command = resolveComputerUseBackendCommandFromEnv(env);
+		return command && isComputerUseLoopbackHost(target.host)
+			? new ComputerBackendRestart({
+					...target,
+					command,
+					cwd: input.config.cwd,
+					client: computerClient,
+				})
+			: undefined;
+	})();
+	const disposeComputerUse = async () => {
+		await recorder.flush().catch(() => {});
+		// Release a backend this process spawned; a backend someone else owns is
+		// left running. The restart capability borrows computerClient.
+		try {
+			await backendRestart?.dispose();
+		} finally {
+			computerClient.close();
+		}
+	};
 
-	const computerTool = await createComputerUseTool({
-		...target,
-		client: computerClient,
-	});
+	try {
+		if (backendRestart) {
+			const startup = await backendRestart.ensureRunning();
+			if (startup.status === "failed_to_start") {
+				throw new Error(
+					`Computer-use backend failed to start: ${startup.error}`,
+				);
+			}
+		}
+		const computerTool = await createComputerUseTool({
+			...target,
+			client: computerClient,
+			backendAvailability: backendRestart,
+		});
+		const driverRecordingHooks = createTranscriptRecordingHooks(recorder, {
+			kind: "driver",
+		});
+		const helperModelId = resolveHelperModelId(env);
+		if (!helperModelId) {
+			return {
+				driverTools: [
+					computerTool,
+					...(backendRestart
+						? [createComputerBackendRestartTool(backendRestart)]
+						: []),
+				],
+				driverRecordingHooks,
+				dispose: disposeComputerUse,
+			};
+		}
 
+		const helperSettings =
+			input.providerSettingsManager.getProviderSettings(HELPER_PROVIDER_ID);
+		const helperApiKey =
+			typeof helperSettings?.apiKey === "string" ? helperSettings.apiKey : "";
+		if (!helperSettings || !helperApiKey) {
+			// An explicit helper model selects helper mode only when the direct
+			// Anthropic provider can run it. The raw tool remains usable otherwise.
+			return {
+				driverTools: [
+					computerTool,
+					...(backendRestart
+						? [createComputerBackendRestartTool(backendRestart)]
+						: []),
+				],
+				driverRecordingHooks,
+				dispose: disposeComputerUse,
+			};
+		}
+
+		return createInteractiveComputerUser({
+			...input,
+			helperSettings,
+			helperModelId,
+			computerTool,
+			recorder,
+			backendRestart,
+			driverRecordingHooks,
+			disposeComputerUse,
+			env,
+		});
+	} catch (error) {
+		try {
+			await disposeComputerUse();
+		} catch (cleanupError) {
+			throw new AggregateError(
+				[error, cleanupError],
+				"Computer-use startup failed and cleanup also failed",
+			);
+		}
+		throw error;
+	}
+}
+
+function createInteractiveComputerUser(input: {
+	config: Config;
+	notifyDriver: (prompt: string, delivery: "queue" | "steer") => void;
+	helperSettings: NonNullable<
+		ReturnType<ProviderSettingsManager["getProviderSettings"]>
+	>;
+	helperModelId: string;
+	computerTool: AgentTool;
+	recorder: ComputerTaskArtifactRecorder;
+	backendRestart?: ComputerBackendRestart;
+	driverRecordingHooks: AgentHooks;
+	disposeComputerUse(): Promise<void>;
+	env: NodeJS.ProcessEnv;
+}): InteractiveComputerUse {
+	const {
+		computerTool,
+		recorder,
+		backendRestart,
+		driverRecordingHooks,
+		disposeComputerUse,
+		helperSettings,
+		helperModelId,
+	} = input;
 	// In-process tail of the helper's transcript. The driver's
 	// computer_user_transcript tool reads it, so peeking works even while
 	// the backend is down; the tee shares the recording hooks' reduction, so
 	// what the tool shows is identical to what the observatory journals.
 	const transcriptLog = new ComputerUserTranscriptLog();
-	const backendRestart = (() => {
-		const command = resolveComputerUseBackendCommandFromEnv(
-			input.env ?? process.env,
-		);
-		return command
-			? new ComputerBackendRestart({
-					...target,
-					command,
-					client: computerClient,
-				})
-			: undefined;
-	})();
 
-	const helperModelId = resolveHelperModelId(
-		helperSettings,
-		input.env ?? process.env,
-	);
 	// Helper model and reasoning settings become effective together when this
 	// session is created. Keep the provider config and session config derived
 	// from this snapshot so saved manual thinking budgets cannot conflict with
@@ -339,28 +412,22 @@ export async function createInteractiveComputerUser(input: {
 		recorder,
 		transcriptLog,
 	});
-	helperExtraTools.push(...createComputerUserCollaborationTools(coordinator));
+	helperExtraTools.push(
+		...createComputerUserCollaborationTools(coordinator, { backendRestart }),
+	);
 
 	return {
 		driverTools: createComputerUserDriverTools(coordinator, {
 			backendRestart,
 		}),
-		driverRecordingHooks: createTranscriptRecordingHooks(recorder, {
-			kind: "driver",
-		}),
+		driverRecordingHooks,
 		dispose: async () => {
 			await coordinator.dispose().catch(() => {});
 			if (helperCorePromise) {
 				const core = await helperCorePromise.catch(() => undefined);
 				await core?.dispose().catch(() => {});
 			}
-			// Push any queued journal publishes out before dropping the
-			// backend connection.
-			await recorder.flush().catch(() => {});
-			computerClient.close();
-			// Release a backend this process spawned; a backend someone else
-			// owns is left running.
-			await backendRestart?.dispose();
+			await disposeComputerUse();
 		},
 	};
 }

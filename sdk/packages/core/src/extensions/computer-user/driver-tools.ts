@@ -1,7 +1,10 @@
 import type { AgentTool } from "@cline/shared";
 import { createTool, zodToJsonSchema } from "@cline/shared";
 import { z } from "zod";
-import type { ComputerBackendEnsureResult } from "../computer-use/backend-restart";
+import type { ComputerBackendRestartCapability } from "../computer-use/backend-restart";
+
+export type { ComputerBackendRestartCapability } from "../computer-use/backend-restart";
+
 import type { ComputerUserCoordinator } from "./coordinator";
 
 /**
@@ -116,15 +119,32 @@ const RestartInput = z
 
 const BackendRestartInput = z.object({}).strict();
 
-/**
- * The backend restart capability the tool needs. `ComputerBackendRestart`
- * satisfies this structurally; hosts and tests may substitute their own.
- */
-export interface ComputerBackendRestartCapability {
-	/** Overall wait budget; the tool's timeout is sized from it. */
-	budgetMs: number;
-	ensureRunning(signal?: AbortSignal): Promise<ComputerBackendEnsureResult>;
-	dispose(): Promise<void>;
+/** Builds the force-restart tool used when the driver controls the computer directly. */
+export function createComputerBackendRestartTool(
+	backendRestart: ComputerBackendRestartCapability,
+): AgentTool {
+	return createTool({
+		name: "computer_restart_backend",
+		description:
+			"Force-restart the local computer-use backend when it is stuck or cannot take screenshots. Asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement and waits for it to answer. Does not search for or kill arbitrary processes.",
+		inputSchema: zodToJsonSchema(BackendRestartInput),
+		timeoutMs: backendRestart.budgetMs + 60_000,
+		retryable: false,
+		execute: async (input: unknown, context) => {
+			BackendRestartInput.parse(input);
+			const result = await backendRestart.forceRestart(context.signal);
+			return result.status === "failed_to_start"
+				? {
+						status: result.status,
+						error: result.error,
+						note: "Backend recovery did not complete. Read the error before retrying.",
+					}
+				: {
+						status: result.status,
+						note: "The replacement backend is ready. Take a fresh screenshot before continuing.",
+					};
+		},
+	});
 }
 
 /** Optional capabilities the host can wire into the driver tool set. */
@@ -275,24 +295,24 @@ export function createComputerUserDriverTools(
 			createTool({
 				name: "computer_user_restart_backend",
 				description:
-					"Bring the computer-use backend (the process behind the computer tool and the computer user) back when it is unreachable — e.g. after it crashed or was killed. Probes it first: if it answers, reports already_running without touching it. If it is down, launches the configured backend command and waits for it to answer. Does not kill a backend it did not spawn.",
+					"Force-restart the computer-use backend when it is stuck or cannot take screenshots. Asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement and waits for it to answer. Does not search for or kill arbitrary processes.",
 				inputSchema: zodToJsonSchema(BackendRestartInput),
 				// The wait budget plus probe slack, so the tool outlives a slow launch (e.g. a cargo build).
 				timeoutMs: backendRestart.budgetMs + 60_000,
 				retryable: false,
 				execute: async (input: unknown, context) => {
 					BackendRestartInput.parse(input);
-					const result = await backendRestart.ensureRunning(context.signal);
+					const result = await backendRestart.forceRestart(context.signal);
 					switch (result.status) {
 						case "already_running":
 							return {
 								status: result.status,
-								note: "The backend answered a probe; it is running. Nothing was launched.",
+								note: "The backend is running. No restart was needed.",
 							};
 						case "started":
 							return {
 								status: result.status,
-								note: "The backend was down and has been launched. The next computer action reconnects automatically.",
+								note: "The backend was stopped and a replacement is ready. The next computer action reconnects automatically.",
 							};
 						case "failed_to_start":
 							return {

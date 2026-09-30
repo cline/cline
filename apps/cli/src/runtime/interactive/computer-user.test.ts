@@ -1,14 +1,10 @@
-import {
-	type AddressInfo,
-	createServer,
-	type Server,
-	type Socket,
-} from "node:net";
+import { type AddressInfo, createServer, type Server, Socket } from "node:net";
+import { fileURLToPath } from "node:url";
 import type { AgentHooks, AgentResult, AgentToolContext } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
 import {
-	createInteractiveComputerUser,
+	createInteractiveComputerUse,
 	resolveHelperModelId,
 	withHelperReasoningControls,
 } from "./computer-user";
@@ -43,8 +39,10 @@ function startStubBackend(): Promise<{
 	server: Server;
 	port: number;
 	destroyConnections: () => void;
+	requests: Array<Record<string, unknown>>;
 }> {
 	const sockets = new Set<Socket>();
+	const requests: Array<Record<string, unknown>> = [];
 	return new Promise((resolve) => {
 		const server = createServer((socket: Socket) => {
 			sockets.add(socket);
@@ -58,7 +56,10 @@ function startStubBackend(): Promise<{
 					const line = buffer.slice(0, newlineIndex);
 					buffer = buffer.slice(newlineIndex + 1);
 					if (line.trim().length > 0) {
-						const request = JSON.parse(line) as { id: number };
+						const request = JSON.parse(line) as Record<string, unknown> & {
+							id: number;
+						};
+						requests.push(request);
 						socket.write(
 							`${JSON.stringify({
 								id: request.id,
@@ -76,6 +77,7 @@ function startStubBackend(): Promise<{
 			resolve({
 				server,
 				port: address.port,
+				requests,
 				destroyConnections: () => {
 					for (const socket of sockets) {
 						socket.destroy();
@@ -85,6 +87,47 @@ function startStubBackend(): Promise<{
 		});
 	});
 }
+
+function freePort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const probe = createServer();
+		probe.once("error", reject);
+		probe.listen(0, "127.0.0.1", () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close((error) => (error ? reject(error) : resolve(port)));
+		});
+	});
+}
+
+function requestBackendShutdown(port: number): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const socket = new Socket();
+		socket.once("error", reject);
+		socket.connect(port, "127.0.0.1", () => {
+			socket.write(
+				`${JSON.stringify({ id: 1, action: "shutdown_backend" })}\n`,
+			);
+		});
+		socket.setEncoding("utf8");
+		socket.on("data", (data: string) => {
+			const response = JSON.parse(data.trim()) as { ok: boolean };
+			socket.destroy();
+			if (response.ok) resolve();
+			else reject(new Error("backend refused shutdown"));
+		});
+	});
+}
+
+function shellQuote(value: string): string {
+	return JSON.stringify(value);
+}
+
+const fakeBackendPath = fileURLToPath(
+	new URL(
+		"../../../../../sdk/packages/core/src/extensions/computer-use/test-fixtures/fake-backend.mjs",
+		import.meta.url,
+	),
+);
 
 function makeConfig(): Config {
 	return {
@@ -111,7 +154,7 @@ function makeResult(overrides: Partial<AgentResult> = {}): AgentResult {
 	} as AgentResult;
 }
 
-describe("createInteractiveComputerUser", () => {
+describe("createInteractiveComputerUse", () => {
 	let server: Server | undefined;
 	let destroyConnections: (() => void) | undefined;
 
@@ -132,7 +175,7 @@ describe("createInteractiveComputerUser", () => {
 	});
 
 	it("returns undefined when computer use is not enabled by env", async () => {
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
 			notifyDriver: () => {},
@@ -141,28 +184,96 @@ describe("createInteractiveComputerUser", () => {
 		expect(result).toBeUndefined();
 	});
 
-	it("returns undefined when the Anthropic provider has no api key", async () => {
+	it("publishes the computer tool on first run when the backend command is configured", async () => {
+		const port = await freePort();
+		const result = await createInteractiveComputerUse({
+			config: {
+				...makeConfig(),
+				cwd: process.cwd(),
+				workspaceRoot: process.cwd(),
+			},
+			providerSettingsManager: makeSettings(undefined),
+			notifyDriver: () => {},
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(port),
+				CLINE_COMPUTER_USE_BACKEND_COMMAND: `${shellQuote(process.execPath)} ${shellQuote(fakeBackendPath)} ${port}`,
+			} as NodeJS.ProcessEnv,
+		});
+
+		try {
+			expect(result?.driverTools.map((tool) => tool.name)).toEqual([
+				"computer",
+				"computer_restart_backend",
+			]);
+			await requestBackendShutdown(port);
+			const computerTool = result?.driverTools[0];
+			await expect(
+				computerTool?.execute({ action: "screenshot" }, toolContext),
+			).resolves.toBe('Action "screenshot" completed.');
+		} finally {
+			await result?.dispose();
+		}
+	}, 15_000);
+
+	it("uses the raw tool when the helper model is unset, even with Anthropic credentials", async () => {
 		const started = await startStubBackend();
 		server = started.server;
 		destroyConnections = started.destroyConnections;
 
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: makeConfig(),
-			providerSettingsManager: makeSettings(undefined),
+			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
 			notifyDriver: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
 			} as NodeJS.ProcessEnv,
 		});
-		expect(result).toBeUndefined();
+		expect(result?.driverTools.map((tool) => tool.name)).toEqual(["computer"]);
+		await result?.dispose();
 	});
 
-	it("exposes the driver tools when enabled and configured", async () => {
+	it("publishes the driver transcript in direct mode", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+		const result = await createInteractiveComputerUse({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
+			notifyDriver: () => {},
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+			} as NodeJS.ProcessEnv,
+		});
+
+		await result?.driverRecordingHooks.onEvent?.({
+			type: "message-added",
+			snapshot: { agentId: "driver-agent" } as never,
+			message: {
+				id: "driver-message",
+				role: "assistant",
+				content: [{ type: "text", text: "Using the computer directly" }],
+				createdAt: 0,
+			},
+		});
+		await vi.waitFor(() => {
+			expect(
+				started.requests.some(
+					(request) =>
+						request.action === "publish_event" &&
+						(request.payload as { source?: { kind?: string } })?.source
+							?.kind === "driver",
+				),
+			).toBe(true);
+		});
+		await result?.dispose();
+	});
+
+	it("exposes the helper tools only when the helper model is set", async () => {
 		const started = await startStubBackend();
 		server = started.server;
 		destroyConnections = started.destroyConnections;
 
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({
 				apiKey: "sk-ant-x",
@@ -171,6 +282,7 @@ describe("createInteractiveComputerUser", () => {
 			notifyDriver: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
+				CLINE_COMPUTER_USER_MODEL: "claude-sonnet-4-6",
 			} as NodeJS.ProcessEnv,
 		});
 		expect(result).toBeDefined();
@@ -194,7 +306,7 @@ describe("createInteractiveComputerUser", () => {
 		server = started.server;
 		destroyConnections = started.destroyConnections;
 
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({
 				apiKey: "sk-ant-x",
@@ -203,6 +315,7 @@ describe("createInteractiveComputerUser", () => {
 			notifyDriver: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
+				CLINE_COMPUTER_USER_MODEL: "claude-sonnet-4-6",
 				CLINE_COMPUTER_USE_BACKEND_COMMAND: "echo start-the-backend",
 			} as NodeJS.ProcessEnv,
 		});
@@ -212,6 +325,30 @@ describe("createInteractiveComputerUser", () => {
 				.map((tool) => tool.name)
 				.includes("computer_user_restart_backend"),
 		).toBe(true);
+		const start = vi.fn(async ({ config }: { config: Config }) => ({
+			sessionId: "helper-session",
+			toolNames: config.extraTools?.map((tool) => tool.name),
+		}));
+		createCliCoreMock.mockResolvedValue({
+			start,
+			send: vi.fn(() => new Promise(() => {})),
+			abort: vi.fn(async () => {}),
+			stop: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		});
+		const startTool = result?.driverTools.find(
+			(tool) => tool.name === "computer_user_start",
+		);
+		await startTool?.execute({ task: "inspect the desktop" }, toolContext);
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					extraTools: expect.arrayContaining([
+						expect.objectContaining({ name: "restart_computer_backend" }),
+					]),
+				}),
+			}),
+		);
 		await result?.dispose();
 	});
 
@@ -230,11 +367,14 @@ describe("createInteractiveComputerUser", () => {
 			stop: vi.fn(async () => {}),
 			dispose: vi.fn(async () => {}),
 		});
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
 			notifyDriver: () => {},
-			env: { CLINE_COMPUTER_USE_PORT: String(started.port) },
+			env: {
+				CLINE_COMPUTER_USE_PORT: String(started.port),
+				CLINE_COMPUTER_USER_MODEL: "claude-sonnet-4-6",
+			},
 		});
 		expect(result).toBeDefined();
 		if (!result) throw new Error("computer user was not configured");
@@ -304,7 +444,7 @@ describe("createInteractiveComputerUser", () => {
 			reasoningEffort: "high" as const,
 		};
 
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: driverConfig,
 			providerSettingsManager: makeSettings({
 				provider: "anthropic",
@@ -388,12 +528,13 @@ describe("createInteractiveComputerUser", () => {
 			stop: vi.fn(async () => {}),
 			dispose: vi.fn(async () => {}),
 		});
-		const result = await createInteractiveComputerUser({
+		const result = await createInteractiveComputerUse({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
 			notifyDriver: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
+				CLINE_COMPUTER_USER_MODEL: "claude-sonnet-4-6",
 			} as NodeJS.ProcessEnv,
 		});
 		const byName = new Map(
@@ -469,9 +610,9 @@ describe("withHelperReasoningControls", () => {
 });
 
 describe("resolveHelperModelId", () => {
-	it("prefers CLINE_COMPUTER_USER_MODEL over saved provider model", () => {
+	it("uses CLINE_COMPUTER_USER_MODEL", () => {
 		expect(
-			resolveHelperModelId({ model: "claude-sonnet-4-6" }, {
+			resolveHelperModelId({
 				CLINE_COMPUTER_USER_MODEL: "claude-opus-4-7",
 			} as NodeJS.ProcessEnv),
 		).toBe("claude-opus-4-7");
@@ -479,29 +620,23 @@ describe("resolveHelperModelId", () => {
 
 	it("removes the redundant namespace for the direct Anthropic provider", () => {
 		expect(
-			resolveHelperModelId(undefined, {
+			resolveHelperModelId({
 				CLINE_COMPUTER_USER_MODEL: "anthropic/claude-sonnet-5",
 			} as NodeJS.ProcessEnv),
 		).toBe("claude-sonnet-5");
 	});
 
-	it("falls back to the Anthropic provider entry's saved model", () => {
+	it("does not enable helper mode without a usable environment value", () => {
+		expect(resolveHelperModelId({} as NodeJS.ProcessEnv)).toBeUndefined();
 		expect(
-			resolveHelperModelId(
-				{ model: "claude-haiku-4-5" },
-				{} as NodeJS.ProcessEnv,
-			),
-		).toBe("claude-haiku-4-5");
-	});
-
-	it("defaults when neither env nor settings specify a model", () => {
-		expect(resolveHelperModelId(undefined, {} as NodeJS.ProcessEnv)).toBe(
-			"claude-sonnet-4-6",
-		);
-		expect(
-			resolveHelperModelId({ model: "  " }, {
+			resolveHelperModelId({
 				CLINE_COMPUTER_USER_MODEL: " ",
 			} as NodeJS.ProcessEnv),
-		).toBe("claude-sonnet-4-6");
+		).toBeUndefined();
+		expect(
+			resolveHelperModelId({
+				CLINE_COMPUTER_USER_MODEL: "anthropic/",
+			} as NodeJS.ProcessEnv),
+		).toBeUndefined();
 	});
 });
