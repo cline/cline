@@ -1,7 +1,7 @@
 {
 	"name": "@cline/cli",
 	"displayName": "cline",
-	"version": "3.0.65",
+	"version": "3.0.66",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"type": "module",
 	"publishConfig": {
@@ -100,7 +100,7 @@
 		"@cline/core": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",
-		"@types/bun": "^1.3.10",
+		"@types/bun": "^1.4.2",
 		"@types/react": "19.2.14",
 		"tuistory": "^0.10.1",
 		"vitest": "^4.0.18"

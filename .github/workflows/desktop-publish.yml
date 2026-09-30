@@ -284,7 +284,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       # A universal (fat) macOS bundle needs both architecture slices, so
       # install both Rust targets; `tauri build --target universal-apple-darwin`
@@ -618,7 +618,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       # build-sidecar-bin.ts cross-compiles the Linux SSH remote helpers on
       # every platform, and the Windows installer ships them (they are Tauri
@@ -893,7 +893,7 @@ jobs:
           if-no-files-found: error
 
   build-linux:
-    name: Build Linux (x64)
+    name: Build Linux (${{ matrix.arch }})
     needs: validate
     # Same gate rationale as the macOS build job above: the updater signing
     # key lives in the PublishDesktop environment. No OS-level code signing
@@ -901,10 +901,26 @@ jobs:
     # installed app verifies before applying an update.
     if: github.ref == 'refs/heads/main'
     environment: PublishDesktop
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            deb_arch: amd64
+            rpm_arch: x86_64
+          # Native arm64 runner rather than cross-compiling: WebKitGTK and the
+          # other GTK build deps have no usable cross toolchain in apt, and a
+          # native build lets the sidecar smoke test below run the real binary.
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            deb_arch: arm64
+            rpm_arch: aarch64
     # Oldest LTS we build on so the binaries link against the oldest glibc
     # and WebKitGTK we intend to support; a build on a newer runner would not
     # run on 22.04-era distros.
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     permissions:
       contents: read
@@ -953,7 +969,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       # Tauri's Linux build deps (WebKitGTK, GTK, the appindicator used by the
       # tray icon, librsvg for icons, xdo for the window helpers) plus upx:
@@ -1056,8 +1072,10 @@ jobs:
       # Same guardrail as the other build jobs, run on the Linux sidecar.
       - name: Verify sidecar telemetry config was inlined
         working-directory: apps/examples/desktop-app
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          SELFCHECK=$(./src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu --telemetry-selfcheck)
+          SELFCHECK=$(./src-tauri/bin/code-sidecar-${TARGET} --telemetry-selfcheck)
           echo "$SELFCHECK"
           if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
             echo "Packaged sidecar reports telemetry disabled."
@@ -1077,7 +1095,7 @@ jobs:
       - name: Smoke-test the packaged sidecar against an isolated Hub
         working-directory: apps/examples/desktop-app
         env:
-          CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu
+          CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-${{ matrix.target }}
         run: bun test scripts/desktop-startup.test.ts
 
       - name: Collect artifacts
@@ -1085,6 +1103,8 @@ jobs:
         env:
           VERSION: ${{ needs.validate.outputs.version }}
           PRODUCT: ${{ needs.validate.outputs.product }}
+          DEB_ARCH: ${{ matrix.deb_arch }}
+          RPM_ARCH: ${{ matrix.rpm_arch }}
         run: |
           BUNDLE_DIR="src-tauri/target/release/bundle"
           OUT="dist/publish"
@@ -1094,31 +1114,31 @@ jobs:
           PREFIX="${PRODUCT// /-}"
 
           # The packages are the updater artifacts; the .sig is the minisign
-          # signature the manifest generator needs for the linux-x86_64-deb and
-          # linux-x86_64-rpm entries. The arch suffixes are what
-          # generate-update-manifest.ts keys on.
+          # signature the manifest generator needs for the linux-<arch>-deb and
+          # linux-<arch>-rpm entries. The arch suffixes (amd64/arm64 for deb,
+          # x86_64/aarch64 for rpm) are what generate-update-manifest.ts keys on.
           DEB=$(find "$BUNDLE_DIR/deb" -name '*.deb' -print -quit)
           if [ -z "$DEB" ] || [ ! -f "${DEB}.sig" ]; then
             echo "deb package or updater signature missing under $BUNDLE_DIR/deb"
             exit 1
           fi
-          cp "$DEB" "$OUT/${PREFIX}_${VERSION}_amd64.deb"
-          cp "${DEB}.sig" "$OUT/${PREFIX}_${VERSION}_amd64.deb.sig"
+          cp "$DEB" "$OUT/${PREFIX}_${VERSION}_${DEB_ARCH}.deb"
+          cp "${DEB}.sig" "$OUT/${PREFIX}_${VERSION}_${DEB_ARCH}.deb.sig"
 
           RPM=$(find "$BUNDLE_DIR/rpm" -name '*.rpm' -print -quit)
           if [ -z "$RPM" ] || [ ! -f "${RPM}.sig" ]; then
             echo "rpm package or updater signature missing under $BUNDLE_DIR/rpm"
             exit 1
           fi
-          cp "$RPM" "$OUT/${PREFIX}_${VERSION}_x86_64.rpm"
-          cp "${RPM}.sig" "$OUT/${PREFIX}_${VERSION}_x86_64.rpm.sig"
+          cp "$RPM" "$OUT/${PREFIX}_${VERSION}_${RPM_ARCH}.rpm"
+          cp "${RPM}.sig" "$OUT/${PREFIX}_${VERSION}_${RPM_ARCH}.rpm.sig"
 
           ls -lh "$OUT"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: desktop-linux-x64
+          name: desktop-linux-${{ matrix.arch }}
           retention-days: 30
           path: apps/examples/desktop-app/dist/publish/*
           if-no-files-found: error
@@ -1141,7 +1161,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       - name: Download artifacts
         uses: actions/download-artifact@v4

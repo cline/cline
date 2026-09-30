@@ -167,6 +167,8 @@ export interface AgentUsageEvent extends AgentEventMetadata {
 	cacheWriteTokens?: number;
 	/** Cost for this turn */
 	cost?: number;
+	/** Reasoning/thinking tokens for this turn, already excluded from outputTokens */
+	reasoningTokenCount?: number;
 
 	/** Accumulated totals */
 	totalInputTokens: number;

@@ -1,5 +1,44 @@
 # Cline Desktop Changelog
 
+## 0.0.39
+
+- On Linux with the proprietary NVIDIA driver, the app window no longer opens blank. The app now turns off WebKitGTK's DMA-BUF renderer when it detects the NVIDIA driver. To keep that renderer on (for example, on a hybrid-GPU system), set `WEBKIT_DISABLE_DMABUF_RENDERER=0`
+- The Linux `.deb` and `.rpm` packages now include app info, so GNOME Software and KDE Discover show Cline's icon and description and list it under Installed
+
+## 0.0.38
+
+- Linux on ARM is now supported: each release ships arm64 `.deb` and `.rpm` packages alongside the x64 ones, and they auto-update like the others
+- Web search settings moved from **General** to **Customize → Tools**, next to the other built-in tools. That page shows whether your provider supports search, and links to provider settings when it doesn't
+- Connectors are labeled **Beta**, and opening the marketplace from Connectors now shows only connectors
+- Pressing **Stop** right after sending a prompt now stops the turn. Before, a stop that landed while the turn was still being set up was ignored: the agent kept editing in the background, and reverting failed with "Wait for all turns in this workspace to finish before restoring it"
+- Inserting a slash command no longer deletes the text after your cursor
+- On Windows, **Export Diagnostics** no longer fails when the output folder already exists
+- Cloud agent sessions now keep their workspace. A suspended cloud session resumes with the same files, history, and reasoning settings
+- When a response is blocked by a content filter, the app now says so and suggests rephrasing, instead of "Model returned empty response"
+- Direct Anthropic requests now use Anthropic's refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request
+- Reasoning tokens are no longer counted twice in token usage. Cost is unchanged
+- On Amazon Bedrock, Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects, and a legacy bare `awsProfile` setting now migrates as profile auth
+- Gateway models keep their own API protocol instead of falling back to the provider-wide default
+- Scheduled task specs saved with a UTF-8 BOM (as Windows Notepad does) now parse, and codebase search now includes PHP projects (Composer's `vendor` folder is skipped)
+- On Windows, a nested `pwsh -Command` keeps your configured shell path instead of picking up a `powershell.exe` from the workspace
+- Refreshed the model catalog. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. New providers are Bee and Pareto
+
+## 0.0.37
+
+- Settings has a new **About** page. It shows your version and channel, has **Check for updates** and **Restart to update** buttons, and lists the release notes for recent versions with links to each GitHub release and the full changelog. **Report an issue** is there too
+- After an update, a one-time **What's new** dialog now catches you up on recent features. The first one covers SSH remotes, worktrees, pull request status in the composer, and parallel sub-agents. To see it again, use **Highlights** on the About page
+- On macOS, **Help → Export Diagnostics…** now opens the diagnostics export directly, so you don't have to find it in Settings
+- On Amazon Bedrock, OpenAI models reached through inference profiles (`us.openai.…`, `global.openai.…`) no longer fail with "Unknown parameter: 'reasoningConfig'" when reasoning effort is set
+
+## 0.0.36
+
+- The app now starts on machines that set a system HTTP(S) proxy, such as Clash, v2ray, or a corporate proxy. Before, the backend sent its local connection checks through the proxy, so it couldn't find its own hub and failed with "No compatible hub runtime is available." Local connections now skip the proxy, and any proxy exemptions you already had are kept
+- On small or scaled displays, the main window now fits on screen. A 1080p laptop at 150% scaling used to open the window larger than the screen, which pushed the settings and account controls out of reach. An oversized window now shrinks to fit the screen (not counting the taskbar) and opens centered
+- Plugin slash commands like `/goal` no longer vanish from the slash menu the first time you use them. Plugin commands now load as soon as a workspace opens instead of on your first `/`. If that first load is slow or fails, the app retries in the background, so the command no longer gets sent to the model as plain text
+- The Providers settings (renamed from API Providers) now keep the model list inside the panel. Long model lists scroll in place, and the model controls stay reachable in short windows
+- In SSH settings, **Save** is disabled until you change a saved host, and the button for a new host now says **Add**
+- On Amazon Bedrock, OpenAI GPT-6 and GPT-5.6 models now work without turning on cross-region inference. They used to fail with "on-demand throughput isn't supported." India regions (ap-south-1/2) now use the `in.` inference profile
+
 ## 0.0.35
 
 - Cline Desktop now runs on Linux. Each release ships x64 `.deb` and `.rpm` packages alongside the macOS and Windows builds. **Open folder…** uses the native GTK picker, and updates download in the background and install when you choose **Restart now**, so you are never hit with a surprise password prompt. There is no AppImage for now
