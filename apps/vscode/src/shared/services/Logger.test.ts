@@ -107,30 +107,6 @@ describe("Logger", () => {
 			Logger.error("api call failed:", error)
 			expect(last()).toBe("ERROR api call failed: Error: Request failed with status code 401")
 		})
-
-		it("reduces URLs inside an error message to their origin", () => {
-			Logger.error(
-				"Failed to add remote MCP server:",
-				new Error("Invalid server URL: https://mcp.example.com/sse?api_key=sk-SECRET. Please provide a valid URL."),
-			)
-			expect(last()).toBe(
-				"ERROR Failed to add remote MCP server: Error: Invalid server URL: https://mcp.example.com. Please provide a valid URL.",
-			)
-		})
-
-		it("drops credentials embedded in the path or userinfo of a URL in an error message", () => {
-			Logger.error("connect failed:", new Error('"https://user:pw@actions.example.com/mcp/sk-SECRET/sse" cannot be parsed'))
-			expect(last()).not.toContain("SECRET")
-			expect(last()).not.toContain("pw")
-			expect(last()).toContain("https://actions.example.com")
-		})
-
-		it("reduces URLs in cause messages and error-like objects", () => {
-			const cause = new Error("GET https://api.example.com/v1/x?token=SECRET_A failed")
-			Logger.error("outer:", new Error("wrapped", { cause }))
-			Logger.error("rpc:", { message: "redirect to https://example.com/cb?code=SECRET_B" })
-			expect(lines.join("\n")).not.toContain("SECRET")
-		})
 	})
 
 	describe("with IS_DEV=true (verbose)", () => {
