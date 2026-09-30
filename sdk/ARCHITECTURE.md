@@ -188,6 +188,13 @@ field.
 
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
+
+Client-to-Hub frames larger than `HUB_FRAME_CHUNK_SIZE` are sent as `chunk`
+wire messages and reassembled per connection by the Hub's WebSocket adapter
+(`packages/core/src/hub/frame-chunks.ts`). Bun caps inbound WebSocket messages
+at 16 MiB and its `ws` shim ignores `maxPayload`, so without this a Bun-hosted
+Hub closes the socket (code 1006, "Received too big message") on a single
+command carrying several pasted images.
 NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
 It runs after connection setup, before allocating or sending the command, on
 each attempt. Throwing prevents that attempt's dispatch; already-dispatched runs still require

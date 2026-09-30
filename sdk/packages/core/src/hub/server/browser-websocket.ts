@@ -12,6 +12,7 @@ import {
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
 } from "@cline/shared";
+import { HubFrameAssembler } from "../frame-chunks";
 import type {
 	HubCommandTransport,
 	HubConnectionAuthority,
@@ -144,9 +145,13 @@ export class BrowserWebSocketHubAdapter {
 			sendFrame({ kind: "event", envelope });
 		};
 
+		const frames = new HubFrameAssembler();
 		const onMessage = async (event: { data: string }): Promise<void> => {
 			try {
-				const frame = JSON.parse(event.data) as HubTransportFrame;
+				const frame = frames.push(event.data);
+				if (!frame) {
+					return;
+				}
 				switch (frame.kind) {
 					case "command": {
 						let registration: HubConnectionAuthority | undefined;

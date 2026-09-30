@@ -5,6 +5,7 @@ import type {
 	HubReplyEnvelope,
 } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { encodeHubFrame, HUB_FRAME_CHUNK_SIZE } from "../frame-chunks";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import type { HubConnectionAuthority } from "./command-transport";
 
@@ -82,6 +83,46 @@ describe("BrowserWebSocketHubAdapter", () => {
 		} finally {
 			errorSpy.mockRestore();
 		}
+	});
+
+	it("reassembles chunked command frames before dispatching them", async () => {
+		const transport = {
+			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
+				version: "v1" as const,
+				requestId: envelope.requestId,
+				ok: true,
+			})),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+
+		const messages = encodeHubFrame({
+			kind: "command",
+			envelope: {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "big",
+				clientId: "client-1",
+				payload: { prompt: "x".repeat(HUB_FRAME_CHUNK_SIZE * 2 + 1) },
+			},
+		});
+		expect(messages.length).toBeGreaterThan(1);
+		for (const message of messages) {
+			socket.emitMessage(message);
+		}
+
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+		expect(transport.command).toHaveBeenCalledTimes(1);
+		expect(transport.command.mock.calls[0]?.[0]).toMatchObject({
+			command: "session.send_input",
+			requestId: "big",
+			payload: { prompt: expect.stringMatching(/^x+$/) },
+		});
+		expect(JSON.parse(socket.sent[0] ?? "")).toMatchObject({
+			kind: "reply",
+			envelope: { requestId: "big", ok: true },
+		});
 	});
 
 	it("binds client identity to the Hub-authorized workspace", async () => {

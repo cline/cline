@@ -30,6 +30,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { encodeHubFrame } from "../frame-chunks";
 
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
@@ -940,7 +941,9 @@ export class NodeHubClient {
 			}
 			throw this.lastCloseError;
 		}
-		this.socket.send(JSON.stringify(frame));
+		for (const message of encodeHubFrame(frame)) {
+			this.socket.send(message);
+		}
 	}
 
 	private sendSubscriptionFrame(

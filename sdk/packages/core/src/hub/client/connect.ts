@@ -13,6 +13,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { encodeHubFrame } from "../frame-chunks";
 
 export interface HubConnection {
 	send(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;
@@ -135,7 +136,9 @@ export async function connectToHub(url: string): Promise<HubConnection> {
 								kind: "command",
 								envelope: { ...envelope, requestId },
 							};
-							ws.send(JSON.stringify(frame));
+							for (const message of encodeHubFrame(frame)) {
+								ws.send(message);
+							}
 						});
 					},
 					close() {
