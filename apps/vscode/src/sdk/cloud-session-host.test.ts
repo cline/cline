@@ -4,6 +4,7 @@ import type { SdkSessionHost } from "./session-host"
 const runtime = vi.hoisted(() => ({
 	listeners: [] as Array<(event: unknown) => void>,
 	runTurn: vi.fn(),
+	pendingList: vi.fn(),
 	pendingUpdate: vi.fn(),
 	pendingDelete: vi.fn(),
 	listSessions: vi.fn(),
@@ -11,7 +12,7 @@ const runtime = vi.hoisted(() => ({
 
 vi.mock("@cline/core", () => ({
 	RemoteRuntimeHost: class {
-		pendingPrompts = { update: runtime.pendingUpdate, delete: runtime.pendingDelete }
+		pendingPrompts = { list: runtime.pendingList, update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = vi.fn(async () => undefined)
 		listSessions = runtime.listSessions
 		startSession = vi.fn(async (input: { config: { sessionId: string } }) => ({ sessionId: input.config.sessionId }))
@@ -30,6 +31,7 @@ describe("CloudSessionHost status", () => {
 	beforeEach(() => {
 		runtime.listeners.length = 0
 		runtime.runTurn.mockReset()
+		runtime.pendingList.mockReset().mockResolvedValue([])
 		runtime.pendingUpdate.mockReset()
 		runtime.pendingDelete.mockReset()
 		runtime.listSessions.mockReset().mockResolvedValue([{ sessionId: "inner-session", status: "idle" }])
@@ -57,6 +59,30 @@ describe("CloudSessionHost status", () => {
 		await host.send({ sessionId: "ses-outer", prompt: "continue", mode: "plan" })
 
 		expect(runtime.runTurn).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "inner-session", mode: "act" }))
+	})
+
+	it("subscribes to the task it discovers so a completion by another client is seen", async () => {
+		runtime.listSessions.mockResolvedValue([{ sessionId: "inner-session", status: "running" }])
+		runtime.pendingList.mockResolvedValue([])
+		const onStatusChange = vi.fn()
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+			onStatusChange,
+		})
+		expect(host.status).toBe("running")
+		// A status-only connection has sent no command for this task; the Hub
+		// only streams a session's events to clients subscribed to it.
+		expect(runtime.pendingList).toHaveBeenCalledWith({ sessionId: "inner-session" })
+
+		for (const listener of runtime.listeners) {
+			listener({ type: "ended", payload: { sessionId: "inner-session", reason: "completed" } })
+		}
+
+		expect(host.status).toBe("completed")
+		expect(onStatusChange).toHaveBeenCalledWith("completed")
 	})
 
 	it("does not claim to change the model the sandbox runs on", async () => {
