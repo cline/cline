@@ -1677,7 +1677,7 @@ const ModelSelector = memo(function ModelSelector({
 }) {
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
-	>(FALLBACK_PROVIDER_MODELS);
+	>(includeCloudModels ? {} : FALLBACK_PROVIDER_MODELS);
 	const [providerReasoningModels, setProviderReasoningModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_REASONING_MODELS);
