@@ -471,6 +471,9 @@ function ChatInputBarImpl({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const [cloudModelReady, setCloudModelReady] = useState(false);
+	const needsCloudModel =
+		executionTarget === "cloud" && !hasActiveSession && !cloudModelReady;
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
@@ -534,7 +537,11 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend =
-		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!needsCloudModel &&
+		!readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -562,7 +569,7 @@ function ChatInputBarImpl({
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository) return;
+		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -576,6 +583,7 @@ function ChatInputBarImpl({
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
+		needsCloudModel,
 		readOnly,
 		onSend,
 		promptInput,
@@ -1538,6 +1546,7 @@ function ChatInputBarImpl({
 							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
+							onModelReadyChange={setCloudModelReady}
 							onModelChange={onModelChange}
 							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
@@ -1646,6 +1655,7 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onModelReadyChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
@@ -1659,6 +1669,7 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
+	onModelReadyChange: (ready: boolean) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
 	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
@@ -1782,6 +1793,18 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		return providers[0] ?? "";
 	}, [normalizedProvider, providers, rememberedLastProvider]);
+	useEffect(() => {
+		onModelReadyChange(
+			providers.includes(normalizedProvider) &&
+				(providerModels[normalizedProvider]?.includes(model) ?? false),
+		);
+	}, [
+		model,
+		normalizedProvider,
+		onModelReadyChange,
+		providerModels,
+		providers,
+	]);
 	const modelsForProvider = useMemo(
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
@@ -1841,6 +1864,9 @@ const ModelSelector = memo(function ModelSelector({
 		if (
 			model &&
 			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model)) &&
+			(!includeCloudModels ||
+				!autoCorrectModel ||
 				modelsForProvider.includes(model))
 		) {
 			return model;
@@ -1860,6 +1886,8 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		includeCloudModels,
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
@@ -2193,6 +2221,21 @@ const ModelSelector = memo(function ModelSelector({
 		/>
 	);
 
+	if (
+		includeCloudModels &&
+		reasoningCapabilitySource === "fallback" &&
+		providers.length === 0
+	) {
+		return (
+			<button
+				className="text-xs text-destructive"
+				onClick={refreshActiveProviderModels}
+				type="button"
+			>
+				Could not load cloud models. Retry
+			</button>
+		);
+	}
 	return (
 		<div className="relative min-w-0 shrink-0 text-sm">
 			<button

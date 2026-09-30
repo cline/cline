@@ -721,8 +721,14 @@ describe("ChatInputBar", () => {
 		).toEqual(localSelection);
 	});
 
-	it("blocks a new cloud message until a GitHub repository is selected", async () => {
+	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
 		const onSend = vi.fn();
+		let catalogAvailable = false;
+		loadProviderModelCatalogMock.mockImplementation(async (options) => {
+			if (options?.includeCloudModels && !catalogAvailable)
+				throw new Error("offline");
+			return providerCatalog(null);
+		});
 		const render = async (
 			repoUrl?: string,
 			prompt = "Continue in cloud",
@@ -800,6 +806,19 @@ describe("ChatInputBar", () => {
 		expect(onSend).not.toHaveBeenCalled();
 
 		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(true);
+		await act(async () =>
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		const retry = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Retry"),
+		);
+		expect(retry).toBeDefined();
+		catalogAvailable = true;
+		await act(async () => retry?.click());
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
 		expect(onSend).toHaveBeenCalledWith("Continue in cloud");

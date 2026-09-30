@@ -1,5 +1,6 @@
 "use client";
 
+import type { CloudModel } from "@cline/core/cloud";
 import {
 	isChatCompatibleModel,
 	isTranscriptionModel,
@@ -323,13 +324,14 @@ export async function loadProviderModelCatalog(options?: {
 	includeVoiceInput?: boolean;
 }): Promise<ProviderModelCatalog> {
 	if (options?.includeCloudModels) {
-		const [models, cline, pass] = await Promise.all([
-			desktopClient.invoke<CloudModel[]>("list_cloud_models"),
-			loadProviderModels("cline", { includeCloudModels: true }).catch(() => []),
-			loadProviderModels("cline-pass").catch(() => []),
-		]);
+		const models =
+			await desktopClient.invoke<CloudModel[]>("list_cloud_models");
+		// Capability metadata is optional: use the local catalog already loaded
+		// by the app rather than delaying cloud choices on provider lookups.
 		const details = new Map(
-			[...cline, ...pass].map((model) => [model.id, model]),
+			(providerCatalogPayload?.providers ?? []).flatMap((provider) =>
+				(provider.modelList ?? []).map((model) => [model.id, model] as const),
+			),
 		);
 		// Cloud catalogs are billing choices on the same Cline transport. Only
 		// the account-scoped cloud response determines which models are offered.
