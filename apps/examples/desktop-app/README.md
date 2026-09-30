@@ -365,6 +365,17 @@ credentials, request headers, recorded audio, or transcript contents.
 - Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
+- Linux with the proprietary NVIDIA driver: WebKitGTK's DMA-BUF renderer
+  fails there (`KMS: DRM_IOCTL_MODE_CREATE_DUMB failed: Permission denied`,
+  `Failed to create GBM buffer ...: Permission denied`) and the window stays
+  blank, so when `/sys/module/nvidia` is loaded the app sets
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` before creating the webview (see
+  [Tauri's Linux graphics guide](https://v2.tauri.app/develop/debug/linux-graphics/)).
+  This also matches hybrid-GPU systems where another GPU renders, which then
+  lose the faster DMA-BUF path (not hardware acceleration as a whole). To opt
+  out, fully Quit from the tray (closing the window only hides it) and launch
+  with `WEBKIT_DISABLE_DMABUF_RENDERER=0 cline-app`; any value you set is
+  left untouched.
 - If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`).
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.
