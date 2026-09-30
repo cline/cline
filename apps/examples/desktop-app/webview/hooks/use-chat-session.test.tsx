@@ -5963,6 +5963,80 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("queues a second prompt after the first send returns queued before turn start", async () => {
+		const actions: Array<{
+			action?: string;
+			delivery?: string;
+			sessionId?: string;
+		}> = [];
+		let resolveFirstSend:
+			| ((value: { ok: boolean; queued: boolean; promptsInQueue: [] }) => void)
+			| undefined;
+		const firstSendResponse = new Promise<{
+			ok: boolean;
+			queued: boolean;
+			promptsInQueue: [];
+		}>((resolve) => {
+			resolveFirstSend = resolve;
+		});
+		let plannedSessionId = "";
+
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								sessionId?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					actions.push(request ?? {});
+					if (request?.action === "start") {
+						plannedSessionId = request.config?.sessionId ?? "";
+						return { sessionId: plannedSessionId };
+					}
+					if (request?.action === "send" && request.delivery === "queue") {
+						return { ok: true, queued: true, promptsInQueue: [] };
+					}
+					if (request?.action === "send") {
+						return await firstSendResponse;
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		let firstSend: Promise<boolean> | undefined;
+		await act(async () => {
+			firstSend = current.sendPrompt("First prompt");
+			await Promise.resolve();
+		});
+		await act(async () => {
+			resolveFirstSend?.({ ok: true, queued: true, promptsInQueue: [] });
+			await firstSend;
+		});
+
+		await act(async () => {
+			await current.sendPrompt("Second prompt");
+		});
+
+		const sends = actions.filter((request) => request.action === "send");
+		expect(sends).toHaveLength(2);
+		expect(sends.map((request) => request.delivery)).toEqual([
+			undefined,
+			"queue",
+		]);
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(0);
+	});
+
 	it("preserves prompt order when the first prompt has a slow attachment", async () => {
 		let resolveFile: ((value: string) => void) | undefined;
 		const fileContent = new Promise<string>((resolve) => {
