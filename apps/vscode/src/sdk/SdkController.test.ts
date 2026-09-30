@@ -294,6 +294,7 @@ describe("SDK remote-config coordination", () => {
 				messageTranslatorState: { clearTurnOutcome: vi.fn() },
 				messages: { appendAndEmit: vi.fn() },
 				sessions: { getActiveSession: () => undefined },
+				cloud: { isCloudSessionId: () => false },
 				postStateToWebview: vi.fn(async () => {}),
 				initTask: vi.fn(async () => "task-id"),
 				followups: { askResponse: vi.fn(async () => {}) },

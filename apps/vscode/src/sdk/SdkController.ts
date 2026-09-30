@@ -680,7 +680,7 @@ export class Controller {
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			onCancelTask: () => this.cancelTask(),
 			clearTask: async () => {
-				this.pendingClineAuthRetryPrompt = undefined
+				this.pendingClineAuthRetry = undefined
 				await this.taskControl.clearTask()
 			},
 			claimTaskViewGeneration: () => this.taskControl.claimTaskViewGeneration(),
@@ -1474,7 +1474,7 @@ export class Controller {
 				branch: cloudTarget.branch,
 			})
 			await this.waitForInitialRemoteConfig()
-			this.pendingClineAuthRetryPrompt = undefined
+			this.pendingClineAuthRetry = undefined
 			return startCloudTask()
 		}
 		await this.waitForInitialRemoteConfig()
