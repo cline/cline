@@ -94,7 +94,10 @@ export function SearchableSelect({
 					)}
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-56 p-1 text-menu-foreground" side="bottom">
+			<PopoverContent
+				align="start"
+				className="w-[var(--radix-popover-trigger-width)] min-w-56 p-1 text-menu-foreground"
+				side="bottom">
 				<Input
 					autoFocus
 					className="mb-1 h-7 px-2 py-1 text-xs"
