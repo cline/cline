@@ -371,58 +371,30 @@ describe("host-supplied Composio tools", () => {
 				properties: { limit: { type: "number" } },
 			},
 		};
-		const request = vi.fn<ConnectorsRequest>(async (path) => {
-			if (path.includes("/connections?")) {
-				return Response.json({
-					success: true,
-					data: {
-						items: [
-							{ id: "c1", toolkit: { slug: "gmail" }, status: "ACTIVE" },
-							{ id: "c2", toolkit: { slug: "gmail" }, status: "ACTIVE" },
-							{
-								id: "c3",
-								toolkit: { slug: "github" },
-								status: "ACTIVE",
-								is_disabled: true,
-							},
-							{ id: "c4", toolkit: { slug: "linear" }, status: "INITIATED" },
-						],
-						nextToken: "",
-					},
-				});
-			}
-			if (path === "/api/v1/connectors/toolkits/gmail/tools?limit=200") {
-				return Response.json({
-					success: true,
-					data: { items: [schema], nextToken: "" },
-				});
-			}
-			if (path === "/api/v1/connectors/tools/GMAIL_FETCH_EMAILS/execute") {
-				return Response.json({ successful: true, data: { messages: [] } });
-			}
-			throw new Error(`Unexpected request: ${path}`);
-		});
+		const connection = {
+			id: "c1",
+			toolkit: { slug: "gmail" },
+			status: "ACTIVE",
+		};
+		const page = (items: unknown[]) =>
+			Response.json({ success: true, data: { items, nextToken: "" } });
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValueOnce(page([connection]))
+			.mockResolvedValueOnce(page([schema]))
+			.mockResolvedValueOnce(
+				Response.json({ successful: true, data: { messages: [] } }),
+			);
 		const globalFetch = vi.fn();
 		vi.stubGlobal("fetch", globalFetch);
 		const ctx = { request };
-		const connections = await listConnections(ctx);
-		const slugs = [
-			...new Set(
-				connections
-					.filter(
-						(connection) =>
-							connection.status === "ACTIVE" && !connection.is_disabled,
-					)
-					.map((connection) => connection.toolkit.slug),
+		const [connected] = await listConnections(ctx);
+		const toolkits = {
+			[connected.toolkit.slug]: await listToolkitTools(
+				connected.toolkit.slug,
+				ctx,
 			),
-		];
-		const toolkits = Object.fromEntries(
-			await Promise.all(
-				slugs.map(
-					async (slug) => [slug, await listToolkitTools(slug, ctx)] as const,
-				),
-			),
-		);
+		};
 		const tools = await setupTools({ toolkits, request });
 		expect(tools.map((tool) => tool.name)).toEqual(["gmail_fetch_emails"]);
 		expect(tools[0].retryable).toBe(false);

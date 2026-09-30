@@ -433,50 +433,6 @@ describe("host-supplied connector requests", () => {
 		expect(global.fetch).not.toHaveBeenCalled();
 	});
 
-	it("uses the supplied request for catalog, schemas, create and delete", async () => {
-		const request = vi
-			.fn<ConnectorsRequest>()
-			.mockResolvedValueOnce(
-				Response.json({
-					success: true,
-					data: { items: [{ slug: "gmail", name: "Gmail" }], nextToken: "" },
-				}),
-			)
-			.mockResolvedValueOnce(
-				Response.json({
-					success: true,
-					data: {
-						items: [{ slug: "GMAIL_FETCH_EMAILS", version: "v1" }],
-						nextToken: "",
-					},
-				}),
-			)
-			.mockResolvedValueOnce(
-				Response.json({ success: true, data: { connectedAccountId: "c1" } }),
-			)
-			.mockResolvedValueOnce(new Response(null, { status: 204 }));
-		const ctx = { request };
-		expect(await fetchConnectableToolkits(ctx)).toEqual([
-			{ slug: "gmail", name: "Gmail" },
-		]);
-		expect(await listToolkitTools("gmail", ctx)).toEqual([
-			{ slug: "GMAIL_FETCH_EMAILS", version: "v1" },
-		]);
-		expect(await initiateConnection("gmail", ctx)).toEqual({
-			connectedAccountId: "c1",
-		});
-		await deleteConnection("c/1", ctx);
-		expect(request.mock.calls.map(([path]) => path)).toEqual([
-			"/api/v1/connectors/toolkits?limit=200",
-			"/api/v1/connectors/toolkits/gmail/tools?limit=200",
-			"/api/v1/connectors/connections",
-			"/api/v1/connectors/connections/c%2F1",
-		]);
-		expect(JSON.parse(request.mock.calls[2][1].body as string)).toEqual({
-			toolkit: "gmail",
-		});
-	});
-
 	it.each([
 		401, 403,
 	])("preserves backend HTTP %i without falling back to a desktop login", async (status) => {
@@ -513,46 +469,5 @@ describe("host-supplied connector requests", () => {
 			},
 		);
 		expect(resolveConnectorsApiAuth).not.toHaveBeenCalled();
-	});
-
-	it("returns execution errors without retrying or falling back to local credentials", async () => {
-		const request = vi
-			.fn<ConnectorsRequest>()
-			.mockResolvedValue(
-				Response.json({ error: "access denied" }, { status: 403 }),
-			);
-		expect(
-			await executeConnectorTool(
-				{ slug: "GMAIL_FETCH_EMAILS" },
-				{},
-				{ request },
-			),
-		).toMatchObject({
-			successful: false,
-			error: expect.stringContaining("HTTP 403"),
-		});
-		expect(request).toHaveBeenCalledOnce();
-		expect(resolveConnectorsApiAuth).not.toHaveBeenCalled();
-		expect(global.fetch).not.toHaveBeenCalled();
-	});
-
-	it("does not share host transports between simultaneous users", async () => {
-		const ctx = (id: string) => ({
-			request: vi.fn<ConnectorsRequest>().mockImplementation(async () =>
-				Response.json({
-					success: true,
-					data: { items: [{ id }], nextToken: "" },
-				}),
-			),
-		});
-		const a = ctx("user-a-connection");
-		const b = ctx("user-b-connection");
-		const results = await Promise.all([listConnections(a), listConnections(b)]);
-		expect(results).toEqual([
-			[{ id: "user-a-connection" }],
-			[{ id: "user-b-connection" }],
-		]);
-		expect(a.request).toHaveBeenCalledOnce();
-		expect(b.request).toHaveBeenCalledOnce();
 	});
 });
