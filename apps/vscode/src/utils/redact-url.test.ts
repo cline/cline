@@ -43,6 +43,32 @@ describe("redactUrlsInText", () => {
 		expect(redactUrlsInText("ENOENT file:///Users/someone/secret.txt")).toBe("ENOENT file:<redacted>")
 	})
 
+	it("redacts parenthesized and bracketed parts of a URL instead of stopping at them", () => {
+		expect(redactUrlsInText("redirect to https://example.com/cb?code=(SECRET) failed")).toBe(
+			"redirect to https://example.com failed",
+		)
+		expect(redactUrlsInText("GET https://example.com/a[SECRET]/b")).toBe("GET https://example.com")
+		expect(redactUrlsInText("GET https://example.com/a{SECRET}")).toBe("GET https://example.com")
+	})
+
+	it("keeps IPv6 hosts intact", () => {
+		expect(redactUrlsInText("connect http://[::1]:3000/cb?code=SECRET")).toBe("connect http://[::1]:3000")
+		expect(redactUrlsInText("connect http://[::1]:3000.")).toBe("connect http://[::1]:3000.")
+	})
+
+	it("keeps punctuation that closes the surrounding sentence", () => {
+		expect(redactUrlsInText("(see https://example.com/p?k=1), then retry.")).toBe("(see https://example.com), then retry.")
+	})
+
+	it("runs in linear time on adversarial input", () => {
+		const inputs = [`https://a${"!".repeat(50_000)}`, "a.".repeat(50_000), `${"a".repeat(50_000)}:/`]
+		for (const input of inputs) {
+			const start = performance.now()
+			redactUrlsInText(input)
+			expect(performance.now() - start).toBeLessThan(250)
+		}
+	})
+
 	it("leaves text without URLs untouched", () => {
 		expect(redactUrlsInText("connect ECONNREFUSED 127.0.0.1:443")).toBe("connect ECONNREFUSED 127.0.0.1:443")
 	})
