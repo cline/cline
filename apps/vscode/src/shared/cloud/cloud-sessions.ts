@@ -35,12 +35,35 @@ export interface RememberedCloudStatus {
 /** Remembered statuses keyed by outer cloud session id. */
 export type RememberedCloudStatuses = Record<string, RememberedCloudStatus>
 
-/** The user's persisted Local/Cloud choice for new tasks. */
+/**
+ * What the user has chosen about where the next task runs. Only the user
+ * writes this, one field per choice; nothing derived is stored. A missing
+ * repository or branch means "whatever the extension resolves", see
+ * CloudTaskTargetView.
+ */
 export interface CloudTaskTargetSelection {
 	target: CloudExecutionTarget
+	/** GitHub repository id the user picked; may belong to another account. */
+	repositoryId?: number
+	/** Branch the user picked for that repository. */
+	branch?: string
+}
+
+/**
+ * The Local/Cloud target as the extension resolves it from the stored
+ * selection, the active account's repositories and the workspace's git
+ * remote. Recomputed on every state post; the composer submits `repoUrl`
+ * and `branch` from here, never from the stored selection.
+ */
+export interface CloudTaskTargetView {
+	target: CloudExecutionTarget
+	/** Repository a cloud task would clone: the stored one if this account can reach it, else the workspace's, else the first. */
 	repoUrl?: string
 	repositoryId?: number
+	/** Branch a cloud task would check out: the user's, else the workspace's when GitHub has it, else the default. */
 	branch?: string
+	/** Normalized URL of the workspace's origin remote, when it is a GitHub repository. */
+	workspaceRepoUrl?: string
 }
 
 /** Cloud-specific details of the task currently shown in the chat view. */
@@ -61,12 +84,12 @@ export const CLOUD_WORKSPACE_ROOT = "/workspace"
 export const CLOUD_SESSION_MODE = "act" as const
 
 /**
- * Whether the persisted Local/Cloud choice names a sandbox that can be
- * started: Cloud with a repository. Cloud without a repository is an
- * incomplete selection, not a fallback to Local.
+ * Whether the resolved target names a sandbox that can be started: Cloud
+ * with a repository. Cloud without a repository (none reachable, or not yet
+ * loaded) is an incomplete selection, not a fallback to Local.
  */
-export function isCloudTargetReady(selection: CloudTaskTargetSelection | undefined): boolean {
-	return selection?.target === "cloud" && !!selection.repoUrl?.trim()
+export function isCloudTargetReady(view: CloudTaskTargetView | undefined): boolean {
+	return view?.target === "cloud" && !!view.repoUrl
 }
 
 export const ACTIVE_CLOUD_STATUSES: ReadonlySet<CloudSessionStatus> = new Set(["provisioning", "running"])

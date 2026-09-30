@@ -1,5 +1,4 @@
-import type { GitHubConnection } from "@shared/proto/cline/cloud"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { type GitHubConnection, GitHubConnectionRequest } from "@shared/proto/cline/cloud"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { CloudServiceClient } from "@/services/grpc-client"
@@ -25,53 +24,60 @@ export function useGitHubConnection(enabled: boolean) {
 	const [loading, setLoading] = useState(false)
 	const inFlight = useRef<{ scope: object; promise: Promise<void> } | undefined>(undefined)
 
-	const refresh = useCallback(async () => {
-		if (!available) {
-			return
-		}
-		if (inFlight.current?.scope === scope) {
-			return inFlight.current.promise
-		}
-		setLoading(true)
-		const request = {
-			scope,
-			promise: CloudServiceClient.getGitHubConnection(EmptyRequest.create())
-				.then((result) => {
-					// A response for a previous account must not describe the current one.
-					if (inFlight.current === request) setSnapshot({ scope, connection: result })
-				})
-				.catch((error) => {
-					if (inFlight.current !== request) return
-					console.error("Failed to load GitHub connection:", error)
-					setSnapshot({
-						scope,
-						connection: {
-							signedIn: true,
-							connected: false,
-							connectUrl: "",
-							repositories: [],
-							error: error instanceof Error ? error.message : String(error),
-						},
+	const load = useCallback(
+		async (refresh: boolean) => {
+			if (!available) {
+				return
+			}
+			if (inFlight.current?.scope === scope) {
+				return inFlight.current.promise
+			}
+			setLoading(true)
+			const request = {
+				scope,
+				promise: CloudServiceClient.getGitHubConnection(GitHubConnectionRequest.create({ refresh }))
+					.then((result) => {
+						// A response for a previous account must not describe the current one.
+						if (inFlight.current === request) setSnapshot({ scope, connection: result })
 					})
-				})
-				.finally(() => {
-					if (inFlight.current === request) {
-						setLoading(false)
-						inFlight.current = undefined
-					}
-				}),
-		}
-		inFlight.current = request
-		return request.promise
-	}, [available, scope])
+					.catch((error) => {
+						if (inFlight.current !== request) return
+						console.error("Failed to load GitHub connection:", error)
+						setSnapshot({
+							scope,
+							connection: {
+								signedIn: true,
+								connected: false,
+								connectUrl: "",
+								repositories: [],
+								error: error instanceof Error ? error.message : String(error),
+							},
+						})
+					})
+					.finally(() => {
+						if (inFlight.current === request) {
+							setLoading(false)
+							inFlight.current = undefined
+						}
+					}),
+			}
+			inFlight.current = request
+			return request.promise
+		},
+		[available, scope],
+	)
 
+	// The extension caches the connection per account, so a first read after
+	// mounting or an account change is cheap; only the user's Refresh and the
+	// not-yet-connected poll ask the control plane again.
 	useEffect(() => {
 		setLoading(false)
-		void refresh()
+		void load(false)
 		return () => {
 			inFlight.current = undefined
 		}
-	}, [refresh])
+	}, [load])
+	const refresh = useCallback(() => load(true), [load])
 
 	const needsPolling =
 		available &&
