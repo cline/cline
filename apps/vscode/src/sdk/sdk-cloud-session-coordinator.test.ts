@@ -844,6 +844,32 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
 	})
 
+	it("reports the displayed task as provisioning until a failed start has settled", async () => {
+		const provisioned = deferred<void>()
+		const created = deferred<CloudSessionRecord>()
+		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions: { startNewSession: vi.fn() } as never })
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			provisioned.resolve()
+			return created.promise
+		})
+
+		// The webview learns the status only through state posts, so record what each post would carry.
+		const postedStatuses: Array<CloudSessionStatus | undefined> = []
+		vi.mocked(options.postStateToWebview).mockImplementation(async () => {
+			postedStatuses.push(coordinator.getCurrentTaskInfo()?.status)
+		})
+
+		const starting = coordinator.beginCloudTask({ prompt: "test", repoUrl: "https://github.com/cline/fixture" })()
+		await provisioned.promise
+		expect(coordinator.getCurrentTaskInfo()?.status).toBe("provisioning")
+
+		created.reject(new Error("control plane unavailable"))
+		expect(await starting).toBeUndefined()
+
+		expect(postedStatuses.at(-1)).toBe("unknown")
+	})
+
 	it("defeats a start that is claimed but not yet running when the user cancels first", async () => {
 		const { coordinator, cloudSessions } = makeCoordinator()
 
