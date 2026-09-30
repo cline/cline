@@ -3,6 +3,7 @@
 import * as Llms from "@cline/llms";
 import {
 	fetchModelIdsFromSource,
+	fetchOllamaVisionSupport,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -689,6 +690,40 @@ function resolvePublicCacheKey(
 	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}`;
 }
 
+// Enough parallelism to keep model-list refreshes quick on servers with many
+// pulled models, without opening a request per model at once.
+const OLLAMA_SHOW_CONCURRENCY = 8;
+
+/**
+ * Discover which of an Ollama server's models accept images.
+ *
+ * A model list built only from `/api/tags` carries no capability data, so every
+ * model was registered as text-only and the chat UI refused image attachments
+ * (and warned that the model "doesn't support images") even for vision models
+ * such as `qwen3-vl`. Ollama reports the real answer per model on `/api/show`.
+ * Models the server cannot answer for are left out of the map and keep the
+ * previous text-only default.
+ */
+async function probeOllamaVisionSupport(
+	sourceUrl: string,
+	modelIds: string[],
+): Promise<Map<string, boolean>> {
+	const support = new Map<string, boolean>();
+	for (let i = 0; i < modelIds.length; i += OLLAMA_SHOW_CONCURRENCY) {
+		const batch = modelIds.slice(i, i + OLLAMA_SHOW_CONCURRENCY);
+		const results = await Promise.all(
+			batch.map((id) => fetchOllamaVisionSupport(sourceUrl, id)),
+		);
+		batch.forEach((id, index) => {
+			const vision = results[index];
+			if (vision !== undefined) {
+				support.set(id, vision);
+			}
+		});
+	}
+	return support;
+}
+
 async function getPublicProviderModels(
 	providerId: string,
 	modelCatalog: ModelCatalogConfig | undefined,
@@ -719,11 +754,18 @@ async function getPublicProviderModels(
 	}
 
 	const request = fetchModelIdsFromSource(sourceUrl, providerId)
-		.then((modelIds) => {
+		.then(async (modelIds) => {
+			const visionSupport =
+				providerId === "ollama"
+					? await probeOllamaVisionSupport(sourceUrl, modelIds)
+					: new Map<string, boolean>();
 			const data = Object.fromEntries(
 				modelIds.map((id) => [
 					id,
-					buildModelFromPrivateSource(id, { name: id }),
+					buildModelFromPrivateSource(id, {
+						name: id,
+						supportsImages: visionSupport.get(id),
+					}),
 				]),
 			);
 			PUBLIC_MODELS_CACHE.set(cacheKey, {

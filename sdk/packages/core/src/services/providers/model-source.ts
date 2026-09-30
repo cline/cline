@@ -71,6 +71,44 @@ export async function fetchModelIdsFromSource(
 	);
 }
 
+/**
+ * Ask an Ollama server whether a model accepts image input.
+ *
+ * `/api/tags` (the models source) only lists installed models and says nothing
+ * about what they can do; `/api/show` reports each model's capabilities
+ * (`"vision"`, `"tools"`, `"thinking"`, ...). Resolves to `undefined` when
+ * the server cannot answer (an older Ollama that omits `capabilities`, a
+ * request failure, or a custom source URL that is not `.../api/tags`) so the
+ * caller keeps its existing default instead of guessing either way.
+ */
+export async function fetchOllamaVisionSupport(
+	modelsSourceUrl: string,
+	modelId: string,
+): Promise<boolean | undefined> {
+	if (!modelsSourceUrl.endsWith("/api/tags")) {
+		return undefined;
+	}
+	const showUrl = `${modelsSourceUrl.slice(0, -"tags".length)}show`;
+	try {
+		const response = await fetch(showUrl, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ model: modelId }),
+			signal: AbortSignal.timeout(5_000),
+		});
+		if (!response.ok) {
+			return undefined;
+		}
+		const payload = (await response.json()) as { capabilities?: unknown };
+		if (!Array.isArray(payload.capabilities)) {
+			return undefined;
+		}
+		return payload.capabilities.includes("vision");
+	} catch {
+		return undefined;
+	}
+}
+
 function trimTrailingSlash(value: string): string {
 	return value.replace(/\/+$/, "");
 }
