@@ -387,7 +387,7 @@ different process.
 
 ### Temporary external tool result recovery
 
-Cache admission and previews share image-free text serialization; native image data remains on the model media path. Recovery requires an available `read_files` tool and uses its existing output and per-line limits. Disabling the reader does not disable caching or remove notices.
+Cache admission and previews share image-free text serialization; native image data remains on the model media path. Plain strings remain unchanged, while structured recovery text uses YAML with literal multiline blocks and no automatic line wrapping. This preserves MCP payload line breaks instead of escaping them into a single JSON line. Recovery requires an available `read_files` tool and uses its existing output and per-line limits. Disabling the reader does not disable caching or remove notices.
 
 MCP and Composio tools declare `resultPolicy: "cache-oversized"` at registration; custom tools may opt in. After result-transforming hooks finish, Core caches oversized output in a session-owned `ToolResultCache` while retaining original output in conversation history and tool events. The existing synchronous `MessageBuilder.buildForApi` produces bounded previews and model-only recovery instructions, preserving native images. Other tools keep their existing projection behavior. No disk cache or asynchronous recovery builder is involved.
 

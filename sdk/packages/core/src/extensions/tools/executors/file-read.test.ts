@@ -3,12 +3,45 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	prepareToolResultRecovery,
 	TOOL_RESULT_CACHE_MISS,
 	ToolResultCache,
 } from "../../../session/services/tool-result-cache";
 import { createFileReadExecutor } from "./file-read";
 
 describe("createFileReadExecutor", () => {
+	it("recovers multiline MCP payloads serialized as YAML, including late line ranges", async () => {
+		const payload = Array.from(
+			{ length: 200 },
+			(_, index) => `line ${index + 1}: ${"x".repeat(80)}`,
+		).join("\n");
+		const { text } = prepareToolResultRecovery({
+			content: [{ type: "text", text: payload }],
+			isError: false,
+		});
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("mcp-call", text ?? "") ?? "";
+		const context = {
+			agentId: "agent",
+			iteration: 1,
+			metadata: { toolResultCache: cache },
+		};
+		const reader = createFileReadExecutor();
+		const output = String(await reader({ path: uri }, context));
+		expect(output).toContain("line 200:");
+		expect(output).not.toContain("[line truncated]");
+		const lastLine =
+			(text ?? "").split("\n").findIndex((line) => line.includes("line 200:")) +
+			1;
+		const lateRead = String(
+			await reader(
+				{ path: uri, start_line: lastLine, end_line: lastLine },
+				context,
+			),
+		);
+		expect(lateRead).toContain("line 200:");
+		expect(lateRead).not.toContain("line 1:");
+	});
 	it("reads cache URIs with the same inclusive ranges and line numbers", async () => {
 		const cache = new ToolResultCache("session");
 		const uri = cache.store("call", "alpha\nbeta\ngamma\ndelta") ?? "";

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ImageContent } from "@cline/shared";
+import YAML from "yaml";
 
 export const TOOL_RESULT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 export const TOOL_RESULT_CACHE_IDLE_ITERATIONS = 5;
@@ -125,7 +126,11 @@ export function prepareToolResultRecovery(output: unknown): {
 	const textual = extract(output);
 	return {
 		text:
-			typeof textual === "string" ? textual : JSON.stringify(textual, null, 2),
+			typeof textual === "string"
+				? textual
+				: textual === undefined
+					? undefined
+					: YAML.stringify(textual, { blockQuote: "literal", lineWidth: 0 }),
 		images,
 	};
 }

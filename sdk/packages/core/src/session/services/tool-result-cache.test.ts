@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import YAML from "yaml";
 import {
 	prepareToolResultRecovery,
 	TOOL_RESULT_CACHE_MISS,
@@ -6,6 +7,21 @@ import {
 } from "./tool-result-cache";
 
 describe("session memory result cache", () => {
+	it("preserves structured fields and multiline text in YAML while leaving strings unchanged", () => {
+		const output = {
+			content: [{ type: "text", text: "first\nsecond\nthird" }],
+			isError: false,
+			structuredContent: { count: 3 },
+		};
+		const { text } = prepareToolResultRecovery(output);
+		expect(YAML.parse(text ?? "")).toEqual(output);
+		expect(text).toContain("text: |-\n");
+		expect(text).not.toContain("first\\nsecond");
+		expect(prepareToolResultRecovery("first\nsecond").text).toBe(
+			"first\nsecond",
+		);
+		expect(prepareToolResultRecovery(undefined).text).toBeUndefined();
+	});
 	it("excludes native image bytes from recovery text and cache admission", () => {
 		const image = {
 			type: "image" as const,

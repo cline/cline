@@ -29,6 +29,7 @@ describe("runtime memory result recovery", () => {
 			{ length: 4000 },
 			(_, index) => `row_${index + 1}: original external response`,
 		).join("\n");
+		const externalOutput = { content: [{ type: "text", text: full }] };
 		let calls = 0;
 		let uri = "";
 		let readExpired = false;
@@ -52,7 +53,7 @@ describe("runtime memory result recovery", () => {
 					expect(uri).not.toBe("");
 					expect(JSON.stringify(output)).not.toContain("row_2000:");
 					toolName = "read_files";
-					input = { files: [{ path: uri, start_line: 2000, end_line: 2001 }] };
+					input = { files: [{ path: uri, start_line: 2003, end_line: 2004 }] };
 				} else if (call === 2) {
 					expect(
 						JSON.stringify(findResult(request.messages, "read_files")?.output),
@@ -60,7 +61,7 @@ describe("runtime memory result recovery", () => {
 				} else if (readExpired && !emittedExpiredRead) {
 					emittedExpiredRead = true;
 					toolName = "read_files";
-					input = { files: [{ path: uri, start_line: 2000, end_line: 2001 }] };
+					input = { files: [{ path: uri, start_line: 2003, end_line: 2004 }] };
 				} else if (readExpired) {
 					const reads = request.messages
 						.flatMap((message) => [...message.content])
@@ -100,7 +101,7 @@ describe("runtime memory result recovery", () => {
 					description: "test",
 					inputSchema: { type: "object" },
 					resultPolicy: "cache-oversized",
-					execute: async () => full,
+					execute: async () => externalOutput,
 				},
 				...createDefaultTools({
 					executors: { readFile: createFileReadExecutor() },
@@ -124,10 +125,21 @@ describe("runtime memory result recovery", () => {
 		});
 		try {
 			expect((await session.run("go")).text).toBe("done");
-			expect(finishedOutput).toBe(full);
-			expect(JSON.stringify(session.getMessages())).toContain(
-				JSON.stringify(full).slice(1, -1),
-			);
+			expect(finishedOutput).toEqual(externalOutput);
+			const storedResult = session
+				.getMessages()
+				.flatMap((message) =>
+					Array.isArray(message.content) ? message.content : [],
+				)
+				.find(
+					(block) =>
+						block.type === "tool_result" && block.tool_use_id === "call_0",
+				);
+			expect(storedResult?.type).toBe("tool_result");
+			if (storedResult?.type === "tool_result")
+				expect(JSON.parse(String(storedResult.content))).toEqual(
+					externalOutput,
+				);
 			for (let index = 0; index < 3; index++)
 				await session.continue("follow up");
 			expect(
