@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 export const TOOL_RESULT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 export const TOOL_RESULT_CACHE_IDLE_ITERATIONS = 5;
 export const TOOL_RESULT_CACHE_MISS =
-	"This cached tool result is no longer available. Refetch current data with the original read/query tool if needed; do not repeat side-effecting actions just to recover their output.";
+	"Cache not found. Make a new tool call for the latest result again if needed. DO NOT repeat side-effecting actions to recover output.";
 
 interface CachedResult {
 	toolCallId: string;
