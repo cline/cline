@@ -254,18 +254,22 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 
 		// Releasing a resident runtime so a same-id start can rebuild it is a
 		// lifecycle teardown too: the roster must survive for the replacement.
-		runtimeInstance.emit({
-			type: "teammate_shutdown",
-			agentId: "java-poet",
-			reason: "session_replaced",
-		});
-		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
-			expect.any(String),
-			expect.any(Object),
-			expect.arrayContaining([
-				expect.objectContaining({ agentId: "java-poet" }),
-			]),
-		);
+		// So is releasing a replacement whose activation failed: the specs it
+		// was restoring must remain for the next attempt.
+		for (const reason of ["session_replaced", "session_start_failed"]) {
+			runtimeInstance.emit({
+				type: "teammate_shutdown",
+				agentId: "java-poet",
+				reason,
+			});
+			expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+				expect.any(String),
+				expect.any(Object),
+				expect.arrayContaining([
+					expect.objectContaining({ agentId: "java-poet" }),
+				]),
+			);
+		}
 	});
 
 	it("forwards cline workspace metadata to teammate runtime bootstrap config", async () => {
