@@ -449,11 +449,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// by a live replacement, or by a replacement that registered and then
 			// failed (its own cleanup empties the slot), so it is never stranded. A
 			// rebuild that threw before registering leaves the idle resident in
-			// place and reachable. The release guard keeps a live replacement; a run
-			// that raced the rebuild onto the old runtime is aborted by the release,
-			// the intended teardown now that the id belongs to the replacement. Only
-			// a session already mid-turn when the start arrives is protected above.
-			// Release failures are already logged and captured internally.
+			// place and reachable. The release guard keeps a live replacement, and
+			// runTurn waits for a pending start, so a turn sent by another client
+			// during the rebuild runs on the replacement rather than being accepted
+			// by the old runtime and aborted with it. Only a session already
+			// mid-turn when the start arrives is protected above. Release failures
+			// are already logged and captured internally.
 			try {
 				return await this.startNewSession(
 					input,
