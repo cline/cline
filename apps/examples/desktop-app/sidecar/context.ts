@@ -537,6 +537,26 @@ function emitQueuedPromptStart(
 	);
 }
 
+/**
+ * A session the webview left mid-run stays tracked (tray count, restore guard,
+ * queued attachments) until its run settles. Once it is idle with nothing
+ * queued, its sidecar-side state is dropped the way an idle reset drops it.
+ * Anything still queued means the Hub is about to start another turn.
+ */
+function releaseAbandonedSession(
+	ctx: SidecarContext,
+	sessionId: string,
+	session: LiveSession,
+): void {
+	if (!session.abandoned || session.busy || session.promptsInQueue.length > 0) {
+		return;
+	}
+	discardAllTrackedAttachments(sessionId, session);
+	ctx.liveSessions.delete(sessionId);
+	ctx.sessionEnvironmentIds.delete(sessionId);
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+}
+
 export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -637,6 +657,7 @@ export function handleCoreSessionEvent(
 				if (status !== "running") {
 					// The turn that consumed submitted attachments has finished.
 					flushConsumedAttachments(sessionId, session);
+					releaseAbandonedSession(ctx, sessionId, session);
 				}
 			}
 			sendEvent(ctx, "chat_session_status", { sessionId, status });

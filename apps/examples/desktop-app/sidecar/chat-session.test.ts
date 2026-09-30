@@ -1410,6 +1410,28 @@ describe("first-send connection updates", () => {
 			expect(stop).not.toHaveBeenCalled();
 			expect(ctx.liveSessions.get(sessionId)?.status).toBe("running");
 			expect(existsSync(queuedFile)).toBe(true);
+
+			// While a prompt is still queued the run is not over: settling to
+			// idle keeps the entry (the Hub is about to start the next turn).
+			session.promptsInQueue = [
+				{ id: "pending_1", prompt: "next", steer: false },
+			];
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			} as never);
+			expect(ctx.liveSessions.has(sessionId)).toBe(true);
+			expect(existsSync(queuedFile)).toBe(true);
+
+			// Once the run settles with nothing queued, the abandoned entry and
+			// its leftover attachment files are released like an idle reset.
+			session.promptsInQueue = [];
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			} as never);
+			expect(ctx.liveSessions.has(sessionId)).toBe(false);
+			expect(existsSync(queuedFile)).toBe(false);
 		} finally {
 			if (previousSessionDataDir === undefined) {
 				delete process.env.CLINE_SESSION_DATA_DIR;

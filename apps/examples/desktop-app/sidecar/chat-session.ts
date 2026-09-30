@@ -1860,6 +1860,7 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
+			session.abandoned = true;
 			return { sessionId, ok: true };
 		}
 		discardAllTrackedAttachments(sessionId, session);
