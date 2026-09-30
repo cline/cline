@@ -8,6 +8,7 @@ import {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -82,6 +83,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
 		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
 		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
+		MAX_TOKENS_RECOVERY: TASK_MAX_TOKENS_RECOVERY_EVENT,
 		CANCELLED: TASK_CANCELLED_EVENT,
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
@@ -539,11 +541,14 @@ export function captureTokenUsage(
 		ulid: string;
 		/** Uncached input tokens only — disjoint from the cache buckets. */
 		tokensIn: number;
+		/** Non-reasoning output tokens only — reasoningTokenCount is disjoint from this. */
 		tokensOut: number;
 		cacheWriteTokens?: number;
 		cacheReadTokens?: number;
 		/** This request's cost delta, not a running total. */
 		totalCost?: number;
+		/** Reasoning/thinking tokens for this request, reported separately since they're no longer folded into tokensOut. */
+		reasoningTokenCount?: number;
 		provider?: string;
 		model: string;
 	} & Partial<TelemetryAgentIdentityProperties>,

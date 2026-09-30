@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import corePackage from "../../../package.json";
 import {
 	HubTransportError,
 	isHubReconnectableTransportError,
@@ -161,6 +162,38 @@ describe("NodeHubClient", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it.each([
+			undefined,
+			"1.2.3",
+		])("registers version %s and process ID", async (clientVersion) => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({
+				url: "ws://127.0.0.1:25463/hub",
+				clientVersion,
+				metadata: { connector: "telegram", version: "invalid", pid: -1 },
+			});
+			try {
+				await client.connect();
+				expect(MockWebSocket.instances[0].sentFrames).toContainEqual(
+					expect.objectContaining({
+						kind: "command",
+						envelope: expect.objectContaining({
+							command: "client.register",
+							payload: expect.objectContaining({
+								metadata: {
+									connector: "telegram",
+									version: clientVersion ?? corePackage.version,
+									pid: process.pid,
+								},
+							}),
+						}),
+					}),
+				);
+			} finally {
+				await client.dispose();
+			}
+		});
+
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 
@@ -260,6 +293,7 @@ describe("NodeHubClient", () => {
 				await client.connect();
 				MockWebSocket.instances[0].emit("close", { code: 1006, reason: "" });
 				let cancelled = false;
+				const onDispatch = vi.fn();
 				const beforeDispatch = vi.fn(() => {
 					if (cancelled) throw new Error("cancelled");
 				});
@@ -269,11 +303,13 @@ describe("NodeHubClient", () => {
 					"task",
 					{
 						beforeDispatch,
+						onDispatch,
 					},
 				);
 				expect(beforeDispatch).not.toHaveBeenCalled();
 				cancelled = true;
 				await expect(command).rejects.toThrow("cancelled");
+				expect(onDispatch).not.toHaveBeenCalled();
 				expect(MockWebSocket.instances[1].sentFrames).not.toContainEqual(
 					expect.objectContaining({
 						envelope: expect.objectContaining({
@@ -289,8 +325,18 @@ describe("NodeHubClient", () => {
 				await expect(
 					client.command("session.send_input", { prompt: "new" }, "task", {
 						beforeDispatch,
+						onDispatch,
 					}),
 				).resolves.toMatchObject({ ok: true });
+				expect(onDispatch).toHaveBeenCalledOnce();
+				expect(MockWebSocket.instances[1].sentFrames).toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							requestId: onDispatch.mock.calls[0][0],
+							command: "session.send_input",
+						}),
+					}),
+				);
 			} finally {
 				await client.dispose();
 			}
@@ -1342,11 +1388,18 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		});
 
 		const { ensureCompatibleLocalHubUrl } = await import(".");
+		const onStartupError = vi.fn();
 
 		await expect(
-			ensureCompatibleLocalHubUrl({ workspaceRoot: "/tmp/project" }),
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				onStartupError,
+			}),
 		).resolves.toBeUndefined();
 		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(onStartupError).toHaveBeenCalledWith(
+			new Error("could not retire stale hub"),
+		);
 	});
 
 	it("resolves managed shared discovery in development builds", async () => {

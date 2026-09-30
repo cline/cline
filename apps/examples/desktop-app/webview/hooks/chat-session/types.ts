@@ -133,6 +133,8 @@ export type ChatSessionCommandResponse = {
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	/** A plugin slash command ran in the sidecar and no turn was started. */
+	commandHandled?: boolean;
 	recoveredAfterDisconnect?: boolean;
 	status?: string;
 	promptsInQueue?: PromptInQueue[];

@@ -5,6 +5,18 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "anthropic/claude-sonnet-5.5",
+				name: "claude-sonnet-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
+				id: "anthropic/claude-opus-5.5",
+				name: "claude-opus-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "spacexai/grok-4.7",
 				name: "grok-4.7",
 				description: "",
@@ -23,14 +35,27 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 					"Kimi K3 is Moonshot AI’s new flagship MoE model for agentic coding",
 				tags: ["NEW"],
 			},
-			{
-				id: "anthropic/claude-opus-5",
-				name: "claude-opus-5",
-				description: "",
-				tags: ["NEW"],
-			},
 		],
 		free: [
+			{
+				id: "stealth/pixel-canary",
+				name: "Pixel Canary",
+				description: "Anonymous large model with strong coding capabilities",
+				tags: [],
+			},
+			{
+				id: "stealth/space-bunny-alpha",
+				name: "space-bunny-alpha",
+				description: "Blazing-fast inference with 1M context",
+				tags: [],
+			},
+			{
+				id: "cline-free/mimo-v2.6-flash",
+				name: "Mimo V2.6 Flash",
+				description:
+					"Mixture-of-Experts architecture with 309B total parameters",
+				tags: [],
+			},
 			{
 				id: "cline-free/deepseek-v4.1-flash",
 				name: "Deepseek-v4.1-Flash",
@@ -42,25 +67,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				name: "Muse Spark 1.3 Contributor",
 				description:
 					"Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows.",
-				tags: [],
-			},
-			{
-				id: "z-ai/glm-5.3-flash",
-				name: "glm-5.3-flash",
-				description: "Latest natively multimodal model in the GLM-5 series.",
-				tags: [],
-			},
-			{
-				id: "cline-free/solar-pro4",
-				name: "Solar Pro 4",
-				description:
-					"Strong model for office productivity, document-intensive work, and coding.",
-				tags: [],
-			},
-			{
-				id: "poolside/laguna-s-2.1:free",
-				name: "laguna-s-2.1:free",
-				description: "Latest coding agent model from Poolside",
 				tags: [],
 			},
 		],

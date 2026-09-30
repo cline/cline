@@ -679,6 +679,7 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 				inputTokens: 100,
 				outputTokens: 40,
 				cacheReadTokens: 5,
+				reasoningTokenCount: 15,
 				totalCost: 0.01,
 			}),
 		});
@@ -689,6 +690,7 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 			cacheReadTokens: 5,
 			cacheWriteTokens: undefined,
 			cost: 0.01,
+			reasoningTokenCount: 15,
 			totalInputTokens: 100,
 			totalOutputTokens: 40,
 			totalCacheReadTokens: 5,
@@ -704,6 +706,7 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 			usage: makeUsage({
 				inputTokens: 100,
 				outputTokens: 40,
+				reasoningTokenCount: 15,
 				totalCost: 0.01,
 			}),
 		});
@@ -713,18 +716,37 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 			usage: makeUsage({
 				inputTokens: 150,
 				outputTokens: 60,
+				reasoningTokenCount: 25,
 				totalCost: 0.03,
 			}),
 		});
 		expect(out[0]).toMatchObject({
 			inputTokens: 50,
 			outputTokens: 20,
+			reasoningTokenCount: 10,
 			totalInputTokens: 150,
 			totalOutputTokens: 60,
 			totalCost: 0.03,
 		});
 		// Floating-point-safe: 0.03 - 0.01 ≠ exactly 0.02 in IEEE-754.
 		expect((out[0] as { cost?: number }).cost).toBeCloseTo(0.02, 10);
+	});
+
+	it("does not repeat reasoning tokens when the cumulative count is unchanged", () => {
+		adapter.translate({
+			type: "usage-updated",
+			snapshot: makeSnapshot(),
+			usage: makeUsage({ outputTokens: 40, reasoningTokenCount: 15 }),
+		});
+		const out = adapter.translate({
+			type: "usage-updated",
+			snapshot: makeSnapshot(),
+			usage: makeUsage({ outputTokens: 60, reasoningTokenCount: 15 }),
+		});
+		expect(out[0]).toMatchObject({
+			outputTokens: 20,
+			reasoningTokenCount: undefined,
+		});
 	});
 
 	it("omits cost when the totalCost delta is zero", () => {
@@ -745,31 +767,40 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 		adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 100 }),
+			usage: makeUsage({ inputTokens: 100, reasoningTokenCount: 15 }),
 		});
 		const out = adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 50 }),
+			usage: makeUsage({ inputTokens: 50, reasoningTokenCount: 5 }),
 		});
-		expect(out[0]).toMatchObject({ inputTokens: 0 });
+		expect(out[0]).toMatchObject({ inputTokens: 0, reasoningTokenCount: 0 });
 	});
 
 	it("resets rolling totals via reset()", () => {
 		adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 100, outputTokens: 50 }),
+			usage: makeUsage({
+				inputTokens: 100,
+				outputTokens: 50,
+				reasoningTokenCount: 15,
+			}),
 		});
 		adapter.reset();
 		const out = adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 10, outputTokens: 5 }),
+			usage: makeUsage({
+				inputTokens: 10,
+				outputTokens: 5,
+				reasoningTokenCount: 3,
+			}),
 		});
 		expect(out[0]).toMatchObject({
 			inputTokens: 10,
 			outputTokens: 5,
+			reasoningTokenCount: 3,
 			totalInputTokens: 10,
 			totalOutputTokens: 5,
 		});

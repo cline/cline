@@ -9,7 +9,7 @@ describe("formatRunError", () => {
 	])("adds guidance exactly once for %s", (detail) => {
 		const auth = { providerId: "openrouter" };
 		const formatted = formatRunError(detail, "openrouter", auth);
-		expect(formatted).toContain("Settings → API Providers");
+		expect(formatted).toContain("Settings → Providers");
 		expect(formatted.match(/The run failed/g)).toHaveLength(1);
 		expect(formatRunError(formatted, "openrouter", auth)).toBe(formatted);
 	});

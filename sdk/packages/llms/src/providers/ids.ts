@@ -45,6 +45,7 @@ export enum BUILT_IN_PROVIDER {
 	HUGGINGFACE = "huggingface",
 	VERCEL_AI_GATEWAY = "vercel-ai-gateway",
 	V0 = "v0",
+	AIAND = "aiand",
 	AIHUBMIX = "aihubmix",
 	HICAP = "hicap",
 	NOUS_RESEARCH = "nousResearch",

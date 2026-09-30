@@ -116,6 +116,14 @@ vi.mock("@cline/shared", () => ({
 	}),
 	isHubDaemonProcess: (env: NodeJS.ProcessEnv = process.env) =>
 		env[CLINE_RUN_AS_HUB_DAEMON_ENV] === "1",
+	// Mirrors the real helper: POSIX and Windows bunfs spellings.
+	isBunEmbeddedModulePath: (path?: string) => {
+		const trimmed = path?.trim() ?? "";
+		return (
+			trimmed.startsWith("/$bunfs/") ||
+			trimmed.replace(/\\/g, "/").toLowerCase().startsWith("b:/~bun/")
+		);
+	},
 	resolveClineBuildEnv: () => "production",
 	withResolvedClineBuildEnv: (env: NodeJS.ProcessEnv) => env,
 }));
@@ -828,6 +836,63 @@ describe("ensureDetachedHubServer", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("gives up on a slow hub after the default 15s startup timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace").catch(
+				(error: unknown) => error,
+			);
+			await vi.advanceTimersByTimeAsync(16_000);
+
+			await expect(pending).resolves.toEqual(
+				new Error("Timed out after 15000ms waiting for detached hub startup."),
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps waiting for a hub that comes up after the old 8s limit", async () => {
+		vi.useFakeTimers();
+		try {
+			const record = {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				authToken: "token",
+			};
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			let settled = false;
+			const pending = ensureDetachedHubServer("/workspace").finally(() => {
+				settled = true;
+			});
+			// Past the old 8s limit: still waiting instead of failing.
+			await vi.advanceTimersByTimeAsync(12_000);
+			expect(settled).toBe(false);
+
+			readHubDiscovery.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue(record);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "token",
+			});
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("upgradeManagedHub", () => {
@@ -1198,5 +1263,31 @@ describe("upgradeManagedHub", () => {
 		);
 		expect(clearHubDiscovery).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
+	});
+});
+
+describe("resolveDaemonEntryArgs", () => {
+	it.each([
+		"/$bunfs/root/entry.js",
+		// Windows compiled binaries mount bunfs at B:\~BUN; passing that path
+		// as a script argument spawned a daemon with a dead argument
+		// (cline/cline#14292) instead of the personality marker.
+		"B:\\~BUN\\root\\entry.js",
+		"B:/~BUN/root/entry.js",
+	])("uses the --cline-hub-daemon marker for the embedded entry %s", async (entryPath) => {
+		const { __test__ } = await import(".");
+		expect(__test__.resolveDaemonEntryArgs(entryPath, true)).toEqual([
+			"--cline-hub-daemon",
+		]);
+	});
+
+	it("passes a real source entry path through, with development conditions under Bun", async () => {
+		const { __test__ } = await import(".");
+		expect(
+			__test__.resolveDaemonEntryArgs("/repo/sdk/hub/daemon/entry.ts", true),
+		).toEqual(["--conditions=development", "/repo/sdk/hub/daemon/entry.ts"]);
+		expect(
+			__test__.resolveDaemonEntryArgs("/repo/dist/hub/daemon/entry.js", false),
+		).toEqual(["/repo/dist/hub/daemon/entry.js"]);
 	});
 });

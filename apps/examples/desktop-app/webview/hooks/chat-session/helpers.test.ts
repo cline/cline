@@ -190,10 +190,10 @@ describe("resolveCredentialFailureHint", () => {
 		);
 	});
 
-	it("points known non-CLI providers at Settings → API Providers", () => {
+	it("points known non-CLI providers at Settings → Providers", () => {
 		for (const providerId of ["anthropic", "openai-codex"]) {
 			expect(resolveCredentialFailureHint(providerId, { providerId })).toMatch(
-				/Settings → API Providers/,
+				/Settings → Providers/,
 			);
 		}
 	});

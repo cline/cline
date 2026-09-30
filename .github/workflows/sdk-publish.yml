@@ -110,7 +110,7 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       - name: Setup Node.js
         if: steps.check_commits.outputs.skip != 'true'

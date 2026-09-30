@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
 
@@ -33,6 +35,8 @@ const TRAY_QUIT_MENU_ID: &str = "tray-quit";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
 #[cfg(any(target_os = "macos", test))]
+const EXPORT_DIAGNOSTICS_MENU_ID: &str = "export-diagnostics";
+#[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
@@ -45,6 +49,7 @@ enum DesktopAction {
     NewSession,
     OpenSettings,
     CheckForUpdates,
+    ExportDiagnostics,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -118,11 +123,13 @@ struct UpdateState {
     // concurrently and the later one can overwrite a freshly staged "ready"
     // with "idle"/"error" decided from its stale pre-await snapshot.
     cycle: tokio::sync::Mutex<()>,
-    // Windows only: the downloaded-but-not-installed update. On Windows,
+    // Windows and Linux: the downloaded-but-not-installed update. On Windows,
     // Update::install launches the NSIS installer and std::process::exit(0)s
-    // immediately, so installation must wait for the user-initiated restart
-    // instead of running inside the background cycle like it does on macOS.
-    #[cfg(windows)]
+    // immediately; on Linux (deb/rpm) it runs `pkexec dpkg -i` / `rpm -U`,
+    // which pops a root password prompt. Either way installation must wait
+    // for the user-initiated restart instead of running inside the
+    // background cycle like it does on macOS.
+    #[cfg(not(target_os = "macos"))]
     pending_install: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
 }
 
@@ -278,18 +285,19 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
             }
             set_update_status(app, state, "downloading", Some(version.clone()), None);
             // macOS: install right away — it only swaps the .app on disk and
-            // the running app keeps going until the user restarts. Windows:
-            // download only, because install() launches the NSIS installer
-            // and exits the process on the spot; the staged bytes are
-            // installed by restart_to_apply_update instead.
-            #[cfg(not(windows))]
+            // the running app keeps going until the user restarts. Windows
+            // and Linux: download only, because install() launches the NSIS
+            // installer and exits the process on the spot (Windows) or asks
+            // for the root password via pkexec (Linux deb/rpm); the staged
+            // bytes are installed by restart_to_apply_update instead.
+            #[cfg(target_os = "macos")]
             match update.download_and_install(|_, _| {}, || {}).await {
                 Ok(()) => set_update_status(app, state, "ready", Some(version), None),
                 Err(error) => {
                     set_update_status(app, state, "error", Some(version), Some(error.to_string()))
                 }
             }
-            #[cfg(windows)]
+            #[cfg(not(target_os = "macos"))]
             match update.download(|_, _| {}, || {}).await {
                 Ok(bytes) => {
                     if let Ok(mut pending) = state.pending_install.lock() {
@@ -831,17 +839,49 @@ async fn get_desktop_backend_endpoint(
 }
 
 #[tauri::command]
-fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
-    let mut dialog = rfd::FileDialog::new();
-    if let Some(path) = initial_path
+async fn pick_workspace_directory(
+    app: tauri::AppHandle,
+    initial_path: Option<String>,
+) -> Option<String> {
+    let initial_path = initial_path
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
-        dialog = dialog.set_directory(path);
-    }
-    dialog
-        .pick_folder()
-        .map(|path| path.to_string_lossy().to_string())
+        .filter(|value| !value.is_empty());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    // Same shape as tauri-plugin-dialog: the dialog is created on the main
+    // thread (native dialogs must be) and this async command awaits the
+    // result off it.
+    let _ = app.run_on_main_thread(move || {
+        // GTK: rfd drives the dialog through the GLib main loop that Tauri
+        // already owns, so it must be created here and awaited on another
+        // thread; a blocking pick_folder() on the main thread deadlocks.
+        #[cfg(target_os = "linux")]
+        {
+            let mut dialog = rfd::AsyncFileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let picked = dialog.pick_folder();
+            std::thread::spawn(move || {
+                let picked = tauri::async_runtime::block_on(picked);
+                let _ = tx.send(picked.map(|handle| handle.path().to_string_lossy().to_string()));
+            });
+        }
+        // macOS and Windows: the blocking dialog runs its own nested event
+        // loop on the main thread, as before.
+        #[cfg(not(target_os = "linux"))]
+        {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let _ = tx.send(
+                dialog
+                    .pick_folder()
+                    .map(|path| path.to_string_lossy().to_string()),
+            );
+        }
+    });
+    rx.await.ok().flatten()
 }
 
 #[tauri::command]
@@ -862,11 +902,14 @@ fn apply_staged_update(app: &tauri::AppHandle) {
     // first. On Windows this also releases the sidecar exe's file lock,
     // which the NSIS installer needs in order to replace it.
     backend_state.stop();
-    // Windows: install the bytes staged by the background cycle. install()
-    // launches the NSIS installer (which relaunches the app when done) and
-    // exits this process, so it only returns on failure — fall through to a
-    // plain restart of the current version in that case.
-    #[cfg(windows)]
+    // Windows and Linux: install the bytes staged by the background cycle.
+    // On Windows install() launches the NSIS installer (which relaunches the
+    // app when done) and exits this process, so it only returns on failure.
+    // On Linux it installs the deb/rpm through pkexec and returns, and the
+    // restart below launches the new version. Either way a failure (or a
+    // dismissed password prompt) falls through to a plain restart of the
+    // current version.
+    #[cfg(not(target_os = "macos"))]
     if let Some((update, bytes)) = update_state
         .pending_install
         .lock()
@@ -874,10 +917,10 @@ fn apply_staged_update(app: &tauri::AppHandle) {
         .and_then(|mut pending| pending.take())
     {
         if let Err(error) = update.install(bytes) {
-            eprintln!("[updater] failed to launch the update installer: {error}");
+            eprintln!("[updater] failed to install the update: {error}");
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     let _ = update_state;
     app.restart();
 }
@@ -1043,6 +1086,57 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.set_focus();
 }
 
+/// The inner size a too-large window should shrink to, or `None` when it
+/// already fits. All values are logical pixels; `chrome` is the size the OS
+/// decorations add around the webview (outer minus inner).
+fn clamped_inner_window_size(
+    inner: (f64, f64),
+    work_area: (f64, f64),
+    chrome: (f64, f64),
+) -> Option<(f64, f64)> {
+    let max_width = work_area.0 - chrome.0.max(0.0);
+    let max_height = work_area.1 - chrome.1.max(0.0);
+    if max_width <= 0.0 || max_height <= 0.0 {
+        // A zero or nonsense work area (headless monitor enumeration quirks)
+        // must never collapse the window.
+        return None;
+    }
+    let clamped = (inner.0.min(max_width), inner.1.min(max_height));
+    if clamped.0 < inner.0 || clamped.1 < inner.1 {
+        Some(clamped)
+    } else {
+        None
+    }
+}
+
+/// The configured window is 1500x980 logical pixels. On small or DPI-scaled
+/// displays — a 1920x1080 laptop at 150% has only a 1280x720 logical desktop —
+/// it opened larger than the screen, leaving the bottom and side of the UI
+/// (the settings and account controls among them) off-screen and unreachable
+/// (cline/cline#14270). Shrink an oversized window to the monitor's work area
+/// (which excludes the taskbar/dock) and re-center it.
+fn clamp_main_window_to_work_area(window: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let scale = monitor.scale_factor();
+    let work_area = monitor.work_area().size.to_logical::<f64>(scale);
+    let (Ok(outer), Ok(inner)) = (window.outer_size(), window.inner_size()) else {
+        return;
+    };
+    let outer = outer.to_logical::<f64>(scale);
+    let inner = inner.to_logical::<f64>(scale);
+    let Some((width, height)) = clamped_inner_window_size(
+        (inner.width, inner.height),
+        (work_area.width, work_area.height),
+        (outer.width - inner.width, outer.height - inner.height),
+    ) else {
+        return;
+    };
+    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    let _ = window.center();
+}
+
 /// Hide the main window instead of destroying it so the tray and Dock can
 /// bring it back. On macOS, hiding a window that is in native fullscreen
 /// leaves its now-empty fullscreen space on screen, so leave fullscreen first.
@@ -1156,6 +1250,7 @@ fn show_session_notification(
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<DesktopAction> {
     match menu_id {
+        EXPORT_DIAGNOSTICS_MENU_ID => Some(DesktopAction::ExportDiagnostics),
         VIEW_ZOOM_IN_MENU_ID => Some(DesktopAction::ZoomIn),
         VIEW_ZOOM_OUT_MENU_ID => Some(DesktopAction::ZoomOut),
         VIEW_ZOOM_RESET_MENU_ID => Some(DesktopAction::ZoomReset),
@@ -1193,12 +1288,21 @@ fn setup_application_menu(
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
 
+    let export_diagnostics = MenuItem::with_id(
+        app,
+        EXPORT_DIAGNOSTICS_MENU_ID,
+        "Export Diagnostics…",
+        true,
+        None::<&str>,
+    )?;
+    let mut help_menu = None;
     let mut view_menu = None;
     for item in menu.items()? {
         if let MenuItemKind::Submenu(submenu) = item {
-            if submenu.text()? == "View" {
-                view_menu = Some(submenu);
-                break;
+            match submenu.text()?.as_str() {
+                "View" => view_menu = Some(submenu),
+                "Help" => help_menu = Some(submenu),
+                _ => {}
             }
         }
     }
@@ -1209,6 +1313,17 @@ fn setup_application_menu(
         let view_menu =
             Submenu::with_items(app, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
         menu.append(&view_menu)?;
+    }
+
+    if let Some(help_menu) = help_menu {
+        help_menu.append(&export_diagnostics)?;
+    } else {
+        menu.append(&Submenu::with_items(
+            app,
+            "Help",
+            true,
+            &[&export_diagnostics],
+        )?)?;
     }
 
     app.set_menu(menu)?;
@@ -1364,6 +1479,11 @@ fn set_tray_status(
 }
 
 fn main() {
+    // Must stay first: WebKitGTK reads the environment while initializing,
+    // and the variable has to be in place before any thread exists.
+    #[cfg(target_os = "linux")]
+    linux_webview::configure_environment();
+
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
@@ -1397,6 +1517,9 @@ fn main() {
                 ) {
                     window.set_title(product_name)?;
                 }
+            }
+            if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                clamp_main_window_to_work_area(&window);
             }
             #[cfg(target_os = "macos")]
             if let Err(error) = macos_notification::configure(app.handle()) {
@@ -1504,6 +1627,44 @@ mod tests {
     }
 
     #[test]
+    fn oversized_window_is_clamped_to_the_work_area() {
+        // 1920x1080 at 150% scaling: 1280x720 logical work area (minus a
+        // 40px-tall taskbar already excluded from the work area) cannot hold
+        // the configured 1500x980 window (cline/cline#14270).
+        let clamped = clamped_inner_window_size(
+            (1500.0, 980.0),
+            (1280.0, 693.0),
+            (16.0, 39.0), // typical Windows decorated-frame chrome
+        );
+        assert_eq!(clamped, Some((1264.0, 654.0)));
+    }
+
+    #[test]
+    fn window_that_fits_is_left_alone() {
+        assert_eq!(
+            clamped_inner_window_size((1500.0, 980.0), (2560.0, 1400.0), (16.0, 39.0)),
+            None
+        );
+        // Exactly filling the available space needs no resize either.
+        assert_eq!(
+            clamped_inner_window_size((1264.0, 654.0), (1280.0, 693.0), (16.0, 39.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn nonsense_work_area_never_collapses_the_window() {
+        assert_eq!(
+            clamped_inner_window_size((1500.0, 980.0), (0.0, 0.0), (16.0, 39.0)),
+            None
+        );
+        assert_eq!(
+            clamped_inner_window_size((1500.0, 980.0), (10.0, 30.0), (16.0, 39.0)),
+            None
+        );
+    }
+
+    #[test]
     fn desktop_actions_are_buffered_in_order_until_drained() {
         let state = DesktopActionState::default();
         state.enqueue(DesktopAction::NewSession);
@@ -1552,7 +1713,7 @@ mod tests {
     }
 
     #[test]
-    fn application_menu_ids_map_to_zoom_actions() {
+    fn application_menu_ids_map_to_desktop_actions() {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_IN_MENU_ID),
             Some(DesktopAction::ZoomIn)
@@ -1564,6 +1725,14 @@ mod tests {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_RESET_MENU_ID),
             Some(DesktopAction::ZoomReset)
+        );
+        assert_eq!(
+            application_menu_action(EXPORT_DIAGNOSTICS_MENU_ID),
+            Some(DesktopAction::ExportDiagnostics)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::ExportDiagnostics).unwrap(),
+            serde_json::json!({ "type": "export-diagnostics" })
         );
         assert_eq!(application_menu_action("unknown"), None);
     }
