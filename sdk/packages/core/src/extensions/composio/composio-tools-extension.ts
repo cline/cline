@@ -20,6 +20,7 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  */
 
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
+const MAX_TOOL_DESCRIPTION_LENGTH = 1024;
 
 type StoredComposioTool = {
 	slug: string;
@@ -28,6 +29,36 @@ type StoredComposioTool = {
 	version?: string;
 	input_parameters?: Record<string, unknown>;
 };
+
+function parseToolInputParameters(
+	value: unknown,
+): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+export function normalizeComposioTool(
+	raw: ConnectorToolSchema,
+): StoredComposioTool | undefined {
+	if (!raw?.slug) {
+		return undefined;
+	}
+	const description = raw.description?.trim();
+	return {
+		slug: raw.slug,
+		name: raw.name?.trim() || undefined,
+		description:
+			description && description.length > MAX_TOOL_DESCRIPTION_LENGTH
+				? `${description.slice(0, MAX_TOOL_DESCRIPTION_LENGTH)}…`
+				: description || undefined,
+		version:
+			typeof raw.version === "string" && raw.version.trim()
+				? raw.version.trim()
+				: undefined,
+		input_parameters: parseToolInputParameters(raw.input_parameters),
+	};
+}
 
 type StoredComposioState = {
 	toolkits?: Record<
@@ -85,7 +116,12 @@ export async function createComposioToolsExtension(
 	let accountId: string | undefined;
 	let toolkits: [string, readonly ConnectorToolSchema[]][];
 	if (options?.request) {
-		toolkits = Object.entries(structuredClone(options.toolkits));
+		toolkits = Object.entries(structuredClone(options.toolkits)).map(
+			([slug, tools]) => [
+				slug,
+				tools.map(normalizeComposioTool).filter((tool) => tool !== undefined),
+			],
+		);
 	} else {
 		accountId = getAccountId();
 		if (!accountId) return undefined;

@@ -393,7 +393,7 @@ export async function executeConnectorTool(
 		return {
 			successful: false,
 			error:
-				error instanceof ConnectorsApiError && error.status
+				error instanceof ConnectorsApiError
 					? error.message
 					: `Cline connectors request failed: ${error instanceof Error ? error.message : String(error)}`,
 		};

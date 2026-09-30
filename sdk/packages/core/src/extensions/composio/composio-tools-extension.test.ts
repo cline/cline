@@ -32,9 +32,6 @@ vi.mock("../../runtime/orchestration/runtime-oauth-token-manager", () => ({
 		}
 	},
 }));
-vi.mock("../../services/providers/local-provider-service", () => ({
-	resolveLocalClineAuthToken: () => auth.token,
-}));
 vi.mock("../../services/storage/provider-settings-manager", () => ({
 	ProviderSettingsManager: class {
 		getProviderSettings() {
@@ -354,7 +351,7 @@ describe("createComposioToolsExtension", () => {
 			error: string;
 		};
 		expect(result.successful).toBe(false);
-		expect(result.error).toContain("network down");
+		expect(result.error).toBe("Cline API request failed: network down");
 	});
 });
 
@@ -440,6 +437,55 @@ describe("host-supplied Composio tools", () => {
 			version: "20250101_00",
 		});
 		expect(globalFetch).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		1024, 1025, 1026,
+	])("normalizes a supplied description of %i characters like local connections", async (length) => {
+		const description = "x".repeat(length);
+		const request = vi.fn<ConnectorsRequest>();
+		const tools = await setupTools({
+			request,
+			toolkits: {
+				gmail: [
+					{ slug: "GMAIL_FETCH_EMAILS", description: `  ${description}  ` },
+				],
+			},
+		});
+		const normalized =
+			length > 1024 ? `${description.slice(0, 1024)}…` : description;
+		expect(tools[0].description).toBe(
+			`${normalized} (gmail account connected via Composio)`,
+		);
+	});
+
+	it("normalizes supplied versions, names and primitive input parameters like local connections", async () => {
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValue(Response.json({ successful: true }));
+		const tools = await setupTools({
+			request,
+			toolkits: {
+				gmail: [
+					{
+						slug: "GMAIL_FETCH_EMAILS",
+						name: "  Read mail  ",
+						description: "  ",
+						version: "  v1  ",
+						input_parameters: "invalid",
+					},
+				],
+			},
+		});
+		expect(tools[0].description).toBe(
+			"Read mail (gmail account connected via Composio)",
+		);
+		expect(tools[0].inputSchema).toEqual({ type: "object", properties: {} });
+		await tools[0].execute({});
+		expect(JSON.parse(request.mock.calls[0][1].body as string)).toEqual({
+			arguments: {},
+			version: "v1",
+		});
 	});
 
 	it("keeps a snapshot and uses the supplied transport even if a desktop user signs in", async () => {
