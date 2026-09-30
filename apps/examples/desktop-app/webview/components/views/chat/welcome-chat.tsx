@@ -159,7 +159,15 @@ export function WelcomeScreen({
 	const listCloudRepositories = useCallback(async () => {
 		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
-		const result = await fetchCloudRepositories();
+		const result = await fetchCloudRepositories().catch((error) => {
+			// Resume saved-selection restoration if the picker refresh fails.
+			setCloudSetup((prev) =>
+				cloudSetupRequestRef.current === requestId && prev.status === "ready"
+					? { ...prev, requestId }
+					: prev,
+			);
+			throw error;
+		});
 		if (cloudSetupRequestRef.current === requestId) {
 			applyCloudSetupResult(result, requestId);
 		}

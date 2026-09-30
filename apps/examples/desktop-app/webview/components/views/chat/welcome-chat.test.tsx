@@ -160,6 +160,7 @@ describe("WelcomeScreen", () => {
 		"none",
 		"retry",
 		"manual",
+		"picker",
 	])("remembers the Cloud repository and branch (failure recovery: %s)", async (recovery) => {
 		accountRef.user = { id: "user-1" };
 		const scope = JSON.stringify([
@@ -223,7 +224,16 @@ describe("WelcomeScreen", () => {
 		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
 		await act(async () => repoCheck.resolve(repositories));
 		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
-		if (recovery !== "none") {
+		if (recovery === "picker") {
+			invokeMock.mockImplementation((command) =>
+				command === "list_cloud_repositories"
+					? Promise.reject(new Error("Picker lookup failed"))
+					: branchCheck.promise,
+			);
+			await clickButton("Select repository");
+			expect(container.textContent).toContain("Could not load repositories.");
+		}
+		if (recovery === "retry" || recovery === "manual") {
 			await act(async () =>
 				branchCheck.reject(new Error("Branch lookup failed")),
 			);
