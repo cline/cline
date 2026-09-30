@@ -8,10 +8,14 @@ import {
 	rm,
 	writeFile,
 } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
-import type { ToolResultContent } from "@cline/shared";
+import { dirname, join, resolve, sep } from "node:path";
+import type { Message, ToolResultContent } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
-import { serializeToolResultContent } from "./tool-result-recovery";
+import {
+	formatToolResultRecoveryNotice,
+	isToolResultRecoveryNotice,
+	serializeToolResultContent,
+} from "./tool-result-recovery";
 
 const RECORD_SUFFIX = ".record.json";
 
@@ -73,6 +77,86 @@ export class ToolResultStore {
 		);
 		this.records.add(recordKey(record.toolCallId, record.path));
 		return path;
+	}
+
+	/** Give seeded sessions their own recovery files before the source can be deleted. */
+	async copyReferences<T extends Message>(
+		messages: T[],
+		sessionsDirectory: string,
+	): Promise<T[]> {
+		const allowedRoot = resolve(sessionsDirectory);
+		const sources = new Map<string, ToolResultStore>();
+		const copies = new Map<string, Promise<string>>();
+		return Promise.all(
+			messages.map(async (message) => {
+				if (!Array.isArray(message.content)) return message;
+				const content = await Promise.all(
+					message.content.map(async (block) => {
+						if (block.type !== "tool_result" || !Array.isArray(block.content))
+							return block;
+						const entries = [];
+						for (const entry of block.content) {
+							if (
+								entry.type !== "text" ||
+								typeof entry.toolResultFile !== "string"
+							) {
+								entries.push(entry);
+								continue;
+							}
+							const oldPath = resolve(entry.toolResultFile);
+							const sourceRoot = dirname(dirname(oldPath));
+							if (
+								!oldPath.startsWith(`${allowedRoot}${sep}`) ||
+								sourceRoot === this.root
+							) {
+								entries.push(entry);
+								continue;
+							}
+							let source = sources.get(sourceRoot);
+							if (!source) {
+								source = new ToolResultStore(sourceRoot);
+								sources.set(sourceRoot, source);
+							}
+							await source.loadRecords();
+							if (
+								!isToolResultRecoveryNotice(
+									entry,
+									block.tool_use_id,
+									(id, path) => source.isRecorded(id, path),
+								)
+							) {
+								entries.push(entry);
+								continue;
+							}
+							const key = recordKey(block.tool_use_id, oldPath);
+							let copy = copies.get(key);
+							if (!copy) {
+								// A fresh namespace also isolates duplicate call IDs in imported history.
+								copy = readFile(oldPath, "utf8").then((content) =>
+									new ToolResultStore(this.root).save({ ...block, content }),
+								);
+								copies.set(key, copy);
+							}
+							let path: string;
+							try {
+								path = await copy;
+							} catch (error) {
+								if ((error as NodeJS.ErrnoException).code === "ENOENT")
+									continue;
+								throw error;
+							}
+							entries.push({
+								...entry,
+								text: formatToolResultRecoveryNotice(path),
+								toolResultFile: path,
+							});
+						}
+						return { ...block, content: entries };
+					}),
+				);
+				return { ...message, content };
+			}),
+		);
 	}
 
 	private async readPersistedRecords(): Promise<void> {

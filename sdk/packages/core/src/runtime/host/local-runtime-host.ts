@@ -78,6 +78,7 @@ import {
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
+import { ToolResultStore } from "../../session/services/tool-result-store";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
 import {
@@ -445,9 +446,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<StartSessionResult> {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
-		const startInput: ResolvedStartSessionInput =
+		let startInput: ResolvedStartSessionInput =
 			await this.applyInitialOAuthCredentials(input);
-		const initialMessages = startInput.initialMessages ?? [];
+		let initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
 			initialMessages.length > 0
 				? summarizeUsageFromMessages(initialMessages)
@@ -522,6 +523,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 						sessionId,
 					);
 			}
+		}
+		if (!resumedArtifacts && initialMessages.length > 0) {
+			initialMessages = await new ToolResultStore(
+				join(sessionDir, "tool-results"),
+			).copyReferences(initialMessages, sessionsDir);
+			startInput = { ...startInput, initialMessages };
 		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
 			initialUsage,

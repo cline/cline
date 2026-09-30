@@ -32,7 +32,12 @@ import {
 	type ToolResultRecordLookup,
 } from "./tool-result-recovery";
 
-const DEFAULT_TOOL_NAMES = new Set<string>(ALL_DEFAULT_TOOL_NAMES);
+// These built-in tools have structured reports consumed by hosts.
+const DEFAULT_TOOL_NAMES = new Set<string>([
+	...ALL_DEFAULT_TOOL_NAMES,
+	"spawn_agent",
+	"team_status",
+]);
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
@@ -235,13 +240,11 @@ export class MessageBuilder {
 		if (DEFAULT_TOOL_NAMES.has(result.name?.toLowerCase() ?? "")) return result;
 		// Bound the whole textual response, including many small structured fields.
 		// Keep native media blocks intact instead of truncating base64 data.
-		const media = Array.isArray(result.content)
-			? result.content.filter(isBinaryContentLike)
-			: [];
-		const textual = Array.isArray(result.content)
-			? result.content.filter((entry) => !isBinaryContentLike(entry))
-			: result.content;
-		const fullText = serializeToolResultContent(textual);
+		const media: ImageContent[] = [];
+		const textual = extractToolResultImages(result.content, media);
+		const fullText = serializeToolResultContent(
+			textual as ToolResultContent["content"],
+		);
 		if (typeof fullText !== "string") return result;
 		const preview = this.truncateMiddle(fullText);
 		if (preview === fullText) return result;
@@ -1821,6 +1824,28 @@ function deepCloneJsonLike(value: unknown): unknown {
 			out[key] = deepCloneJsonLike(item);
 		}
 		return out;
+	}
+	return value;
+}
+
+/** Hoist native images before serializing a structured external preview. */
+function extractToolResultImages(
+	value: unknown,
+	images: ImageContent[],
+): unknown {
+	if (isImageContentWithData(value)) {
+		images.push(value);
+		return "[image attached]";
+	}
+	if (Array.isArray(value))
+		return value.map((item) => extractToolResultImages(item, images));
+	if (value !== null && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [
+				key,
+				extractToolResultImages(item, images),
+			]),
+		);
 	}
 	return value;
 }

@@ -357,6 +357,14 @@ export function formatToolOutput(output: unknown): string {
 	if (Array.isArray(output)) {
 		const results = output
 			.map((item) => {
+				if (
+					item &&
+					typeof item === "object" &&
+					item.type === "text" &&
+					typeof item.text === "string"
+				) {
+					return truncate(item.text, 80);
+				}
 				if (item && typeof item === "object" && "result" in item) {
 					const result = item.result;
 					const resultStr = Array.isArray(result)

@@ -602,3 +602,9 @@ describe("sandbox environment", () => {
 		}
 	});
 });
+
+it("formats recorded external tool previews as readable text", () => {
+	expect(formatToolOutput([{ type: "text", text: "line one\nline two" }])).toBe(
+		"line one line two",
+	);
+});

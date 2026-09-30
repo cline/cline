@@ -2644,6 +2644,18 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 	// ---------------------------------------------------------------------------
 
 	describe("extractToolOutputText", () => {
+		it("renders recorded previews and recovery notices as readable multiline text", () => {
+			expect(
+				extractToolOutputText([
+					{ type: "text", text: "line one\nline two" },
+					{
+						type: "text",
+						text: "Full result saved to /session/result.txt for search.",
+						toolResultFile: "/session/result.txt",
+					},
+				]),
+			).toBe("line one\nline two\nFull result saved to /session/result.txt for search.")
+		})
 		it("returns empty string for null/undefined", () => {
 			expect(extractToolOutputText(null)).toBe("")
 			expect(extractToolOutputText(undefined)).toBe("")

@@ -36,6 +36,7 @@ import {
 } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { FileSessionService } from "../../session/services/file-session-service";
+import { ToolResultStore } from "../../session/services/tool-result-store";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
@@ -1160,6 +1161,90 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 		expect(started.manifest.source).toBe("kanban");
+	});
+
+	it("owns recovery files in seeded history before the source session is deleted", async () => {
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const sourceRoot = join(sessionsDir, "source", "tool-results");
+		const full = "saved output\n".repeat(1000);
+		const sourcePath = await new ToolResultStore(sourceRoot).save({
+			type: "tool_result",
+			tool_use_id: "call",
+			name: "external",
+			content: full,
+		});
+		const initialMessages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call",
+						name: "external",
+						content: [
+							{ type: "text", text: "saved preview" },
+							{
+								type: "text",
+								text: `Full result saved to ${sourcePath} for search.`,
+								toolResultFile: sourcePath,
+							},
+						],
+					},
+				],
+			},
+		];
+		const sessionService = new FileSessionService(sessionsDir);
+		const agent = {
+			run: vi.fn(),
+			continue: vi.fn(),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: () => "agent",
+			getConversationId: () => "conversation",
+			abort: vi.fn(),
+			subscribeEvents: () => () => {},
+			canStartRun: () => true,
+			shutdown: vi.fn(),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent,
+		});
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId: "seeded" }),
+					interactive: true,
+					initialMessages,
+				}),
+			);
+			const persisted = await manager.readSessionMessages("seeded");
+			const wire = JSON.stringify(persisted);
+			expect(wire).not.toContain(sourcePath);
+			const match = /Full result saved to (.*?) for search\./.exec(wire);
+			expect(match).not.toBeNull();
+			const path = match?.[1] ?? "";
+			expect(path).toContain(join(sessionsDir, "seeded", "tool-results"));
+			rmSync(join(sessionsDir, "source"), { recursive: true });
+			expect(readFileSync(path, "utf8")).toBe(full);
+			expect(createAgent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages: [
+						expect.objectContaining({
+							role: "user",
+							content: persisted[0].content,
+						}),
+					],
+				}),
+			);
+			expect(JSON.stringify(initialMessages)).toContain(sourcePath);
+		} finally {
+			await manager.dispose();
+		}
 	});
 
 	it("persists seeded history at session start so recovery can rebuild it", async () => {

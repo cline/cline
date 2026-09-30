@@ -688,6 +688,44 @@ describe("SessionRuntime message preparation", () => {
 		}
 	});
 
+	it("keeps oversized built-in delegation reports structured for host consumers", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		const output = {
+			text: "report\n".repeat(2000),
+			usage: { inputTokens: 123, outputTokens: 456 },
+			iterations: 1,
+			finishReason: "completed",
+		};
+		try {
+			await session.run("go");
+			const tool: AgentTool = {
+				name: "spawn_agent",
+				description: "delegate",
+				inputSchema: {},
+				execute: async () => output,
+			};
+			const after = await configs[0]?.hooks?.afterTool?.({
+				snapshot: makeSnapshot(),
+				tool,
+				toolCall: {
+					type: "tool-call",
+					toolCallId: "spawn",
+					toolName: tool.name,
+					input: {},
+				},
+				input: {},
+				result: { output },
+				startedAt: new Date(),
+				endedAt: new Date(),
+				durationMs: 0,
+			});
+			expect(after?.result?.output).toBe(output);
+		} finally {
+			await session.shutdown();
+		}
+	});
+
 	it("normalizes external output in afterTool before history and leaves model preparation read-only", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cline-runtime-results-"));
 		const { deps, configs } = makeRecordingRuntimeFactory();

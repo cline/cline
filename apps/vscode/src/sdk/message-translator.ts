@@ -1078,8 +1078,10 @@ export function extractToolOutputText(output: unknown): string {
 				parts.push(item)
 			} else if (typeof item === "object" && item !== null) {
 				const record = item as Record<string, unknown>
-				// ToolOperationResult has { query, result, success, error? }
-				if ("result" in record && typeof record.result === "string" && record.result) {
+				// Recorded external previews and recovery notices are native text blocks.
+				if (record.type === "text" && typeof record.text === "string") {
+					parts.push(record.text)
+				} else if ("result" in record && typeof record.result === "string" && record.result) {
 					parts.push(record.result)
 				} else if ("error" in record && typeof record.error === "string" && record.error) {
 					parts.push(record.error)
