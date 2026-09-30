@@ -20,6 +20,15 @@ export default defineConfig({
 				find: /^@cline\/core\/(.+)$/,
 				replacement: resolve(rootDir, "../../sdk/packages/core/src/$1"),
 			},
+			// `@cline/shared/browser` is a file (`src/index.browser.ts`), not a
+			// directory, so it must be aliased before the generic subpath rule.
+			{
+				find: /^@cline\/shared\/browser$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/shared/src/index.browser.ts",
+				),
+			},
 			{
 				find: /^@cline\/shared$/,
 				replacement: resolve(rootDir, "../../sdk/packages/shared/src/index.ts"),
