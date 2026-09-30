@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { type CloudRepository, CloudSessionError } from "@/services/cloud/CloudSessionsService"
-import { LOOKUP_RETRY_MS, SdkCloudTaskTarget, type SdkCloudTaskTargetOptions } from "./sdk-cloud-task-target"
+import {
+	LOOKUP_RETRY_MS,
+	REPOSITORIES_MAX_AGE_MS,
+	SdkCloudTaskTarget,
+	type SdkCloudTaskTargetOptions,
+	WORKSPACE_MAX_AGE_MS,
+} from "./sdk-cloud-task-target"
 
 const mocks = vi.hoisted(() => ({
 	workspaceDefaults: vi.fn<(cwd: string) => Promise<{ repoUrl?: string; branch?: string }>>(async () => ({})),
@@ -178,6 +184,39 @@ describe("SdkCloudTaskTarget", () => {
 
 		cloudSessions.getGitHubConnection.mockRejectedValueOnce(new CloudSessionError("authentication_required", "expired"))
 		expect(await target.connectionStatus(true)).toMatchObject({ signedIn: false, connectUrl: "https://app.test/connect" })
+	})
+
+	it("re-reads repositories and the workspace checkout once they age, keeping the old answer meanwhile", async () => {
+		const { target, cloudSessions, advance } = makeTarget()
+		mocks.workspaceDefaults.mockResolvedValue({ repoUrl: "https://github.com/cline/cline", branch: "feature/a" })
+		await target.choose({ target: "cloud" })
+		target.view()
+		await settle()
+		target.view()
+		await settle()
+		expect(target.view()).toMatchObject({ repositoryId: 7, branch: "feature/a" })
+		expect(cloudSessions.getGitHubConnection).toHaveBeenCalledTimes(1)
+		expect(mocks.workspaceDefaults).toHaveBeenCalledTimes(1)
+
+		// The user checks out another branch in the terminal and revokes the
+		// GitHub App's access to the repository in the browser.
+		mocks.workspaceDefaults.mockResolvedValue({ repoUrl: "https://github.com/cline/cline", branch: "feature/b" })
+		cloudSessions.getGitHubConnection.mockResolvedValue({ connected: true, connectUrl: "", repositories: [other] })
+
+		advance(WORKSPACE_MAX_AGE_MS)
+		// The aged read still answers from cache and reloads behind it.
+		expect(target.view()).toMatchObject({ repositoryId: 7, branch: "feature/a" })
+		await settle()
+		target.view()
+		await settle()
+		expect(target.view()).toMatchObject({ repositoryId: 7, branch: "feature/b" })
+		expect(cloudSessions.getGitHubConnection).toHaveBeenCalledTimes(1)
+
+		advance(REPOSITORIES_MAX_AGE_MS)
+		target.view()
+		await settle()
+		expect(cloudSessions.getGitHubConnection).toHaveBeenCalledTimes(2)
+		expect(target.view()).toMatchObject({ repositoryId: other.id, branch: "trunk" })
 	})
 
 	it("is Local with no lookups when the user has not chosen Cloud", async () => {

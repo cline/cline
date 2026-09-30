@@ -75,14 +75,18 @@ describe("switchAccount owns the account boundary", () => {
 		expect(mocks.request).toHaveBeenLastCalledWith(expect.objectContaining({ data: { organizationId: null } }))
 	})
 
-	it("does nothing when the account already matches", async () => {
+	it("restores the server account without tearing down cloud state when the cached account already matches", async () => {
+		// Another client on the same login may have moved the server's active
+		// account; the request must still be sent, but the cloud state here is
+		// scoped by the cached account, which is not changing.
+		mocks.request.mockResolvedValue({ status: 200, data: { success: true, data: "" } })
 		const boundary = vi.fn(async (change: () => Promise<void>) => change())
 		const service = new ClineAccountService()
 		service.onAccountChange(boundary)
 
 		await service.switchAccount("org-old")
 
-		expect(mocks.request).not.toHaveBeenCalled()
+		expect(mocks.request).toHaveBeenCalledWith(expect.objectContaining({ data: { organizationId: "org-old" } }))
 		expect(boundary).not.toHaveBeenCalled()
 	})
 })
