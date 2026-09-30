@@ -14,7 +14,7 @@ vi.mock("../feature-flags/cline-account-feature-flags", async () => ({
 	...(await vi.importActual<
 		typeof import("../feature-flags/cline-account-feature-flags")
 	>("../feature-flags/cline-account-feature-flags")),
-	isClineAccountFeatureEnabled: async () => beta.enabled,
+	isClineAccountFeatureEnabled: vi.fn(async () => beta.enabled),
 }));
 
 vi.mock("./cline-auth", () => ({
@@ -26,9 +26,13 @@ vi.mock("./cline-auth", () => ({
 	})),
 }));
 
+import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
+import { resolveConnectorsApiAuth } from "./cline-auth";
 import {
 	type ConnectorsApiError,
+	type ConnectorsRequest,
 	deleteConnection,
+	executeConnectorTool,
 	fetchConnectableToolkits,
 	initiateConnection,
 	listConnections,
@@ -383,5 +387,87 @@ describe("connector router contract", () => {
 			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections/account%2Fid",
 			expect.objectContaining({ method: "DELETE" }),
 		);
+	});
+});
+
+describe("host-supplied connector requests", () => {
+	beforeEach(() => {
+		identity.accountId = undefined;
+		beta.enabled = false;
+		global.fetch = vi.fn() as unknown as typeof fetch;
+	});
+
+	it("still requires the saved login when no host request is supplied", async () => {
+		await expect(listConnections()).rejects.toMatchObject({ status: 401 });
+		expect(global.fetch).not.toHaveBeenCalled();
+	});
+
+	it("discovers all pages using the host without consulting a desktop login or flag", async () => {
+		const account = {
+			id: "cloud-account",
+			toolkit: { slug: "gmail" },
+			status: "ACTIVE",
+		};
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValueOnce(
+				Response.json({
+					success: true,
+					data: { items: [], nextToken: "next/+=" },
+				}),
+			)
+			.mockResolvedValueOnce(
+				Response.json({
+					success: true,
+					data: { items: [account], nextToken: "" },
+				}),
+			);
+		expect(await listConnections({ request })).toEqual([account]);
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			"/api/v1/connectors/connections?limit=200",
+			"/api/v1/connectors/connections?limit=200&cursor=next%2F%2B%3D",
+		]);
+		expect(request.mock.calls[0][1]).toEqual({ method: "GET", headers: {} });
+		expect(resolveConnectorsApiAuth).not.toHaveBeenCalled();
+		expect(isClineAccountFeatureEnabled).not.toHaveBeenCalled();
+		expect(global.fetch).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		401, 403,
+	])("preserves backend HTTP %i without falling back to a desktop login", async (status) => {
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValue(Response.json({ error: "access denied" }, { status }));
+		await expect(listConnections({ request })).rejects.toMatchObject({
+			status,
+			message: "access denied",
+		});
+		expect(request).toHaveBeenCalledOnce();
+		expect(resolveConnectorsApiAuth).not.toHaveBeenCalled();
+		expect(global.fetch).not.toHaveBeenCalled();
+	});
+
+	it("executes with the host request and preserves the raw provider body and version", async () => {
+		const result = { success: true, data: { messages: [] } };
+		const request = vi
+			.fn<ConnectorsRequest>()
+			.mockResolvedValue(Response.json(result));
+		expect(
+			await executeConnectorTool(
+				{ slug: "GMAIL_FETCH_EMAILS", version: "v1" },
+				{ max_results: 1 },
+				{ request },
+			),
+		).toEqual(result);
+		expect(request).toHaveBeenCalledWith(
+			"/api/v1/connectors/tools/GMAIL_FETCH_EMAILS/execute",
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ arguments: { max_results: 1 }, version: "v1" }),
+			},
+		);
+		expect(resolveConnectorsApiAuth).not.toHaveBeenCalled();
 	});
 });

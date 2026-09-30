@@ -22,7 +22,6 @@ import {
 	isComposioToolkitSlug,
 } from "@cline/shared";
 import { resolveClineDir } from "@cline/shared/storage";
-import { resolveComposioToolsStatePath } from "../../extensions/composio/composio-tools-extension";
 import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
 import {
 	type ClineAuthTelemetryContext,
@@ -38,6 +37,11 @@ import {
 	listToolkitTools,
 	waitForConnectionActive,
 } from "./cline-connectors-api";
+import {
+	normalizeComposioTool,
+	resolveComposioToolsStatePath,
+	type StoredComposioTool,
+} from "./composio-tools";
 
 /**
  * Management plane for Composio-backed integrations (Gmail, Google Calendar,
@@ -65,15 +69,6 @@ import {
 const LEGACY_COMPOSIO_PLUGIN_RELATIVE_PATH = ["plugins", "composio-tools.ts"];
 /** How long the background waiter gives the user to finish the browser flow. */
 const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
-const MAX_TOOL_DESCRIPTION_LENGTH = 1024;
-
-type StoredComposioTool = {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: Record<string, unknown>;
-};
 
 type StoredComposioToolkit = {
 	connectedAccountId: string;
@@ -148,40 +143,6 @@ function getAccountScope(): AccountScope | undefined {
 		accountScopes.set(accountId, scope);
 	}
 	return scope;
-}
-
-function parseToolInputParameters(
-	value: unknown,
-): Record<string, unknown> | undefined {
-	return typeof value === "object" && value !== null
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-function toStoredTool(raw: {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: unknown;
-}): StoredComposioTool | undefined {
-	if (!raw?.slug) {
-		return undefined;
-	}
-	const description = raw.description?.trim();
-	return {
-		slug: raw.slug,
-		name: raw.name?.trim() || undefined,
-		description:
-			description && description.length > MAX_TOOL_DESCRIPTION_LENGTH
-				? `${description.slice(0, MAX_TOOL_DESCRIPTION_LENGTH)}…`
-				: description || undefined,
-		version:
-			typeof raw.version === "string" && raw.version.trim()
-				? raw.version.trim()
-				: undefined,
-		input_parameters: parseToolInputParameters(raw.input_parameters),
-	};
 }
 
 function formatConnectorsError(error: unknown): string {
@@ -1130,7 +1091,7 @@ async function fetchToolkitTools(
 	});
 	const tools: StoredComposioTool[] = [];
 	for (const raw of rawTools) {
-		const tool = toStoredTool(raw);
+		const tool = normalizeComposioTool(raw);
 		if (tool) {
 			tools.push(tool);
 		}
