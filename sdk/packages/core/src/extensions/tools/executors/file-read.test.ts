@@ -62,7 +62,7 @@ describe("createFileReadExecutor", () => {
 		).rejects.toThrow(TOOL_RESULT_CACHE_MISS);
 	});
 
-	it("wraps long cached lines and rejects cross-session or unavailable cache reads", async () => {
+	it("bounds cached line output and rejects cross-session or unavailable cache reads", async () => {
 		const cache = new ToolResultCache("session");
 		const uri = cache.store("call", `${"x".repeat(10000)}\nend`) ?? "";
 		const context = {
@@ -70,18 +70,9 @@ describe("createFileReadExecutor", () => {
 			iteration: 1,
 			metadata: { toolResultCache: cache },
 		};
-		const text = String(await createFileReadExecutor()({ path: uri }, context));
-		// A single 10,000-char line is paged as ten 1,000-char lines instead of
-		// being cut at MAX_LINE_CHARS, so every byte stays reachable by range.
-		expect(text).not.toContain("[line truncated]");
-		expect(text).toContain(`10 | ${"x".repeat(1000)}`);
-		expect(text).toContain("11 | end");
-		expect(
-			await createFileReadExecutor()(
-				{ path: uri, start_line: 11, end_line: 11 },
-				context,
-			),
-		).toBe("11 | end");
+		const text = await createFileReadExecutor()({ path: uri }, context);
+		expect(String(text)).toContain("[line truncated]");
+		expect(String(text).length).toBeLessThan(2100);
 		await expect(
 			createFileReadExecutor()(
 				{ path: uri },

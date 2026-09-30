@@ -220,13 +220,8 @@ export function createFileReadExecutor(
 			const cache = context.metadata?.toolResultCache;
 			if (!(cache instanceof ToolResultCache))
 				throw new Error(TOOL_RESULT_CACHE_MISS);
-			// Cache lines are a paging view, not source line numbers. Wrap long
-			// lines so MAX_LINE_CHARS cannot make single-line payloads unrecoverable.
-			const text = cache
-				.read(filePath)
-				.replace(/([^\r\n]{1000})(?=[^\r\n])/gu, "$1\n");
 			return readTextWindow(
-				Readable.from([text]),
+				Readable.from([cache.read(filePath)]),
 				includeLineNumbers,
 				start_line,
 				end_line,
