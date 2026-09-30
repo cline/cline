@@ -46,8 +46,9 @@ to open a session, and `send` for a follow-up. Attaching a provisioning or faile
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
 The optional sixth argument to `send` exposes `beforeDispatch` for durable host
-recovery and `onAccepted` for a correlated acceptance. A failed `beforeDispatch`
-callback prevents submission; an `onAccepted` failure does not undo acceptance.
+recovery and `onAccepted` for a successful send acknowledgement, not `run.started`.
+A failed `beforeDispatch` callback prevents submission; an `onAccepted` failure
+does not undo acceptance.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

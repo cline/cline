@@ -7,9 +7,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { NodeHubClient } from "@cline/core";
+import { HubServerTransport } from "@cline/core/hub";
+import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
+	type CloudHandoffFollowUp,
 	clearCloudHandoffFollowUp,
 	readCloudHandoffFollowUp,
 	saveCloudHandoffFollowUp,
@@ -270,4 +274,139 @@ it("leaves ordinary cloud sends without a recovery copy unchanged", async () => 
 	).resolves.toEqual({ ok: true });
 	expect(send).toHaveBeenCalledOnce();
 	expect(readdirSync(dataDir)).toEqual([]);
+});
+
+it.each([
+	false,
+	true,
+])("retains recovery until the actual Hub handler acknowledges admission (rejected: %s)", async (rejected) => {
+	const ctx = createSidecarContext("/workspace");
+	const options = {
+		apiBaseUrl: "https://api.example",
+		appBaseUrl: "https://app.example",
+		getAuthToken: async () => "synthetic-token",
+	};
+	const api = new CloudSessionApi(options);
+	vi.spyOn(api, "list").mockResolvedValue([
+		{
+			id: "cloud-target",
+			status: "ready",
+			sandboxUrl: "",
+			title: "test",
+			repoContext: {},
+			metadata: { taskId: "inner", modelId: "model" },
+			createdAt: "2026-01-01",
+			updatedAt: "2026-01-01",
+		},
+	]);
+	const session = {
+		sessionId: "inner",
+		status: "idle",
+		metadata: { model: "model" },
+	};
+	const messages: Array<{ role: "user"; content: string }> = [];
+	const saved = {
+		sourceSessionId: "source",
+		command: "inspect this",
+		userImages: ["data:image/png;base64,aW1hZ2U="],
+	};
+	let recoveryAtAdmission: CloudHandoffFollowUp | null = null;
+	const runTurn = vi.fn(
+		async (input: { prompt: string; userImages?: string[] }) => {
+			recoveryAtAdmission = readCloudHandoffFollowUp("cloud-target");
+			expect(input.userImages).toEqual(saved.userImages);
+			if (rejected) throw new Error("Runtime admission rejected");
+			messages.push({ role: "user", content: input.prompt });
+		},
+	);
+	const transport = new HubServerTransport({
+		sessionHost: {
+			getSession: async () => session,
+			runTurn,
+			subscribe: vi.fn(),
+			dispose: vi.fn(),
+		} as never,
+		runtimeHandlers: {
+			startSession: vi.fn(),
+			sendSession: vi.fn(),
+			abortSession: vi.fn(),
+			stopSession: vi.fn(),
+		},
+		sessionSearchOptions: { dbPath: ":memory:" },
+		scheduleOptions: { dbPath: ":memory:" },
+		taskOptions: { dbPath: ":memory:", watchFiles: false },
+	});
+	const cloud = new CloudSessionManager(ctx, {
+		...options,
+		api,
+		createHubClient: () =>
+			({
+				connect: async () => {},
+				dispose: async () => {},
+				getClientId: () => "viewer",
+				subscribe: (callback: (event: HubEventEnvelope) => void) =>
+					transport.subscribe("viewer", callback),
+				command: async (
+					name: string,
+					payload: Record<string, unknown>,
+					sessionId: string,
+					dispatch?: Parameters<NodeHubClient["command"]>[3],
+				) => {
+					if (name !== "session.send_input")
+						return {
+							version: "v1",
+							ok: true,
+							payload: { session, messages, prompts: [] },
+						};
+					dispatch?.beforeDispatch?.();
+					dispatch?.onDispatch?.("input-request");
+					return await transport.handleCommand({
+						version: "v1",
+						command: name,
+						payload,
+						sessionId,
+						requestId: "input-request",
+						clientId: "viewer",
+					});
+				},
+			}) as NodeHubClient,
+	});
+	ctx.cloudSessionManager = cloud;
+	try {
+		await cloud.attach("cloud-target");
+		await cloud.readMessages("cloud-target");
+		saveCloudHandoffFollowUp("cloud-target", saved);
+		const sending = sendWithCloudHandoffFollowUp(
+			"cloud-target",
+			saved.command,
+			saved.userImages,
+			(lifecycle) =>
+				cloud.send(
+					"cloud-target",
+					saved.command,
+					undefined,
+					undefined,
+					saved.userImages,
+					lifecycle,
+				),
+		);
+		if (rejected) {
+			await expect(sending).rejects.toThrow("Runtime admission rejected");
+			expect(messages).toEqual([]);
+			expect(cloud.getSnapshot("cloud-target")?.messages).toEqual([]);
+			expect(readCloudHandoffFollowUp("cloud-target")).toEqual({
+				...saved,
+				unconfirmed: true,
+			});
+		} else {
+			await expect(sending).resolves.toMatchObject({ ok: true });
+			expect(messages).toEqual([{ role: "user", content: saved.command }]);
+			expect(readCloudHandoffFollowUp("cloud-target")).toBeNull();
+		}
+		expect(runTurn).toHaveBeenCalledOnce();
+		expect(recoveryAtAdmission).toEqual({ ...saved, unconfirmed: true });
+	} finally {
+		await disposeSidecarContext(ctx);
+		await transport.stop();
+	}
 });
