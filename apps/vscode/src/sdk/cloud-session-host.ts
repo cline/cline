@@ -174,6 +174,12 @@ export class CloudSessionHost implements SdkSessionHost {
 			this.modelId = typeof task.model === "string" ? task.model : undefined
 			const mapped = mapAgentStatus(String(task.status ?? ""))
 			this.setStatus(mapped ?? "unknown", false)
+			// The Hub streams a session's events only to clients subscribed to it,
+			// and it subscribes a client when it first sends a command for that
+			// session. A connection opened only to watch status has sent none, so
+			// list the task's pending prompts to open the stream; otherwise a turn
+			// finished by another client would leave this host on "running".
+			await this.host.pendingPrompts.list({ sessionId: task.sessionId }).catch(() => undefined)
 		} else if (this.innerSessionId) {
 			this.setStatus("unknown", false)
 		}
