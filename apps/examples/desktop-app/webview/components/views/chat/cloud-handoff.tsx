@@ -167,27 +167,48 @@ export function CloudHandoffRecoveryNotice({
 	dashboardUrl,
 	onOpenCloud,
 	onDismiss,
+	onRestoreDraft,
+	disabled = false,
 }: {
-	dashboardUrl: string;
-	onOpenCloud: () => void;
+	dashboardUrl?: string;
+	onOpenCloud?: () => void;
 	onDismiss: () => void;
+	onRestoreDraft?: () => void;
+	disabled?: boolean;
 }) {
 	return (
 		<Alert className="mx-auto mb-2 w-full max-w-xl pr-10">
 			<Cloud />
-			<AlertTitle>Handoff interrupted</AlertTitle>
+			<AlertTitle>
+				{onRestoreDraft
+					? "Follow-up delivery is unconfirmed"
+					: "Handoff interrupted"}
+			</AlertTitle>
 			<AlertDescription>
-				<p>A cloud session was created and may still be available.</p>
+				<p>
+					{onRestoreDraft
+						? "Check this conversation before restoring the saved draft; it may already have been sent."
+						: "A cloud session was created and may still be available."}
+				</p>
 				<div className="mt-2 flex w-full items-start justify-between gap-3">
-					<p className="min-w-0 break-all text-xs">{dashboardUrl}</p>
+					{dashboardUrl && (
+						<p className="min-w-0 break-all text-xs">{dashboardUrl}</p>
+					)}
 					<Button
 						className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-						onClick={onOpenCloud}
+						onClick={onRestoreDraft ?? onOpenCloud}
+						disabled={disabled}
 						size="sm"
 						variant="outline"
 					>
-						<ExternalLink className="size-3.5" />
-						Open Cloud
+						{onRestoreDraft ? (
+							"Restore saved draft"
+						) : (
+							<>
+								<ExternalLink className="size-3.5" />
+								Open Cloud
+							</>
+						)}
 					</Button>
 				</div>
 			</AlertDescription>
@@ -195,6 +216,7 @@ export function CloudHandoffRecoveryNotice({
 				aria-label="Dismiss handoff recovery"
 				className="absolute right-2 top-2 size-7 text-muted-foreground"
 				onClick={onDismiss}
+				disabled={disabled}
 				size="icon"
 				variant="ghost"
 			>

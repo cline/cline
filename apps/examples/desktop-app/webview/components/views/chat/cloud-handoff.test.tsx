@@ -220,6 +220,32 @@ describe("CloudHandoffReceipt", () => {
 });
 
 describe("CloudHandoffRecoveryNotice", () => {
+	it("requires an explicit restore or dismiss for uncertain delivery", () => {
+		const onRestoreDraft = vi.fn();
+		const onDismiss = vi.fn();
+		const view = render(
+			<CloudHandoffRecoveryNotice
+				onRestoreDraft={onRestoreDraft}
+				onDismiss={onDismiss}
+			/>,
+		);
+		expect(view.textContent).toContain("Check this conversation");
+		expect(onRestoreDraft).not.toHaveBeenCalled();
+		act(() =>
+			Array.from(view.querySelectorAll("button"))
+				.find((button) => button.textContent?.includes("Restore saved draft"))
+				?.click(),
+		);
+		expect(onRestoreDraft).toHaveBeenCalledOnce();
+		act(() =>
+			view
+				.querySelector<HTMLButtonElement>(
+					'[aria-label="Dismiss handoff recovery"]',
+				)
+				?.click(),
+		);
+		expect(onDismiss).toHaveBeenCalledOnce();
+	});
 	it("retains a non-spinning link after handoff progress stops", () => {
 		const onOpenCloud = vi.fn();
 		const onDismiss = vi.fn();
