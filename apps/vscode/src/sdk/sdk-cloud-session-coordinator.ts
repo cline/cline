@@ -800,6 +800,9 @@ export class SdkCloudSessionCoordinator {
 			} finally {
 				if (this.pendingStart === pendingStart) {
 					this.pendingStart = undefined
+					// The failure path posts state while the start is still pending;
+					// re-post so the composer no longer sees "provisioning".
+					this.options.postStateToWebview().catch(() => {})
 				}
 			}
 		}
