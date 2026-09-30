@@ -211,11 +211,7 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		const apiConfiguration = controller.stateManager.getApiConfiguration()
 		const currentMode = "act"
 
-		// Build the API handler. Commit message generation is a fast one-shot
-		// transform that doesn't need extended thinking; disabling reasoning also
-		// avoids sending both reasoning.effort and reasoning.max_tokens, which
-		// some providers (e.g. OpenRouter) reject.
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
+		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
 
 		// Create a system prompt
 		const systemPrompt = PROMPT.system

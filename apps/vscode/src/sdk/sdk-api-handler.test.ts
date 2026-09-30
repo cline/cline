@@ -26,6 +26,22 @@ describe("buildSdkProviderConfig", () => {
 		vi.clearAllMocks()
 	})
 
+	it("preserves xhigh reasoning for standalone handlers without forcing thinking off", () => {
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "openai",
+				actModeOpenAiModelId: "reasoning-model",
+				actModeReasoningEffort: "xhigh",
+				actModeThinkingBudgetTokens: 8192,
+			},
+			"act",
+		)
+
+		expect(providerConfig.reasoningEffort).toBe("xhigh")
+		expect(providerConfig).not.toHaveProperty("thinking")
+		expect(providerConfig).not.toHaveProperty("thinkingBudgetTokens")
+	})
+
 	it("uses shared Cline OAuth credentials for ClinePass direct handlers", () => {
 		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId: string) => {
 			if (providerId !== "cline") {
