@@ -2,6 +2,7 @@
 
 import {
 	isChatCompatibleModel,
+	type ProviderAuthInfo,
 	isTranscriptionModel,
 } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
@@ -280,7 +281,7 @@ export function invalidateProviderCatalogCache(): void {
 // paint on a full catalog fetch. The last successful load is kept here (not
 // in the pane module) so credential changes invalidate it with the cache.
 export type ProviderCatalogSnapshot = {
-	credentials: Record<string, { apiKey: string }>;
+	credentials: Record<string, { apiKey: string; auth?: ProviderAuthInfo }>;
 	contextWindows: Record<string, Record<string, number>>;
 };
 

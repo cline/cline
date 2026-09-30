@@ -495,7 +495,7 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("attaches when another viewer restores the same saved task first", async () => {
+	it("attaches when the runtime reports a concurrent restore conflict", async () => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
 		const original = f.command.getMockImplementation()!;
@@ -808,11 +808,21 @@ describe("CloudSessionController neutral host contract", () => {
 			dispatched = true;
 			return completed;
 		});
-		const sending = f.controller.send(record.id, "same prompt");
+		const lifecycle = { beforeDispatch: vi.fn(), onAccepted: vi.fn() };
+		const sending = f.controller.send(
+			record.id,
+			"same prompt",
+			undefined,
+			undefined,
+			undefined,
+			lifecycle,
+		);
 		await vi.waitFor(() => expect(dispatched).toBe(true));
 		const accepted = () =>
 			f.events.filter((event) => event.type === "prompt_accepted");
 		expect(accepted()).toEqual([]);
+		expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce();
+		expect(lifecycle.onAccepted).not.toHaveBeenCalled();
 		f.emit("run.started", {
 			requestId: "input-request",
 			clientId: "other-viewer",
@@ -836,7 +846,56 @@ describe("CloudSessionController neutral host contract", () => {
 		} as HubReplyEnvelope);
 		await sending;
 		expect(accepted()).toHaveLength(1);
+		expect(lifecycle.onAccepted).toHaveBeenCalledOnce();
 		await f.controller.dispose();
+	});
+	it("prevents dispatch if durable recovery cannot be saved", async () => {
+		const f = await attached();
+		const onAccepted = vi.fn();
+		try {
+			await expect(
+				f.controller.send(
+					record.id,
+					"unsent",
+					undefined,
+					undefined,
+					undefined,
+					{
+						beforeDispatch: () => {
+							throw new Error("disk full");
+						},
+						onAccepted,
+					},
+				),
+			).rejects.toThrow("disk full");
+			expect(
+				f.commands.some((command) => command.command === "session.send_input"),
+			).toBe(false);
+			expect(onAccepted).not.toHaveBeenCalled();
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("does not turn an acknowledgement callback failure into a send failure", async () => {
+		const f = await attached();
+		try {
+			await expect(
+				f.controller.send(
+					record.id,
+					"accepted",
+					undefined,
+					undefined,
+					undefined,
+					{
+						onAccepted: () => {
+							throw new Error("disk full");
+						},
+					},
+				),
+			).resolves.toMatchObject({ ok: true });
+		} finally {
+			await f.controller.dispose();
+		}
 	});
 	it("does not confirm a prompt cancelled before dispatch", async () => {
 		const f = await attached();
@@ -882,6 +941,48 @@ describe("CloudSessionController neutral host contract", () => {
 			},
 		]);
 		await f.controller.dispose();
+	});
+	it("acknowledges a dispatched prompt's late reply after detaching without publishing to the closed pane", async () => {
+		const f = await attached();
+		const original = f.command.getMockImplementation();
+		if (!original) throw new Error("Missing command fixture");
+		let finish!: (reply: HubReplyEnvelope) => void;
+		const reply = new Promise<HubReplyEnvelope>((resolve) => {
+			finish = resolve;
+		});
+		const lifecycle = { beforeDispatch: vi.fn(), onAccepted: vi.fn() };
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] !== "session.send_input") return original(...args);
+			args[3]?.beforeDispatch?.();
+			args[3]?.onDispatch?.("late-request");
+			return reply;
+		});
+		try {
+			const sending = f.controller.send(
+				record.id,
+				"late",
+				undefined,
+				undefined,
+				undefined,
+				lifecycle,
+			);
+			await vi.waitFor(() =>
+				expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce(),
+			);
+			await f.controller.detach(record.id);
+			finish({
+				version: "v1",
+				ok: true,
+				payload: { result: {} },
+			} as HubReplyEnvelope);
+			await sending;
+			expect(lifecycle.onAccepted).toHaveBeenCalledOnce();
+			expect(
+				f.events.filter((event) => event.type === "prompt_accepted"),
+			).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
 	});
 	it.each([
 		"succeeds",
@@ -1043,7 +1144,11 @@ describe("CloudSessionController neutral host contract", () => {
 	] as const)("clears retained first-task policy after %s", async (action) => {
 		const pendingInitialTasks = new Map<string, CloudCreationOptions>();
 		const f = fixture({ pendingInitialTasks });
-		const options = { autoApproveTools: false, thinking: false };
+		const options = {
+			autoApproveTools: false,
+			thinking: false,
+			reasoningEffort: "high" as const,
+		};
 		try {
 			await f.controller.create({
 				modelId: "model",
@@ -1054,6 +1159,12 @@ describe("CloudSessionController neutral host contract", () => {
 			if (action === "create") {
 				f.setHasInner(false);
 				await f.controller.send(record.id, "First prompt");
+				expect(
+					f.commands.find((c) => c.command === "session.create")?.payload,
+				).toMatchObject({
+					metadata: { thinking: false, reasoningEffort: null },
+					sessionConfig: { thinking: false, reasoningEffort: "high" },
+				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);
 			} else {
@@ -1502,6 +1613,8 @@ describe("seeded cloud handoff controller", () => {
 			toolPolicies: { "*": { autoApprove: false } },
 			metadata: {
 				interactive: true,
+				thinking: true,
+				reasoningEffort: "high",
 				handoff: { sourceSessionId: "local-source", outerSessionId: record.id },
 			},
 		});

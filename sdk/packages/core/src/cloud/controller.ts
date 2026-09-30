@@ -45,6 +45,7 @@ import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
 	CloudQueuedPrompt,
+	CloudSendLifecycle,
 	CloudSessionAttachment,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -1272,6 +1273,7 @@ export class CloudSessionController {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		lifecycle?: CloudSendLifecycle,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1377,8 +1379,17 @@ export class CloudSessionController {
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
 		const accept = () => {
-			if (accepted || isCancelled()) return;
+			if (accepted) return;
 			accepted = true;
+			try {
+				lifecycle?.onAccepted?.();
+			} catch (error) {
+				this.options.logger?.error?.(
+					"Cloud prompt acceptance callback failed",
+					{ error },
+				);
+			}
+			if (isCancelled()) return;
 			this.publish({
 				type: "prompt_accepted",
 				sessionId: outerSessionId,
@@ -1413,6 +1424,7 @@ export class CloudSessionController {
 								"The cloud session reconnected before the prompt could be sent. Please try again.",
 							);
 						}
+						lifecycle?.beforeDispatch?.();
 					},
 				},
 			);
@@ -2746,6 +2758,9 @@ export class CloudSessionController {
 					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
 					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
 			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
+		const reasoningEffort =
+			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;
 		let dispatched = false;
 		const pendingReply = connection.client.command(
 			"session.create",
@@ -2771,29 +2786,17 @@ export class CloudSessionController {
 						: systemPrompt,
 					mode,
 					enableTools: true,
-					...(typeof (
-						handoffSeed?.config?.thinking ?? live?.config.thinking
-					) === "boolean"
-						? {
-								thinking:
-									handoffSeed?.config?.thinking ?? live?.config.thinking,
-							}
-						: {}),
-					...(typeof (
-						handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort
-					) === "string"
-						? {
-								reasoningEffort:
-									handoffSeed?.config?.reasoningEffort ??
-									live?.config.reasoningEffort,
-							}
-						: {}),
+					...(typeof thinking === "boolean" ? { thinking } : {}),
+					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
 				},
 				metadata: {
 					source: this.options.clientIdentity?.source ?? "sdk",
 					provider: "cline",
 					model: modelId,
 					interactive: true,
+					thinking: thinking ?? null,
+					reasoningEffort:
+						thinking === false ? null : (reasoningEffort ?? null),
 					...(handoffSeed
 						? {
 								handoff: {

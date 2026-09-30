@@ -138,7 +138,8 @@ Design rules:
 - `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
 - `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
-- The cloud controller resumes suspended sessions and restores saved tasks. The runtime serializes starts for the same session ID and rejects duplicates.
+- Per-send lifecycle callbacks let hosts persist before dispatch and clear recovery on correlated acceptance; reconnect text evidence alone does not acknowledge an image-bearing recovery payload.
+- The cloud controller resumes suspended sessions and restores saved tasks.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -183,7 +184,7 @@ field.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
-8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs. Node clients register their version and PID together with caller metadata on every connection; `HubSessionClient` passes metadata through at registration so client events, refreshed lists, and reconnects retain the same details.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file

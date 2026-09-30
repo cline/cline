@@ -86,7 +86,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -95,6 +95,7 @@ import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	clearCloudHandoffFollowUp,
 	readCloudHandoffFollowUp,
+	updateCloudHandoffFollowUp,
 } from "./cloud-handoff-follow-up";
 import {
 	getCloudSessionManager,
@@ -166,7 +167,6 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
@@ -2479,10 +2479,20 @@ export async function handleCommand(
 		}
 		return hits.slice(0, limit);
 	}
-	if (command === "get_cloud_handoff_follow_up") {
+	if (
+		command === "get_cloud_handoff_follow_up" ||
+		command === "restore_cloud_handoff_follow_up" ||
+		command === "dismiss_cloud_handoff_follow_up"
+	) {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
-		return readCloudHandoffFollowUp(sessionId);
+		if (command === "get_cloud_handoff_follow_up")
+			return readCloudHandoffFollowUp(sessionId);
+		return updateCloudHandoffFollowUp(
+			sessionId,
+			args?.expected as Parameters<typeof updateCloudHandoffFollowUp>[1],
+			command === "restore_cloud_handoff_follow_up" ? "restore" : "dismiss",
+		);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
@@ -3108,7 +3118,7 @@ export async function handleCommand(
 			storageProviderId === "cline"
 				? manager.getProviderSettings(storageProviderId)
 				: undefined;
-		const saved = saveLocalProviderSettings(manager, {
+		const saved = await saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -3119,7 +3129,7 @@ export async function handleCommand(
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});
