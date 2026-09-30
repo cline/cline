@@ -23,6 +23,7 @@ import {
 } from "./cloud-handoff-follow-up";
 import { CloudSessionApi, CloudSessionManager } from "./cloud-sessions";
 import { createSidecarContext, disposeSidecarContext } from "./context";
+import { localRuntimeContext } from "./session-test-helpers";
 
 let dataDir: string;
 beforeEach(() => {
@@ -104,6 +105,20 @@ it.each([
 	true,
 ])("retains the submitted payload until confirmed (send fails: %s)", async (fails) => {
 	const ctx = createSidecarContext("/workspace");
+	Object.assign(
+		ctx,
+		localRuntimeContext({
+			get: vi.fn(async () => ({
+				metadata: {
+					handoff: {
+						status: "complete",
+						toCloudSessionId: "cloud-target",
+						handedOffAt: "2026-09-30T00:00:00.000Z",
+					},
+				},
+			})),
+		}),
+	);
 	const options = {
 		apiBaseUrl: "https://api.example",
 		appBaseUrl: "https://app.example",
@@ -177,6 +192,7 @@ it.each([
 		);
 	} finally {
 		send.mockRestore();
+		ctx.runtimeBindings.clear();
 		await disposeSidecarContext(ctx);
 	}
 });

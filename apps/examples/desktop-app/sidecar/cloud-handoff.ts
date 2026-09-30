@@ -1146,6 +1146,22 @@ export async function handleHandoff(
 	return await running;
 }
 
+export async function isCloudHandoffFollowUpBlocked(
+	ctx: SidecarContext,
+	sourceSessionId: string,
+): Promise<boolean> {
+	const local = getEnvironmentContext(ctx, "local");
+	if (isCloudHandoffInProgress(local, sourceSessionId)) return true;
+	const source =
+		await getSessionRuntimeBinding(local).sessionManager.get(sourceSessionId);
+	// A failed completion write leaves the initial follow-up owned by /cloud.
+	return (
+		readCloudHandoffMetadata(
+			source?.metadata ?? readSessionMetadata(sourceSessionId),
+		)?.status === "pending" || isCloudHandoffInProgress(local, sourceSessionId)
+	);
+}
+
 export function isCloudHandoffInProgress(
 	ctx: SidecarContext,
 	sessionId: string,

@@ -49,9 +49,13 @@ import {
 	handleHandoff,
 	handlePrepareHandoff,
 	handlePrepareHandoffGit,
+	isCloudHandoffFollowUpBlocked,
 	isCloudHandoffInProgress,
 } from "./cloud-handoff";
-import { sendWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
+import {
+	readCloudHandoffFollowUp,
+	sendWithCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -2268,6 +2272,15 @@ export async function handleChatSessionCommand(
 				return await cloud.attach(sessionId);
 			case "send": {
 				if (!sessionId) throw new Error("sessionId is required");
+				const saved = readCloudHandoffFollowUp(sessionId);
+				if (
+					saved &&
+					(await isCloudHandoffFollowUpBlocked(ctx, saved.sourceSessionId))
+				) {
+					throw new Error(
+						"Wait for the cloud handoff to finish. Retry /cloud from the source session if it failed.",
+					);
+				}
 				if (request.attachments?.userFiles?.length) {
 					throw new Error(
 						"File attachments are not supported in cloud sessions",
