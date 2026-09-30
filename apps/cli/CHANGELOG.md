@@ -1,5 +1,22 @@
 # Cline CLI Changelog
 
+## 3.0.66
+
+- The CLI binaries are now built with Bun 1.4.2. macOS 27 no longer kills them at launch, and the x64 builds run on CPUs without AVX2
+- The hub now starts on Windows machines with a system proxy (Clash, v2ray, corporate proxies). Loopback discovery requests were sent through the proxy, so a healthy hub looked unreachable and startup failed with "No compatible hub runtime is available"
+- Pressing Esc right after sending a prompt now stops the turn. A stop that landed while the turn was still being set up was ignored, and the agent kept working in the background
+- When a response is blocked by a content filter, the CLI now says so and suggests rephrasing, instead of "Model returned empty response" (which implied a retry would help)
+- Direct Anthropic requests now use Anthropic's server-side refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request
+- Reasoning tokens are no longer counted twice in output token totals. Cost is unchanged, since reasoning is billed at the output rate
+- Bedrock fixes. GPT-6 and GPT-5.6 route through inference profiles, India regions (`ap-south-1`, `ap-south-2`) resolve the `in.` profile, and Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects. A legacy bare `awsProfile` setting now migrates as Bedrock profile auth
+- Gateway models on providers that mix endpoints keep their own API protocol instead of falling back to the provider-wide default
+- Yolo mode (`-y`) no longer includes plan/act mode instructions in the system prompt
+- Cron (`.cline/cron/*.md`) and task (`*.task.md`) specs saved with a UTF-8 BOM, as Windows Notepad does, now parse
+- `search_codebase` now includes PHP sources and templates (`php`, `phtml`, `inc`, `twig`), and Composer's `vendor` directory is excluded like `node_modules`
+- On Windows, a nested `pwsh -Command` wrapper keeps your configured shell path instead of resolving a bare `powershell.exe`, which could pick up an executable planted in the workspace
+- Hub diagnostics. The hub daemon log records why each socket closed, a daemon that dies with `EADDRINUSE` reports what holds the port, and the hub web app shows each connected client's version and PID
+- Refreshed the model catalog. New providers are Bee and Pareto (`PARETO_API_KEY`), and the Cline recommended list adds Claude Sonnet 5.5 and Claude Opus 5.5. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. If you use one of those without pinning a model, expect a different default
+
 ## 3.0.65
 
 - Long sessions on local models no longer die mid-answer at the output-token limit. llama.cpp, Ollama, and LM Studio cap generation at whatever context is left, whatever output budget you set, so a text-only reply could be cut off and fail the run. The CLI now compacts the conversation and retries that turn once before falling back to the existing concise-retry recovery, and the partial answer is kept if nothing helps

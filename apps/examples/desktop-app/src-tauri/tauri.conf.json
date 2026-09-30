@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
 	"productName": "Cline",
-	"version": "0.0.37",
+	"version": "0.0.39",
 	"identifier": "bot.cline.app",
 	"build": {
 		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
@@ -54,6 +54,18 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
+		"linux": {
+			"deb": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/stable"
+				}
+			},
+			"rpm": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/stable"
+				}
+			}
+		},
 		"macOS": {
 			"entitlements": "entitlements.plist",
 			"hardenedRuntime": true,

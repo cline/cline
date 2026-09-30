@@ -5775,6 +5775,11 @@ describe("useChatSession", () => {
 			current.setConfig((previous) => ({
 				...previous,
 				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
 				model: "sonnet",
 			}));
 		});
@@ -5805,6 +5810,81 @@ describe("useChatSession", () => {
 			"Sign in again with the `claude` CLI",
 		);
 		expect(errorMessage?.content).not.toContain("Settings → Providers");
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
+	});
+
+	it("keeps the submitted provider's auth guidance after the selection changes", async () => {
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
+				model: "sonnet",
+			}));
+		});
+		let sendPromise: Promise<unknown> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "anthropic",
+				providerAuth: { providerId: "anthropic", capabilities: [] },
+				model: "claude-sonnet",
+			}));
+		});
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "Failed to authenticate: OAuth session expired.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain(
+			"Sign in again with the `claude` CLI",
+		);
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
