@@ -45,6 +45,7 @@ import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
 	CloudQueuedPrompt,
+	CloudSendLifecycle,
 	CloudSessionAttachment,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -1272,6 +1273,7 @@ export class CloudSessionController {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		lifecycle?: CloudSendLifecycle,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1377,8 +1379,17 @@ export class CloudSessionController {
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
 		const accept = () => {
-			if (accepted || isCancelled()) return;
+			if (accepted) return;
 			accepted = true;
+			try {
+				lifecycle?.onAccepted?.();
+			} catch (error) {
+				this.options.logger?.error?.(
+					"Cloud prompt acceptance callback failed",
+					{ error },
+				);
+			}
+			if (isCancelled()) return;
 			this.publish({
 				type: "prompt_accepted",
 				sessionId: outerSessionId,
@@ -1413,6 +1424,7 @@ export class CloudSessionController {
 								"The cloud session reconnected before the prompt could be sent. Please try again.",
 							);
 						}
+						lifecycle?.beforeDispatch?.();
 					},
 				},
 			);
