@@ -190,7 +190,15 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 	)
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
+export async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
+	// This generation's cancel handle, installed before the first await. The SCM
+	// stop action is live as soon as the context key flips, so a controller
+	// created after resolving the host identity would miss a cancel issued
+	// meanwhile and send the request anyway. Read through this local, not the
+	// module slot, so a later generation can't swap the signal an earlier one
+	// checks.
+	const abortController = new AbortController()
+	commitGenerationAbortController = abortController
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
@@ -228,13 +236,14 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]
 
-		commitGenerationAbortController = new AbortController()
+		// Cancelled while the host identity was resolving: send nothing.
+		abortController.signal.throwIfAborted()
 		const stream = apiHandler.createMessage(systemPrompt, messages)
 
 		let response = ""
 		let streamError: string | undefined
 		for await (const chunk of stream) {
-			commitGenerationAbortController.signal.throwIfAborted()
+			abortController.signal.throwIfAborted()
 			if (chunk.type === "text") {
 				response += chunk.text
 				inputBox.value = extractCommitMessage(response)
@@ -254,13 +263,22 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 			)
 		}
 	} catch (error) {
+		// A cancel is what the user asked for, not a failure to report.
+		if (abortController.signal.aborted) {
+			return
+		}
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to generate commit message: ${errorMessage}`,
 		})
 	} finally {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		// Only the current generation owns the context key: an older one that
+		// settles late must not flip the button back while a newer one runs.
+		if (commitGenerationAbortController === abortController) {
+			commitGenerationAbortController = undefined
+			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		}
 	}
 }
 

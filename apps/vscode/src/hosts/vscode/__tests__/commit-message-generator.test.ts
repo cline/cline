@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import "should"
 import sinon from "sinon"
+import * as actualSdkApiHandler from "@/sdk/sdk-api-handler"
 import * as actualGitUtils from "@/utils/git"
 
 // bun loads real ESM, so sinon cannot stub the `@/utils/git` namespace export
@@ -11,9 +12,63 @@ const gitUtilsMock = () => ({ ...actualGitUtils, getGitDiff: getGitDiffStub })
 mock.module("@/utils/git", gitUtilsMock)
 mock.module("@utils/git", gitUtilsMock)
 
-import { getGitDiffStagedFirst } from "../commit-message-generator"
+// The handler is the request boundary: `createMessage` being called is the
+// request going out.
+const buildApiHandlerWithHostContextStub: sinon.SinonStub = sinon.stub()
+mock.module("@/sdk/sdk-api-handler", () => ({
+	...actualSdkApiHandler,
+	buildApiHandlerWithHostContext: buildApiHandlerWithHostContextStub,
+}))
+
+import { abortCommitGeneration, getGitDiffStagedFirst, performCommitMsgGeneration } from "../commit-message-generator"
+
+function deferred<T>() {
+	let resolve!: (value: T) => void
+	const promise = new Promise<T>((res) => {
+		resolve = res
+	})
+	return { promise, resolve }
+}
+
+async function* textStream(text: string) {
+	yield { type: "text", text }
+}
+
+const fakeController = { stateManager: { getApiConfiguration: () => ({}) } } as never
 
 describe("commit-message-generator", () => {
+	describe("performCommitMsgGeneration cancellation", () => {
+		beforeEach(() => {
+			buildApiHandlerWithHostContextStub.reset()
+		})
+
+		it("sends no request when cancelled while the host identity is resolving", async () => {
+			const handler = deferred<unknown>()
+			const createMessage = sinon.stub().callsFake(() => textStream("feat: x"))
+			buildApiHandlerWithHostContextStub.returns(handler.promise)
+			const inputBox = { value: "" }
+
+			const generation = performCommitMsgGeneration(fakeController, "diff", inputBox)
+			abortCommitGeneration()
+			handler.resolve({ createMessage })
+			await generation
+
+			createMessage.called.should.be.false()
+			inputBox.value.should.equal("")
+		})
+
+		it("sends the request when not cancelled", async () => {
+			const createMessage = sinon.stub().callsFake(() => textStream("feat: x"))
+			buildApiHandlerWithHostContextStub.resolves({ createMessage })
+			const inputBox = { value: "" }
+
+			await performCommitMsgGeneration(fakeController, "diff", inputBox)
+
+			createMessage.calledOnce.should.be.true()
+			inputBox.value.should.equal("feat: x")
+		})
+	})
+
 	describe("getGitDiffStagedFirst", () => {
 		beforeEach(() => {
 			getGitDiffStub.reset()
