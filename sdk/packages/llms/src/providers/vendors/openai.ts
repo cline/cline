@@ -3,6 +3,11 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
+import {
+	assertChatGPTPlanGrant,
+	CHATGPT_PLAN_API,
+	chatGPTPlanFetch,
+} from "../chatgpt-plan";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
@@ -22,12 +27,28 @@ export async function createOpenAIProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
+	const isChatGPTPlan = context.provider.id === "openai-chatgpt";
+	if (isChatGPTPlan) {
+		assertChatGPTPlanGrant(config.options?.chatgptPlan);
+		if (
+			config.baseUrl &&
+			config.baseUrl.replace(/\/$/, "") !== CHATGPT_PLAN_API
+		) {
+			throw new Error(
+				"ChatGPT plan credentials can only be used with the public OpenAI API.",
+			);
+		}
+	}
 	const apiKey = await resolveApiKey(config);
+	if (isChatGPTPlan && !apiKey)
+		throw new Error("Continue with ChatGPT before inference.");
 	const provider = createOpenAI({
 		apiKey,
-		baseURL: config.baseUrl,
+		baseURL: isChatGPTPlan ? CHATGPT_PLAN_API : config.baseUrl,
 		headers: config.headers,
-		fetch: config.fetch,
+		fetch: isChatGPTPlan
+			? chatGPTPlanFetch(config.fetch ?? globalThis.fetch, apiKey!)
+			: config.fetch,
 		name: context.provider.id,
 	});
 	// The ChatGPT OAuth Codex backend rejects `max_output_tokens`, and the
@@ -36,7 +57,7 @@ export async function createOpenAIProviderModule(
 	// gateway from a caller request or passed straight to this provider —
 	// are honored for API-key usage because that endpoint supports output
 	// limits.
-	const isChatGptOAuth = isChatGptOAuthBaseUrl(config.baseUrl);
+	const isChatGptOAuth = isChatGPTPlan || isChatGptOAuthBaseUrl(config.baseUrl);
 	return {
 		buildModelTools: (tools) => {
 			const result: ReturnType<

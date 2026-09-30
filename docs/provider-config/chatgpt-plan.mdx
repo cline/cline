@@ -1,0 +1,29 @@
+---
+title: "ChatGPT Plan"
+description: "Authorize eligible Cline requests to use your ChatGPT plan allowance."
+---
+
+Select **ChatGPT Plan** in Cline's provider settings, then choose **Continue with
+ChatGPT**. Complete sign-in and grant plan usage in your browser. Cline enables
+inference only after OpenAI grants the required permission, then loads the models
+available to your account. An API key is not required for this option.
+
+In the CLI, run `cline auth --provider openai-chatgpt` to begin the same flow.
+Your browser must be able to reach Cline's local loopback callback listener.
+
+Eligible requests use your ChatGPT plan allowance through the public OpenAI
+Responses API. Availability and limits depend on your account and the permission
+OpenAI grants; this option does not promise additional allowance. Manage usage and
+app access in ChatGPT settings. If authorization is declined or plan usage is not
+granted, Cline leaves this option disconnected.
+
+**Sign out locally** removes the saved credentials from Cline. The host and client
+registration remain available for your next sign-in to the same account. To revoke
+the app's access, use ChatGPT settings. The current implementation maintains one
+account connection per Cline settings directory.
+
+This is a separate, opt-in provider. Existing OpenAI API key and ChatGPT/Codex
+provider settings continue to work as before.
+
+See OpenAI's [Sign in with ChatGPT documentation](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+and [models and inference contract](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).

@@ -30,6 +30,7 @@ interface ModelSelectorProps {
 	onChange: (e: any) => void
 	zIndex?: number
 	label?: string
+	showDisplayNames?: boolean
 }
 
 /*
@@ -46,7 +47,14 @@ OG Saoud Note:
 /**
  * A reusable component for selecting models from a dropdown
  */
-export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label = "Model" }: ModelSelectorProps) => {
+export const ModelSelector = ({
+	models,
+	selectedModelId,
+	onChange,
+	zIndex,
+	label = "Model",
+	showDisplayNames = false,
+}: ModelSelectorProps) => {
 	const modelIds = Object.keys(models)
 	// Force VSCodeDropdown to re-initialize after async catalog/selection hydration.
 	const dropdownKey = `${selectedModelId ?? ""}:${modelIds.join("\u0000")}`
@@ -60,7 +68,7 @@ export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label
 				<VSCodeOption value="">Select a model...</VSCodeOption>
 				{modelIds.map((modelId) => (
 					<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
-						{modelId}
+						{showDisplayNames ? models[modelId].name || modelId : modelId}
 					</VSCodeOption>
 				))}
 			</VSCodeDropdown>

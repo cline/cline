@@ -112,6 +112,7 @@ export async function handleDesktopCommand(
 			providerSettingsManager.getProviderConfig(provider, {
 				includeKnownModels: false,
 			}),
+			{ providerSettingsManager },
 		);
 	}
 	if (command === "save_provider_settings") {

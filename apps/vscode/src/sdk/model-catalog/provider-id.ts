@@ -22,6 +22,7 @@ const KNOWN_API_PROVIDERS = {
 	gemini: true,
 	"openai-native": true,
 	"openai-codex": true,
+	"openai-chatgpt": true,
 	requesty: true,
 	together: true,
 	deepseek: true,

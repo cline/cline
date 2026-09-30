@@ -2912,7 +2912,7 @@ export async function handleCommand(
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
+			{ loadLatest: includeCloudModels, providerSettingsManager: manager },
 		);
 	}
 	if (command === "list_cline_recommended_models") {

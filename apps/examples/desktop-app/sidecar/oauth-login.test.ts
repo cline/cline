@@ -162,3 +162,25 @@ describe("runCancellableProviderOAuthLogin", () => {
 		expect(save).not.toHaveBeenCalled();
 	});
 });
+
+it("keeps ChatGPT plan tokens out of the webview login response", async () => {
+	const { dependencies } = makeDependencies({
+		login: async () => ({ accessToken: "fresh-token" }),
+		save: vi.fn(() => ({
+			provider: "openai-chatgpt",
+			auth: { accessToken: "secret" },
+		})),
+	});
+	const result = await runCancellableProviderOAuthLogin(
+		makeManager(),
+		"openai-chatgpt",
+		() => undefined,
+		{},
+		dependencies,
+	);
+	expect(result).toEqual({
+		provider: "openai-chatgpt",
+		accessToken: "",
+		accessTokenPresent: true,
+	});
+});

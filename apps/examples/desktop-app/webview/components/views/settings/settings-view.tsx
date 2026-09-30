@@ -445,6 +445,7 @@ export function SettingsView({
 			const result = await desktopClient.invoke<{
 				provider: string;
 				accessToken: string;
+				accessTokenPresent?: boolean;
 			}>(
 				"run_provider_oauth_login",
 				{ provider: id },
@@ -458,7 +459,9 @@ export function SettingsView({
 						? {
 								...provider,
 								enabled: true,
-								oauthAccessTokenPresent: result.accessToken.trim().length > 0,
+								oauthAccessTokenPresent:
+									result.accessTokenPresent ??
+									result.accessToken.trim().length > 0,
 							}
 						: provider,
 				),

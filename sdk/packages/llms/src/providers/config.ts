@@ -72,6 +72,13 @@ export type ProviderCapability =
  * Authentication configuration
  */
 export interface AuthConfig {
+	/** Verified SIWC grant, separate from API-key and legacy Codex credentials. */
+	chatgptPlan?: {
+		clientId?: string;
+		subject?: string;
+		issuer?: string;
+		scopes: string[];
+	};
 	/** API key (most common) */
 	apiKey?: string;
 	/** OAuth access token */

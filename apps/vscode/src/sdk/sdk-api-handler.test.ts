@@ -1,15 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { buildSdkProviderConfig } from "./sdk-api-handler"
+import { buildApiHandler, buildSdkProviderConfig } from "./sdk-api-handler"
 
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
 		getProviderSettings: vi.fn(),
+		getProviderConfig: vi.fn(),
 	}
 	return {
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
 		providerSettingsManager,
+		resolveProviderApiKey: vi.fn(),
+		fetch: vi.fn(),
+		createHandler: vi.fn(() => ({ getModel: () => ({ id: "model", info: {} }) })),
 	}
 })
+
+vi.mock("@cline/core", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/core")>()),
+	RuntimeOAuthTokenManager: class {
+		resolveProviderApiKey = mocks.resolveProviderApiKey
+	},
+}))
+
+vi.mock("@cline/llms", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/llms")>()),
+	createHandler: mocks.createHandler,
+}))
+
+vi.mock("@/shared/net", () => ({ fetch: mocks.fetch }))
 
 vi.mock("./provider-migration", () => ({
 	getProviderSettingsManager: mocks.getProviderSettingsManager,
@@ -81,6 +99,37 @@ describe("buildSdkProviderConfig", () => {
 			apiKey: "v0-key",
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("v0")
+	})
+
+	it("loads the saved ChatGPT grant and rechecks credentials before each standalone request", async () => {
+		const chatgptPlan = {
+			clientId: "oaiapp_test",
+			subject: "account",
+			issuer: "https://auth.openai.com",
+			scopes: ["chatgpt.tokens.use.direct"],
+		}
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+		mocks.providerSettingsManager.getProviderConfig.mockReturnValue({ apiKey: "old-token", chatgptPlan })
+		mocks.resolveProviderApiKey.mockResolvedValue({ apiKey: "fresh-token" })
+		mocks.fetch.mockResolvedValue(new Response("ok"))
+		buildApiHandler({ actModeApiProvider: "openai-chatgpt", actModeApiModelId: "plan-model" }, "act")
+		const config = (mocks.createHandler.mock.calls as unknown as [[import("@cline/llms").ProviderConfig]])[0][0]
+		expect(config.chatgptPlan).toEqual(chatgptPlan)
+		expect(config.apiKey).toBe("old-token")
+		await config.fetch!("https://api.openai.com/v1/responses", {
+			method: "POST",
+			headers: { Authorization: "Bearer old-token", "Content-Type": "application/json" },
+			body: "{}",
+		})
+		expect(mocks.resolveProviderApiKey).toHaveBeenCalledWith({ providerId: "openai-chatgpt" })
+		const sentHeaders = mocks.fetch.mock.calls[0][1].headers as Headers
+		expect(sentHeaders.get("Authorization")).toBe("Bearer fresh-token")
+		expect(sentHeaders.get("Content-Type")).toBe("application/json")
+
+		// A utility handler may outlive sign-out or a refresh that removes scope.
+		mocks.resolveProviderApiKey.mockRejectedValue(new Error("Reauthentication required"))
+		await expect(config.fetch!("https://api.openai.com/v1/responses")).rejects.toThrow("Reauthentication required")
+		expect(mocks.fetch).toHaveBeenCalledTimes(1)
 	})
 
 	it("forwards the Ollama request timeout and context window to standalone handlers", () => {

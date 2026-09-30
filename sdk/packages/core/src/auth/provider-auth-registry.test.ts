@@ -285,3 +285,48 @@ describe("provider auth registry", () => {
 		});
 	});
 });
+
+describe("ChatGPT plan credential gate", () => {
+	const grant = {
+		clientId: "oaiapp_test",
+		issuer: "https://auth.openai.com",
+		subject: "subject",
+		scopes: ["chatgpt.tokens.use.direct"],
+	};
+	it.each([
+		undefined,
+		{},
+		{ ...grant, scopes: [] },
+		{ ...grant, scopes: ["chatgpt.tokens.use.direct.extra"] },
+	])("never falls back to an API key or ungranted token", (metadata) => {
+		const settings = {
+			provider: "openai-chatgpt",
+			apiKey: "manual",
+			auth: { accessToken: "access", apiKey: "other", metadata },
+		};
+		expect(
+			getProviderAuthHandler(settings.provider)?.isConfigured(settings),
+		).toBe(false);
+		expect(
+			getPersistedProviderApiKey(settings.provider, settings),
+		).toBeUndefined();
+		expect(() =>
+			formatProviderOAuthApiKey(settings.provider, {
+				access: "access",
+				metadata,
+			}),
+		).toThrow("not been granted");
+	});
+	it("enables the issued token after the required grant is persisted", () => {
+		const settings = {
+			provider: "openai-chatgpt",
+			auth: { accessToken: "access", metadata: grant },
+		};
+		expect(
+			getProviderAuthHandler(settings.provider)?.isConfigured(settings),
+		).toBe(true);
+		expect(getPersistedProviderApiKey(settings.provider, settings)).toBe(
+			"access",
+		);
+	});
+});

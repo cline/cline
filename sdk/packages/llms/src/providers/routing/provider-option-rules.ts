@@ -184,7 +184,8 @@ const openAiCodexRule: ProviderOptionRule = {
 	phase: "provider",
 	description:
 		"Codex CLI uses OpenAI Responses options plus provider-id aliases.",
-	applies: (input) => input.request.providerId === "openai-codex",
+	applies: (input) =>
+		["openai-codex", "openai-chatgpt"].includes(input.request.providerId),
 	suppresses: { genericFanout: true },
 	build: (input) => {
 		const codexOptions = {

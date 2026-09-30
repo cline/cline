@@ -1015,6 +1015,17 @@ lock and reuse a token another process refreshed, including for forced refresh
 requests. A refresh result is discarded if sign-out or sign-in replaced the
 credentials while the request was in flight.
 
+The opt-in `openai-chatgpt` provider uses OpenAI's public Responses API.
+Core owns dynamic client registration, loopback PKCE login, OIDC signature and
+identity validation, and token persistence through the existing provider auth
+registry. A separate owner-only `providers.json.chatgpt-registration.json`
+retains the random host ID and issued client ID across local sign-out. Tokens
+and ID tokens stay in protected provider settings, never in webview responses.
+The runtime persists scope changes during refresh and refuses inference without
+`chatgpt.tokens.use.direct`, including after local sign-out. The LLM transport
+pins the public endpoint, normalizes the supported stateless streaming request,
+and requires `response.completed`. It does not reuse Codex backend credentials.
+
 ### Queue steering
 
 Queue steering through `pendingPrompts.steerFirst` selects and promotes the
