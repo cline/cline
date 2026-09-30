@@ -1553,14 +1553,22 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.dispose();
 	});
 
-	it("creates and sends to an inner session while preserving the outer id", async () => {
+	it.each([
+		"anthropic/claude-sonnet-5",
+		"cline-pass/pass-model",
+		"cline-cloud/free-model",
+	])("creates and sends %s through Cline while preserving the outer id", async (modelId) => {
 		const { manager, hub } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
 				list: async () => [
 					{
 						...REMOTE_SESSION,
-						metadata: { ...REMOTE_SESSION.metadata, taskId: "task-created" },
+						metadata: {
+							...REMOTE_SESSION.metadata,
+							modelId,
+							taskId: "task-created",
+						},
 					},
 				],
 				create: async () => ({
@@ -1573,7 +1581,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 
 		const created = await manager.create({
-			modelId: "anthropic/claude-sonnet-5",
+			modelId,
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix it",
 			thinking: true,
@@ -1597,7 +1605,7 @@ describe("CloudSessionManager Hub runtime", () => {
 					}),
 					modelSelection: {
 						provider: "cline",
-						model: "anthropic/claude-sonnet-5",
+						model: modelId,
 					},
 				}),
 			}),

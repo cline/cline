@@ -47,6 +47,27 @@ afterEach(() => {
 });
 
 describe("desktop settings commands", () => {
+	it("loads the account-scoped cloud model catalog through the cloud controller", async () => {
+		const { ctx } = createContext();
+		const models = [
+			{ id: "paid-model", name: "Paid", catalogId: "cline" },
+			{ id: "cline-pass/pass", name: "Pass", catalogId: "cline-pass" },
+			{ id: "cline-cloud/free", name: "Free", catalogId: "cline-cloud" },
+		] as const;
+		const list = vi
+			.spyOn(getCloudSessionManager(ctx), "listModels")
+			.mockResolvedValue([...models]);
+		try {
+			expect(await handleCommand(ctx, "list_cloud_models", {})).toEqual(models);
+			list.mockResolvedValue([models[0], models[2]]);
+			expect(await handleCommand(ctx, "list_cloud_models", {})).toEqual([
+				models[0],
+				models[2],
+			]);
+		} finally {
+			list.mockRestore();
+		}
+	});
 	it("lists only current gateway transcription models for voice input", async () => {
 		const { ctx } = createContext();
 		vi.stubGlobal(

@@ -73,6 +73,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
+import { CloudModelSelector } from "./cloud-model-selector";
 import { PullRequestBar } from "./pull-request-bar";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -172,7 +173,6 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
-const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -472,6 +472,8 @@ function ChatInputBarImpl({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const [cloudSelectionPending, setCloudSelectionPending] = useState(false);
+	const needsCloudModel = executionTarget === "cloud" && cloudSelectionPending;
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
@@ -535,7 +537,11 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend =
-		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!needsCloudModel &&
+		!readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -563,7 +569,7 @@ function ChatInputBarImpl({
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository) return;
+		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -577,6 +583,7 @@ function ChatInputBarImpl({
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
+		needsCloudModel,
 		readOnly,
 		onSend,
 		promptInput,
@@ -1533,26 +1540,32 @@ function ChatInputBarImpl({
 						</button>
 					</div>
 					<div className="min-w-0 shrink-0">
-						<ModelSelector
-							allowedProviderIds={
-								executionTarget === "cloud"
-									? CLINE_ONLY_PROVIDER_IDS
-									: undefined
-							}
-							autoCorrectModel={!cloudSettingsLocked}
-							includeCloudModels={executionTarget === "cloud"}
-							isBusy={isBusy}
-							model={model}
-							onModelChange={onModelChange}
-							onModelSupportsImagesChange={handleModelSupportsImagesChange}
-							onModelSupportsReasoningChange={
-								handleModelSupportsReasoningChange
-							}
-							onOpenModelSettings={onOpenModelSettings}
-							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
-							provider={provider}
-						/>
+						{executionTarget === "cloud" ? (
+							<CloudModelSelector
+								isBusy={isBusy}
+								model={model}
+								preserveUnavailableModel={hasActiveSession}
+								onModelChange={onModelChange}
+								onModelSupportsImagesChange={handleModelSupportsImagesChange}
+								onModelSupportsReasoningChange={
+									handleModelSupportsReasoningChange
+								}
+								onSelectionPendingChange={setCloudSelectionPending}
+							/>
+						) : (
+							<ModelSelector
+								isBusy={isBusy}
+								model={model}
+								onModelChange={onModelChange}
+								onModelSupportsImagesChange={handleModelSupportsImagesChange}
+								onModelSupportsReasoningChange={
+									handleModelSupportsReasoningChange
+								}
+								onOpenModelSettings={onOpenModelSettings}
+								onProviderChange={onProviderChange}
+								provider={provider}
+							/>
+						)}
 					</div>
 					<Select
 						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
