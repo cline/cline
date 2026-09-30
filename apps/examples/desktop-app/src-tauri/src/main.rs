@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
 
@@ -1465,6 +1467,11 @@ fn set_tray_status(
 }
 
 fn main() {
+    // Must stay first: WebKitGTK reads the environment while initializing,
+    // and the variable has to be in place before any thread exists.
+    #[cfg(target_os = "linux")]
+    linux_webview::configure_environment();
+
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
