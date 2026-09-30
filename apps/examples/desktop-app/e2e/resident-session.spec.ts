@@ -119,7 +119,7 @@ test("continues a resident session after desktop relaunch and CLI resume", async
 			action: "start",
 			config: { ...fixture.config, sessionId },
 		});
-		expect(reopened.sessionId).toBe(sessionId); // #14501 fails here: session already exists.
+		expect(reopened.sessionId).toBe(sessionId); // Reopening must succeed even though the Hub retains this ID.
 		await send("Desktop prompt after relaunch", 2);
 
 		// A real CLI session client resumes the same ID, and remains connected.

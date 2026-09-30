@@ -7,4 +7,4 @@ Run `bun run build:sdk` from the repository root, then `bun -F @cline/code test:
 
 The resident-session fixture uses temporary storage, dynamic loopback ports, and a deterministic local model endpoint. It requires no provider credentials and does not reuse the installed Hub. Child processes and fixture storage are cleaned up at test completion. Backend diagnostics are attached to the Playwright results.
 
-This regression test fails with `session already exists` on the runtime introduced by #14501. It passes with #14665's runtime rollback; merge that fix before expecting the regression test to pass in CI. The test does not patch the runtime, skip the failure, or mark it as expected.
+This regression test protects the behavior restored on main by #14665: reopening a resident session succeeds, preserves its ID and history, and allows subsequent turns from desktop and CLI. It previously reproduced the `session already exists` regression introduced by #14501. It runs against the checked-out SDK without runtime patches, skips, or expected failures.
