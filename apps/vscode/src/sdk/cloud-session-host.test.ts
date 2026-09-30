@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import type { SdkSessionHost } from "./session-host"
 
 const runtime = vi.hoisted(() => ({
 	listeners: [] as Array<(event: unknown) => void>,
@@ -13,6 +14,7 @@ vi.mock("@cline/core", () => ({
 		pendingPrompts = { update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = vi.fn(async () => undefined)
 		listSessions = runtime.listSessions
+		startSession = vi.fn(async (input: { config: { sessionId: string } }) => ({ sessionId: input.config.sessionId }))
 		subscribe(listener: (event: unknown) => void) {
 			runtime.listeners.push(listener)
 			return vi.fn()
@@ -55,6 +57,23 @@ describe("CloudSessionHost status", () => {
 		await host.send({ sessionId: "ses-outer", prompt: "continue", mode: "plan" })
 
 		expect(runtime.runTurn).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "inner-session", mode: "act" }))
+	})
+
+	it("does not claim to change the model the sandbox runs on", async () => {
+		runtime.listSessions.mockResolvedValue([])
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+		})
+		await host.start({ config: { providerId: "cline", modelId: "sandbox-model" }, interactive: true } as never)
+
+		// The Hub protocol has no command to change a running session's model,
+		// so the lifecycle must see no capability and the composer must keep
+		// naming the model the sandbox was started on.
+		expect((host as SdkSessionHost).updateSessionModel).toBeUndefined()
+		expect(host.sessionModelId).toBe("sandbox-model")
 	})
 
 	it("refreshes a retained host without letting an older snapshot overwrite a live event", async () => {
