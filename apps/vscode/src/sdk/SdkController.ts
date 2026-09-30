@@ -696,6 +696,10 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			telemetry: this.sdkTelemetry.telemetry,
 		})
+		// Every account change, whichever path requests it, tears down the
+		// previous account's cloud task and connections first and holds cloud
+		// reads until the change has settled.
+		this.accountService.onAccountChange((change) => this.cloud.reset(change))
 		this.compaction = new SdkCompactionCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -1495,11 +1499,6 @@ export class Controller {
 			return CLOUD_SESSION_MODE
 		}
 		return this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-	}
-
-	/** Forgets cached cloud sessions after the account or organization changes. */
-	async resetCloudSessions(changeScope?: () => Promise<void>): Promise<void> {
-		await this.cloud.reset(changeScope)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {

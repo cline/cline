@@ -2,7 +2,6 @@ import { UserOrganizationUpdateRequest } from "@shared/proto/cline/account"
 import { Empty } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
 
-const pendingSwitches = new WeakMap<Controller, Promise<void>>()
 const SWITCH_TIMEOUT_MS = 10_000
 
 /**
@@ -12,22 +11,13 @@ const SWITCH_TIMEOUT_MS = 10_000
  * @returns Empty response
  */
 export async function setUserOrganization(controller: Controller, request: UserOrganizationUpdateRequest): Promise<Empty> {
-	if (pendingSwitches.has(controller)) {
-		throw new Error("An account switch is still pending. Wait for it to finish before trying again.")
-	}
 	if (!controller.accountService) throw new Error("Account service not available")
-	// The response deadline does not release ownership: a timed-out PUT may
-	// still commit, so no second switch can overtake its auth/config refresh.
-	const switching = Promise.resolve().then(async () => {
-		await controller.resetCloudSessions(() => controller.accountService!.switchAccount(request.organizationId))
-		await controller.refreshRemoteConfig()
-	})
-	pendingSwitches.set(controller, switching)
-	void switching
-		.finally(() => {
-			if (pendingSwitches.get(controller) === switching) pendingSwitches.delete(controller)
-		})
-		.catch(() => {})
+	// switchAccount serialises switches and tears down the previous account's
+	// cloud state itself. The response deadline below does not release that
+	// ownership: a timed-out PUT may still commit, and a later switch waits for
+	// it before deciding what to do.
+	const switching = controller.accountService.switchAccount(request.organizationId).then(() => controller.refreshRemoteConfig())
+	switching.catch(() => {})
 	let timer: ReturnType<typeof setTimeout> | undefined
 	try {
 		await Promise.race([

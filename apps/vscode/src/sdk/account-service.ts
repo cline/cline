@@ -23,9 +23,27 @@ import { AuthService } from "./auth-service"
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
+	private accountChangeBoundary: ((change: () => Promise<void>) => Promise<void>) | undefined
+	private pendingSwitch: Promise<void> | undefined
 
 	constructor() {
 		this._authService = AuthService.getInstance()
+	}
+
+	/**
+	 * Installs the boundary every account change runs inside. The controller
+	 * uses it to tear down the previous account's cloud task and connections
+	 * before `change` sends the request, and to hold cloud reads until it has
+	 * settled. Owned here so that every path that changes the account (the
+	 * Account view, ClinePass selection, remote-config discovery) runs it.
+	 */
+	onAccountChange(boundary: (change: () => Promise<void>) => Promise<void>): void {
+		this.accountChangeBoundary = boundary
+	}
+
+	/** Resolves when no account switch is in flight. */
+	get switchSettled(): Promise<void> {
+		return this.pendingSwitch ?? Promise.resolve()
 	}
 
 	/**
@@ -257,29 +275,50 @@ export class ClineAccountService {
 	}
 
 	/**
-	 * Switches the active account to the specified organization or personal account.
+	 * Switches the active account to the specified organization, or to the
+	 * personal account when none is given. This is the only path that changes
+	 * the account. Switches are serialised: one requested while another is in
+	 * flight waits for it, then decides against the account as it is then, so
+	 * a caller that read a stale account cannot skip a switch that is needed
+	 * or repeat one that just happened. The account changes when this resolves;
+	 * the previous account's cloud state is gone before the request is sent.
 	 */
-	async switchAccount(organizationId?: string): Promise<void> {
-		try {
-			await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				data: {
-					organizationId: organizationId || null,
-				},
-			})
-			const activeOrgId = this._authService.getActiveOrganizationId()
-			if (activeOrgId !== organizationId) {
+	switchAccount(organizationId?: string): Promise<void> {
+		const previous = this.pendingSwitch ?? Promise.resolve()
+		const switching = previous.then(
+			() => this.switchAccountNow(organizationId),
+			() => this.switchAccountNow(organizationId),
+		)
+		this.pendingSwitch = switching
+		return switching.finally(() => {
+			if (this.pendingSwitch === switching) this.pendingSwitch = undefined
+		})
+	}
+
+	private async switchAccountNow(organizationId: string | undefined): Promise<void> {
+		if ((this._authService.getActiveOrganizationId() ?? undefined) === (organizationId || undefined)) {
+			return
+		}
+		const change = async () => {
+			try {
+				await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					data: {
+						organizationId: organizationId || null,
+					},
+				})
 				// Force a refresh of the auth info after switching
 				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			} catch (error) {
+				Logger.error("Error switching account:", error)
+				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				throw error
 			}
-		} catch (error) {
-			Logger.error("Error switching account:", error)
-			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
-			throw error
 		}
+		await (this.accountChangeBoundary ? this.accountChangeBoundary(change) : change())
 	}
 
 	private getCurrentUser() {
