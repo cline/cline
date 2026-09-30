@@ -95,6 +95,7 @@ import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	clearCloudHandoffFollowUp,
 	readCloudHandoffFollowUp,
+	updateCloudHandoffFollowUp,
 } from "./cloud-handoff-follow-up";
 import {
 	getCloudSessionManager,
@@ -2479,10 +2480,20 @@ export async function handleCommand(
 		}
 		return hits.slice(0, limit);
 	}
-	if (command === "get_cloud_handoff_follow_up") {
+	if (
+		command === "get_cloud_handoff_follow_up" ||
+		command === "restore_cloud_handoff_follow_up" ||
+		command === "dismiss_cloud_handoff_follow_up"
+	) {
 		const sessionId = String(args?.sessionId ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
-		return readCloudHandoffFollowUp(sessionId);
+		if (command === "get_cloud_handoff_follow_up")
+			return readCloudHandoffFollowUp(sessionId);
+		return updateCloudHandoffFollowUp(
+			sessionId,
+			args?.expected as Parameters<typeof updateCloudHandoffFollowUp>[1],
+			command === "restore_cloud_handoff_follow_up" ? "restore" : "dismiss",
+		);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
