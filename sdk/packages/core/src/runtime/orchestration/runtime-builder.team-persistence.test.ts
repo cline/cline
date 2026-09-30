@@ -120,7 +120,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		const onTeamRestored = vi.fn();
 
-		await new DefaultRuntimeBuilder().build({
+		const built = await new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -141,11 +141,24 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			expect.objectContaining({
 				restoredFromPersistence: true,
 				restoredTeammates: [expect.objectContaining({ agentId: "restored-1" })],
+				deferTeammateRestore: true,
 				teammateConfigProvider: expect.objectContaining({
 					getRuntimeConfig: expect.any(Function),
 				}),
 			}),
 		);
+		// Building prepares the team; nothing is re-dispatched until the host
+		// activates the runtime (after any resident it replaces is released).
+		expect(onTeamRestored).not.toHaveBeenCalled();
+		expect(runtimeInstance?.recoverActiveRuns).not.toHaveBeenCalled();
+		// A failed activation is not recorded as done, so it can be retried.
+		runtimeInstance?.recoverActiveRuns.mockImplementationOnce(() => {
+			throw new Error("recovery failed");
+		});
+		expect(() => built.activate?.()).toThrow("recovery failed");
+		expect(onTeamRestored).not.toHaveBeenCalled();
+		built.activate?.();
+		built.activate?.();
 		const bootstrapCall = (
 			bootstrapAgentTeamsMock.mock.calls as unknown as Array<[BootstrapCall]>
 		)[0]?.[0];
@@ -241,18 +254,22 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 
 		// Releasing a resident runtime so a same-id start can rebuild it is a
 		// lifecycle teardown too: the roster must survive for the replacement.
-		runtimeInstance.emit({
-			type: "teammate_shutdown",
-			agentId: "java-poet",
-			reason: "session_replaced",
-		});
-		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
-			expect.any(String),
-			expect.any(Object),
-			expect.arrayContaining([
-				expect.objectContaining({ agentId: "java-poet" }),
-			]),
-		);
+		// So is releasing a replacement whose activation failed: the specs it
+		// was restoring must remain for the next attempt.
+		for (const reason of ["session_replaced", "session_start_failed"]) {
+			runtimeInstance.emit({
+				type: "teammate_shutdown",
+				agentId: "java-poet",
+				reason,
+			});
+			expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+				expect.any(String),
+				expect.any(Object),
+				expect.arrayContaining([
+					expect.objectContaining({ agentId: "java-poet" }),
+				]),
+			);
+		}
 	});
 
 	it("forwards cline workspace metadata to teammate runtime bootstrap config", async () => {

@@ -181,6 +181,12 @@ export interface BootstrapAgentTeamsOptions {
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
 	restoredFromPersistence?: boolean;
+	/**
+	 * Return the restored-teammate spawn as `restoreTeammates` instead of
+	 * running it here, so the caller can bring the team to life once the
+	 * runtime it may be replacing has released its own teammates.
+	 */
+	deferTeammateRestore?: boolean;
 	includeLeadSpawnTool?: boolean;
 	includeLeadManagementTools?: boolean;
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
@@ -189,7 +195,10 @@ export interface BootstrapAgentTeamsOptions {
 export interface BootstrapAgentTeamsResult {
 	tools: AgentTool[];
 	restoredFromPersistence: boolean;
+	/** Ids respawned here; empty when the spawn was deferred. */
 	restoredTeammates: string[];
+	/** Spawns the persisted teammates not yet active; idempotent. */
+	restoreTeammates: () => string[];
 }
 
 export const TEAM_TOOL_NAMES = [
@@ -267,25 +276,29 @@ export function bootstrapAgentTeams(
 		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
 	});
 
-	const restoredTeammates: string[] = [];
-	for (const spec of options.restoredTeammates ?? []) {
-		if (options.runtime.isTeammateActive(spec.agentId)) {
-			continue;
+	const restoreTeammates = (): string[] => {
+		const restored: string[] = [];
+		for (const spec of options.restoredTeammates ?? []) {
+			if (options.runtime.isTeammateActive(spec.agentId)) {
+				continue;
+			}
+			spawnTeamTeammate({
+				runtime: options.runtime,
+				requesterId: leadAgentId,
+				teammateConfigProvider: options.teammateConfigProvider,
+				createBaseTools: options.createBaseTools,
+				spec,
+			});
+			restored.push(spec.agentId);
 		}
-		spawnTeamTeammate({
-			runtime: options.runtime,
-			requesterId: leadAgentId,
-			teammateConfigProvider: options.teammateConfigProvider,
-			createBaseTools: options.createBaseTools,
-			spec,
-		});
-		restoredTeammates.push(spec.agentId);
-	}
+		return restored;
+	};
 
 	return {
 		tools,
 		restoredFromPersistence,
-		restoredTeammates,
+		restoredTeammates: options.deferTeammateRestore ? [] : restoreTeammates(),
+		restoreTeammates,
 	};
 }
 

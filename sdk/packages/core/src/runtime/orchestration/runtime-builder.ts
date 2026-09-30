@@ -336,6 +336,7 @@ function isRuntimeLifecycleShutdownReason(reason: string | undefined): boolean {
 		case "session_error":
 		case "session_manager_dispose":
 		case "session_replaced":
+		case "session_start_failed":
 		case "cli_run_shutdown":
 		case "cli_interactive_shutdown":
 		case "cli_interactive_startup_cancelled":
@@ -391,16 +392,6 @@ function normalizeConfig(
 }
 
 export class DefaultRuntimeBuilder implements RuntimeBuilder {
-	private readonly teamRuntimeEntries = new Map<
-		string,
-		{
-			runtime?: AgentTeamsRuntime;
-			delegatedAgentConfigProvider: ReturnType<
-				typeof createDelegatedAgentConfigProvider
-			>;
-		}
-	>();
-
 	async build(input: RuntimeBuilderInput): Promise<RuntimeEnvironment> {
 		const {
 			config,
@@ -607,7 +598,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const teammateSpecs = new Map(
 			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
 		);
-		const registryKey = config.sessionId || effectiveTeamName;
 		let leadAgentInstance:
 			| {
 					addTools: (tools: AgentTool[]) => void;
@@ -678,22 +668,16 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				);
 			}
 		}
-		if (!this.teamRuntimeEntries.has(registryKey)) {
-			this.teamRuntimeEntries.set(registryKey, {
-				delegatedAgentConfigProvider,
-			});
-		}
+		// Each build owns its team runtime. A replacement built for a session id
+		// that is still resident must not share the resident's teammates, or
+		// releasing the resident would tear the replacement's team down with it.
+		let activateTeam: (() => void) | undefined;
+		let teamActivated = false;
 
 		const ensureTeamRuntime = (): AgentTeamsRuntime | undefined => {
 			if (!normalized.enableAgentTeams) {
 				return undefined;
 			}
-
-			const registryEntry = this.teamRuntimeEntries.get(registryKey) ?? {
-				delegatedAgentConfigProvider,
-			};
-			this.teamRuntimeEntries.set(registryKey, registryEntry);
-			teamRuntime = registryEntry.runtime;
 
 			if (!teamRuntime) {
 				teamRuntime = new AgentTeamsRuntime({
@@ -735,7 +719,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					teamRuntime.hydrateState(restoredTeamState);
 					restoredStateHydratedIntoRuntime = true;
 				}
-				registryEntry.runtime = teamRuntime;
 			}
 
 			if (!teamToolsRegistered) {
@@ -749,6 +732,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					leadAgentId: config.sessionId || "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
 					restoredTeammates: restoredTeammateSpecs,
+					deferTeammateRestore: true,
 					includeLeadSpawnTool: true,
 					includeLeadManagementTools: true,
 					onLeadToolsUnlocked: (teamTools) => {
@@ -773,14 +757,21 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					teammateConfigProvider: delegatedAgentConfigProvider,
 				});
 
-				if (restoredStateHydratedIntoRuntime) {
-					teamRuntime.recoverActiveRuns("runtime_recovered");
-				}
-
-				if (teamBootstrap.restoredFromPersistence) {
-					onTeamRestored?.();
-				}
 				tools.push(...teamBootstrap.tools);
+				// Respawning persisted teammates and re-dispatching their runs are
+				// the side effects that must wait for activation: a replacement
+				// runtime would otherwise work the same tasks as the resident it
+				// is about to replace, and both would write the same team state.
+				const restoredRuntime = teamRuntime;
+				activateTeam = () => {
+					teamBootstrap.restoreTeammates?.();
+					if (restoredStateHydratedIntoRuntime) {
+						restoredRuntime.recoverActiveRuns("runtime_recovered");
+					}
+					if (teamBootstrap.restoredFromPersistence) {
+						onTeamRestored?.();
+					}
+				};
 			}
 
 			return teamRuntime;
@@ -809,7 +800,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		);
 		const teamCompletionGuard = normalized.enableAgentTeams
 			? (): string | undefined => {
-					const rt = this.teamRuntimeEntries.get(registryKey)?.runtime;
+					const rt = teamRuntime;
 					if (!rt) return undefined;
 					const tasks = rt.listTasks();
 					const hasInProgress = tasks.some(
@@ -857,9 +848,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
 			teamRestoredFromPersistence: Boolean(restoredTeamState),
-			delegatedAgentConfigProvider:
-				this.teamRuntimeEntries.get(registryKey)
-					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
+			delegatedAgentConfigProvider,
+			activate: () => {
+				if (teamActivated) return;
+				// Marked only once restoration completed, so a failed attempt can
+				// be retried instead of silently leaving teammates unrestored.
+				activateTeam?.();
+				teamActivated = true;
+			},
 			extensions: runtimeExtensions,
 			completionPolicy,
 			registerLeadAgent: (agent) => {
@@ -874,7 +870,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
-				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
 				for (const service of ownedUserInstructionServices) {
 					service.stop();

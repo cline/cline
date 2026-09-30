@@ -231,16 +231,25 @@ describe("LocalRuntimeHost", () => {
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
+		// One shared shutdown/activate pair so call order across the resident
+		// and its replacement can be asserted.
+		const runtimeShutdown = vi.fn().mockResolvedValue(undefined);
+		const runtimeActivate = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn(async () => ({
 				tools: [],
-				shutdown: vi.fn().mockResolvedValue(undefined),
+				shutdown: runtimeShutdown,
+				activate: runtimeActivate,
 			})),
 		};
 		runtimeBuilder.build.mockImplementationOnce(async () => {
 			await gate;
 			if (failFirst) throw new Error("bootstrap failed");
-			return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
+			return {
+				tools: [],
+				shutdown: runtimeShutdown,
+				activate: runtimeActivate,
+			};
 		});
 		const agent = {
 			run: vi.fn().mockResolvedValue(createResult()),
@@ -311,30 +320,63 @@ describe("LocalRuntimeHost", () => {
 					outputTokens: 2,
 					totalCost: 0.5,
 				};
-				await expect(
-					manager.startSession({
-						...input,
-						initialMessages: [
-							{ role: "user", content: "seed" },
-							{
-								role: "assistant",
-								content: "ok",
-								metrics: { inputTokens: 40, outputTokens: 2, cost: 0.5 },
-							},
-						],
-					}),
-				).resolves.toMatchObject({ sessionId: "restored-task" });
+				const seededInput = {
+					...input,
+					initialMessages: [
+						{ role: "user" as const, content: "seed" },
+						{
+							role: "assistant" as const,
+							content: "ok",
+							metrics: { inputTokens: 40, outputTokens: 2, cost: 0.5 },
+						},
+					],
+				};
+				await expect(manager.startSession(seededInput)).resolves.toMatchObject({
+					sessionId: "restored-task",
+				});
 				expect(agent.shutdown).toHaveBeenCalledWith("session_replaced");
 				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
 				await expect(
 					manager.getAccumulatedUsage("restored-task"),
 				).resolves.toMatchObject({ usage: seededUsage });
+				// The first start activated its runtime right away; the rebuilt
+				// runtime was activated only after the resident's was shut down.
+				expect(runtimeActivate).toHaveBeenCalledTimes(2);
+				const replacedShutdown =
+					runtimeShutdown.mock.invocationCallOrder.at(-1);
+				const replacementActivate =
+					runtimeActivate.mock.invocationCallOrder.at(-1);
+				expect(runtimeShutdown).toHaveBeenLastCalledWith("session_replaced");
+				expect(replacementActivate).toBeGreaterThan(replacedShutdown ?? 0);
 				// ...a session mid-turn is protected from replacement...
 				agent.canStartRun.mockReturnValue(false);
 				await expect(manager.startSession(input)).rejects.toMatchObject({
 					code: "session_already_exists",
 				});
 				agent.canStartRun.mockReturnValue(true);
+				// ...as is a resident named by a prompted start, whose turn would
+				// otherwise run while the resident and its team are still alive...
+				await expect(
+					manager.startSession({ ...input, prompt: "run now" }),
+				).rejects.toMatchObject({ code: "session_already_exists" });
+				// ...and a replacement whose activation throws is released rather
+				// than left registered half-restored, leaving the resident in place.
+				runtimeActivate.mockImplementationOnce(() => {
+					throw new Error("teammate respawn failed");
+				});
+				runtimeShutdown.mockClear();
+				await expect(manager.startSession(input)).rejects.toThrow(
+					"teammate respawn failed",
+				);
+				expect(runtimeShutdown).toHaveBeenCalledWith("session_replaced");
+				expect(runtimeShutdown).toHaveBeenCalledWith("session_start_failed");
+				await expect(
+					manager.updateSessionConnection("restored-task", {}),
+				).rejects.toMatchObject({ code: "session_not_found" });
+				// Re-seed a resident for the remaining assertions.
+				await expect(manager.startSession(seededInput)).resolves.toMatchObject({
+					sessionId: "restored-task",
+				});
 				// ...and a rebuild that throws before the replacement registers
 				// leaves the working resident in place: reachable, and with its
 				// usage totals intact even though the failed input carried none.
