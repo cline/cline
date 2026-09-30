@@ -22,10 +22,6 @@ import {
 	isComposioToolkitSlug,
 } from "@cline/shared";
 import { resolveClineDir } from "@cline/shared/storage";
-import {
-	normalizeComposioTool,
-	resolveComposioToolsStatePath,
-} from "../../extensions/composio/composio-tools-extension";
 import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
 import {
 	type ClineAuthTelemetryContext,
@@ -41,6 +37,11 @@ import {
 	listToolkitTools,
 	waitForConnectionActive,
 } from "./cline-connectors-api";
+import {
+	normalizeComposioTool,
+	resolveComposioToolsStatePath,
+	type StoredComposioTool,
+} from "./composio-tools";
 
 /**
  * Management plane for Composio-backed integrations (Gmail, Google Calendar,
@@ -68,14 +69,6 @@ import {
 const LEGACY_COMPOSIO_PLUGIN_RELATIVE_PATH = ["plugins", "composio-tools.ts"];
 /** How long the background waiter gives the user to finish the browser flow. */
 const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
-
-type StoredComposioTool = {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: Record<string, unknown>;
-};
 
 type StoredComposioToolkit = {
 	connectedAccountId: string;

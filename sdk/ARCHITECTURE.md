@@ -976,8 +976,11 @@ evaluation in memory for one minute, and discards grants on account changes.
 Missing identity, provider configuration, or flag values deny access; internal
 email domains do not bypass this gate. Saved connector schemas alone cannot
 enable tools. Existing sessions recheck access before each tool execution.
-Disconnect/cancel cleanup remains available after access is removed. The Cline
-API proxy must enforce the same flag server-side for authenticated requests.
+Disconnect/cancel cleanup remains available after access is removed. Hosts
+supplying connector requests and schemas own rollout gating for their user;
+that path does not consult the saved account or its flag evaluation. The Cline
+API proxy enforces identity and connection ownership, but does not currently
+enforce the beta flag. Server-side enforcement is a separate backend change.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and

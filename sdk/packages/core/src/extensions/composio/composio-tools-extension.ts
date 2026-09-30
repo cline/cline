@@ -1,14 +1,16 @@
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { AgentExtension, BasicLogger } from "@cline/shared";
 import { createTool, FeatureFlag } from "@cline/shared";
-import { resolveClineDataDir } from "@cline/shared/storage";
 import {
 	type ConnectorsRequest,
 	type ConnectorToolSchema,
 	executeConnectorTool,
 } from "../../services/connectors/cline-connectors-api";
+import {
+	normalizeComposioTool,
+	resolveComposioToolsStatePath,
+	type StoredComposioTool,
+} from "../../services/connectors/composio-tools";
 import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 
@@ -20,57 +22,12 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  */
 
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
-const MAX_TOOL_DESCRIPTION_LENGTH = 1024;
-
-type StoredComposioTool = {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: Record<string, unknown>;
-};
-
-function parseToolInputParameters(
-	value: unknown,
-): Record<string, unknown> | undefined {
-	return typeof value === "object" && value !== null
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-export function normalizeComposioTool(
-	raw: ConnectorToolSchema,
-): StoredComposioTool | undefined {
-	if (!raw?.slug) {
-		return undefined;
-	}
-	const description = raw.description?.trim();
-	return {
-		slug: raw.slug,
-		name: raw.name?.trim() || undefined,
-		description:
-			description && description.length > MAX_TOOL_DESCRIPTION_LENGTH
-				? `${description.slice(0, MAX_TOOL_DESCRIPTION_LENGTH)}…`
-				: description || undefined,
-		version:
-			typeof raw.version === "string" && raw.version.trim()
-				? raw.version.trim()
-				: undefined,
-		input_parameters: parseToolInputParameters(raw.input_parameters),
-	};
-}
-
 type StoredComposioState = {
 	toolkits?: Record<
 		string,
 		{ connectedAccountId?: string; tools?: StoredComposioTool[] } | undefined
 	>;
 };
-
-export function resolveComposioToolsStatePath(accountId: string): string {
-	const key = createHash("sha256").update(accountId).digest("hex");
-	return join(resolveClineDataDir(), "settings", "composio", `${key}.json`);
-}
 
 function getAccountId(): string | undefined {
 	return (

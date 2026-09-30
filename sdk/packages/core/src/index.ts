@@ -536,6 +536,7 @@ export {
 } from "./runtime/tools/tool-approval";
 export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
+export { resolveComposioToolsStatePath } from "./services/connectors/composio-tools";
 export {
 	disableConnectorAutostart,
 	getPersistedConnectorConnection,
@@ -947,7 +948,6 @@ export { Agent, createAgentRuntime } from "@cline/agents";
 export {
 	type ComposioToolsExtensionOptions,
 	createComposioToolsExtension,
-	resolveComposioToolsStatePath,
 } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,

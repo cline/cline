@@ -40,10 +40,8 @@ vi.mock("../../services/storage/provider-settings-manager", () => ({
 	},
 }));
 
-import {
-	createComposioToolsExtension,
-	resolveComposioToolsStatePath,
-} from "./composio-tools-extension";
+import { resolveComposioToolsStatePath } from "../../services/connectors/composio-tools";
+import { createComposioToolsExtension } from "./composio-tools-extension";
 
 type RegisteredTool = {
 	name: string;

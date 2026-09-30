@@ -32,8 +32,9 @@ export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
  * so any client-held key (however permission-scoped) would allow executing
  * tools as other users. See the backend contract notes on each function.
  *
- * The backend must also enforce `CLINE_COMPOSIO_BETA` for the authenticated
- * account; client-side rollout checks are not an authorization boundary.
+ * Hosts supplying a request own rollout gating for that user. The backend
+ * enforces identity and connection ownership; it does not currently enforce
+ * `CLINE_COMPOSIO_BETA`. Local requests retain the saved-account flag check.
  *
  * By default, requests resolve the account bearer token using the shared
  * refresh-aware resolver. Hosts can instead supply `ctx.request`.
@@ -368,7 +369,11 @@ export async function waitForConnectionActive(
 }
 
 /** Execute once through the same authenticated transport as discovery.
- * Preserves the provider response body; failures become structured tool errors.
+ * Request rejection and non-2xx responses become
+ * { successful: false, error }; this shape does not
+ * identify the failure origin, and non-2xx responses may come from the provider.
+ * Hosts needing request diagnostics can observe rejection and HTTP status in
+ * their supplied request function. Response body read failures can still throw.
  * This function never retries an execution that could have side effects.
  */
 export async function executeConnectorTool(
