@@ -54,6 +54,18 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
+		"linux": {
+			"deb": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/stable"
+				}
+			},
+			"rpm": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/stable"
+				}
+			}
+		},
 		"macOS": {
 			"entitlements": "entitlements.plist",
 			"hardenedRuntime": true,
