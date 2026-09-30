@@ -578,7 +578,18 @@ describe("resolveProviderConfig", () => {
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
-				JSON.stringify({ models: [{ name: "local-llama" }] }),
+				JSON.stringify({
+					models: [
+						{
+							name: "local-llama",
+							context_length: 262_144,
+							max_completion_tokens: 8_192,
+						},
+						// Sources occasionally repeat an id without limits; the
+						// earlier record's budget must survive.
+						{ name: "local-llama" },
+					],
+				}),
 				{
 					status: 200,
 					headers: { "content-type": "application/json" },
@@ -602,6 +613,13 @@ describe("resolveProviderConfig", () => {
 			{ method: "GET", signal: expect.any(AbortSignal) },
 		);
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
+		// The limits reported by the source must reach the catalog, otherwise
+		// auto-compaction falls back to the 128K default (#14550).
+		expect(resolved?.knownModels?.["local-llama"]).toMatchObject({
+			contextWindow: 262_144,
+			maxInputTokens: 262_144,
+			maxTokens: 8_192,
+		});
 	});
 
 	it("loads Poolside models from the authenticated models endpoint", async () => {
