@@ -1,6 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { toast } from "@/hooks/use-toast";
-import { openWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
+import {
+	cloudHandoffFollowUpAttachments,
+	openWithCloudHandoffFollowUp,
+	restoreCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
 vi.mock("./desktop-client", () => ({ desktopClient: { invoke: vi.fn() } }));
@@ -105,11 +109,55 @@ it("does not offer an unconfirmed send for resubmission, even with stale initial
 		}),
 	).toBe(true);
 	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined);
-	expect(toast).toHaveBeenCalledWith(
-		expect.objectContaining({
-			title: "Follow-up delivery is unconfirmed",
-		}),
+	expect(toast).not.toHaveBeenCalled();
+});
+
+it("decodes an explicitly restored uncertain image without mutating the saved copy", async () => {
+	const uncertain = { ...saved, unconfirmed: true };
+	const images = cloudHandoffFollowUpAttachments(uncertain);
+	expect(await images[0].text()).toBe("image");
+	expect(images[0].type).toBe("image/png");
+	expect(uncertain.unconfirmed).toBe(true);
+	expect(() =>
+		cloudHandoffFollowUpAttachments({ ...saved, userImages: ["invalid"] }),
+	).toThrow("Invalid saved image");
+});
+
+it.each([
+	"restored",
+	"existing draft",
+	"navigated",
+	"changed copy",
+])("explicit recovery handles %s without sending", async (outcome) => {
+	const expected = { ...saved, unconfirmed: true };
+	let canRestore = outcome !== "existing draft";
+	vi.mocked(desktopClient.invoke).mockImplementation(async () => {
+		if (outcome === "navigated") canRestore = false;
+		if (outcome === "changed copy") throw new Error("saved follow-up changed");
+		return saved;
+	});
+	const restore = vi.fn();
+	const result = restoreCloudHandoffFollowUp({
+		targetSessionId: "target",
+		expected,
+		canRestore: () => canRestore,
+		restore,
+	});
+	if (outcome === "existing draft" || outcome === "changed copy")
+		await expect(result).rejects.toThrow();
+	else await result;
+	if (outcome === "restored") {
+		expect(restore.mock.calls[0][0]).toBe(saved.command);
+		expect(await restore.mock.calls[0][1][0].text()).toBe("image");
+	} else expect(restore).not.toHaveBeenCalled();
+	expect(desktopClient.invoke).toHaveBeenCalledTimes(
+		outcome === "existing draft" ? 0 : 1,
 	);
+	if (outcome !== "existing draft")
+		expect(desktopClient.invoke).toHaveBeenCalledWith(
+			"restore_cloud_handoff_follow_up",
+			{ sessionId: "target", expected },
+		);
 });
 
 it.each([

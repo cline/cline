@@ -3,6 +3,40 @@ import { toast } from "@/hooks/use-toast";
 import type { CloudHandoffFollowUp } from "../../sidecar/cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
+export function cloudHandoffFollowUpAttachments(
+	saved: CloudHandoffFollowUp,
+): File[] {
+	return saved.userImages.map((image, index) => {
+		const media = validateImageMedia(undefined, image);
+		if (!media.ok) throw new Error("Invalid saved image");
+		const bytes = Uint8Array.from(atob(media.base64), (char) =>
+			char.charCodeAt(0),
+		);
+		return new File([bytes], `handoff-image-${index + 1}`, {
+			type: media.mediaType,
+		});
+	});
+}
+
+export async function restoreCloudHandoffFollowUp(options: {
+	targetSessionId: string;
+	expected: CloudHandoffFollowUp;
+	canRestore: () => boolean;
+	restore: (draft: string, attachments: File[]) => void;
+}): Promise<void> {
+	if (!options.canRestore())
+		throw new Error(
+			"Clear the current draft before restoring the saved follow-up.",
+		);
+	const attachments = cloudHandoffFollowUpAttachments(options.expected);
+	await desktopClient.invoke("restore_cloud_handoff_follow_up", {
+		sessionId: options.targetSessionId,
+		expected: options.expected,
+	});
+	if (options.canRestore())
+		options.restore(options.expected.command, attachments);
+}
+
 export async function openWithCloudHandoffFollowUp(options: {
 	targetSessionId: string;
 	initialPromptDraft?: string;
@@ -21,16 +55,9 @@ export async function openWithCloudHandoffFollowUp(options: {
 		);
 		attachments ??= saved?.unconfirmed
 			? undefined
-			: saved?.userImages.map((image, index) => {
-					const media = validateImageMedia(undefined, image);
-					if (!media.ok) throw new Error("Invalid saved image");
-					const bytes = Uint8Array.from(atob(media.base64), (char) =>
-						char.charCodeAt(0),
-					);
-					return new File([bytes], `handoff-image-${index + 1}`, {
-						type: media.mediaType,
-					});
-				});
+			: saved
+				? cloudHandoffFollowUpAttachments(saved)
+				: undefined;
 	} catch {
 		saved = null;
 		restoreFailed = true;
@@ -38,12 +65,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 	if (!options.canOpen()) return false;
 	if (saved?.unconfirmed) {
 		options.open(undefined, undefined);
-		toast({
-			title: "Follow-up delivery is unconfirmed",
-			description:
-				"Check the cloud conversation before resending. The recovery copy is still saved locally.",
-			variant: "destructive",
-		});
 		return true;
 	}
 	options.open(options.initialPromptDraft ?? saved?.command, attachments);
