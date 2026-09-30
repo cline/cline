@@ -278,7 +278,9 @@ export class SdkCloudSessionCoordinator {
 			sessionId: taskId,
 			repoUrl: entry?.record.repoContext.repoUrl,
 			branch: entry?.record.repoContext.branch,
-			status: entry ? this.statusOf(entry) : "unknown",
+			// While the start is pending there is no session to send to yet; the
+			// composer disables submit on this status instead of queueing.
+			status: this.pendingStart ? "provisioning" : entry ? this.statusOf(entry) : "unknown",
 		}
 	}
 

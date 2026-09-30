@@ -43,7 +43,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	} = chatState
 
 	const { isAtBottom, scrollToBottomAuto } = scrollBehavior
-	const { turnState, cloudSessionsEnabled, cloudTaskTarget, clineMessages = [] } = useExtensionState()
+	const { turnState, cloudSessionsEnabled, cloudTaskTarget, currentCloudTask, clineMessages = [] } = useExtensionState()
 	const legacyTaskRunning =
 		turnState === undefined &&
 		(lastMessage?.partial === true || (lastMessage?.type === "say" && lastMessage.say === "api_req_started"))
@@ -58,7 +58,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
 		!!cloudSessionsEnabled &&
 		cloudTaskTarget?.target === "cloud" &&
 		!isCloudTargetReady(cloudTaskTarget)
-	const submitDisabled = (sendingDisabled && !allowSubmitWhileDisabled) || cloudTargetIncomplete
+	// A provisioning sandbox has no session to queue a follow-up on yet; the draft stays in the composer.
+	const submitDisabled =
+		(sendingDisabled && !allowSubmitWhileDisabled) || cloudTargetIncomplete || currentCloudTask?.status === "provisioning"
 
 	return (
 		<>
