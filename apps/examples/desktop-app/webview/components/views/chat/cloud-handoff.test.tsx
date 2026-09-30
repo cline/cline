@@ -81,6 +81,10 @@ describe("CloudHandoffGitConfirmation", () => {
 			"1 changed/new file will be committed",
 		);
 		const details = dialog?.querySelector("details");
+		expect(dialog?.textContent).toContain(
+			"1 local commit not confirmed on the remote",
+		);
+		expect(details?.textContent).not.toContain("1 local commit");
 		expect(details?.open).toBe(false);
 		expect(details?.textContent).toContain("new.txt");
 		expect(details?.textContent).toContain("abc local commit");
@@ -120,6 +124,12 @@ describe("CloudHandoffGitConfirmation", () => {
 		expect(dialog?.textContent).not.toContain("changed/new");
 		expect(dialog?.textContent).not.toContain("staging");
 		expect(dialog?.textContent).not.toContain("will be committed");
+		expect(dialog?.textContent).toContain(
+			"1 local commit not confirmed on the remote",
+		);
+		expect(dialog?.querySelector("details")?.textContent).not.toContain(
+			"1 local commit",
+		);
 		expect(dialog?.querySelector("details")?.textContent).toContain(
 			"abc local commit",
 		);

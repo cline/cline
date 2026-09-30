@@ -41,6 +41,13 @@ export function CloudHandoffGitConfirmation({
 					<AlertDialogDescription>
 						Cline will switch this checkout to a new branch and push it to
 						GitHub to continue your conversation in cloud.
+						{plan.commits.length > 0 && (
+							<span className="mt-2 block">
+								This includes {plan.commits.length} local{" "}
+								{plan.commits.length === 1 ? "commit" : "commits"} not confirmed
+								on the remote.
+							</span>
+						)}
 						{plan.files.length > 0 && (
 							<span className="mt-2 block">
 								{plan.files.length} changed/new{" "}
