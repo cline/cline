@@ -1163,7 +1163,11 @@ describe("LocalRuntimeHost", () => {
 		expect(started.manifest.source).toBe("kanban");
 	});
 
-	it("owns recovery files in seeded history before the source session is deleted", async () => {
+	it.each([
+		"success",
+		"source read failure",
+		"destination write failure",
+	])("starts seeded sessions with recovery copy outcome: %s", async (outcome) => {
 		const sessionsDir = join(isolatedHomeDir, "sessions");
 		const sourceRoot = join(sessionsDir, "source", "tool-results");
 		const full = "saved output\n".repeat(1000);
@@ -1173,6 +1177,14 @@ describe("LocalRuntimeHost", () => {
 			name: "external",
 			content: full,
 		});
+		if (outcome === "source read failure") {
+			rmSync(sourcePath);
+			mkdirSync(sourcePath);
+		} else if (outcome === "destination write failure") {
+			const targetRoot = join(sessionsDir, "seeded", "tool-results");
+			mkdirSync(dirname(targetRoot), { recursive: true });
+			writeFileSync(targetRoot, "blocked");
+		}
 		const initialMessages: MessageWithMetadata[] = [
 			{
 				role: "user",
@@ -1195,8 +1207,8 @@ describe("LocalRuntimeHost", () => {
 		];
 		const sessionService = new FileSessionService(sessionsDir);
 		const agent = {
-			run: vi.fn(),
-			continue: vi.fn(),
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
 			getMessages: vi.fn().mockReturnValue([]),
 			getAgentId: () => "agent",
 			getConversationId: () => "conversation",
@@ -1225,6 +1237,23 @@ describe("LocalRuntimeHost", () => {
 			const persisted = await manager.readSessionMessages("seeded");
 			const wire = JSON.stringify(persisted);
 			expect(wire).not.toContain(sourcePath);
+			if (outcome !== "success") {
+				expect(wire).toContain("saved preview");
+				expect(wire).not.toContain("Full result saved");
+				expect(createAgent).toHaveBeenCalledWith(
+					expect.objectContaining({
+						initialMessages: [
+							expect.objectContaining({ content: persisted[0].content }),
+						],
+					}),
+				);
+				const result = await manager.runTurn({
+					sessionId: "seeded",
+					prompt: "continue",
+				});
+				expect(result?.finishReason).toBe("completed");
+				return;
+			}
 			const match = /Full result saved to (.*?) for search\./.exec(wire);
 			expect(match).not.toBeNull();
 			const path = match?.[1] ?? "";

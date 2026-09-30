@@ -140,10 +140,10 @@ export class ToolResultStore {
 							let path: string;
 							try {
 								path = await copy;
-							} catch (error) {
-								if ((error as NodeJS.ErrnoException).code === "ENOENT")
-									continue;
-								throw error;
+							} catch {
+								// Recovery is best-effort. Keep the preview and other
+								// content, but omit a notice we could not copy.
+								continue;
 							}
 							entries.push({
 								...entry,

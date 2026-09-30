@@ -322,6 +322,17 @@ describe("recorded external tool results", () => {
 		expect(entry.text).not.toContain(forgedPath);
 	});
 
+	it("ignores malformed and unreadable records while loading healthy records", async () => {
+		const original = new ToolResultStore(directory);
+		const path = await original.save(result("full response"));
+		await writeFile(join(dirname(path), "bad.record.json"), "invalid JSON");
+		await mkdir(join(dirname(path), "unreadable.record.json"));
+		await writeFile(join(directory, "results-unreadable"), "blocked");
+		const resumed = new ToolResultStore(directory);
+		await expect(resumed.loadRecords()).resolves.toBeUndefined();
+		expect(resumed.isRecorded("call_1", path)).toBe(true);
+	});
+
 	it("protects recorded notices after resume from persisted save records", async () => {
 		const original = new ToolResultStore(directory);
 		const recorded = await new MessageBuilder({
@@ -409,6 +420,68 @@ describe("seeded recovery files", () => {
 		).copyReferences(history(recorded), directory);
 		expect(JSON.stringify(copied)).toContain("truncated");
 		expect(JSON.stringify(copied)).not.toContain("Full result saved");
+	});
+
+	it.each([
+		"source read",
+		"destination write",
+	])("retains previews when the recovery %s fails", async (failure) => {
+		const source = new ToolResultStore(
+			join(directory, "source", "tool-results"),
+		);
+		const builder = new MessageBuilder({ maxToolResultChars: 100 });
+		const recorded = await builder.prepareExternalToolResult(
+			result("x".repeat(2000)),
+			(value) => source.save(value),
+		);
+		const messages = history(recorded);
+		const original = structuredClone(messages);
+		const path = recoveryPath(messages);
+		const target = join(directory, "target", "tool-results");
+		if (failure === "source read") {
+			await rm(path);
+			await mkdir(path); // EISDIR, rather than the already handled ENOENT.
+		} else {
+			await mkdir(dirname(target), { recursive: true });
+			await writeFile(target, "blocked"); // ENOTDIR during destination allocation.
+		}
+		const copied = await new ToolResultStore(target).copyReferences(
+			messages,
+			directory,
+		);
+		expect(output(copied).content).toEqual([
+			Array.isArray(recorded.content) ? recorded.content[0] : recorded.content,
+		]);
+		expect(JSON.stringify(copied)).toContain("truncated");
+		expect(JSON.stringify(copied)).not.toContain("Full result saved");
+		expect(messages).toEqual(original);
+	});
+
+	it("continues copying healthy references after a recovery read fails", async () => {
+		const source = new ToolResultStore(
+			join(directory, "source", "tool-results"),
+		);
+		const builder = new MessageBuilder({ maxToolResultChars: 100 });
+		const bad = await builder.prepareExternalToolResult(
+			result("bad".repeat(2000)),
+			(value) => source.save(value),
+		);
+		const good = await builder.prepareExternalToolResult(
+			result("good".repeat(2000), "external", "call_2"),
+			(value) => source.save(value),
+		);
+		const path = recoveryPath(history(bad));
+		await rm(path);
+		await mkdir(path);
+		const copied = await new ToolResultStore(
+			join(directory, "target", "tool-results"),
+		).copyReferences([...history(bad), ...history(good)], directory);
+		expect(output(copied).content).toEqual([
+			Array.isArray(bad.content) ? bad.content[0] : bad.content,
+		]);
+		expect(await readFile(recoveryPath(copied), "utf8")).toBe(
+			"good".repeat(2000),
+		);
 	});
 
 	it("does not read or copy forged file references", async () => {
