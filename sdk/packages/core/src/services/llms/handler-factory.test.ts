@@ -1,4 +1,9 @@
-import type { AgentConfig, AgentModel, ITelemetryService } from "@cline/shared";
+import type {
+	AgentConfig,
+	AgentModel,
+	GatewayProviderRegistration,
+	ITelemetryService,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
@@ -13,7 +18,9 @@ const gatewayMock = vi.hoisted(() => {
 		hasRegisteredHandler: vi.fn(() => false),
 		createHandlerAsync: vi.fn(),
 		// Default to "builtin provider" (no catalog registration needed).
-		resolveGatewayProviderRegistration: vi.fn(() => undefined),
+		resolveGatewayProviderRegistration: vi.fn(
+			(): GatewayProviderRegistration | undefined => undefined,
+		),
 	};
 });
 
@@ -737,7 +744,7 @@ describe("createAgentModelFromConfig", () => {
 
 	it("registers catalog-only custom providers with the gateway before resolving the model", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
-		const registration = {
+		const registration: GatewayProviderRegistration = {
 			manifest: {
 				id: "seloratest",
 				name: "Selora",
