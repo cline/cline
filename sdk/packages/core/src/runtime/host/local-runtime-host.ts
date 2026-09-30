@@ -2545,7 +2545,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		};
 
-		if (session.artifacts) {
+		// A replacement started under the same id may take the slot at any await
+		// in here. Once it has, this runtime's terminal side effects (status
+		// write, `ended` event, slot deletion) describe a session that is alive
+		// again and must be skipped; only its own resources are torn down.
+		const displaced = () => this.sessions.get(session.sessionId) !== session;
+		if (session.artifacts && !displaced()) {
 			await this.refreshActiveSessionGitMetadata(session);
 			try {
 				await this.updateStatus(session, input.status, input.exitCode);
@@ -2568,19 +2573,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		// A replacement started under the same id may have taken the slot while
-		// this runtime was shutting down; it must not be evicted by proxy.
-		if (this.sessions.get(session.sessionId) === session) {
+		if (!displaced()) {
 			this.sessions.delete(session.sessionId);
+			this.emit({
+				type: "ended",
+				payload: {
+					sessionId: session.sessionId,
+					reason: input.endReason,
+					ts: Date.now(),
+				},
+			});
 		}
-		this.emit({
-			type: "ended",
-			payload: {
-				sessionId: session.sessionId,
-				reason: input.endReason,
-				ts: Date.now(),
-			},
-		});
 		if (cleanupErrors.length > 0 && input.status === "failed") {
 			throw cleanupErrors[0];
 		}

@@ -614,6 +614,10 @@ describe("LocalRuntimeHost", () => {
 				enableAgentTeams: false,
 			}),
 		});
+		const endedEvents: string[] = [];
+		const unsubscribe = manager.subscribe((event) => {
+			if (event.type === "ended") endedEvents.push(event.payload.sessionId);
+		});
 		try {
 			await manager.startSession(input);
 			// A stop begins on the resident and stalls in its agent shutdown...
@@ -625,11 +629,14 @@ describe("LocalRuntimeHost", () => {
 			});
 			releaseShutdown();
 			await stopping;
-			// The old runtime's teardown must not have removed the replacement.
+			// The old runtime's teardown must not have removed the replacement,
+			// nor told subscribers that the (live) session ended.
 			await expect(
 				manager.updateSessionConnection("stop-race", {}),
 			).resolves.toBeUndefined();
+			expect(endedEvents).not.toContain("stop-race");
 		} finally {
+			unsubscribe();
 			releaseShutdown();
 			await manager.dispose();
 		}
