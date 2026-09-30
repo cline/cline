@@ -8,6 +8,7 @@ import type {
 import type { TuiProps } from "../types";
 
 interface EventBridgeHandlers {
+	onSessionAccess?: (reason: string | undefined) => void;
 	onAgentEvent: (event: AgentEvent) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
@@ -29,6 +30,8 @@ export function EventBridgeProvider(props: {
 
 	useEffect(() => {
 		const unsubscribe = subscribeRef.current({
+			onSessionAccess: (reason) =>
+				handlersRef.current.onSessionAccess?.(reason),
 			onAgentEvent: (event) => handlersRef.current.onAgentEvent(event),
 			onTeamEvent: (event) => handlersRef.current.onTeamEvent(event),
 			onPendingPrompts: (event) => handlersRef.current.onPendingPrompts(event),

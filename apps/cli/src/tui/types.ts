@@ -173,6 +173,7 @@ export interface TuiProps {
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
 	subscribeToEvents: (handlers: {
+		onSessionAccess?: (reason: string | undefined) => void;
 		onAgentEvent: (event: AgentEvent) => void;
 		onTeamEvent: (event: TeamEvent) => void;
 		onPendingPrompts: (event: PendingPromptSnapshot) => void;

@@ -34,7 +34,11 @@ host presentation.
 `attach(sessionId)` subscribes to a resident session and returns its current manifest
 without replacing the runtime or its owner. It returns `undefined` when the session
 is not resident; callers can then start it with saved history. Attached clients
-receive subsequent turns from every client and can submit follow-ups with `send`.
+receive subsequent turns without acquiring ownership. When
+`ownedByAnotherClient` is true, the attachment is read-only: sending, aborting,
+changing the connection, and queue mutations are rejected by the Hub. Clients
+should reflect this in their input UI and track `session_access` events to update
+access when ownership changes. `send` is available when no other client owns the session.
 
 
 `start({ config: { sessionId, ... }, ... })` can restart a resident session under
