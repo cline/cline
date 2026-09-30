@@ -6,7 +6,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 describe("saveLocalProviderSettings", () => {
-	it("ignores null apiKey/baseUrl updates", () => {
+	it("ignores null apiKey/baseUrl updates", async () => {
 		const save = vi.fn();
 		const manager = {
 			read: vi.fn().mockReturnValue({
@@ -22,7 +22,7 @@ describe("saveLocalProviderSettings", () => {
 			saveProviderSettings: save,
 		};
 
-		saveLocalProviderSettings(
+		await saveLocalProviderSettings(
 			manager as unknown as ProviderSettingsManager,
 			{
 				action: "saveProviderSettings",
@@ -43,7 +43,7 @@ describe("saveLocalProviderSettings", () => {
 		);
 	});
 
-	it("clears apiKey/baseUrl when explicit blank strings are provided", () => {
+	it("clears apiKey/baseUrl when explicit blank strings are provided", async () => {
 		const save = vi.fn();
 		const manager = {
 			read: vi.fn().mockReturnValue({
@@ -59,7 +59,7 @@ describe("saveLocalProviderSettings", () => {
 			saveProviderSettings: save,
 		};
 
-		saveLocalProviderSettings(
+		await saveLocalProviderSettings(
 			manager as unknown as ProviderSettingsManager,
 			{
 				action: "saveProviderSettings",
@@ -78,7 +78,7 @@ describe("saveLocalProviderSettings", () => {
 		);
 	});
 
-	it("merges and clears Azure provider settings", () => {
+	it("merges and clears Azure provider settings", async () => {
 		const save = vi.fn();
 		const manager = {
 			read: vi.fn().mockReturnValue({
@@ -96,7 +96,7 @@ describe("saveLocalProviderSettings", () => {
 			saveProviderSettings: save,
 		};
 
-		saveLocalProviderSettings(
+		await saveLocalProviderSettings(
 			manager as unknown as ProviderSettingsManager,
 			{
 				action: "saveProviderSettings",
@@ -127,7 +127,7 @@ describe("saveLocalProviderSettings", () => {
 			},
 		});
 
-		saveLocalProviderSettings(
+		await saveLocalProviderSettings(
 			manager as unknown as ProviderSettingsManager,
 			{
 				action: "saveProviderSettings",
@@ -146,7 +146,7 @@ describe("saveLocalProviderSettings", () => {
 		);
 	});
 
-	it("keeps OAuth auth fields when updating manual apiKey", () => {
+	it("keeps OAuth auth fields when updating manual apiKey", async () => {
 		const save = vi.fn();
 		const manager = {
 			read: vi.fn().mockReturnValue({
@@ -166,7 +166,7 @@ describe("saveLocalProviderSettings", () => {
 			saveProviderSettings: save,
 		};
 
-		saveLocalProviderSettings(
+		await saveLocalProviderSettings(
 			manager as unknown as ProviderSettingsManager,
 			{
 				action: "saveProviderSettings",

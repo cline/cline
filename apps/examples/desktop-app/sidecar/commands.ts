@@ -86,7 +86,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -162,7 +162,6 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
@@ -3064,7 +3063,7 @@ export async function handleCommand(
 			storageProviderId === "cline"
 				? manager.getProviderSettings(storageProviderId)
 				: undefined;
-		const saved = saveLocalProviderSettings(manager, {
+		const saved = await saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -3075,7 +3074,7 @@ export async function handleCommand(
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});
