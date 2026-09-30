@@ -67,6 +67,14 @@ async function optionalConfig(cwd: string, key: string) {
 	}
 }
 
+function isSensitivePath(path: string): boolean {
+	return (
+		/(^|\/)(\.env(?:\.[^/]*)?|id_rsa|id_ed25519|credentials\.json)$|\.(pem|key|p12|pfx)$/i.test(
+			path,
+		) && !/\.(example|sample|template)$/i.test(path)
+	);
+}
+
 export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	const root = await git(cwd, ["rev-parse", "--show-toplevel"]);
 	if (
@@ -108,16 +116,9 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 			"Resolve conflicts or changes inside submodules before continuing in cloud.",
 		);
 	}
-	if (
-		files.some(
-			({ path }) =>
-				/(^|\/)(\.env(?:\.[^/]*)?|id_rsa|id_ed25519|credentials\.json)$|\.(pem|key|p12|pfx)$/i.test(
-					path,
-				) && !/\.(example|sample|template)$/i.test(path),
-		)
-	) {
+	if (files.some(({ path }) => isSensitivePath(path))) {
 		throw new Error(
-			"Potentially sensitive files need review before cloud preparation. Commit the intended files or explicitly ignore private files, then retry /cloud.",
+			"Potentially sensitive files need review before cloud preparation. Keep private files out of the changes and unpublished history before retrying /cloud.",
 		);
 	}
 	const remote =
@@ -148,17 +149,36 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 		.split("\n")
 		.map((line) => line.split(/\s/)[0] ?? "")
 		.filter((sha) => /^[0-9a-f]{40,64}$/.test(sha));
+	const unpublishedRange = [
+		headSha,
+		...(knownHeads.length ? ["--not", ...knownHeads] : []),
+	];
 	const commits = (
 		await git(root, [
 			"log",
 			"--ignore-missing",
 			"--format=%h %s",
-			headSha,
-			...(knownHeads.length ? ["--not", ...knownHeads] : []),
+			...unpublishedRange,
 		])
 	)
 		.split("\n")
 		.filter(Boolean);
+	const historicalPaths = await git(root, [
+		"log",
+		"--ignore-missing",
+		"--format=",
+		"--name-only",
+		"-z",
+		"--root",
+		"-m",
+		"--no-renames",
+		...unpublishedRange,
+	]);
+	if (historicalPaths.split("\0").some(isSensitivePath)) {
+		throw new Error(
+			"Potentially sensitive files exist in unpublished history, even if deleted later. Review that history before retrying /cloud; no branch was created or pushed.",
+		);
+	}
 	const indexTree = await git(root, ["write-tree"]);
 	const temporary = await mkdtemp(join(tmpdir(), "cline-handoff-index-"));
 	let treeSha: string;

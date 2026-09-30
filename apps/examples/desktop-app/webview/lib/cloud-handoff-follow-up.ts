@@ -19,21 +19,33 @@ export async function openWithCloudHandoffFollowUp(options: {
 			"get_cloud_handoff_follow_up",
 			{ sessionId: options.targetSessionId },
 		);
-		attachments ??= saved?.userImages.map((image, index) => {
-			const media = validateImageMedia(undefined, image);
-			if (!media.ok) throw new Error("Invalid saved image");
-			const bytes = Uint8Array.from(atob(media.base64), (char) =>
-				char.charCodeAt(0),
-			);
-			return new File([bytes], `handoff-image-${index + 1}`, {
-				type: media.mediaType,
-			});
-		});
+		attachments ??= saved?.unconfirmed
+			? undefined
+			: saved?.userImages.map((image, index) => {
+					const media = validateImageMedia(undefined, image);
+					if (!media.ok) throw new Error("Invalid saved image");
+					const bytes = Uint8Array.from(atob(media.base64), (char) =>
+						char.charCodeAt(0),
+					);
+					return new File([bytes], `handoff-image-${index + 1}`, {
+						type: media.mediaType,
+					});
+				});
 	} catch {
 		saved = null;
 		restoreFailed = true;
 	}
 	if (!options.canOpen()) return false;
+	if (saved?.unconfirmed) {
+		options.open(undefined, undefined);
+		toast({
+			title: "Follow-up delivery is unconfirmed",
+			description:
+				"Check the cloud conversation before resending. The recovery copy is still saved locally.",
+			variant: "destructive",
+		});
+		return true;
+	}
 	options.open(options.initialPromptDraft ?? saved?.command, attachments);
 	if (restoreFailed) {
 		toast({
@@ -45,18 +57,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 	}
 	if (saved) {
 		options.delivered(saved.sourceSessionId);
-		try {
-			await desktopClient.invoke("clear_cloud_handoff_follow_up", {
-				sessionId: options.targetSessionId,
-			});
-		} catch {
-			toast({
-				title: "Follow-up restored, but recovery copy could not be cleared",
-				description:
-					"It may appear again when you reopen this session. Check the conversation before resending it.",
-				variant: "destructive",
-			});
-		}
 	}
 	return true;
 }

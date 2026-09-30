@@ -13,6 +13,7 @@ export type CloudHandoffFollowUp = {
 	sourceSessionId: string;
 	command: string;
 	userImages: string[];
+	unconfirmed?: boolean;
 };
 
 function followUpPath(targetSessionId: string): string {
@@ -54,7 +55,8 @@ export function readCloudHandoffFollowUp(
 		typeof value?.sourceSessionId !== "string" ||
 		typeof value.command !== "string" ||
 		!Array.isArray(value.userImages) ||
-		!value.userImages.every((image) => typeof image === "string")
+		!value.userImages.every((image) => typeof image === "string") ||
+		(value.unconfirmed !== undefined && typeof value.unconfirmed !== "boolean")
 	) {
 		throw new Error("The saved cloud follow-up could not be read.");
 	}
@@ -63,4 +65,30 @@ export function readCloudHandoffFollowUp(
 
 export function clearCloudHandoffFollowUp(targetSessionId: string): void {
 	rmSync(followUpPath(targetSessionId), { force: true });
+}
+
+export async function sendWithCloudHandoffFollowUp<T>(
+	targetSessionId: string,
+	command: string,
+	userImages: string[],
+	send: () => Promise<T>,
+): Promise<T> {
+	const saved = readCloudHandoffFollowUp(targetSessionId);
+	if (!saved || saved.unconfirmed) return await send();
+	// Persist before dispatch so a crash cannot offer a possibly sent prompt again.
+	saveCloudHandoffFollowUp(targetSessionId, {
+		...saved,
+		command,
+		userImages,
+		unconfirmed: true,
+	});
+	const result = await send();
+	try {
+		clearCloudHandoffFollowUp(targetSessionId);
+	} catch {
+		console.warn(
+			"Could not clear the confirmed cloud follow-up recovery copy.",
+		);
+	}
+	return result;
 }
