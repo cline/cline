@@ -750,7 +750,7 @@ function toAiSdkMessages(
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const signature = metadata?.signature;
 				const redactedData = metadata?.redactedData;
-				const itemId = metadata?.itemId;
+				const itemId = metadata?.itemId ?? metadata?.callId;
 				const reasoningEncryptedContent = metadata?.reasoningEncryptedContent;
 				const providerOptions: Record<string, Record<string, unknown>> = {};
 				if (typeof signature === "string" || typeof redactedData === "string") {
