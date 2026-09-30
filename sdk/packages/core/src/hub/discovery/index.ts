@@ -610,7 +610,7 @@ export function withHubStartupLock<T>(
 /** A failed health check does not establish that the listening process is gone. */
 export type HubServerProbeResult =
 	| { status: "healthy"; hub: HubServerProbeRecord }
-	| { status: "unreachable" | "timeout" | "invalid-response" };
+	| { status: "unreachable" | "timeout" | "starting" | "invalid-response" };
 
 export async function probeHubServer(
 	url: string,
@@ -635,6 +635,11 @@ export async function probeHubServer(
 					: undefined,
 			},
 		);
+		// The Hub accepts HTTP before discovery publication finishes. Only its
+		// startup response is retryable; arbitrary 503s do not identify a Hub.
+		if (response.status === 503 && (await response.text()) === "Starting") {
+			return { status: "starting" };
+		}
 		if (!response.ok) {
 			return { status: "invalid-response" };
 		}

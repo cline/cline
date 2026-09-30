@@ -383,6 +383,16 @@ describe("hub discovery", () => {
 
 it.each([
 	[
+		"Hub publication in progress",
+		() => Promise.resolve(new Response("Starting", { status: 503 })),
+		"starting",
+	],
+	[
+		"unrecognized service unavailable",
+		() => Promise.resolve(new Response("Unavailable", { status: 503 })),
+		"invalid-response",
+	],
+	[
 		"HTTP failure",
 		() => Promise.resolve(new Response("unauthorized", { status: 401 })),
 		"invalid-response",

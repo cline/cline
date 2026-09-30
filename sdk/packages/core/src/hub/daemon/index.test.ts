@@ -269,6 +269,72 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it.each([
+		true,
+		false,
+	])("retains startup ownership after cancellation (discovery published: %s)", async (published) => {
+		const controller = new AbortController();
+		const record = {
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+			protocolVersion: "v1",
+			buildId: "current-build",
+		};
+		let releaseProbe!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			releaseProbe = resolve;
+		});
+		let observedProbe!: () => void;
+		const observed = new Promise<void>((resolve) => {
+			observedProbe = resolve;
+		});
+		let lockHeld = false;
+		withHubStartupLock.mockImplementationOnce(async (_path, callback) => {
+			lockHeld = true;
+			try {
+				return await callback();
+			} finally {
+				lockHeld = false;
+			}
+		});
+		readHubDiscovery
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValue(published ? record : undefined);
+		spawn.mockImplementationOnce(() => {
+			controller.abort(new Error("waiter stopped"));
+			return { unref: vi.fn() };
+		});
+		probeHubServer
+			.mockResolvedValueOnce({ status: "unreachable" })
+			.mockImplementationOnce(async (_url, options) => {
+				observedProbe();
+				options.signal?.throwIfAborted();
+				await gate;
+				readHubDiscovery.mockResolvedValue(record);
+				return { status: "healthy", hub: record };
+			})
+			.mockResolvedValue({ status: "healthy", hub: record });
+		verifyHubConnection.mockResolvedValue(true);
+		const { ensureDetachedHubServer } = await import(".");
+		const pending = ensureDetachedHubServer(
+			"/workspace",
+			{},
+			controller.signal,
+		);
+		const result = expect(pending).resolves.toMatchObject({ url: record.url });
+		try {
+			await observed;
+			expect(controller.signal.aborted).toBe(true);
+			expect(lockHeld).toBe(true);
+			expect(probeHubServer.mock.calls[1]?.[1].signal).toBeUndefined();
+		} finally {
+			releaseProbe();
+		}
+		await result;
+		expect(lockHeld).toBe(false);
+		expect(spawn).toHaveBeenCalledOnce();
+	});
+
 	it("holds a spawned Hub startup attempt through its deadline after timeouts", async () => {
 		readHubDiscovery
 			.mockResolvedValue({

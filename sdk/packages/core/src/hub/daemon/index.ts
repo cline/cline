@@ -698,7 +698,6 @@ async function ensureDetachedHubServerLocked(
 			if (nextDiscovery?.url && nextDiscovery.authToken) {
 				const healthy = await probeHubForStartup(nextDiscovery.url, {
 					authToken: nextDiscovery.authToken,
-					signal,
 					deadline,
 				});
 				if (
@@ -716,7 +715,6 @@ async function ensureDetachedHubServerLocked(
 				}
 			}
 			const nextExpected = await probeHubForStartup(expectedUrl, {
-				signal,
 				deadline,
 			});
 			if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {

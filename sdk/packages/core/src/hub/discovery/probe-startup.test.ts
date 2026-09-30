@@ -11,10 +11,13 @@ afterEach(() => {
 });
 
 describe("startup probe policy", () => {
-	it("retries a slow existing Hub and reuses it when it answers", async () => {
+	it.each([
+		"timeout",
+		"starting",
+	])("retries a %s Hub and reuses it when it answers", async (status) => {
 		const hub = { url: "ws://127.0.0.1:25463/hub" };
 		probeHubServer
-			.mockResolvedValueOnce({ status: "timeout" })
+			.mockResolvedValueOnce({ status })
 			.mockResolvedValue({ status: "healthy", hub });
 		await expect(probeHubForStartup(hub.url)).resolves.toEqual(hub);
 		expect(probeHubServer).toHaveBeenCalledTimes(2);

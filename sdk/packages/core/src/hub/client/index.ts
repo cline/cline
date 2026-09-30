@@ -1101,6 +1101,7 @@ type HubProbeResult =
 			status:
 				| "unreachable"
 				| "timeout"
+				| "starting"
 				| "invalid-response"
 				| "protocol_mismatch"
 				| "build_mismatch";

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
 import { probeHubServer, withHubStartupLock } from ".";
+import { probeHubForStartup } from "./probe-startup";
 
 const hooks = vi.hoisted(() => ({
 	beforePublish: undefined as
@@ -422,5 +423,39 @@ it.each([
 		expect(await readdir(`${path}.lock`)).toEqual(["owner.json"]);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+it("waits for a listening Hub to finish publication", async () => {
+	let requests = 0;
+	const server = createServer((_request, response) => {
+		requests++;
+		if (requests === 1) {
+			response.writeHead(503);
+			response.end("Starting");
+			return;
+		}
+		response.setHeader("Content-Type", "application/json");
+		response.end(
+			JSON.stringify({
+				protocolVersion: "v1",
+				host: "127.0.0.1",
+				port: 25463,
+				url: "ws://127.0.0.1:25463/hub",
+			}),
+		);
+	});
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+	const address = server.address();
+	if (!address || typeof address === "string")
+		throw new Error("Missing address");
+	try {
+		await expect(
+			probeHubForStartup(`http://127.0.0.1:${address.port}`),
+		).resolves.toMatchObject({ protocolVersion: "v1" });
+		expect(requests).toBe(2);
+	} finally {
+		server.closeAllConnections();
+		await new Promise<void>((resolve) => server.close(() => resolve()));
 	}
 });
