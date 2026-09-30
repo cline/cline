@@ -274,9 +274,9 @@ export class ClineAccountService {
 	 * personal account when none is given. This is the only path that changes
 	 * the account. Switches are serialised: one requested while another is in
 	 * flight waits for it, then decides against the account as it is then, so
-	 * a caller that read a stale account cannot skip a switch that is needed
-	 * or repeat one that just happened. The account changes when this resolves;
-	 * the previous account's cloud state is gone before the request is sent.
+	 * a caller that read a stale account cannot tear down cloud state it does
+	 * not need to. The account changes when this resolves; when the cached
+	 * account changes, its cloud state is gone before the request is sent.
 	 */
 	switchAccount(organizationId?: string): Promise<void> {
 		const previous = this.pendingSwitch ?? Promise.resolve()
@@ -291,9 +291,11 @@ export class ClineAccountService {
 	}
 
 	private async switchAccountNow(organizationId: string | undefined): Promise<void> {
-		if ((this._authService.getActiveOrganizationId() ?? undefined) === (organizationId || undefined)) {
-			return
-		}
+		// The server's active account is shared by every client on this login, so
+		// another client may have moved it; the request is always sent to restore
+		// it. The cloud state held here was scoped by the cached account, so it
+		// is torn down only when that cached account changes.
+		const changesCachedAccount = (this._authService.getActiveOrganizationId() ?? undefined) !== (organizationId || undefined)
 		const change = async () => {
 			try {
 				await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
@@ -313,7 +315,7 @@ export class ClineAccountService {
 				throw error
 			}
 		}
-		await (this.accountChangeBoundary ? this.accountChangeBoundary(change) : change())
+		await (changesCachedAccount && this.accountChangeBoundary ? this.accountChangeBoundary(change) : change())
 	}
 
 	private getCurrentUser() {
