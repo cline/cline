@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 import {
+	prepareToolResultPreview,
 	prepareToolResultRecovery,
 	TOOL_RESULT_CACHE_MISS,
 	ToolResultCache,
@@ -22,23 +23,33 @@ describe("session memory result cache", () => {
 		);
 		expect(prepareToolResultRecovery(undefined).text).toBeUndefined();
 	});
-	it("excludes native image bytes from recovery text and cache admission", () => {
+	it.each([
+		"mediaType",
+		"mimeType",
+	])("excludes %s image bytes from recovery text without evicting other results", (mimeField) => {
 		const image = {
 			type: "image" as const,
 			data: "x".repeat(17 * 1024 * 1024),
-			mediaType: "image/png",
+			[mimeField]: "image/png",
 		};
 		const { text, images } = prepareToolResultRecovery([
 			{ type: "text", text: "recover me".repeat(1000) },
 			image,
 		]);
-		expect(images).toEqual([image]);
+		expect(images).toEqual([
+			{ type: "image", data: image.data, mediaType: "image/png" },
+		]);
+		const preview = prepareToolResultPreview([image]);
+		expect(preview.images).toEqual(images);
+		expect(preview.text).not.toContain(image.data);
 		expect(text).toContain("[image attached]");
 		expect(text?.length).toBeLessThan(11000);
 		const cache = new ToolResultCache("session");
+		const otherUri = cache.store("other", "keep this result") ?? "";
 		const uri = cache.store("call", text ?? "") ?? "";
 		expect(uri).not.toBe("");
 		expect(cache.read(uri)).toContain("recover me");
+		expect(cache.read(otherUri)).toBe("keep this result");
 	});
 	it("uses a unique URI for each execution and scopes reads to the owning session", () => {
 		const first = new ToolResultCache("root@one+two");

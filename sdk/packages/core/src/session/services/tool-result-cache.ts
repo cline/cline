@@ -109,12 +109,20 @@ function splitToolResultMedia(output: unknown): {
 				"type" in value &&
 				value.type === "image" &&
 				"data" in value &&
-				typeof value.data === "string" &&
-				"mediaType" in value &&
-				typeof value.mediaType === "string"
+				typeof value.data === "string"
 			) {
-				images.push(value as ImageContent);
-				return "[image attached]";
+				if ("mediaType" in value && typeof value.mediaType === "string") {
+					images.push(value as ImageContent);
+					return "[image attached]";
+				}
+				if ("mimeType" in value && typeof value.mimeType === "string") {
+					images.push({
+						type: "image",
+						data: value.data,
+						mediaType: value.mimeType,
+					});
+					return "[image attached]";
+				}
 			}
 			if (Array.isArray(value)) return value.map(extract);
 			return Object.fromEntries(
