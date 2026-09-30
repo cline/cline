@@ -278,9 +278,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	/**
+	 * Starts in flight, by session id. Besides serializing same-id starts,
+	 * the entry records an abort issued while the start was pending, so a
+	 * turn that waited on the start can honour it instead of running on the
+	 * result after the user cancelled.
+	 */
 	private readonly sessionStarts = new Map<
 		string,
-		Promise<StartSessionResult>
+		{
+			promise: Promise<StartSessionResult>;
+			/** Turns that have queued up behind this start, in arrival order. */
+			waiters: number;
+			/**
+			 * How many of those waiters aborts have cancelled, from the front.
+			 * Mirrors a live session, where each abort stops the turn that is
+			 * running and the next queued prompt then takes its place: the
+			 * first abort cancels the earliest waiter, a second abort the one
+			 * behind it, and the rest run on the result.
+			 */
+			abortedWaiters: number;
+			abortReason?: unknown;
+		}
 	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
@@ -418,7 +437,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const pending = this.sessionStarts.get(sessionId);
 		if (pending) {
 			try {
-				await pending;
+				await pending.promise;
 			} catch {
 				return await this.startSession({
 					...input,
@@ -428,15 +447,41 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// A successful one-shot start may already have released its runtime.
 			throw new SessionAlreadyExistsError(sessionId);
 		}
-		if (this.sessions.has(sessionId)) {
+		const resident = this.sessions.get(sessionId);
+		if (resident && !resident.agent.canStartRun()) {
 			throw new SessionAlreadyExistsError(sessionId);
 		}
-		const starting = this.startNewSession(
-			input,
-			sessionId,
-			requestedSessionId,
-		).finally(() => this.sessionStarts.delete(sessionId));
-		this.sessionStarts.set(sessionId, starting);
+		const starting = (async () => {
+			// Hub clients cannot stop a resident session (HubRuntimeHost.stopSession
+			// only detaches), so a start that names one is how they rebuild it:
+			// desktop resume and provider switches, CLI plan/act toggles and
+			// `--resume`. Build the replacement first so the id keeps resolving to a
+			// live session throughout (no session_not_found window). Afterwards,
+			// release the old runtime only once it has been displaced from its slot:
+			// by a live replacement, or by a replacement that registered and then
+			// failed (its own cleanup empties the slot), so it is never stranded. A
+			// rebuild that threw before registering leaves the idle resident in
+			// place and reachable. The release guard keeps a live replacement, and
+			// runTurn waits for a pending start, so a turn sent by another client
+			// during the rebuild runs on the replacement rather than being accepted
+			// by the old runtime and aborted with it. Only a session already
+			// mid-turn when the start arrives is protected above. Release failures
+			// are already logged and captured internally.
+			try {
+				return await this.startNewSession(input, sessionId, requestedSessionId);
+			} finally {
+				if (resident && this.sessions.get(sessionId) !== resident) {
+					await this.releaseSessionRuntime(resident, "session_replaced").catch(
+						() => undefined,
+					);
+				}
+			}
+		})().finally(() => this.sessionStarts.delete(sessionId));
+		this.sessionStarts.set(sessionId, {
+			promise: starting,
+			waiters: 0,
+			abortedWaiters: 0,
+		});
 		return await starting;
 	}
 
@@ -566,8 +611,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			rootMessagesPath: resumedArtifacts?.messagesPath ?? messagesPath,
 			manifest,
 		});
-		this.usageBySession.set(sessionId, initialUsage);
-		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 
 		const capabilities = normalizeRuntimeCapabilities(
 			this.defaultCapabilities,
@@ -1006,6 +1049,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			active.compactionState = undefined;
 		}
+		// Host-level state is written only once the session registers, so a
+		// start that fails during bootstrap cannot clobber a resident's totals.
+		this.usageBySession.set(sessionId, initialUsage);
+		this.aggregateUsageBySession.set(sessionId, initialAggregateUsage);
 		this.sessions.set(sessionId, active);
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
@@ -1134,7 +1181,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
+		// A turn that arrives while a start for this id is in flight (another
+		// attached client sending during a same-id rebuild) runs on the session
+		// that start produces, instead of being accepted by the runtime about to
+		// be replaced and then aborted with it. The start's own outcome is not
+		// this turn's concern: on failure the surviving resident serves it.
+		const pendingStart = this.sessionStarts.get(input.sessionId);
+		const waiterIndex = pendingStart ? pendingStart.waiters++ : -1;
+		if (pendingStart) {
+			await pendingStart.promise.catch(() => undefined);
+		}
 		const session = this.getSessionOrThrow(input.sessionId);
+		// An abort issued while this turn was the one waiting to run applies to
+		// it: the user cancelled it before anything ran, so nothing runs.
+		if (pendingStart && waiterIndex < pendingStart.abortedWaiters) {
+			if (session.interactive) {
+				return await this.completeAbortedInteractiveTurn(session);
+			}
+			throw pendingStart.abortReason instanceof Error
+				? pendingStart.abortReason
+				: new Error("Turn aborted while its session was being rebuilt.");
+		}
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -1216,6 +1283,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
+		// The earliest turn still waiting on an in-flight start for this id is
+		// the one that would be running; aborting only the current resident
+		// would let it run afterwards. Each abort cancels the next such waiter,
+		// as each abort on a live session stops the turn that is running while
+		// the prompts queued behind it stay.
+		const pendingStart = this.sessionStarts.get(sessionId);
+		if (pendingStart && pendingStart.abortedWaiters < pendingStart.waiters) {
+			pendingStart.abortedWaiters += 1;
+			pendingStart.abortReason = reason;
+		}
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
 		session.config.telemetry?.capture({
@@ -2437,12 +2514,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		};
 
-		if (session.artifacts) {
+		// A replacement started under the same id may take the slot at any await
+		// in here. Once it has, this runtime's terminal side effects (status
+		// write, `ended` event, slot deletion) describe a session that is alive
+		// again and must be skipped; only its own resources are torn down.
+		const displaced = () => this.sessions.get(session.sessionId) !== session;
+		if (session.artifacts && !displaced()) {
 			await this.refreshActiveSessionGitMetadata(session);
-			try {
-				await this.updateStatus(session, input.status, input.exitCode);
-			} catch (error) {
-				recordCleanupError("update_status", error);
+			// The refresh awaited; the slot may have changed hands meanwhile.
+			if (!displaced()) {
+				try {
+					await this.updateStatus(session, input.status, input.exitCode);
+				} catch (error) {
+					recordCleanupError("update_status", error);
+				}
 			}
 		}
 		try {
@@ -2460,15 +2545,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
-		this.emit({
-			type: "ended",
-			payload: {
-				sessionId: session.sessionId,
-				reason: input.endReason,
-				ts: Date.now(),
-			},
-		});
+		if (!displaced()) {
+			this.sessions.delete(session.sessionId);
+			this.emit({
+				type: "ended",
+				payload: {
+					sessionId: session.sessionId,
+					reason: input.endReason,
+					ts: Date.now(),
+				},
+			});
+		}
 		if (cleanupErrors.length > 0 && input.status === "failed") {
 			throw cleanupErrors[0];
 		}
@@ -2537,7 +2624,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
+		// A replacement started under the same id may already own the slot.
+		if (this.sessions.get(session.sessionId) === session) {
+			this.sessions.delete(session.sessionId);
+		}
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];
 		}

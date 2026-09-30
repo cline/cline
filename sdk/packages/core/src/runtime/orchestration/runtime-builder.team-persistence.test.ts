@@ -238,6 +238,21 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				expect.objectContaining({ agentId: "java-poet" }),
 			]),
 		);
+
+		// Releasing a resident runtime so a same-id start can rebuild it is a
+		// lifecycle teardown too: the roster must survive for the replacement.
+		runtimeInstance.emit({
+			type: "teammate_shutdown",
+			agentId: "java-poet",
+			reason: "session_replaced",
+		});
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "java-poet" }),
+			]),
+		);
 	});
 
 	it("forwards cline workspace metadata to teammate runtime bootstrap config", async () => {

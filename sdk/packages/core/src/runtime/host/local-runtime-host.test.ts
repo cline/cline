@@ -304,12 +304,317 @@ describe("LocalRuntimeHost", () => {
 				await expect(
 					manager.updateSessionConnection("restored-task", {}),
 				).resolves.toBeUndefined();
+				// A later start naming the resident idle session rebuilds it in
+				// place (hub clients have no other way to restart a session)...
+				const seededUsage = {
+					inputTokens: 40,
+					outputTokens: 2,
+					totalCost: 0.5,
+				};
+				await expect(
+					manager.startSession({
+						...input,
+						initialMessages: [
+							{ role: "user", content: "seed" },
+							{
+								role: "assistant",
+								content: "ok",
+								metrics: { inputTokens: 40, outputTokens: 2, cost: 0.5 },
+							},
+						],
+					}),
+				).resolves.toMatchObject({ sessionId: "restored-task" });
+				expect(agent.shutdown).toHaveBeenCalledWith("session_replaced");
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 3 : 2);
+				await expect(
+					manager.getAccumulatedUsage("restored-task"),
+				).resolves.toMatchObject({ usage: seededUsage });
+				// ...a session mid-turn is protected from replacement...
+				agent.canStartRun.mockReturnValue(false);
 				await expect(manager.startSession(input)).rejects.toMatchObject({
 					code: "session_already_exists",
 				});
+				agent.canStartRun.mockReturnValue(true);
+				// ...and a rebuild that throws before the replacement registers
+				// leaves the working resident in place: reachable, and with its
+				// usage totals intact even though the failed input carried none.
+				agent.shutdown.mockClear();
+				runtimeBuilder.build.mockRejectedValueOnce(new Error("rebuild failed"));
+				await expect(manager.startSession(input)).rejects.toThrow(
+					"rebuild failed",
+				);
+				expect(agent.shutdown).not.toHaveBeenCalled();
+				await expect(
+					manager.updateSessionConnection("restored-task", {}),
+				).resolves.toBeUndefined();
+				await expect(
+					manager.getAccumulatedUsage("restored-task"),
+				).resolves.toMatchObject({ usage: seededUsage });
 			}
 		} finally {
 			release();
+			await manager.dispose();
+		}
+	});
+
+	/**
+	 * Two clients on one session: A rebuilds it (same-id start) while B sends a
+	 * turn mid-rebuild. B's turn must not be accepted by the resident only to
+	 * be aborted when it is released; it waits and runs on the replacement.
+	 */
+	it("runs a turn that arrives during a same-id rebuild on the rebuilt session", async () => {
+		let releaseBuild!: () => void;
+		const buildGate = new Promise<void>((resolve) => {
+			releaseBuild = resolve;
+		});
+		const runtimeShutdown = vi.fn().mockResolvedValue(undefined);
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockResolvedValueOnce({ tools: [], shutdown: runtimeShutdown })
+				.mockImplementationOnce(async () => {
+					await buildGate;
+					return { tools: [], shutdown: runtimeShutdown };
+				}),
+		};
+		// One agent per runtime, so where the turn landed is unambiguous: the
+		// resident's agent cannot complete a turn at all.
+		const makeAgent = (label: string) => ({
+			run: vi.fn(async () => {
+				if (label === "resident") {
+					throw new Error("turn ran on the runtime being replaced");
+				}
+				return createResult();
+			}),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue(`${label}-agent`),
+			getConversationId: vi.fn().mockReturnValue("shared-conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		});
+		const residentAgent = makeAgent("resident");
+		const replacementAgent = makeAgent("replacement");
+		const agents = [residentAgent, replacementAgent];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agents.shift() as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "shared-session",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+
+			// Client A: rebuild, held at the runtime build.
+			const rebuild = manager.startSession(input);
+			await vi.waitFor(() =>
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(2),
+			);
+			// Client B: sends while the rebuild is in flight.
+			const turn = manager.runTurn({
+				sessionId: "shared-session",
+				prompt: "from client B",
+			});
+			releaseBuild();
+			await rebuild;
+			await expect(turn).resolves.toMatchObject({ finishReason: "completed" });
+
+			// The turn ran once, on the replacement, after the resident was
+			// released; the resident neither ran nor aborted anything.
+			expect(residentAgent.run).not.toHaveBeenCalled();
+			expect(residentAgent.abort).not.toHaveBeenCalled();
+			expect(replacementAgent.run).toHaveBeenCalledOnce();
+			expect(runtimeShutdown).toHaveBeenCalledWith("session_replaced");
+			expect(replacementAgent.run.mock.invocationCallOrder[0]).toBeGreaterThan(
+				runtimeShutdown.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+			);
+		} finally {
+			releaseBuild();
+			await manager.dispose();
+		}
+	});
+
+	it("does not run a turn that was aborted while waiting on a same-id rebuild", async () => {
+		let releaseBuild!: () => void;
+		const buildGate = new Promise<void>((resolve) => {
+			releaseBuild = resolve;
+		});
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockResolvedValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockImplementationOnce(async () => {
+					await buildGate;
+					return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
+				}),
+		};
+		const makeAgent = () => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		});
+		const residentAgent = makeAgent();
+		const replacementAgent = makeAgent();
+		const agents = [residentAgent, replacementAgent];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agents.shift() as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "cancelled-during-rebuild",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		try {
+			await manager.startSession(input);
+			const rebuild = manager.startSession(input);
+			await vi.waitFor(() =>
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(2),
+			);
+			const turn = manager.runTurn({
+				sessionId: "cancelled-during-rebuild",
+				prompt: "from client B",
+			});
+			// Other clients' turns queue up behind it, like queued prompts.
+			const secondTurn = manager.runTurn({
+				sessionId: "cancelled-during-rebuild",
+				prompt: "from client C",
+			});
+			const thirdTurn = manager.runTurn({
+				sessionId: "cancelled-during-rebuild",
+				prompt: "from client D",
+			});
+			// Two cancellations arrive before the rebuild completes.
+			await manager.abort("cancelled-during-rebuild", "user cancelled");
+			await manager.abort("cancelled-during-rebuild", "cancelled again");
+			releaseBuild();
+			await rebuild;
+
+			// Like aborting a live session twice: the turn that would be running
+			// is cancelled, then the one that would have taken its place; the
+			// third runs on the replacement.
+			await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+			await expect(secondTurn).resolves.toMatchObject({
+				finishReason: "aborted",
+			});
+			await expect(thirdTurn).resolves.toMatchObject({
+				finishReason: "completed",
+			});
+			expect(residentAgent.run).not.toHaveBeenCalled();
+			expect(replacementAgent.run).toHaveBeenCalledOnce();
+			// The replacement keeps taking turns normally.
+			await expect(
+				manager.runTurn({
+					sessionId: "cancelled-during-rebuild",
+					prompt: "after the rebuild",
+				}),
+			).resolves.toMatchObject({ finishReason: "completed" });
+			expect(replacementAgent.continue).toHaveBeenCalledOnce();
+		} finally {
+			releaseBuild();
+			await manager.dispose();
+		}
+	});
+
+	it("does not let a stop already in flight on the old runtime evict the replacement", async () => {
+		let releaseShutdown!: () => void;
+		const shutdownGate = new Promise<void>((resolve) => {
+			releaseShutdown = resolve;
+		});
+		const runtimeBuilder = {
+			build: vi.fn(async () => ({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			})),
+		};
+		// Only the resident's first shutdown (the explicit stop) stalls; the
+		// rebuild's own release of the resident must not.
+		let heldShutdowns = 0;
+		const makeAgent = (holdFirstShutdown: boolean) => ({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn(async () => {
+				if (holdFirstShutdown && heldShutdowns++ === 0) await shutdownGate;
+			}),
+		});
+		const agents = [makeAgent(true), makeAgent(false)];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agents.shift() as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			config: createConfig({
+				sessionId: "stop-race",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+		const endedEvents: string[] = [];
+		const unsubscribe = manager.subscribe((event) => {
+			if (event.type === "ended") endedEvents.push(event.payload.sessionId);
+		});
+		try {
+			await manager.startSession(input);
+			// A stop begins on the resident and stalls in its agent shutdown...
+			const stopping = manager.stopSession("stop-race");
+			await Promise.resolve();
+			// ...while a same-id start rebuilds it and registers the replacement.
+			await expect(manager.startSession(input)).resolves.toMatchObject({
+				sessionId: "stop-race",
+			});
+			releaseShutdown();
+			await stopping;
+			// The old runtime's teardown must not have removed the replacement,
+			// nor told subscribers that the (live) session ended.
+			await expect(
+				manager.updateSessionConnection("stop-race", {}),
+			).resolves.toBeUndefined();
+			expect(endedEvents).not.toContain("stop-race");
+		} finally {
+			unsubscribe();
+			releaseShutdown();
 			await manager.dispose();
 		}
 	});

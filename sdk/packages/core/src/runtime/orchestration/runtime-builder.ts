@@ -335,6 +335,7 @@ function isRuntimeLifecycleShutdownReason(reason: string | undefined): boolean {
 		case "session_complete":
 		case "session_error":
 		case "session_manager_dispose":
+		case "session_replaced":
 		case "cli_run_shutdown":
 		case "cli_interactive_shutdown":
 		case "cli_interactive_startup_cancelled":
