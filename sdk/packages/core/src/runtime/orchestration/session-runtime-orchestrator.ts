@@ -19,6 +19,7 @@
  * OAuth-retry and run replay feasible.
  */
 
+import { randomUUID } from "node:crypto";
 import type { AgentRuntime } from "@cline/agents";
 import { createAgentRuntime } from "@cline/agents";
 import {
@@ -416,9 +417,7 @@ export class SessionRuntime {
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
-		this.agentId = `agent_${Date.now()}_${Math.random()
-			.toString(36)
-			.slice(2, 8)}`;
+		this.agentId = `agent_${randomUUID()}`;
 		this.parentAgentId = config.parentAgentId;
 		this.logger = deps.logger ?? config.logger;
 		this.telemetry = deps.telemetry ?? config.telemetry;
