@@ -311,6 +311,22 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			await coordinator.dispose()
 		})
 
+		it("recognises retirement when /status answers expired instead of 410", async () => {
+			// The control plane keeps answering /status with 200 for a retired
+			// sandbox while its WebSocket rejects with 410.
+			const { coordinator, cloudSessions, options } = makeCoordinator()
+			cloudSessions.listSessions.mockResolvedValue([record])
+			cloudSessions.getStatus.mockResolvedValue({ status: "expired" })
+			cloudSessions.getHistory.mockResolvedValue(null)
+			vi.spyOn(CloudSessionHost, "connect").mockRejectedValue(new Error("Unexpected server response: 410"))
+			await coordinator.openCloudTask(record.id)
+			const messages = options.getTask()!.messageStateHandler.getClineMessages()
+			expect(messages).toHaveLength(1)
+			expect(messages[0].say).toBe("info")
+			expect(messages[0].text).toContain("retired after 24 hours")
+			await coordinator.dispose()
+		})
+
 		it("keeps a deleted session's notice when a newer selection did not supersede it", async () => {
 			const { coordinator, cloudSessions, options } = makeCoordinator()
 			cloudSessions.listSessions.mockResolvedValueOnce([record]).mockResolvedValue([])
@@ -346,6 +362,61 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(dispose).toHaveBeenCalledWith("deleted")
 			await coordinator.dispose()
 		})
+	})
+
+	it("closes the retained host of a session that has left the account's list", async () => {
+		// Deleted from the dashboard while this instance still held a connection.
+		const dispose = vi.fn(async () => undefined)
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.listHistoryRecords()
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(record.id)!.host = { status: "running", dispose }
+		cloudSessions.listSessions.mockResolvedValue([])
+
+		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+
+		expect(entries.has(record.id)).toBe(false)
+		expect(dispose).toHaveBeenCalledWith("deleted")
+		await coordinator.dispose()
+	})
+
+	it("keeps the displayed task's host when its record leaves the list, so opening it can explain why", async () => {
+		const dispose = vi.fn(async () => undefined)
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.listHistoryRecords()
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(record.id)!.host = { status: "running", dispose }
+		options.setTask(createTaskProxy(record.id, vi.fn(), vi.fn()))
+		cloudSessions.listSessions.mockResolvedValue([])
+
+		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+
+		expect(entries.has(record.id)).toBe(true)
+		expect(dispose).not.toHaveBeenCalled()
+		await coordinator.dispose()
+	})
+
+	it("closes idle hosts but keeps the displayed task when the account's list can no longer be read", async () => {
+		const displayed = { ...record, id: "ses-displayed", metadata: { ...record.metadata, taskId: "tsk-displayed" } }
+		const disposeIdle = vi.fn(async () => undefined)
+		const disposeDisplayed = vi.fn(async () => undefined)
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record, displayed])
+		await coordinator.listHistoryRecords()
+		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
+		entries.get(record.id)!.host = { status: "running", dispose: disposeIdle }
+		entries.get(displayed.id)!.host = { status: "running", dispose: disposeDisplayed }
+		options.setTask(createTaskProxy(displayed.id, vi.fn(), vi.fn()))
+		cloudSessions.listSessions.mockRejectedValue(new CloudSessionError("authentication_required", "sign in", undefined, 401))
+
+		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+
+		expect([...entries.keys()]).toEqual([displayed.id])
+		expect(disposeIdle).toHaveBeenCalledWith("authenticationRequired")
+		expect(disposeDisplayed).not.toHaveBeenCalled()
+		await coordinator.dispose()
 	})
 
 	it("ignores a successful list after disposal", async () => {
