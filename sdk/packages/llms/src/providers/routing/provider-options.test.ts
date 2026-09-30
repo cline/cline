@@ -130,6 +130,78 @@ function effortOptions(
 	return [{ type: "effort", values }];
 }
 
+describe("Anthropic server-side refusal fallbacks", () => {
+	it("enables default routing on direct Anthropic requests", () => {
+		const selection = { providerId: "anthropic", modelId: "claude-fable-5" };
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			makeContext(selection),
+		);
+		expect(options.anthropic).toMatchObject({ fallbacks: "default" });
+	});
+
+	it.each([
+		"openrouter",
+		"cline",
+		"cline-pass",
+		"bedrock",
+		"vertex",
+		"minimax",
+	])("does not send Anthropic fallback options to %s", (providerId) => {
+		const selection = { providerId, modelId: "claude-fable-5" };
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			makeContext(selection),
+		);
+		for (const bucket of Object.values(options)) {
+			expect(bucket).not.toHaveProperty("fallbacks");
+		}
+	});
+});
+
+describe("Routed Anthropic provider failover", () => {
+	it.each([
+		"openrouter",
+		"cline",
+		"cline-pass",
+	])("enables provider failover in the transport bucket for %s", (providerId) => {
+		for (const model of [
+			{ modelId: "anthropic/claude-fable-5" },
+			{ modelId: "custom-model", family: "claude" },
+		]) {
+			const selection = { providerId, ...model };
+			const options = composeAiSdkProviderOptions(
+				makeRequest(selection),
+				makeContext(selection),
+			);
+			const bucket = providerId === "openrouter" ? "openrouter" : "cline";
+			expect(options[bucket]).toMatchObject({
+				provider: { allow_fallbacks: true },
+			});
+			expect(options).not.toHaveProperty("cline-pass");
+			expect(options).not.toHaveProperty("clinePass");
+		}
+	});
+
+	it.each([
+		{ providerId: "openrouter", modelId: "openai/gpt-5" },
+		{ providerId: "cline", modelId: "google/gemini-3-pro" },
+		{ providerId: "cline-pass", modelId: "unknown-model" },
+		{ providerId: "openrouter", modelId: "claude-alias", family: "qwen" },
+		{ providerId: "anthropic", modelId: "claude-fable-5" },
+		{ providerId: "bedrock", modelId: "anthropic/claude-fable-5" },
+		{ providerId: "vertex", modelId: "claude-fable-5" },
+	])("omits provider failover for $providerId/$modelId", (selection) => {
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			makeContext(selection),
+		);
+		for (const bucket of Object.values(options)) {
+			expect(bucket).not.toHaveProperty("provider.allow_fallbacks");
+		}
+	});
+});
+
 function budgetOptions(min: number, max?: number): ModelReasoningOption[] {
 	return [
 		{ type: "budget_tokens", min, ...(max === undefined ? {} : { max }) },
