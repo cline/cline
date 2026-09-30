@@ -7,7 +7,11 @@ import {
 	appendCappedCommandOutput,
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
-import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import {
+	MODEL_SELECTION_STORAGE_KEY,
+	writeExecutionTargetToWindow,
+	writeModelSelectionStorageToWindow,
+} from "@/lib/model-selection";
 import { startsNewThread } from "@/lib/work-in-selection";
 import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
@@ -6197,6 +6201,134 @@ describe("useChatSession", () => {
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
 			environmentId: "local",
 			path: "/workspace/deleted",
+		});
+	});
+
+	it.each([
+		"local",
+		"cloud",
+	] as const)("restores the Cloud target and model after viewing a %s session", async (target) => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "openrouter",
+				lastModelByProvider: {
+					openrouter: "local-model",
+					cline: "cline-local",
+				},
+			}),
+		);
+		writeExecutionTargetToWindow("cloud");
+		writeModelSelectionStorageToWindow(
+			{ lastProvider: "cline", lastModelByProvider: { cline: "cloud-model" } },
+			"cloud",
+		);
+		const hydratedSessionId = "session-local-history";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "openrouter",
+							model: "local-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+
+		expect(current.config).toMatchObject({
+			executionTarget: "cloud",
+			provider: "cline",
+			model: "cloud-model",
+			repoUrl: undefined,
+		});
+
+		// History must not replace the defaults for the next new chat.
+		await act(async () => {
+			await current.hydrateSession({
+				environmentId: "local",
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "openrouter",
+				model: "local-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-01T00:00:00Z",
+				...(target === "cloud"
+					? {
+							origin: "cloud",
+							repoUrl: "https://github.com/cline/other",
+							metadata: { gitBranch: "feature" },
+							...cloudSessionConfig,
+						}
+					: {}),
+			});
+		});
+		expect(current.config).toMatchObject({
+			executionTarget: target,
+		});
+		await act(async () => {
+			await current.reset();
+		});
+		expect(current.config).toMatchObject({
+			sessionId: undefined,
+			executionTarget: "cloud",
+			provider: "cline",
+			model: "cloud-model",
+			repoUrl: undefined,
+			branch: undefined,
+		});
+	});
+
+	it("keeps remote environments on Local even when Cloud is remembered", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "openrouter",
+				lastModelByProvider: { openrouter: "local-model" },
+			}),
+		);
+		writeExecutionTargetToWindow("cloud");
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return {
+					environmentId: "pi-server",
+					cwd: "/home/pi/app",
+					workspaceRoot: "/home/pi/app",
+				};
+			}
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () =>
+			root.render(<HookHarness environmentId="pi-server" />),
+		);
+
+		expect(current.config).toMatchObject({
+			executionTarget: "local",
+			provider: "openrouter",
+			model: "local-model",
 		});
 	});
 
