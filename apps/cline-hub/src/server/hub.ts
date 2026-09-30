@@ -23,7 +23,14 @@ import {
 import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import type { SessionContext } from "./types";
-import { asRecord, asString, basename, clientMetadata, isActiveSession, isVisibleClient } from "./utils";
+import {
+	asRecord,
+	asString,
+	basename,
+	clientMetadata,
+	isActiveSession,
+	isVisibleClient,
+} from "./utils";
 
 export async function syncHubHealth(ctx: HubContext): Promise<void> {
 	if (!ctx.hubUrl) {
