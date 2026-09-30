@@ -82,13 +82,14 @@ export async function describeAddressInUse(
 		: "unavailable";
 	const occupant = await probeHubServer(
 		createHubServerUrl(endpoint.host, endpoint.port, endpoint.pathname),
-		{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
-	);
-	context.occupant_is_hub = occupant !== undefined;
-	if (occupant) {
-		context.occupant_hub_build_id = occupant.buildId;
-		context.occupant_hub_core_version = occupant.coreVersion;
-		context.occupant_hub_pid = occupant.pid;
+		{ timeoutMs: PROBE_TIMEOUT_MS },
+	).catch(() => undefined);
+	context.occupant_probe_status = occupant?.status ?? "unavailable";
+	context.occupant_is_hub = occupant?.status === "healthy" ? true : "unknown";
+	if (occupant?.status === "healthy") {
+		context.occupant_hub_build_id = occupant.hub.buildId;
+		context.occupant_hub_core_version = occupant.hub.coreVersion;
+		context.occupant_hub_pid = occupant.hub.pid;
 	}
 	return context;
 }

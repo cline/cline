@@ -18,7 +18,6 @@ import {
 	createHubServerUrl,
 	type HubServerDiscoveryRecord,
 	isManagedHubReusable,
-	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildEpochMs,
 	resolveHubBuildId,
@@ -32,6 +31,7 @@ import {
 	isHubLockHeldError,
 	resolveHubInstanceLockPath,
 } from "../discovery/instance-lock";
+import { probeHubForStartup } from "../discovery/probe-startup";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import { logHubMessage } from "./hub-server-logging";
 import type {
@@ -887,7 +887,7 @@ export async function ensureHubWebSocketServer(
 	return await withHubStartupLock(owner.discoveryPath, async () => {
 		const discovered = await readHubDiscovery(owner.discoveryPath);
 		if (discovered?.url) {
-			const healthy = await probeHubServer(discovered.url, {
+			const healthy = await probeHubForStartup(discovered.url, {
 				authToken: discovered.authToken,
 			});
 			if (

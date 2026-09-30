@@ -205,6 +205,70 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("keeps polling through retirement timeouts and clears discovery only after the endpoint goes away", async () => {
+		probeHubServer
+			.mockResolvedValueOnce({ status: "timeout" })
+			.mockResolvedValueOnce({ status: "unreachable" });
+		const { retireDiscoveredHub } = await import(".");
+		await expect(
+			retireDiscoveredHub(
+				{ url: "ws://127.0.0.1:25463/hub", authToken: "token" },
+				"/tmp/hub-discovery.json",
+			),
+		).resolves.toBe(true);
+		expect(probeHubServer).toHaveBeenCalledTimes(2);
+		expect(clearHubDiscovery).toHaveBeenCalledOnce();
+	});
+
+	it("retains discovery when retirement probes time out until the deadline", async () => {
+		const now = Date.now();
+		let elapsed = 0;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => now + elapsed);
+		probeHubServer.mockImplementation(async () => {
+			elapsed += 3_000;
+			return { status: "timeout" };
+		});
+		try {
+			const { retireDiscoveredHub } = await import(".");
+			await expect(
+				retireDiscoveredHub(
+					{ url: "ws://127.0.0.1:25463/hub", authToken: "token" },
+					"/tmp/hub-discovery.json",
+				),
+			).resolves.toBe(false);
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
+		} finally {
+			clock.mockRestore();
+		}
+	});
+
+	it("reaches the retirement SIGTERM fallback after a slow shutdown probe", async () => {
+		const now = Date.now();
+		let elapsed = 0;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => now + elapsed);
+		const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+		probeHubServer.mockImplementation(async () => {
+			if (kill.mock.calls.some(([, signal]) => signal === "SIGTERM"))
+				return { status: "unreachable" };
+			elapsed += 3_000;
+			return { status: "timeout" };
+		});
+		try {
+			const { retireDiscoveredHub } = await import(".");
+			await expect(
+				retireDiscoveredHub(
+					{ url: "ws://127.0.0.1:25463/hub", authToken: "token", pid: 4242 },
+					"/tmp/hub-discovery.json",
+				),
+			).resolves.toBe(true);
+			expect(kill).toHaveBeenCalledWith(4242, "SIGTERM");
+			expect(clearHubDiscovery).toHaveBeenCalledOnce();
+		} finally {
+			clock.mockRestore();
+			kill.mockRestore();
+		}
+	});
+
 	it("holds a spawned Hub startup attempt through its deadline after timeouts", async () => {
 		readHubDiscovery
 			.mockResolvedValue({
@@ -214,15 +278,14 @@ describe("ensureDetachedHubServer", () => {
 			.mockResolvedValueOnce(undefined);
 		const now = Date.now();
 		const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-		const timeout = new Error("Hub probe timed out");
-		timeout.name = "HubProbeTimeoutError";
+
 		let probes = 0;
 		probeHubServer
-			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({ status: "unreachable" })
 			.mockImplementation(async () => {
 				probes++;
 				clock.mockReturnValue(now + probes * 4000);
-				throw timeout;
+				return { status: "timeout" };
 			});
 		try {
 			const { ensureDetachedHubServer } = await import(".");
@@ -241,15 +304,17 @@ describe("ensureDetachedHubServer", () => {
 				authToken: "new-token",
 			})
 			.mockResolvedValueOnce(undefined);
-		const timeout = new Error("Hub probe timed out");
-		timeout.name = "HubProbeTimeoutError";
+
 		probeHubServer
-			.mockResolvedValueOnce(undefined)
-			.mockRejectedValueOnce(timeout)
+			.mockResolvedValueOnce({ status: "unreachable" })
+			.mockResolvedValueOnce({ status: "timeout" })
 			.mockResolvedValue({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "current-build",
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				},
 			});
 		verifyHubConnection.mockResolvedValue(true);
 		const { ensureDetachedHubServer } = await import(".");
@@ -270,11 +335,16 @@ describe("ensureDetachedHubServer", () => {
 			cwd: "/workspace",
 		});
 		readHubDiscovery.mockResolvedValue(undefined);
-		probeHubServer.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "current-build",
-		});
+		probeHubServer
+			.mockResolvedValueOnce({ status: "unreachable" })
+			.mockResolvedValueOnce({
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				},
+			});
 		verifyHubConnection.mockResolvedValueOnce(true);
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -319,12 +389,19 @@ describe("ensureDetachedHubServer", () => {
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "existing-token",
 		});
-		const timeout = new Error("Hub probe timed out");
-		timeout.name = "HubProbeTimeoutError";
-		probeHubServer.mockRejectedValue(timeout);
-		await expect(ensureDetachedHubServer("/workspace")).rejects.toThrow(
-			"Hub probe timed out",
-		);
+
+		const now = Date.now();
+		let elapsed = 0;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => now + elapsed);
+		probeHubServer.mockImplementation(async () => {
+			elapsed += 3_000;
+			return { status: "timeout" };
+		});
+		const assertion = expect(
+			ensureDetachedHubServer("/workspace"),
+		).rejects.toThrow("Timed out checking the existing Cline Hub");
+		await assertion;
+		clock.mockRestore();
 		expect(clearHubDiscovery).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
 	});
@@ -347,11 +424,16 @@ describe("ensureDetachedHubServer", () => {
 				url: "ws://127.0.0.1:25463/hub",
 				authToken: "new-token",
 			});
-			probeHubServer.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "current-build",
-			});
+			probeHubServer
+				.mockResolvedValueOnce({ status: "unreachable" })
+				.mockResolvedValueOnce({
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
+				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
@@ -406,8 +488,8 @@ describe("ensureDetachedHubServer", () => {
 			authToken: "old-token",
 		});
 		probeHubServer
-			.mockResolvedValueOnce(undefined)
-			.mockResolvedValueOnce(undefined);
+			.mockResolvedValueOnce({ status: "unreachable" })
+			.mockResolvedValueOnce({ status: "unreachable" });
 
 		const { prewarmDetachedHubServer } = await import(".");
 		prewarmDetachedHubServer("/workspace");
@@ -441,7 +523,7 @@ describe("ensureDetachedHubServer", () => {
 				})
 				.mockImplementationOnce(() => ({ unref: vi.fn() }));
 			readHubDiscovery.mockResolvedValueOnce(undefined);
-			probeHubServer.mockResolvedValueOnce(undefined);
+			probeHubServer.mockResolvedValueOnce({ status: "unreachable" });
 
 			const { prewarmDetachedHubServer } = await import(".");
 			prewarmDetachedHubServer("/workspace");
@@ -464,9 +546,12 @@ describe("ensureDetachedHubServer", () => {
 				pid: 12345,
 			});
 			probeHubServer.mockResolvedValue({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "old-build",
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+				},
 			});
 
 			const { prewarmDetachedHubServer } = await import(".");
@@ -503,17 +588,23 @@ describe("ensureDetachedHubServer", () => {
 				});
 			probeHubServer
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "old-build",
-					pid: 12345,
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "old-build",
+						pid: 12345,
+					},
 				})
-				.mockResolvedValueOnce(undefined)
-				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({ status: "unreachable" })
+				.mockResolvedValueOnce({ status: "unreachable" })
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "current-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
 				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
@@ -559,10 +650,13 @@ describe("ensureDetachedHubServer", () => {
 				authToken: "busy-token",
 			});
 			probeHubServer.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "old-build",
-				pid: 12345,
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					pid: 12345,
+				},
 			});
 			// Reuse is rejected by build id before any connection check, so the
 			// only verify call is the one guarding the deferred attach.
@@ -608,11 +702,14 @@ describe("ensureDetachedHubServer", () => {
 				authToken: "newer-hub-token",
 			});
 			probeHubServer.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "newer-build",
-				buildEpochMs: 2_000_000,
-				pid: 12345,
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000_000,
+					pid: 12345,
+				},
 			});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
@@ -646,12 +743,15 @@ describe("ensureDetachedHubServer", () => {
 					authToken: "new-token",
 				});
 			probeHubServer
-				.mockResolvedValueOnce(undefined)
-				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({ status: "unreachable" })
+				.mockResolvedValueOnce({ status: "unreachable" })
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "current-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
 				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
@@ -679,9 +779,12 @@ describe("ensureDetachedHubServer", () => {
 		try {
 			readHubDiscovery.mockResolvedValue(undefined);
 			probeHubServer.mockResolvedValue({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v2",
-				buildId: "future-build",
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v2",
+					buildId: "future-build",
+				},
 			});
 
 			const { ensureDetachedHubServer } = await import(".");
@@ -721,12 +824,15 @@ describe("ensureDetachedHubServer", () => {
 					authToken: "new-token",
 				});
 			probeHubServer
-				.mockResolvedValueOnce(undefined)
-				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({ status: "unreachable" })
+				.mockResolvedValueOnce({ status: "unreachable" })
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "current-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
 				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
@@ -754,9 +860,12 @@ describe("ensureDetachedHubServer", () => {
 	it("throws when a compatible expected hub has no discovery record", async () => {
 		readHubDiscovery.mockResolvedValue(undefined);
 		probeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "current-build",
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			},
 		});
 
 		const { ensureDetachedHubServer } = await import(".");
@@ -775,13 +884,16 @@ describe("ensureDetachedHubServer", () => {
 		// First probe (discovered with token) fails verification path by returning
 		// unreachable/undefined; expected-url health probe succeeds without token.
 		probeHubServer
-			.mockResolvedValueOnce(undefined) // discovered probe fails
+			.mockResolvedValueOnce({ status: "unreachable" }) // discovered probe fails
 			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "current-build",
-				host: "127.0.0.1",
-				port: 25463,
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+					host: "127.0.0.1",
+					port: 25463,
+				},
 			});
 		verifyHubConnection.mockResolvedValue(true);
 
@@ -815,17 +927,23 @@ describe("ensureDetachedHubServer", () => {
 					authToken: "new-token",
 				});
 			probeHubServer
-				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({ status: "unreachable" })
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v2",
-					buildId: "future-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v2",
+						buildId: "future-build",
+					},
 				})
-				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({ status: "unreachable" })
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "current-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
 				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
@@ -863,24 +981,36 @@ describe("ensureDetachedHubServer", () => {
 				});
 			probeHubServer
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					pid: 12345,
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						pid: 12345,
+					},
 				})
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					pid: 12345,
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						pid: 12345,
+					},
 				})
-				.mockResolvedValueOnce(undefined)
-				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({ status: "unreachable" })
+				.mockResolvedValueOnce({ status: "unreachable" })
 				.mockResolvedValueOnce({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "current-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
 				})
 				.mockResolvedValue({
-					url: "ws://127.0.0.1:25463/hub",
-					protocolVersion: "v1",
-					buildId: "current-build",
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
 				});
 			verifyHubConnection.mockResolvedValueOnce(true);
 
@@ -914,7 +1044,7 @@ describe("ensureDetachedHubServer", () => {
 		vi.useFakeTimers();
 		try {
 			readHubDiscovery.mockResolvedValue(undefined);
-			probeHubServer.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue({ status: "unreachable" });
 
 			const { ensureDetachedHubServer } = await import(".");
 			const pending = ensureDetachedHubServer("/workspace").catch(
@@ -941,7 +1071,7 @@ describe("ensureDetachedHubServer", () => {
 				authToken: "token",
 			};
 			readHubDiscovery.mockResolvedValue(undefined);
-			probeHubServer.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue({ status: "unreachable" });
 			verifyHubConnection.mockResolvedValue(true);
 
 			const { ensureDetachedHubServer } = await import(".");
@@ -954,7 +1084,7 @@ describe("ensureDetachedHubServer", () => {
 			expect(settled).toBe(false);
 
 			readHubDiscovery.mockResolvedValue(record);
-			probeHubServer.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue({ status: "healthy", hub: record });
 			await vi.advanceTimersByTimeAsync(1_000);
 
 			await expect(pending).resolves.toEqual({
@@ -1024,19 +1154,25 @@ describe("upgradeManagedHub", () => {
 		probeHubServer
 			// The live probe of the recorded hub: an older build.
 			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "old-build",
-				buildEpochMs: 500,
-				pid: 12345,
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					buildEpochMs: 500,
+					pid: 12345,
+				},
 			})
 			// The retire wait: the hub is gone.
-			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({ status: "unreachable" })
 			// The ensure probe of the replacement.
 			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "current-build",
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				},
 			});
 		verifyHubConnection.mockResolvedValue(true);
 
@@ -1077,10 +1213,13 @@ describe("upgradeManagedHub", () => {
 			authToken: "old-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			buildEpochMs: 500,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");
@@ -1108,10 +1247,13 @@ describe("upgradeManagedHub", () => {
 			authToken: "newer-hub-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "newer-build",
-			buildEpochMs: 2_000_000,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "newer-build",
+				buildEpochMs: 2_000_000,
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");
@@ -1133,9 +1275,12 @@ describe("upgradeManagedHub", () => {
 			authToken: "current-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "current-build",
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");
@@ -1156,9 +1301,12 @@ describe("upgradeManagedHub", () => {
 			authToken: "new-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "current-build",
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			},
 		});
 		verifyHubConnection.mockResolvedValue(true);
 
@@ -1181,10 +1329,13 @@ describe("upgradeManagedHub", () => {
 			authToken: "old-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			buildEpochMs: 500,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");
@@ -1211,10 +1362,13 @@ describe("upgradeManagedHub", () => {
 			authToken: "old-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			buildEpochMs: 500,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");
@@ -1246,10 +1400,13 @@ describe("upgradeManagedHub", () => {
 			authToken: "old-token",
 		});
 		probeHubServer.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			buildEpochMs: 500,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");
@@ -1278,17 +1435,23 @@ describe("upgradeManagedHub", () => {
 			});
 		probeHubServer
 			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "old-build",
-				buildEpochMs: 500,
-				pid: 12345,
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					buildEpochMs: 500,
+					pid: 12345,
+				},
 			})
-			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({ status: "unreachable" })
 			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				protocolVersion: "v1",
-				buildId: "current-build",
+				status: "healthy",
+				hub: {
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				},
 			});
 		verifyHubConnection.mockResolvedValue(true);
 
@@ -1318,10 +1481,13 @@ describe("upgradeManagedHub", () => {
 		});
 		// The hub stays alive through the drain, shutdown, and retire waits.
 		probeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			buildEpochMs: 500,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+			},
 		});
 
 		const { upgradeManagedHub } = await import(".");

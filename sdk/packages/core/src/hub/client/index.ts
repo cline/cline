@@ -1098,7 +1098,12 @@ type HubProbeResult =
 			url: string;
 	  }
 	| {
-			status: "unreachable" | "protocol_mismatch" | "build_mismatch";
+			status:
+				| "unreachable"
+				| "timeout"
+				| "invalid-response"
+				| "protocol_mismatch"
+				| "build_mismatch";
 			url: string;
 	  };
 
@@ -1113,15 +1118,16 @@ async function probeCompatibleHubUrl(
 	},
 ): Promise<HubProbeResult> {
 	const normalized = normalizeHubWebSocketUrl(url);
-	const record = await probeHubServer(normalized, {
+	const probe = await probeHubServer(normalized, {
 		authToken: options?.authToken,
 	});
-	if (!record) {
+	if (probe.status !== "healthy") {
 		return {
-			status: "unreachable",
+			status: probe.status,
 			url: normalized,
 		};
 	}
+	const record = probe.hub;
 	if (options?.requireCurrentBuild) {
 		// Managed Hubs: reusable unless this build is strictly newer than the
 		// Hub's. A Hub that is newer or unorderable is attached over the
@@ -1166,8 +1172,10 @@ async function probeCompatibleHubUrl(
 async function waitForHubToRetire(url: string): Promise<boolean> {
 	const deadline = Date.now() + HUB_RECOVERY_RETIRE_TIMEOUT_MS;
 	while (Date.now() < deadline) {
-		const healthy = await probeHubServer(url).catch(() => undefined);
-		if (!healthy?.url) {
+		const probe = await probeHubServer(url, {
+			timeoutMs: Math.min(3_000, Math.max(1, deadline - Date.now())),
+		});
+		if (probe.status === "unreachable") {
 			return true;
 		}
 		await new Promise((resolve) =>

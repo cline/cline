@@ -113,7 +113,7 @@ it.each([
 			withHubStartupLock(path, () =>
 				probeHubServer(`http://127.0.0.1:${address.port}`),
 			),
-		).rejects.toThrow("probe timed out");
+		).resolves.toEqual({ status: "timeout" });
 		await expect(
 			withHubStartupLock(path, async () => "recovered"),
 		).resolves.toBe("recovered");

@@ -607,20 +607,17 @@ export function withHubStartupLock<T>(
 	return withHubLock(discoveryPath, "startup", callback, signal);
 }
 
-export class HubProbeTimeoutError extends Error {
-	constructor() {
-		super(
-			"Cline Hub probe timed out; the existing Hub was left running. Retry to reconnect.",
-		);
-		this.name = "HubProbeTimeoutError";
-	}
-}
+/** A failed health check does not establish that the listening process is gone. */
+export type HubServerProbeResult =
+	| { status: "healthy"; hub: HubServerProbeRecord }
+	| { status: "unreachable" | "timeout" | "invalid-response" };
 
 export async function probeHubServer(
 	url: string,
-	options?: { authToken?: string; signal?: AbortSignal },
-): Promise<HubServerProbeRecord | undefined> {
-	const timeout = AbortSignal.timeout(3_000);
+	options?: { authToken?: string; signal?: AbortSignal; timeoutMs?: number },
+): Promise<HubServerProbeResult> {
+	options?.signal?.throwIfAborted();
+	const timeout = AbortSignal.timeout(options?.timeoutMs ?? 3_000);
 	const signal = options?.signal
 		? AbortSignal.any([options.signal, timeout])
 		: timeout;
@@ -639,56 +636,66 @@ export async function probeHubServer(
 			},
 		);
 		if (!response.ok) {
-			return undefined;
+			return { status: "invalid-response" };
 		}
-		const parsed = (await response.json()) as Partial<HubServerProbeRecord>;
+		const parsed = (await response.json().catch((error: unknown) => {
+			if (signal.aborted) throw error;
+			return null;
+		})) as Partial<HubServerProbeRecord> | null;
 		if (
+			!parsed ||
 			typeof parsed.protocolVersion !== "string" ||
 			typeof parsed.host !== "string" ||
 			typeof parsed.port !== "number" ||
 			typeof parsed.url !== "string"
 		) {
-			return undefined;
+			return { status: "invalid-response" };
 		}
 		return {
-			protocolVersion: parsed.protocolVersion,
-			minClientProtocolVersion:
-				typeof parsed.minClientProtocolVersion === "string"
-					? parsed.minClientProtocolVersion
+			status: "healthy",
+			hub: {
+				protocolVersion: parsed.protocolVersion,
+				minClientProtocolVersion:
+					typeof parsed.minClientProtocolVersion === "string"
+						? parsed.minClientProtocolVersion
+						: undefined,
+				maxClientProtocolVersion:
+					typeof parsed.maxClientProtocolVersion === "string"
+						? parsed.maxClientProtocolVersion
+						: undefined,
+				capabilities: Array.isArray(parsed.capabilities)
+					? parsed.capabilities.filter(
+							(capability): capability is string =>
+								typeof capability === "string",
+						)
 					: undefined,
-			maxClientProtocolVersion:
-				typeof parsed.maxClientProtocolVersion === "string"
-					? parsed.maxClientProtocolVersion
-					: undefined,
-			capabilities: Array.isArray(parsed.capabilities)
-				? parsed.capabilities.filter(
-						(capability): capability is string =>
-							typeof capability === "string",
-					)
-				: undefined,
-			coreVersion:
-				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
-			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
-			buildEpochMs:
-				typeof parsed.buildEpochMs === "number"
-					? parsed.buildEpochMs
-					: undefined,
-			host: parsed.host,
-			port: parsed.port,
-			url: parsed.url,
-			hubId: typeof parsed.hubId === "string" ? parsed.hubId : undefined,
-			authToken:
-				typeof parsed.authToken === "string" ? parsed.authToken : undefined,
-			pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
-			startedAt:
-				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
-			updatedAt:
-				typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+				coreVersion:
+					typeof parsed.coreVersion === "string"
+						? parsed.coreVersion
+						: undefined,
+				buildId:
+					typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+				buildEpochMs:
+					typeof parsed.buildEpochMs === "number"
+						? parsed.buildEpochMs
+						: undefined,
+				host: parsed.host,
+				port: parsed.port,
+				url: parsed.url,
+				hubId: typeof parsed.hubId === "string" ? parsed.hubId : undefined,
+				authToken:
+					typeof parsed.authToken === "string" ? parsed.authToken : undefined,
+				pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
+				startedAt:
+					typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+				updatedAt:
+					typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+			},
 		};
 	} catch {
 		options?.signal?.throwIfAborted();
-		if (timeout.aborted) throw new HubProbeTimeoutError();
-		return undefined;
+		if (timeout.aborted) return { status: "timeout" };
+		return { status: "unreachable" };
 	}
 }
 

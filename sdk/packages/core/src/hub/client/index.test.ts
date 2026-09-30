@@ -698,7 +698,9 @@ describe("NodeHubClient", () => {
 				resolveHubBuildId: () => "test-build",
 				readHubDiscovery: vi.fn(async () => record),
 				probeHubServer: vi.fn(async (url: string) =>
-					url.includes(":25464/") ? record : undefined,
+					url.includes(":25464/")
+						? { status: "healthy", hub: record }
+						: { status: "unreachable" },
 				),
 				clearHubDiscovery: vi.fn(async () => undefined),
 			};
@@ -859,7 +861,9 @@ describe("NodeHubClient", () => {
 				resolveHubBuildId: () => "test-build",
 				readHubDiscovery: vi.fn(async () => record),
 				probeHubServer: vi.fn(async (url: string) =>
-					url.includes(":25464/") ? record : undefined,
+					url.includes(":25464/")
+						? { status: "healthy", hub: record }
+						: { status: "unreachable" },
 				),
 				clearHubDiscovery: vi.fn(async () => undefined),
 			};
@@ -947,7 +951,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				readHubDiscovery: vi.fn(async (path: string) =>
 					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
 				),
-				probeHubServer: vi.fn(async () => oldRecord),
+				probeHubServer: vi.fn(async () => ({
+					status: "healthy",
+					hub: oldRecord,
+				})),
 			};
 		});
 
@@ -1002,7 +1009,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
 					clearHubDiscoveryMock(...args);
 				}),
-				probeHubServer: vi.fn(async () => undefined),
+				probeHubServer: vi.fn(async () => ({ status: "unreachable" })),
 			};
 		});
 
@@ -1044,14 +1051,17 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					clearHubDiscoveryMock(...args);
 				}),
 				probeHubServer: vi.fn(async () => ({
-					hubId: "hub-test",
-					protocolVersion: "v1",
-					buildId: "old-build",
-					host: "127.0.0.1",
-					port: 59999,
-					url: "ws://127.0.0.1:59999/hub",
-					startedAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					status: "healthy",
+					hub: {
+						hubId: "hub-test",
+						protocolVersion: "v1",
+						buildId: "old-build",
+						host: "127.0.0.1",
+						port: 59999,
+						url: "ws://127.0.0.1:59999/hub",
+						startedAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+					},
 				})),
 			};
 		});
@@ -1097,15 +1107,18 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					clearHubDiscoveryMock(...args);
 				}),
 				probeHubServer: vi.fn(async () => ({
-					hubId: "hub-test",
-					protocolVersion: "v1",
-					buildId: "newer-build",
-					buildEpochMs: 2_000,
-					host: "127.0.0.1",
-					port: 59999,
-					url: "ws://127.0.0.1:59999/hub",
-					startedAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					status: "healthy",
+					hub: {
+						hubId: "hub-test",
+						protocolVersion: "v1",
+						buildId: "newer-build",
+						buildEpochMs: 2_000,
+						host: "127.0.0.1",
+						port: 59999,
+						url: "ws://127.0.0.1:59999/hub",
+						startedAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+					},
 				})),
 			};
 		});
@@ -1135,11 +1148,14 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				resolveHubBuildId: () => "current-build",
 				readHubDiscovery: readHubDiscoveryMock,
 				probeHubServer: vi.fn(async () => ({
-					protocolVersion: "v1",
-					buildId: "different-build",
-					host: "127.0.0.1",
-					port: 59999,
-					url: "ws://127.0.0.1:59999/hub",
+					status: "healthy",
+					hub: {
+						protocolVersion: "v1",
+						buildId: "different-build",
+						host: "127.0.0.1",
+						port: 59999,
+						url: "ws://127.0.0.1:59999/hub",
+					},
 				})),
 			};
 		});
@@ -1185,13 +1201,16 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					clearHubDiscoveryMock(...args);
 				}),
 				probeHubServer: vi.fn(async () => ({
-					hubId: "hub-test",
-					protocolVersion: "v1",
-					host: "127.0.0.1",
-					port: 59999,
-					url: "ws://127.0.0.1:59999/hub",
-					startedAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					status: "healthy",
+					hub: {
+						hubId: "hub-test",
+						protocolVersion: "v1",
+						host: "127.0.0.1",
+						port: 59999,
+						url: "ws://127.0.0.1:59999/hub",
+						startedAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+					},
 				})),
 			};
 		});
@@ -1239,14 +1258,17 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					clearHubDiscoveryMock(...args);
 				}),
 				probeHubServer: vi.fn(async () => ({
-					hubId: "hub-test",
-					protocolVersion: "v0",
-					buildId: "old-build",
-					host: "127.0.0.1",
-					port: 59999,
-					url: "ws://127.0.0.1:59999/hub",
-					startedAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					status: "healthy",
+					hub: {
+						hubId: "hub-test",
+						protocolVersion: "v0",
+						buildId: "old-build",
+						host: "127.0.0.1",
+						port: 59999,
+						url: "ws://127.0.0.1:59999/hub",
+						startedAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+					},
 				})),
 			};
 		});
@@ -1286,7 +1308,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				...actual,
 				resolveHubBuildId: () => "test-build",
 				readHubDiscovery: readHubDiscoveryMock,
-				probeHubServer: vi.fn(async () => undefined),
+				probeHubServer: vi.fn(async () => ({ status: "unreachable" })),
 				clearHubDiscovery: vi.fn(async () => undefined),
 			};
 		});
@@ -1345,7 +1367,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				...actual,
 				resolveHubBuildId: () => "current-build",
 				readHubDiscovery: vi.fn(async () => staleRecord),
-				probeHubServer: vi.fn(async () => staleRecord),
+				probeHubServer: vi.fn(async () => ({
+					status: "healthy",
+					hub: staleRecord,
+				})),
 				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
 					clearHubDiscoveryMock(...args);
 				}),
@@ -1391,7 +1416,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			return {
 				...actual,
 				readHubDiscovery: vi.fn(async () => undefined),
-				probeHubServer: vi.fn(async () => undefined),
+				probeHubServer: vi.fn(async () => ({ status: "unreachable" })),
 			};
 		});
 
@@ -1454,7 +1479,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				...actual,
 				resolveHubBuildId: () => "test-build",
 				readHubDiscovery: readHubDiscoveryMock,
-				probeHubServer: vi.fn(async () => record),
+				probeHubServer: vi.fn(async () => ({ status: "healthy", hub: record })),
 				clearHubDiscovery: vi.fn(async () => undefined),
 			};
 		});

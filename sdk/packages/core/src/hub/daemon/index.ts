@@ -43,6 +43,10 @@ import {
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
 import {
+	HubStartupProbeTimeoutError,
+	probeHubForStartup,
+} from "../discovery/probe-startup";
+import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
@@ -190,23 +194,16 @@ function withMatchingDiscoveryRetirementMetadata(
 	};
 }
 
-async function safeProbeHubServer(
-	url: string,
-	authToken?: string,
-): Promise<HubServerProbeRecord | undefined> {
-	// Timeouts are indeterminate, not evidence that the existing Hub is dead.
-	// Propagate them before discovery mutation or replacement can occur.
-	return await probeHubServer(url, { authToken });
-}
-
 async function waitForHubToRetire(
 	url: string,
 	timeoutMs: number,
 ): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const healthy = await safeProbeHubServer(url);
-		if (!healthy?.url) {
+		const probe = await probeHubServer(url, {
+			timeoutMs: Math.min(3_000, Math.max(1, deadline - Date.now())),
+		});
+		if (probe.status === "unreachable") {
 			return true;
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_RETIRE_POLL_MS));
@@ -546,10 +543,10 @@ async function ensureDetachedHubServerLocked(
 			retiredUnusableDiscovery = true;
 			await retireDiscoveredHub(discovered, owner.discoveryPath);
 		} else {
-			const healthy = await safeProbeHubServer(
-				discovered.url,
-				discoveredAuthToken,
-			);
+			const healthy = await probeHubForStartup(discovered.url, {
+				authToken: discoveredAuthToken,
+				signal,
+			});
 			if (
 				healthy?.url &&
 				isReusableHubRecord(healthy) &&
@@ -586,7 +583,7 @@ async function ensureDetachedHubServerLocked(
 			}
 		}
 	}
-	const expected = await safeProbeHubServer(expectedUrl);
+	const expected = await probeHubForStartup(expectedUrl, { signal });
 	if (expected?.url) {
 		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 			expected,
@@ -699,10 +696,11 @@ async function ensureDetachedHubServerLocked(
 		try {
 			const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 			if (nextDiscovery?.url && nextDiscovery.authToken) {
-				const healthy = await safeProbeHubServer(
-					nextDiscovery.url,
-					nextDiscovery.authToken,
-				);
+				const healthy = await probeHubForStartup(nextDiscovery.url, {
+					authToken: nextDiscovery.authToken,
+					signal,
+					deadline,
+				});
 				if (
 					healthy?.url &&
 					isReusableHubRecord(healthy) &&
@@ -717,7 +715,10 @@ async function ensureDetachedHubServerLocked(
 					});
 				}
 			}
-			const nextExpected = await safeProbeHubServer(expectedUrl);
+			const nextExpected = await probeHubForStartup(expectedUrl, {
+				signal,
+				deadline,
+			});
 			if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
 				const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 					nextExpected,
@@ -753,8 +754,7 @@ async function ensureDetachedHubServerLocked(
 		} catch (error) {
 			// A newly spawned daemon can be listening before its health handler is ready.
 			// Keep ownership through the startup budget so another client cannot spawn.
-			if (!(error instanceof Error) || error.name !== "HubProbeTimeoutError")
-				throw error;
+			if (!(error instanceof HubStartupProbeTimeoutError)) throw error;
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
@@ -867,7 +867,9 @@ export async function upgradeManagedHub(
 	const workspaceRoot = options.workspaceRoot ?? process.cwd();
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	const live = discovered?.url
-		? await safeProbeHubServer(discovered.url, discovered.authToken)
+		? await probeHubForStartup(discovered.url, {
+				authToken: discovered.authToken,
+			})
 		: undefined;
 	if (!live?.url) {
 		const ensured = await ensureDetachedHubServer(workspaceRoot);

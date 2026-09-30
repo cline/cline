@@ -363,6 +363,16 @@ Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI
 binary immediately before a command restarts the shared hub.
 
+Hub health probes return explicit `healthy`, `unreachable`, `timeout`, or
+`invalid-response` outcomes. The default three-second limit covers response
+headers and body consumption; explicit caller cancellation still rejects.
+Diagnostics report an unresponsive Hub without aborting the rest of the report.
+Startup retries indeterminate health within a bounded budget and never clears
+ownership or spawns a replacement just because a probe timed out. Retirement
+continues polling through timeouts until its own deadline, then uses the existing
+retirement fallback. Port-conflict identification is best-effort: an unanswered
+probe means an unknown occupant and must not replace the original bind failure.
+
 Local hub discovery also carries the authentication contract for the shared
 daemon. On startup, the hub server generates a cryptographically random
 per-process auth token, stores it in the owner discovery record, and writes that

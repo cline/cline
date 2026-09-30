@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
 	ensureFileExists,
+	type HubServerProbeResult,
 	listActiveConnectors,
 	probeHubServer,
 	readHubDiscovery,
@@ -58,6 +59,7 @@ type DoctorStatus = {
 	coreVersion?: string;
 	hubUrl?: string;
 	hubHealthy: boolean;
+	hubProbeStatus?: HubServerProbeResult["status"];
 	hubPid?: number;
 	hubStartedAt?: string;
 	hubUptime?: string;
@@ -437,9 +439,10 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		| undefined = recorded?.url
 		? recorded
 		: readSupersededHubDiscovery(owner.discoveryPath);
-	const health = discovery?.url
+	const probe = discovery?.url
 		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
 		: undefined;
+	const health = probe?.status === "healthy" ? probe.hub : undefined;
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
 	const listeningPids = listListeningPids(current?.port);
@@ -453,6 +456,7 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		coreVersion: health?.coreVersion ?? discovery?.coreVersion,
 		hubUrl: current?.url,
 		hubHealthy: !!health?.url,
+		hubProbeStatus: probe?.status,
 		hubPid: current?.pid,
 		hubStartedAt: health?.startedAt,
 		hubUptime,
@@ -652,7 +656,7 @@ export async function runDoctorCommand(
 		writeln(`core version ${c.dim}${before.coreVersion ?? "n/a"}${c.reset}`);
 		writeln(`hub url ${c.dim}${before.hubUrl ?? "none"}${c.reset}`);
 		writeln(
-			`hub healthy ${c.dim}${before.hubHealthy ? "yes" : "no"}${before.hubPid ? ` (pid=${before.hubPid})` : ""}${c.reset}`,
+			`hub healthy ${c.dim}${before.hubHealthy ? "yes" : before.hubProbeStatus === "timeout" ? "no (not responding)" : "no"}${before.hubPid ? ` (pid=${before.hubPid})` : ""}${c.reset}`,
 		);
 		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
