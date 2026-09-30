@@ -3785,14 +3785,18 @@ export function useChatSession(environmentId: string) {
 			const leavingTaskWorktree = isTaskWorktreePath(
 				prev.workspaceRoot || prev.cwd || "",
 			);
+			const switchingTarget = prev.executionTarget !== initial.executionTarget;
 			return {
 				...prev,
 				sessionId: undefined,
+				executionTarget: initial.executionTarget,
+				repoUrl: undefined,
+				branch: undefined,
 				provider: initial.provider,
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
-				...(leavingTaskWorktree
+				...(switchingTarget || leavingTaskWorktree
 					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
 					: {}),
 			};
