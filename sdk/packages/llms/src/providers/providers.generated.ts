@@ -24,7 +24,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "302ai",
-		defaultModelId: "claude-opus-5-5",
+		defaultModelId: "claude-sonnet-5-5",
 		apiKeyEnv: ["302AI_API_KEY"],
 		docsUrl: "https://doc.302.ai",
 		defaults: {
@@ -414,7 +414,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "bedrock",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "bedrock",
-		defaultModelId: "global.anthropic.claude-sonnet-5-5",
+		defaultModelId: "openai.gpt-6.1-sol",
 		apiKeyEnv: [
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",
@@ -485,7 +485,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Cerebras",
 		description: "Cerebras model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cerebras",
 		defaultModelId: "qwen-3.8-27b",
 		apiKeyEnv: ["CEREBRAS_API_KEY"],
@@ -1693,7 +1693,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "inclusionai/ling-3.1-flash",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -2700,7 +2700,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vivgrid",
-		defaultModelId: "claude-opus-5-5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["VIVGRID_API_KEY"],
 		docsUrl: "https://docs.vivgrid.com/models",
 		defaults: {
@@ -2742,7 +2742,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "vultr",
-		defaultModelId: "zai-org/GLM-5.2-FP8",
+		defaultModelId: "mimo-v2.6-flash-rl",
 		apiKeyEnv: ["VULTR_API_KEY"],
 		docsUrl: "https://api.vultrinference.com/",
 		defaults: {
