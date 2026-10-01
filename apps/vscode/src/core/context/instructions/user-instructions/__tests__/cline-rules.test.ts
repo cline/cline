@@ -131,7 +131,7 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 		await fs.writeFile(offPath, "Was toggled off in state only")
 		await fs.writeFile(onPath, "Still on")
 
-		const toggles = await reconcileRuleTogglesWithFrontmatter({ [offPath]: false, [onPath]: true }, [rulesDir], {
+		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [offPath]: false, [onPath]: true }, [rulesDir], {
 			backfillFromState: true,
 		})
 
@@ -146,7 +146,7 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 		const content = "---\ndisabled: true\n---\nDisabled by hand"
 		await fs.writeFile(rulePath, content)
 
-		const toggles = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: true }, [rulesDir])
+		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: true }, [rulesDir])
 
 		expect(toggles[rulePath]).to.equal(false)
 		expect(await fs.readFile(rulePath, "utf-8")).to.equal(content)
@@ -157,7 +157,7 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 		const rulePath = path.join(rulesDir, "hand-enabled.md")
 		await fs.writeFile(rulePath, "Re-enabled by hand")
 
-		const toggles = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: false }, [rulesDir])
+		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: false }, [rulesDir])
 
 		expect(toggles[rulePath]).to.equal(true)
 		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
@@ -168,7 +168,7 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 		const rulePath = path.join(rulesDir, "both-flags.md")
 		await fs.writeFile(rulePath, "---\ndisabled: false\nenabled: false\n---\nInjected by the SDK")
 
-		const toggles = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: false }, [rulesDir])
+		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: false }, [rulesDir])
 
 		expect(toggles[rulePath]).to.equal(true)
 	})
@@ -181,7 +181,7 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 		await fs.writeFile(outside, "Outside")
 		await fs.writeFile(json, "{}")
 
-		const toggles = await reconcileRuleTogglesWithFrontmatter({ [outside]: false, [json]: false }, [rulesDir])
+		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [outside]: false, [json]: false }, [rulesDir])
 
 		expect(toggles).to.deep.equal({ [outside]: false, [json]: false })
 		expect(await fs.readFile(outside, "utf-8")).to.equal("Outside")
@@ -236,6 +236,28 @@ describe("refreshClineRulesToggles back-fill", () => {
 		const secondResult = await refreshClineRulesToggles(second.controller, workspace)
 		expect(secondResult.localToggles[rulePath]).to.equal(true)
 		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
+	})
+
+	it("keeps a failed back-fill pending so the next refresh retries it", async () => {
+		const workspace = await makeTempDir()
+		const rulePath = path.join(workspace, ".clinerules", "locked.md")
+		await fs.mkdir(path.dirname(rulePath), { recursive: true })
+		await fs.writeFile(rulePath, "Toggled off before the fix")
+		await fs.chmod(rulePath, 0o444)
+		try {
+			const first = makeController({ [rulePath]: false })
+			const firstResult = await refreshClineRulesToggles(first.controller, workspace)
+			expect(firstResult.localToggles[rulePath]).to.equal(false)
+			expect(first.workspaceState.get("localClineRulesTogglesWrittenToFrontmatter")).to.deep.equal({})
+		} finally {
+			await fs.chmod(rulePath, 0o644)
+		}
+
+		const second = makeController({ [rulePath]: false })
+		const secondResult = await refreshClineRulesToggles(second.controller, workspace)
+		expect(secondResult.localToggles[rulePath]).to.equal(false)
+		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).to.equal(true)
+		expect(second.workspaceState.get("localClineRulesTogglesWrittenToFrontmatter")).to.deep.equal({ [workspace]: true })
 	})
 
 	it("still back-fills a workspace that has not been migrated even after another one was", async () => {

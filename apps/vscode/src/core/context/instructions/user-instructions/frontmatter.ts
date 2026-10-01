@@ -91,8 +91,17 @@ function isEnabledFalseLine(line: string): boolean {
 /**
  * Number of lines the top-level entry starting at `index` spans: the key line
  * plus any indented continuation lines (block scalars, nested maps, lists).
+ * An entry with an inline scalar value (`disabled: true`) is one line, so an
+ * indented comment after it belongs to the author, not to the entry.
  */
 function topLevelEntryLength(lines: ReadonlyArray<string>, index: number): number {
+	const value = lines[index]
+		.replace(/^[^:]*:/, "")
+		.replace(/\s+#.*$/, "")
+		.trim()
+	if (value !== "" && !/^[|>]/.test(value)) {
+		return 1
+	}
 	let length = 1
 	while (index + length < lines.length && /^\s+\S/.test(lines[index + length])) {
 		length++

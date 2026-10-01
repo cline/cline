@@ -148,7 +148,10 @@ export async function setRuleDisabledInFrontmatter(
  * With `backfillFromState`, toggles turned off before the toggle wrote
  * frontmatter are written to their files first, so they keep taking effect
  * after upgrading. Run once; afterwards a `false` in state with no `disabled`
- * in the file means the user re-enabled the rule by editing it.
+ * in the file means the user re-enabled the rule by editing it. A back-fill
+ * write that fails keeps the `false` toggle and reports `backfillComplete:
+ * false`, so the caller retries on the next refresh instead of treating the
+ * unwritten file as re-enabled.
  *
  * Files outside `allowedRoots` are left alone.
  */
@@ -156,8 +159,9 @@ export async function reconcileRuleTogglesWithFrontmatter(
 	toggles: ClineRulesToggles,
 	allowedRoots: ReadonlyArray<string>,
 	options: { backfillFromState?: boolean } = {},
-): Promise<ClineRulesToggles> {
+): Promise<{ toggles: ClineRulesToggles; backfillComplete: boolean }> {
 	const updated: ClineRulesToggles = { ...toggles }
+	let backfillComplete = true
 	for (const [rulePath, enabled] of Object.entries(toggles)) {
 		const filePath = await resolveWritableRuleFile(rulePath, allowedRoots)
 		if (!filePath) {
@@ -178,13 +182,14 @@ export async function reconcileRuleTogglesWithFrontmatter(
 			continue
 		}
 		if (!enabled && options.backfillFromState) {
-			if ((await setRuleDisabledInFrontmatter(rulePath, false, allowedRoots)) === "written") {
-				continue
+			if ((await setRuleDisabledInFrontmatter(rulePath, false, allowedRoots)) !== "written") {
+				backfillComplete = false
 			}
+			continue
 		}
 		updated[rulePath] = !fileDisabled
 	}
-	return updated
+	return { toggles: updated, backfillComplete }
 }
 
 /**
@@ -230,13 +235,14 @@ export async function refreshClineRulesToggles(
 
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalRuleDirectories = await resolveGlobalRuleDirectories()
-	const updatedGlobalToggles = await reconcileRuleTogglesWithFrontmatter(
+	const globalResult = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(globalRuleDirectories, globalClineRulesToggles),
 		globalRuleDirectories,
 		{ backfillFromState: !globalBackfilled },
 	)
+	const updatedGlobalToggles = globalResult.toggles
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
-	if (!globalBackfilled) {
+	if (!globalBackfilled && globalResult.backfillComplete) {
 		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", true)
 	}
 
@@ -245,7 +251,7 @@ export async function refreshClineRulesToggles(
 	// same shared resolver the SDK runtime loads rules with (cline/cline#14186).
 	const localClineRulesToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 	const localRuleDirectories = resolveWorkspaceRulesConfigPaths(workingDirectory)
-	const updatedLocalToggles = await reconcileRuleTogglesWithFrontmatter(
+	const localResult = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(
 			localRuleDirectories,
 			localClineRulesToggles,
@@ -254,8 +260,9 @@ export async function refreshClineRulesToggles(
 		localRuleDirectories,
 		{ backfillFromState: !workspaceBackfilled },
 	)
+	const updatedLocalToggles = localResult.toggles
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
-	if (!workspaceBackfilled) {
+	if (!workspaceBackfilled && localResult.backfillComplete) {
 		controller.stateManager.setWorkspaceState("localClineRulesTogglesWrittenToFrontmatter", {
 			...backfilledWorkspaces,
 			[workingDirectory]: true,

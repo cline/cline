@@ -146,6 +146,17 @@ describe("updateUserInstructionMarkdownDisabledState preserves authored frontmat
 		}
 	})
 
+	it("keeps an indented comment that follows an inline disabled value", () => {
+		const input = ["---", "disabled: true", "  # keep this note", "paths:", "  - src/**", "---", "Body"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+			["---", "  # keep this note", "paths:", "  - src/**", "---", "Body"].join("\n"),
+		)
+		const enabled = ["---", "disabled: false", "  # keep this note", "---", "Body"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(enabled, false)).to.equal(
+			["---", "disabled: true", "  # keep this note", "---", "Body"].join("\n"),
+		)
+	})
+
 	it("recognizes quoted keys", () => {
 		const disabledQuoted = ["---", '"disabled": true', "---", "Body"].join("\n")
 		expect(updateUserInstructionMarkdownDisabledState(disabledQuoted, true)).to.equal("Body")
