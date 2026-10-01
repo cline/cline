@@ -1,0 +1,2 @@
+Synthetic handoff smoke-test fixture.
+Expected cloud marker: CLOUD_HANDOFF_QA_OK
