@@ -185,7 +185,7 @@ describe("installed connectors", () => {
 		);
 	});
 
-	it("shows the empty state with suggested connectors when none are installed", async () => {
+	it("shows the empty state when no connectors are installed", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -198,15 +198,14 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
+		expect(container.textContent).toContain("Installed0");
 		expect(container.textContent).toContain("No connectors installed");
-		expect(container.textContent).toContain("Suggested");
-		expect(container.textContent).not.toContain("Marketplace");
+		expect(container.textContent).not.toContain("Gmail");
+		expect(button("Install")).toBeUndefined();
 		expect(mocks.catalog).not.toHaveBeenCalled();
-		await act(async () => button("Install")?.click());
-		expect(mocks.connect).toHaveBeenCalledWith("gmail");
 	});
 
-	it("lists installed connectors and suggests the rest without fetching the catalog", async () => {
+	it("lists installed connectors without fetching or showing recommendations", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -226,11 +225,9 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		const installed = container.querySelector("section");
-		expect(installed?.textContent).toContain("Installed");
-		expect(installed?.textContent).toContain("Gmail");
-		expect(installed?.textContent).not.toContain("GitHub");
-		expect(container.textContent).toContain("GitHub");
+		expect(container.textContent).toContain("Gmail");
+		expect(container.textContent).not.toContain("GitHub");
+		expect(container.textContent).not.toContain("Recommended");
 		expect(mocks.catalog).not.toHaveBeenCalled();
 		await act(async () => button("Uninstall")?.click());
 		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");

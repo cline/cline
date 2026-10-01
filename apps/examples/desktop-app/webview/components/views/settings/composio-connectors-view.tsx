@@ -407,40 +407,7 @@ export function ComposioConnectorsView({
 
 	if (variant === "installed") {
 		// Mirrors the Skills / Plugins / MCP tabs: description + refresh,
-		// full-width search, an Installed section with a count, and the
-		// recommended connectors as suggestions so the tab is never a dead end.
-		const suggested = status.integrations
-			.filter(
-				(integration) =>
-					integration.recommended && integration.status === "not_connected",
-			)
-			.map(
-				(integration): ComposioCatalogToolkit => ({
-					slug: integration.toolkit,
-					name: integration.name,
-					description: integration.description,
-					logo: integration.logo,
-					recommended: integration.recommended,
-				}),
-			)
-			.filter(
-				(entry) => !trimmedQuery || connectorMatchesQuery(entry, trimmedQuery),
-			);
-		const renderCard = (entry: ComposioCatalogToolkit) => (
-			<ConnectorCard
-				busy={busyToolkit === entry.slug}
-				entry={entry}
-				error={
-					actionError?.toolkit === entry.slug ? actionError.message : undefined
-				}
-				key={entry.slug}
-				onCancel={() => void cancelConnect(entry.slug)}
-				onConnect={() => void connect(entry.slug)}
-				onDisconnect={() => void disconnect(entry.slug)}
-				onOpenDetails={() => setDetailSlug(entry.slug)}
-				summary={statusBySlug.get(entry.slug)}
-			/>
-		);
+		// full-width search, and an Installed section with a count.
 		return (
 			<div className="grid gap-6 select-text">
 				<div className="grid gap-4">
@@ -485,32 +452,32 @@ export function ComposioConnectorsView({
 					</div>
 					{matchingCatalog.length > 0 ? (
 						<div className="grid min-w-0 gap-3">
-							{matchingCatalog.map(renderCard)}
+							{matchingCatalog.map((entry) => (
+								<ConnectorCard
+									busy={busyToolkit === entry.slug}
+									entry={entry}
+									error={
+										actionError?.toolkit === entry.slug
+											? actionError.message
+											: undefined
+									}
+									key={entry.slug}
+									onCancel={() => void cancelConnect(entry.slug)}
+									onConnect={() => void connect(entry.slug)}
+									onDisconnect={() => void disconnect(entry.slug)}
+									onOpenDetails={() => setDetailSlug(entry.slug)}
+									summary={statusBySlug.get(entry.slug)}
+								/>
+							))}
 						</div>
 					) : (
 						<div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
 							{trimmedQuery
 								? `No installed connectors match "${query.trim()}".`
-								: "No connectors installed. Install a suggested connector below or browse the marketplace to add one."}
+								: "No connectors installed. Browse the marketplace to add one."}
 						</div>
 					)}
 				</section>
-
-				{suggested.length > 0 ? (
-					<section className="grid min-w-0 gap-3">
-						<div className="flex items-center justify-between gap-3">
-							<h2 className="text-base font-semibold text-foreground">
-								Suggested
-							</h2>
-							<span className="text-sm text-muted-foreground">
-								{suggested.length}
-							</span>
-						</div>
-						<div className="grid min-w-0 gap-3">
-							{suggested.map(renderCard)}
-						</div>
-					</section>
-				) : null}
 
 				{detailDialog}
 			</div>
