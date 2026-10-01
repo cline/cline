@@ -107,6 +107,20 @@ describe("Logger", () => {
 			Logger.error("api call failed:", error)
 			expect(last()).toBe("ERROR api call failed: Error: Request failed with status code 401")
 		})
+
+		it("omits the message of a JSON parse error, which quotes the parsed input", () => {
+			let parseError: unknown
+			try {
+				JSON.parse("sk-live-SECRET")
+			} catch (error) {
+				parseError = error
+			}
+			Logger.error("Failed to parse providers api keys", parseError)
+			Logger.error("load failed:", new Error("bad settings", { cause: parseError }))
+			expect(lines.join("\n")).not.toContain("SECRET")
+			expect(lines[0].replace(/^\S+ /, "")).toBe("ERROR Failed to parse providers api keys SyntaxError")
+			expect(last()).toBe("ERROR load failed: Error: bad settings (cause: SyntaxError)")
+		})
 	})
 
 	describe("with IS_DEV=true (verbose)", () => {

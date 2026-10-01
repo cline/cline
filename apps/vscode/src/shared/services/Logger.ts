@@ -132,7 +132,9 @@ export class Logger {
 				return ""
 			}
 			seen.add(err)
-			let text = `${err.name}: ${err.message}`
+			// JSON.parse errors quote the input being parsed, which is often a
+			// settings file or an API response carrying credentials.
+			let text = err instanceof SyntaxError ? err.name : `${err.name}: ${err.message}`
 			const cause = err.cause
 			if (cause instanceof Error && !seen.has(cause) && depth < MAX_CAUSE_DEPTH) {
 				text += ` (cause: ${describe(cause, depth + 1)})`
