@@ -33,7 +33,10 @@ describe("SqliteTeamStore v2", () => {
 		store.persistBatch(
 			TEAM,
 			batch(
-				emptyDelta({ tasks: [task("task_0001")], runs: [run("run_1")] }),
+				emptyDelta({
+					tasks: [task("task_0001")],
+					runs: [run("run_1", { lastProgressAt: new Date() })],
+				}),
 				[{ type: "team_task_updated", payload: { a: 1 } }],
 				teammates,
 			),
@@ -50,6 +53,7 @@ describe("SqliteTeamStore v2", () => {
 		]);
 		expect(loaded.state?.tasks[0]?.createdAt).toBeInstanceOf(Date);
 		expect(loaded.state?.runs.map((r) => r.id)).toEqual(["run_1"]);
+		expect(loaded.state?.runs[0]?.lastProgressAt).toBeInstanceOf(Date);
 		expect(loaded.teammates).toEqual(teammates);
 		expect(store.listTeamNames()).toEqual([TEAM]);
 	});
