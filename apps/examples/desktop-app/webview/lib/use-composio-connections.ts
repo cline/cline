@@ -50,26 +50,25 @@ export function useComposioConnections({
 		onChangedRef.current?.();
 	}, []);
 
-	// Initial load reconciles against Composio (connections can be revoked
-	// from the Composio dashboard without this app knowing).
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			try {
-				const initial = await fetchComposioStatus({ refresh: true });
-				if (!cancelled) {
-					setStatus(initial);
-				}
-			} catch (error) {
-				if (!cancelled) {
-					setLoadError(error instanceof Error ? error.message : String(error));
-				}
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
+	const [refreshing, setRefreshing] = useState(false);
+	// Reconciles against Composio (connections can be revoked from the
+	// Composio dashboard without this app knowing). Runs on mount and from
+	// the tab's refresh button.
+	const refresh = useCallback(async () => {
+		setRefreshing(true);
+		try {
+			setStatus(await fetchComposioStatus({ refresh: true }));
+			setLoadError(null);
+		} catch (error) {
+			setLoadError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setRefreshing(false);
+		}
 	}, []);
+
+	useEffect(() => {
+		void refresh();
+	}, [refresh]);
 
 	const hasPending = useMemo(
 		() =>
@@ -175,6 +174,8 @@ export function useComposioConnections({
 		loadError,
 		actionError,
 		busyToolkit,
+		refreshing,
+		refresh,
 		connect,
 		cancelConnect,
 		disconnect,

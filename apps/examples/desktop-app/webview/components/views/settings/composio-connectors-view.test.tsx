@@ -156,7 +156,12 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		await act(async () => button("View")?.click());
+		// The card body opens the detail dialog.
+		await act(async () =>
+			[...document.querySelectorAll("button")]
+				.find((entry) => entry.textContent?.startsWith("Google Calendar"))
+				?.click(),
+		);
 		const dialog = document.querySelector('[role="dialog"]');
 		expect(dialog?.textContent).toContain("47 available in new sessions");
 		expect(dialog?.textContent).not.toContain("47/47");
@@ -180,7 +185,7 @@ describe("installed connectors", () => {
 		);
 	});
 
-	it("shows only the Marketplace button when no connectors are installed", async () => {
+	it("shows the empty state with suggested connectors when none are installed", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -190,26 +195,18 @@ describe("installed connectors", () => {
 				status: "not_connected",
 			},
 		];
-		const openMarketplace = vi.fn();
 		await act(async () =>
-			root.render(
-				<ComposioConnectorsView
-					variant="installed"
-					onOpenMarketplace={openMarketplace}
-				/>,
-			),
+			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).toBe(
-			"Browse all connectors in the Marketplace",
-		);
+		expect(container.textContent).toContain("No connectors installed");
+		expect(container.textContent).toContain("Suggested");
+		expect(container.textContent).not.toContain("Marketplace");
 		expect(mocks.catalog).not.toHaveBeenCalled();
-		await act(async () =>
-			button("Browse all connectors in the Marketplace")?.click(),
-		);
-		expect(openMarketplace).toHaveBeenCalledOnce();
+		await act(async () => button("Install")?.click());
+		expect(mocks.connect).toHaveBeenCalledWith("gmail");
 	});
 
-	it("lists installed connectors without fetching or showing recommendations", async () => {
+	it("lists installed connectors and suggests the rest without fetching the catalog", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -229,9 +226,13 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).toContain("Gmail");
-		expect(container.textContent).not.toContain("GitHub");
-		expect(container.textContent).not.toContain("Recommended");
+		const installed = container.querySelector("section");
+		expect(installed?.textContent).toContain("Installed");
+		expect(installed?.textContent).toContain("Gmail");
+		expect(installed?.textContent).not.toContain("GitHub");
+		expect(container.textContent).toContain("GitHub");
 		expect(mocks.catalog).not.toHaveBeenCalled();
+		await act(async () => button("Uninstall")?.click());
+		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");
 	});
 });

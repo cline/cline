@@ -1,7 +1,14 @@
 "use client";
 
 import { GitHubIcon } from "@cline/ui";
-import { CalendarDays, Loader2, Mail, Search, Store } from "lucide-react";
+import {
+	CalendarDays,
+	Loader2,
+	Mail,
+	RefreshCw,
+	Search,
+	Trash2,
+} from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +29,7 @@ import type {
 	ComposioToolkitSlug,
 } from "@/lib/composio-types";
 import { useComposioConnections } from "@/lib/use-composio-connections";
+import { cn } from "@/lib/utils";
 
 /** Shared connector browser for Customize and Marketplace. */
 
@@ -97,6 +105,7 @@ export function ConnectorActionButton({
 	configured,
 	busy,
 	showUninstall = false,
+	size = "sm",
 	onConnect,
 	onCancel,
 	onDisconnect,
@@ -105,9 +114,10 @@ export function ConnectorActionButton({
 	status: ComposioIntegrationStatus;
 	configured: boolean;
 	busy: boolean;
+	size?: "sm" | "xs";
 	/** Installed connectors show an Uninstall action where management is
-	 * expected (the detail dialog in Customize > Connectors); list rows show a
-	 * View button that opens the detail dialog instead. */
+	 * expected (Customize > Connectors cards and the detail dialog); catalog
+	 * rows show a View button that opens the detail dialog instead. */
 	showUninstall?: boolean;
 	onConnect: () => void;
 	onCancel: () => void;
@@ -123,7 +133,7 @@ export function ConnectorActionButton({
 						event.stopPropagation();
 						onView?.();
 					}}
-					size="sm"
+					size={size}
 					type="button"
 					variant="default"
 				>
@@ -138,11 +148,15 @@ export function ConnectorActionButton({
 					event.stopPropagation();
 					onDisconnect();
 				}}
-				size="sm"
+				size={size}
 				type="button"
 				variant="destructive"
 			>
-				{busy ? <Loader2 className="size-4 animate-spin" /> : null}
+				{busy ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Trash2 className="size-4" />
+				)}
 				Uninstall
 			</Button>
 		);
@@ -154,7 +168,7 @@ export function ConnectorActionButton({
 					event.stopPropagation();
 					onCancel();
 				}}
-				size="sm"
+				size={size}
 				type="button"
 				variant="ghost"
 			>
@@ -170,9 +184,9 @@ export function ConnectorActionButton({
 				event.stopPropagation();
 				onConnect();
 			}}
-			size="sm"
+			size={size}
 			type="button"
-			variant="outline"
+			variant="default"
 		>
 			{busy ? <Loader2 className="size-4 animate-spin" /> : null}
 			Install
@@ -182,7 +196,6 @@ export function ConnectorActionButton({
 
 export function ComposioConnectorsView({
 	variant = "catalog",
-	onOpenMarketplace,
 	onChanged,
 	searchQuery,
 	onCatalogCountChange,
@@ -190,7 +203,6 @@ export function ComposioConnectorsView({
 	appendOnScroll = false,
 }: {
 	variant?: "catalog" | "installed";
-	onOpenMarketplace?: () => void;
 	onChanged?: () => void;
 	appendOnScroll?: boolean;
 	/** Use the host page search instead of rendering a separate search field. */
@@ -210,6 +222,8 @@ export function ComposioConnectorsView({
 		loadError,
 		actionError,
 		busyToolkit,
+		refreshing,
+		refresh,
 		connect,
 		cancelConnect,
 		disconnect,
@@ -358,21 +372,147 @@ export function ComposioConnectorsView({
 		);
 	}
 
-	const marketplaceButton = onOpenMarketplace ? (
-		<Button
-			onClick={onOpenMarketplace}
-			size="sm"
-			type="button"
-			variant="outline"
-		>
-			<Store className="size-4" />
-			Browse all connectors in the Marketplace
-		</Button>
-	) : null;
-	if (variant === "installed" && entries.length === 0) {
+	const detailDialog = (
+		<ConnectorDetailDialog
+			actionError={
+				detailSlug !== null && actionError?.toolkit === detailSlug
+					? actionError.message
+					: undefined
+			}
+			busy={detailSlug !== null && busyToolkit === detailSlug}
+			entry={detailEntry}
+			onCancel={() => {
+				if (detailSlug) {
+					void cancelConnect(detailSlug);
+				}
+			}}
+			onConnect={() => {
+				if (detailSlug) {
+					void connect(detailSlug);
+				}
+			}}
+			onDisconnect={() => {
+				if (detailSlug) {
+					void disconnect(detailSlug);
+				}
+			}}
+			onOpenChange={(open) => {
+				if (!open) {
+					setDetailSlug(null);
+				}
+			}}
+			summary={detailStatus}
+		/>
+	);
+
+	if (variant === "installed") {
+		// Mirrors the Skills / Plugins / MCP tabs: description + refresh,
+		// full-width search, an Installed section with a count, and the
+		// recommended connectors as suggestions so the tab is never a dead end.
+		const suggested = status.integrations
+			.filter(
+				(integration) =>
+					integration.recommended && integration.status === "not_connected",
+			)
+			.map(
+				(integration): ComposioCatalogToolkit => ({
+					slug: integration.toolkit,
+					name: integration.name,
+					description: integration.description,
+					logo: integration.logo,
+					recommended: integration.recommended,
+				}),
+			)
+			.filter(
+				(entry) => !trimmedQuery || connectorMatchesQuery(entry, trimmedQuery),
+			);
+		const renderCard = (entry: ComposioCatalogToolkit) => (
+			<ConnectorCard
+				busy={busyToolkit === entry.slug}
+				entry={entry}
+				error={
+					actionError?.toolkit === entry.slug ? actionError.message : undefined
+				}
+				key={entry.slug}
+				onCancel={() => void cancelConnect(entry.slug)}
+				onConnect={() => void connect(entry.slug)}
+				onDisconnect={() => void disconnect(entry.slug)}
+				onOpenDetails={() => setDetailSlug(entry.slug)}
+				summary={statusBySlug.get(entry.slug)}
+			/>
+		);
 		return (
-			<div className="flex min-h-64 items-center justify-center">
-				{marketplaceButton}
+			<div className="grid gap-6 select-text">
+				<div className="grid gap-4">
+					<div className="flex items-center justify-between gap-3">
+						<p className="text-sm text-muted-foreground">
+							Connect your accounts to give Cline tools for your favorite apps.
+							Tools become available in new sessions.
+						</p>
+						<Button
+							aria-label="Refresh connectors"
+							disabled={refreshing}
+							onClick={() => void refresh()}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<RefreshCw
+								className={cn("size-4", refreshing && "animate-spin")}
+							/>
+						</Button>
+					</div>
+					<div className="relative">
+						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							aria-label="Search connectors"
+							className="h-10 pl-8"
+							onChange={(event) => setQuery(event.target.value)}
+							placeholder="Search connectors"
+							value={query}
+						/>
+					</div>
+				</div>
+
+				<section className="grid min-w-0 gap-3">
+					<div className="flex items-center justify-between gap-3">
+						<h2 className="text-base font-semibold text-foreground">
+							Installed
+						</h2>
+						<span className="text-sm text-muted-foreground">
+							{entries.length}
+						</span>
+					</div>
+					{matchingCatalog.length > 0 ? (
+						<div className="grid min-w-0 gap-3">
+							{matchingCatalog.map(renderCard)}
+						</div>
+					) : (
+						<div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
+							{trimmedQuery
+								? `No installed connectors match "${query.trim()}".`
+								: "No connectors installed. Install a suggested connector below or browse the marketplace to add one."}
+						</div>
+					)}
+				</section>
+
+				{suggested.length > 0 ? (
+					<section className="grid min-w-0 gap-3">
+						<div className="flex items-center justify-between gap-3">
+							<h2 className="text-base font-semibold text-foreground">
+								Suggested
+							</h2>
+							<span className="text-sm text-muted-foreground">
+								{suggested.length}
+							</span>
+						</div>
+						<div className="grid min-w-0 gap-3">
+							{suggested.map(renderCard)}
+						</div>
+					</section>
+				) : null}
+
+				{detailDialog}
 			</div>
 		);
 	}
@@ -489,40 +629,7 @@ export function ComposioConnectorsView({
 				</>
 			)}
 
-			{variant === "installed" && marketplaceButton ? (
-				<div>{marketplaceButton}</div>
-			) : null}
-
-			<ConnectorDetailDialog
-				actionError={
-					detailSlug !== null && actionError?.toolkit === detailSlug
-						? actionError.message
-						: undefined
-				}
-				busy={detailSlug !== null && busyToolkit === detailSlug}
-				entry={detailEntry}
-				onCancel={() => {
-					if (detailSlug) {
-						void cancelConnect(detailSlug);
-					}
-				}}
-				onConnect={() => {
-					if (detailSlug) {
-						void connect(detailSlug);
-					}
-				}}
-				onDisconnect={() => {
-					if (detailSlug) {
-						void disconnect(detailSlug);
-					}
-				}}
-				onOpenChange={(open) => {
-					if (!open) {
-						setDetailSlug(null);
-					}
-				}}
-				summary={detailStatus}
-			/>
+			{detailDialog}
 		</div>
 	);
 }
@@ -580,6 +687,86 @@ function ConnectorRow({
 				onView={onOpenDetails}
 				status={status}
 			/>
+		</div>
+	);
+}
+
+/** Card for Customize > Connectors, shaped like the installed Skills /
+ * Plugins / MCP cards. The whole card opens the detail dialog; the action
+ * control sits outside that click target (nested interactives are invalid). */
+function ConnectorCard({
+	entry,
+	summary,
+	busy,
+	error,
+	onConnect,
+	onCancel,
+	onDisconnect,
+	onOpenDetails,
+}: {
+	entry: ComposioCatalogToolkit;
+	summary?: ComposioIntegrationSummary;
+	busy: boolean;
+	error?: string;
+	onConnect: () => void;
+	onCancel: () => void;
+	onDisconnect: () => void;
+	onOpenDetails: () => void;
+}) {
+	const status = summary?.status ?? "not_connected";
+	const toolCount =
+		status === "connected" ? summary?.toolNames?.length : entry.toolsCount;
+	return (
+		<div className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4 transition-colors hover:bg-surface-hover-lighter">
+			<div className="absolute top-4 right-4">
+				<ConnectorActionButton
+					busy={busy}
+					configured
+					onCancel={onCancel}
+					onConnect={onConnect}
+					onDisconnect={onDisconnect}
+					showUninstall
+					size="xs"
+					status={status}
+				/>
+			</div>
+			<button
+				className="grid min-w-0 cursor-pointer gap-2 pr-28 text-left"
+				onClick={onOpenDetails}
+				type="button"
+			>
+				<span className="flex min-w-0 items-center gap-2">
+					<ConnectorLogo
+						className="size-4"
+						logo={entry.logo}
+						name={entry.name}
+						slug={entry.slug}
+					/>
+					<span className="min-w-0 truncate text-sm font-semibold text-foreground">
+						{entry.name}
+					</span>
+					{status === "pending" ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							Authorizing…
+						</Badge>
+					) : null}
+					{toolCount ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							{toolCount} {toolCount === 1 ? "tool" : "tools"}
+						</Badge>
+					) : null}
+				</span>
+				{entry.description ? (
+					<span className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+						{entry.description}
+					</span>
+				) : null}
+			</button>
+			{error ? (
+				<p className="text-xs text-destructive" role="alert">
+					{error}
+				</p>
+			) : null}
 		</div>
 	);
 }
