@@ -24,7 +24,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "302ai",
-		defaultModelId: "claude-opus-5-5",
+		defaultModelId: "claude-sonnet-5-5",
 		apiKeyEnv: ["302AI_API_KEY"],
 		docsUrl: "https://doc.302.ai",
 		defaults: {
@@ -414,7 +414,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "bedrock",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "bedrock",
-		defaultModelId: "global.anthropic.claude-sonnet-5-5",
+		defaultModelId: "openai.gpt-6.1-sol",
 		apiKeyEnv: [
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",
@@ -485,7 +485,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Cerebras",
 		description: "Cerebras model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cerebras",
 		defaultModelId: "qwen-3.8-27b",
 		apiKeyEnv: ["CEREBRAS_API_KEY"],
@@ -597,7 +597,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cortecs",
-		defaultModelId: "claude-opus-5.5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["CORTECS_API_KEY"],
 		docsUrl: "https://api.cortecs.ai/v1/models",
 		defaults: {
@@ -625,7 +625,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "crossmodel",
-		defaultModelId: "anthropic/claude-opus-5-5",
+		defaultModelId: "anthropic/claude-sonnet-5-5",
 		apiKeyEnv: ["CROSSMODEL_API_KEY"],
 		docsUrl: "https://www.crossmodel.ai/docs",
 		defaults: {
@@ -767,7 +767,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "edenai",
-		defaultModelId: "anthropic/claude-opus-5-5",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["EDENAI_API_KEY"],
 		docsUrl: "https://docs.edenai.co",
 		defaults: {
@@ -895,7 +895,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "github-copilot",
-		defaultModelId: "claude-sonnet-5.5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["GITHUB_TOKEN"],
 		docsUrl: "https://docs.github.com/en/copilot",
 		defaults: {
@@ -1218,7 +1218,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1331,7 +1331,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway",
-		defaultModelId: "claude-sonnet-5-5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1345,7 +1345,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway-providers",
-		defaultModelId: "anthropic/claude-sonnet-5-5",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1693,7 +1693,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: "inclusionai/ling-3.1-flash",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1835,7 +1835,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "ofox",
-		defaultModelId: "anthropic/claude-opus-5.5",
+		defaultModelId: "anthropic/claude-sonnet-5.5",
 		apiKeyEnv: ["OFOX_API_KEY"],
 		docsUrl: "https://ofox.ai/docs",
 		defaults: {
@@ -1863,7 +1863,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openai-native",
-		defaultModelId: "gpt-6-luna",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		docsUrl: "https://platform.openai.com/docs/models",
 	},
@@ -1874,7 +1874,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "claude-sonnet-5-5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1916,7 +1916,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2014,7 +2014,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "pioneer",
-		defaultModelId: "fastino/gliner2.5-multi-v1",
+		defaultModelId: "fastino/GLiNER-2.5-Decide",
 		apiKeyEnv: ["PIONEER_API_KEY"],
 		docsUrl: "https://agent.pioneer.ai/llms.txt",
 		defaults: {
@@ -2113,7 +2113,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "requesty",
-		defaultModelId: "claude-opus-5-5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["REQUESTY_API_KEY"],
 		docsUrl: "https://requesty.ai/solution/llm-routing/models",
 		defaults: {
@@ -2194,7 +2194,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "scaleway",
-		defaultModelId: "deepseek-v4-flash-0731",
+		defaultModelId: "qwen3.8-27b",
 		apiKeyEnv: ["SCALEWAY_API_KEY"],
 		docsUrl: "https://www.scaleway.com/en/docs/generative-apis/",
 		defaults: {
@@ -2406,12 +2406,12 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 	},
 	{
 		id: "tempr",
-		name: "Tempr",
-		description: "Tempr model provider from models.dev",
+		name: "Tempr Gateway",
+		description: "Tempr Gateway model provider from models.dev",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "tempr",
-		defaultModelId: "zai/glm-5.3-flashx",
+		defaultModelId: "xiaomi-mimo/mimo-v2.6-flash",
 		apiKeyEnv: ["TEMPR_API_KEY"],
 		docsUrl: "https://temprhq.io/docs/gateway-reference.html",
 		defaults: {
@@ -2659,7 +2659,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: "inclusionai/ling-3.1-flash",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
@@ -2700,7 +2700,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vivgrid",
-		defaultModelId: "claude-opus-5-5",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["VIVGRID_API_KEY"],
 		docsUrl: "https://docs.vivgrid.com/models",
 		defaults: {
@@ -2742,7 +2742,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "vultr",
-		defaultModelId: "zai-org/GLM-5.2-FP8",
+		defaultModelId: "mimo-v2.6-flash-rl",
 		apiKeyEnv: ["VULTR_API_KEY"],
 		docsUrl: "https://api.vultrinference.com/",
 		defaults: {

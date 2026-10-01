@@ -87,6 +87,8 @@ export const StoredProviderEntrySchema = z
 	.object({
 		provider: StoredProviderMetadataSchema.optional(),
 		models: z.record(z.string(), StoredModelEntrySchema).optional(),
+		// Models owned solely by discovery; all other entries are user-managed.
+		discoveredModelIds: z.array(z.string()).optional(),
 	})
 	.passthrough();
 

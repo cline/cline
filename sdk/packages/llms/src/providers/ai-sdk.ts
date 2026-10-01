@@ -1352,7 +1352,10 @@ export function normalizeUsage(
 		// count and part of "output". Cost above is computed from the
 		// pre-subtraction outputTokens, since reasoning tokens are still
 		// billed at the output rate.
-		outputTokens: Math.max(0, normalizedUsage.outputTokens - reasoningTokenCount),
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
