@@ -1025,6 +1025,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		Logger.warn("[SessionFactory] Failed to build system prompt, using minimal fallback:", error)
 		systemPrompt = "You are Cline, a highly skilled software engineer. Help the user with their request."
 	}
+	if (mode === "plan") {
+		systemPrompt += `
+
+# VS Code Plan-Mode Tool Restrictions
+
+Do not attempt to call \`editor\`, \`apply_patch\`, or \`write_file\` in Plan mode. Do not use \`run_commands\` to create, modify, or delete files, install packages, or make any other changes. These actions are unavailable or blocked in Plan mode; do not test or retry them. You may use \`run_commands\` only for read-only inspection. For requests that require changes, finish by presenting the plan and wait for the user to switch to Act mode using the Plan/Act toggle.`
+	}
 
 	// Inject preferred language instructions when a non-default language is selected.
 	// Mirrors classic src/core/task/index.ts preferredLanguage handling.
