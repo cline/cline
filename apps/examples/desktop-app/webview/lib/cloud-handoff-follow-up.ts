@@ -3,6 +3,13 @@ import { toast } from "@/hooks/use-toast";
 import type { CloudHandoffFollowUp } from "../../sidecar/cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
+export function canRestoreRejectedCloudPrompt(
+	restoredDraftId: string | undefined,
+	saved: CloudHandoffFollowUp | null | undefined,
+): boolean {
+	return !restoredDraftId || (saved !== undefined && !saved?.unconfirmed);
+}
+
 export function shouldPreserveCloudComposer(
 	prompt: string,
 	attachmentCount: number,
