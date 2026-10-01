@@ -78,7 +78,7 @@ async function optionalConfig(cwd: string, key: string) {
 
 function isSensitivePath(path: string): boolean {
 	return (
-		/(^|\/)(\.env(?:\.[^/]*)?|id_rsa|id_ed25519|credentials\.json)$|\.(pem|key|p12|pfx)$/i.test(
+		/(^|\/)(\.env(?:\.[^/]*)?|\.npmrc|\.yarnrc\.yml|id_rsa|id_ed25519|credentials\.json)$|\.(pem|key|p12|pfx)$/i.test(
 			path,
 		) && !/\.(example|sample|template)$/i.test(path)
 	);
@@ -123,6 +123,11 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	) {
 		throw new Error(
 			"Resolve conflicts or changes inside submodules before continuing in cloud.",
+		);
+	}
+	if (files.some(({ status }) => /^[MARC][MD]$/.test(status))) {
+		throw new Error(
+			"Files with both staged and unstaged changes would lose the staged version. Stage or unstage them before retrying /cloud.",
 		);
 	}
 	if (files.some(({ path }) => isSensitivePath(path))) {
