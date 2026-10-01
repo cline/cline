@@ -209,8 +209,48 @@ describe("installed connectors", () => {
 		expect(container.textContent).toContain("Installed0");
 		expect(container.textContent).toContain("No connectors installed");
 		expect(container.textContent).not.toContain("Gmail");
-		expect(button("Install")).toBeUndefined();
 		expect(mocks.catalog).not.toHaveBeenCalled();
+		// All four recipes are suggested; chips install their connector.
+		expect(container.textContent).toContain("Suggested");
+		expect(container.textContent).toContain("Debug production incidents");
+		expect(container.textContent).toContain("Turn support noise into fixes");
+		await act(async () =>
+			(
+				container.querySelector('[aria-label="Install Sentry"]') as HTMLElement
+			).click(),
+		);
+		expect(mocks.connect).toHaveBeenCalledWith("sentry");
+	});
+
+	it("hides a recipe once all of its connectors are connected", async () => {
+		mocks.integrations = [
+			{
+				toolkit: "slack",
+				name: "Slack",
+				description: "Chat",
+				recommended: false,
+				status: "connected",
+			},
+			{
+				toolkit: "github",
+				name: "GitHub",
+				description: "Code",
+				recommended: true,
+				status: "connected",
+			},
+		];
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).not.toContain(
+			"Turn support noise into fixes",
+		);
+		expect(container.textContent).toContain("Debug production incidents");
+		// Slack is connected, so it is a non-interactive chip there.
+		expect(container.querySelector('[aria-label="Install Slack"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Install Sentry"]'),
+		).not.toBeNull();
 	});
 
 	it("refreshes from the toolbar and keeps the list when a refresh fails", async () => {
@@ -252,8 +292,9 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).toContain("Gmail");
-		expect(container.textContent).not.toContain("GitHub");
+		const installed = container.querySelector("section");
+		expect(installed?.textContent).toContain("Gmail");
+		expect(installed?.textContent).not.toContain("GitHub");
 		expect(container.textContent).not.toContain("Recommended");
 		expect(mocks.catalog).not.toHaveBeenCalled();
 		await act(async () => button("Uninstall")?.click());

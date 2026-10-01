@@ -3,8 +3,10 @@
 import { GitHubIcon } from "@cline/ui";
 import {
 	CalendarDays,
+	Check,
 	Loader2,
 	Mail,
+	Plus,
 	RefreshCw,
 	Search,
 	Trash2,
@@ -22,6 +24,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { fetchComposioToolkitCatalog } from "@/lib/composio";
+import {
+	COMPOSIO_RECIPES,
+	type ComposioRecipe,
+	composioLogoUrl,
+} from "@/lib/composio-recipes";
 import type {
 	ComposioCatalogToolkit,
 	ComposioIntegrationStatus,
@@ -407,7 +414,25 @@ export function ComposioConnectorsView({
 
 	if (variant === "installed") {
 		// Mirrors the Skills / Plugins / MCP tabs: description + refresh,
-		// full-width search, and an Installed section with a count.
+		// full-width search, and an Installed section with a count. Suggested
+		// recipes follow; each one drops out once all its connectors are
+		// connected, so the section empties itself over time.
+		const recipes = COMPOSIO_RECIPES.filter(
+			(recipe) =>
+				recipe.connectors.some(
+					(connector) =>
+						statusBySlug.get(connector.slug)?.status !== "connected",
+				) &&
+				(!trimmedQuery ||
+					[
+						recipe.title,
+						recipe.description,
+						...recipe.connectors.map((connector) => connector.name),
+					]
+						.join(" ")
+						.toLowerCase()
+						.includes(trimmedQuery)),
+		);
 		return (
 			<div className="grid gap-6 select-text">
 				<div className="grid gap-4">
@@ -479,10 +504,42 @@ export function ComposioConnectorsView({
 						<div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
 							{trimmedQuery
 								? `No installed connectors match "${query.trim()}".`
-								: "No connectors installed. Browse the marketplace to add one."}
+								: "No connectors installed. Start with a suggested setup below or browse the marketplace to add one."}
 						</div>
 					)}
 				</section>
+
+				{recipes.length > 0 ? (
+					<section className="grid min-w-0 gap-3">
+						<div className="flex items-center justify-between gap-3">
+							<div className="grid gap-0.5">
+								<h2 className="text-base font-semibold text-foreground">
+									Suggested
+								</h2>
+								<p className="text-xs text-muted-foreground">
+									Connector combinations that work well together. Install the
+									ones you are missing to unlock the workflow.
+								</p>
+							</div>
+							<span className="text-sm text-muted-foreground">
+								{recipes.length}
+							</span>
+						</div>
+						<div className="grid min-w-0 gap-3 md:grid-cols-2">
+							{recipes.map((recipe) => (
+								<RecipeCard
+									actionError={actionError}
+									busyToolkit={busyToolkit}
+									key={recipe.id}
+									onCancel={(slug) => void cancelConnect(slug)}
+									onConnect={(slug) => void connect(slug)}
+									recipe={recipe}
+									statusBySlug={statusBySlug}
+								/>
+							))}
+						</div>
+					</section>
+				) : null}
 
 				{detailDialog}
 			</div>
@@ -751,6 +808,104 @@ function ConnectorCard({
 						{entry.description}
 					</span>
 				) : null}
+			</div>
+			{error ? (
+				<p className="text-xs text-destructive" role="alert">
+					{error}
+				</p>
+			) : null}
+		</div>
+	);
+}
+
+/** A suggested connector combination with per-connector install chips.
+ * Connected members show a check; the rest install with one click. */
+function RecipeCard({
+	recipe,
+	statusBySlug,
+	busyToolkit,
+	actionError,
+	onConnect,
+	onCancel,
+}: {
+	recipe: ComposioRecipe;
+	statusBySlug: Map<string, ComposioIntegrationSummary>;
+	busyToolkit: ComposioToolkitSlug | null;
+	actionError: { toolkit: ComposioToolkitSlug; message: string } | null;
+	onConnect: (slug: ComposioToolkitSlug) => void;
+	onCancel: (slug: ComposioToolkitSlug) => void;
+}) {
+	const error = recipe.connectors.some(
+		(connector) => connector.slug === actionError?.toolkit,
+	)
+		? actionError?.message
+		: undefined;
+	return (
+		<div className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-4">
+			<div className="grid gap-1">
+				<h3 className="text-sm font-semibold text-foreground">
+					{recipe.title}
+				</h3>
+				<p className="text-xs leading-5 text-muted-foreground">
+					{recipe.description}
+				</p>
+			</div>
+			<p className="rounded-md border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+				&ldquo;{recipe.prompt}&rdquo;
+			</p>
+			<div className="mt-auto flex flex-wrap gap-2">
+				{recipe.connectors.map((connector) => {
+					const summary = statusBySlug.get(connector.slug);
+					const status = summary?.status ?? "not_connected";
+					const busy = busyToolkit === connector.slug;
+					const logo = (
+						<ConnectorLogo
+							className="size-3.5"
+							logo={summary?.logo ?? composioLogoUrl(connector.slug)}
+							name={connector.name}
+							slug={connector.slug}
+						/>
+					);
+					if (status === "connected") {
+						return (
+							<span
+								className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 text-xs text-foreground"
+								key={connector.slug}
+							>
+								{logo}
+								{connector.name}
+								<Check className="size-3.5 text-primary" />
+							</span>
+						);
+					}
+					return (
+						<Button
+							aria-label={
+								status === "pending"
+									? `Cancel ${connector.name}`
+									: `Install ${connector.name}`
+							}
+							disabled={busy}
+							key={connector.slug}
+							onClick={() =>
+								status === "pending"
+									? onCancel(connector.slug)
+									: onConnect(connector.slug)
+							}
+							size="xs"
+							type="button"
+							variant="outline"
+						>
+							{logo}
+							{connector.name}
+							{busy || status === "pending" ? (
+								<Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+							) : (
+								<Plus className="size-3.5 text-muted-foreground" />
+							)}
+						</Button>
+					);
+				})}
 			</div>
 			{error ? (
 				<p className="text-xs text-destructive" role="alert">
