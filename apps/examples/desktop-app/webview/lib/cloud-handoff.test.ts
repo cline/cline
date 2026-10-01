@@ -29,6 +29,38 @@ describe("cloud handoff helpers", () => {
 		);
 	});
 
+	it.each([
+		[[3_932_160], null],
+		[[3_932_161], "Each image"],
+		[[3_145_728, 3_145_728], null],
+		[[3_145_728, 3_145_729], "in total"],
+		[[1, 1, 1, 1, 1], null],
+		[[1, 1, 1, 1, 1, 1], "up to 5"],
+	] as const)("validates cloud attachment limits for %j bytes", (sizes, error) => {
+		const files = sizes.map(
+			(size) =>
+				new File([new Uint8Array(size)], "image.png", { type: "image/png" }),
+		);
+		const result = validateHandoffAttachments(files, "inspect");
+		if (error) expect(result).toContain(error);
+		else expect(result).toBeNull();
+	});
+
+	it("uses the existing image format detection for handoff", () => {
+		expect(
+			validateHandoffAttachments(
+				[new File(["image"], "image.jfif")],
+				"inspect",
+			),
+		).toBeNull();
+		expect(
+			validateHandoffAttachments(
+				[new File(["image"], "image.svg", { type: "image/svg+xml" })],
+				"inspect",
+			),
+		).toContain("image.svg");
+	});
+
 	it("reads completed handoff metadata into a receipt", () => {
 		expect(
 			readHandoffReceipt({

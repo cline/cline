@@ -320,4 +320,25 @@ describe("cloudHandoffUiReducer", () => {
 			}),
 		).toBe(completed);
 	});
+
+	it("keeps the recovery URL when retrying an automatically restored draft", () => {
+		const restored = cloudHandoffUiReducer(
+			{
+				"local-1": {
+					status: "recovery",
+					dashboardUrl: RECEIPT.dashboardUrl,
+					retryDraft: "/cloud continue",
+				},
+			},
+			{ type: "retry_restored", sourceSessionId: "local-1" },
+		);
+		const retry = cloudHandoffUiReducer(restored, {
+			type: "start",
+			sourceSessionId: "local-1",
+		});
+		expect(retry["local-1"]).toMatchObject({
+			status: "progress",
+			dashboardUrl: RECEIPT.dashboardUrl,
+		});
+	});
 });

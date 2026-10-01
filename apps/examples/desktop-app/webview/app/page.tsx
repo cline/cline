@@ -995,6 +995,12 @@ export default function Home() {
 		},
 		[handleOpenSession],
 	);
+	const openSessionFromNavigation = useCallback(
+		async (sessionId: string) => {
+			await handleOpenSessionById(sessionId);
+		},
+		[handleOpenSessionById],
+	);
 	// Keep recovery state across pane changes while using the latest open-session binding.
 	const openHandoffSessionRef = useRef(handleOpenSessionById);
 	openHandoffSessionRef.current = handleOpenSessionById;
@@ -1254,7 +1260,7 @@ export default function Home() {
 										<SettingsView
 											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
+											onOpenSession={openSessionFromNavigation}
 											section={settingsSection}
 										/>
 									</div>
@@ -1308,7 +1314,7 @@ export default function Home() {
 			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
-				onOpenSession={handleOpenSessionById}
+				onOpenSession={openSessionFromNavigation}
 				open={commandBarOpen && !showOnboarding}
 			/>
 			{remoteDirectoryPicker ? (
@@ -1516,7 +1522,9 @@ function ChatThreadPane({
 	const dismissedHandoffRecoveryUrl =
 		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
 	const handoffRecoveryUrl =
-		(handoffUi?.status === "recovery" ? handoffUi.dashboardUrl : null) ??
+		(handoffUi?.status === "recovery" || handoffUi?.status === "retry_restored"
+			? handoffUi.dashboardUrl
+			: null) ??
 		(pendingHandoffRecovery?.dashboardUrl !== dismissedHandoffRecoveryUrl
 			? pendingHandoffRecovery?.dashboardUrl
 			: null) ??
@@ -3519,7 +3527,13 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
+					onOpenSession={
+						onOpenSessionById
+							? async (sessionId) => {
+									await onOpenSessionById(sessionId);
+								}
+							: undefined
+					}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}

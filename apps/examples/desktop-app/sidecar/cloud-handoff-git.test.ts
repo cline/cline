@@ -216,7 +216,7 @@ describe("cloud handoff Git preparation", () => {
 	it("previews all staged/unstaged/new files from a subdirectory without changing the index or branch, then publishes the exact checkpoint", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "staged\n");
 		git("add", ".");
-		writeFileSync(join(repo, "tracked.txt"), "working\n");
+		writeFileSync(join(repo, "unstaged.txt"), "working\n");
 		writeFileSync(join(repo, "new file.txt"), "new\n");
 		mkdirSync(join(repo, "sub"));
 		const beforeIndex = git("write-tree");
@@ -225,6 +225,7 @@ describe("cloud handoff Git preparation", () => {
 		expect(plan.files.map((file) => file.path).sort()).toEqual([
 			"new file.txt",
 			"tracked.txt",
+			"unstaged.txt",
 		]);
 		expect(plan.commits).toEqual([]);
 		expect(git("write-tree")).toBe(beforeIndex);
@@ -240,7 +241,25 @@ describe("cloud handoff Git preparation", () => {
 		);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
-		).toBe("working");
+		).toBe("staged");
+	});
+
+	it("rejects distinct staged and working copies without overwriting either", async () => {
+		writeFileSync(join(repo, "tracked.txt"), "staged only\n");
+		git("add", "tracked.txt");
+		writeFileSync(join(repo, "tracked.txt"), "working only\n");
+		const index = git("write-tree");
+		const refs = git("ls-remote", "origin");
+		await expect(inspectHandoffGit(repo)).rejects.toThrow(
+			"staged and unstaged",
+		);
+		expect(git("write-tree")).toBe(index);
+		expect(git("show", ":tracked.txt")).toBe("staged only");
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
+			"working only\n",
+		);
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(git("ls-remote", "origin")).toBe(refs);
 	});
 
 	it.each([
@@ -315,6 +334,8 @@ describe("cloud handoff Git preparation", () => {
 	it.each([
 		".env",
 		"secret.key",
+		".npmrc",
+		".yarnrc.yml",
 	])("blocks potential secret %s without staging it", async (name) => {
 		writeFileSync(join(repo, name), "private");
 		await expect(inspectHandoffGit(repo)).rejects.toThrow("sensitive files");
@@ -322,14 +343,15 @@ describe("cloud handoff Git preparation", () => {
 	});
 
 	it.each([
-		false,
-		true,
-	])("rejects sensitive unpublished history (deleted later: %s) without mutation", async (deleted) => {
-		writeFileSync(join(repo, ".env"), "SYNTHETIC_LOCAL_ONLY=value\n");
-		git("add", ".env");
+		[".env", false],
+		[".env", true],
+		[".npmrc", true],
+	] as const)("rejects sensitive unpublished %s history (deleted later: %s) without mutation", async (path, deleted) => {
+		writeFileSync(join(repo, path), "SYNTHETIC_LOCAL_ONLY=value\n");
+		git("add", path);
 		git("commit", "-m", "local credentials");
 		if (deleted) {
-			git("rm", ".env");
+			git("rm", path);
 			git("commit", "-m", "remove credentials");
 		}
 		const head = git("rev-parse", "HEAD");
