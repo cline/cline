@@ -4,17 +4,30 @@ import {
 	cloudHandoffFollowUpAttachments,
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
+	shouldPreserveCloudComposer,
 } from "./cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
 vi.mock("./desktop-client", () => ({ desktopClient: { invoke: vi.fn() } }));
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
 const saved = {
+	draftId: "saved-draft",
 	sourceSessionId: "local-source",
 	command: "inspect this",
 	userImages: ["data:image/png;base64,aW1hZ2U="],
 };
 beforeEach(() => vi.resetAllMocks());
+
+it.each([
+	["", 0, undefined, false],
+	["edited draft", 0, undefined, true],
+	["", 1, undefined, true],
+	["", 0, saved.draftId, true],
+] as const)("preserves composer text=%j images=%i restored=%s: %s", (prompt, images, restored, preserve) => {
+	expect(
+		shouldPreserveCloudComposer(prompt, images, restored, saved.draftId),
+	).toBe(preserve);
+});
 
 it("restores the command and images again after opening without sending", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
@@ -28,7 +41,8 @@ it("restores the command and images again after opening without sending", async 
 			delivered,
 		}),
 	).toBe(true);
-	const [command, images] = open.mock.calls[0];
+	const [command, images, draftId] = open.mock.calls[0];
+	expect(draftId).toBe(saved.draftId);
 	expect(command).toBe(saved.command);
 	expect(images[0].type).toBe("image/png");
 	expect(await images[0].text()).toBe("image");
@@ -81,14 +95,14 @@ it("keeps explicitly supplied draft/files and leaves normal cloud opens unchange
 		open,
 		delivered,
 	});
-	expect(open).toHaveBeenLastCalledWith("current", [image]);
+	expect(open).toHaveBeenLastCalledWith("current", [image], undefined);
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "another-target",
 		canOpen: () => true,
 		open,
 		delivered,
 	});
-	expect(open).toHaveBeenLastCalledWith(undefined, undefined);
+	expect(open).toHaveBeenLastCalledWith(undefined, undefined, undefined);
 	expect(delivered).not.toHaveBeenCalled();
 });
 
@@ -148,6 +162,7 @@ it.each([
 	else await result;
 	if (outcome === "restored") {
 		expect(restore.mock.calls[0][0]).toBe(saved.command);
+		expect(restore.mock.calls[0][2]).toBe(saved.draftId);
 		expect(await restore.mock.calls[0][1][0].text()).toBe("image");
 	} else expect(restore).not.toHaveBeenCalled();
 	expect(desktopClient.invoke).toHaveBeenCalledTimes(
@@ -183,7 +198,7 @@ it.each([
 			delivered,
 		}),
 	).toBe(true);
-	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined);
+	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined, undefined);
 	expect(delivered).not.toHaveBeenCalled();
 	expect(desktopClient.invoke).toHaveBeenCalledTimes(1);
 	expect(toast).toHaveBeenCalledWith(

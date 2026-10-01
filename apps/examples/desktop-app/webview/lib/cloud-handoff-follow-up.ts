@@ -3,6 +3,19 @@ import { toast } from "@/hooks/use-toast";
 import type { CloudHandoffFollowUp } from "../../sidecar/cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
+export function shouldPreserveCloudComposer(
+	prompt: string,
+	attachmentCount: number,
+	restoredDraftId?: string,
+	incomingDraftId?: string,
+): boolean {
+	return Boolean(
+		prompt.trim() ||
+			attachmentCount ||
+			(incomingDraftId && incomingDraftId === restoredDraftId),
+	);
+}
+
 export function cloudHandoffFollowUpAttachments(
 	saved: CloudHandoffFollowUp,
 ): File[] {
@@ -22,7 +35,7 @@ export async function restoreCloudHandoffFollowUp(options: {
 	targetSessionId: string;
 	expected: CloudHandoffFollowUp;
 	canRestore: () => boolean;
-	restore: (draft: string, attachments: File[]) => void;
+	restore: (draft: string, attachments: File[], draftId: string) => void;
 }): Promise<void> {
 	if (!options.canRestore())
 		throw new Error(
@@ -34,7 +47,11 @@ export async function restoreCloudHandoffFollowUp(options: {
 		expected: options.expected,
 	});
 	if (options.canRestore())
-		options.restore(options.expected.command, attachments);
+		options.restore(
+			options.expected.command,
+			attachments,
+			options.expected.draftId,
+		);
 }
 
 export async function openWithCloudHandoffFollowUp(options: {
@@ -42,7 +59,7 @@ export async function openWithCloudHandoffFollowUp(options: {
 	initialPromptDraft?: string;
 	initialAttachments?: File[];
 	canOpen: () => boolean;
-	open: (draft?: string, attachments?: File[]) => void;
+	open: (draft?: string, attachments?: File[], draftId?: string) => void;
 	delivered: (sourceSessionId: string) => void;
 }): Promise<boolean> {
 	let saved: CloudHandoffFollowUp | null = null;
@@ -67,7 +84,11 @@ export async function openWithCloudHandoffFollowUp(options: {
 		options.open(undefined, undefined);
 		return true;
 	}
-	options.open(options.initialPromptDraft ?? saved?.command, attachments);
+	options.open(
+		options.initialPromptDraft ?? saved?.command,
+		attachments,
+		saved?.draftId,
+	);
 	if (restoreFailed) {
 		toast({
 			title: "Cloud opened without the saved follow-up",
