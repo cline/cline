@@ -4,6 +4,7 @@ import {
 	cloudHandoffFollowUpAttachments,
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
+	shouldPreserveCloudComposer,
 } from "./cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
@@ -16,6 +17,17 @@ const saved = {
 	userImages: ["data:image/png;base64,aW1hZ2U="],
 };
 beforeEach(() => vi.resetAllMocks());
+
+it.each([
+	["", 0, undefined, false],
+	["edited draft", 0, undefined, true],
+	["", 1, undefined, true],
+	["", 0, saved.draftId, true],
+] as const)("preserves composer text=%j images=%i restored=%s: %s", (prompt, images, restored, preserve) => {
+	expect(
+		shouldPreserveCloudComposer(prompt, images, restored, saved.draftId),
+	).toBe(preserve);
+});
 
 it("restores the command and images again after opening without sending", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);

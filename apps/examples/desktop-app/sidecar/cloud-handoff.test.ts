@@ -29,6 +29,7 @@ import {
 	type CreateCloudSessionInput,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
+import { writeSessionManifest } from "./paths";
 import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
@@ -1533,6 +1534,61 @@ describe("cloud handoff transaction", () => {
 		});
 		expect(result).not.toHaveProperty("warning");
 		expect(f.cloudSend).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		"complete",
+		"pending",
+		"unknown",
+	] as const)("uses persisted %s handoff state when the local Hub is unavailable", async (status) => {
+		const f = createHandoffFixture();
+		writeSessionManifest(f.sourceSessionId, {
+			metadata:
+				status === "unknown"
+					? {}
+					: {
+							handoff: {
+								status,
+								toCloudSessionId: "ses-cloud",
+								handedOffAt: "2026-01-01T00:00:00Z",
+							},
+						},
+		});
+		(
+			localSessionManager(f.ctx).get as ReturnType<typeof vi.fn>
+		).mockRejectedValue(new Error("Hub unavailable"));
+		const saved = {
+			draftId: "saved",
+			sourceSessionId: f.sourceSessionId,
+			command: "saved follow-up",
+			userImages: [],
+		};
+		followUpRecovery.saveCloudHandoffFollowUp("ses-cloud", saved);
+		const recovery = handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
+			sessionId: "ses-cloud",
+		});
+		if (status === "unknown")
+			await expect(recovery).rejects.toThrow("Hub unavailable");
+		else
+			await expect(recovery).resolves.toEqual(
+				status === "complete" ? saved : null,
+			);
+		const send = handleChatSessionCommand(f.ctx, {
+			action: "send",
+			sessionId: "ses-cloud",
+			prompt: "unrelated prompt",
+			config: { executionTarget: "cloud", model: f.modelId },
+		});
+		if (status === "complete") {
+			await expect(send).resolves.toMatchObject({ ok: true });
+			expect(f.cloudSend).toHaveBeenCalledOnce();
+		} else {
+			await expect(send).rejects.toThrow(
+				status === "pending" ? "Retry /cloud" : "Hub unavailable",
+			);
+			expect(f.cloudSend).not.toHaveBeenCalled();
+		}
+		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual(saved);
 	});
 
 	it("keeps recovery blocked after a failed completion marker, including after restart", async () => {

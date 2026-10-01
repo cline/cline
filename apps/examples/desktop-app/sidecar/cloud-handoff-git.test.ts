@@ -30,6 +30,12 @@ vi.mock("node:child_process", async (original) => {
 		options: object,
 		callback: (error: Error | null, stdout: string, stderr: string) => void,
 	) => {
+		if (args.join(" ").length >= 32_767) {
+			queueMicrotask(() =>
+				callback(new Error("Windows command-line limit"), "", ""),
+			);
+			return { stdin: null };
+		}
 		if (args[0] === "remote" && args[1] === "get-url") {
 			queueMicrotask(() =>
 				callback(
@@ -48,27 +54,13 @@ vi.mock("node:child_process", async (original) => {
 			queueMicrotask(() =>
 				callback(new Error("rejected: synthetic-private-token"), "", ""),
 			);
-			return;
+			return { stdin: null };
 		}
 		const mapped = [...args];
 		if (push >= 0) mapped[push + 1] = transport.remote;
 		return actual.execFile(file, mapped, options, callback);
 	};
-	return {
-		...actual,
-		execFile: Object.assign(run, {
-			[Symbol.for("nodejs.util.promisify.custom")]: (
-				file: string,
-				args: string[],
-				options: object,
-			) =>
-				new Promise((resolve, reject) =>
-					run(file, args, options, (error, stdout, stderr) =>
-						error ? reject(error) : resolve({ stdout, stderr }),
-					),
-				),
-		}),
-	};
+	return { ...actual, execFile: run };
 });
 
 let temporary: string;
@@ -100,6 +92,30 @@ beforeEach(() => {
 afterEach(() => rmSync(temporary, { recursive: true, force: true }));
 
 describe("cloud handoff Git preparation", () => {
+	it("inspects large remotes without exceeding Windows command-line limits", async () => {
+		const head = git("rev-parse", "HEAD");
+		execFileSync(
+			"git",
+			["--git-dir", transport.remote, "update-ref", "--stdin"],
+			{
+				input: Array.from(
+					{ length: 800 },
+					(_, i) => `create refs/heads/test-${i} ${head}\n`,
+				).join(""),
+				stdio: ["pipe", "pipe", "pipe"],
+			},
+		);
+		git("commit", "--allow-empty", "-m", "local only");
+		const refs = git("show-ref");
+		const remoteRefs = git("ls-remote", "origin");
+		const plan = await inspectHandoffGit(repo);
+		expect(plan.commits).toEqual([
+			`${git("rev-parse", "--short", "HEAD")} local only`,
+		]);
+		expect(git("show-ref")).toBe(refs);
+		expect(git("ls-remote", "origin")).toBe(remoteRefs);
+	});
+
 	it.each([
 		"tracked.txt",
 		"credentials.json",

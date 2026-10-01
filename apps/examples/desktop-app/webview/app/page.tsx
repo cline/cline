@@ -93,6 +93,7 @@ import {
 import {
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
+	shouldPreserveCloudComposer,
 } from "@/lib/cloud-handoff-follow-up";
 import {
 	createHandoffLifecycle,
@@ -1654,6 +1655,7 @@ function ChatThreadPane({
 		useState<CloudHandoffFollowUp | null>(null);
 	const [updatingFollowUp, setUpdatingFollowUp] = useState(false);
 	const restoredFollowUpIdRef = useRef<string | undefined>(undefined);
+	const lastRestoredFollowUpIdRef = useRef<string | undefined>(undefined);
 	const followUpSessionRef = useRef(sessionId);
 	followUpSessionRef.current = sessionId;
 	const followUpReadRef = useRef(0);
@@ -1698,6 +1700,7 @@ function ChatThreadPane({
 						canRestore,
 						restore: (draft, attachments, draftId) => {
 							restoredFollowUpIdRef.current = draftId;
+							lastRestoredFollowUpIdRef.current = draftId;
 							setPromptInput(draft);
 							setPendingAttachments(attachments);
 						},
@@ -2233,9 +2236,23 @@ function ChatThreadPane({
 		const hasInitialComposerState =
 			initialPromptDraft !== undefined || initialAttachments !== undefined;
 		if (hasInitialComposerState) {
-			restoredFollowUpIdRef.current = initialHandoffFollowUpId;
-			setPromptInput(initialPromptDraft ?? "");
-			setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
+			if (
+				historySession.origin !== "cloud" ||
+				hydratedSessionRef.current !== historySession.sessionId ||
+				!shouldPreserveCloudComposer(
+					promptInputRef.current,
+					attachmentCountRef.current,
+					lastRestoredFollowUpIdRef.current,
+					initialHandoffFollowUpId,
+				)
+			) {
+				restoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				setPromptInput(initialPromptDraft ?? "");
+				setPendingAttachments(
+					initialAttachments ? [...initialAttachments] : [],
+				);
+			}
 			onInitialPromptDraftConsumed?.(threadId);
 		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
@@ -2244,6 +2261,7 @@ function ChatThreadPane({
 		hydratedSessionRef.current = historySession.sessionId;
 		if (!hasInitialComposerState) {
 			restoredFollowUpIdRef.current = undefined;
+			lastRestoredFollowUpIdRef.current = undefined;
 			setPromptInput("");
 			setPendingAttachments([]);
 		}

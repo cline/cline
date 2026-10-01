@@ -3,10 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 import { normalizeGitHubRemoteUrl } from "@cline/core";
-
-const exec = promisify(execFile);
 
 export type HandoffGitPlan = {
 	id: string;
@@ -38,19 +35,31 @@ export function previewHandoffGit(plan: HandoffGitPlan): HandoffGitPreview {
 async function git(
 	cwd: string,
 	args: string[],
-	env?: Partial<NodeJS.ProcessEnv>,
-	timeout = 60_000,
+	options: {
+		env?: Partial<NodeJS.ProcessEnv>;
+		timeout?: number;
+		input?: string;
+	} = {},
 ) {
 	try {
-		return (
-			await exec("git", args, {
-				cwd,
-				env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
-				encoding: "utf8",
-				maxBuffer: 8 * 1024 * 1024,
-				timeout,
-			})
-		).stdout.trimEnd();
+		return await new Promise<string>((resolve, reject) => {
+			const child = execFile(
+				"git",
+				args,
+				{
+					cwd,
+					env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...options.env },
+					encoding: "utf8",
+					maxBuffer: 8 * 1024 * 1024,
+					timeout: options.timeout ?? 60_000,
+				},
+				(error, stdout) => (error ? reject(error) : resolve(stdout.trimEnd())),
+			);
+			if (options.input !== undefined) {
+				child.stdin?.on("error", reject);
+				child.stdin?.end(options.input);
+			}
+		});
 	} catch {
 		// Git errors can contain credential-bearing URLs or hook output.
 		throw new Error(
@@ -150,36 +159,41 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 		.map((line) => line.split(/\s/)[0] ?? "")
 		.filter((sha) => /^[0-9a-f]{40,64}$/.test(sha));
 	if (knownHeads.length) {
-		await git(root, [
-			"fetch",
-			"--no-prune",
-			"--no-tags",
-			"--no-write-fetch-head",
-			"--no-recurse-submodules",
-			"--refmap=",
-			remote,
-			...knownHeads,
-		]);
+		await git(
+			root,
+			[
+				"fetch",
+				"--no-prune",
+				"--no-tags",
+				"--no-write-fetch-head",
+				"--no-recurse-submodules",
+				"--refmap=",
+				"--stdin",
+				remote,
+			],
+			{ input: `${knownHeads.join("\n")}\n` },
+		);
 	}
-	const unpublishedRange = [
-		headSha,
-		...(knownHeads.length ? ["--not", ...knownHeads] : []),
-	];
+	const input = `${[headSha, ...knownHeads.map((sha) => `^${sha}`)].join("\n")}\n`;
 	const commits = (
-		await git(root, ["log", "--format=%h %s", ...unpublishedRange])
+		await git(root, ["log", "--format=%h %s", "--stdin"], { input })
 	)
 		.split("\n")
 		.filter(Boolean);
-	const historicalPaths = await git(root, [
-		"log",
-		"--format=",
-		"--name-only",
-		"-z",
-		"--root",
-		"-m",
-		"--no-renames",
-		...unpublishedRange,
-	]);
+	const historicalPaths = await git(
+		root,
+		[
+			"log",
+			"--format=",
+			"--name-only",
+			"-z",
+			"--root",
+			"-m",
+			"--no-renames",
+			"--stdin",
+		],
+		{ input },
+	);
 	if (historicalPaths.split("\0").some(isSensitivePath)) {
 		throw new Error(
 			"Potentially sensitive files exist in unpublished history, even if deleted later. Review that history before retrying /cloud; no branch was created or pushed.",
@@ -190,9 +204,9 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	let treeSha: string;
 	try {
 		const env = { GIT_INDEX_FILE: join(temporary, "index") };
-		await git(root, ["read-tree", indexTree], env);
-		await git(root, ["add", "-A", "--", ":/"], env);
-		treeSha = await git(root, ["write-tree"], env);
+		await git(root, ["read-tree", indexTree], { env });
+		await git(root, ["add", "-A", "--", ":/"], { env });
+		treeSha = await git(root, ["write-tree"], { env });
 	} finally {
 		await rm(temporary, { recursive: true, force: true });
 	}
@@ -277,12 +291,9 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 		await git(plan.root, ["switch", "-c", plan.branch]);
 		await git(plan.root, ["read-tree", plan.treeSha]);
 		if (plan.treeSha !== (await git(plan.root, ["rev-parse", "HEAD^{tree}"]))) {
-			await git(
-				plan.root,
-				["commit", "-m", "Cline cloud handoff checkpoint"],
-				undefined,
-				10 * 60_000,
-			);
+			await git(plan.root, ["commit", "-m", "Cline cloud handoff checkpoint"], {
+				timeout: 10 * 60_000,
+			});
 		}
 		if (
 			(await git(plan.root, ["rev-parse", "HEAD^{tree}"])) !== plan.treeSha ||
@@ -322,8 +333,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 				plan.pushUrl,
 				`${commit}:refs/heads/${plan.branch}`,
 			],
-			undefined,
-			10 * 60_000,
+			{ timeout: 10 * 60_000 },
 		);
 		pushing = false;
 		await git(plan.root, [

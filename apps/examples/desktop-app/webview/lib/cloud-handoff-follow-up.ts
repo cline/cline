@@ -3,6 +3,19 @@ import { toast } from "@/hooks/use-toast";
 import type { CloudHandoffFollowUp } from "../../sidecar/cloud-handoff-follow-up";
 import { desktopClient } from "./desktop-client";
 
+export function shouldPreserveCloudComposer(
+	prompt: string,
+	attachmentCount: number,
+	restoredDraftId?: string,
+	incomingDraftId?: string,
+): boolean {
+	return Boolean(
+		prompt.trim() ||
+			attachmentCount ||
+			(incomingDraftId && incomingDraftId === restoredDraftId),
+	);
+}
+
 export function cloudHandoffFollowUpAttachments(
 	saved: CloudHandoffFollowUp,
 ): File[] {
