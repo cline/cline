@@ -539,6 +539,51 @@ describe("session forks", () => {
 		await expect(handoff).rejects.toThrow("was not found");
 	});
 
+	it("rejects a checkpoint fork when a handoff starts during its source read", async () => {
+		enableCloudHandoffGates();
+		const sessionId = "fork-race-source";
+		const releases: Array<(value: unknown) => void> = [];
+		const get = vi.fn(
+			async () => await new Promise((resolve) => releases.push(resolve)),
+		);
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext({ get }, { sessionIds: [sessionId] }),
+		} as unknown as SidecarContext;
+		const fork = handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId,
+			forkBeforeRunCount: 1,
+			config: { environmentId: "local" },
+		});
+		await vi.waitFor(() => expect(releases).toHaveLength(1));
+		const handoff = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			config: { environmentId: "local" },
+			handoffAttemptId: "attempt-a",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		}).catch(() => undefined);
+		await vi.waitFor(() => expect(releases).toHaveLength(2));
+		releases[0]?.({
+			sessionId,
+			status: "completed",
+			cwd: "/workspace/project",
+			workspaceRoot: "/workspace/project",
+		});
+		await expect(fork).rejects.toThrow(
+			"Wait for the cloud handoff to finish before forking",
+		);
+		releases[1]?.(undefined);
+		await handoff;
+	});
+
 	it("blocks handoff until every metadata update releases, ignoring duplicate releases", async () => {
 		enableCloudHandoffGates();
 		const sessionId = "metadata-update-source";
