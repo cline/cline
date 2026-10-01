@@ -335,6 +335,64 @@ export class SqliteTeamStore implements TeamStore {
 		)?.version;
 		if ((current ?? 1) < TEAM_STORE_SCHEMA_VERSION) {
 			this.migrateToV2(db);
+		} else if (
+			db
+				.prepare(
+					"SELECT 1 FROM team_runtime_snapshot WHERE state_json != '' LIMIT 1",
+				)
+				.get()
+		) {
+			// `withTransaction` would re-enter `getRawDb` before `this.db` is set.
+			db.exec("BEGIN IMMEDIATE;");
+			try {
+				this.importLegacySnapshots(db);
+				db.exec("COMMIT;");
+			} catch (error) {
+				try {
+					db.exec("ROLLBACK;");
+				} catch {
+					// ignore secondary failure
+				}
+				throw error;
+			}
+		}
+	}
+
+	/**
+	 * Moves any non-empty `state_json` into entity rows, then clears it.
+	 * v2+ builds only ever write `''`, so a non-empty value was written by an
+	 * older build (e.g. after an image rollback). Runs on every open, not just
+	 * the v2 migration, so those writes are recovered after re-upgrading.
+	 * Caller owns the transaction.
+	 */
+	private importLegacySnapshots(db: SqliteDb): void {
+		const teamNames = db
+			.prepare(
+				"SELECT team_name FROM team_runtime_snapshot WHERE state_json != ''",
+			)
+			.all()
+			.map((row) => str(row.team_name));
+		for (const teamName of teamNames) {
+			// Parse one snapshot at a time to bound memory on large stores.
+			const row = db
+				.prepare(
+					"SELECT state_json FROM team_runtime_snapshot WHERE team_name = ?",
+				)
+				.get(teamName);
+			const parsed = parseJson<TeamRuntimeState | undefined>(
+				row?.state_json,
+				undefined,
+			);
+			if (parsed) {
+				this.writeDelta(
+					db,
+					teamName,
+					fullStateDelta(reviveTeamRuntimeStateDates(parsed)),
+				);
+			}
+			db.prepare(
+				"UPDATE team_runtime_snapshot SET state_json = '' WHERE team_name = ?",
+			).run(teamName);
 		}
 	}
 
@@ -389,34 +447,7 @@ export class SqliteTeamStore implements TeamStore {
 				);
 			`);
 
-			const teamNames = db
-				.prepare(
-					"SELECT team_name FROM team_runtime_snapshot WHERE state_json != ''",
-				)
-				.all()
-				.map((row) => str(row.team_name));
-			for (const teamName of teamNames) {
-				// Parse one snapshot at a time to bound memory on large stores.
-				const row = db
-					.prepare(
-						"SELECT state_json FROM team_runtime_snapshot WHERE team_name = ?",
-					)
-					.get(teamName);
-				const parsed = parseJson<TeamRuntimeState | undefined>(
-					row?.state_json,
-					undefined,
-				);
-				if (parsed) {
-					this.writeDelta(
-						db,
-						teamName,
-						fullStateDelta(reviveTeamRuntimeStateDates(parsed)),
-					);
-				}
-				db.prepare(
-					"UPDATE team_runtime_snapshot SET state_json = '' WHERE team_name = ?",
-				).run(teamName);
-			}
+			this.importLegacySnapshots(db);
 
 			db.prepare(
 				`DELETE FROM team_events WHERE event_type IN (${TELEMETRY_EVENT_TYPES.map(() => "?").join(",")})`,

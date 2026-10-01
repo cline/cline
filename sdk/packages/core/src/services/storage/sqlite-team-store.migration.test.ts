@@ -133,6 +133,40 @@ describe("SqliteTeamStore v1 -> v2 migration", () => {
 		expect(version?.version).toBe(2);
 	});
 
+	it("re-imports state_json written by an older build after rollback", () => {
+		seedV1Database(legacyState());
+		const upgraded = new SqliteTeamStore({ teamDir: dir });
+		upgraded.init();
+		upgraded.close();
+
+		// Simulate a rolled-back (v1) build writing its blob over the v2 store.
+		const rolledBack: TeamRuntimeState = {
+			...legacyState(),
+			tasks: [task("task_0001", "completed"), task("task_0002", "pending")],
+		};
+		const db = loadSqliteDb(join(dir, "teams.db"));
+		db.prepare(
+			"UPDATE team_runtime_snapshot SET state_json = ? WHERE team_name = ?",
+		).run(JSON.stringify(rolledBack), TEAM);
+		db.close?.();
+
+		const reopened = new SqliteTeamStore({ teamDir: dir });
+		reopened.init();
+		const loaded = reopened.loadRuntime(TEAM);
+		reopened.close();
+
+		expect(loaded.state?.tasks.map((t) => t.id)).toEqual([
+			"task_0001",
+			"task_0002",
+		]);
+		const check = loadSqliteDb(join(dir, "teams.db"));
+		const snapshot = check
+			.prepare("SELECT state_json FROM team_runtime_snapshot")
+			.get();
+		check.close?.();
+		expect(snapshot?.state_json).toBe("");
+	});
+
 	it("is idempotent across reopen and supports vacuum", () => {
 		seedV1Database(legacyState());
 		const first = new SqliteTeamStore({ teamDir: dir });
