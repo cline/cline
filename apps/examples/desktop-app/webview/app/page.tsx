@@ -91,6 +91,7 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
+	canRestoreRejectedCloudPrompt,
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
 	shouldPreserveCloudComposer,
@@ -2630,8 +2631,8 @@ function ChatThreadPane({
 			// without retyping. Leave anything they typed meanwhile alone.
 			if (
 				!promptTaken &&
-				(!isCloudSession || savedFollowUp !== undefined) &&
-				!savedFollowUp?.unconfirmed &&
+				(!isCloudSession ||
+					canRestoreRejectedCloudPrompt(restoredFollowUpId, savedFollowUp)) &&
 				promptInputRef.current.trim() === ""
 			) {
 				if (savedFollowUp?.draftId === restoredFollowUpId)
