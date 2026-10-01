@@ -2246,18 +2246,18 @@ function ChatThreadPane({
 		const hasInitialComposerState =
 			initialPromptDraft !== undefined || initialAttachments !== undefined;
 		if (hasInitialComposerState) {
-			if (
-				historySession.origin !== "cloud" ||
-				hydratedSessionRef.current !== historySession.sessionId ||
-				!shouldPreserveCloudComposer(
+			// A remounted pane may already hold the user's cached edit of this follow-up.
+			const preserveComposer =
+				historySession.origin === "cloud" &&
+				shouldPreserveCloudComposer(
 					promptInputRef.current,
 					attachmentCountRef.current,
 					lastRestoredFollowUpIdRef.current,
 					initialHandoffFollowUpId,
-				)
-			) {
-				restoredFollowUpIdRef.current = initialHandoffFollowUpId;
-				lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				);
+			restoredFollowUpIdRef.current = initialHandoffFollowUpId;
+			lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
+			if (!preserveComposer) {
 				setPromptInput(initialPromptDraft ?? "");
 				setPendingAttachments(
 					initialAttachments ? [...initialAttachments] : [],
