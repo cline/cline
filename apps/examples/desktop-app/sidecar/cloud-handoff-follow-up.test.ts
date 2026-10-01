@@ -4,6 +4,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +23,7 @@ import {
 } from "./cloud-handoff-follow-up";
 import { CloudSessionApi, CloudSessionManager } from "./cloud-sessions";
 import { createSidecarContext, disposeSidecarContext } from "./context";
+import { localRuntimeContext } from "./session-test-helpers";
 
 let dataDir: string;
 beforeEach(() => {
@@ -35,6 +37,7 @@ afterEach(() => {
 
 it("persists the command and image bytes independently of process state until acknowledged", () => {
 	const saved = {
+		draftId: "draft",
 		sourceSessionId: "local-source",
 		command: "inspect this",
 		userImages: ["data:image/png;base64,aW1hZ2U="],
@@ -65,11 +68,57 @@ it("keeps untrusted session ids inside the recovery directory", () => {
 	expect(readCloudHandoffFollowUp("../../outside")?.command).toBe("hello");
 });
 
+it("gives legacy recovery a stable identity across restore and edits", async () => {
+	saveCloudHandoffFollowUp("target", {
+		sourceSessionId: "source",
+		command: "original",
+		userImages: ["image"],
+	});
+	const directory = join(dataDir, "desktop-handoff-follow-ups");
+	const path = join(directory, readdirSync(directory)[0]);
+	const { draftId: _, ...legacy } = JSON.parse(readFileSync(path, "utf8"));
+	writeFileSync(path, JSON.stringify(legacy));
+	const saved = readCloudHandoffFollowUp("target");
+	if (!saved) throw new Error("Missing recovery");
+	expect(saved.draftId).toBeTruthy();
+	expect(readCloudHandoffFollowUp("target")?.draftId).toBe(saved.draftId);
+	updateCloudHandoffFollowUp("target", saved, "restore");
+	await expect(
+		sendWithCloudHandoffFollowUp(
+			"target",
+			"edited",
+			["image"],
+			async () => {
+				throw new Error("preflight");
+			},
+			saved.draftId,
+		),
+	).rejects.toThrow("preflight");
+	expect(readCloudHandoffFollowUp("target")).toEqual({
+		...saved,
+		command: "edited",
+	});
+});
+
 it.each([
 	false,
 	true,
 ])("retains the submitted payload until confirmed (send fails: %s)", async (fails) => {
 	const ctx = createSidecarContext("/workspace");
+	Object.assign(
+		ctx,
+		localRuntimeContext({
+			get: vi.fn(async () => ({
+				metadata: {
+					handoff: {
+						status: "complete",
+						toCloudSessionId: "cloud-target",
+						handedOffAt: "2026-09-30T00:00:00.000Z",
+					},
+				},
+			})),
+		}),
+	);
 	const options = {
 		apiBaseUrl: "https://api.example",
 		appBaseUrl: "https://app.example",
@@ -81,6 +130,7 @@ it.each([
 	});
 	ctx.cloudSessionManager = cloud;
 	saveCloudHandoffFollowUp("cloud-target", {
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "original",
 		userImages: [],
@@ -92,6 +142,7 @@ it.each([
 			async (_id, _prompt, _delivery, _model, _images, lifecycle) => {
 				lifecycle?.beforeDispatch?.();
 				expect(readCloudHandoffFollowUp("cloud-target")).toEqual({
+					draftId: "draft",
 					sourceSessionId: "source",
 					command: "edited",
 					userImages: images,
@@ -105,6 +156,7 @@ it.each([
 		action: "send",
 		sessionId: "cloud-target",
 		prompt: "edited",
+		handoffFollowUpId: "draft",
 		attachments: { userImages: images },
 		config: { executionTarget: "cloud" },
 	});
@@ -140,6 +192,7 @@ it.each([
 		);
 	} finally {
 		send.mockRestore();
+		ctx.runtimeBindings.clear();
 		await disposeSidecarContext(ctx);
 	}
 });
@@ -152,6 +205,7 @@ it.each([
 	"text-only reconciliation",
 ])("handles recovery after %s", async (outcome) => {
 	const saved = {
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "inspect",
 		userImages: ["data:image/png;base64,aW1hZ2U="],
@@ -199,33 +253,41 @@ it.each([
 	"command",
 	"images",
 	"source",
+	"draftId",
 ])("does not clear a different %s payload", async (difference) => {
 	const saved = {
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "inspect",
 		userImages: ["image"],
 		unconfirmed: true,
 	};
 	saveCloudHandoffFollowUp("target", saved);
-	const replacement = { ...saved, sourceSessionId: "new-source" };
+	const replacement = {
+		...saved,
+		...(difference === "draftId"
+			? { draftId: "new-draft" }
+			: { sourceSessionId: "new-source" }),
+	};
 	await sendWithCloudHandoffFollowUp(
 		"target",
 		difference === "command" ? "other" : saved.command,
 		difference === "images" ? [] : saved.userImages,
 		async (lifecycle) => {
-			if (difference === "source")
+			if (difference === "source" || difference === "draftId")
 				saveCloudHandoffFollowUp("target", replacement);
 			lifecycle?.onAccepted?.();
 			return { ok: true };
 		},
 	);
 	expect(readCloudHandoffFollowUp("target")).toEqual(
-		difference === "source" ? replacement : saved,
+		difference === "source" || difference === "draftId" ? replacement : saved,
 	);
 });
 
 it("restores or dismisses only the reviewed recovery copy", () => {
 	const saved = {
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "inspect",
 		userImages: ["image"],
@@ -234,6 +296,7 @@ it("restores or dismisses only the reviewed recovery copy", () => {
 	saveCloudHandoffFollowUp("target", saved);
 	const restored = updateCloudHandoffFollowUp("target", saved, "restore");
 	expect(restored).toEqual({
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "inspect",
 		userImages: ["image"],
@@ -250,21 +313,59 @@ it("restores or dismisses only the reviewed recovery copy", () => {
 
 it("retains edits and images as a usable draft when preflight rejects", async () => {
 	saveCloudHandoffFollowUp("target", {
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "original",
 		userImages: [],
 	});
 	const images = ["data:image/png;base64,aW1hZ2U="];
 	await expect(
-		sendWithCloudHandoffFollowUp("target", "edited", images, async () => {
-			throw new Error("preflight failed");
-		}),
+		sendWithCloudHandoffFollowUp(
+			"target",
+			"edited",
+			images,
+			async () => {
+				throw new Error("preflight failed");
+			},
+			"draft",
+		),
 	).rejects.toThrow("preflight failed");
 	expect(readCloudHandoffFollowUp("target")).toEqual({
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "edited",
 		userImages: images,
 	});
+});
+
+it.each([
+	"accepted",
+	"failed",
+	"stale draft",
+])("preserves an unseen unqueued draft during an unrelated send (%s)", async (outcome) => {
+	const saved = {
+		draftId: "draft",
+		sourceSessionId: "source",
+		command: "unseen draft",
+		userImages: ["image"],
+	};
+	saveCloudHandoffFollowUp("target", saved);
+	const sending = sendWithCloudHandoffFollowUp(
+		"target",
+		"unrelated",
+		[],
+		async (lifecycle) => {
+			lifecycle?.beforeDispatch?.();
+			if (outcome === "failed") throw new Error("disconnected");
+			lifecycle?.onAccepted?.();
+			return { ok: true };
+		},
+		outcome === "stale draft" ? "older-draft" : undefined,
+	);
+	if (outcome === "failed")
+		await expect(sending).rejects.toThrow("disconnected");
+	else await sending;
+	expect(readCloudHandoffFollowUp("target")).toEqual(saved);
 });
 
 it("leaves ordinary cloud sends without a recovery copy unchanged", async () => {
@@ -306,6 +407,7 @@ it.each([
 	};
 	const messages: Array<{ role: "user"; content: string }> = [];
 	const saved = {
+		draftId: "draft",
 		sourceSessionId: "source",
 		command: "inspect this",
 		userImages: ["data:image/png;base64,aW1hZ2U="],
