@@ -23,10 +23,6 @@ import {
 	type PluginTargeting,
 } from "./plugin-targeting";
 
-// Only the sandbox launch uses the desktop executable as the Bun interpreter.
-// Plugin-spawned children must not inherit that entrypoint override.
-delete process.env.BUN_BE_BUN;
-
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
 // ---------------------------------------------------------------------------

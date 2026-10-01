@@ -45,8 +45,7 @@
 		"resources": [
 			"icons/app/*.png",
 			"icons/app/macos/*.png",
-			"bin/remote-helpers/*",
-			"plugin-runtime/"
+			"bin/remote-helpers/*"
 		],
 		"icon": [
 			"icons/32x32.png",

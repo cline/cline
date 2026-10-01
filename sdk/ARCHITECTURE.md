@@ -630,26 +630,6 @@ and context as its hooks. Existing session registrations remain fixed for that
 session, while changed workspace catalogs apply to new sessions. Reload and
 disposal wait for command handlers before terminating their sandbox.
 
-Packaged hosts must supply the sandbox's interpreter and on-disk module graph,
-not only a compiled agent executable. Desktop ships its freshly built SDK,
-bootstrap, jiti transformer, and locked runtime dependencies in a resource
-directory. The launcher sets `CLINE_PLUGIN_RUNTIME_DIR` and
-`CLINE_PLUGIN_RUNTIME_EXECUTABLE`; the Hub inherits this configuration. Core
-requires both values together, selects that directory's bootstrap, and runs the
-desktop executable as the Bun CLI with `BUN_BE_BUN=1` scoped to the child.
-The bootstrap clears the flag before plugin code runs. Interpreter flags disable
-dotenv loading and select the shipped Bun configuration rather than workspace
-configuration. Source and npm hosts continue selecting their own bootstrap and
-ordinary Node/Bun interpreter.
-
-The sandbox SDK is a separate instance from the agent SDK; descriptors and RPC
-calls cross IPC rather than sharing objects. Installed JavaScript SDK imports
-retain native package resolution, while TypeScript plugin modules are transformed
-through jiti. Babel's global error formatter is scoped to transformation so it
-cannot affect plugin dependencies. Native desktop builds gate packaging on a
-cold-start test of discovery, contributions, and command execution using the
-shipping executable and resources with no external runtime on PATH.
-
 Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
 through `PluginSandboxOptions.idleTimeoutMs` or
