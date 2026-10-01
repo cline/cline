@@ -125,7 +125,7 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 			"Resolve conflicts or changes inside submodules before continuing in cloud.",
 		);
 	}
-	if (files.some(({ status }) => /^[MARC][MD]$/.test(status))) {
+	if (files.some(({ status }) => /^[MARCT][MDT]$/.test(status))) {
 		throw new Error(
 			"Files with both staged and unstaged changes would lose the staged version. Stage or unstage them before retrying /cloud.",
 		);
