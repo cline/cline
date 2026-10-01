@@ -206,11 +206,12 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).toContain("Installed0");
-		expect(container.textContent).toContain("No connectors installed");
-		expect(container.textContent).not.toContain("Gmail");
+		const installed = container.querySelector("section");
+		expect(installed?.textContent).toContain("Installed0");
+		expect(installed?.textContent).toContain("No connectors installed");
+		expect(installed?.textContent).not.toContain("Gmail");
 		expect(mocks.catalog).not.toHaveBeenCalled();
-		// All four recipes are suggested; chips install their connector.
+		// Every recipe is suggested; chips install their connector.
 		expect(container.textContent).toContain("Suggested");
 		expect(container.textContent).toContain("Debug production incidents");
 		expect(container.textContent).toContain("Turn support noise into fixes");

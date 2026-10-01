@@ -15,6 +15,19 @@ export type ComposioRecipe = {
 
 export const COMPOSIO_RECIPES: ComposioRecipe[] = [
 	{
+		id: "organize-your-day",
+		title: "Organize your day",
+		description:
+			"Start with a morning brief: Cline reads overnight email and Slack threads, lays out today's calendar, drafts the replies that need you, and flags what to prep before each meeting.",
+		prompt:
+			"Give me a morning brief: what came in overnight, what's on my calendar today, and draft replies to anything urgent.",
+		connectors: [
+			{ slug: "gmail", name: "Gmail" },
+			{ slug: "slack", name: "Slack" },
+			{ slug: "googlecalendar", name: "Google Calendar" },
+		],
+	},
+	{
 		id: "incident-rca",
 		title: "Debug production incidents",
 		description:
