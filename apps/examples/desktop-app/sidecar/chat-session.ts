@@ -1281,6 +1281,88 @@ async function rebuildSessionForProviderChange(
 	}
 }
 
+const HUB_RECONNECT_WINDOW_MS = 60_000;
+const HUB_RECONNECT_MAX_DELAY_MS = 5_000;
+const HUB_INTERRUPTED_TEXT =
+	"Interrupted: Cline Hub restarted. Send your message again to continue.";
+
+// A killed hub surfaces as a transport close, or as "session not found" when
+// the client's automatic retry lands on a replacement hub that never had it.
+function isHubLossError(error: unknown): boolean {
+	return (
+		isSessionNotFoundError(error) ||
+		(error instanceof Error && error.name === "HubTransportError")
+	);
+}
+
+function emitHubReconnectActivity(
+	ctx: SidecarContext,
+	sessionId: string,
+	phase: "started" | "finished",
+	level: "info" | "error" = "info",
+	message = phase === "started"
+		? "Cline Hub connection lost; reconnecting"
+		: "Cline Hub reconnected",
+): void {
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_core_log",
+		JSON.stringify({ level, message, metadata: { hubReconnect: phase } }),
+	);
+}
+
+/**
+ * Re-creates a session on a restarted hub from its persisted history, retrying
+ * for up to a minute while the replacement hub comes up. Returns false once the
+ * window closes so the caller reports the original failure.
+ */
+async function reconnectSessionAfterHubLoss(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	session: LiveSession | undefined,
+): Promise<boolean> {
+	if (!session) return false;
+	emitHubReconnectActivity(ctx, sessionId, "started");
+	const deadline = Date.now() + HUB_RECONNECT_WINDOW_MS;
+	let delay = 1_000;
+	let lastError: unknown;
+	while (Date.now() < deadline) {
+		try {
+			if (!(await manager.getSession(sessionId))) {
+				await startRebuiltSession(
+					manager,
+					ctx,
+					sessionId,
+					session.config,
+					await resolveSystemPrompt(session.config),
+					readPersistedChatMessages(sessionId) ?? session.messages ?? [],
+					await manager
+						.readSessionCompactionState(sessionId)
+						.catch(() => undefined),
+				);
+			}
+			ctx.logger?.log("Desktop session reconnected after hub loss", {
+				sessionId,
+			});
+			emitHubReconnectActivity(ctx, sessionId, "finished");
+			return true;
+		} catch (error) {
+			lastError = error;
+		}
+		const wait = Math.min(delay, Math.max(0, deadline - Date.now()));
+		await new Promise((resolve) => setTimeout(resolve, wait));
+		delay = Math.min(delay * 2, HUB_RECONNECT_MAX_DELAY_MS);
+	}
+	ctx.logger?.error?.("Desktop session hub reconnect timed out", {
+		sessionId,
+		error: lastError,
+	});
+	emitHubReconnectActivity(ctx, sessionId, "finished", "info", "Cline Hub reconnect timed out");
+	return false;
+}
+
 async function handleSend(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1482,7 +1564,21 @@ async function handleSend(
 			});
 		} catch (error) {
 			deleteMaterializedAttachments(sessionId, userFiles);
-			throw error;
+			if (
+				binding.kind === "ssh" ||
+				!isHubLossError(error) ||
+				!(await reconnectSessionAfterHubLoss(ctx, manager, sessionId, session))
+			) {
+				throw error;
+			}
+			// The hub died mid-turn and the session is back on a fresh hub. End
+			// the turn as interrupted rather than failed; the user re-sends.
+			if (session && ownsBusyState) session.status = "idle";
+			return {
+				sessionId,
+				ok: true,
+				result: { finishReason: "aborted", text: HUB_INTERRUPTED_TEXT },
+			};
 		}
 		if (result === undefined) {
 			// The runtime queued or steered the prompt instead of running it
