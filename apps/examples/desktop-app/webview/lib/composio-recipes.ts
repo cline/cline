@@ -66,18 +66,6 @@ export const COMPOSIO_RECIPES: ComposioRecipe[] = [
 			{ slug: "reddit", name: "Reddit" },
 		],
 	},
-	{
-		id: "support-to-prs",
-		title: "Turn support noise into fixes",
-		description:
-			"Analyze #customer-support for daily and weekly themes, then open GitHub pull requests for the low-hanging bugs behind the most common complaints.",
-		prompt:
-			"Summarize this week's themes in #customer-support and open PRs for anything quick to fix.",
-		connectors: [
-			{ slug: "slack", name: "Slack" },
-			{ slug: "github", name: "GitHub" },
-		],
-	},
 ];
 
 /** Composio serves toolkit logos by slug; used when the status payload has

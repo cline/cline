@@ -213,8 +213,8 @@ describe("installed connectors", () => {
 		expect(mocks.catalog).not.toHaveBeenCalled();
 		// Every recipe is suggested; chips install their connector.
 		expect(container.textContent).toContain("Suggested");
+		expect(container.textContent).toContain("Organize your day");
 		expect(container.textContent).toContain("Debug production incidents");
-		expect(container.textContent).toContain("Turn support noise into fixes");
 		await act(async () =>
 			(
 				container.querySelector('[aria-label="Install Sentry"]') as HTMLElement
@@ -225,27 +225,20 @@ describe("installed connectors", () => {
 
 	it("hides a recipe once all of its connectors are connected", async () => {
 		mocks.integrations = [
-			{
-				toolkit: "slack",
-				name: "Slack",
-				description: "Chat",
-				recommended: false,
-				status: "connected",
-			},
-			{
-				toolkit: "github",
-				name: "GitHub",
-				description: "Code",
-				recommended: true,
-				status: "connected",
-			},
-		];
+			["gmail", "Gmail"],
+			["slack", "Slack"],
+			["googlecalendar", "Google Calendar"],
+		].map(([toolkit, name]) => ({
+			toolkit,
+			name,
+			description: "",
+			recommended: toolkit !== "slack",
+			status: "connected" as const,
+		}));
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).not.toContain(
-			"Turn support noise into fixes",
-		);
+		expect(container.textContent).not.toContain("Organize your day");
 		expect(container.textContent).toContain("Debug production incidents");
 		// Slack is connected, so it is a non-interactive chip there.
 		expect(container.querySelector('[aria-label="Install Slack"]')).toBeNull();
