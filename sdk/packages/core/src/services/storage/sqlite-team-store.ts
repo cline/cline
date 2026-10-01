@@ -25,10 +25,13 @@ function defaultTeamDir(): string {
 }
 
 function sanitizeTeamName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
+	const collapsed = name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
+	// Index-based trim: `/^-+|-+$/` backtracks quadratically on long `-` runs.
+	let start = 0;
+	let end = collapsed.length;
+	while (start < end && collapsed[start] === "-") start++;
+	while (end > start && collapsed[end - 1] === "-") end--;
+	return collapsed.slice(start, end);
 }
 
 export interface SqliteTeamStoreOptions {
