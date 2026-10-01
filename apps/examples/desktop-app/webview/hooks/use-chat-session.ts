@@ -1999,6 +1999,16 @@ export function useChatSession(environmentId: string) {
 					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);
+					// The sidecar is re-creating the session on a restarted hub;
+					// hold the turn open with a status instead of an error.
+					const hubReconnect = (
+						parsed.metadata as { hubReconnect?: unknown } | undefined
+					)?.hubReconnect;
+					if (hubReconnect === "started") {
+						setActivityLabel("Reconnecting to Cline Hub...");
+					} else if (hubReconnect === "finished") {
+						setActivityLabel(null);
+					}
 					if (summaryActivity) {
 						setActivityLabel(
 							summaryActivity.phase === "started"
