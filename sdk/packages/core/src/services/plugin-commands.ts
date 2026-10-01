@@ -1,13 +1,6 @@
 import { createHash } from "node:crypto";
-import {
-	existsSync,
-	type FSWatcher,
-	readdirSync,
-	readFileSync,
-	realpathSync,
-	statSync,
-	watch,
-} from "node:fs";
+import { existsSync, type FSWatcher, statSync, watch } from "node:fs";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import {
 	type AgentExtensionCommand,
@@ -113,31 +106,32 @@ export class PluginCommandManager implements PluginCommandsApi {
 			resolveGlobalSettingsPath(),
 		]);
 	}
-	/** Compare contents across watcher outages without replacing unchanged plugin instances. */
-	private fingerprint(entry: Entry): string {
+	/**
+	 * Compare contents across watcher outages without replacing unchanged plugin instances.
+	 * Unreadable entries contribute their error code instead of failing the scan.
+	 */
+	private async fingerprint(entry: Entry): Promise<string> {
 		const hash = createHash("sha256");
 		const visited = new Set<string>();
-		const visit = (path: string): void => {
+		const visit = async (path: string): Promise<void> => {
 			hash.update(JSON.stringify(path));
-			let real: string;
 			try {
-				real = realpathSync(path);
+				const real = await realpath(path);
+				if (visited.has(real)) return;
+				visited.add(real);
+				const info = await stat(path);
+				if (info.isDirectory()) {
+					for (const name of (await readdir(path)).sort()) {
+						if (name !== "node_modules") await visit(resolve(path, name));
+					}
+				} else if (info.isFile()) hash.update(await readFile(path));
 			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-					hash.update("missing");
-					return;
-				}
-				throw error;
+				hash.update(
+					`error:${(error as NodeJS.ErrnoException).code ?? "unknown"}`,
+				);
 			}
-			if (visited.has(real)) return;
-			visited.add(real);
-			if (statSync(path).isDirectory()) {
-				for (const name of readdirSync(path).sort()) {
-					if (name !== "node_modules") visit(resolve(path, name));
-				}
-			} else if (statSync(path).isFile()) hash.update(readFileSync(path));
 		};
-		for (const root of [...this.watchRoots(entry)].sort()) visit(root);
+		for (const root of [...this.watchRoots(entry)].sort()) await visit(root);
 		return hash.digest("hex");
 	}
 	private reconnect(entry: Entry): void {
@@ -147,15 +141,11 @@ export class PluginCommandManager implements PluginCommandsApi {
 			if (this.disposed) return;
 			// Install watchers first, then reconcile changes missed during the outage.
 			this.watch(entry);
-			try {
-				if (this.fingerprint(entry) !== entry.fingerprint) {
-					entry.dirty = true;
-					void this.refresh(entry);
-				}
-			} catch (error) {
-				this.options.logger?.debug?.("Plugin command rescan failed", { error });
-				this.reconnect(entry);
-			}
+			void this.fingerprint(entry).then((fingerprint) => {
+				if (this.disposed || fingerprint === entry.fingerprint) return;
+				entry.dirty = true;
+				void this.refresh(entry);
+			});
 		}, 1000);
 		entry.watchRetry.unref?.();
 	}
@@ -234,7 +224,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 							workspacePath: entry.workspacePath,
 						});
 						entry.failedPaths = entry.pluginPaths;
-						entry.fingerprint = this.fingerprint(entry);
+						entry.fingerprint = await this.fingerprint(entry);
 					}
 					loaded = await (this.options.load ?? loadResolvedAgentPlugins)({
 						cwd: entry.workspacePath,

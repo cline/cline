@@ -4,13 +4,22 @@ import type {
 	MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { CloudSessionRecord } from "./api";
+import { toHubSessionRecord } from "../hub/server/hub-session-records";
+import {
+	CloudSessionError,
+	type CloudSessionRecord,
+	type CreateCloudSessionInput,
+} from "./api";
 import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
 	type CloudSessionControllerOptions,
 } from "./controller";
-import type { CloudCreationOptions, CloudSessionEvent } from "./types";
+import type {
+	CloudCreationOptions,
+	CloudHandoffSeed,
+	CloudSessionEvent,
+} from "./types";
 
 const record: CloudSessionRecord = {
 	id: "ses-outer",
@@ -35,9 +44,14 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		sessionId?: string;
 	}> = [];
 	const api = {
+		resume: vi.fn(async () => ({
+			...structuredClone(record),
+			sandboxType: "resumable" as const,
+			status: "provisioning",
+		})),
 		list: vi.fn(async () => [structuredClone(record)]),
 		status: vi.fn(async () => ({ status: "ready" })),
-		create: vi.fn(async () => ({
+		create: vi.fn(async (_input: CreateCloudSessionInput) => ({
 			sessionId: record.id,
 			status: "ready",
 			sandboxUrl: "",
@@ -183,7 +197,371 @@ async function attached() {
 	return f;
 }
 
+function resumableFixture(status = "ready") {
+	const f = fixture();
+	f.api.list.mockResolvedValue([
+		{ ...record, sandboxType: "resumable", status },
+	]);
+	f.api.status.mockResolvedValue({ status });
+	f.api.waitUntilReady.mockImplementation(async () => {
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+	});
+	return f;
+}
+
 describe("CloudSessionController neutral host contract", () => {
+	it.each([
+		"suspended",
+		"ready",
+		"unavailable",
+	])("resumes once for concurrent viewers with a cached %s status", async (cachedStatus) => {
+		const f = resumableFixture(
+			cachedStatus === "unavailable" ? "ready" : cachedStatus,
+		);
+		await f.controller.list();
+		if (cachedStatus === "unavailable") {
+			f.api.status.mockRejectedValue(new TypeError("fetch failed"));
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "suspended" },
+			]);
+		} else {
+			f.api.status.mockResolvedValue({ status: "suspended" });
+		}
+		await Promise.all([
+			f.controller.attach(record.id),
+			f.controller.attach(record.id),
+		]);
+		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		expect(f.api.waitUntilReady).toHaveBeenCalledTimes(1);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		expect(f.commands.some((c) => c.command === "session.create")).toBe(false);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		["discovery", "suspended"],
+		["discovery", "ready"],
+		["reconnect", "suspended"],
+	])("keeps %s asleep and reopens with status %s", async (source, status) => {
+		const f = resumableFixture();
+		await f.controller.attach(record.id);
+		const headers = f.getConnectionOptions().resolveConnectionHeaders!;
+		await headers();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		if (source === "discovery") {
+			await f.controller.listForDiscovery();
+		} else {
+			const original = f.command.getMockImplementation()!;
+			f.command.mockRejectedValue(new Error("Pod stopped"));
+			await headers();
+			await vi.waitFor(() => expect(f.dispose).toHaveBeenCalledTimes(1));
+			f.command.mockImplementation(original);
+		}
+		expect(f.api.resume).not.toHaveBeenCalled();
+		expect(f.dispose).toHaveBeenCalledTimes(1);
+		expect(f.controller.getSnapshot(record.id)?.status).toBe("suspended");
+		expect(f.controller.getSnapshot(record.id)?.endedAt).toBeDefined();
+		f.api.status.mockResolvedValue({ status });
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		await f.controller.attach(record.id);
+		await f.controller.readMessages(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(status === "suspended" ? 1 : 0);
+		expect(f.controller.getSnapshot(record.id)?.endedAt).toBeUndefined();
+		expect((await f.controller.listForDiscovery())[0]?.endedAt).toBeUndefined();
+		f.emit("session.updated", { session: { status: "running" } });
+		expect(f.controller.getSnapshot(record.id)?.status).toBe("running");
+		await f.controller.dispose();
+	});
+
+	it.each([
+		[new CloudSessionError("request_failed", "Network unavailable"), true],
+		[
+			new CloudSessionError("request_failed", "Unavailable", undefined, 503),
+			true,
+		],
+		[new DOMException("Timed out", "TimeoutError"), true],
+		[new TypeError("fetch failed"), true],
+		[new CloudSessionError("authentication_required", "Sign in"), false],
+		[
+			new CloudSessionError("request_failed", "Forbidden", undefined, 403),
+			false,
+		],
+		[new DOMException("Cancelled", "AbortError"), false],
+	] as const)("falls back to listed status only for transient probes: %s", async (error, transient) => {
+		const f = resumableFixture();
+		f.api.status.mockRejectedValue(error);
+		if (transient) {
+			await f.controller.attach(record.id);
+			expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		} else {
+			await expect(f.controller.attach(record.id)).rejects.toBe(error);
+			expect(f.commands).toEqual([]);
+		}
+		expect(f.api.resume).not.toHaveBeenCalled();
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"list",
+		"organization",
+	])("connects with cached ready status when the fallback %s lookup fails", async (failure) => {
+		const getActiveOrganizationId = vi.fn(async () => undefined);
+		const f = fixture({ getActiveOrganizationId });
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		await f.controller.list();
+		f.api.status.mockRejectedValue(new TypeError("fetch failed"));
+		if (failure === "list")
+			f.api.list.mockRejectedValue(new TypeError("fetch failed"));
+		else
+			getActiveOrganizationId.mockRejectedValue(new TypeError("fetch failed"));
+		await f.controller.attach(record.id);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		expect(f.api.resume).not.toHaveBeenCalled();
+		await f.controller.dispose();
+	});
+
+	it("does not connect after a failed resume and permits a later retry", async () => {
+		const f = resumableFixture("suspended");
+		f.api.resume.mockRejectedValueOnce(new Error("Quota reached"));
+		await expect(f.controller.attach(record.id)).rejects.toThrow(
+			"Quota reached",
+		);
+		expect(f.commands).toEqual([]);
+		await f.controller.attach(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(2);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"provisioning",
+		"ready",
+		"active",
+		"suspended",
+	])("reconciles a resume conflict with status %s", async (status) => {
+		const f = resumableFixture("suspended");
+		f.api.status
+			.mockResolvedValueOnce({ status: "suspended" })
+			.mockResolvedValue({ status });
+		const conflict = new CloudSessionError(
+			"request_failed",
+			"Cannot resume",
+			undefined,
+			409,
+		);
+		f.api.resume.mockRejectedValue(conflict);
+		if (status === "suspended") {
+			await expect(f.controller.attach(record.id)).rejects.toBe(conflict);
+			expect(f.commands).toEqual([]);
+		} else {
+			await f.controller.attach(record.id);
+			expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		}
+		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		expect(f.api.waitUntilReady).toHaveBeenCalledTimes(
+			status === "provisioning" ? 1 : 0,
+		);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"resume",
+		"status",
+	] as const)("cancels a pending %s when the viewer detaches", async (stage) => {
+		const f = resumableFixture("suspended");
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		if (stage === "resume") {
+			f.api.resume.mockImplementation(async () => {
+				await gate;
+				return { ...record, sandboxType: "resumable", status: "provisioning" };
+			});
+		} else {
+			f.api.status.mockImplementation(async () => {
+				await gate;
+				throw new DOMException("Timed out", "TimeoutError");
+			});
+		}
+		const attaching = f.controller.attach(record.id);
+		const rejected = expect(attaching).rejects.toThrow();
+		await vi.waitFor(() => expect(f.api[stage]).toHaveBeenCalledTimes(1));
+		await f.controller.detach(record.id);
+		release();
+		await rejected;
+		expect(f.api.resume).toHaveBeenCalledTimes(stage === "resume" ? 1 : 0);
+		expect(f.api.waitUntilReady).not.toHaveBeenCalled();
+		expect(f.commands).toEqual([]);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		{
+			savedApproval: true,
+			code: "command_failed",
+			savedThinking: { thinking: true, reasoningEffort: "medium" },
+			cold: true,
+		},
+		{
+			savedApproval: false,
+			savedThinking: { thinking: false, reasoningEffort: null },
+		},
+		{
+			savedApproval: false,
+			savedThinking: { thinking: null, reasoningEffort: null },
+		},
+		{
+			savedApproval: undefined,
+			savedThinking: undefined,
+		},
+	])("restores history and saved preferences with legacy host fallback: %j", async ({
+		savedApproval,
+		code = "session_not_found",
+		savedThinking,
+		cold = false,
+	}) => {
+		const f = resumableFixture();
+		if (!cold)
+			f.controller.restoreCreationOptions(record.id, {
+				autoApproveTools: true,
+				thinking: true,
+				reasoningEffort: "high",
+			});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Saved work" },
+		];
+		f.setMessages(messages);
+		const saved = toHubSessionRecord({
+			sessionId: "inner",
+			isSubagent: false,
+			status: "idle",
+			source: "desktop",
+			interactive: true,
+			startedAt: record.createdAt,
+			updatedAt: record.updatedAt,
+			workspaceRoot: "/workspace/repo",
+			cwd: "/workspace/repo",
+			provider: "cline",
+			model: "model",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			metadata: {
+				autoApproveTools: savedApproval,
+				...savedThinking,
+				checkpointEnabled: true,
+				mode: "plan",
+				systemPrompt: "Saved instructions",
+			},
+		});
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection") {
+				throw Object.assign(new Error("session not found: inner"), { code });
+			}
+			if (args[0] === "session.get") {
+				return { version: "v1", ok: true, payload: { session: saved } };
+			}
+			return original(...args);
+		});
+		await f.controller.attach(record.id);
+		const restored = f.commands.find((c) => c.command === "session.create")
+			?.payload as { sessionConfig: Record<string, unknown> };
+		expect(restored).toMatchObject({
+			initialMessages: messages,
+			sessionConfig: {
+				sessionId: "inner",
+				modelId: "model",
+				checkpoint: { enabled: true },
+				mode: "plan",
+				systemPrompt: "Saved instructions",
+			},
+			runtimeOptions: { enableSpawn: false, enableTeams: false },
+			toolPolicies: { "*": { autoApprove: savedApproval ?? true } },
+		});
+		expect(restored.sessionConfig.thinking).toBe(
+			savedThinking ? (savedThinking.thinking ?? undefined) : true,
+		);
+		expect(restored.sessionConfig.reasoningEffort).toBe(
+			savedThinking ? (savedThinking.reasoningEffort ?? undefined) : "high",
+		);
+		expect(await f.controller.readMessages(record.id)).toEqual(messages);
+		await f.controller.send(record.id, "Continue working");
+		expect(
+			f.commands.find((c) => c.command === "session.send_input")?.sessionId,
+		).toBe("inner");
+		await f.controller.dispose();
+	});
+
+	it("attaches when the runtime reports a concurrent restore conflict", async () => {
+		const f = resumableFixture();
+		f.setMessages([{ role: "user", content: "Saved work" }]);
+		const original = f.command.getMockImplementation()!;
+		let probes = 0;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection" && ++probes === 1) {
+				throw Object.assign(new Error("Missing runtime"), {
+					code: "session_not_found",
+				});
+			}
+			if (args[0] === "session.create") {
+				throw Object.assign(new Error("Already restored"), {
+					code: "session_already_exists",
+				});
+			}
+			return original(...args);
+		});
+		await f.controller.attach(record.id);
+		expect(probes).toBe(2);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"empty history",
+		"permission denied",
+	])("does not recreate a saved task on %s", async (reason) => {
+		const f = resumableFixture();
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection")
+				throw Object.assign(new Error(reason), {
+					code: reason === "empty history" ? "session_not_found" : "forbidden",
+				});
+			return original(...args);
+		});
+		await expect(f.controller.attach(record.id)).rejects.toThrow(
+			reason === "empty history" ? "empty or unavailable" : reason,
+		);
+		expect(f.commands.some((c) => c.command === "session.create")).toBe(false);
+		await f.controller.dispose();
+	});
+
+	it("lists models for the fresh organization without provisioning a session", async () => {
+		const getActiveOrganizationId = vi.fn(async () => "org");
+		const f = fixture({ getActiveOrganizationId });
+		const fetcher = vi
+			.spyOn(globalThis, "fetch")
+			.mockImplementation(async (input) =>
+				Response.json(
+					String(input).endsWith("/models")
+						? [{ id: "model" }]
+						: { clinePass: [{ id: "pass-only" }] },
+				),
+			);
+		try {
+			expect(await f.controller.listModels()).toEqual([
+				{ id: "model", name: "model", catalogId: "cline" },
+			]);
+			expect(getActiveOrganizationId).toHaveBeenCalledWith({ fresh: true });
+			expect(f.api.create).not.toHaveBeenCalled();
+		} finally {
+			fetcher.mockRestore();
+			await f.controller.dispose();
+		}
+	});
 	it("attaches a provisioning receipt without connecting or waiting for readiness", async () => {
 		const f = fixture();
 		f.api.list.mockResolvedValue([{ ...record, status: "provisioning" }]);
@@ -505,19 +883,25 @@ describe("CloudSessionController neutral host contract", () => {
 		]);
 		await f.controller.dispose();
 	});
-	it("reports an uncertain queue outcome when both acknowledgement and recovery fail", async () => {
+	it.each([
+		"succeeds",
+		"fails",
+	])("reports an uncertain queue outcome when acknowledgement is lost and recovery %s", async (recovery) => {
 		const f = await attached();
 		const original = f.command.getMockImplementation()!;
 		let dispatched = false;
 		f.command.mockImplementation(async (...args) => {
 			if (args[0] === "session.send_input") {
+				args[3]?.beforeDispatch?.();
+				args[3]?.onDispatch?.("queued-request");
 				dispatched = true;
 				throw Object.assign(new Error("Connection closed"), {
 					name: "HubTransportError",
 					code: "hub_connection_closed",
 				});
 			}
-			if (dispatched) throw new Error("Recovery unavailable");
+			if (dispatched && recovery === "fails")
+				throw new Error("Recovery unavailable");
 			return original(...args);
 		});
 		try {
@@ -659,7 +1043,11 @@ describe("CloudSessionController neutral host contract", () => {
 	] as const)("clears retained first-task policy after %s", async (action) => {
 		const pendingInitialTasks = new Map<string, CloudCreationOptions>();
 		const f = fixture({ pendingInitialTasks });
-		const options = { autoApproveTools: false, thinking: false };
+		const options = {
+			autoApproveTools: false,
+			thinking: false,
+			reasoningEffort: "high" as const,
+		};
 		try {
 			await f.controller.create({
 				modelId: "model",
@@ -670,6 +1058,12 @@ describe("CloudSessionController neutral host contract", () => {
 			if (action === "create") {
 				f.setHasInner(false);
 				await f.controller.send(record.id, "First prompt");
+				expect(
+					f.commands.find((c) => c.command === "session.create")?.payload,
+				).toMatchObject({
+					metadata: { thinking: false, reasoningEffort: null },
+					sessionConfig: { thinking: false, reasoningEffort: "high" },
+				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);
 			} else {
@@ -690,6 +1084,40 @@ describe("CloudSessionController neutral host contract", () => {
 			).toBe(false);
 		} finally {
 			await replacement.controller.dispose();
+		}
+	});
+	it.each([
+		["legacy", undefined, undefined, true],
+		["standard", "standard", undefined, true],
+		["resumable", "resumable", undefined, false],
+		["resumable metadata", undefined, "resumable", false],
+	] as const)("scopes automatic Git backups for %s sessions", async (_label, sandboxType, metadataType, autoPush) => {
+		const f = fixture({ pendingInitialTasks: new Map([[record.id, {}]]) });
+		f.api.list.mockResolvedValue([
+			{
+				...record,
+				sandboxType,
+				metadata: { ...record.metadata, sandboxType: metadataType },
+			},
+		]);
+		f.setHasInner(false);
+		try {
+			await f.controller.send(record.id, "First prompt");
+			const { sessionConfig } = f.commands.find(
+				(c) => c.command === "session.create",
+			)!.payload as { sessionConfig: { systemPrompt: string } };
+			const prompt = sessionConfig.systemPrompt;
+			expect(prompt).toContain("branch `cline/inner`");
+			expect(prompt).toContain("never commit directly to the default branch");
+			expect(prompt).toContain("Do not force-push or amend commits");
+			expect(prompt.includes("SAVE YOUR WORK")).toBe(autoPush);
+			expect(prompt.includes("Commit regularly")).toBe(autoPush);
+			expect(prompt.includes("git push -u origin")).toBe(autoPush);
+			expect(prompt.includes("Commit and push only when the user asks")).toBe(
+				!autoPush,
+			);
+		} finally {
+			await f.controller.dispose();
 		}
 	});
 	it("does not recreate a missing established session with manual creation options", async () => {
@@ -746,6 +1174,50 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(f.api.delete).toHaveBeenCalledTimes(policy === "delete" ? 1 : 0);
 		expect(f.controller.getSnapshot(record.id)).toBeUndefined();
 	});
+	it.each([
+		["persist", true],
+		["persist", false],
+		["transcript", true],
+		["transcript", false],
+	] as const)("limits disposal cleanup to owned handoff targets (%s, created: %s)", async (stage, created) => {
+		const f = fixture({ lateCreateDisposition: "delete" });
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const pause = vi.fn(() => gate);
+		const onRemoved = vi.fn(async () => {});
+		const create = f.api.create.getMockImplementation()!;
+		f.api.create.mockImplementationOnce(async (input) => {
+			await input.handoff?.onOuterSessionCreated(record.id, { created });
+			return create(input);
+		});
+		const creating = f.controller
+			.create({
+				requestId: "handoff:stable",
+				modelId: "model",
+				repoUrl: record.repoContext.repoUrl!,
+				handoff: {
+					sourceSessionId: "source",
+					onCreating: async () => {},
+					onOuterSessionCreated: async () => {
+						if (stage === "persist") await pause();
+					},
+					onOuterSessionRemoved: onRemoved,
+					resolveMessages: async () => {
+						if (stage === "transcript") await pause();
+						return [];
+					},
+				},
+			})
+			.catch((error) => error);
+		await vi.waitFor(() => expect(pause).toHaveBeenCalledOnce());
+		await f.controller.dispose();
+		release();
+		expect(await creating).toBeInstanceOf(Error);
+		expect(f.api.delete).toHaveBeenCalledTimes(created ? 1 : 0);
+		expect(onRemoved).toHaveBeenCalledTimes(created ? 1 : 0);
+	});
 	it("cancels an in-flight connection across detach and immediate reattach", async () => {
 		const f = fixture();
 		let resolve!: (records: CloudSessionRecord[]) => void;
@@ -789,6 +1261,471 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(
 			JSON.stringify(f.controller.getSnapshot(record.id)?.messages),
 		).not.toContain("Old");
+		await f.controller.dispose();
+	});
+});
+
+describe("seeded cloud handoff controller", () => {
+	const record: CloudSessionRecord = {
+		id: "ses-seeded",
+		status: "ready",
+		sandboxUrl: "",
+		repoContext: { repoUrl: "https://github.com/cline/repo", branch: "main" },
+		metadata: { modelId: "model" },
+		createdAt: "2026-01-01",
+		updatedAt: "2026-01-01",
+	};
+	const messages: MessageWithMetadata[] = [
+		{ role: "user", content: [{ type: "text", text: "Prior request" }] },
+		{ role: "assistant", content: [{ type: "text", text: "Prior answer" }] },
+	];
+	const seed: CloudHandoffSeed = {
+		sourceSessionId: "local-source",
+		messages,
+		mode: "plan",
+		workspaceRelativePath: "packages/app",
+		config: {
+			autoApproveTools: false,
+			thinking: true,
+			reasoningEffort: "high",
+		},
+	};
+	function fixture(taskId?: string) {
+		let rows: Record<string, unknown>[] = [];
+		let transcript: MessageWithMetadata[] = [];
+		let failure: "none" | "timeout" | "malformed" | "send-timeout" | "connect" =
+			"none";
+		const calls: Array<{ name: string; payload?: Record<string, unknown> }> =
+			[];
+		const command = vi.fn(
+			async (
+				name: string,
+				payload?: Record<string, unknown>,
+				_sessionId?: string,
+				options?: {
+					beforeDispatch?: () => void;
+					onDispatch?: (requestId: string) => void;
+				},
+			) => {
+				if (name === "session.create" && failure === "connect")
+					throw Object.assign(new Error("connection failed"), {
+						name: "HubTransportError",
+						code: "hub_connect_failed",
+					});
+				options?.beforeDispatch?.();
+				options?.onDispatch?.("seed-request");
+				calls.push({ name, payload });
+				let result: Record<string, unknown> = {};
+				if (name === "session.list") result = { sessions: rows };
+				if (name === "session.get")
+					result = {
+						session: rows.find((row) => row.sessionId === payload?.sessionId),
+					};
+				if (name === "session.attach") result = { session: rows[0] };
+				if (name === "session.messages") result = { messages: transcript };
+				if (name === "session.pending_prompts") result = { prompts: [] };
+				if (name === "session.send_input" && failure === "send-timeout")
+					throw Object.assign(new Error("lost send reply"), {
+						name: "HubTransportError",
+						code: "hub_connection_closed",
+					});
+				if (name === "session.create") {
+					if (failure === "timeout")
+						throw Object.assign(new Error("lost create reply"), {
+							name: "HubCommandError",
+							code: "hub_command_timeout",
+							command: "session.create",
+						});
+					if (failure !== "malformed") {
+						const config = payload?.sessionConfig as Record<string, unknown>;
+						rows = [
+							{
+								sessionId: "inner-seeded",
+								status: "idle",
+								metadata: payload?.metadata,
+								cwd: config.cwd,
+								runtimeOptions: { mode: config.mode },
+							},
+						];
+						transcript = structuredClone(
+							(payload?.initialMessages as MessageWithMetadata[]) ?? [],
+						);
+						result = { session: rows[0] };
+					}
+				}
+				return { version: "v1", ok: true, payload: result } as HubReplyEnvelope;
+			},
+		);
+		const api = {
+			resume: vi.fn(async () => structuredClone(record)),
+			create: vi.fn(async (input: CreateCloudSessionInput) => {
+				await input.handoff?.onOuterSessionCreated(record.id, {
+					created: true,
+				});
+				return {
+					sessionId: record.id,
+					status: "ready",
+					sandboxUrl: "",
+					cleanupAuthToken: "token",
+				};
+			}),
+			list: vi.fn(async () => [
+				{
+					...structuredClone(record),
+					metadata: { ...record.metadata, taskId },
+				},
+			]),
+			status: vi.fn(async () => ({ status: "ready" })),
+			waitUntilReady: vi.fn(async () => {}),
+			delete: vi.fn(async () => {}),
+			history: vi.fn(async () => null),
+			updateTitle: vi.fn(async () => record),
+			listRepositories: vi.fn(async () => ({
+				connected: true,
+				connectUrl: "https://app/integrations",
+				repositories: [
+					{
+						id: 1,
+						name: "repo",
+						fullName: "cline/repo",
+						url: record.repoContext.repoUrl!,
+						defaultBranch: "main",
+					},
+				],
+			})),
+			listBranches: vi.fn(async () => ({
+				available: true,
+				branches: ["main"],
+			})),
+		};
+		const controller = new CloudSessionController({
+			api,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "token",
+			getActiveOrganizationId: async () => "active-org",
+			createHubClient: () => ({
+				command: command as never,
+				connect: async () => {},
+				dispose: async () => {},
+				getClientId: () => "viewer",
+				subscribe: () => () => {},
+			}),
+		} satisfies CloudSessionControllerOptions);
+		return {
+			controller,
+			api,
+			calls,
+			setRows: (value: typeof rows) => {
+				rows = value;
+			},
+			setTranscript: (value: typeof transcript) => {
+				transcript = value;
+			},
+			setFailure: (value: typeof failure) => {
+				failure = value;
+			},
+		};
+	}
+
+	it.each([
+		undefined,
+		"stale-task-id",
+	])("recovers a matching root with a subagent child (taskId: %s)", async (taskId) => {
+		const f = fixture(taskId);
+		f.setRows([
+			{
+				sessionId: "root",
+				metadata: { handoff: { sourceSessionId: seed.sourceSessionId } },
+			},
+			{
+				sessionId: "child",
+				parentSessionId: "root",
+				metadata: { isSubagent: true },
+			},
+		]);
+		try {
+			await expect(
+				f.controller.seedHandoff(record.id, { ...seed, recoverOnly: true }),
+			).resolves.toEqual({ innerSessionId: "root" });
+			expect(f.calls.filter((call) => call.name === "session.get")).toEqual(
+				taskId ? [{ name: "session.get", payload: { sessionId: taskId } }] : [],
+			);
+			expect(f.calls.filter((call) => call.name === "session.create")).toEqual(
+				[],
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("does not use old identical seeded text to confirm a new ambiguous send", async () => {
+		const f = fixture();
+		await f.controller.seedHandoff(record.id, seed);
+		await f.controller.verifyHandoffTranscript(record.id, messages);
+		f.setFailure("send-timeout");
+		await expect(f.controller.send(record.id, "Prior request")).rejects.toThrow(
+			"could not confirm whether this message was accepted",
+		);
+		await f.controller.dispose();
+	});
+	it("persists the outer id before reading/seeding and preserves mode, subdirectory and approval policy", async () => {
+		const f = fixture();
+		const order: string[] = [];
+		const result = await f.controller.create({
+			requestId: "handoff:stable",
+			modelId: "model",
+			repoUrl: record.repoContext.repoUrl!,
+			organizationId: null,
+			...seed.config,
+			mode: seed.mode,
+			workspaceRelativePath: seed.workspaceRelativePath,
+			handoff: {
+				sourceSessionId: seed.sourceSessionId,
+				onCreating: async () => {},
+				onOuterSessionCreated: async () => {
+					order.push("persist");
+				},
+				resolveMessages: async () => {
+					order.push("read");
+					return messages;
+				},
+				onSeeding: async () => {
+					order.push("dispatch marker");
+				},
+			},
+		});
+		expect(order).toEqual(["persist", "read", "dispatch marker"]);
+		expect(f.api.create.mock.calls[0][0].organizationId).toBeUndefined();
+		expect(result.cwd).toBe("/workspace/packages/app");
+		expect(result.innerSessionId).toBe("inner-seeded");
+		expect(
+			f.calls.find((call) => call.name === "session.create")?.payload,
+		).toMatchObject({
+			initialMessages: messages,
+			cwd: "/workspace/packages/app",
+			sessionConfig: {
+				mode: "plan",
+				cwd: "/workspace/packages/app",
+				thinking: true,
+				reasoningEffort: "high",
+			},
+			runtimeOptions: { mode: "plan" },
+			toolPolicies: { "*": { autoApprove: false } },
+			metadata: {
+				interactive: true,
+				thinking: true,
+				reasoningEffort: "high",
+				handoff: { sourceSessionId: "local-source", outerSessionId: record.id },
+			},
+		});
+		expect(f.controller.getSnapshot(record.id)?.transcriptKnown).toBe(false);
+		const prompt = (
+			f.calls.find((call) => call.name === "session.create")?.payload
+				?.sessionConfig as Record<string, unknown>
+		).systemPrompt as string;
+		expect(prompt).toContain("egress proxy");
+		expect(prompt).toContain("must never run `gh auth login`");
+		expect(prompt).toContain("fresh Linux clone");
+		expect(prompt).toContain("are stale");
+		expect(prompt).toContain("subdirectory at /workspace/packages/app");
+		expect(prompt).not.toContain("SAVE YOUR WORK");
+		await f.controller.verifyHandoffTranscript(record.id, messages);
+		expect(f.controller.getSnapshot(record.id)).toMatchObject({
+			transcriptKnown: true,
+			messages,
+			config: { mode: "plan", cwd: "/workspace/packages/app" },
+		});
+		expect(f.calls.some((call) => call.name === "session.send_input")).toBe(
+			false,
+		);
+		await f.controller.dispose();
+	});
+	it("reattaches and adopts a seeded conversation with its saved mode without reseeding", async () => {
+		const f = fixture();
+		f.setRows([
+			{
+				sessionId: "existing",
+				status: "idle",
+				cwd: "/workspace/packages/app",
+				runtimeOptions: { mode: "plan" },
+				metadata: {
+					model: "model",
+					handoff: { sourceSessionId: seed.sourceSessionId },
+				},
+			},
+		]);
+		f.setTranscript(messages);
+		await f.controller.attach(record.id);
+		expect(f.controller.getSnapshot(record.id)?.config.mode).toBe("plan");
+		await f.controller.seedHandoff(record.id, { ...seed, recoverOnly: true });
+		await f.controller.verifyHandoffTranscript(record.id, messages);
+		expect(f.calls.filter((call) => call.name === "session.create")).toEqual(
+			[],
+		);
+		await f.controller.dispose();
+	});
+	it.each([
+		"different source",
+		"multiple conversations",
+	])("refuses %s without mutating the sandbox", async (kind) => {
+		const f = fixture();
+		const row = {
+			sessionId: "existing",
+			metadata: {
+				handoff: {
+					sourceSessionId:
+						kind === "different source" ? "other" : seed.sourceSessionId,
+				},
+			},
+		};
+		f.setRows(
+			kind === "different source"
+				? [row]
+				: [row, { ...row, sessionId: "second" }],
+		);
+		await expect(f.controller.seedHandoff(record.id, seed)).rejects.toThrow(
+			"another conversation",
+		);
+		expect(f.calls.filter((call) => call.name === "session.create")).toEqual(
+			[],
+		);
+		expect(f.api.delete).not.toHaveBeenCalled();
+		await f.controller.dispose();
+	});
+	it.each([
+		"timeout",
+		"malformed",
+	] as const)("never repeats an ambiguous seeded create after %s", async (failure) => {
+		const f = fixture();
+		f.setFailure(failure);
+		await expect(f.controller.seedHandoff(record.id, seed)).rejects.toThrow();
+		f.setFailure("none");
+		await expect(f.controller.seedHandoff(record.id, seed)).rejects.toThrow(
+			"unconfirmed",
+		);
+		expect(
+			f.calls.filter((call) => call.name === "session.create"),
+		).toHaveLength(1);
+		await f.controller.dispose();
+	});
+	it("respects a durable recovery-only seed fence in a new controller", async () => {
+		const f = fixture();
+		await expect(
+			f.controller.seedHandoff(record.id, { ...seed, recoverOnly: true }),
+		).rejects.toThrow("unconfirmed");
+		expect(
+			f.calls.filter((call) => call.name === "session.create"),
+		).toHaveLength(0);
+		await f.controller.dispose();
+	});
+	it.each([
+		"detach",
+		"dispose",
+	] as const)("makes pre-dispatch %s retryable in a new controller", async (cancel) => {
+		const f = fixture();
+		let release!: () => void;
+		const marker = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const started = vi.fn(() => marker);
+		const pending = f.controller.seedHandoff(record.id, {
+			...seed,
+			onSeeding: started,
+		});
+		const rejection = expect(pending).rejects.toMatchObject({
+			name: "CloudHandoffSeedRejectedError",
+		});
+		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+		expect(
+			f.calls.filter((call) => call.name === "session.create"),
+		).toHaveLength(0);
+		if (cancel === "detach") await f.controller.detach(record.id);
+		else await f.controller.dispose();
+		release();
+		await rejection;
+		expect(
+			f.calls.filter((call) => call.name === "session.create"),
+		).toHaveLength(0);
+		await f.controller.dispose();
+		const restarted = fixture();
+		await expect(
+			restarted.controller.seedHandoff(record.id, {
+				...seed,
+				recoverOnly: false,
+			}),
+		).resolves.toEqual({ innerSessionId: "inner-seeded" });
+		await restarted.controller.dispose();
+	});
+	it.each([
+		"connect",
+		"hook",
+	])("classifies a %s failure before seed dispatch as safe to retry", async (failure) => {
+		const f = fixture();
+		if (failure === "connect") f.setFailure("connect");
+		await expect(
+			f.controller.seedHandoff(record.id, {
+				...seed,
+				onSeeding: () => {
+					if (failure === "hook") throw new Error("marker write failed");
+				},
+			}),
+		).rejects.toMatchObject({ name: "CloudHandoffSeedRejectedError" });
+		f.setFailure("none");
+		await expect(f.controller.seedHandoff(record.id, seed)).resolves.toEqual({
+			innerSessionId: "inner-seeded",
+		});
+		expect(
+			f.calls.filter((call) => call.name === "session.create"),
+		).toHaveLength(1);
+		await f.controller.dispose();
+	});
+	it("requires a durable read-back and permits appended messages only when requested", async () => {
+		const f = fixture();
+		await f.controller.seedHandoff(record.id, seed);
+		f.setTranscript([]);
+		await expect(
+			f.controller.verifyHandoffTranscript(record.id, messages),
+		).rejects.toMatchObject({ name: "CloudHandoffSeedUnsupportedError" });
+		f.setTranscript([...messages, { role: "user", content: "Later" }]);
+		await expect(
+			f.controller.verifyHandoffTranscript(record.id, messages),
+		).rejects.toMatchObject({ name: "CloudHandoffTranscriptMismatchError" });
+		await f.controller.verifyHandoffTranscript(record.id, messages, {
+			allowAppendedMessages: true,
+		});
+		expect(f.controller.getSnapshot(record.id)?.messages).toHaveLength(3);
+		await f.controller.dispose();
+	});
+	it.each([
+		"../outside",
+		"/outside",
+		"folder/../outside",
+		"folder\\outside",
+	])("rejects unsafe cwd %s before provisioning", async (workspaceRelativePath) => {
+		const f = fixture();
+		await expect(
+			f.controller.create({
+				requestId: "r",
+				modelId: "model",
+				repoUrl: "repo",
+				workspaceRelativePath,
+			}),
+		).rejects.toThrow("inside the repository");
+		expect(f.api.create).not.toHaveBeenCalled();
+		await f.controller.dispose();
+	});
+	it("distinguishes an absent handoff target from a failed lookup", async () => {
+		const f = fixture();
+		f.api.status.mockRejectedValueOnce(
+			new CloudSessionError("session_not_found", "gone"),
+		);
+		expect(await f.controller.handoffTargetExists(record.id)).toBe(false);
+		f.api.status.mockRejectedValueOnce(new Error("network"));
+		await expect(f.controller.handoffTargetExists(record.id)).rejects.toThrow(
+			"network",
+		);
+		await f.controller.prepareHandoffRepository(
+			"https://github.com/cline/repo.git",
+		);
 		await f.controller.dispose();
 	});
 });

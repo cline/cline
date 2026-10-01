@@ -12,6 +12,7 @@ const WORKER_INDEX_REQUEST_TIMEOUT_MS = 1_000;
 const DEFAULT_EXCLUDE_DIRS = new Set([
 	".git",
 	"node_modules",
+	"vendor",
 	"dist",
 	"build",
 	".next",

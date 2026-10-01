@@ -37,6 +37,14 @@ requires restoring the session first. Built-in command precedence and rendering
 remain host responsibilities. Preserve the original arguments when dispatching.
 
 
+## Oversized tool result recovery
+
+Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
+
+Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core enables this for MCP and Composio tools. Original output remains in history and events; synchronous model preparation sends a bounded preview with a `cline://cache/<encoded-session-id>/<result-id>.result.txt` URI for cached oversized responses. Use `read_files` with `start_line`/`end_line` to read omitted content. Shell and filesystem search tools do not support these URIs. The stateless agent runtime does not own a cache.
+
+Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed
@@ -67,6 +75,10 @@ anchors. `getAgentPullRequestMergeStatus` and
 `summarizeAgentPullRequestChecks` expose the same status normalization for other
 host presentation.
 
+## Fork metadata
+
+`createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
+
 ## Cloud sessions (experimental)
 
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
@@ -78,10 +90,12 @@ host. Importing this subpath does not start a local agent.
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
-the remote task. Call `dispose` when the host shuts down. This foundation does
-not include local-to-cloud handoff.
+the remote task. Call `dispose` when the host shuts down.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
+
+`create` accepts `sandboxType: "standard" | "resumable"` (default: `"standard"`).
+The controller resumes suspended sessions when opened and restores their saved tasks.
 
 Hosts replacing controllers during credential refresh can share the
 `pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.
@@ -90,6 +104,19 @@ through `restoreCreationOptions`, until the inner task is found or created (or
 the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
+
+## Experimental cloud handoff
+
+`loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
+models. Handoff requires the selected model; it never substitutes another.
+
+Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
+an existing target. Persist target IDs and dispatch markers through the callbacks;
+use `recoverOnly` after uncertain dispatch to avoid duplicate conversations.
+Handoff creation requires `onCreating`: durably save intent before returning, and reject a previously unconfirmed intent after restart.
+Callback errors preserve their original type; they do not prove an earlier POST was rejected or permit clearing its intent.
+`CloudHandoffSeedRejectedError` means no seed was dispatched; clear only the seed marker before retrying the saved target.
+`verifyHandoffTranscript` checks the seeded history; `waitUntilReady(id)` waits for provisioning.
 
 ## Voice input models
 
@@ -180,6 +207,16 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
+provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
+registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
+data to the shared helper. `listLocalProviders` includes the resulting facts in
+each `ProviderListItem.auth`, allowing browser clients to render authentication
+guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
@@ -210,6 +247,34 @@ executes its available tools without inheriting that policy or approval callback
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
 
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
+fails during discovery, the new settings are still saved and the last known
+catalog is retained. Settings and catalog persistence errors still reject the save.
+Provider-service mutations are serialized per catalog file within the process,
+including across manager instances and different providers. Discovery prepares
+the update before the complete settings patch is persisted once. If the catalog
+write fails, the prior provider settings are restored only while the failed
+operation still owns the current settings entry; newer saves and removals are
+preserved. A rollback failure is reported alongside the original error.
+Explicit `updateLocalProvider` calls still reject failed model fetches and retain
+the prior settings and catalog.
+
+Catalog refreshes replace discovery-owned model IDs while retaining manually
+added models, their default selection, and overrides on retained model entries.
+`models.json` records discovery-only IDs in `discoveredModelIds`; IDs also supplied
+explicitly are user-managed. An explicit `models` update replaces the manual list.
+An existing model selection in provider settings does not count as a manual
+addition when initializing a source-backed catalog.
+Provider capabilities are inherited when registering models, so stored per-model
+capability overrides continue to take precedence after refreshes.
 
 ## Shared UI session rows
 
@@ -278,3 +343,41 @@ dialog's tab order. Image source validation and resolution remain host-owned;
 provider-generated URLs must go through an explicit host trust policy before
 rendering. This presentation primitive does not replace `GeneratedMediaContent`
 or its inline-byte validation.
+
+## Shell executor errors
+
+The executor returned by `createShellExecutor` rejects on execution failure.
+The following error classes are exported from `@cline/core` so hosts can
+distinguish process outcomes without parsing messages. They are not an exhaustive
+list of rejections: cancellation, timeout, and stdin-write failures can reject
+with other errors.
+
+- `CommandExitError` — the shell started and exited non-zero. `exitCode` is the
+  numeric process exit code and `output` contains a completion notice and the
+  captured output (subject to the configured truncation limit).
+- `CommandTerminationError` — the process terminated without a numeric exit
+  code. `signal` is the terminating signal, or `null` if none was reported;
+  `output` contains a termination notice and the captured output. This error
+  has no `exitCode` field.
+- `CommandSpawnError` — the shell process could not be started, so there is no
+  exit code. The message keeps the pre-existing `Failed to execute command: …`
+  form. `code` is the operating system error libuv reported (`ENOENT`,
+  `EACCES`, `EFTYPE` for a file that is not a valid executable). Because spawn
+  reports `ENOENT` with the same message when the executable is not found and
+  when the working directory no longer exists, `missing` records which path was
+  absent at failure time: `"executable"` or `"cwd"`. It is `undefined` for every
+  other code. `code` itself is `undefined` if the underlying error has no code.
+
+The public `run_commands` tool catches executor failures and resolves with
+per-command results containing `success: false`, rather than propagating these
+errors as rejected tool calls. For `CommandExitError` and
+`CommandTerminationError`, the failed result retains `output` in its `result`
+field. For `CommandSpawnError`, `result` is empty and `error` includes the spawn
+failure message. Hosts that need the structured error fields must observe the
+executor rejection before this conversion.
+
+Hosts that record command telemetry should label a `CommandSpawnError` by its
+`code` (and `missing`) rather than inventing an exit code. The VS Code and
+standalone adapters do this in the `errorCode` dimension, and use the bounded
+labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
+numeric exit is reported as `exitCode`.

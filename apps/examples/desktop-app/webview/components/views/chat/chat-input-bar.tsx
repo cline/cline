@@ -6,7 +6,21 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import {
+	AgentComposer,
+	AgentComposerActions,
+	AgentComposerAttachments,
+	AgentComposerBody,
+	AgentComposerField,
+	AgentComposerSendButton,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	AgentComposerSettingsGroup,
+	AgentComposerStopButton,
+	AgentComposerTextarea,
+	AgentPromptQueue,
+	SearchCombobox,
+} from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
@@ -151,7 +165,6 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
-const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -453,6 +466,9 @@ function ChatInputBarImpl({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const [cloudModelReady, setCloudModelReady] = useState(false);
+	const needsCloudModel =
+		executionTarget === "cloud" && !hasActiveSession && !cloudModelReady;
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
@@ -516,7 +532,11 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend =
-		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!needsCloudModel &&
+		!readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -544,7 +564,7 @@ function ChatInputBarImpl({
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository) return;
+		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -558,6 +578,7 @@ function ChatInputBarImpl({
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
+		needsCloudModel,
 		readOnly,
 		onSend,
 		promptInput,
@@ -1138,7 +1159,11 @@ function ChatInputBarImpl({
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
 			if (!activeSlash) return;
-			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
+			// Replace only the typed `/query` (slashIndex..cursor) and keep any
+			// text after the cursor.
+			const suffix = promptInput.slice(cursorIndex);
+			const separator = /^\s/.test(suffix) ? "" : " ";
+			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName}${separator}${suffix}`;
 			// Closes via derivation: the trailing space ends the slash command.
 			setPromptInput(nextValue);
 			const nextCursor = activeSlash.slashIndex + commandName.length + 2;
@@ -1150,7 +1175,7 @@ function ChatInputBarImpl({
 				setCursorIndex(nextCursor);
 			});
 		},
-		[activeSlash, promptInput, setPromptInput],
+		[activeSlash, cursorIndex, promptInput, setPromptInput],
 	);
 
 	// Queued prompts are stored in their runtime form (a /team command is
@@ -1167,26 +1192,10 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<div
-			className={cn(
-				"bg-card",
-				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-			)}
-		>
+		<AgentComposer variant={variant}>
 			{/* Input area */}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
-			<div
-				className={cn(
-					"px-4 py-3",
-					variant === "welcome"
-						? "pb-2 pt-4"
-						: promptsInQueue.length > 0
-							? "pb-4 pt-0"
-							: "py-4",
-				)}
-			>
+			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
@@ -1279,14 +1288,9 @@ function ChatInputBarImpl({
 							)}
 						</div>
 					)}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
-					<div
-						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
-								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
-						)}
+					{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
+					<AgentComposerField
+						variant={variant}
 						onMouseDown={(event) => {
 							const target = event.target;
 							if (
@@ -1308,7 +1312,7 @@ function ChatInputBarImpl({
 								<span className="sr-only">Transcribing voice input</span>
 							</output>
 						)}
-						<textarea
+						<AgentComposerTextarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
 									? `slash-command-option-${slashSelectedIndex}`
@@ -1326,10 +1330,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							className={cn(
-								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								variant === "welcome" && "self-start",
-							)}
+							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
 								setPromptInput(e.target.value);
@@ -1470,12 +1471,7 @@ function ChatInputBarImpl({
 							}}
 							value={promptInput}
 						/>
-						<div
-							className={cn(
-								"flex shrink-0 items-center gap-2",
-								variant === "conversation" && "self-end",
-							)}
-						>
+						<AgentComposerActions variant={variant}>
 							{needsCloudRepository ? (
 								<span
 									aria-live="polite"
@@ -1485,18 +1481,15 @@ function ChatInputBarImpl({
 								</span>
 							) : null}
 							{canAbort && (
-								<button
+								<AgentComposerStopButton
 									aria-label="Stop agent"
-									className={cn(
-										"bg-foreground p-1.5 text-background hover:bg-destructive",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
-									)}
+									variant={variant}
 									onClick={onAbort}
 									title="Stop the agent (Esc)"
 									type="button"
 								>
 									<CircleStop className="size-3" />
-								</button>
+								</AgentComposerStopButton>
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
@@ -1525,14 +1518,9 @@ function ChatInputBarImpl({
 								/>
 							) : null}
 							{(!isBusy || canSend) && (
-								<button
+								<AgentComposerSendButton
 									aria-label="Send message"
-									className={cn(
-										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
-									)}
+									variant={variant}
 									disabled={!canSend}
 									onClick={handleSend}
 									title={
@@ -1543,10 +1531,10 @@ function ChatInputBarImpl({
 									type="button"
 								>
 									<ArrowUp className="size-3" />
-								</button>
+								</AgentComposerSendButton>
 							)}
-						</div>
-					</div>
+						</AgentComposerActions>
+					</AgentComposerField>
 				</div>
 				{unsupportedDraftImageCount > 0 && (
 					<output className="block px-2 text-sm text-destructive">
@@ -1555,7 +1543,7 @@ function ChatInputBarImpl({
 					</output>
 				)}
 				{attachments.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1.5">
+					<AgentComposerAttachments>
 						{attachments.map((attachment) => (
 							<span
 								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
@@ -1572,13 +1560,13 @@ function ChatInputBarImpl({
 								</button>
 							</span>
 						))}
-					</div>
+					</AgentComposerAttachments>
 				)}
-			</div>
+			</AgentComposerBody>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
-				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
+			<AgentComposerSettings>
+				<AgentComposerSettingsGroup>
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1642,21 +1630,20 @@ function ChatInputBarImpl({
 					</div>
 					<div className="min-w-0 shrink-0">
 						<ModelSelector
-							allowedProviderIds={
-								executionTarget === "cloud"
-									? CLINE_ONLY_PROVIDER_IDS
-									: undefined
-							}
+							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
 							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
+							onModelReadyChange={setCloudModelReady}
 							onModelChange={onModelChange}
 							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
-							onOpenModelSettings={onOpenModelSettings}
+							onOpenModelSettings={
+								executionTarget === "cloud" ? undefined : onOpenModelSettings
+							}
 							onProviderChange={onProviderChange}
 							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
@@ -1692,9 +1679,9 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+				</AgentComposerSettingsGroup>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				<AgentComposerSettingsEnd>
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -1731,9 +1718,9 @@ function ChatInputBarImpl({
 							/>
 						</div>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</AgentComposerSettingsEnd>
+			</AgentComposerSettings>
+		</AgentComposer>
 	);
 }
 
@@ -1757,6 +1744,7 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onModelReadyChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
@@ -1770,15 +1758,15 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
+	onModelReadyChange: (ready: boolean) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
 	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
-	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
-	>(FALLBACK_PROVIDER_MODELS);
+	>(includeCloudModels ? {} : FALLBACK_PROVIDER_MODELS);
 	const [providerReasoningModels, setProviderReasoningModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_REASONING_MODELS);
@@ -1793,10 +1781,30 @@ const ModelSelector = memo(function ModelSelector({
 		Record<string, ProviderModel[]>
 	>({});
 	const [lastSelection, setLastSelection] = useState(() =>
-		readModelSelectionStorageFromWindow(),
+		includeCloudModels
+			? { lastProvider: "", lastModelByProvider: {} }
+			: readModelSelectionStorageFromWindow(),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const normalizedProvider = includeCloudModels
+		? (Object.keys(providerModels).find((id) =>
+				providerModels[id]?.includes(model),
+			) ??
+			(model.startsWith("cline-pass/")
+				? "cline-pass"
+				: model.startsWith("cline-cloud/")
+					? "cline-cloud"
+					: "cline"))
+		: normalizeProviderId(provider);
+	useEffect(() => {
+		if (!includeCloudModels) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			setProviderModels({});
+			setEnabledProviderIds([]);
+			setCatalogRevision((current) => current + 1);
+		});
+	}, [includeCloudModels]);
 	useEffect(
 		() =>
 			subscribeToProviderCatalogInvalidation(() =>
@@ -1831,9 +1839,11 @@ const ModelSelector = memo(function ModelSelector({
 	// catalog and briefly flash a stale name in the trigger.
 	const refreshActiveProviderModels = useCallback(() => {
 		if (!normalizedProvider) return;
-		const loading = includeCloudModels
-			? loadProviderModels(normalizedProvider, { includeCloudModels: true })
-			: loadProviderModels(normalizedProvider);
+		if (includeCloudModels) {
+			setCatalogRevision((current) => current + 1);
+			return;
+		}
+		const loading = loadProviderModels(normalizedProvider);
 		loading
 			.then((models) => {
 				if (models.length === 0) return;
@@ -1872,6 +1882,18 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		return providers[0] ?? "";
 	}, [normalizedProvider, providers, rememberedLastProvider]);
+	useEffect(() => {
+		onModelReadyChange(
+			providers.includes(normalizedProvider) &&
+				(providerModels[normalizedProvider]?.includes(model) ?? false),
+		);
+	}, [
+		model,
+		normalizedProvider,
+		onModelReadyChange,
+		providerModels,
+		providers,
+	]);
 	const modelsForProvider = useMemo(
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
@@ -1888,9 +1910,16 @@ const ModelSelector = memo(function ModelSelector({
 			const models = (visibleProviderModels[providerId] ?? []).map(
 				(id) => detailsById.get(id) ?? { id, name: id },
 			);
-			return buildModelPickerData(providerId, models);
+			return includeCloudModels
+				? {
+						options: models.map((entry) => ({
+							label: entry.name,
+							value: entry.id,
+						})),
+					}
+				: buildModelPickerData(providerId, models);
 		},
-		[modelDetails, visibleProviderModels],
+		[includeCloudModels, modelDetails, visibleProviderModels],
 	);
 	useEffect(() => {
 		const selected = modelDetails[normalizedProvider]?.find(
@@ -1924,6 +1953,9 @@ const ModelSelector = memo(function ModelSelector({
 		if (
 			model &&
 			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model)) &&
+			(!includeCloudModels ||
+				!autoCorrectModel ||
 				modelsForProvider.includes(model))
 		) {
 			return model;
@@ -1943,6 +1975,8 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		includeCloudModels,
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
@@ -1997,7 +2031,9 @@ const ModelSelector = memo(function ModelSelector({
 
 		async function loadCatalogAndActiveModels() {
 			try {
-				const payload = await loadProviderModelCatalog();
+				const payload = await loadProviderModelCatalog(
+					includeCloudModels ? { includeCloudModels: true } : undefined,
+				);
 				if (cancelled) {
 					return;
 				}
@@ -2014,11 +2050,14 @@ const ModelSelector = memo(function ModelSelector({
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					if (normalizedProvider) {
+					if (
+						normalizedProvider &&
+						(!includeCloudModels || !autoCorrectModel)
+					) {
 						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
-						if (providerId in payload.providerModels) {
+						if (!includeCloudModels && providerId in payload.providerModels) {
 							nextProviderIds.add(providerId);
 						}
 					}
@@ -2028,15 +2067,11 @@ const ModelSelector = memo(function ModelSelector({
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
 
-			if (!normalizedProvider || cancelled) {
+			if (includeCloudModels || !normalizedProvider || cancelled) {
 				return;
 			}
 			try {
-				const models = includeCloudModels
-					? await loadProviderModels(normalizedProvider, {
-							includeCloudModels: true,
-						})
-					: await loadProviderModels(normalizedProvider);
+				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
@@ -2053,6 +2088,7 @@ const ModelSelector = memo(function ModelSelector({
 		};
 	}, [
 		applyProviderModels,
+		autoCorrectModel,
 		catalogRevision,
 		includeCloudModels,
 		normalizedProvider,
@@ -2061,7 +2097,7 @@ const ModelSelector = memo(function ModelSelector({
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
-			if (includeCloudModels && normalizedId === "cline") return;
+			if (includeCloudModels) return;
 			applyProviderModels(normalizedId, models);
 		});
 	}, [applyProviderModels, includeCloudModels]);
@@ -2103,12 +2139,13 @@ const ModelSelector = memo(function ModelSelector({
 	);
 
 	useEffect(() => {
+		if (!persistSelection) return;
 		try {
 			writeModelSelectionStorageToWindow(lastSelection);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection]);
+	}, [lastSelection, persistSelection]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
@@ -2117,7 +2154,11 @@ const ModelSelector = memo(function ModelSelector({
 		if (isBusy) {
 			return;
 		}
-		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
+		if (
+			!includeCloudModels &&
+			resolvedProvider &&
+			resolvedProvider !== normalizedProvider
+		) {
 			onProviderChange(resolvedProvider);
 		}
 		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
@@ -2125,6 +2166,7 @@ const ModelSelector = memo(function ModelSelector({
 		}
 	}, [
 		autoCorrectModel,
+		includeCloudModels,
 		isBusy,
 		model,
 		onModelChange,
@@ -2168,7 +2210,7 @@ const ModelSelector = memo(function ModelSelector({
 				onOpenModelSettings?.();
 				return;
 			}
-			onProviderChange(value);
+			if (!includeCloudModels) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
 			// Preserve live-only remembered models missing from the bundled
@@ -2189,6 +2231,7 @@ const ModelSelector = memo(function ModelSelector({
 			}
 		},
 		[
+			includeCloudModels,
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
@@ -2267,6 +2310,21 @@ const ModelSelector = memo(function ModelSelector({
 		/>
 	);
 
+	if (
+		includeCloudModels &&
+		reasoningCapabilitySource === "fallback" &&
+		providers.length === 0
+	) {
+		return (
+			<button
+				className="text-xs text-destructive"
+				onClick={refreshActiveProviderModels}
+				type="button"
+			>
+				Could not load cloud models. Retry
+			</button>
+		);
+	}
 	return (
 		<div className="relative min-w-0 shrink-0 text-sm">
 			<button

@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
 
@@ -33,6 +35,8 @@ const TRAY_QUIT_MENU_ID: &str = "tray-quit";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
 #[cfg(any(target_os = "macos", test))]
+const EXPORT_DIAGNOSTICS_MENU_ID: &str = "export-diagnostics";
+#[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
@@ -45,6 +49,7 @@ enum DesktopAction {
     NewSession,
     OpenSettings,
     CheckForUpdates,
+    ExportDiagnostics,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -664,23 +669,35 @@ fn ensure_desktop_backend_started_locked(
     Ok(())
 }
 
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// Mirrors `resolveMcpSettingsPath()` in `@cline/shared/storage` (the resolver
+/// the sidecar and the hub runtime use): explicit path override, then the data
+/// dir override, then the cline dir override, then `~/.cline/data`. Keeping the
+/// same precedence here means the "Open MCP settings" window action opens the
+/// exact file the runtime reads (cline/cline#14152).
 fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
-    if let Ok(value) = std::env::var("CLINE_MCP_SETTINGS_PATH") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
+    if let Some(explicit) = non_empty_env("CLINE_MCP_SETTINGS_PATH") {
+        return Ok(PathBuf::from(explicit));
     }
-    // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
-    // homedir() resolves there); HOME is usually unset on Windows.
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
-    Ok(PathBuf::from(home)
-        .join(".cline")
-        .join("data")
-        .join("settings")
-        .join("cline_mcp_settings.json"))
+    let data_dir = if let Some(data_dir) = non_empty_env("CLINE_DATA_DIR") {
+        PathBuf::from(data_dir)
+    } else if let Some(cline_dir) = non_empty_env("CLINE_DIR") {
+        PathBuf::from(cline_dir).join("data")
+    } else {
+        // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
+        // homedir() resolves there); HOME is usually unset on Windows.
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
+        PathBuf::from(home).join(".cline").join("data")
+    };
+    Ok(data_dir.join("settings").join("cline_mcp_settings.json"))
 }
 
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {
@@ -1233,6 +1250,7 @@ fn show_session_notification(
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<DesktopAction> {
     match menu_id {
+        EXPORT_DIAGNOSTICS_MENU_ID => Some(DesktopAction::ExportDiagnostics),
         VIEW_ZOOM_IN_MENU_ID => Some(DesktopAction::ZoomIn),
         VIEW_ZOOM_OUT_MENU_ID => Some(DesktopAction::ZoomOut),
         VIEW_ZOOM_RESET_MENU_ID => Some(DesktopAction::ZoomReset),
@@ -1270,12 +1288,21 @@ fn setup_application_menu(
     )?;
     let separator = PredefinedMenuItem::separator(app)?;
 
+    let export_diagnostics = MenuItem::with_id(
+        app,
+        EXPORT_DIAGNOSTICS_MENU_ID,
+        "Export Diagnostics…",
+        true,
+        None::<&str>,
+    )?;
+    let mut help_menu = None;
     let mut view_menu = None;
     for item in menu.items()? {
         if let MenuItemKind::Submenu(submenu) = item {
-            if submenu.text()? == "View" {
-                view_menu = Some(submenu);
-                break;
+            match submenu.text()?.as_str() {
+                "View" => view_menu = Some(submenu),
+                "Help" => help_menu = Some(submenu),
+                _ => {}
             }
         }
     }
@@ -1286,6 +1313,17 @@ fn setup_application_menu(
         let view_menu =
             Submenu::with_items(app, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
         menu.append(&view_menu)?;
+    }
+
+    if let Some(help_menu) = help_menu {
+        help_menu.append(&export_diagnostics)?;
+    } else {
+        menu.append(&Submenu::with_items(
+            app,
+            "Help",
+            true,
+            &[&export_diagnostics],
+        )?)?;
     }
 
     app.set_menu(menu)?;
@@ -1441,6 +1479,11 @@ fn set_tray_status(
 }
 
 fn main() {
+    // Must stay first: WebKitGTK reads the environment while initializing,
+    // and the variable has to be in place before any thread exists.
+    #[cfg(target_os = "linux")]
+    linux_webview::configure_environment();
+
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
@@ -1670,7 +1713,7 @@ mod tests {
     }
 
     #[test]
-    fn application_menu_ids_map_to_zoom_actions() {
+    fn application_menu_ids_map_to_desktop_actions() {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_IN_MENU_ID),
             Some(DesktopAction::ZoomIn)
@@ -1682,6 +1725,14 @@ mod tests {
         assert_eq!(
             application_menu_action(VIEW_ZOOM_RESET_MENU_ID),
             Some(DesktopAction::ZoomReset)
+        );
+        assert_eq!(
+            application_menu_action(EXPORT_DIAGNOSTICS_MENU_ID),
+            Some(DesktopAction::ExportDiagnostics)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::ExportDiagnostics).unwrap(),
+            serde_json::json!({ "type": "export-diagnostics" })
         );
         assert_eq!(application_menu_action("unknown"), None);
     }

@@ -5,6 +5,18 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "anthropic/claude-sonnet-5.5",
+				name: "claude-sonnet-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
+				id: "anthropic/claude-opus-5.5",
+				name: "claude-opus-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "spacexai/grok-4.7",
 				name: "grok-4.7",
 				description: "",
@@ -17,16 +29,16 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: ["NEW"],
 			},
 			{
+				id: "openai/gpt-6.1-sol",
+				name: "gpt-6.1-sol",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "moonshotai/kimi-k3",
 				name: "kimi-k3",
 				description:
 					"Kimi K3 is Moonshot AI’s new flagship MoE model for agentic coding",
-				tags: ["NEW"],
-			},
-			{
-				id: "anthropic/claude-opus-5",
-				name: "claude-opus-5",
-				description: "",
 				tags: ["NEW"],
 			},
 		],
@@ -121,15 +133,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-max",
-				name: "cline-pass/qwen3.7-max",
-				description: "Flagship agent model with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.7-plus",
 				name: "cline-pass/qwen3.7-plus",
 				description: "Fast multimodal agent model with vision and video input",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.7-max",
+				name: "cline-pass/qwen3.7-max",
+				description: "Flagship agent model with 1M context window",
 				tags: [],
 			},
 			{

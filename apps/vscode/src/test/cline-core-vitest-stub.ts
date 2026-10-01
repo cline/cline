@@ -114,15 +114,11 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""
@@ -188,6 +184,15 @@ export function readSessionCheckpointHistory(session: { metadata?: Record<string
 		const kind = record.kind === "stash" || record.kind === "commit" ? record.kind : undefined
 		return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }]
 	})
+}
+
+export function createRestoredCheckpointMetadata(
+	session: { metadata?: Record<string, unknown> } | undefined,
+	runCount: number,
+): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
+	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
+	const latest = history.at(-1)
+	return latest ? { latest, history } : undefined
 }
 
 export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {

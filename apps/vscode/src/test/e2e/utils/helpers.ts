@@ -132,8 +132,12 @@ export class E2ETestHelper {
 			return null
 		}
 
-		// Use longer timeout (30s) for sidebar - macOS CI runners can be slow
-		await E2ETestHelper.waitUntil(async () => (await findSidebarFrame()) !== null, 30000)
+		// Extension activation is slower on Windows, where the Playwright config
+		// also gives each test a larger timeout. Keep sidebar discovery within the
+		// same platform budget instead of failing while VS Code still shows its
+		// loading progress bar.
+		const sidebarTimeoutMs = process.platform === "win32" ? 60_000 : 30_000
+		await E2ETestHelper.waitUntil(async () => (await findSidebarFrame()) !== null, sidebarTimeoutMs)
 		return (await findSidebarFrame()) || page.mainFrame()
 	}
 
@@ -451,7 +455,6 @@ export const e2e = test
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspacePath,
 					],

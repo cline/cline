@@ -45,6 +45,7 @@ import {
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
@@ -67,7 +68,6 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -86,7 +86,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -162,7 +162,6 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
@@ -1627,6 +1626,16 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			// Not sourced from the core catalog: it only lists web_search for a
+			// specific provider/model, and this listing is session-agnostic.
+			{
+				id: "web_search",
+				name: "web_search",
+				description:
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support it; applies to new sessions.",
+				enabled: isModelToolEnabledGlobally("web_search"),
+				source: "builtin",
+			},
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
@@ -2209,6 +2218,9 @@ export async function handleCommand(
 				telemetry: ctx.telemetry,
 			}),
 		};
+	}
+	if (command === "list_cloud_models") {
+		return await getCloudSessionManager(ctx).listModels();
 	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
@@ -3051,7 +3063,7 @@ export async function handleCommand(
 			storageProviderId === "cline"
 				? manager.getProviderSettings(storageProviderId)
 				: undefined;
-		const saved = saveLocalProviderSettings(manager, {
+		const saved = await saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -3062,7 +3074,7 @@ export async function handleCommand(
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});
@@ -3227,13 +3239,6 @@ export async function handleCommand(
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
 		return settings;
-	}
-	if (command === "set_web_search_enabled") {
-		if (typeof args?.web_search_enabled !== "boolean") {
-			throw new Error("web_search_enabled must be a boolean");
-		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
-		return readGlobalSettings();
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -3609,7 +3614,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
-		for (const name of toolNames) {
+		for (const name of new Set(toolNames)) {
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,

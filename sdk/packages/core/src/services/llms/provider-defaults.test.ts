@@ -575,6 +575,43 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["o-live"]).toBeUndefined();
 	});
 
+	it("authenticates live model sources and isolates cached catalogs by credentials", async () => {
+		const fetchMock = vi.fn(async (_url: unknown, init: RequestInit) => {
+			const headers = new Headers(init.headers);
+			return new Response(
+				JSON.stringify({
+					models: [
+						{
+							name: `${headers.get("authorization")}:${headers.get("x-tenant")}`,
+						},
+					],
+				}),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		for (const [apiKey, tenant] of [
+			["first", "a"],
+			["second", "a"],
+			["second", "b"],
+		]) {
+			const resolved = await resolveProviderConfig(
+				"ollama",
+				{ cacheTtlMs: 60_000 },
+				{
+					providerId: "ollama",
+					modelId: "",
+					baseUrl: "https://local.example/v1",
+					apiKey,
+					headers: { "X-Tenant": tenant },
+				},
+			);
+			expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+				`Bearer ${apiKey}:${tenant}`,
+			]);
+		}
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
