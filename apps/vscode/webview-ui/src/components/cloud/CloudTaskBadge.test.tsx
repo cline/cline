@@ -59,6 +59,28 @@ describe("CloudTaskBadge", () => {
 		expect(mocks.openCloudSessionDashboard).toHaveBeenCalledWith(expect.objectContaining({ value: "ses-ready" }))
 	})
 
+	it("describes the task in whole sentences with and without a repository", () => {
+		const { unmount } = render(
+			<CloudTaskBadge
+				cloudTask={{
+					sessionId: "ses-ready",
+					status: "running",
+					repoUrl: "https://github.com/cline/fixture",
+					branch: "main",
+				}}
+			/>,
+		)
+		expect(
+			screen.getByText("Running in Cline Cloud on cline/fixture (main). Click to open in the dashboard."),
+		).toBeInTheDocument()
+		unmount()
+
+		render(<CloudTaskBadge cloudTask={{ sessionId: "cloud-provisioning-1", status: "provisioning" }} />)
+		expect(
+			screen.getByText("Running in Cline Cloud. The dashboard link will be available when provisioning finishes."),
+		).toBeInTheDocument()
+	})
+
 	it("does not present an unconfirmed status as an ongoing check", () => {
 		mocks.resolveCloudSessionStatuses.mockReturnValue(new Promise(() => {}))
 		const { container } = render(<CloudTaskBadge cloudTask={{ sessionId: "ses-checking", status: "unknown" }} />)

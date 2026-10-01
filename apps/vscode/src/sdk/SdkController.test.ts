@@ -322,21 +322,42 @@ describe("SDK remote-config coordination", () => {
 		it("restarts a new task with the original prompt when Retry is clicked", async () => {
 			const { controller, errorTask } = controllerShowingSignInError()
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
-			expect(controller.initTask).toHaveBeenCalledWith("original prompt", undefined, undefined)
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"original prompt",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			)
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 		})
 
 		it("restarts a new task with a revised prompt submitted from the composer", async () => {
 			const { controller, errorTask } = controllerShowingSignInError()
 			await errorTask.handleWebviewAskResponse("messageResponse", "revised prompt", ["img"])
-			expect(controller.initTask).toHaveBeenCalledWith("revised prompt", ["img"], undefined)
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"revised prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			)
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 		})
 
 		it("keeps the original prompt when the revised submission has attachments but no text", async () => {
 			const { controller, errorTask } = controllerShowingSignInError()
 			await errorTask.handleWebviewAskResponse("messageResponse", "  ", ["img"])
-			expect(controller.initTask).toHaveBeenCalledWith("original prompt", ["img"], undefined)
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"original prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			)
 		})
 
 		it("continues an existing conversation with a message submitted from the composer", async () => {
@@ -368,6 +389,76 @@ describe("SDK remote-config coordination", () => {
 				undefined,
 				"yesButtonClicked",
 				"error",
+			)
+		})
+	})
+
+	describe("after a cloud start fails before it has a session", () => {
+		const input = { prompt: "cloud prompt", images: ["img"], repoUrl: "https://github.com/cline/fixture", branch: "main" }
+		const cloudTarget = { repoUrl: input.repoUrl, branch: input.branch }
+
+		function controllerShowingCloudStartError() {
+			const controller = {
+				task: undefined as TaskProxy | undefined,
+				turnStateTracker: { set: vi.fn(), get: () => ({ phase: "error" }) },
+				messageTranslatorState: { clearTurnOutcome: vi.fn() },
+				messages: { appendAndEmit: vi.fn() },
+				sessions: { getActiveSession: () => undefined },
+				cloud: { isCloudSessionId: () => true, getCurrentTaskInfo: () => ({ status: "unknown" }) },
+				postStateToWebview: vi.fn(async () => {}),
+				initTask: vi.fn(async () => "ses-retried"),
+				followups: { askResponse: vi.fn(async () => {}) },
+				cancelTask: vi.fn(async () => {}),
+				askResponse(prompt?: string, images?: string[], files?: string[]) {
+					return SdkController.prototype.askResponse.call(controller as never, prompt, images, files)
+				},
+			}
+			const errorTask = createTaskProxy("cloud-provisioning-1", controller.askResponse, controller.cancelTask)
+			controller.task = errorTask
+			SdkController.prototype["offerCloudStartRetry"].call(controller as never, errorTask, input)
+			return { controller, errorTask }
+		}
+
+		it("starts the same cloud task again when Retry is clicked", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"cloud prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				cloudTarget,
+			)
+			expect(controller.messages.appendAndEmit).not.toHaveBeenCalled()
+		})
+
+		it("starts a cloud task on the same target with a prompt typed into the composer", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			await errorTask.handleWebviewAskResponse("messageResponse", "revised prompt")
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"revised prompt",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				cloudTarget,
+			)
+		})
+
+		it("advances the turn phase when it refuses a response to a session that is gone", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			// The retry is consumed by the first response; a second one finds no session to send to.
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			controller.initTask.mockClear()
+
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+
+			expect(controller.initTask).not.toHaveBeenCalled()
+			expect(controller.messages.appendAndEmit).toHaveBeenCalledOnce()
+			expect(controller.turnStateTracker.set).toHaveBeenCalledWith("error")
+			expect(controller.turnStateTracker.set.mock.invocationCallOrder[0]).toBeLessThan(
+				controller.postStateToWebview.mock.invocationCallOrder.at(-1)!,
 			)
 		})
 	})
