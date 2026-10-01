@@ -9,11 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
 	assertPendingCloudHandoffCompatible,
+	assertSessionDeleteAllowedDuringHandoff,
 	cloudHandoffGitStateMatchesFingerprint,
 	formatPendingHandoffVerificationError,
 	shouldCleanupFailedHandoffVerification,
 	updateHandoffMetadataOrThrow,
 } from "./cloud-handoff";
+import * as followUpRecovery from "./cloud-handoff-follow-up";
 import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import * as gitPreparation from "./cloud-handoff-git";
 import {
@@ -27,6 +29,7 @@ import {
 	type CreateCloudSessionInput,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
+import { writeSessionManifest } from "./paths";
 import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
@@ -668,11 +671,13 @@ describe("cloud handoff transaction", () => {
 		} as unknown as SidecarContext;
 
 		const verifyHandoffTranscript = vi.fn(async () => undefined);
-		const cloudSend = vi.fn(async () => ({
-			sessionId: "ses-cloud",
-			ok: true as const,
-			queued: true,
-		}));
+		const cloudSend = vi.fn(
+			async (..._args: Parameters<CloudSessionManager["send"]>) => ({
+				sessionId: "ses-cloud",
+				ok: true as const,
+				queued: true,
+			}),
+		);
 		const create = vi.fn(async (input: CreateCloudSessionInput) => {
 			if (created) await input.handoff?.onCreating?.();
 			await input.handoff?.onOuterSessionCreated?.("ses-cloud", { created });
@@ -908,6 +913,9 @@ describe("cloud handoff transaction", () => {
 		);
 		expect(first.getPersistedMetadata()).toHaveProperty("cloudHandoffIntent");
 		const restarted = createHandoffFixture(true, first.getPersistedMetadata());
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(restarted.ctx, request.sessionId),
+		).rejects.toThrow("Cloud handoff creation is still unconfirmed");
 		restarted.create.mockImplementation(createWithFreshApi);
 		await expect(
 			handleChatSessionCommand(restarted.ctx, request),
@@ -927,6 +935,40 @@ describe("cloud handoff transaction", () => {
 		expect(
 			readCloudHandoffMetadata(recovered.getPersistedMetadata())?.status,
 		).toBe("complete");
+		const release = await assertSessionDeleteAllowedDuringHandoff(
+			recovered.ctx,
+			request.sessionId,
+		);
+		release();
+	});
+
+	it.each([
+		"pending",
+		"complete",
+		undefined,
+	] as const)("permits deletion only without an unresolved handoff (%s)", async (status) => {
+		const f = createHandoffFixture(
+			true,
+			status
+				? {
+						handoff: {
+							status,
+							toCloudSessionId: "ses-cloud",
+							handedOffAt: "2026-09-30T00:00:00.000Z",
+						},
+					}
+				: {},
+		);
+		const deletion = assertSessionDeleteAllowedDuringHandoff(
+			f.ctx,
+			f.sourceSessionId,
+		);
+		if (status === "pending") {
+			await expect(deletion).rejects.toThrow("Cloud handoff is still pending");
+		} else {
+			const release = await deletion;
+			release();
+		}
 	});
 
 	it("clears a definitely rejected create intent and permits retry", async () => {
@@ -1340,6 +1382,10 @@ describe("cloud handoff transaction", () => {
 			"queue",
 			modelId,
 			undefined,
+			expect.objectContaining({
+				beforeDispatch: expect.any(Function),
+				onAccepted: expect.any(Function),
+			}),
 		);
 		const complete = events.find(
 			(event) =>
@@ -1427,14 +1473,240 @@ describe("cloud handoff transaction", () => {
 		expect(fixture.cloudSend).not.toHaveBeenCalled();
 	});
 
-	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{
+	it("persists the initial command and images before completion and retains them until acknowledgement", async () => {
+		const f = createHandoffFixture();
+		const userImages = ["data:image/png;base64,aW1hZ2U="];
+		const update = localSessionManager(f.ctx).update as ReturnType<
+			typeof vi.fn<
+				(
+					id: string,
+					input: { metadata: Record<string, unknown> },
+				) => Promise<{ updated: boolean }>
+			>
+		>;
+		const originalUpdate = update.getMockImplementation();
+		if (!originalUpdate) throw new Error("missing fixture update");
+		update.mockImplementation(async (...args) => {
+			if (readCloudHandoffMetadata(args[1].metadata)?.status === "complete") {
+				expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
+					command: "continue in cloud",
+					userImages,
+				});
+			}
+			return originalUpdate(...args);
+		});
+		f.cloudSend.mockImplementationOnce(async (...args) => {
+			expect(readCloudHandoffMetadata(f.getPersistedMetadata())?.status).toBe(
+				"complete",
+			);
+			expect(
+				readCloudHandoffFollowUp("ses-cloud")?.unconfirmed,
+			).toBeUndefined();
+			expect(
+				await handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
+					sessionId: "ses-cloud",
+				}),
+			).toBeNull();
+			for (const command of [
+				"restore_cloud_handoff_follow_up",
+				"dismiss_cloud_handoff_follow_up",
+			]) {
+				await expect(
+					handleCommand(f.ctx, command, {
+						sessionId: "ses-cloud",
+						expected: readCloudHandoffFollowUp("ses-cloud"),
+					}),
+				).rejects.toThrow("Wait for the cloud handoff to finish");
+			}
+			args[5]?.beforeDispatch?.();
+			expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
+				userImages,
+				unconfirmed: true,
+			});
+			args[5]?.onAccepted?.();
+			expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
+			return { sessionId: "ses-cloud", ok: true, queued: true };
+		});
+		const result = await handleChatSessionCommand(f.ctx, {
+			...f.request,
+			nextCommand: "continue in cloud",
+			attachments: { userImages, userFiles: [] },
+		});
+		expect(result).not.toHaveProperty("warning");
+		expect(f.cloudSend).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		"complete",
+		"pending",
+		"unknown",
+	] as const)("uses persisted %s handoff state when the local Hub is unavailable", async (status) => {
+		const f = createHandoffFixture();
+		writeSessionManifest(f.sourceSessionId, {
+			metadata:
+				status === "unknown"
+					? {}
+					: {
+							handoff: {
+								status,
+								toCloudSessionId: "ses-cloud",
+								handedOffAt: "2026-01-01T00:00:00Z",
+							},
+						},
+		});
+		(
+			localSessionManager(f.ctx).get as ReturnType<typeof vi.fn>
+		).mockRejectedValue(new Error("Hub unavailable"));
+		const saved = {
+			draftId: "saved",
+			sourceSessionId: f.sourceSessionId,
+			command: "saved follow-up",
+			userImages: [],
+		};
+		followUpRecovery.saveCloudHandoffFollowUp("ses-cloud", saved);
+		const recovery = handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
+			sessionId: "ses-cloud",
+		});
+		if (status === "unknown")
+			await expect(recovery).rejects.toThrow("Hub unavailable");
+		else
+			await expect(recovery).resolves.toEqual(
+				status === "complete" ? saved : null,
+			);
+		const send = handleChatSessionCommand(f.ctx, {
+			action: "send",
+			sessionId: "ses-cloud",
+			prompt: "unrelated prompt",
+			config: { executionTarget: "cloud", model: f.modelId },
+		});
+		if (status === "complete") {
+			await expect(send).resolves.toMatchObject({ ok: true });
+			expect(f.cloudSend).toHaveBeenCalledOnce();
+		} else {
+			await expect(send).rejects.toThrow(
+				status === "pending" ? "Retry /cloud" : "Hub unavailable",
+			);
+			expect(f.cloudSend).not.toHaveBeenCalled();
+		}
+		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual(saved);
+	});
+
+	it("keeps recovery blocked after a failed completion marker, including after restart", async () => {
+		const first = createHandoffFixture();
+		const update = localSessionManager(first.ctx).update as ReturnType<
+			typeof vi.fn<
+				(
+					id: string,
+					input: { metadata: Record<string, unknown> },
+				) => Promise<{ updated: boolean }>
+			>
+		>;
+		const originalUpdate = update.getMockImplementation();
+		if (!originalUpdate) throw new Error("missing fixture update");
+		update.mockImplementation(async (...args) =>
+			readCloudHandoffMetadata(args[1].metadata)?.status === "complete"
+				? { updated: false }
+				: originalUpdate(...args),
+		);
+		const request = {
+			...first.request,
+			nextCommand: "continue in cloud",
+			attachments: {
+				userImages: ["data:image/png;base64,aW1hZ2U="],
+				userFiles: [],
+			},
+		};
+		await expect(handleChatSessionCommand(first.ctx, request)).rejects.toThrow(
+			"marker could not be saved",
+		);
+		const saved = readCloudHandoffFollowUp("ses-cloud");
+		expect(saved).toMatchObject({
+			command: request.nextCommand,
+			userImages: request.attachments.userImages,
+		});
+		const restarted = createHandoffFixture(false, first.getPersistedMetadata());
+		for (const f of [first, restarted]) {
+			expect(
+				await handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
+					sessionId: "ses-cloud",
+				}),
+			).toBeNull();
+			for (const command of [
+				"restore_cloud_handoff_follow_up",
+				"dismiss_cloud_handoff_follow_up",
+			]) {
+				await expect(
+					handleCommand(f.ctx, command, {
+						sessionId: "ses-cloud",
+						expected: saved,
+					}),
+				).rejects.toThrow("Retry /cloud");
+			}
+			await expect(
+				handleChatSessionCommand(f.ctx, {
+					action: "send",
+					sessionId: "ses-cloud",
+					config: { executionTarget: "cloud", model: f.modelId },
+					prompt: request.nextCommand,
+					attachments: request.attachments,
+					handoffFollowUpId: saved?.draftId,
+				}),
+			).rejects.toThrow("Retry /cloud");
+			expect(f.cloudSend).not.toHaveBeenCalled();
+			expect(readCloudHandoffFollowUp("ses-cloud")).toEqual(saved);
+		}
+		vi.spyOn(restarted.cloud, "waitUntilReady").mockResolvedValue(undefined);
+		vi.spyOn(restarted.cloud, "seedHandoff").mockResolvedValue({
+			innerSessionId: "inner-cloud",
+		});
+		await handleChatSessionCommand(restarted.ctx, request);
+		expect(
+			readCloudHandoffMetadata(restarted.getPersistedMetadata())?.status,
+		).toBe("complete");
+		expect(restarted.cloudSend).toHaveBeenCalledOnce();
+		expect(restarted.cloudSend.mock.calls[0]?.[4]).toEqual(
+			request.attachments.userImages,
+		);
+		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
+	});
+
+	it("does not complete or send when the initial follow-up cannot be saved", async () => {
+		const f = createHandoffFixture();
+		const save = vi
+			.spyOn(followUpRecovery, "saveCloudHandoffFollowUp")
+			.mockImplementation(() => {
+				throw new Error("disk full");
+			});
+		try {
+			await expect(
+				handleChatSessionCommand(f.ctx, {
+					...f.request,
+					nextCommand: "continue in cloud",
+				}),
+			).rejects.toThrow("disk full");
+			expect(readCloudHandoffMetadata(f.getPersistedMetadata())?.status).toBe(
+				"pending",
+			);
+			expect(f.cloudSend).not.toHaveBeenCalled();
+		} finally {
+			save.mockRestore();
+		}
+	});
+
+	async function runHandoffWithFailingFollowUp(
+		sendError: Error,
+		dispatched = false,
+	): Promise<{
 		cloudSend: ReturnType<typeof vi.fn>;
 		result: { sessionId: string; warning?: string; warningKind?: string };
 		completeEvent: Record<string, unknown> | undefined;
 	}> {
 		const { ctx, sourceSessionId, modelId, headSha, events, cloudSend } =
 			createHandoffFixture();
-		cloudSend.mockRejectedValueOnce(sendError);
+		cloudSend.mockImplementationOnce(async (...args) => {
+			if (dispatched) args[5]?.beforeDispatch?.();
+			throw sendError;
+		});
 
 		const result = (await handleChatSessionCommand(ctx, {
 			action: "handoff",
@@ -1459,9 +1731,12 @@ describe("cloud handoff transaction", () => {
 		return { cloudSend, result, completeEvent };
 	}
 
-	it("flags an unconfirmed follow-up queue outcome without claiming it was unqueued", async () => {
+	it.each([
+		new CloudQueueUnconfirmedError(),
+		new Error("cancelled after dispatch"),
+	])("retains an uncertain initial follow-up without offering resend (%s)", async (error) => {
 		const { cloudSend, result, completeEvent } =
-			await runHandoffWithFailingFollowUp(new CloudQueueUnconfirmedError());
+			await runHandoffWithFailingFollowUp(error, true);
 
 		expect(cloudSend).toHaveBeenCalledOnce();
 		expect(result.sessionId).toBe("ses-cloud");
@@ -1482,7 +1757,11 @@ describe("cloud handoff transaction", () => {
 		});
 		// ...but never prefill an unconfirmed command for resending.
 		expect(completeEvent).not.toHaveProperty("undeliveredCommand");
-		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
+		expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
+			command: "continue in cloud",
+			userImages: ["data:image/png;base64,aW1hZ2U="],
+			unconfirmed: true,
+		});
 	});
 
 	it("flags a definitively unqueued follow-up with its failure reason", async () => {
@@ -1492,6 +1771,7 @@ describe("cloud handoff transaction", () => {
 
 		expect(result.warningKind).toBe("unqueued");
 		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual({
+			draftId: expect.any(String),
 			sourceSessionId: "local-handoff-source",
 			command: "continue in cloud",
 			userImages: ["data:image/png;base64,aW1hZ2U="],

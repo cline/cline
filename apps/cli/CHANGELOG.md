@@ -1,5 +1,13 @@
 # Cline CLI Changelog
 
+## 3.0.67
+
+- When an MCP tool returns more output than fits in context, the agent can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost
+- Custom providers defined in `providers.json`/`models.json` now work when you run a task. They showed up in the provider and model pickers but failed with `Unknown or disabled provider`
+- If saving provider credentials fails during onboarding or in the provider settings dialog, the error now shows in place instead of failing silently
+- On Linux, the auto-approve indicator in the status bar uses a glyph that common monospace fonts include, instead of rendering as a blank box or nothing
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol. Default models change for 302.AI (Claude Sonnet 5.5), NanoGPT (Ling 3.1 Flash), Vivgrid (GPT-6.1 Sol), and Vultr (MiMo V2.6 Flash RL). Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected
+
 ## 3.0.66
 
 - The CLI binaries are now built with Bun 1.4.2. macOS 27 no longer kills them at launch, and the x64 builds run on CPUs without AVX2

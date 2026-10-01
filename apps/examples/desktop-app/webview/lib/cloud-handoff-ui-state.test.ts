@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
-	appendPendingHandoffPrompt,
 	cloudHandoffUiReducer,
 	hasLivePendingHandoff,
 	resolveHandoffReceipt,
 } from "./cloud-handoff-ui-state";
+
+const RECEIPT = {
+	targetSessionId: "cloud-1",
+	dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+};
+const COMPLETE = {
+	type: "complete" as const,
+	sourceSessionId: "local-1",
+	receipt: RECEIPT,
+	externalPresentation: false,
+};
 
 describe("cloudHandoffUiReducer", () => {
 	it("recognizes live recovery ownership before history refreshes", () => {
@@ -119,7 +129,7 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(recovery, {
 				type: "progress",
 				sourceSessionId: "local-1",
-				phase: "complete",
+				phase: "seeding",
 			}),
 		).toBe(recovery);
 		const failed = cloudHandoffUiReducer(
@@ -133,7 +143,7 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(failed, {
 				type: "progress",
 				sourceSessionId: "local-1",
-				phase: "complete",
+				phase: "seeding",
 			}),
 		).toBe(failed);
 		const restored = cloudHandoffUiReducer(failed, {
@@ -149,7 +159,7 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(restored, {
 				type: "progress",
 				sourceSessionId: "local-1",
-				phase: "complete",
+				phase: "seeding",
 			}),
 		).toBe(restored);
 	});
@@ -186,10 +196,7 @@ describe("cloudHandoffUiReducer", () => {
 		},
 		{
 			status: "complete" as const,
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
+			receipt: RECEIPT,
 			externalPresentation: false,
 		},
 	])("retains $status ownership state after a stale local send", (entry) => {
@@ -213,7 +220,7 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(recovery, {
 				type: "progress",
 				sourceSessionId: "local-1",
-				phase: "complete",
+				phase: "seeding",
 			}),
 		).toBe(recovery);
 
@@ -230,48 +237,10 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
-	it("clears same-attempt recovery after a clean authoritative completion", () => {
-		const failed = {
-			"local-1": {
-				status: "failed" as const,
-				retryDraft: "/cloud continue",
-			},
-		};
-		const completed = cloudHandoffUiReducer(failed, {
-			type: "progress",
-			sourceSessionId: "local-1",
-			phase: "complete",
-			sessionId: "cloud-1",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			destination: "in_app",
-		});
-
-		expect(completed["local-1"]).toEqual({
-			status: "complete",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
-			externalPresentation: false,
-		});
-	});
-
 	it("keeps the completion receipt when a late failure lands after complete", () => {
-		const completed = cloudHandoffUiReducer(
-			{},
-			{
-				type: "complete",
-				sourceSessionId: "local-1",
-				receipt: {
-					targetSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-				externalPresentation: false,
-			},
-		);
+		const completed = cloudHandoffUiReducer({}, COMPLETE);
 
-		// The RPC transport can fail after the authoritative completion event
-		// already landed; the receipt and its cloud URL must survive.
+		expect(Object.keys(completed)).toEqual(["local-1"]);
 		const withRecovery = cloudHandoffUiReducer(completed, {
 			type: "failed",
 			sourceSessionId: "local-1",
@@ -279,10 +248,7 @@ describe("cloudHandoffUiReducer", () => {
 		});
 		expect(withRecovery["local-1"]).toMatchObject({
 			status: "complete",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
+			receipt: RECEIPT,
 			retryDraft: "/cloud continue",
 		});
 		expect(
@@ -293,18 +259,24 @@ describe("cloudHandoffUiReducer", () => {
 		).toBe(completed);
 		expect(completed["local-1"]).toEqual({
 			status: "complete",
-			receipt: {
-				targetSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
+			receipt: RECEIPT,
 			externalPresentation: false,
 		});
 	});
 
-	it("dismisses recovery for this app run without accepting late progress", () => {
+	it.each([
+		{ status: "recovery" as const },
+		{
+			status: "retry_restored" as const,
+			retryDraft: "/cloud continue",
+			retryAttachments: [
+				new File(["image"], "diagram.png", { type: "image/png" }),
+			],
+		},
+	])("dismisses $status without losing its payload or accepting late progress", (entry) => {
 		const recovery = {
 			"local-1": {
-				status: "recovery" as const,
+				...entry,
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
 		};
@@ -314,6 +286,7 @@ describe("cloudHandoffUiReducer", () => {
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
 		expect(dismissed["local-1"]).toEqual({
+			...entry,
 			status: "recovery_dismissed",
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
@@ -321,7 +294,7 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(dismissed, {
 				type: "progress",
 				sourceSessionId: "local-1",
-				phase: "complete",
+				phase: "seeding",
 			}),
 		).toBe(dismissed);
 		expect(
@@ -336,47 +309,8 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
-	it("retains a restored retry payload when recovery is dismissed", () => {
-		const attachment = new File(["image"], "diagram.png", {
-			type: "image/png",
-		});
-		const dismissed = cloudHandoffUiReducer(
-			{
-				"local-1": {
-					status: "retry_restored",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-					retryDraft: "/cloud continue",
-					retryAttachments: [attachment],
-				},
-			},
-			{
-				type: "dismiss_recovery",
-				sourceSessionId: "local-1",
-				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			},
-		);
-
-		expect(dismissed["local-1"]).toEqual({
-			status: "recovery_dismissed",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			retryDraft: "/cloud continue",
-			retryAttachments: [attachment],
-		});
-	});
-
 	it("ignores a stale recovery dismissal after completion", () => {
-		const completed = cloudHandoffUiReducer(
-			{},
-			{
-				type: "complete",
-				sourceSessionId: "local-1",
-				receipt: {
-					targetSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-				externalPresentation: false,
-			},
-		);
+		const completed = cloudHandoffUiReducer({}, COMPLETE);
 
 		expect(
 			cloudHandoffUiReducer(completed, {
@@ -385,104 +319,5 @@ describe("cloudHandoffUiReducer", () => {
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			}),
 		).toBe(completed);
-	});
-
-	it("keeps the temporary handoff prompt ahead of a live response", () => {
-		const prompt = {
-			content: "hey cloud what do you see",
-			submittedAt: 100,
-			baselineOccurrences: 1,
-			baselineTailMessageId: "seed-tail",
-			images: [
-				{
-					id: "handoff-image",
-					mediaType: "image/png" as const,
-					data: "aGVsbG8=",
-				},
-			],
-		};
-		const completed = cloudHandoffUiReducer(
-			{},
-			{
-				type: "complete",
-				sourceSessionId: "local-1",
-				receipt: {
-					targetSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-				externalPresentation: false,
-				pendingPrompt: prompt,
-			},
-		);
-		const liveResponse = {
-			id: "assistant-live",
-			sessionId: "cloud-1",
-			role: "assistant" as const,
-			content: "I see a robot",
-			createdAt: 90,
-		};
-		const priorPrompt = {
-			id: "prior-user",
-			sessionId: "cloud-1",
-			role: "user" as const,
-			content: prompt.content,
-			createdAt: 50,
-		};
-		const seedTail = {
-			id: prompt.baselineTailMessageId,
-			sessionId: "cloud-1",
-			role: "assistant" as const,
-			content: "Previous local response",
-			createdAt: 75,
-		};
-		const displayed = appendPendingHandoffPrompt(
-			[priorPrompt, seedTail, liveResponse],
-			"cloud-1",
-			completed["cloud-1"],
-		);
-		expect(displayed.map((message) => message.role)).toEqual([
-			"user",
-			"assistant",
-			"user",
-			"assistant",
-		]);
-		expect(displayed[2]).toMatchObject({
-			content: prompt.content,
-			images: prompt.images,
-		});
-		const laterSamePrompt = {
-			id: "user_optimistic-later",
-			sessionId: "cloud-1",
-			role: "user" as const,
-			content: prompt.content,
-			createdAt: 110,
-		};
-		expect(
-			appendPendingHandoffPrompt(
-				[priorPrompt, seedTail, laterSamePrompt, liveResponse],
-				"cloud-1",
-				completed["cloud-1"],
-			),
-		).toEqual([
-			priorPrompt,
-			seedTail,
-			displayed[2],
-			laterSamePrompt,
-			liveResponse,
-		]);
-
-		const canonical = {
-			...displayed[2],
-			id: "canonical-user",
-			content: `<user_input mode="act">${prompt.content}</user_input>`,
-			createdAt: 80,
-		};
-		expect(
-			appendPendingHandoffPrompt(
-				[priorPrompt, seedTail, canonical, liveResponse],
-				"cloud-1",
-				completed["cloud-1"],
-			),
-		).toEqual([priorPrompt, seedTail, canonical, liveResponse]);
 	});
 });

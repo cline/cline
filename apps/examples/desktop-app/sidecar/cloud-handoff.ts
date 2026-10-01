@@ -19,7 +19,11 @@ import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
-import { saveCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
+import {
+	readCloudHandoffFollowUp,
+	saveCloudHandoffFollowUp,
+	sendWithCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
 import {
 	applyHandoffGit,
 	type HandoffGitPlan,
@@ -877,6 +881,13 @@ async function handleHandoffOnce(
 	const handedOffAt =
 		readCloudHandoffMetadata(latestMetadata)?.handedOffAt ??
 		new Date().toISOString();
+	if (nextCommand) {
+		saveCloudHandoffFollowUp(outerSessionId, {
+			sourceSessionId,
+			command: nextCommand,
+			userImages: request.attachments?.userImages ?? [],
+		});
+	}
 	await updateHandoffMetadataOrThrow(
 		manager,
 		sourceSessionId,
@@ -895,32 +906,32 @@ async function handleHandoffOnce(
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	if (nextCommand) {
 		try {
-			await cloud.send(
+			await sendWithCloudHandoffFollowUp(
 				outerSessionId,
 				nextCommand,
-				"queue",
-				prepared.modelId,
-				request.attachments?.userImages,
+				request.attachments?.userImages ?? [],
+				(lifecycle) =>
+					cloud.send(
+						outerSessionId,
+						nextCommand,
+						"queue",
+						prepared.modelId,
+						request.attachments?.userImages,
+						lifecycle,
+					),
 			);
 		} catch (error) {
 			// An unconfirmed outcome must never read as "not queued": inviting
 			// a resubmission of a durably queued prompt executes it twice.
-			if (error instanceof CloudQueueUnconfirmedError) {
+			if (
+				error instanceof CloudQueueUnconfirmedError ||
+				readCloudHandoffFollowUp(outerSessionId)?.unconfirmed
+			) {
 				warningKind = "unconfirmed";
 				warning = `The handoff completed, but Cline could not confirm whether the follow-up command was queued. Check the cloud session before resending it.`;
 			} else {
 				warningKind = "unqueued";
 				warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
-				try {
-					saveCloudHandoffFollowUp(outerSessionId, {
-						sourceSessionId,
-						command: nextCommand,
-						userImages: request.attachments?.userImages ?? [],
-					});
-				} catch {
-					warning +=
-						" The unsent follow-up could not be saved for restart recovery. Keep this window open until you recover it.";
-				}
 			}
 		}
 	}
@@ -980,26 +991,37 @@ function handoffLockContext(ctx: SidecarContext): SidecarContext {
 	return getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local");
 }
 
-export function beginActiveSessionSend(
+function trackSessionRequest(
+	registry: WeakMap<SidecarContext, Map<string, number>>,
 	ctx: SidecarContext,
 	sessionId: string,
 ): () => void {
-	const lockContext = handoffLockContext(ctx);
-	let requests = activeSendRequests.get(lockContext);
+	let requests = registry.get(ctx);
 	if (!requests) {
 		requests = new Map();
-		activeSendRequests.set(lockContext, requests);
+		registry.set(ctx, requests);
 	}
 	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
 	let finished = false;
 	return () => {
 		if (finished) return;
 		finished = true;
-		const remaining = (requests?.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests?.set(sessionId, remaining);
-		else requests?.delete(sessionId);
-		if (requests?.size === 0) activeSendRequests.delete(lockContext);
+		const remaining = (requests.get(sessionId) ?? 1) - 1;
+		if (remaining > 0) requests.set(sessionId, remaining);
+		else requests.delete(sessionId);
+		if (requests.size === 0) registry.delete(ctx);
 	};
+}
+
+export function beginActiveSessionSend(
+	ctx: SidecarContext,
+	sessionId: string,
+): () => void {
+	return trackSessionRequest(
+		activeSendRequests,
+		handoffLockContext(ctx),
+		sessionId,
+	);
 }
 
 function beginActiveSessionDelete(
@@ -1010,21 +1032,7 @@ function beginActiveSessionDelete(
 	if (isCloudHandoffInProgress(lockContext, sessionId)) {
 		throw new Error("Wait for the cloud handoff to finish before deleting.");
 	}
-	let requests = activeDeleteRequests.get(lockContext);
-	if (!requests) {
-		requests = new Map();
-		activeDeleteRequests.set(lockContext, requests);
-	}
-	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
-	let finished = false;
-	return () => {
-		if (finished) return;
-		finished = true;
-		const remaining = (requests?.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests?.set(sessionId, remaining);
-		else requests?.delete(sessionId);
-		if (requests?.size === 0) activeDeleteRequests.delete(lockContext);
-	};
+	return trackSessionRequest(activeDeleteRequests, lockContext, sessionId);
 }
 
 export function beginSessionMetadataUpdate(
@@ -1037,21 +1045,11 @@ export function beginSessionMetadataUpdate(
 			"Wait for the cloud handoff to finish before updating session metadata.",
 		);
 	}
-	let requests = activeMetadataUpdateRequests.get(lockContext);
-	if (!requests) {
-		requests = new Map();
-		activeMetadataUpdateRequests.set(lockContext, requests);
-	}
-	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
-	let finished = false;
-	return () => {
-		if (finished) return;
-		finished = true;
-		const remaining = (requests?.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests?.set(sessionId, remaining);
-		else requests?.delete(sessionId);
-		if (requests?.size === 0) activeMetadataUpdateRequests.delete(lockContext);
-	};
+	return trackSessionRequest(
+		activeMetadataUpdateRequests,
+		lockContext,
+		sessionId,
+	);
 }
 
 /**
@@ -1067,9 +1065,13 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 	try {
 		const manager = getSessionRuntimeBinding(ctx).sessionManager;
 		const persisted = await manager.get(sessionId);
-		const handoff = readCloudHandoffMetadata(
-			persisted?.metadata ?? readSessionMetadata(sessionId),
-		);
+		const metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
+		const handoff = readCloudHandoffMetadata(metadata);
+		if (!handoff && metadata?.cloudHandoffIntent) {
+			throw new Error(
+				"Cloud handoff creation is still unconfirmed. Retry /cloud to recover it before deleting this session.",
+			);
+		}
 		if (handoff?.status === "pending") {
 			throw new Error(
 				`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
@@ -1129,6 +1131,28 @@ export async function handleHandoff(
 	});
 	requests.set(sourceSessionId, { identity, promise: running });
 	return await running;
+}
+
+export async function isCloudHandoffFollowUpBlocked(
+	ctx: SidecarContext,
+	sourceSessionId: string,
+): Promise<boolean> {
+	const local = getEnvironmentContext(ctx, "local");
+	if (isCloudHandoffInProgress(local, sourceSessionId)) return true;
+	let metadata: JsonRecord | undefined;
+	try {
+		metadata = (
+			await getSessionRuntimeBinding(local).sessionManager.get(sourceSessionId)
+		)?.metadata;
+	} catch (error) {
+		metadata = readSessionMetadata(sourceSessionId);
+		if (!readCloudHandoffMetadata(metadata)) throw error;
+	}
+	// A failed completion write leaves the initial follow-up owned by /cloud.
+	return (
+		readCloudHandoffMetadata(metadata ?? readSessionMetadata(sourceSessionId))
+			?.status === "pending" || isCloudHandoffInProgress(local, sourceSessionId)
+	);
 }
 
 export function isCloudHandoffInProgress(

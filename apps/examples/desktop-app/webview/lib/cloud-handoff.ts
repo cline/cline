@@ -164,19 +164,3 @@ export function buildHandoffWarningToast(fields: {
 		...(unconfirmed ? { variant: "destructive" as const } : {}),
 	};
 }
-
-/**
- * Both the completion event and the RPC result can report the same warning;
- * whichever lands first claims the toast and the other stays silent. Returns
- * true when this caller should surface the warning for the source session.
- */
-export function claimHandoffWarningSurface(
-	surfaced: Set<string>,
-	sourceSessionId: string,
-): boolean {
-	if (surfaced.has(sourceSessionId)) {
-		return false;
-	}
-	surfaced.add(sourceSessionId);
-	return true;
-}
