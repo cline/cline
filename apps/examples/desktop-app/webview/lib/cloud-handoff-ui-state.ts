@@ -103,6 +103,7 @@ export function cloudHandoffUiReducer(
 			const carriedDashboardUrl =
 				current?.status === "recovery" ||
 				current?.status === "recovery_dismissed" ||
+				current?.status === "retry_restored" ||
 				current?.status === "progress"
 					? current.dashboardUrl
 					: undefined;

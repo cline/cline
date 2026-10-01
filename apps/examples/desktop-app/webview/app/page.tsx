@@ -69,6 +69,7 @@ import type {
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
+import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import {
 	resolveLiveHistorySession,
@@ -349,6 +350,8 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 
 export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
+	// Outlive keyed chat panes without re-rendering the app on every keystroke.
+	const { current: promptDrafts } = useRef(new Map<string, string>());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -415,6 +418,12 @@ export default function Home() {
 	>(null);
 	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
+	useEffect(() => {
+		const threadIds = new Set(threads.map((thread) => thread.id));
+		for (const threadId of promptDrafts.keys()) {
+			if (!threadIds.has(threadId)) promptDrafts.delete(threadId);
+		}
+	}, [promptDrafts, threads]);
 	const { activeThreadId, settingsSection, view } = navigation.current;
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
@@ -832,12 +841,13 @@ export default function Home() {
 	activeLocationRef.current = appState.navigation.current;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
-			handleNewThread();
+			selectEnvironmentDraft(activeEnvironmentId);
+			requestPromptInputFocus();
 			return;
 		}
 		navigateWith({ view: "chat" });
 		requestPromptInputFocus();
-	}, [activeThread, handleNewThread, navigateWith]);
+	}, [activeThread, activeEnvironmentId, selectEnvironmentDraft, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
 			navigateWith({ view: nextView });
@@ -994,6 +1004,12 @@ export default function Home() {
 			}
 		},
 		[handleOpenSession],
+	);
+	const openSessionFromNavigation = useCallback(
+		async (sessionId: string) => {
+			await handleOpenSessionById(sessionId);
+		},
+		[handleOpenSessionById],
 	);
 	// Keep recovery state across pane changes while using the latest open-session binding.
 	const openHandoffSessionRef = useRef(handleOpenSessionById);
@@ -1210,6 +1226,7 @@ export default function Home() {
 											}
 											handoffLifecycle={handoffLifecycle}
 											confirmHandoffGit={confirmHandoffGit}
+											promptDrafts={promptDrafts}
 											knownWorkspacePaths={historyWorkspacePaths}
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
@@ -1254,7 +1271,7 @@ export default function Home() {
 										<SettingsView
 											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
+											onOpenSession={openSessionFromNavigation}
 											section={settingsSection}
 										/>
 									</div>
@@ -1308,7 +1325,7 @@ export default function Home() {
 			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
-				onOpenSession={handleOpenSessionById}
+				onOpenSession={openSessionFromNavigation}
 				open={commandBarOpen && !showOnboarding}
 			/>
 			{remoteDirectoryPicker ? (
@@ -1334,6 +1351,7 @@ let workspacesLoadedOnce = false;
 function ChatThreadPane({
 	confirmHandoffGit,
 	threadId,
+	promptDrafts,
 	environmentId,
 	environmentProfiles,
 	environmentProfilesLoading,
@@ -1364,6 +1382,7 @@ function ChatThreadPane({
 	onHandoffUiAction,
 }: {
 	threadId: string;
+	promptDrafts: Map<string, string>;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
@@ -1458,18 +1477,13 @@ function ChatThreadPane({
 			onThreadStarted?.(threadId, sessionId);
 		}
 	}, [onThreadStarted, sessionId, threadId]);
-	// The live composer text lives inside ChatInputBar so typing does not
-	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
-	// pushes external updates (quick actions, undo, resets) via promptDraft.
-	const promptInputRef = useRef("");
-	const [promptDraft, setPromptDraft] = useState({ version: 0, value: "" });
-	const setPromptInput = useCallback((value: string) => {
-		promptInputRef.current = value;
-		setPromptDraft((prev) => ({ version: prev.version + 1, value }));
-	}, []);
-	const handlePromptInputChange = useCallback((value: string) => {
-		promptInputRef.current = value;
-	}, []);
+	const {
+		clearPromptForSend,
+		promptDraft,
+		promptInputRef,
+		setPromptInput,
+		handlePromptInputChange,
+	} = usePromptDraft(promptDrafts, threadId);
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
@@ -1516,7 +1530,9 @@ function ChatThreadPane({
 	const dismissedHandoffRecoveryUrl =
 		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
 	const handoffRecoveryUrl =
-		(handoffUi?.status === "recovery" ? handoffUi.dashboardUrl : null) ??
+		(handoffUi?.status === "recovery" || handoffUi?.status === "retry_restored"
+			? handoffUi.dashboardUrl
+			: null) ??
 		(pendingHandoffRecovery?.dashboardUrl !== dismissedHandoffRecoveryUrl
 			? pendingHandoffRecovery?.dashboardUrl
 			: null) ??
@@ -1730,6 +1746,7 @@ function ChatThreadPane({
 			uncertainFollowUp,
 			updatingFollowUp,
 			isThreadActive,
+			promptInputRef,
 			refreshFollowUp,
 			setPendingAttachments,
 			setPromptInput,
@@ -2217,18 +2234,10 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPromptInput("");
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [
-		historySession,
-		manualTitle,
-		reset,
-		threadId,
-		setPromptInput,
-		setPendingAttachments,
-	]);
+	}, [historySession, manualTitle, reset, threadId, setPendingAttachments]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -2261,9 +2270,11 @@ function ChatThreadPane({
 		}
 		hydratedSessionRef.current = historySession.sessionId;
 		if (!hasInitialComposerState) {
+			// Opening the current live session's sidebar row now reuses this pane.
+			// Don't reset its stream/attachments just to hydrate the same session.
+			if (historySession.sessionId === sessionId) return;
 			restoredFollowUpIdRef.current = undefined;
 			lastRestoredFollowUpIdRef.current = undefined;
-			setPromptInput("");
 			setPendingAttachments([]);
 		}
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
@@ -2275,6 +2286,8 @@ function ChatThreadPane({
 		initialPromptDraft,
 		initialHandoffFollowUpId,
 		onInitialPromptDraftConsumed,
+		promptInputRef,
+		sessionId,
 		setPendingAttachments,
 		setPromptInput,
 		threadId,
@@ -2613,7 +2626,7 @@ function ChatThreadPane({
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			setPromptInput("");
+			const restorePrompt = clearPromptForSend();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			const restoredFollowUpId = restoredFollowUpIdRef.current;
@@ -2628,20 +2641,20 @@ function ChatThreadPane({
 			}
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
-			// without retyping. Leave anything they typed meanwhile alone.
+			// without retyping, but only if this pane still owns the unchanged draft.
 			if (
 				!promptTaken &&
 				(!isCloudSession ||
 					canRestoreRejectedCloudPrompt(restoredFollowUpId, savedFollowUp)) &&
-				promptInputRef.current.trim() === ""
+				restorePrompt(trimmed)
 			) {
 				if (savedFollowUp?.draftId === restoredFollowUpId)
 					restoredFollowUpIdRef.current = restoredFollowUpId;
-				setPromptInput(trimmed);
 				handleAttachFiles(toSend);
 			}
 		},
 		[
+			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
@@ -3519,7 +3532,13 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
+					onOpenSession={
+						onOpenSessionById
+							? async (sessionId) => {
+									await onOpenSessionById(sessionId);
+								}
+							: undefined
+					}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}

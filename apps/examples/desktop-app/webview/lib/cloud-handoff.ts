@@ -3,6 +3,10 @@ import type {
 	CloudHandoffProgressPhase,
 	CloudHandoffResult,
 } from "@cline/core";
+import {
+	cloudImageAttachmentError,
+	isSupportedImageAttachment,
+} from "@/lib/image-attachments";
 import type { SessionMetadata } from "@/lib/session-history";
 
 export type ParsedHandoffCommand = {
@@ -55,14 +59,14 @@ export function validateHandoffAttachments(
 	files: readonly File[],
 	nextCommand: string,
 ): string | null {
-	const nonImage = files.find((file) => !file.type.startsWith("image/"));
+	const nonImage = files.find((file) => !isSupportedImageAttachment(file));
 	if (nonImage) {
 		return `Cloud handoff only supports image attachments. Remove ${nonImage.name} and try again.`;
 	}
 	if (files.length > 0 && !nextCommand.trim()) {
 		return "Add a command after /cloud to send the attached images in cloud.";
 	}
-	return null;
+	return cloudImageAttachmentError([...files]) ?? null;
 }
 
 function stringField(value: unknown): string {

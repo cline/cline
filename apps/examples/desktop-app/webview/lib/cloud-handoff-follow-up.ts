@@ -70,6 +70,9 @@ export async function openWithCloudHandoffFollowUp(options: {
 	delivered: (sourceSessionId: string) => void;
 }): Promise<boolean> {
 	let saved: CloudHandoffFollowUp | null = null;
+	const explicitRetry =
+		options.initialPromptDraft !== undefined ||
+		options.initialAttachments !== undefined;
 	let attachments = options.initialAttachments;
 	let restoreFailed = false;
 	try {
@@ -77,22 +80,26 @@ export async function openWithCloudHandoffFollowUp(options: {
 			"get_cloud_handoff_follow_up",
 			{ sessionId: options.targetSessionId },
 		);
-		attachments ??= saved?.unconfirmed
-			? undefined
-			: saved
-				? cloudHandoffFollowUpAttachments(saved)
-				: undefined;
+		if (!explicitRetry && saved && !saved.unconfirmed)
+			attachments = cloudHandoffFollowUpAttachments(saved);
 	} catch {
 		saved = null;
 		restoreFailed = true;
 	}
 	if (!options.canOpen()) return false;
 	if (saved?.unconfirmed) {
-		options.open(undefined, undefined);
+		// A stale copy of the uncertain send stays behind explicit Restore; a newer edit is the user's own draft.
+		const newerDraft =
+			options.initialPromptDraft?.trim() &&
+			options.initialPromptDraft.trim() !== saved.command.trim();
+		options.open(
+			newerDraft ? options.initialPromptDraft : undefined,
+			newerDraft ? options.initialAttachments : undefined,
+		);
 		return true;
 	}
 	options.open(
-		options.initialPromptDraft ?? saved?.command,
+		explicitRetry ? options.initialPromptDraft : saved?.command,
 		attachments,
 		saved?.draftId,
 	);

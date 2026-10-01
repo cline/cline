@@ -138,6 +138,41 @@ it("does not offer an unconfirmed send for resubmission, even with stale initial
 	expect(toast).not.toHaveBeenCalled();
 });
 
+it("opens an explicit text-only retry without the older saved images", async () => {
+	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
+	const open = vi.fn();
+	await openWithCloudHandoffFollowUp({
+		targetSessionId: "cloud-target",
+		initialPromptDraft: "new text-only retry",
+		canOpen: () => true,
+		open,
+		delivered: vi.fn(),
+	});
+	expect(open).toHaveBeenCalledExactlyOnceWith(
+		"new text-only retry",
+		undefined,
+		saved.draftId,
+	);
+});
+
+it("keeps a newer edited retry when an older send is unconfirmed", async () => {
+	vi.mocked(desktopClient.invoke).mockResolvedValue({
+		...saved,
+		unconfirmed: true,
+	});
+	const open = vi.fn();
+	const image = new File(["newer"], "newer.png", { type: "image/png" });
+	await openWithCloudHandoffFollowUp({
+		targetSessionId: "cloud-target",
+		initialPromptDraft: "newer edit",
+		initialAttachments: [image],
+		canOpen: () => true,
+		open,
+		delivered: vi.fn(),
+	});
+	expect(open).toHaveBeenCalledExactlyOnceWith("newer edit", [image]);
+});
+
 it("decodes an explicitly restored uncertain image without mutating the saved copy", async () => {
 	const uncertain = { ...saved, unconfirmed: true };
 	const images = cloudHandoffFollowUpAttachments(uncertain);
