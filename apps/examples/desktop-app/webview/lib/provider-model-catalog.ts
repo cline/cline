@@ -416,5 +416,7 @@ export async function loadProviderModels(
 			...(options?.includeCloudModels ? { includeCloudModels: true } : {}),
 		},
 	);
-	return filterChatModels(payload.models);
+	return options?.includeCloudModels
+		? payload.models
+		: filterChatModels(payload.models);
 }

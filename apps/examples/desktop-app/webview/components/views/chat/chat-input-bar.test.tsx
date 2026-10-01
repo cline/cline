@@ -17,6 +17,7 @@ import {
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
 
 const {
@@ -631,6 +632,21 @@ describe("ChatInputBar", () => {
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
+		]);
+	});
+
+	it("shows the reserved cloud command only while Cloud sessions are available", () => {
+		const commands = [
+			{ name: "fork", description: "Fork" },
+			{ name: "cloud", description: "User workflow" },
+		];
+		expect(withCloudHandoffSlashCommand(commands, false)).toEqual(commands);
+		expect(withCloudHandoffSlashCommand(commands, true)).toEqual([
+			{
+				name: "cloud",
+				description: "Continue this local session in Cline Cloud",
+			},
+			{ name: "fork", description: "Fork" },
 		]);
 	});
 
@@ -2748,6 +2764,47 @@ describe("ChatInputBar", () => {
 					[]),
 			].find((option) => option.textContent?.includes("Stale Legacy"));
 			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
+		});
+
+		it.each([
+			"empty",
+			"failed",
+		])("does not replace the active cloud model with bundled choices when its catalog is %s", async (result) => {
+			if (result === "failed")
+				loadProviderModelCatalogMock.mockRejectedValue(new Error("offline"));
+			else
+				loadProviderModelCatalogMock.mockResolvedValue({
+					providers: [],
+					enabledProviderIds: [],
+					providerNames: {},
+					providerModels: {},
+					providerModelDetails: {},
+					providerReasoningModels: {},
+				});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "selected-model",
+				provider: "cline",
+				onModelChange,
+			});
+			if (result === "failed") {
+				expect(container.textContent).toContain(
+					"Could not load cloud models. Retry",
+				);
+			} else {
+				const trigger = container.querySelector<HTMLButtonElement>(
+					'[aria-label="Model: selected-model"]',
+				);
+				expect(trigger).not.toBeNull();
+				await act(async () => trigger?.click());
+				const options = [...document.querySelectorAll('[role="option"]')];
+				expect(options).toHaveLength(1);
+				expect(options[0]?.textContent).toContain("selected-model");
+			}
+			expect(loadProviderModelsMock).not.toHaveBeenCalled();
+			expect(onModelChange).not.toHaveBeenCalled();
 		});
 
 		it("keeps an active model that is absent from the gated catalog", async () => {
