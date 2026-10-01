@@ -722,6 +722,15 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								teammateSpecs.delete(event.agentId);
 							}
 							teamStore.handleTeamEvent(teamStoreKey, event);
+							// Text/reasoning deltas are logged above but do not change the team snapshot.
+							if (
+								event.type === "agent_event" &&
+								event.event.type === "content_start" &&
+								(event.event.contentType === "text" ||
+									event.event.contentType === "reasoning")
+							) {
+								return;
+							}
 							teamStore.persistRuntime(
 								teamStoreKey,
 								teamRuntime.exportState(),

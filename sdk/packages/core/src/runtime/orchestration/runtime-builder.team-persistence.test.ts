@@ -116,8 +116,77 @@ vi.mock("../../services/storage/team-store", () => ({
 }));
 
 describe("DefaultRuntimeBuilder team persistence boundary", () => {
+	it("keeps streaming events without snapshotting unchanged team state", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		const onTeamEvent = vi.fn();
+		await new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+			},
+			onTeamEvent,
+		});
+		if (!runtimeInstance || !teamStoreInstance) {
+			throw new Error("Expected mocked runtime and team store instances");
+		}
+		const runtime = runtimeInstance;
+		const store = teamStoreInstance;
+		store.persistRuntime.mockClear();
+		runtime.exportState.mockClear();
+		for (const contentType of ["text", "reasoning"]) {
+			const event = {
+				type: "agent_event",
+				agentId: "restored-1",
+				event: { type: "content_start", contentType, [contentType]: "delta" },
+			};
+			runtime.emit(event);
+			expect(onTeamEvent).toHaveBeenLastCalledWith(event);
+			expect(store.handleTeamEvent).toHaveBeenLastCalledWith(
+				expect.any(String),
+				event,
+			);
+		}
+		expect(runtime.exportState).not.toHaveBeenCalled();
+		expect(store.persistRuntime).not.toHaveBeenCalled();
+
+		for (const event of [
+			{
+				type: "agent_event",
+				event: { type: "content_start", contentType: "tool" },
+			},
+			{
+				type: "agent_event",
+				event: { type: "content_end", contentType: "text" },
+			},
+			{ type: "agent_event", event: { type: "usage" } },
+			{ type: "team_message" },
+			{ type: "team_task_updated" },
+			{ type: "run_queued" },
+			{ type: "run_started" },
+			{ type: "run_progress" },
+			{ type: "run_completed" },
+			{ type: "run_failed" },
+			{ type: "run_cancelled" },
+		]) {
+			store.persistRuntime.mockClear();
+			runtime.emit(event);
+			expect(store.persistRuntime).toHaveBeenCalledExactlyOnceWith(
+				expect.any(String),
+				runtime.exportState(),
+				expect.any(Array),
+			);
+		}
+	});
+
 	it("persists teammate specs and runtime state from team events", async () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		bootstrapAgentTeamsMock.mockClear();
 		const onTeamRestored = vi.fn();
 
 		await new DefaultRuntimeBuilder().build({

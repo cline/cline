@@ -484,6 +484,10 @@ Design implication:
 	turn's abort signal through their `SessionRuntime`. The team runtime marks
 	intentional abort task-end events as cancelled so persistence does not record
 	them as failures.
+- Team text/reasoning deltas remain in the event log and live event stream, but
+  do not trigger a full team-state snapshot. Other events retain synchronous
+  snapshots, including run transitions, progress, tool activity, and results,
+  so queued/running work and completed results remain available for recovery.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks
