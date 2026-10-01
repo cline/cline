@@ -38,6 +38,16 @@ vi.mock("../../services/storage/provider-settings-manager", () => ({
 	},
 }));
 
+const meta = vi.hoisted(() => ({
+	session: undefined as
+		| { sessionId: string; tools: Array<Record<string, unknown>> }
+		| undefined,
+}));
+vi.mock("./composio-meta-tools", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./composio-meta-tools")>()),
+	createComposioMetaToolSession: async () => meta.session,
+}));
+
 import {
 	createComposioToolsExtension,
 	resolveComposioToolsStatePath,
@@ -84,6 +94,7 @@ beforeEach(() => {
 	auth.token = "cline_token_123";
 	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
+	meta.session = undefined;
 });
 
 afterEach(() => {
@@ -352,5 +363,70 @@ describe("createComposioToolsExtension", () => {
 		};
 		expect(result.successful).toBe(false);
 		expect(result.error).toContain("network down");
+	});
+
+	it("registers meta tools even when no toolkit is connected", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [
+				{
+					slug: "COMPOSIO_MANAGE_CONNECTIONS",
+					description: "Get a Connect Link.",
+					input_parameters: { type: "object", properties: {} },
+				},
+				{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
+			],
+		};
+		const tools = await setupTools();
+		expect(tools.map((tool) => tool.name)).toEqual([
+			"composio_manage_connections",
+			"composio_wait_for_connections",
+		]);
+		expect(tools[0]?.retryable).toBe(false);
+	});
+
+	it("executes meta tools with the session id through the proxy", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
+		};
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({ data: { redirect_url: "https://connect" } }),
+				),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const [tool] = await setupTools();
+		const result = await tool?.execute({ toolkits: ["gmail"] });
+
+		expect(result).toEqual({ data: { redirect_url: "https://connect" } });
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe(
+			"https://api.cline.bot/api/v1/connectors/meta-tools/COMPOSIO_MANAGE_CONNECTIONS/execute",
+		);
+		expect((init.headers as Record<string, string>).authorization).toBe(
+			"Bearer cline_token_123",
+		);
+		expect(JSON.parse(init.body as string)).toEqual({
+			sessionId: "trs_1",
+			arguments: { toolkits: ["gmail"] },
+		});
+	});
+
+	it("refuses meta tool execution after switching accounts", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
+		};
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const [tool] = await setupTools();
+		auth.accountId = "account-b";
+		expect(await tool?.execute({})).toMatchObject({ successful: false });
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 });
