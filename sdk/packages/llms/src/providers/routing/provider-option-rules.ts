@@ -1,8 +1,9 @@
-import { isClineProvider } from "@cline/shared";
+import { isClineProvider, type ReasoningEffort } from "@cline/shared";
 import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import {
 	getModelReasoningControls,
 	isAnthropicCompatibleModel,
+	isClaudeModelId,
 	isDeepSeekFamily,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
@@ -11,7 +12,10 @@ import {
 	providerReasoningRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
-import { buildGatewayReasoningOptions } from "./anthropic-compatible";
+import {
+	buildGatewayReasoningOptions,
+	resolveAnthropicReasoningRequestPolicy,
+} from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {
 	buildNativeGlmThinkingProviderOptionsPatch,
@@ -26,6 +30,7 @@ import type {
 	ProviderOptionSuppression,
 } from "./provider-options-types";
 import { buildOpenRouterReasoningOptions } from "./reasoning-codecs";
+import { normalizeReasoningRequest } from "./reasoning-options";
 import {
 	buildProviderAndAliasPatch,
 	buildThinkingPatch,
@@ -50,6 +55,22 @@ function isDeepSeekModelOrProviderDefault(
 
 function isMiniMaxM3(input: ProviderOptionMatchInput): boolean {
 	return isMiniMaxM3Model(input.request, input.context);
+}
+
+function requestsAdvertisedEffort(
+	input: ProviderOptionMatchInput,
+	efforts: readonly ReasoningEffort[],
+): boolean {
+	const reasoning = input.requestedReasoning;
+	return (
+		reasoning?.enabled !== false &&
+		reasoning?.budgetTokens === undefined &&
+		reasoning?.effort !== undefined &&
+		efforts.includes(reasoning.effort) &&
+		getModelReasoningControls(
+			input.context.model.reasoningOptions,
+		)?.efforts.includes(reasoning.effort) === true
+	);
 }
 
 function usesGlmThinkingProviderRouting(
@@ -209,6 +230,101 @@ const openAiCodexRule: ProviderOptionRule = {
 			}),
 		};
 	},
+};
+
+const openAiCompatibleReasoningRule: ProviderOptionRule = {
+	id: "provider.openai-compatible.reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Explicit reasoning controls for custom Chat Completions and Responses endpoints.",
+	applies: (input) =>
+		input.request.providerId === "openai-compatible" &&
+		(input.target === "openai" || input.target === "openai-compatible") &&
+		input.requestedReasoning !== undefined &&
+		input.requestedReasoning.budgetTokens === undefined,
+	build: (input) => {
+		// An unlisted model's explicit effort is the user's server contract. Do
+		// not silently reduce minimal/xhigh/max to a different effort there.
+		const reasoning =
+			input.context.model.reasoningOptions === undefined
+				? input.requestedReasoning
+				: normalizeReasoningRequest(
+						{ ...input.request, reasoning: input.requestedReasoning },
+						input.context,
+					).reasoning;
+		const effort =
+			reasoning?.enabled === false
+				? "none"
+				: (reasoning?.effort ??
+					(reasoning?.enabled === true &&
+					input.context.model.reasoningOptions === undefined
+						? "medium"
+						: undefined));
+		if (!effort) return undefined;
+		return input.target === "openai"
+			? {
+					openai: {
+						reasoningEffort: effort,
+						forceReasoning: true,
+						reasoningSummary: null,
+					},
+				}
+			: buildProviderAndAliasPatch({
+					providerId: input.request.providerId,
+					providerOptionsKey: input.providerOptionsKey,
+					bucketOptions: { reasoningEffort: effort },
+				});
+	},
+};
+
+const openAiMaxReasoningRule: ProviderOptionRule = {
+	id: "adapter.openai.max-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Preserve an advertised max effort beyond the portable AI SDK effort range.",
+	applies: (input) =>
+		input.target === "openai" && requestsAdvertisedEffort(input, ["max"]),
+	build: () => ({ openai: { reasoningEffort: "max" } }),
+};
+
+const anthropicMaxReasoningRule: ProviderOptionRule = {
+	id: "adapter.anthropic.max-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Preserve advertised max effort where the Anthropic adapter maps portable xhigh to xhigh.",
+	applies: (input) =>
+		(input.target === "anthropic" ||
+			(input.target === "vertex" && isClaudeModelId(input.context.model.id))) &&
+		requestsAdvertisedEffort(input, ["max"]) &&
+		resolveAnthropicReasoningRequestPolicy(input.request, input.context)
+			.kind === "anthropic-adaptive",
+	// Setting effort bypasses the AI SDK's portable thinking mapping, so keep
+	// its adaptive thinking shape alongside the exact advertised effort.
+	build: () => ({
+		anthropic: {
+			effort: "max",
+			thinking: { type: "adaptive", display: "summarized" },
+		},
+	}),
+};
+
+const bedrockExtendedReasoningRule: ProviderOptionRule = {
+	id: "adapter.bedrock.extended-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Preserve advertised xhigh and max instead of Bedrock's portable xhigh-to-max mapping.",
+	applies: (input) =>
+		input.target === "bedrock" &&
+		requestsAdvertisedEffort(input, ["xhigh", "max"]),
+	// AI SDK still supplies the model's thinking type and gives this explicit
+	// effort precedence when merging its portable reasoning configuration.
+	build: (input) => ({
+		bedrock: {
+			reasoningConfig: {
+				maxReasoningEffort: input.requestedReasoning?.effort,
+			},
+		},
+	}),
 };
 
 const genericProviderFanoutRule: ProviderOptionRule = {
@@ -544,6 +660,10 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	directGoogleProviderRule,
 	openAiAdapterRule,
 	openAiCodexRule,
+	openAiCompatibleReasoningRule,
+	openAiMaxReasoningRule,
+	anthropicMaxReasoningRule,
+	bedrockExtendedReasoningRule,
 	genericProviderFanoutRule,
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,

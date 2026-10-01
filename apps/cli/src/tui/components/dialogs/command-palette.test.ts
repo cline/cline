@@ -17,6 +17,7 @@ describe("command palette", () => {
 		const labels = items.map((item) => item.label);
 
 		expect(labels).toContain("Change Provider");
+		expect(labels).toContain("Change Reasoning Effort");
 		expect(labels).toContain("Manage MCP Servers");
 		expect(labels).toContain("Manage Plugins");
 		expect(labels).toContain("Compact Context");

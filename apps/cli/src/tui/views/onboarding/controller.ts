@@ -25,6 +25,12 @@ import {
 import open from "../../../utils/open";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
+import { resolveCliReasoning } from "../../../utils/reasoning";
+import {
+	applyReasoningChoice,
+	getCurrentReasoningChoice,
+	type ReasoningChoiceOption,
+} from "../../../utils/reasoning-options";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	loadCurrentUserPlanFromProviderSettings,
@@ -63,8 +69,8 @@ import {
 	CLINE_PASS_SUBSCRIPTION_OPTIONS,
 	type ClinePassSubscriptionStatus,
 	canContinueLocalCliSetup,
-	DEFAULT_THINKING_LEVEL_INDEX,
 	getMainMenuOptions,
+	getOnboardingReasoningChoices,
 	type ModelEntry,
 	type OnboardingResult,
 	type OnboardingStep,
@@ -229,9 +235,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		[recommended.data, activeProviderId],
 	);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
-	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
-		Set<string>
-	>(new Set());
+	const [clineReasoningModels, setClineReasoningModels] = useState<
+		Map<string, ModelEntry>
+	>(new Map());
 
 	useEffect(() => {
 		// The featured picker serves both cline and cline-pass, so pool
@@ -242,24 +248,29 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				getLocalProviderModels(providerId),
 			),
 		).then((results) => {
-			const ids = new Set<string>();
+			const models = new Map<string, ModelEntry>();
 			for (const result of results) {
 				if (result.status !== "fulfilled") continue;
 				for (const m of result.value.models.filter(isChatProviderModel)) {
-					if (m.supportsReasoning) ids.add(m.id);
+					models.set(m.id, toModelEntry(m));
 				}
 			}
-			setClineModelReasoningIds(ids);
+			setClineReasoningModels(models);
 		});
 	}, []);
 
 	// Thinking level
-	const [thinkingSelected, setThinkingSelected] = useState(
-		DEFAULT_THINKING_LEVEL_INDEX,
+	const [thinkingSelected, setThinkingSelected] = useState(0);
+	const [thinkingLevels, setThinkingLevels] = useState<ReasoningChoiceOption[]>(
+		[],
 	);
 	const [selectedModelName, setSelectedModelName] = useState("");
 	const [selectedModelId, setSelectedModelId] = useState("");
-	const [selectedThinking, setSelectedThinking] = useState(false);
+	const [selectedThinking, setSelectedThinking] = useState<boolean | undefined>(
+		undefined,
+	);
+	const [selectedReasoningDefault, setSelectedReasoningDefault] =
+		useState(false);
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<
 		ReasoningEffort | undefined
 	>(undefined);
@@ -372,6 +383,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setClineModelSelected(0);
 				setStep("cline_model");
 			} else if (providerId === "openai-compatible") {
+				loadModelsForProvider(providerId);
 				const existing =
 					providerSettingsManager.getProviderSettings(providerId);
 				setCustomModelId(existing?.model ?? provider?.defaultModelId ?? "");
@@ -681,7 +693,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	]);
 
 	const completeModelSelection = useCallback(
-		(modelId: string) => {
+		(modelId: string, modelName?: string) => {
 			const existing =
 				providerSettingsManager.getProviderSettings(activeProviderId);
 			providerSettingsManager.saveProviderSettings(
@@ -689,16 +701,45 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				{ setLastUsed: true },
 			);
 			setSelectedModelId(modelId);
-			const entry = modelEntries.find((m) => m.id === modelId);
-			if (entry?.supportsReasoning) {
-				setSelectedModelName(entry.name);
-				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
+			const entry =
+				modelEntries.find((m) => m.id === modelId) ??
+				clineReasoningModels.get(modelId);
+			const levels = getOnboardingReasoningChoices(activeProviderId, entry);
+			const current = getCurrentReasoningChoice(
+				resolveCliReasoning({
+					thinking: false,
+					persistedReasoning: existing?.reasoning,
+				}),
+			);
+			setSelectedThinking(undefined);
+			setSelectedReasoningEffort(undefined);
+			setSelectedReasoningDefault(false);
+			if (levels.length > 1) {
+				setSelectedModelName(modelName ?? entry?.name ?? modelId);
+				setThinkingLevels(levels);
+				setThinkingSelected(
+					Math.max(
+						levels.findIndex((level) => level.value === current),
+						0,
+					),
+				);
 				setStep("thinking_level");
 			} else {
+				providerSettingsManager.saveProviderSettings({
+					...(existing ?? { provider: activeProviderId }),
+					model: modelId,
+					reasoning: undefined,
+				});
+				setSelectedReasoningDefault(true);
 				setStep("done");
 			}
 		},
-		[activeProviderId, modelEntries, providerSettingsManager],
+		[
+			activeProviderId,
+			modelEntries,
+			clineReasoningModels,
+			providerSettingsManager,
+		],
 	);
 
 	const selectModelItem = useCallback(
@@ -730,46 +771,30 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const saveClineModelSelection = useCallback(
 		(modelId: string, modelName: string) => {
-			const existing =
-				providerSettingsManager.getProviderSettings(activeProviderId);
-			providerSettingsManager.saveProviderSettings(
-				{
-					...(existing ?? { provider: activeProviderId }),
-					model: modelId,
-				},
-				{ setLastUsed: true },
-			);
-			setSelectedModelId(modelId);
-			if (clineModelReasoningIds.has(modelId)) {
-				setSelectedModelName(modelName);
-				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
-				setStep("thinking_level");
-			} else {
-				setStep("done");
-			}
+			completeModelSelection(modelId, modelName);
 		},
-		[activeProviderId, clineModelReasoningIds, providerSettingsManager],
+		[completeModelSelection],
 	);
 
 	const saveThinkingLevel = useCallback(
 		(level: ThinkingLevel) => {
 			const existing =
 				providerSettingsManager.getProviderSettings(activeProviderId);
-			if (level === "none") {
-				providerSettingsManager.saveProviderSettings({
-					...(existing ?? { provider: activeProviderId }),
-					reasoning: { enabled: false },
-				});
-				setSelectedThinking(false);
-				setSelectedReasoningEffort(undefined);
-			} else {
-				providerSettingsManager.saveProviderSettings({
-					...(existing ?? { provider: activeProviderId }),
-					reasoning: { enabled: true, effort: level },
-				});
-				setSelectedThinking(true);
-				setSelectedReasoningEffort(level);
-			}
+			const selection: {
+				thinking?: boolean;
+				reasoningEffort?: ReasoningEffort;
+				reasoningDefault?: boolean;
+			} = {};
+			applyReasoningChoice(selection, level);
+			providerSettingsManager.saveProviderSettings({
+				...(existing ?? { provider: activeProviderId }),
+				reasoning: selection.reasoningDefault
+					? undefined
+					: { enabled: selection.thinking, effort: selection.reasoningEffort },
+			});
+			setSelectedThinking(selection.thinking);
+			setSelectedReasoningEffort(selection.reasoningEffort);
+			setSelectedReasoningDefault(selection.reasoningDefault === true);
 			setStep("done");
 		},
 		[activeProviderId, providerSettingsManager],
@@ -786,6 +811,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				apiKey: getPersistedProviderApiKey(activeProviderId, providerSettings),
 				thinking: selectedThinking,
 				reasoningEffort: selectedReasoningEffort,
+				reasoningDefault: selectedReasoningDefault,
 			});
 		}, 500);
 		return () => clearTimeout(timer);
@@ -796,6 +822,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		selectedModelId,
 		selectedThinking,
 		selectedReasoningEffort,
+		selectedReasoningDefault,
 		providerSettingsManager,
 	]);
 
@@ -814,6 +841,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		clinePassSubscriptionOptions: CLINE_PASS_SUBSCRIPTION_OPTIONS,
 		clinePassSubscriptionSelected,
 		thinkingSelected,
+		thinkingLevels,
 		setStep,
 		setMenuSelected,
 		resetByoFields: () => {
@@ -910,5 +938,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		selectedModelName,
 		step,
 		thinkingSelected,
+		thinkingLevels,
 	};
 }

@@ -1,6 +1,7 @@
 import type { ProviderConfigFieldKey } from "@cline/core";
 import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
+import type { ReasoningChoiceOption } from "../../../utils/reasoning-options";
 import type { ClineModelPickerEntry } from "../../components/model-selector/cline-model-picker";
 import type { SearchableListState } from "../../components/searchable-list";
 import {
@@ -8,13 +9,12 @@ import {
 	type OnboardingOAuthProviderId,
 } from "./auth";
 import { FIELD_ORDER } from "./fields";
-import {
-	type ClinePassSubscriptionOption,
-	type ClinePassSubscriptionStatus,
-	type MenuOption,
-	type OnboardingStep,
-	THINKING_LEVELS,
-	type ThinkingLevel,
+import type {
+	ClinePassSubscriptionOption,
+	ClinePassSubscriptionStatus,
+	MenuOption,
+	OnboardingStep,
+	ThinkingLevel,
 } from "./model";
 
 export function useOnboardingKeyboard(input: {
@@ -32,6 +32,7 @@ export function useOnboardingKeyboard(input: {
 	clinePassSubscriptionOptions: ClinePassSubscriptionOption[];
 	clinePassSubscriptionSelected: number;
 	thinkingSelected: number;
+	thinkingLevels: ReasoningChoiceOption[];
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
 	resetByoFields: () => void;
@@ -297,18 +298,18 @@ export function useOnboardingKeyboard(input: {
 		if (input.step === "thinking_level") {
 			if (key.name === "up" || (key.ctrl && key.name === "p")) {
 				input.setThinkingSelected((s) =>
-					s <= 0 ? THINKING_LEVELS.length - 1 : s - 1,
+					s <= 0 ? input.thinkingLevels.length - 1 : s - 1,
 				);
 				return;
 			}
 			if (key.name === "down" || (key.ctrl && key.name === "n")) {
 				input.setThinkingSelected((s) =>
-					s >= THINKING_LEVELS.length - 1 ? 0 : s + 1,
+					s >= input.thinkingLevels.length - 1 ? 0 : s + 1,
 				);
 				return;
 			}
 			if (key.name === "return") {
-				const level = THINKING_LEVELS[input.thinkingSelected];
+				const level = input.thinkingLevels[input.thinkingSelected];
 				if (level) input.saveThinkingLevel(level.value);
 			}
 		}

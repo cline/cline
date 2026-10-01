@@ -90,6 +90,30 @@ default for existing configurations.
 
 OAuth-supported providers (`cline`, `openai-codex`, `oca`) do not auto-launch a browser on normal startup. Authenticate explicitly first with `cline auth <provider>`. For non-interactive runs, if an OAuth provider is selected and no saved credentials are available, `cline` fails fast with an authentication message instead of launching a hidden browser flow.
 
+## Reasoning effort
+
+In interactive chat, use `/reasoning` or **Opt+E** to choose reasoning effort for
+the current model. The command palette also includes **Change Reasoning Effort**.
+The same choice appears after selecting a model, including during provider setup.
+Known models show their advertised controls. Custom OpenAI-compatible servers
+can use manual choices: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or
+`max`; choose a level your server supports.
+
+**Provider default** clears the saved override; **Off** disables reasoning when
+the model supports it. Interactive choices are saved with the provider's selected
+model and apply to subsequent requests, preserving the conversation.
+
+For a single run, pass an effort flag:
+
+```sh
+cline --reasoning-effort high "Review this change carefully"
+cline -i --thinking low
+```
+
+`--thinking` remains an alias. Omitting both flags uses saved reasoning settings,
+then the provider default. OpenAI-compatible Chat Completions sends
+`reasoning_effort`; Responses sends `reasoning.effort`.
+
 ## Modes
 
 Cline CLI runs in a few different shapes depending on what you need:

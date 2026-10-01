@@ -10,6 +10,96 @@ import { createHandlerAsync } from "../providers";
 // Exercise handler routing, option composition, and the AI SDK serializers.
 // Mock only the HTTP boundary so the actual URL and wire format are checked.
 describe("OpenAI-compatible API selection", () => {
+	it.each([
+		"minimal",
+		"low",
+		"medium",
+		"high",
+		"xhigh",
+		"max",
+	] as const)("sends exact %s effort for custom models on both APIs", async (effort) => {
+		for (const responses of [false, true]) {
+			const fetchMock = responses ? responsesFetch() : chatFetch();
+			const chunks = await run(
+				config({
+					fetch: fetchMock,
+					thinking: true,
+					reasoningEffort: effort,
+					...(responses ? { routingProviderId: "openai-native" } : {}),
+				}),
+			);
+			const body = requestBody(fetchMock);
+			if (responses) {
+				expect(body.reasoning).toEqual({ effort });
+				expect(body).not.toHaveProperty("reasoning_effort");
+			} else {
+				expect(body.reasoning_effort).toBe(effort);
+			}
+			expect(chunks).toContainEqual(
+				expect.objectContaining({ type: "done", success: true }),
+			);
+		}
+	});
+
+	it("distinguishes explicit off from provider default for custom models on both APIs", async () => {
+		for (const responses of [false, true]) {
+			for (const thinking of [undefined, false]) {
+				const fetchMock = responses ? responsesFetch() : chatFetch();
+				await run(
+					config({
+						fetch: fetchMock,
+						thinking,
+						...(responses ? { routingProviderId: "openai-native" } : {}),
+					}),
+				);
+				const body = requestBody(fetchMock);
+				if (thinking === undefined) {
+					expect(body).not.toHaveProperty("reasoning");
+					expect(body).not.toHaveProperty("reasoning_effort");
+				} else if (responses) {
+					expect(body.reasoning).toEqual({ effort: "none" });
+				} else {
+					expect(body.reasoning_effort).toBe("none");
+				}
+			}
+		}
+	});
+
+	it("respects advertised effort values and explicit no-control metadata", async () => {
+		for (const responses of [false, true]) {
+			for (const reasoningOptions of [
+				[
+					{
+						type: "effort" as const,
+						values: ["low" as const, "high" as const],
+					},
+				],
+				[],
+			]) {
+				const fetchMock = responses ? responsesFetch() : chatFetch();
+				await run(
+					config({
+						fetch: fetchMock,
+						thinking: true,
+						reasoningEffort: "medium",
+						knownModels: {
+							"custom-model": { id: "custom-model", reasoningOptions },
+						},
+						...(responses ? { routingProviderId: "openai-native" } : {}),
+					}),
+				);
+				const body = requestBody(fetchMock);
+				if (reasoningOptions.length === 0) {
+					expect(body).not.toHaveProperty("reasoning");
+					expect(body).not.toHaveProperty("reasoning_effort");
+				} else if (responses) {
+					expect(body.reasoning).toEqual({ effort: "high" });
+				} else {
+					expect(body.reasoning_effort).toBe("high");
+				}
+			}
+		}
+	});
 	it("uses Chat Completions for existing configurations", async () => {
 		const fetchMock = chatFetch();
 		const chunks = await run(config({ fetch: fetchMock }));

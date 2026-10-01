@@ -9,6 +9,7 @@ import {
 	canContinueLocalCliSetup,
 	getMainMenuOptions,
 	getOAuthProviderLabel,
+	getOnboardingReasoningChoices,
 	resolveProviderSetupRoute,
 	shouldUseFeaturedClineModelPicker,
 	toModelEntriesFromKnownModels,
@@ -17,6 +18,25 @@ import {
 } from "./model";
 
 describe("onboarding model helpers", () => {
+	it("retains model reasoning metadata through onboarding and filters effort choices", () => {
+		const entries = toModelEntriesFromKnownModels({
+			custom: {
+				reasoningOptions: [
+					{ type: "effort", values: ["none", "low", "high", "xhigh"] },
+				],
+			},
+		});
+		expect(
+			getOnboardingReasoningChoices("openai-compatible", entries[0]).map(
+				(choice) => choice.value,
+			),
+		).toEqual(["default", "none", "low", "high", "xhigh"]);
+		expect(
+			getOnboardingReasoningChoices("openai-compatible").map(
+				(choice) => choice.value,
+			),
+		).toContain("max");
+	});
 	it("hides ClinePass from the main menu unless its feature flag is enabled", () => {
 		expect(
 			getMainMenuOptions().some((option) => option.value === "cline-pass"),

@@ -80,6 +80,7 @@ export function composeAiSdkProviderOptions(
 	const providerOptionsKey = toProviderOptionsKey(normalizedRequest.providerId);
 	const matchInput: ProviderOptionMatchInput = {
 		request: normalizedRequest,
+		requestedReasoning: request.reasoning,
 		context,
 		providerOptionsKey,
 		target,

@@ -1,14 +1,12 @@
 import type { ProviderSettings } from "@cline/core";
+import { REASONING_LEVELS } from "@cline/shared";
 import type { CliReasoningEffort } from "./types";
 
 type ActiveCliReasoningEffort = Exclude<CliReasoningEffort, "none">;
 
-const ACTIVE_REASONING_EFFORTS = new Set<ActiveCliReasoningEffort>([
-	"low",
-	"medium",
-	"high",
-	"xhigh",
-]);
+const ACTIVE_REASONING_EFFORTS = new Set<ActiveCliReasoningEffort>(
+	REASONING_LEVELS.filter((level) => level !== "none"),
+);
 
 export interface ResolveCliReasoningInput {
 	thinking: boolean;
@@ -58,7 +56,7 @@ export function resolveCliReasoning({
 	}
 
 	if (persistedReasoning?.enabled === true) {
-		return { thinking: true, reasoningEffort: "medium" };
+		return { thinking: true, reasoningEffort: undefined };
 	}
 
 	return { thinking: undefined, reasoningEffort: undefined };

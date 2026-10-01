@@ -100,6 +100,7 @@ describe("slash command registry", () => {
 				"mcp",
 				"account",
 				"model",
+				"reasoning",
 				"skills",
 				"quit",
 			]),

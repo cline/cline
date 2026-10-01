@@ -1,4 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ProviderSettingsManager } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveCliReasoning } from "../utils/reasoning";
+import { applyReasoningChoice } from "../utils/reasoning-options";
 import type { Config } from "../utils/types";
 import {
 	applyInteractiveModelChange,
@@ -23,6 +29,14 @@ describe("assertHistorySessionIsDeletable", () => {
 });
 
 describe("resolveReasoningForModelChange", () => {
+	it("clears saved reasoning on an explicit provider-default reset", () => {
+		expect(
+			resolveReasoningForModelChange(
+				{ reasoningDefault: true },
+				{ reasoning: { enabled: true, effort: "high", budgetTokens: 4096 } },
+			),
+		).toBeUndefined();
+	});
 	it("persists disabled reasoning only when thinking is explicitly false", () => {
 		expect(
 			resolveReasoningForModelChange(
@@ -61,6 +75,66 @@ describe("resolveReasoningForModelChange", () => {
 });
 
 describe("applyInteractiveModelChange", () => {
+	it.each([
+		"openai-chat",
+		"openai-responses",
+	] as const)("persists effort changes and default resets for %s across reloads", async (protocol) => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-reasoning-"));
+		try {
+			const filePath = join(dir, "providers.json");
+			const manager = new ProviderSettingsManager({ filePath });
+			manager.saveProviderSettings({
+				provider: "openai-compatible",
+				model: "custom-model",
+				protocol,
+				baseUrl: "https://proxy.example/v1",
+				reasoning: { enabled: true, effort: "high", budgetTokens: 4096 },
+			});
+			const config = {
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				apiKey: "",
+			} as Config;
+			const restartWithCurrentMessages = vi.fn(async () => {});
+			const sessionRuntime = {
+				ensureReady: vi.fn(async () => {}),
+				restartWithCurrentMessages,
+				updateCurrentSessionConnection: vi.fn(async () => {}),
+			};
+			for (const choice of ["max", "none", "default"] as const) {
+				applyReasoningChoice(config, choice);
+				await applyInteractiveModelChange({
+					config,
+					providerSettingsManager: manager,
+					sessionRuntime,
+				});
+				const reloaded = new ProviderSettingsManager({ filePath });
+				const saved = reloaded.getProviderSettings("openai-compatible");
+				expect(saved).toMatchObject({
+					model: "custom-model",
+					protocol,
+					baseUrl: "https://proxy.example/v1",
+				});
+				const reasoning = resolveCliReasoning({
+					thinking: false,
+					persistedReasoning: saved?.reasoning,
+				});
+				expect(reasoning).toEqual(
+					choice === "max"
+						? { thinking: true, reasoningEffort: "max" }
+						: {
+								thinking: choice === "none" ? false : undefined,
+								reasoningEffort: undefined,
+							},
+				);
+				expect(saved?.reasoning?.budgetTokens).toBeUndefined();
+				if (choice === "default") expect(saved?.reasoning).toBeUndefined();
+			}
+			expect(restartWithCurrentMessages).toHaveBeenCalledTimes(3);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
 	it("restarts with the current transcript so a provider switch reloads its complete configuration", async () => {
 		const config = {
 			providerId: "openai-compatible",

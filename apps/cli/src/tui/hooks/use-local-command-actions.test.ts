@@ -14,6 +14,7 @@ function makeActions(
 		openConfig: vi.fn(),
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
+		openReasoningSelector: vi.fn(async () => {}),
 		openSkills: vi.fn(),
 		openThemePicker: vi.fn(),
 		runCompact: vi.fn(),
@@ -28,6 +29,15 @@ function makeActions(
 }
 
 describe("runLocalSlashCommandAction", () => {
+	it("opens the reasoning dialog and waits for the change to be applied", async () => {
+		const openReasoningSelector = vi.fn(async () => {});
+		const result = runLocalSlashCommandAction({
+			name: "reasoning",
+			...makeActions({ openReasoningSelector }),
+		});
+		expect(await result).toBe(true);
+		expect(openReasoningSelector).toHaveBeenCalledOnce();
+	});
 	it("opens the skills picker with skills", () => {
 		const openSkills = vi.fn();
 		const actions = makeActions({ openSkills });

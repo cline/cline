@@ -27,7 +27,6 @@ import {
 	type ClinePassSubscriptionStatus,
 	canContinueLocalCliSetup,
 	type MenuOption,
-	THINKING_LEVELS,
 } from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
@@ -844,6 +843,7 @@ export function OnboardingThinkingLevelScreen(props: {
 	mouse: MouseTrackerState;
 	selectedModelName: string;
 	thinkingSelected: number;
+	thinkingLevels: import("../../../utils/reasoning-options").ReasoningChoiceOption[];
 }) {
 	const defaultFg = useDefaultFg();
 	const colors = useOnboardingColors();
@@ -854,14 +854,14 @@ export function OnboardingThinkingLevelScreen(props: {
 			mouse={props.mouse}
 		>
 			<text fg={defaultFg} paddingX={1}>
-				Thinking level for {props.selectedModelName}
+				Reasoning effort for {props.selectedModelName}
 			</text>
 			<text fg="gray" paddingX={1}>
-				Extended thinking lets the model reason through complex problems
+				Choose how much reasoning the model uses
 			</text>
 
 			<box flexDirection="column">
-				{THINKING_LEVELS.map((level, i) => {
+				{props.thinkingLevels.map((level, i) => {
 					const isSel = i === props.thinkingSelected;
 					return (
 						<box

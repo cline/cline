@@ -68,6 +68,7 @@ import { useMcpManager } from "./hooks/use-mcp-manager";
 import { useModelSelector } from "./hooks/use-model-selector";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
+import { useReasoningSelector } from "./hooks/use-reasoning-selector";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
 import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
@@ -228,6 +229,13 @@ function App(props: TuiProps) {
 	}, [props]);
 
 	const openModelSelector = useModelSelector({
+		dialog,
+		config: props.config,
+		termHeight,
+		onModelChange: handleModelChange,
+		refocusTextarea: () => refocusTextareaRef.current(),
+	});
+	const openReasoningSelector = useReasoningSelector({
 		dialog,
 		config: props.config,
 		termHeight,
@@ -765,6 +773,7 @@ function App(props: TuiProps) {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		openReasoningSelector,
 		openSkills,
 		openThemePicker,
 		refocusTextarea: () => refocusTextareaRef.current(),
@@ -1057,12 +1066,10 @@ function App(props: TuiProps) {
 					props.config.providerId = result.providerId;
 					props.config.modelId = result.modelId;
 					props.config.apiKey = result.apiKey ?? "";
-					if (result.thinking !== undefined) {
-						props.config.thinking = result.thinking;
-					}
-					if (result.reasoningEffort !== undefined) {
-						props.config.reasoningEffort = result.reasoningEffort;
-					}
+					props.config.thinking = result.thinking;
+					props.config.reasoningEffort = result.reasoningEffort;
+					props.config.reasoningDefault = result.reasoningDefault;
+					props.config.thinkingBudgetTokens = undefined;
 
 					handleModelChange().then(() => setAppView("home"));
 				}}

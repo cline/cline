@@ -191,10 +191,37 @@ describe("parseArgs", () => {
 		expect(parsedInvalid.prompt).toBe("Audit");
 	});
 
-	it("accepts legacy --reasoning-effort as --thinking", () => {
+	it("accepts --reasoning-effort as --thinking", () => {
 		const parsed = parseArgs(["--reasoning-effort", "high"]);
 		expect(parsed.thinking).toBe(true);
 		expect(parsed.reasoningEffort).toBe("high");
+	});
+
+	it.each([
+		"minimal",
+		"max",
+	] as const)("accepts %s through either effort flag", (effort) => {
+		for (const flag of ["--thinking", "--reasoning-effort"]) {
+			expect(parseArgs([flag, effort])).toMatchObject({
+				thinking: true,
+				thinkingExplicitlySet: true,
+				reasoningEffort: effort,
+			});
+			expect(parseArgs([`${flag}=${effort}`])).toMatchObject({
+				reasoningEffort: effort,
+			});
+		}
+	});
+
+	it("uses the last effort flag when both spellings are passed", () => {
+		expect(
+			parseArgs(["--thinking", "high", "--reasoning-effort", "minimal"])
+				.reasoningEffort,
+		).toBe("minimal");
+		expect(
+			parseArgs(["--reasoning-effort", "max", "--thinking", "low"])
+				.reasoningEffort,
+		).toBe("low");
 	});
 
 	it("validates legacy --reasoning-effort invalid levels", () => {

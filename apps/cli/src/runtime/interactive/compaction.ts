@@ -17,6 +17,8 @@ function resolveCompactionReasoningSettings(
 	config: Config,
 	stored: ProviderSettings | undefined,
 ): ReasoningSettings | undefined {
+	if (config.reasoningDefault) return undefined;
+	if (config.thinking === false) return { enabled: false };
 	if (config.reasoningEffort) {
 		return { enabled: true, effort: config.reasoningEffort };
 	}

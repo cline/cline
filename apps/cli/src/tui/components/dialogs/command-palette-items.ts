@@ -1,6 +1,7 @@
 export type CommandPaletteAction =
 	| "settings"
 	| "change-model"
+	| "reasoning"
 	| "change-provider"
 	| "theme"
 	| "account"
@@ -57,6 +58,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+P",
 		description: "Switch provider and configure credentials",
 		keywords: ["provider", "api key", "account", "auth"],
+	},
+	{
+		action: "reasoning",
+		label: "Change Reasoning Effort",
+		shortcut: "Opt+E",
+		description: "Choose reasoning effort for the current model",
+		keywords: ["reasoning", "thinking", "effort", "budget"],
 	},
 	{
 		action: "theme",

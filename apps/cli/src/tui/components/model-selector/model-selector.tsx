@@ -3,6 +3,10 @@ import type { Llms } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMemo, useState } from "react";
+import type {
+	ReasoningChoice,
+	ReasoningChoiceOption,
+} from "../../../utils/reasoning-options";
 import { useDialogPalette } from "../../hooks/use-theme";
 import { ProviderRow } from "./provider-row";
 
@@ -11,7 +15,8 @@ export interface ModelOption {
 	name: string;
 	maxInputTokens?: number;
 	family?: string;
-	supportsReasoning: boolean;
+	supportsReasoning?: boolean;
+	reasoningOptions?: Llms.ModelInfo["reasoningOptions"];
 }
 
 const MAX_VISIBLE = 10;
@@ -309,30 +314,20 @@ export function ModelSelectorContent(
 	);
 }
 
-// -- Thinking level dialog content --
+// -- Reasoning effort dialog content --
 
-export type ThinkingLevel = "none" | "low" | "medium" | "high" | "xhigh";
-
-const THINKING_LEVELS: { value: ThinkingLevel; label: string; desc: string }[] =
-	[
-		{ value: "none", label: "Off", desc: "No extended thinking" },
-		{ value: "low", label: "Low", desc: "Minimal reasoning" },
-		{ value: "medium", label: "Medium", desc: "Balanced reasoning" },
-		{ value: "high", label: "High", desc: "Deep reasoning" },
-		{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
-	];
-
-export function ThinkingLevelContent(
-	props: ChoiceContext<ThinkingLevel> & {
+export function ReasoningLevelContent(
+	props: ChoiceContext<ReasoningChoice> & {
 		modelName: string;
-		currentLevel: ThinkingLevel;
+		currentLevel: ReasoningChoice;
+		levels: ReasoningChoiceOption[];
+		manual?: boolean;
 	},
 ) {
-	const { resolve, dismiss, dialogId, modelName, currentLevel } = props;
+	const { resolve, dismiss, dialogId, modelName, currentLevel, levels } = props;
 	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(() => {
-		const initialLevel = currentLevel === "none" ? "medium" : currentLevel;
-		const idx = THINKING_LEVELS.findIndex((l) => l.value === initialLevel);
+		const idx = levels.findIndex((l) => l.value === currentLevel);
 		return idx >= 0 ? idx : 0;
 	});
 
@@ -342,26 +337,36 @@ export function ThinkingLevelContent(
 			return;
 		}
 		if (key.name === "return" || key.name === "enter") {
-			const level = THINKING_LEVELS[selected];
+			const level = levels[selected];
 			if (level) resolve(level.value);
 			return;
 		}
 		if (key.name === "up" || (key.ctrl && key.name === "p")) {
-			setSelected((s) => (s <= 0 ? THINKING_LEVELS.length - 1 : s - 1));
+			setSelected((s) => (s <= 0 ? levels.length - 1 : s - 1));
 			return;
 		}
 		if (key.name === "down" || (key.ctrl && key.name === "n")) {
-			setSelected((s) => (s >= THINKING_LEVELS.length - 1 ? 0 : s + 1));
+			setSelected((s) => (s >= levels.length - 1 ? 0 : s + 1));
 			return;
 		}
 	}, dialogId);
 
 	return (
 		<box flexDirection="column" gap={1}>
-			<text>Thinking Level for {modelName}</text>
+			<text>Reasoning effort for {modelName}</text>
+			{props.manual && (
+				<text fg="gray">
+					Choose a level supported by your server and model.
+				</text>
+			)}
+			{levels.length === 1 && (
+				<text fg="gray">
+					This model does not advertise adjustable reasoning controls.
+				</text>
+			)}
 
 			<box flexDirection="column">
-				{THINKING_LEVELS.map((level, i) => (
+				{levels.map((level, i) => (
 					<box
 						key={level.value}
 						paddingX={1}
@@ -608,7 +613,11 @@ export function buildModelOptions(
 			name: info.name ?? key,
 			maxInputTokens: info.maxInputTokens ?? info.contextWindow,
 			family: info.family,
-			supportsReasoning: info.capabilities?.includes("reasoning") ?? false,
+			supportsReasoning: info.capabilities?.some(
+				(capability) =>
+					capability === "reasoning" || capability === "reasoning-effort",
+			),
+			reasoningOptions: info.reasoningOptions,
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -16,6 +16,7 @@ import {
 	isOAuthProvider,
 	isProviderConfigured,
 } from "../../utils/provider-auth";
+import { resolveCliReasoning } from "../../utils/reasoning";
 import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
@@ -40,10 +41,9 @@ import {
 	ModelIdInputContent,
 	type ModelOption,
 	ModelSelectorContent,
-	type ThinkingLevel,
-	ThinkingLevelContent,
 } from "../components/model-selector/model-selector";
 import { resolveProviderSetupRoute } from "../views/onboarding/model";
+import { chooseModelReasoning } from "./use-reasoning-selector";
 
 export interface OpenModelSelectorOptions {
 	onCancel?: () => Promise<void> | void;
@@ -72,11 +72,6 @@ async function refreshCurrentProviderModels(config: Config): Promise<void> {
 	if (resolved?.knownModels) {
 		config.knownModels = resolved.knownModels;
 	}
-}
-
-function clearReasoningConfig(config: Config): void {
-	config.thinking = false;
-	config.reasoningEffort = undefined;
 }
 
 function usesModelIdInput(providerId: string): boolean {
@@ -307,6 +302,15 @@ async function runProviderChange(
 
 			config.providerId = newProviderId;
 			config.apiKey = newApiKey;
+			Object.assign(
+				config,
+				resolveCliReasoning({
+					thinking: false,
+					persistedReasoning: newSettings?.reasoning,
+				}),
+			);
+			config.reasoningDefault = newSettings?.reasoning === undefined;
+			config.thinkingBudgetTokens = undefined;
 			const resolved = await resolveProviderConfig(
 				newProviderId,
 				{
@@ -367,7 +371,7 @@ export function useModelSelector(opts: {
 					? buildModelOptions(
 							Object.fromEntries(
 								(await fetchOpenAiCompatibleModelIds(config.providerId)).map(
-									(id) => [id, { id, name: id }],
+									(id) => [id, config.knownModels?.[id] ?? { id, name: id }],
 								),
 							),
 						)
@@ -410,11 +414,12 @@ export function useModelSelector(opts: {
 			let pickingModel = true;
 
 			while (pickingModel) {
+				let selectedKey: string | undefined;
 				if (
 					usesModelIdInput(config.providerId) &&
 					endpointModelOptions.length === 0
 				) {
-					const modelId = await dialog.choice<string>({
+					selectedKey = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
 						content: (ctx: ChoiceContext<string>) => (
 							<ModelIdInputContent
@@ -424,21 +429,7 @@ export function useModelSelector(opts: {
 							/>
 						),
 					});
-					if (!modelId) {
-						await handleCancel();
-						return;
-					}
-					if (modelId === CHANGE_PROVIDER_ACTION) {
-						await changeProvider();
-						continue;
-					}
-					config.modelId = modelId;
-					clearReasoningConfig(config);
-					pickingModel = false;
-					continue;
-				}
-
-				if (
+				} else if (
 					config.providerId === "cline" ||
 					config.providerId === "cline-pass"
 				) {
@@ -465,12 +456,8 @@ export function useModelSelector(opts: {
 						await handleCancel();
 						return;
 					}
-					if (clineResult === CHANGE_PROVIDER_ACTION) {
-						await changeProvider();
-						continue;
-					}
 					if (clineResult === BROWSE_ALL_ACTION) {
-						const browseResult = await dialog.choice<string>({
+						selectedKey = await dialog.choice<string>({
 							style: { maxHeight: termHeight - 2 },
 							content: (ctx: ChoiceContext<string>) => (
 								<ModelSelectorContent
@@ -482,97 +469,24 @@ export function useModelSelector(opts: {
 								/>
 							),
 						});
-						if (!browseResult) continue;
-						if (browseResult === CHANGE_PROVIDER_ACTION) {
-							await changeProvider();
-							continue;
-						}
-						config.modelId = browseResult;
-						const browseModel = modelOptions.find(
-							(m: ModelOption) => m.key === browseResult,
-						);
-						if (browseModel?.supportsReasoning) {
-							const lvl: ThinkingLevel = config.reasoningEffort
-								? (config.reasoningEffort as ThinkingLevel)
-								: config.thinking
-									? "medium"
-									: "none";
-							const pick = await dialog.choice<ThinkingLevel>({
-								style: { maxHeight: termHeight - 2 },
-								content: (ctx: ChoiceContext<ThinkingLevel>) => (
-									<ThinkingLevelContent
-										{...ctx}
-										modelName={browseModel.name}
-										currentLevel={lvl}
-									/>
-								),
-							});
-							if (pick !== undefined) {
-								if (pick === "none") {
-									config.thinking = false;
-									config.reasoningEffort = undefined;
-								} else {
-									config.thinking = true;
-									config.reasoningEffort = pick;
-								}
-							}
-						}
-						if (!browseModel?.supportsReasoning) {
-							clearReasoningConfig(config);
-						}
-						pickingModel = false;
-						continue;
+						if (!selectedKey) continue;
+					} else {
+						selectedKey = clineResult;
 					}
-
-					config.modelId = clineResult;
-					const selectedModel = modelOptions.find(
-						(m: ModelOption) => m.key === clineResult,
-					);
-					if (selectedModel?.supportsReasoning) {
-						const currentLevel: ThinkingLevel = config.reasoningEffort
-							? (config.reasoningEffort as ThinkingLevel)
-							: config.thinking
-								? "medium"
-								: "none";
-						const thinkingLevel = await dialog.choice<ThinkingLevel>({
-							style: { maxHeight: termHeight - 2 },
-							content: (ctx: ChoiceContext<ThinkingLevel>) => (
-								<ThinkingLevelContent
-									{...ctx}
-									modelName={selectedModel.name}
-									currentLevel={currentLevel}
-								/>
-							),
-						});
-						if (thinkingLevel !== undefined) {
-							if (thinkingLevel === "none") {
-								config.thinking = false;
-								config.reasoningEffort = undefined;
-							} else {
-								config.thinking = true;
-								config.reasoningEffort = thinkingLevel;
-							}
-						}
-					}
-					if (!selectedModel?.supportsReasoning) {
-						clearReasoningConfig(config);
-					}
-					pickingModel = false;
-					continue;
+				} else {
+					selectedKey = await dialog.choice<string>({
+						style: { maxHeight: termHeight - 2 },
+						content: (ctx: ChoiceContext<string>) => (
+							<ModelSelectorContent
+								{...ctx}
+								currentModel={config.modelId}
+								currentProviderName={providerDisplayName}
+								models={modelOptions}
+								showCustomModelId={config.providerId !== "cline-pass"}
+							/>
+						),
+					});
 				}
-
-				const selectedKey = await dialog.choice<string>({
-					style: { maxHeight: termHeight - 2 },
-					content: (ctx: ChoiceContext<string>) => (
-						<ModelSelectorContent
-							{...ctx}
-							currentModel={config.modelId}
-							currentProviderName={providerDisplayName}
-							models={modelOptions}
-							showCustomModelId={config.providerId !== "cline-pass"}
-						/>
-					),
-				});
 				if (!selectedKey) {
 					await handleCancel();
 					return;
@@ -583,44 +497,22 @@ export function useModelSelector(opts: {
 					continue;
 				}
 
+				const previousModelId = config.modelId;
 				config.modelId = selectedKey;
-
 				const selectedModel = modelOptions.find(
 					(m: ModelOption) => m.key === selectedKey,
 				);
-				if (!selectedModel?.supportsReasoning) {
-					clearReasoningConfig(config);
-					pickingModel = false;
-					break;
-				}
-
-				const currentLevel: ThinkingLevel = config.reasoningEffort
-					? (config.reasoningEffort as ThinkingLevel)
-					: config.thinking
-						? "medium"
-						: "none";
-
-				const thinkingLevel = await dialog.choice<ThinkingLevel>({
-					style: { maxHeight: termHeight - 2 },
-					content: (ctx: ChoiceContext<ThinkingLevel>) => (
-						<ThinkingLevelContent
-							{...ctx}
-							modelName={selectedModel.name}
-							currentLevel={currentLevel}
-						/>
-					),
+				const completed = await chooseModelReasoning({
+					dialog,
+					config,
+					termHeight,
+					model: selectedModel,
+					modelName: selectedModel?.name ?? selectedKey,
+					allowUnknown: !selectedModel || usesModelIdInput(config.providerId),
 				});
-
-				if (thinkingLevel === undefined) {
+				if (!completed) {
+					config.modelId = previousModelId;
 					continue;
-				}
-
-				if (thinkingLevel === "none") {
-					config.thinking = false;
-					config.reasoningEffort = undefined;
-				} else {
-					config.thinking = true;
-					config.reasoningEffort = thinkingLevel;
 				}
 				pickingModel = false;
 			}

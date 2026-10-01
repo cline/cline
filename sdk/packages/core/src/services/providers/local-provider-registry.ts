@@ -17,6 +17,7 @@ import {
 	ModelModalitiesSchema,
 	ModelOperationModeSchema,
 	ModelOperationSchema,
+	ModelReasoningOptionSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -54,6 +55,7 @@ export const StoredModelEntrySchema = z
 		contextWindow: OptionalPositiveFiniteNumberSchema,
 		maxInputTokens: OptionalPositiveFiniteNumberSchema,
 		capabilities: z.array(ModelCapabilitySchema).optional(),
+		reasoningOptions: z.array(ModelReasoningOptionSchema).optional(),
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
@@ -246,6 +248,7 @@ export function toProviderModel(
 		| "description"
 		| "contextWindow"
 		| "capabilities"
+		| "reasoningOptions"
 		| "thinkingConfig"
 		| "operation"
 		| "operationModes"
@@ -270,6 +273,9 @@ export function toProviderModel(
 				? true
 				: declaredCapability(info.capabilities, "reasoning"),
 		operationModes: info.operationModes,
+		...(info.reasoningOptions === undefined
+			? {}
+			: { reasoningOptions: info.reasoningOptions }),
 		inputModalities: info.modalities?.input,
 		outputModalities: info.modalities?.output,
 	};
@@ -402,6 +408,9 @@ function toStoredModelInfo(
 			? { maxInputTokens: model.maxInputTokens }
 			: {}),
 		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(model?.reasoningOptions === undefined
+			? {}
+			: { reasoningOptions: model.reasoningOptions }),
 		...(model?.temperature !== undefined
 			? { temperature: model.temperature }
 			: {}),

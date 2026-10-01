@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { resolveCliReasoning } from "./reasoning";
 
 describe("resolveCliReasoning", () => {
+	it.each(["minimal", "max"] as const)("restores saved %s effort", (effort) => {
+		expect(
+			resolveCliReasoning({
+				thinking: false,
+				persistedReasoning: { enabled: true, effort },
+			}),
+		).toEqual({ thinking: true, reasoningEffort: effort });
+	});
 	it("leaves reasoning unset when neither CLI nor persisted settings specify it", () => {
 		expect(
 			resolveCliReasoning({
@@ -75,7 +83,7 @@ describe("resolveCliReasoning", () => {
 		});
 	});
 
-	it("uses medium effort when persisted reasoning is enabled without an effort", () => {
+	it("preserves enabled reasoning without inventing an effort", () => {
 		expect(
 			resolveCliReasoning({
 				thinking: false,
@@ -83,7 +91,7 @@ describe("resolveCliReasoning", () => {
 			}),
 		).toEqual({
 			thinking: true,
-			reasoningEffort: "medium",
+			reasoningEffort: undefined,
 		});
 	});
 });

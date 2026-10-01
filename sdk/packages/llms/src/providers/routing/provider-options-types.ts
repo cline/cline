@@ -27,6 +27,8 @@ export type ProviderOptionSuppression = {
 
 export type ProviderOptionMatchInput = {
 	request: GatewayStreamRequest;
+	/** Original intent for adapters whose wire controls override portable reasoning. */
+	requestedReasoning?: GatewayStreamRequest["reasoning"];
 	context: GatewayProviderContext;
 	providerOptionsKey: string;
 	target: AiSdkProviderOptionsTarget;

@@ -5,7 +5,7 @@ import {
 	setHomeDir,
 } from "@cline/shared/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createProgram } from "./program";
+import { commanderToParsedArgs, createProgram } from "./program";
 
 /** Render an absolute path under `home` the way help text does: `~/...`. */
 function tildePath(absolutePath: string, home: string): string {
@@ -57,5 +57,24 @@ describe("root option help text", () => {
 		expect(help).toContain(
 			`Use isolated local state at this directory path (default: ${dataDirDefault})`,
 		);
+	});
+
+	it("advertises reasoning effort and the complete supported level vocabulary", () => {
+		const help = createProgram()
+			.configureHelp({ helpWidth: 500 })
+			.helpInformation();
+		expect(help).toContain("--reasoning-effort <level>");
+		expect(help).toContain("none|minimal|low|medium|high|xhigh|max");
+	});
+
+	it("shares last-wins effort parsing when Commander is used directly", () => {
+		const program = createProgram();
+		program.parse(["--reasoning-effort", "max", "--thinking", "minimal"], {
+			from: "user",
+		});
+		expect(commanderToParsedArgs(program)).toMatchObject({
+			thinking: true,
+			reasoningEffort: "minimal",
+		});
 	});
 });

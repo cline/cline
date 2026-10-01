@@ -124,6 +124,19 @@ async function wireRequest(
 
 describe("Bedrock reasoning wire contract", () => {
 	it.each([
+		"xhigh",
+		"max",
+	] as const)("sends exact advertised Claude %s effort with adaptive thinking", async (effort) => {
+		const { sent } = await wireRequest("us.anthropic.claude-opus-4-7", {
+			effort,
+		});
+		expect(sent).toMatchObject({
+			thinking: { type: "adaptive" },
+			output_config: { effort },
+		});
+	});
+
+	it.each([
 		"us.openai.gpt-6-astra",
 		"global.openai.gpt-5.6-luna",
 	])("sends reasoning.effort for inference-profile OpenAI model %s", async (modelId) => {

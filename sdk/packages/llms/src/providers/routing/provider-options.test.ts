@@ -2262,7 +2262,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openai).toHaveProperty("truncation", "auto");
 	});
 
-	it("keeps portable OpenAI reasoning out of provider options", () => {
+	it("preserves advertised OpenAI max effort beyond the portable range", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "openai-native",
@@ -2288,8 +2288,111 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 				truncation: "auto",
 			}),
 		);
-		expect(result.openai).not.toHaveProperty("reasoningEffort");
+		expect(result.openai).toHaveProperty("reasoningEffort", "max");
 		expect(result).not.toHaveProperty("openai-native");
+	});
+
+	it.each([
+		"anthropic",
+		"vertex",
+	])("preserves advertised Claude max effort on %s", (providerId) => {
+		const selection = { providerId, modelId: "claude-opus-4-7" };
+		const result = composeAiSdkProviderOptions(
+			makeRequest({ ...selection, reasoning: { effort: "max" } }),
+			makeContext({
+				...selection,
+				reasoningOptions: effortOptions([
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			}),
+		);
+		expect(result.anthropic).toMatchObject({
+			effort: "max",
+			thinking: { type: "adaptive", display: "summarized" },
+		});
+	});
+
+	it.each([
+		"xhigh",
+		"max",
+	] as const)("preserves advertised Bedrock %s effort", (effort) => {
+		const selection = {
+			providerId: "bedrock",
+			modelId: "anthropic.claude-opus-4-7",
+		};
+		const result = composeAiSdkProviderOptions(
+			makeRequest({ ...selection, reasoning: { effort } }),
+			makeContext({
+				...selection,
+				reasoningOptions: effortOptions([
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			}),
+		);
+		expect(result.bedrock).toHaveProperty(
+			"reasoningConfig.maxReasoningEffort",
+			effort,
+		);
+	});
+
+	it.each([
+		"openai-native",
+		"anthropic",
+		"vertex",
+		"bedrock",
+	])("does not override portable effort without advertised max on %s", (providerId) => {
+		const modelId =
+			providerId === "openai-native" ? "gpt-5.4" : "claude-opus-4-7";
+		for (const reasoningOptions of [
+			undefined,
+			[],
+			effortOptions(["low", "high"]),
+		]) {
+			const result = composeAiSdkProviderOptions(
+				makeRequest({ providerId, modelId, reasoning: { effort: "max" } }),
+				makeContext({ providerId, modelId, reasoningOptions }),
+			);
+			for (const bucket of Object.values(result)) {
+				expect(bucket).not.toHaveProperty("effort");
+				expect(bucket).not.toHaveProperty("reasoningEffort");
+				expect(bucket).not.toHaveProperty("reasoningConfig.maxReasoningEffort");
+			}
+		}
+	});
+
+	it.each([
+		"openai-native",
+		"anthropic",
+		"vertex",
+		"bedrock",
+	])("gives explicit off precedence over an advertised max override on %s", (providerId) => {
+		const modelId =
+			providerId === "openai-native" ? "gpt-5.6" : "claude-opus-4-7";
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId,
+				modelId,
+				reasoning: { enabled: false, effort: "max" },
+			}),
+			makeContext({
+				providerId,
+				modelId,
+				reasoningOptions: effortOptions(["none", "max"]),
+			}),
+		);
+		for (const bucket of Object.values(result)) {
+			expect(bucket).not.toHaveProperty("effort");
+			expect(bucket).not.toHaveProperty("reasoningEffort");
+			expect(bucket).not.toHaveProperty("reasoningConfig.maxReasoningEffort");
+		}
 	});
 
 	it("keeps portable OpenAI disable out of provider options", () => {

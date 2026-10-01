@@ -8,6 +8,7 @@ export interface LocalSlashCommandActionInput {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	openReasoningSelector: () => Promise<void>;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	openThemePicker: () => void;
 	invocation?: LocalSlashCommandInvocation;
@@ -46,6 +47,9 @@ export function runLocalSlashCommandAction(
 	if (normalized === "model") {
 		input.openModelSelector();
 		return true;
+	}
+	if (normalized === "reasoning") {
+		return input.openReasoningSelector().then(() => true);
 	}
 	if (normalized === "theme") {
 		input.openThemePicker();

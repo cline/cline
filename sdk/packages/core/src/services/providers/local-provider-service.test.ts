@@ -76,6 +76,28 @@ afterEach(() => {
 });
 
 describe("live provider model loading", () => {
+	it("keeps advertised reasoning options in provider model results", async () => {
+		const reasoningOptions = [
+			{
+				type: "effort" as const,
+				values: ["low" as const, "high" as const, "max" as const],
+			},
+		];
+		const result = await getLocalProviderModels("openai-compatible", {
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			knownModels: {
+				"custom-model": {
+					id: "custom-model",
+					capabilities: ["reasoning"],
+					reasoningOptions,
+				},
+			},
+		});
+		expect(
+			result.models.find((model) => model.id === "custom-model"),
+		).toMatchObject({ supportsReasoning: true, reasoningOptions });
+	});
 	it.each([
 		["baseten", "https://inference.baseten.co/v1/models"],
 		["hicap", "https://api.hicap.ai/v2/openai/models"],
@@ -198,6 +220,9 @@ describe("models registry parsing", () => {
 						alpha: {
 							name: "Alpha",
 							capabilities: ["reasoning"],
+							reasoningOptions: [
+								{ type: "effort", values: ["low", "high", "max"] },
+							],
 							inputPrice: 1.25,
 							outputPrice: 3.5,
 							cacheReadsPrice: 0.25,
@@ -228,6 +253,7 @@ describe("models registry parsing", () => {
 			LlmsModels.getModelsForProvider("schema-provider"),
 		).resolves.toMatchObject({
 			alpha: {
+				reasoningOptions: [{ type: "effort", values: ["low", "high", "max"] }],
 				pricing: {
 					input: 1.25,
 					output: 3.5,

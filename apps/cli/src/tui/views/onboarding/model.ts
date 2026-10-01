@@ -2,6 +2,7 @@ import type {
 	ChatModelModalities,
 	ModelModality,
 	ModelOperation,
+	ModelReasoningOption,
 } from "@cline/shared";
 import { isChatProviderModel } from "../../../utils/chat-models";
 import type {
@@ -12,6 +13,10 @@ import {
 	isLocalAuthProvider,
 	isOAuthProvider,
 } from "../../../utils/provider-auth";
+import {
+	getReasoningChoices,
+	type ReasoningChoice,
+} from "../../../utils/reasoning-options";
 
 export type OnboardingStep =
 	| "menu"
@@ -27,24 +32,11 @@ export type OnboardingStep =
 	| "thinking_level"
 	| "done";
 
-export type ThinkingLevel = "none" | "low" | "medium" | "high" | "xhigh";
-export type ReasoningEffort = Exclude<ThinkingLevel, "none">;
-
-export const THINKING_LEVELS: {
-	value: ThinkingLevel;
-	label: string;
-	desc: string;
-}[] = [
-	{ value: "none", label: "Off", desc: "No extended thinking" },
-	{ value: "low", label: "Low", desc: "Minimal reasoning" },
-	{ value: "medium", label: "Medium", desc: "Balanced reasoning" },
-	{ value: "high", label: "High", desc: "Deep reasoning" },
-	{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
-];
-
-export const DEFAULT_THINKING_LEVEL_INDEX = THINKING_LEVELS.findIndex(
-	(l) => l.value === "medium",
-);
+export type ThinkingLevel = ReasoningChoice;
+export type ReasoningEffort = Exclude<
+	ThinkingLevel,
+	"none" | "default" | "enabled"
+>;
 
 export interface MenuOption {
 	label: string;
@@ -153,6 +145,7 @@ export interface OnboardingResult {
 	apiKey?: string;
 	thinking?: boolean;
 	reasoningEffort?: ReasoningEffort;
+	reasoningDefault?: boolean;
 }
 
 export interface ProviderEntry {
@@ -170,6 +163,7 @@ export interface ModelEntry {
 	id: string;
 	name: string;
 	supportsReasoning: boolean;
+	reasoningOptions?: readonly ModelReasoningOption[];
 }
 
 export type ClinePassSubscriptionStatus =
@@ -192,6 +186,7 @@ export interface ProviderModelItem {
 	id: string;
 	name?: string;
 	supportsReasoning?: boolean;
+	reasoningOptions?: readonly ModelReasoningOption[];
 	operation?: ModelOperation;
 	inputModalities?: ModelModality[];
 	outputModalities?: ModelModality[];
@@ -200,6 +195,7 @@ export interface ProviderModelItem {
 export interface KnownModelInfo {
 	name?: string;
 	capabilities?: string[];
+	reasoningOptions?: readonly ModelReasoningOption[];
 	operation?: ModelOperation;
 	modalities?: ChatModelModalities;
 }
@@ -223,6 +219,9 @@ export function toModelEntry(model: ProviderModelItem): ModelEntry {
 		id: model.id,
 		name: model.name || model.id,
 		supportsReasoning: model.supportsReasoning === true,
+		...(model.reasoningOptions === undefined
+			? {}
+			: { reasoningOptions: model.reasoningOptions }),
 	};
 }
 
@@ -241,9 +240,25 @@ export function toModelEntriesFromKnownModels(
 		.map(([id, info]) => ({
 			id,
 			name: info.name || id,
-			supportsReasoning: info.capabilities?.includes("reasoning") ?? false,
+			supportsReasoning:
+				info.capabilities?.some(
+					(capability) =>
+						capability === "reasoning" || capability === "reasoning-effort",
+				) ?? false,
+			...(info.reasoningOptions === undefined
+				? {}
+				: { reasoningOptions: info.reasoningOptions }),
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getOnboardingReasoningChoices(
+	providerId: string,
+	model?: ModelEntry,
+) {
+	return getReasoningChoices(model, {
+		allowUnknown: !model || providerId === "openai-compatible",
+	});
 }
 
 export function getOAuthProviderLabel(providerId: string): string {

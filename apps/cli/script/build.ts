@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 
 import {
+	chmodSync,
+	copyFileSync,
 	cpSync,
 	existsSync,
 	mkdirSync,
@@ -89,7 +91,7 @@ if (optionsError) {
 	process.exit(1);
 }
 
-await $`rm -rf dist`;
+rmSync(join(cliDir, "dist"), { recursive: true, force: true });
 
 // Pre-install all platform variants of native packages so cross-compilation
 // can resolve them. Without this, Bun only has the host platform's native
@@ -198,46 +200,53 @@ async function buildCompiledBinary(input: {
 		"/",
 	);
 
-	// Build to /tmp first so Bun's temp-file rename stays on one filesystem
-	// layer in containerized environments (virtiofs, overlayfs).
+	// Build in the OS temp directory so Bun's temp-file rename stays on one
+	// filesystem layer in containers and uses an absolute drive path on Windows.
 	const entrypoint = join(cliDir, "src/index.ts");
-	const tmpDir = join("/tmp", `cline-build-${input.dirName}`);
+	const tmpDir = mkdtempSync(
+		join(resolve(tmpdir()), `cline-build-${input.dirName}-`),
+	);
 	const tmpOutfile = join(
 		tmpDir,
 		input.outfile.endsWith(".exe") ? "cline.exe" : "cline",
 	);
-	mkdirSync(tmpDir, { recursive: true });
+	const previousCwd = process.cwd();
 
-	process.chdir("/tmp");
-	const result = await Bun.build({
-		entrypoints: [entrypoint, parserWorker],
-		splitting: true,
-		compile: {
-			target: input.bunTarget,
-			outfile: tmpOutfile,
-		},
-		minify: true,
-		external: ["@anthropic-ai/vertex-sdk"],
-		define: {
-			OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
-			// Inline telemetry/OTEL env vars at build time so the compiled
-			// binary ships with production telemetry configuration baked in.
-			...buildInlinedEnvDefines(),
-		},
-		throw: false,
-	});
-	process.chdir(cliDir);
+	try {
+		process.chdir(tmpDir);
+		const result = await Bun.build({
+			entrypoints: [entrypoint, parserWorker],
+			splitting: true,
+			compile: {
+				target: input.bunTarget,
+				outfile: tmpOutfile,
+			},
+			minify: true,
+			external: ["@anthropic-ai/vertex-sdk"],
+			define: {
+				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
+				// Inline telemetry/OTEL env vars at build time so the compiled
+				// binary ships with production telemetry configuration baked in.
+				...buildInlinedEnvDefines(),
+			},
+			throw: false,
+		});
 
-	if (!result.success) {
-		console.error(`Build failed for ${input.dirName}:`);
-		for (const log of result.logs) {
-			console.error(log);
+		if (!result.success) {
+			for (const log of result.logs) {
+				console.error(log);
+			}
+			throw new Error(`Build failed for ${input.dirName}`);
 		}
-		process.exit(1);
-	}
 
-	await $`cp ${tmpOutfile} ${input.outfile} && chmod 755 ${input.outfile}`;
-	await $`rm -rf ${tmpDir}`;
+		copyFileSync(tmpOutfile, input.outfile);
+		if (process.platform !== "win32") {
+			chmodSync(input.outfile, 0o755);
+		}
+	} finally {
+		process.chdir(previousCwd);
+		rmSync(tmpDir, { recursive: true, force: true });
+	}
 }
 
 for (const item of targets) {

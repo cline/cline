@@ -135,6 +135,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-reasoning",
+		key: "/reasoning",
+		desc: "Choose reasoning effort for the current model (Opt+E)",
+	},
+	{
+		kind: "entry",
 		id: "c-mcp",
 		key: "/mcp",
 		desc: "Manage MCP servers",

@@ -536,19 +536,13 @@ export function normalizeCliArgs(args: string[]): string[] {
 		}
 		if (token === "--reasoning-effort") {
 			const nextToken = args[index + 1];
-			// Legacy spelling is normalized to --thinking and intentionally relies
-			// on commanderToParsedArgs for level validation, so invalid values behave
-			// the same as `--thinking <value>` and `--thinking=<value>`.
+			// The options share a Commander attribute; preserve both spellings.
 			if (nextToken !== undefined && !nextToken.startsWith("-")) {
-				normalized.push("--thinking", nextToken);
+				normalized.push("--reasoning-effort", nextToken);
 				index += 1;
 				continue;
 			}
-			normalized.push("--thinking", "medium");
-			continue;
-		}
-		if (token.startsWith("--reasoning-effort=")) {
-			normalized.push(token.replace(/^--reasoning-effort=/, "--thinking="));
+			normalized.push("--reasoning-effort", "medium");
 			continue;
 		}
 		normalized.push(token);

@@ -140,10 +140,30 @@ describe("compactInteractiveMessages", () => {
 		});
 		const config = createConfig();
 		config.reasoningEffort = "high";
+		config.thinking = true;
 
 		const providerConfig = resolveCompactionProviderConfig(config, manager);
 
 		expect(providerConfig.reasoningEffort).toBe("high");
+	});
+
+	it.each([
+		"default",
+		"none",
+	] as const)("respects a %s selection during manual compaction", (choice) => {
+		const manager = createProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "anthropic",
+			model: "claude-test",
+			reasoning: { enabled: true, effort: "high", budgetTokens: 4096 },
+		});
+		const config = createConfig();
+		config.reasoningDefault = choice === "default";
+		config.thinking = choice === "none" ? false : undefined;
+		const providerConfig = resolveCompactionProviderConfig(config, manager);
+		expect(providerConfig.thinking).toBe(choice === "none" ? false : undefined);
+		expect(providerConfig.reasoningEffort).toBeUndefined();
+		expect(providerConfig.thinkingBudgetTokens).toBeUndefined();
 	});
 
 	it("passes the selected model context window to manual compaction", async () => {

@@ -73,6 +73,7 @@ import { getUIEventEmitter } from "./session-events";
 type ModelChangeReasoningConfig = {
 	thinking?: boolean;
 	reasoningEffort?: Config["reasoningEffort"];
+	reasoningDefault?: boolean;
 };
 
 export function assertHistorySessionIsDeletable(
@@ -90,6 +91,7 @@ export function resolveReasoningForModelChange(
 	config: ModelChangeReasoningConfig,
 	existing: Pick<ProviderSettings, "reasoning">,
 ): ProviderSettings["reasoning"] {
+	if (config.reasoningDefault) return undefined;
 	if (config.thinking === false) return { enabled: false };
 	if (config.reasoningEffort) {
 		return { enabled: true, effort: config.reasoningEffort };
@@ -126,7 +128,7 @@ export async function applyInteractiveModelChange(input: {
 	providerSettingsManager.saveProviderSettings({
 		...existing,
 		model: config.modelId,
-		...(reasoning === undefined ? {} : { reasoning }),
+		reasoning,
 	});
 
 	// Provider changes affect more than the model connection: startup resolves

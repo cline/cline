@@ -19,6 +19,9 @@ const PORTABLE_REASONING_PROVIDERS = new Set([
 ]);
 
 const NON_PORTABLE_REASONING_PROVIDERS = new Set([
+	// Generic endpoints may use arbitrary model IDs and effort values. The
+	// compatible rule preserves explicit intent in each API's provider bucket.
+	"openai-compatible",
 	"claude-code",
 	"dify",
 	"mistral",

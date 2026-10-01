@@ -1,3 +1,4 @@
+import { ReasoningLevelSchema } from "@cline/shared";
 import { Command, CommanderError, Option } from "commander";
 import { version } from "../../package.json";
 import {
@@ -7,6 +8,12 @@ import {
 import type { ParsedArgs } from "../utils/types";
 
 export { CommanderError };
+
+class ReasoningEffortOption extends Option {
+	override attributeName(): string {
+		return "thinking";
+	}
+}
 
 function normalizeAutoApproveValue(
 	value: string | boolean | undefined,
@@ -33,7 +40,13 @@ export function addRootOptions(cmd: Command): Command {
 			.option("-c, --cwd <path>", "Working directory")
 			.option(
 				"--thinking <level>",
-				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted leaves provider default.",
+				"Set reasoning effort: none|minimal|low|medium|high|xhigh|max. Bare --thinking uses medium; omitted uses saved settings or provider default.",
+			)
+			.addOption(
+				new ReasoningEffortOption(
+					"--reasoning-effort <level>",
+					"Set model reasoning effort (alias for --thinking)",
+				),
 			)
 			.option("--compaction <mode>", CLI_COMPACTION_MODE_OPTION_DESCRIPTION)
 			.option(
@@ -173,20 +186,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	if (opts.thinking !== undefined) {
 		const effort = String(opts.thinking).trim().toLowerCase();
-		if (
-			effort === "none" ||
-			effort === "low" ||
-			effort === "medium" ||
-			effort === "high" ||
-			effort === "xhigh"
-		) {
+		const parsed = ReasoningLevelSchema.safeParse(effort);
+		if (parsed.success) {
 			result.thinkingExplicitlySet = true;
-			if (effort === "none") {
+			if (parsed.data === "none") {
 				result.thinking = false;
 				result.reasoningEffort = undefined;
 			} else {
 				result.thinking = true;
-				result.reasoningEffort = effort;
+				result.reasoningEffort = parsed.data;
 			}
 		} else if (effort) {
 			result.invalidThinkingLevel = effort;

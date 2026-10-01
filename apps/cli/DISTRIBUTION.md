@@ -188,6 +188,14 @@ bun run build:platforms         # build all 6 platform binaries
 bun run publish:npm:dry         # preview generated npm package publishing
 ```
 
+From the repository root on Windows (PowerShell):
+
+```powershell
+bun run --cwd apps/cli build:platforms:single
+```
+
+This builds the SDK and CLI, then creates `apps/cli/dist/cli-windows-<arch>/bin/cline.exe`, where `<arch>` is the architecture of the running Bun executable (`x64` or `arm64`). The build uses the operating system's temporary directory and does not require Git Bash or Unix file commands.
+
 Direct `bun pm pack` and `bun pm pack --dry-run` from `apps/cli` are blocked because the source package is not the npm release package. Build platform packages first, then use `bun run publish:npm:dry` to preview the generated packages under `dist/`.
 
 ## Build Script (`script/build.ts`)
@@ -274,7 +282,7 @@ Windows binaries are `.exe` files. The build script appends `.exe` to the output
 Windows application control (Smart App Control, WDAC, AppLocker) blocks unsigned executables at launch, regardless of how they were installed — npm distribution gets no exemption ([#12934](https://github.com/cline/cline/issues/12934)). The publish workflow Authenticode-signs `cli-windows-x64/bin/cline.exe` and `cli-windows-arm64/bin/cline.exe` with Azure Trusted Signing before publishing, via the `.github/actions/sign-windows-cli` composite action. Signing runs on the Linux publish runner using [jsign](https://ebourg.github.io/jsign/) (`--storetype TRUSTEDSIGNING`) with an OIDC-federated Entra app, then verifies the signature chain with `osslsigncode` against the Microsoft Identity Verification Root CA 2020. If all `AZURE_*` / `AZURE_TRUSTED_SIGNING_*` repository secrets are absent, the action logs a warning and the release ships unsigned rather than failing; if only some resolve (a typo'd or renamed secret), the release fails loudly instead. The certificate profile secret is suffixed `_CLI` because the desktop app will later get its own profile; the other five secrets are shared. Note that signing bun-compiled executables requires Bun >= 1.2.23 (earlier versions located the embedded bundle relative to the end of the file, which signing corrupts).
 
 ### File permissions
-Compiled binaries need to be executable (`chmod 755`). The build script sets this after copying. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.
+On POSIX hosts, the build script sets executable permissions (`chmod 755`) after copying, using Node's filesystem API. Windows hosts do not need this step. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.
 
 ### Package size
 Each compiled binary is ~30-60MB (Bun runtime + all bundled code + native addons). This is normal for compiled CLI tools. Users only download their platform's variant thanks to `optionalDependencies`.
