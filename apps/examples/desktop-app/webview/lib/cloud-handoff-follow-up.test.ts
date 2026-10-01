@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { toast } from "@/hooks/use-toast";
 import {
+	canRestoreRejectedCloudPrompt,
 	cloudHandoffFollowUpAttachments,
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
@@ -17,6 +18,17 @@ const saved = {
 	userImages: ["data:image/png;base64,aW1hZ2U="],
 };
 beforeEach(() => vi.resetAllMocks());
+
+it.each([
+	[undefined, undefined, true],
+	[undefined, { ...saved, unconfirmed: true }, true],
+	[saved.draftId, undefined, false],
+	[saved.draftId, { ...saved, unconfirmed: true }, false],
+	[saved.draftId, saved, true],
+	[saved.draftId, null, true],
+] as const)("restores rejected draft %s with recovery %j: %s", (draftId, recovery, restore) => {
+	expect(canRestoreRejectedCloudPrompt(draftId, recovery)).toBe(restore);
+});
 
 it.each([
 	["", 0, undefined, false],
