@@ -1689,16 +1689,20 @@ async function handleFork(
 	if (!restoreWorkspacePath) {
 		throw new Error("cwd or workspaceRoot is required to edit a message");
 	}
-	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
-		handleForkUnlocked(
+	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () => {
+		// A handoff may have started while the source was read; once locked, new ones refuse.
+		if (isCloudHandoffInProgress(ctx, sourceSessionId)) {
+			throw new Error("Wait for the cloud handoff to finish before forking.");
+		}
+		return handleForkUnlocked(
 			ctx,
 			request,
 			sourceSessionId,
 			forkBeforeRunCount,
 			sourceSession,
 			restoreWorkspacePath,
-		),
-	);
+		);
+	});
 }
 
 async function handleForkUnlocked(
