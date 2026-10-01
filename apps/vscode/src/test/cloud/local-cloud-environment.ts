@@ -368,11 +368,9 @@ export async function startLocalCloudEnvironment(
 				// The hosted control plane answers POST with `provisioning` and flips
 				// /status to `ready` once the sandbox is up; the fixture does the same
 				// after provisioningDelayMs so cancellation during that window is testable.
-				const provisioning = provisioningDelayMs > 0
 				const record: LocalCloudSessionRecord = {
 					id,
-					status: provisioning ? "provisioning" : "ready",
-					sandboxUrl: provisioning ? undefined : apiBaseUrl,
+					status: "provisioning",
 					repoContext: {
 						repoUrl: String(input.repoUrl ?? ""),
 						branch: typeof input.branch === "string" ? input.branch : undefined,
@@ -383,14 +381,23 @@ export async function startLocalCloudEnvironment(
 				}
 				const owned: OwnedSandbox = { record, organizationId, root: sandboxRoot }
 				sessions.set(id, owned)
-				if (provisioning) {
+				// The hosted sandbox is listening by the time /status says ready. Start
+				// the Hub as the session becomes ready rather than on the first socket
+				// upgrade: a cold start can outlast the client's connect timeout.
+				const becomeReady = () => {
+					if (sessions.get(id) !== owned) return
+					record.status = "ready"
+					record.sandboxUrl = apiBaseUrl
+					record.updatedAt = new Date().toISOString()
+					void activateSession(id).catch(() => undefined)
+				}
+				if (provisioningDelayMs > 0) {
 					owned.readyTimer = setTimeout(() => {
 						owned.readyTimer = undefined
-						if (sessions.get(id) !== owned) return
-						record.status = "ready"
-						record.sandboxUrl = apiBaseUrl
-						record.updatedAt = new Date().toISOString()
+						becomeReady()
 					}, provisioningDelayMs)
+				} else {
+					becomeReady()
 				}
 				return json(res, 200, {
 					success: true,

@@ -15,6 +15,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 	const unconfirmed = status === "unknown"
 	const canOpenDashboard = isPersistedCloudSessionId(cloudTask.sessionId)
 	const repo = formatRepoLabel(cloudTask.repoUrl)
+	const where = repo ? ` on ${repo}${cloudTask.branch ? ` (${cloudTask.branch})` : ""}` : ""
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -39,7 +40,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 			</TooltipTrigger>
 			<TooltipContent className="text-xs" side="bottom">
 				{unconfirmed ? "Cline Cloud status could not be confirmed" : "Running in Cline Cloud"}
-				{repo ? ` on ${repo}` : ""}.{cloudTask.branch ? ` (${cloudTask.branch})` : ""}.
+				{where}.
 				{canOpenDashboard
 					? " Click to open in the dashboard."
 					: " The dashboard link will be available when provisioning finishes."}
