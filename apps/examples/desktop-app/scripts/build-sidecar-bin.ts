@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { buildPluginHost } from "./build-plugin-host";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -64,6 +65,11 @@ const buildSidecar = async (
 	const runtimeIsolationArgs = [
 		"--no-compile-autoload-dotenv",
 		"--no-compile-autoload-bunfig",
+		// Compiled binaries skip package.json loading by default, which makes
+		// every bare import from a real on-disk file fail to resolve. The plugin
+		// sandbox the sidecar hosts runs the bundled plugin host's
+		// node_modules (scripts/build-plugin-host.ts), so opt back in.
+		"--compile-autoload-package-json",
 		// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS to
 		// intranet endpoints signed by a corporate CA (LiteLLM proxies, MITM
 		// firewalls) fails with "unable to get local issuer certificate". Bake
@@ -156,6 +162,8 @@ const main = async () => {
 		await buildSidecar(targetTriple);
 	}
 	await buildRemoteHelpers();
+	// The compiled sidecar cannot load plugins without the on-disk SDK tree.
+	await buildPluginHost();
 };
 
 main().catch((error: unknown) => {

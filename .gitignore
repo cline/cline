@@ -69,6 +69,7 @@ apps/*/src-tauri/gen
 apps/*/src-tauri/bin
 apps/examples/*/src-tauri/gen
 apps/examples/*/src-tauri/bin
+apps/examples/*/src-tauri/plugin-host
 # Tauri UI test snapshots
 apps/*/src/tests/.tui-test
 apps/*/src/tests/tui-traces

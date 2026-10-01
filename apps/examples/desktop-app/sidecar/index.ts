@@ -1,9 +1,12 @@
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
 	ensureLoginShellPath,
+	hostSandboxesInCompiledBinary,
 	readGlobalSettings,
+	runCompiledSandboxEntry,
 	setHomeDirIfUnset,
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
@@ -14,6 +17,7 @@ import {
 	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
 	ensureLoopbackProxyBypass,
+	isBunEmbeddedModulePath,
 	setClineClientIdentity,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
@@ -27,6 +31,7 @@ import {
 } from "./context";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
+import { resolveDesktopPluginHostDir } from "./plugin-host";
 import { startServer } from "./server";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
@@ -239,6 +244,18 @@ async function runEntrypoint(): Promise<void> {
 	if (process.argv.includes("--telemetry-selfcheck")) {
 		runTelemetrySelfcheck();
 		return;
+	}
+	// The compiled sidecar is the only JavaScript runtime a packaged install
+	// can count on, so it hosts plugin sandboxes itself (for the Hub daemon it
+	// re-executes as well): plugin loading launches this binary with the
+	// sandbox marker, and plugins import the SDK from the bundled plugin host.
+	if (isBunEmbeddedModulePath(fileURLToPath(import.meta.url))) {
+		if (await runCompiledSandboxEntry()) {
+			return;
+		}
+		hostSandboxesInCompiledBinary({
+			pluginHostDir: resolveDesktopPluginHostDir(),
+		});
 	}
 	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 

@@ -86,6 +86,15 @@ The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
 the desktop start the same detached Hub when no CLI process has started it yet.
 Startup discovery and locking ensure concurrent clients converge on one Hub.
 
+It likewise recognizes Core's `--cline-sandbox` launch mode and declares
+itself the runtime for plugin sandboxes (`hostSandboxesInCompiledBinary`).
+A packaged install has no Node on PATH to rely on and nothing from `@cline/*`
+on real disk, so plugin loading re-executes the sidecar binary as the sandbox
+and points it at the bundled `plugin-host/` resource: an on-disk `node_modules`
+tree with the SDK packages, jiti, and the sandbox bootstrap, built from this
+checkout by `scripts/build-plugin-host.ts` (`plugin-host.ts` locates it per
+platform). The npm-installed CLI gets the same layout from its own install.
+
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
 that context across the Hub transport and scopes the daemon-owned telemetry
