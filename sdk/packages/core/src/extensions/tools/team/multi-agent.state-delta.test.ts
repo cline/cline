@@ -53,6 +53,36 @@ describe("AgentTeamsRuntime state delta", () => {
 		expect(delta.mailbox[0]?.readAt).toBeInstanceOf(Date);
 	});
 
+	it("notifies onStateDirty for eventless changes", () => {
+		const onStateDirty = vi.fn();
+		const runtime = new AgentTeamsRuntime({
+			teamName: "delta-team",
+			leadAgentId: "lead",
+			onStateDirty,
+		});
+		runtime.sendMessage("lead", "lead", "subj", "body");
+		runtime.listMailbox("lead", { unreadOnly: true, markRead: true });
+		expect(onStateDirty).toHaveBeenCalledTimes(1);
+		// Already read: nothing changed, no notification.
+		runtime.listMailbox("lead", { unreadOnly: false, markRead: true });
+		expect(onStateDirty).toHaveBeenCalledTimes(1);
+		runtime.cleanup();
+		expect(onStateDirty).toHaveBeenCalledTimes(2);
+	});
+
+	it("requeues a drained delta for retry", () => {
+		const runtime = newRuntime();
+		const task = runtime.createTask({
+			title: "t",
+			description: "d",
+			createdBy: "lead",
+		});
+		const delta = runtime.drainStateDelta();
+		expect(runtime.hasPendingStateDelta()).toBe(false);
+		runtime.requeueStateDelta(delta);
+		expect(runtime.drainStateDelta().tasks.map((t) => t.id)).toEqual([task.id]);
+	});
+
 	it("tracks outcome status changes from fragment attach", () => {
 		const runtime = newRuntime();
 		const outcome = runtime.createOutcome({

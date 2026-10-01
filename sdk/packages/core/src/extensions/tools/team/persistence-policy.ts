@@ -22,8 +22,12 @@ export function isDurableTeamEvent(event: TeamEvent): boolean {
 	const type = event.type;
 	switch (type) {
 		case TeamMessageType.AgentEvent:
-		case TeamMessageType.RunProgress:
 			return false;
+		case TeamMessageType.RunProgress:
+			// A scheduled retry re-queues the run and bumps `retryCount` but only
+			// reports it as progress; that transition must reach disk so recovery
+			// does not grant an extra attempt. Plain heartbeats stay telemetry.
+			return isRetryScheduledProgress(event);
 		case TeamMessageType.TaskStart:
 		case TeamMessageType.TaskEnd:
 		case TeamMessageType.TeammateSpawned:
@@ -63,9 +67,17 @@ export function shouldFlushTeamEventImmediately(event: TeamEvent): boolean {
 		case TeamMessageType.RunCancelled:
 		case TeamMessageType.RunInterrupted:
 			return true;
+		case TeamMessageType.RunProgress:
+			return isRetryScheduledProgress(event);
 		default:
 			return false;
 	}
+}
+
+function isRetryScheduledProgress(event: TeamEvent): boolean {
+	return (
+		event.type === TeamMessageType.RunProgress && event.run.status === "queued"
+	);
 }
 
 /**

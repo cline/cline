@@ -48,10 +48,6 @@ interface TeamSnapshotRow {
 	updated_at: string;
 }
 
-interface TeamRunRow {
-	run_id: string;
-}
-
 function parseTeammatesJson(raw: string): TeamTeammateSpec[] {
 	const parsed = safeJsonParse<unknown>(raw);
 	if (!Array.isArray(parsed)) {
@@ -894,5 +890,6 @@ export class SqliteTeamStore implements TeamStore {
 			return;
 		}
 		this.appendTeamEvent(teamName, event.type, toPersistableTeamEvent(event));
+		this.pruneTeamEvents(this.getRawDb(), sanitizeTeamName(teamName));
 	}
 }

@@ -209,7 +209,21 @@ export class FileTeamStore implements TeamStore {
 			return;
 		}
 		const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
-		const kept = lines.slice(-TEAM_EVENT_RETENTION_PER_TEAM);
+		// Bound by count and bytes: keep at most half the trigger size so the
+		// next compaction is far away even when individual events are large.
+		const kept: string[] = [];
+		let bytes = 0;
+		for (
+			let i = lines.length - 1;
+			i >= 0 && kept.length < TEAM_EVENT_RETENTION_PER_TEAM;
+			i--
+		) {
+			const line = lines[i] as string;
+			bytes += Buffer.byteLength(line, "utf8") + 1;
+			if (bytes > FILE_HISTORY_COMPACT_BYTES / 2 && kept.length > 0) break;
+			kept.push(line);
+		}
+		kept.reverse();
 		const tempPath = `${path}.tmp`;
 		writeFileSync(tempPath, `${kept.join("\n")}\n`, "utf8");
 		renameSync(tempPath, path);

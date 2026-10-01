@@ -124,6 +124,16 @@ describe("SqliteTeamStore v2", () => {
 		expect(store.readHistory(TEAM)).toEqual([]);
 	});
 
+	it("caps the event log on the legacy handleTeamEvent path", () => {
+		for (let i = 0; i < 12; i++) {
+			store.handleTeamEvent(TEAM, {
+				type: "run_completed",
+				run: run(`run_${i}`),
+			} as never);
+		}
+		expect(store.readHistory(TEAM, 100)).toHaveLength(5);
+	});
+
 	it("marks in-progress runs interrupted in rows", () => {
 		store.persistBatch(TEAM, batch(emptyDelta({ runs: [run("run_1")] })));
 		expect(store.markInProgressRunsInterrupted(TEAM, "crash")).toEqual([

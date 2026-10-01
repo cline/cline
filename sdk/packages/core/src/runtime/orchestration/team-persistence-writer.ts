@@ -18,10 +18,16 @@ export const TEAM_PERSIST_BATCH_MS = 300;
  * `heartbeatAt` without writing on every 2s heartbeat or streamed chunk.
  */
 export const TEAM_TELEMETRY_FLUSH_MS = 60_000;
+/**
+ * Cap on events held for retry after failed writes, so a store that stays
+ * broken cannot grow memory without bound. Oldest events are dropped first.
+ */
+export const TEAM_PERSIST_MAX_PENDING_EVENTS = 5_000;
 
 export interface TeamPersistenceSource {
 	hasPendingStateDelta(): boolean;
 	drainStateDelta(): TeamRuntimeStateDelta;
+	requeueStateDelta(delta: TeamRuntimeStateDelta): void;
 	exportState(): TeamRuntimeState;
 }
 
@@ -47,6 +53,7 @@ export interface TeamPersistenceWriterOptions {
  * - Durable events are queued and flushed together after `batchMs`.
  * - Terminal run states and membership changes flush immediately.
  * - `flush()` is synchronous so shutdown paths can force a final write.
+ * - A failed write keeps its batch and retries on the next flush.
  */
 export class TeamPersistenceWriter {
 	private readonly opts: Required<
@@ -94,6 +101,12 @@ export class TeamPersistenceWriter {
 		this.teammatesDirty = true;
 	}
 
+	/** State changed without a team event (read receipts, cleanup). */
+	markStateDirty(): void {
+		if (this.disposed) return;
+		this.schedule();
+	}
+
 	/** Write everything pending now. Safe to call repeatedly. */
 	flush(): void {
 		this.clearTimer();
@@ -104,6 +117,7 @@ export class TeamPersistenceWriter {
 			return;
 		}
 		const events = this.pendingEvents;
+		const teammatesDirty = this.teammatesDirty;
 		this.pendingEvents = [];
 		this.teammatesDirty = false;
 		const delta = source.drainStateDelta();
@@ -116,16 +130,28 @@ export class TeamPersistenceWriter {
 			});
 			this.lastFlushAt = this.opts.now();
 		} catch (error) {
-			// Persistence must never break the agent; report and move on.
+			// Persistence must never break the agent: report, keep the batch so the
+			// next flush retries it (e.g. after a transient SQLite lock).
 			this.opts.onError?.(error);
+			source.requeueStateDelta(delta);
+			const merged = events.concat(this.pendingEvents);
+			this.pendingEvents =
+				merged.length > TEAM_PERSIST_MAX_PENDING_EVENTS
+					? merged.slice(-TEAM_PERSIST_MAX_PENDING_EVENTS)
+					: merged;
+			this.teammatesDirty = this.teammatesDirty || teammatesDirty;
+			if (!this.disposed) {
+				this.schedule();
+			}
 		}
 	}
 
 	/** Final flush and stop accepting events. */
 	dispose(): void {
 		if (this.disposed) return;
-		this.flush();
+		// Mark first so a failed final write does not schedule further retries.
 		this.disposed = true;
+		this.flush();
 	}
 
 	private schedule(): void {

@@ -715,6 +715,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					leadAgentId: config.sessionId || "lead",
 					missionLogIntervalSteps: normalized.missionLogIntervalSteps,
 					missionLogIntervalMs: normalized.missionLogIntervalMs,
+					onStateDirty: () => teamPersistence?.markStateDirty(),
 					onTeamEvent: (event: TeamEvent) => {
 						onTeamEvent(event);
 						if (teamPersistence) {

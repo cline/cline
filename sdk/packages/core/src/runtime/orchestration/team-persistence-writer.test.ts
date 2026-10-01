@@ -61,6 +61,9 @@ function setup(clock = { t: 0 }) {
 			};
 		},
 		exportState: vi.fn(),
+		requeueStateDelta: vi.fn(() => {
+			pending = true;
+		}),
 	};
 	const batches: TeamPersistenceBatch[] = [];
 	const writer = new TeamPersistenceWriter({
@@ -161,5 +164,53 @@ describe("TeamPersistenceWriter", () => {
 		writer.markTeammatesDirty();
 		expect(() => writer.flush()).not.toThrow();
 		expect(onError).toHaveBeenCalled();
+	});
+
+	it("retries a failed batch on the next flush", () => {
+		const { source } = setup();
+		const batches: TeamPersistenceBatch[] = [];
+		let fail = true;
+		const writer = new TeamPersistenceWriter({
+			teamKey: "team",
+			store: {
+				persistBatch: (_k, b) => {
+					if (fail) throw new Error("database is locked");
+					batches.push(b);
+				},
+			},
+			source: () => source,
+			teammates: () => [],
+			batchMs: 100,
+			onError: () => {},
+		});
+		writer.onEvent(taskUpdated);
+		vi.advanceTimersByTime(100);
+		expect(source.requeueStateDelta).toHaveBeenCalledTimes(1);
+		fail = false;
+		vi.advanceTimersByTime(100);
+		expect(batches).toHaveLength(1);
+		expect(batches[0]?.events).toHaveLength(1);
+		expect(source.hasPendingStateDelta()).toBe(false);
+	});
+
+	it("schedules a write for eventless state changes", () => {
+		const { writer, batches, markPending } = setup();
+		markPending();
+		writer.markStateDirty();
+		expect(batches).toHaveLength(0);
+		vi.advanceTimersByTime(100);
+		expect(batches).toHaveLength(1);
+	});
+
+	it("flushes a scheduled retry immediately", () => {
+		const { writer, batches, markPending } = setup();
+		markPending();
+		writer.onEvent({
+			type: TeamMessageType.RunProgress,
+			run: { ...run, status: "queued", retryCount: 1 },
+			message: "retry_scheduled_1",
+		});
+		expect(batches).toHaveLength(1);
+		expect(batches[0]?.events).toHaveLength(1);
 	});
 });

@@ -51,6 +51,16 @@ describe("team persistence policy", () => {
 		).toBe(false);
 	});
 
+	it("treats a scheduled retry as a durable, immediate write", () => {
+		const retry: TeamEvent = {
+			type: TeamMessageType.RunProgress,
+			run: { ...baseRun, status: "queued", retryCount: 1, maxRetries: 2 },
+			message: "retry_scheduled_1",
+		};
+		expect(isDurableTeamEvent(retry)).toBe(true);
+		expect(shouldFlushTeamEventImmediately(retry)).toBe(true);
+	});
+
 	it("classifies state-changing events as durable", () => {
 		expect(
 			isDurableTeamEvent({ type: TeamMessageType.RunCompleted, run: baseRun }),

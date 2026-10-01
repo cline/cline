@@ -147,7 +147,15 @@ export async function dispatchTeamEventToBackend(
 /** Minimum gap between `team_progress` emits driven by telemetry events. */
 export const TEAM_PROGRESS_TELEMETRY_THROTTLE_MS = 1000;
 
-const lastTelemetryProgressAt = new WeakMap<object, number>();
+interface TelemetryProgressThrottle {
+	last: number;
+	timer?: ReturnType<typeof setTimeout>;
+	pending?: () => void;
+}
+const telemetryProgressThrottle = new WeakMap<
+	object,
+	TelemetryProgressThrottle
+>();
 
 export function emitTeamProgress(
 	session: ActiveSession,
@@ -158,16 +166,52 @@ export function emitTeamProgress(
 ): void {
 	const teamRuntime = session.runtime.teamRuntime;
 	if (!teamRuntime) return;
+	const send = () => publishTeamProgress(session, rootSessionId, event, emit);
 	// Streamed chunks and heartbeats don't change the summary's counts; building
-	// it copies the whole team state, so throttle those to ~1/s per team.
-	if (!isDurableTeamEvent(event)) {
-		const last = lastTelemetryProgressAt.get(teamRuntime) ?? 0;
-		const ts = now();
-		if (ts - last < TEAM_PROGRESS_TELEMETRY_THROTTLE_MS) {
-			return;
-		}
-		lastTelemetryProgressAt.set(teamRuntime, ts);
+	// it copies the whole team state, so throttle those to ~1/s per team. The
+	// latest throttled event is sent at the end of the window so its activity
+	// message is not lost.
+	let throttle = telemetryProgressThrottle.get(teamRuntime);
+	if (!throttle) {
+		throttle = { last: 0 };
+		telemetryProgressThrottle.set(teamRuntime, throttle);
 	}
+	if (isDurableTeamEvent(event)) {
+		send();
+		return;
+	}
+	const ts = now();
+	const wait = TEAM_PROGRESS_TELEMETRY_THROTTLE_MS - (ts - throttle.last);
+	if (wait <= 0) {
+		throttle.last = ts;
+		throttle.pending = undefined;
+		send();
+		return;
+	}
+	throttle.pending = send;
+	if (!throttle.timer) {
+		const state = throttle;
+		state.timer = setTimeout(() => {
+			state.timer = undefined;
+			const pending = state.pending;
+			state.pending = undefined;
+			if (pending) {
+				state.last = now();
+				pending();
+			}
+		}, wait);
+		(state.timer as { unref?: () => void }).unref?.();
+	}
+}
+
+function publishTeamProgress(
+	session: ActiveSession,
+	rootSessionId: string,
+	event: TeamEvent,
+	emit: (event: CoreSessionEvent) => void,
+): void {
+	const teamRuntime = session.runtime.teamRuntime;
+	if (!teamRuntime) return;
 	const teamName = teamRuntime.getTeamName();
 	emit({
 		type: "team_progress",
