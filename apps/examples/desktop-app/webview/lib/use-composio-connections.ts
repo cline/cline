@@ -45,7 +45,11 @@ export function useComposioConnections({
 		onChangedRef.current = onChanged;
 	}, [onChanged]);
 
+	// Bumped by every status write so a slow refresh that started before a
+	// connect/disconnect cannot land afterwards and resurrect the old state.
+	const statusVersionRef = useRef(0);
 	const applyStatus = useCallback((next: ComposioStatusResponse) => {
+		statusVersionRef.current += 1;
 		setStatus(next);
 		onChangedRef.current?.();
 	}, []);
@@ -55,16 +59,19 @@ export function useComposioConnections({
 	// Composio dashboard without this app knowing). Runs on mount and from
 	// the tab's refresh button.
 	const refresh = useCallback(async () => {
+		const version = statusVersionRef.current;
 		setRefreshing(true);
 		try {
-			setStatus(await fetchComposioStatus({ refresh: true }));
+			const next = await fetchComposioStatus({ refresh: true });
+			if (statusVersionRef.current !== version) return;
+			applyStatus(next);
 			setLoadError(null);
 		} catch (error) {
 			setLoadError(error instanceof Error ? error.message : String(error));
 		} finally {
 			setRefreshing(false);
 		}
-	}, []);
+	}, [applyStatus]);
 
 	useEffect(() => {
 		void refresh();

@@ -344,7 +344,7 @@ export function ComposioConnectorsView({
 		: null;
 	const detailStatus = detailSlug ? statusBySlug.get(detailSlug) : undefined;
 
-	if (loadError) {
+	if (loadError && !status) {
 		return (
 			<p className="select-text text-sm text-destructive" role="alert">
 				Failed to load connectors: {loadError}
@@ -429,6 +429,11 @@ export function ComposioConnectorsView({
 							/>
 						</Button>
 					</div>
+					{loadError ? (
+						<p className="text-xs text-destructive" role="alert">
+							Failed to refresh connectors: {loadError}
+						</p>
+					) : null}
 					<div className="relative">
 						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
@@ -659,8 +664,8 @@ function ConnectorRow({
 }
 
 /** Card for Customize > Connectors, shaped like the installed Skills /
- * Plugins / MCP cards. The whole card opens the detail dialog; the action
- * control sits outside that click target (nested interactives are invalid). */
+ * Plugins / MCP cards. The whole card opens the detail dialog, except the
+ * action control (same pattern as MarketplaceEntryCard). */
 function ConnectorCard({
 	entry,
 	summary,
@@ -684,8 +689,30 @@ function ConnectorCard({
 	const toolCount =
 		status === "connected" ? summary?.toolNames?.length : entry.toolsCount;
 	return (
-		<div className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4 transition-colors hover:bg-surface-hover-lighter">
-			<div className="absolute top-4 right-4">
+		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
+		<div
+			aria-label={`Open ${entry.name} details`}
+			className="relative grid min-w-0 cursor-pointer gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-surface-hover-lighter focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+			onClick={(event) => {
+				if (
+					event.target instanceof HTMLElement &&
+					event.target.closest("[data-connector-action]")
+				) {
+					return;
+				}
+				onOpenDetails();
+			}}
+			onKeyDown={(event) => {
+				if (event.target !== event.currentTarget) return;
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onOpenDetails();
+				}
+			}}
+			role="button"
+			tabIndex={0}
+		>
+			<div className="absolute top-4 right-4" data-connector-action>
 				<ConnectorActionButton
 					busy={busy}
 					configured
@@ -697,11 +724,7 @@ function ConnectorCard({
 					status={status}
 				/>
 			</div>
-			<button
-				className="grid min-w-0 cursor-pointer gap-2 pr-28 text-left"
-				onClick={onOpenDetails}
-				type="button"
-			>
+			<div className="grid min-w-0 gap-2 pr-28">
 				<span className="flex min-w-0 items-center gap-2">
 					<ConnectorLogo
 						className="size-4"
@@ -728,7 +751,7 @@ function ConnectorCard({
 						{entry.description}
 					</span>
 				) : null}
-			</button>
+			</div>
 			{error ? (
 				<p className="text-xs text-destructive" role="alert">
 					{error}

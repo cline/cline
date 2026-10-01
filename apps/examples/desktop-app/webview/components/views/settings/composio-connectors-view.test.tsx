@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 	connect: vi.fn(),
 	disconnect: vi.fn(),
 	cancel: vi.fn(),
+	refresh: vi.fn(),
+	loadError: null as string | null,
 }));
 vi.mock("@/lib/composio", () => ({
 	fetchComposioToolkitCatalog: mocks.catalog,
@@ -28,6 +30,9 @@ vi.mock("@/lib/use-composio-connections", () => ({
 		connect: mocks.connect,
 		disconnect: mocks.disconnect,
 		cancelConnect: mocks.cancel,
+		refresh: mocks.refresh,
+		refreshing: false,
+		loadError: mocks.loadError,
 	}),
 }));
 
@@ -38,6 +43,7 @@ let container: HTMLDivElement;
 beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
+	mocks.loadError = null;
 	mocks.integrations = [
 		{
 			toolkit: "gmail",
@@ -156,11 +162,13 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		// The card body opens the detail dialog.
+		// The card itself opens the detail dialog.
 		await act(async () =>
-			[...document.querySelectorAll("button")]
-				.find((entry) => entry.textContent?.startsWith("Google Calendar"))
-				?.click(),
+			(
+				container.querySelector(
+					'[aria-label="Open Google Calendar details"]',
+				) as HTMLElement
+			).click(),
 		);
 		const dialog = document.querySelector('[role="dialog"]');
 		expect(dialog?.textContent).toContain("47 available in new sessions");
@@ -203,6 +211,25 @@ describe("installed connectors", () => {
 		expect(container.textContent).not.toContain("Gmail");
 		expect(button("Install")).toBeUndefined();
 		expect(mocks.catalog).not.toHaveBeenCalled();
+	});
+
+	it("refreshes from the toolbar and keeps the list when a refresh fails", async () => {
+		mocks.loadError = "Network down";
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).toContain("Gmail");
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Network down",
+		);
+		await act(async () =>
+			(
+				container.querySelector(
+					'[aria-label="Refresh connectors"]',
+				) as HTMLElement
+			).click(),
+		);
+		expect(mocks.refresh).toHaveBeenCalledOnce();
 	});
 
 	it("lists installed connectors without fetching or showing recommendations", async () => {
