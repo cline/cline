@@ -1880,6 +1880,26 @@ describe("zod schema conversion", () => {
 });
 
 describe("default editor tool", () => {
+	it("describes old_text as required for edits to existing files", () => {
+		const editorTool = createEditorTool(async () => "ok");
+		const schema = editorTool.inputSchema as {
+			required?: string[];
+			properties?: Record<string, { description?: string }>;
+		};
+
+		expect(schema.properties?.old_text?.description).toContain(
+			"required for edits to existing files",
+		);
+		expect(schema.properties?.old_text?.description).toContain(
+			"unique exact substring copied from the current file contents",
+		);
+		expect(editorTool.description).toContain(
+			"for an existing file, `old_text` is required",
+		);
+		// Keep the field optional at the schema level for creating and inserting.
+		expect(schema.required).toEqual(["path", "new_text"]);
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({

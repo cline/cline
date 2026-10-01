@@ -1031,6 +1031,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 # VS Code Plan-Mode Tool Restrictions
 
 Do not attempt to call \`editor\`, \`apply_patch\`, or \`write_file\` in Plan mode. Do not use \`run_commands\` to create, modify, or delete files, install packages, or make any other changes. These actions are unavailable or blocked in Plan mode; do not test or retry them. You may use \`run_commands\` only for read-only inspection. For requests that require changes, finish by presenting the plan and wait for the user to switch to Act mode using the Plan/Act toggle.`
+	} else {
+		systemPrompt += `
+
+# VS Code Act-Mode Editor Guidance
+
+When using \`editor\` to change an existing file, first read its current contents and set \`old_text\` to a small, exact, unique substring copied from that version. Do not omit, paraphrase, reconstruct, or guess \`old_text\` for an existing file. Omit \`old_text\` only when creating a file that does not exist; use \`insert_line\` for insertion. If a replacement fails, re-read the file before retrying.`
 	}
 
 	// Inject preferred language instructions when a non-default language is selected.
