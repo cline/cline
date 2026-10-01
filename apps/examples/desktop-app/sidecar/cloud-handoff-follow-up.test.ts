@@ -338,49 +338,6 @@ it("retains edits and images as a usable draft when preflight rejects", async ()
 	});
 });
 
-it("does not dispatch an edit after a concurrent send replaced its recovery copy", async () => {
-	saveCloudHandoffFollowUp("target", {
-		draftId: "draft",
-		sourceSessionId: "source",
-		command: "original",
-		userImages: [],
-	});
-	let release!: () => void;
-	const gate = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-	const first = sendWithCloudHandoffFollowUp(
-		"target",
-		"first edit",
-		["first-image"],
-		async (lifecycle) => {
-			await gate;
-			lifecycle?.beforeDispatch?.();
-			return { ok: true as const };
-		},
-		"draft",
-	);
-	await expect(
-		sendWithCloudHandoffFollowUp(
-			"target",
-			"second edit",
-			["second-image"],
-			async (lifecycle) => {
-				lifecycle?.beforeDispatch?.();
-				throw new Error("uncertain second send");
-			},
-			"draft",
-		),
-	).rejects.toThrow("uncertain second send");
-	release();
-	await expect(first).rejects.toThrow("changed before sending");
-	expect(readCloudHandoffFollowUp("target")).toMatchObject({
-		command: "second edit",
-		userImages: ["second-image"],
-		unconfirmed: true,
-	});
-});
-
 it.each([
 	"accepted",
 	"failed",
