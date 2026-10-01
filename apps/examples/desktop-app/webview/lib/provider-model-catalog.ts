@@ -1,8 +1,10 @@
 "use client";
 
+import type { CloudModel } from "@cline/core/cloud";
 import {
 	isChatCompatibleModel,
 	isTranscriptionModel,
+	type ProviderAuthInfo,
 } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import { isProviderConnected } from "@/lib/provider-connection";
@@ -280,7 +282,7 @@ export function invalidateProviderCatalogCache(): void {
 // paint on a full catalog fetch. The last successful load is kept here (not
 // in the pane module) so credential changes invalidate it with the cache.
 export type ProviderCatalogSnapshot = {
-	credentials: Record<string, { apiKey: string }>;
+	credentials: Record<string, { apiKey: string; auth?: ProviderAuthInfo }>;
 	contextWindows: Record<string, Record<string, number>>;
 };
 
@@ -318,8 +320,41 @@ export function notifyVoiceInputSettingsChanged(settings?: {
 }
 
 export async function loadProviderModelCatalog(options?: {
+	includeCloudModels?: boolean;
 	includeVoiceInput?: boolean;
 }): Promise<ProviderModelCatalog> {
+	if (options?.includeCloudModels) {
+		const [models, localCatalog] = await Promise.all([
+			desktopClient.invoke<CloudModel[]>("list_cloud_models"),
+			fetchProviderCatalog(),
+		]);
+		// This catalog reads bundled/local metadata, without provider network
+		// discovery. Load it explicitly so capabilities survive a cold cache.
+		const details = new Map(
+			(localCatalog.providers ?? []).flatMap((provider) =>
+				(provider.modelList ?? []).map((model) => [model.id, model] as const),
+			),
+		);
+		// Cloud catalogs are billing choices on the same Cline transport. Only
+		// the account-scoped cloud response determines which models are offered.
+		return buildProviderModelCatalog(
+			Object.entries({
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			}).map(([id, name]) => ({
+				id,
+				name,
+				enabled: true,
+				models: null,
+				color: "",
+				letter: "C",
+				modelList: models
+					.filter((model) => model.catalogId === id)
+					.map((model) => ({ ...details.get(model.id), ...model })),
+			})),
+		);
+	}
 	const payload = await fetchProviderCatalog();
 	const catalog = buildProviderModelCatalog(payload.providers ?? []);
 	// Voice discovery may need the provider network. Chat and routine pickers

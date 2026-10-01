@@ -60,6 +60,10 @@ describe("SdkFollowupCoordinator", () => {
 			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
 		)
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		// The echoed bubble must carry the new epoch, so the fence moves first.
+		expect(options.resetMessageTranslator.mock.invocationCallOrder[0]).toBeLessThan(
+			options.messages.appendAndEmit.mock.invocationCallOrder[0],
+		)
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,

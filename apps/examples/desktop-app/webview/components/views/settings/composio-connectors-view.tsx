@@ -382,8 +382,9 @@ export function ComposioConnectorsView({
 			{!renderItem ? (
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<p className="text-sm text-muted-foreground">
-						Connect your accounts to give Cline tools for your favorite apps.
-						Tools will become available in new sessions.
+						<Badge className="mr-1">Beta</Badge>Connect your accounts to give
+						Cline tools for your favorite apps. Tools will become available in
+						new sessions.
 					</p>
 					{searchQuery === undefined ? (
 						<div className="relative">
@@ -605,6 +606,9 @@ function ConnectorDetailDialog({
 }) {
 	const status = summary?.status ?? "not_connected";
 	const toolNames = summary?.toolNames ?? [];
+	// A connected connector reports what new sessions actually get, even zero;
+	// the catalog total only describes connectors that aren't installed.
+	const isConnected = status === "connected";
 	return (
 		<Dialog onOpenChange={onOpenChange} open={entry !== null}>
 			{/* Fixed dimensions so every connector opens the same-sized window;
@@ -660,21 +664,13 @@ function ConnectorDetailDialog({
 										</dd>
 									</>
 								) : null}
-								<dt className="text-muted-foreground">Slug</dt>
-								<dd className="font-mono text-xs leading-5 text-foreground">
-									{entry.slug}
-								</dd>
-								{typeof entry.toolsCount === "number" ||
-								(status === "connected" && toolNames.length > 0) ? (
+								{isConnected || typeof entry.toolsCount === "number" ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
 										<dd className="text-foreground">
-											{status === "connected" && toolNames.length > 0 ? (
+											{isConnected ? (
 												<>
-													{toolNames.length}
-													{typeof entry.toolsCount === "number"
-														? `/${entry.toolsCount}`
-														: null}{" "}
+													{toolNames.length}{" "}
 													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 														available in new sessions
 													</span>
@@ -683,7 +679,7 @@ function ConnectorDetailDialog({
 												entry.toolsCount
 											)}
 										</dd>
-										{status === "connected" && toolNames.length > 0 ? (
+										{isConnected && toolNames.length > 0 ? (
 											<dd className="col-span-2 mb-3 mt-1">
 												<ul className="flex flex-wrap gap-1.5">
 													{toolNames.map((name) => (

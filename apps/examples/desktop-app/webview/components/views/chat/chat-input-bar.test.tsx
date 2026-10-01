@@ -438,11 +438,20 @@ describe("ChatInputBar", () => {
 
 	it("blocks cloud images for a model without vision support", async () => {
 		const onAttachFiles = vi.fn();
-		loadProviderModelsMock.mockResolvedValue([
-			{ id: "test-model", name: "Text only", inputModalities: ["text"] },
-		]);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			...providerCatalog(null),
+			providerModelDetails: {
+				cline: [
+					{ id: "test-model", name: "Text only", inputModalities: ["text"] },
+				],
+			},
+		});
 		await renderVoiceComposer({ executionTarget: "cloud", onAttachFiles });
-		await vi.waitFor(() => expect(loadProviderModelsMock).toHaveBeenCalled());
+		await vi.waitFor(() =>
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
+		);
 		const input =
 			container.querySelector<HTMLInputElement>('input[type="file"]');
 		const png = new File(["png"], "capture.png", { type: "image/png" });
@@ -542,9 +551,15 @@ describe("ChatInputBar", () => {
 	it("allows cloud image and model selection without replacing local defaults", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
-			enabledProviderIds: ["anthropic", "cline"],
+			enabledProviderIds: ["cline", "cline-pass", "cline-cloud"],
+			providerNames: {
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			},
 			providerModels: {
-				anthropic: ["claude-test"],
+				"cline-pass": ["cline-pass/pass-model"],
+				"cline-cloud": ["cline-cloud/free-model"],
 				cline: ["cline-test", "cline-alt"],
 			},
 			providerReasoningModels: { anthropic: [], cline: [] },
@@ -625,9 +640,10 @@ describe("ChatInputBar", () => {
 				initialCatalogLoads + 1,
 			);
 		});
-		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
 			includeCloudModels: true,
 		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
 		const providerModelsListener =
 			subscribeToProviderModelsMock.mock.calls[0]?.[0];
 		await act(async () => {
@@ -659,18 +675,15 @@ describe("ChatInputBar", () => {
 		);
 		await act(async () => modelTrigger?.click());
 		const cloudModel = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Model: cline-test"]',
+			'[aria-label="Model: claude-test"]',
 		);
 		loadProviderModelsMock.mockClear();
 		loadProviderModelCatalogMock.mockClear();
 		await act(async () => cloudModel?.click());
-		expect(loadProviderModelsMock).toHaveBeenCalledExactlyOnceWith(
-			"anthropic",
-			{
-				includeCloudModels: true,
-			},
-		);
-		expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+			includeCloudModels: true,
+		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
 		const alternateModel = Array.from(
 			container.querySelectorAll<HTMLButtonElement>(
 				".cline-ui-search-combobox__option",
@@ -680,6 +693,27 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Local only");
 		await act(async () => alternateModel?.click());
 		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		for (const [label, model] of [
+			["ClinePass", "cline-pass/pass-model"],
+			["ClineFree", "cline-cloud/free-model"],
+		]) {
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>(
+						'[aria-label="Provider: Cline Usage-Billing"]',
+					)
+					?.click(),
+			);
+			const option = [
+				...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((button) => button.textContent?.includes(label));
+			expect(option).toBeDefined();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenLastCalledWith(model);
+		}
+		expect(
+			onProviderChange.mock.calls.every(([provider]) => provider === "cline"),
+		).toBe(true);
 		expect(
 			JSON.parse(
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
@@ -687,8 +721,14 @@ describe("ChatInputBar", () => {
 		).toEqual(localSelection);
 	});
 
-	it("blocks a new cloud message until a GitHub repository is selected", async () => {
+	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
 		const onSend = vi.fn();
+		let catalogAvailable = false;
+		loadProviderModelCatalogMock.mockImplementation(async (options) => {
+			if (options?.includeCloudModels && !catalogAvailable)
+				throw new Error("offline");
+			return providerCatalog(null);
+		});
 		const render = async (
 			repoUrl?: string,
 			prompt = "Continue in cloud",
@@ -766,6 +806,19 @@ describe("ChatInputBar", () => {
 		expect(onSend).not.toHaveBeenCalled();
 
 		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(true);
+		await act(async () =>
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		const retry = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Retry"),
+		);
+		expect(retry).toBeDefined();
+		catalogAvailable = true;
+		await act(async () => retry?.click());
 		expect(sendButton?.disabled).toBe(false);
 		await act(async () => sendButton?.click());
 		expect(onSend).toHaveBeenCalledWith("Continue in cloud");

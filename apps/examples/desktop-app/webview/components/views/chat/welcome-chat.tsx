@@ -3,6 +3,7 @@
 import type { AgendaTaskRecord } from "@cline/shared";
 import { getClineEnvironmentConfig } from "@cline/shared/browser";
 import {
+	AgentConversationLayout,
 	type AgentQuickAction,
 	AgentQuickActions,
 	AgentWelcomeHero,
@@ -19,19 +20,21 @@ import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
 	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
 	normalizeCloudRepositoryUrl,
+	readCloudRepositorySelection,
+	resolveRememberedCloudBranch,
+	writeCloudRepositorySelection,
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
-import { cn } from "@/lib/utils";
 import type { WorkIn } from "@/lib/work-in-selection";
 import {
 	CloudOnboardingCard,
 	type CloudOnboardingVariant,
 } from "./cloud-onboarding";
-import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 // Used only until the API's connectUrl arrives (or when it is blank), so a
@@ -46,8 +49,12 @@ type CloudSetupState = {
 		| "ready"
 		| "not_connected"
 		| "no_repositories"
+		| "restore_error"
 		| "error";
 	connectUrl: string;
+	scope: string | null;
+	requestId: number;
+	repositories: CloudRepositoryOption[];
 	/** Normalized URLs of repositories the account can currently access. */
 	repositoryUrls: string[];
 };
@@ -94,11 +101,21 @@ export function WelcomeScreen({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
+	const cloudScope = user
+		? JSON.stringify([
+				getClineEnvironmentConfig().appBaseUrl,
+				user.id,
+				activeOrganization?.organizationId ?? null,
+			])
+		: null;
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
+		scope: null,
+		requestId: 0,
+		repositories: [],
 		repositoryUrls: [],
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
@@ -112,8 +129,11 @@ export function WelcomeScreen({
 		selectChat,
 	} = useWorkspace();
 	const applyCloudSetupResult = useCallback(
-		(result: CloudRepositoryListResult) => {
+		(result: CloudRepositoryListResult, requestId: number) => {
 			setCloudSetup({
+				scope: cloudScope,
+				requestId,
+				repositories: result.repositories,
 				status:
 					result.connected === false
 						? "not_connected"
@@ -126,7 +146,7 @@ export function WelcomeScreen({
 				),
 			});
 		},
-		[],
+		[cloudScope],
 	);
 	const fetchCloudRepositories = useCallback(
 		() =>
@@ -139,9 +159,17 @@ export function WelcomeScreen({
 	const listCloudRepositories = useCallback(async () => {
 		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
-		const result = await fetchCloudRepositories();
+		const result = await fetchCloudRepositories().catch((error) => {
+			// Resume saved-selection restoration if the picker refresh fails.
+			setCloudSetup((prev) =>
+				cloudSetupRequestRef.current === requestId && prev.status === "ready"
+					? { ...prev, requestId }
+					: prev,
+			);
+			throw error;
+		});
 		if (cloudSetupRequestRef.current === requestId) {
-			applyCloudSetupResult(result);
+			applyCloudSetupResult(result, requestId);
 		}
 		return result;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
@@ -190,7 +218,7 @@ export function WelcomeScreen({
 		try {
 			const result = await fetchCloudRepositories();
 			if (cloudSetupRequestRef.current !== requestId) return;
-			applyCloudSetupResult(result);
+			applyCloudSetupResult(result, requestId);
 		} catch {
 			if (cloudSetupRequestRef.current !== requestId) return;
 			setCloudSetup((prev) => ({ ...prev, status: "error" }));
@@ -244,6 +272,74 @@ export function WelcomeScreen({
 			void checkCloudSetup();
 		});
 	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
+
+	// Keep sending blocked until the saved repository and branch are validated.
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			repoUrl ||
+			cloudSetup.status !== "ready" ||
+			cloudSetup.scope !== cloudScope ||
+			cloudSetup.requestId !== cloudSetupRequestRef.current
+		)
+			return;
+		const saved = readCloudRepositorySelection(cloudScope);
+		const repository = cloudSetup.repositories.find(
+			(candidate) =>
+				normalizeCloudRepositoryUrl(candidate.url) === saved?.repoUrl,
+		);
+		if (!saved || !repository) return;
+		let cancelled = false;
+		void resolveRememberedCloudBranch(
+			repository.id,
+			saved.branch,
+			repository.defaultBranch,
+			listCloudBranches,
+		)
+			.then((branch) => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				onRepoUrlChange(saved.repoUrl);
+				onCloudBranchChange(branch);
+			})
+			.catch(() => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				setCloudSetup((prev) => ({ ...prev, status: "restore_error" }));
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudModeActive,
+		cloudScope,
+		cloudSetup,
+		repoUrl,
+		listCloudBranches,
+		onRepoUrlChange,
+		onCloudBranchChange,
+	]);
+
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			cloudSetup.scope !== cloudScope ||
+			(cloudSetup.status !== "ready" &&
+				cloudSetup.status !== "restore_error") ||
+			!repoUrl ||
+			!cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl))
+		)
+			return;
+		writeCloudRepositorySelection(cloudScope, {
+			repoUrl: normalizeCloudRepositoryUrl(repoUrl),
+			branch: cloudBranch,
+		});
+		if (cloudSetup.status === "restore_error") {
+			setCloudSetup((prev) => ({ ...prev, status: "ready" }));
+		}
+	}, [cloudModeActive, cloudScope, cloudSetup, repoUrl, cloudBranch]);
 
 	const agenda = useAgendaTasks(
 		{
@@ -356,115 +452,83 @@ export function WelcomeScreen({
 				? "not_connected"
 				: cloudSetup.status === "no_repositories"
 					? "no_repositories"
-					: cloudSetup.status === "error"
+					: cloudSetup.status === "error" ||
+							cloudSetup.status === "restore_error"
 						? "error"
 						: null;
-	const showCloudOnboarding = cloudOnboardingVariant !== null;
+	// A failed restore must still allow a manual repository selection.
+	const showCloudOnboarding =
+		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";
 
 	return (
-		<div
-			className={cn(
-				active
-					? "relative h-full min-h-0 overflow-hidden bg-background"
-					: "contents",
-			)}
-		>
-			<div
-				className={cn(
-					active
-						? "relative z-10 h-full w-full overflow-x-hidden overflow-y-auto"
-						: "contents",
-				)}
-			>
-				<div
-					className={cn(
-						active
-							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
-							: "contents",
-					)}
-				>
-					{active ? (
-						<div className="cline-view-enter">
-							<h1 className="sr-only">What would you like to build?</h1>
-							<AgentWelcomeHero />
+		<AgentConversationLayout
+			welcome={active}
+			body={body}
+			bodyClassName="cline-view-enter"
+			composer={composer}
+			notice={notice && !showCloudOnboarding ? notice : null}
+			hideWelcomeComposer={showCloudOnboarding}
+			welcomeHeader={
+				<div className="cline-view-enter">
+					<h1 className="sr-only">What would you like to build?</h1>
+					<AgentWelcomeHero />
 
-							<div className="mt-11 flex min-w-0 items-center gap-2">
-								{environmentSelector}
-								<WelcomeWorkspaceControls
-									cloudBranch={cloudBranch}
-									cloudControlsHidden={showCloudOnboarding}
-									cloudEnabled={cloudAgentsEnabled}
-									currentBranch={gitBranch}
-									executionTarget={executionTarget}
-									onCloudBranchChange={onCloudBranchChange}
-									onListCloudBranches={listCloudBranches}
-									onListCloudRepositories={listCloudRepositories}
-									onListGitBranches={onListGitBranches}
-									onOpenExternalUrl={connectGitHub}
-									onPickWorkspaceDirectory={pickWorkspaceDirectory}
-									onRefreshWorkspaces={refreshWorkspaces}
-									onRepoUrlChange={onRepoUrlChange}
-									onSignIn={signIn}
-									onSelectChat={selectChat}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={switchWorkspace}
-									repoUrl={repoUrl}
-									signedIn={signedIn}
-									signingIn={signingIn}
-									onWorkInChange={onWorkInChange}
-									workIn={workIn}
-									workspaceRoot={workspaceRoot}
-									workspaces={workspaces}
-								/>
-								{signInError ? (
-									<p className="mt-2 text-xs text-destructive">
-										Sign in failed: {signInError}
-									</p>
-								) : null}
-							</div>
-						</div>
-					) : null}
-
-					<div
-						className={
-							active
-								? "hidden"
-								: "cline-view-enter h-full min-h-0 overflow-hidden"
-						}
-						key="conversation-body"
-					>
-						{body}
+					<div className="mt-11 flex min-w-0 items-center gap-2">
+						{environmentSelector}
+						<WelcomeWorkspaceControls
+							cloudBranch={cloudBranch}
+							cloudControlsHidden={showCloudOnboarding}
+							cloudEnabled={cloudAgentsEnabled}
+							currentBranch={gitBranch}
+							executionTarget={executionTarget}
+							onCloudBranchChange={onCloudBranchChange}
+							onListCloudBranches={listCloudBranches}
+							onListCloudRepositories={listCloudRepositories}
+							onListGitBranches={onListGitBranches}
+							onOpenExternalUrl={connectGitHub}
+							onPickWorkspaceDirectory={pickWorkspaceDirectory}
+							onRefreshWorkspaces={refreshWorkspaces}
+							onRepoUrlChange={onRepoUrlChange}
+							onSignIn={signIn}
+							onSelectChat={selectChat}
+							onSwitchGitBranch={onSwitchGitBranch}
+							onSwitchWorkspace={switchWorkspace}
+							repoUrl={repoUrl}
+							signedIn={signedIn}
+							signingIn={signingIn}
+							onWorkInChange={onWorkInChange}
+							workIn={workIn}
+							workspaceRoot={workspaceRoot}
+							workspaces={workspaces}
+						/>
+						{signInError ? (
+							<p className="mt-2 text-xs text-destructive">
+								Sign in failed: {signInError}
+							</p>
+						) : null}
 					</div>
-
-					{active && notice && !showCloudOnboarding ? notice : null}
-
-					{active && showCloudOnboarding ? (
-						<div className="mt-4 w-full">
-							<CloudOnboardingCard
-								checking={cloudSetupChecking}
-								onConnect={() =>
-									void (cloudOnboardingVariant === "not_connected"
-										? connectGitHub(cloudSetup.connectUrl)
-										: openExternalUrl(cloudSetup.connectUrl))
-								}
-								onRefresh={() => void checkCloudSetup()}
-								onSignIn={() => void signIn()}
-								signingIn={signingIn}
-								variant={cloudOnboardingVariant}
-							/>
-						</div>
-					) : null}
-
-					<div
-						className={cn(
-							active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6",
-							active && showCloudOnboarding && "hidden",
-						)}
-						key="persistent-composer"
-					>
-						{active ? composer : <SessionContent>{composer}</SessionContent>}
+				</div>
+			}
+			welcomeSetup={
+				cloudOnboardingVariant !== null ? (
+					<div className="mt-4 w-full">
+						<CloudOnboardingCard
+							checking={cloudSetupChecking}
+							onConnect={() =>
+								void (cloudOnboardingVariant === "not_connected"
+									? connectGitHub(cloudSetup.connectUrl)
+									: openExternalUrl(cloudSetup.connectUrl))
+							}
+							onRefresh={() => void checkCloudSetup()}
+							onSignIn={() => void signIn()}
+							signingIn={signingIn}
+							variant={cloudOnboardingVariant}
+						/>
 					</div>
-
+				) : null
+			}
+			welcomeFooter={
+				<>
 					{active && AGENDA_UI_ENABLED ? (
 						<>
 							<AgentQuickActions
@@ -510,8 +574,8 @@ export function WelcomeScreen({
 							going even when you close the app.
 						</p>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</>
+			}
+		/>
 	);
 }
