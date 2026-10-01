@@ -19,6 +19,62 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it("reuses a bound thread when opening its session and keeps other environments separate", () => {
+		let state = createDesktopAppState("new-local", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "new-local",
+			sessionId: "same-id",
+		});
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "new-remote",
+			environmentId: "remote",
+		});
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "new-remote",
+			sessionId: "same-id",
+		});
+		for (const environmentId of ["local", "remote", "local"]) {
+			state = desktopAppReducer(state, {
+				type: "open-session",
+				session: createSession("same-id"),
+				environmentId,
+			});
+			expect(state.navigation.current.activeThreadId).toBe(
+				`new-${environmentId}`,
+			);
+			expect(state.threads).toHaveLength(2);
+		}
+		state = desktopAppReducer(state, {
+			type: "update-session-metadata",
+			sessionId: "same-id",
+			environmentId: "local",
+			metadata: { title: "Local title" },
+		});
+		expect(state.threads[0].historySession?.metadata?.title).toBe(
+			"Local title",
+		);
+		expect(state.threads[1].historySession?.metadata?.title).toBeUndefined();
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "same-id",
+			environmentId: "local",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(state.threads.map((thread) => thread.id)).toEqual([
+			"new-remote",
+			"fallback",
+		]);
+		expect(
+			state.navigation.back.some(
+				(location) => location.activeThreadId === "new-local",
+			),
+		).toBe(false);
+	});
+
 	it("keeps identical session IDs separate across environments", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		for (const environmentId of ["local", "remote"]) {
