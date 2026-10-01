@@ -526,6 +526,9 @@ export {
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
+	type CompiledSandboxHostOptions,
+	hostSandboxesInCompiledBinary,
+	runCompiledSandboxEntry,
 	type SandboxCallOptions,
 	SubprocessSandbox,
 	type SubprocessSandboxOptions,

@@ -14,7 +14,10 @@ import type {
 	PluginSetupContext,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
+import {
+	getCompiledSandboxHost,
+	SubprocessSandbox,
+} from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
@@ -175,6 +178,28 @@ function resolveBootstrapFromWrapper(): string | undefined {
 	}
 }
 
+/**
+ * The published `@cline/core` dist ships the compiled bootstrap, so a host that
+ * carries an on-disk SDK tree for its plugins already has one that matches
+ * the SDK those plugins import.
+ */
+function resolveBootstrapFromPluginHost(): string | undefined {
+	const pluginHostDir = getCompiledSandboxHost()?.pluginHostDir?.trim();
+	if (!pluginHostDir) {
+		return undefined;
+	}
+	const candidate = join(
+		pluginHostDir,
+		"node_modules",
+		"@cline",
+		"core",
+		"dist",
+		"extensions",
+		"plugin-sandbox-bootstrap.js",
+	);
+	return existsSync(candidate) ? candidate : undefined;
+}
+
 function resolveBootstrapFromExecutable(): string | undefined {
 	const execPath = process.execPath?.trim();
 	if (!execPath) {
@@ -244,6 +269,7 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		],
 		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
 		installedCandidates: [
+			resolveBootstrapFromPluginHost(),
 			resolveBootstrapFromWrapper(),
 			resolveBootstrapFromExecutable(),
 		],
@@ -270,7 +296,14 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	};
 }
 
-const BOOTSTRAP = resolveBootstrap();
+let resolvedBootstrap: ReturnType<typeof resolveBootstrap> | undefined;
+
+// Resolved on first use rather than at import time so a compiled host can
+// call hostSandboxesInCompiledBinary() from its entrypoint first.
+function getBootstrap(): ReturnType<typeof resolveBootstrap> {
+	resolvedBootstrap ??= resolveBootstrap();
+	return resolvedBootstrap;
+}
 
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
@@ -319,11 +352,12 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
+	const bootstrap = getBootstrap();
 	const sandbox = new SubprocessSandbox({
 		name: "plugin-sandbox",
-		...("file" in BOOTSTRAP
-			? { bootstrapFile: BOOTSTRAP.file }
-			: { bootstrapScript: BOOTSTRAP.script }),
+		...("file" in bootstrap
+			? { bootstrapFile: bootstrap.file }
+			: { bootstrapScript: bootstrap.script }),
 		idleTimeoutMs,
 		onEvent: options.onEvent,
 	});

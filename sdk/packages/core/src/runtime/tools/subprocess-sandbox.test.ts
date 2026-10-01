@@ -1,8 +1,13 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
 	CLINE_JS_RUNTIME_PATH_ENV,
+	COMPILED_BUN_SANDBOX_ARG,
 	resolveSubprocessRuntimeExecutable,
+	runCompiledSandboxEntry,
 	SubprocessSandbox,
 } from "./subprocess-sandbox";
 
@@ -98,6 +103,83 @@ describe("SubprocessSandbox runtime resolution", () => {
 			"--enable-source-maps",
 			"bootstrap.js",
 		]);
+	});
+
+	it("re-executes a self-hosting compiled binary with the sandbox marker", () => {
+		expect(
+			buildSubprocessSandboxCommand(["bootstrap.js"], {
+				execPath: "/Applications/Cline.app/Contents/MacOS/code-sidecar",
+				env: { CLINE_BUILD_ENV: "production" },
+				name: "plugin-sandbox",
+				selfHosted: true,
+			}),
+		).toEqual([
+			"/Applications/Cline.app/Contents/MacOS/code-sidecar",
+			COMPILED_BUN_SANDBOX_ARG,
+			"bootstrap.js",
+		]);
+	});
+
+	it("does not mark launches that a real runtime or an override will run", () => {
+		expect(
+			buildSubprocessSandboxCommand(["bootstrap.js"], {
+				execPath: "/usr/local/bin/bun",
+				env: { CLINE_BUILD_ENV: "production" },
+				selfHosted: true,
+			}),
+		).toEqual(["/usr/local/bin/bun", "bootstrap.js"]);
+		expect(
+			buildSubprocessSandboxCommand(["bootstrap.js"], {
+				execPath: "/Applications/Cline.app/Contents/MacOS/code-sidecar",
+				env: {
+					CLINE_BUILD_ENV: "production",
+					[CLINE_JS_RUNTIME_PATH_ENV]: "/opt/runtime/js",
+				},
+				selfHosted: true,
+			}),
+		).toEqual(["/opt/runtime/js", "bootstrap.js"]);
+	});
+});
+
+describe("runCompiledSandboxEntry", () => {
+	it("ignores processes launched without the marker", async () => {
+		await expect(
+			runCompiledSandboxEntry(["/bin/code-sidecar", "/$bunfs/root/sidecar"]),
+		).resolves.toBe(false);
+	});
+
+	it("refuses inline scripts, which a compiled host cannot evaluate", async () => {
+		await expect(
+			runCompiledSandboxEntry([
+				"/bin/code-sidecar",
+				COMPILED_BUN_SANDBOX_ARG,
+				"-e",
+				"console.log(1)",
+			]),
+		).rejects.toThrow("on-disk bootstrap file");
+	});
+
+	it("runs the bootstrap file named after the marker", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-sandbox-entry-"));
+		const marker = join(dir, "ran");
+		const bootstrap = join(dir, "bootstrap.mjs");
+		writeFileSync(
+			bootstrap,
+			`import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(marker)}, "ok");`,
+		);
+		try {
+			await expect(
+				runCompiledSandboxEntry([
+					"/bin/code-sidecar",
+					"/$bunfs/root/sidecar",
+					COMPILED_BUN_SANDBOX_ARG,
+					bootstrap,
+				]),
+			).resolves.toBe(true);
+			expect(existsSync(marker)).toBe(true);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });
 

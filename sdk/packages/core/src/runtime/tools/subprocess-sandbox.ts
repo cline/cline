@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
 	augmentNodeCommandForDebug,
 	withResolvedClineBuildEnv,
@@ -76,6 +77,70 @@ function isChildAvailable(child: ChildProcess): boolean {
 
 export const CLINE_JS_RUNTIME_PATH_ENV = "CLINE_JS_RUNTIME_PATH";
 
+/**
+ * Marker a self-hosting compiled binary is launched with as the sandbox
+ * runtime: `<binary> --cline-sandbox <bootstrapFile>`. A `bun build --compile`
+ * binary always boots its embedded entrypoint, so the host checks for this
+ * marker there and runs the bootstrap instead of starting normally, the same
+ * trick the Hub daemon uses with `--cline-hub-daemon`.
+ */
+export const COMPILED_BUN_SANDBOX_ARG = "--cline-sandbox";
+
+export interface CompiledSandboxHostOptions {
+	/**
+	 * Directory holding an on-disk `node_modules` tree with `@cline/core` (whose
+	 * dist ships the plugin sandbox bootstrap), `jiti`, and the SDK packages
+	 * plugins import at runtime. Plays the role the npm install plays for the
+	 * CLI, where `CLINE_WRAPPER_PATH` locates the same layout.
+	 */
+	pluginHostDir?: string;
+}
+
+let compiledSandboxHost: CompiledSandboxHostOptions | undefined;
+
+/**
+ * Declare that this compiled Bun binary is the runtime for its own sandboxes.
+ *
+ * A compiled binary is not recognized as a JavaScript runtime by name, so
+ * without this the sandbox falls back to whatever `node` is on PATH and hands
+ * it a bootstrap path inside the binary's virtual filesystem. A host that
+ * calls this re-executes itself with {@link COMPILED_BUN_SANDBOX_ARG} and must
+ * route that marker to {@link runCompiledSandboxEntry} from its entrypoint.
+ */
+export function hostSandboxesInCompiledBinary(
+	options: CompiledSandboxHostOptions = {},
+): void {
+	compiledSandboxHost = options;
+}
+
+export function getCompiledSandboxHost():
+	| CompiledSandboxHostOptions
+	| undefined {
+	return compiledSandboxHost;
+}
+
+/**
+ * Run the sandbox bootstrap when this process was launched with
+ * {@link COMPILED_BUN_SANDBOX_ARG}. Returns whether it did, so an entrypoint
+ * can return early instead of starting its normal personality.
+ */
+export async function runCompiledSandboxEntry(
+	argv: string[] = process.argv,
+): Promise<boolean> {
+	const index = argv.indexOf(COMPILED_BUN_SANDBOX_ARG);
+	if (index === -1) {
+		return false;
+	}
+	const bootstrapFile = argv[index + 1];
+	if (!bootstrapFile || bootstrapFile.startsWith("-")) {
+		throw new Error(
+			`${COMPILED_BUN_SANDBOX_ARG} requires an on-disk bootstrap file; a compiled host cannot run an inline sandbox script`,
+		);
+	}
+	await import(pathToFileURL(resolve(bootstrapFile)).href);
+	return true;
+}
+
 function isRuntimeExecutable(value: string | undefined): boolean {
 	const trimmed = value?.trim();
 	if (!trimmed) {
@@ -95,6 +160,8 @@ export function resolveSubprocessRuntimeExecutable(
 		env?: NodeJS.ProcessEnv;
 		execPath?: string;
 		runtimeExecutable?: string;
+		/** Defaults to whether {@link hostSandboxesInCompiledBinary} was called. */
+		selfHosted?: boolean;
 	} = {},
 ): string {
 	const env = options.env ?? process.env;
@@ -105,7 +172,8 @@ export function resolveSubprocessRuntimeExecutable(
 	}
 
 	const execPath = options.execPath?.trim() || process.execPath;
-	if (isRuntimeExecutable(execPath)) {
+	const selfHosted = options.selfHosted ?? compiledSandboxHost !== undefined;
+	if (selfHosted || isRuntimeExecutable(execPath)) {
 		return execPath;
 	}
 
@@ -131,14 +199,22 @@ export function buildSubprocessSandboxCommand(
 		name?: string;
 		execPath?: string;
 		runtimeExecutable?: string;
+		selfHosted?: boolean;
 	} = {},
 ): string[] {
-	const runtimeExecutable = resolveSubprocessRuntimeExecutable({
-		env: options.env,
-		execPath: options.execPath,
-		runtimeExecutable: options.runtimeExecutable,
-	});
-	return augmentNodeCommandForDebug([runtimeExecutable, ...args], {
+	const runtimeExecutable = resolveSubprocessRuntimeExecutable(options);
+	// Re-executing a compiled host binary only works when it can tell it is
+	// meant to be the sandbox, so mark the launch. Any other runtime (node,
+	// bun, an explicit override) runs the bootstrap directly.
+	const execPath = options.execPath?.trim() || process.execPath;
+	const selfHosted = options.selfHosted ?? compiledSandboxHost !== undefined;
+	const marker =
+		selfHosted &&
+		runtimeExecutable === execPath &&
+		!isRuntimeExecutable(execPath)
+			? [COMPILED_BUN_SANDBOX_ARG]
+			: [];
+	return augmentNodeCommandForDebug([runtimeExecutable, ...marker, ...args], {
 		env: options.env,
 		execArgv: options.execArgv,
 		debugRole: options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",
