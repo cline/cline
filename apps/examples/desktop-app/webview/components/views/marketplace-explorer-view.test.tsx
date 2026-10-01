@@ -181,7 +181,7 @@ describe("Marketplace directory", () => {
 		expect(connectorFilter()?.textContent).toBe("Connectors121");
 		const section = container.querySelector('section[aria-label="Connectors"]');
 		expect(section?.querySelector("h2")?.textContent).toContain(
-			"ConnectorsBeta121",
+			"ConnectorsBeta",
 		);
 		expect(section?.querySelectorAll("button")).toHaveLength(24);
 		const input = container.querySelector(
@@ -198,7 +198,7 @@ describe("Marketplace directory", () => {
 		expect(section?.textContent).toContain("App 120");
 		expect(connectorFilter()?.textContent).toBe("Connectors121");
 		expect(section?.querySelector("h2")?.textContent).toContain(
-			"ConnectorsBeta121",
+			"ConnectorsBeta",
 		);
 	});
 	it("appends pages on scroll through the full catalog and resets pagination for search", async () => {

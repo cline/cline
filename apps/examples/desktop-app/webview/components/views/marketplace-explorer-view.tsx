@@ -315,11 +315,9 @@ function isBusy(state: EntryActionState | undefined): boolean {
 
 function SectionHeader({
 	beta = false,
-	count,
 	meta,
 }: {
 	beta?: boolean;
-	count: number | null;
 	meta: MarketplaceTypeMeta;
 }) {
 	return (
@@ -329,9 +327,6 @@ function SectionHeader({
 				{meta.plural}
 			</span>
 			{beta ? <Badge>Beta</Badge> : null}
-			<span className="shrink-0 text-xs text-muted-foreground">
-				{count ?? "…"}
-			</span>
 			<span className="ml-1 min-w-0 flex-1 truncate text-xs text-muted-foreground/80">
 				{meta.blurb}
 			</span>
@@ -839,7 +834,7 @@ export function MarketplaceExplorerView({
 							const meta = TYPE_META[group.type];
 							return (
 								<div className="grid gap-0.5" key={group.type}>
-									<SectionHeader count={group.entries.length} meta={meta} />
+									<SectionHeader meta={meta} />
 									{group.entries.map((entry) => {
 										const key = entryKey(entry);
 										return (
@@ -872,11 +867,7 @@ export function MarketplaceExplorerView({
 						) : null}
 						{showConnectors ? (
 							<section className="grid gap-0.5" aria-label="Connectors">
-								<SectionHeader
-									beta
-									count={connectorCount}
-									meta={TYPE_META.connector}
-								/>
+								<SectionHeader beta meta={TYPE_META.connector} />
 								<ComposioConnectorsView
 									appendOnScroll
 									searchQuery={query}
