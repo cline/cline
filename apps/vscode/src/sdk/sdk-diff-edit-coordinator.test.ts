@@ -88,17 +88,17 @@ describe("computeNewEditorContent", () => {
 
 	// Mirrors the SDK executor's semantics (editor.ts) so the preview shows exactly what
 	// the executor will write, and inputs the SDK would reject skip the preview.
-	it("throws for text not found", () => {
+	it("throws for text not found with stale-state guidance", () => {
 		const input: EditFileInput = { path: filePath, old_text: "zzz", new_text: "x" }
 		expect(() => computeNewEditorContent("a\nb", input, filePath, "modify")).toThrow(
-			`No replacement performed: text not found in ${filePath}.`,
+			`No replacement performed: text not found in ${filePath}. Re-read the current file and retry with an exact, unique old_text from the latest contents.`,
 		)
 	})
 
-	it("throws for ambiguous text", () => {
+	it("throws for ambiguous text with stale-state guidance", () => {
 		const input: EditFileInput = { path: filePath, old_text: "a", new_text: "x" }
 		expect(() => computeNewEditorContent("a\na", input, filePath, "modify")).toThrow(
-			`No replacement performed: multiple occurrences of text found in ${filePath}.`,
+			`No replacement performed: multiple occurrences of text found in ${filePath}. Re-read the current file and retry with a smaller, unique old_text from the latest contents.`,
 		)
 	})
 
