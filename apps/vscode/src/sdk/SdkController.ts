@@ -187,7 +187,7 @@ interface StartRetry {
 }
 
 /** Where a cloud task runs; the composer submits it and a retry reuses it. */
-export interface CloudTarget {
+interface CloudTarget {
 	repoUrl: string
 	branch?: string
 }
@@ -1346,16 +1346,6 @@ export class Controller {
 		})
 	}
 
-	/**
-	 * Emit a proper auth error for the 'cline' provider when the user is not
-	 * logged in. The message sequence drives ErrorRow to render the
-	 * "Sign in to Cline" button.
-	 *
-	 * Message sequence:
-	 *   1. say:'task'           – the user's message text
-	 *   2. say:'api_req_started' – opens the API request row
-	 *   3. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders auth UI
-	 */
 	/** A cloud start failed before it had a session; the footer's Retry runs the same input again. */
 	private offerCloudStartRetry(task: TaskProxy, input: CloudTaskInput): void {
 		this.pendingStartRetry = {
@@ -1367,6 +1357,16 @@ export class Controller {
 		}
 	}
 
+	/**
+	 * Emit a proper auth error for the 'cline' provider when the user is not
+	 * logged in. The message sequence drives ErrorRow to render the
+	 * "Sign in to Cline" button.
+	 *
+	 * Message sequence:
+	 *   1. say:'task'           – the user's message text
+	 *   2. say:'api_req_started' – opens the API request row
+	 *   3. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders auth UI
+	 */
 	private emitClineAuthError(task?: string): void {
 		const ts = Date.now()
 		const hasConversation = this.task !== undefined

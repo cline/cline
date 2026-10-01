@@ -1,18 +1,26 @@
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import type { PendingResponse, PendingUserMessage } from "../types/chatTypes"
 
+/** The rows the backend writes for text the user submitted. */
+function isUserAuthored(message: ClineMessage): boolean {
+	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
+}
+
+/**
+ * A submission is confirmed by the user-authored row the backend writes for it. The row's
+ * kind depends on how the backend handled the submission, not on where it was typed: a prompt
+ * sent from a task that failed before it had a session starts a new task, so the optimistic
+ * `user_feedback` bubble is confirmed by a `task` row.
+ */
 function sameOptimisticMessage(left: ClineMessage, right: ClineMessage): boolean {
 	const leftImages = left.images ?? []
 	const rightImages = right.images ?? []
 	const leftFiles = left.files ?? []
 	const rightFiles = right.files ?? []
-	const optimisticSay = left.say === "task" || left.say === "user_feedback"
 
 	return (
-		left.type === "say" &&
-		right.type === "say" &&
-		optimisticSay &&
-		left.say === right.say &&
+		isUserAuthored(left) &&
+		isUserAuthored(right) &&
 		left.text === right.text &&
 		leftImages.length === rightImages.length &&
 		leftImages.every((image, index) => image === rightImages[index]) &&
