@@ -1,5 +1,6 @@
 import {
 	createSessionId,
+	ensureLoopbackProxyBypass,
 	type HubClientRegistration,
 	type HubCommandEnvelope,
 	type HubEventEnvelope,
@@ -10,6 +11,7 @@ import {
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import NodeWebSocket from "ws";
+import corePackage from "../../../package.json";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -32,6 +34,15 @@ import {
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
 	reject: (error: unknown) => void;
+};
+
+type HubCommandOptions = {
+	timeoutMs?: number | null;
+	/** Synchronous local guard, checked after connection before each dispatch. */
+	beforeDispatch?: () => void;
+	/** Observes this attempt's correlation id after the local guard, before sending.
+	 * Dispatch alone does not confirm that the server accepted the command. */
+	onDispatch?: (requestId: string) => void;
 };
 
 type SubscriptionEntry = {
@@ -170,6 +181,10 @@ export interface HubClientOptions {
 	clientId?: string;
 	clientType?: string;
 	displayName?: string;
+	/** Version reported to the hub; defaults to the @cline/core version. */
+	clientVersion?: string;
+	/** Additional registration metadata; version and pid are owned by the client. */
+	metadata?: Record<string, unknown>;
 	workspaceRoot?: string;
 	cwd?: string;
 	/** Hub token sent with the `cline-hub-auth.*` WebSocket subprotocol. */
@@ -191,6 +206,11 @@ export interface LocalHubResolutionOptions {
 	strategy?: "prefer-hub" | "require-hub";
 	workspaceRoot?: string;
 	cwd?: string;
+	/**
+	 * Called with the error when starting a detached Hub fails. The function
+	 * still resolves `undefined` in that case; this lets a caller report why.
+	 */
+	onStartupError?: (error: unknown) => void;
 }
 
 const GLOBAL_SUBSCRIPTION_KEY = "*";
@@ -418,6 +438,11 @@ export class NodeHubClient {
 					transport: "native",
 					actorKind: "client",
 					capabilities: this.capabilities,
+					metadata: {
+						...this.options.metadata,
+						version: this.options.clientVersion ?? String(corePackage.version),
+						pid: process.pid,
+					},
 					workspaceContext: {
 						workspaceRoot: this.options.workspaceRoot,
 						cwd: this.options.cwd,
@@ -463,9 +488,9 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				if (!this.closedByClient && this.hasActiveSubscriptions()) {
-					this.scheduleReconnect();
-				}
+			}
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
 			}
 			throw error;
 		}
@@ -658,7 +683,7 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
 		const canRecoverTransport =
@@ -683,13 +708,15 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
 		}
+		options?.beforeDispatch?.();
 		const requestId = createSessionId("hubreq_");
+		options?.onDispatch?.(requestId);
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
 			options?.timeoutMs,
@@ -1317,7 +1344,8 @@ export async function ensureCompatibleLocalHubUrl(
 			options.workspaceRoot ?? process.cwd(),
 		);
 		return ensured.url;
-	} catch {
+	} catch (error) {
+		options.onStartupError?.(error);
 		return undefined;
 	}
 }
@@ -1337,6 +1365,7 @@ export async function requestHubDrain(
 	reason?: string,
 	options?: { off?: boolean },
 ): Promise<boolean> {
+	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =
 		authToken?.trim() || resolveLocalHubAuthToken(parsed);
@@ -1366,6 +1395,7 @@ export async function requestHubShutdown(
 	url: string,
 	authToken?: string,
 ): Promise<boolean> {
+	ensureLoopbackProxyBypass();
 	const parsed = new URL(url);
 	const resolvedAuthToken =
 		authToken?.trim() || resolveLocalHubAuthToken(parsed);

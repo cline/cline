@@ -52,6 +52,10 @@ their utilities are emitted without changing generic host utility names.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 
+`AgentConversationLayout`, `AgentConversationHeader`, and `AgentSessionContent`
+share welcome/conversation geometry and header groups through host-owned slots.
+See the [conversation layout adoption guide](./ADOPTION.md#conversation-layout-and-header).
+
 `Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
 accent, neutral, and destructive tones. Both default to `type="button"` so they
 are safe inside forms. `IconButton` requires an accessible `aria-label`, and
@@ -88,9 +92,15 @@ static when reduced motion is requested.
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
-`AgentAskQuestion` keeps option selection locally and submits explicitly. The
-host owns pending answers, errors, and response transport. Multiple-choice
-items set `multiple: true` and provide `onAnswers` for array submission.
+`AgentAskQuestion` answers single-choice items as soon as an option is picked
+and also accepts a typed custom answer. The host owns pending answers, errors,
+and response transport. Multiple-choice items set `multiple: true` and provide
+`onAnswers` for explicit array submission.
+
+`AgentComposer` and its body, field, textarea, actions, attachments, and settings
+primitives share the desktop input presentation without taking ownership of
+drafts, keyboard handling, models, uploads, or runtime actions. See the
+[composer adoption contract](./ADOPTION.md#composer-presentation).
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
@@ -233,6 +243,14 @@ These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
 
+## Session-row presentation
+
+The root entry exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`. Desktop uses these for its existing session row, rename
+frame, and hover metadata. Hosts retain their icons, actions, rename input,
+menus, data formatting, and session behavior. See the session-row section in
+[ADOPTION.md](./ADOPTION.md) for the slot and trigger/ref contract.
+
 ## Storybook
 
 Run the interactive component catalog from the repository root:
@@ -281,6 +299,23 @@ only after a manual dispatch from `main`. Production releases use the npm
 `latest` tag; deliberate previews use `next`. UI releases do not trigger the
 SDK release, GitHub releases, or Slack announcements.
 
+### 0.2.0-next.10 compatibility notes
+
+This preview packages the already-merged desktop UI updates for external
+consumers:
+
+- `SearchCombobox.onOpen` is an optional callback for refreshing a catalog when
+  its picker opens. Hosts still own fetching, selection, and error handling.
+- A single queued prompt is visible immediately with its existing edit/remove/
+  steer controls. Multiple prompts retain the collapsible list. This does not
+  add a runtime queue operation or an Enter-to-steer shortcut to consumers.
+- `ToolFileDiff` derives its options from the peer component, allowing the
+  published declarations to work with both `@pierre/diffs` 1.3 and 1.4.
+
+Consumers on `0.2.0-next.9` can retain existing props. Adopt the callback
+explicitly to enable catalog refresh. The version change prepares a package;
+publication still requires the separate manual workflow below.
+
 ### Publish a preview
 
 Prepare an unused `0.2.0-next.N` version in this package's `package.json`,
@@ -322,3 +357,8 @@ The install command above pins the resolved release. Commit the consumer
 lockfile and update deliberately. The package is ESM and its React components
 target browser applications. A complete Tailwind theme also requires Tailwind
 v4 and the two font packages shown above.
+
+`AgentContextUsage` supplies the desktop context ring, accessible trigger label,
+and usage-detail body through a render callback. The host keeps its existing
+button/popover behavior and passes its formatted cost separately from the latest
+request's context tokens. See [context usage](./ADOPTION.md#context-usage).

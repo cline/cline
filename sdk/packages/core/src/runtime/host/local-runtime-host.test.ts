@@ -2766,6 +2766,7 @@ describe("LocalRuntimeHost", () => {
 			run,
 			continue: continueFn,
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -2843,6 +2844,7 @@ describe("LocalRuntimeHost", () => {
 			run: vi.fn().mockResolvedValue(createResult()),
 			continue: vi.fn().mockResolvedValue(createResult()),
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -2918,6 +2920,7 @@ describe("LocalRuntimeHost", () => {
 			run: vi.fn().mockResolvedValue(createResult()),
 			continue: vi.fn().mockResolvedValue(createResult()),
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(false),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
@@ -2952,6 +2955,8 @@ describe("LocalRuntimeHost", () => {
 				delivery: "steer",
 			}),
 		).resolves.toBeUndefined();
+
+		expect(agent.notifyPendingUserMessage).toHaveBeenCalledOnce();
 
 		const consumed = await Promise.resolve(
 			agentConfig?.consumePendingUserMessage?.(),
@@ -3027,6 +3032,7 @@ describe("LocalRuntimeHost", () => {
 			run,
 			continue: continueTurn,
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -3853,6 +3859,110 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it.each([
+		{
+			name: "replacement",
+			updates: { metadata: { custom: { status: "complete" } } },
+			updated: true,
+		},
+		{ name: "clear", updates: { metadata: null }, updated: true },
+		{
+			name: "clear all",
+			updates: { metadata: null, title: null },
+			updated: true,
+		},
+		{ name: "missing manifest", updates: { metadata: null }, updated: true },
+		{ name: "invalid manifest", updates: { metadata: null }, updated: true },
+		{ name: "failed save", updates: { metadata: null }, updated: false },
+		{ name: "rename", updates: { title: "Renamed session" }, updated: true },
+		{ name: "derived title", updates: { prompt: "New prompt" }, updated: true },
+	])("keeps active metadata consistent with persistence after $name", async ({
+		name,
+		updates,
+		updated,
+	}) => {
+		const sessionId = "sess-active-metadata-update";
+		const sessionService = new FileSessionService(
+			join(isolatedHomeDir, "sessions"),
+		);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService,
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: () => {} }),
+			} as never,
+			createAgent: () =>
+				({
+					run: async () => createResult(),
+					getMessages: () => [],
+					getAgentId: () => "agent-active-metadata",
+					getConversationId: () => "conv-active-metadata",
+					subscribeEvents: () => () => {},
+					canStartRun: () => true,
+					shutdown: async () => {},
+				}) as never,
+		});
+		try {
+			const { manifestPath } = await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+					prompt: "Named session",
+					interactive: true,
+					sessionMetadata: { title: "Named session", before: true },
+				}),
+			);
+			if (updates.prompt) {
+				await manager.updateSession(sessionId, {
+					metadata: { before: true },
+					title: null,
+				});
+				expect(
+					(await manager.getSession(sessionId))?.metadata?.title,
+				).toBeUndefined();
+			}
+			const before = (await manager.getSession(sessionId))?.metadata;
+			const missingManifest =
+				name === "missing manifest" || name === "invalid manifest";
+			if (name === "missing manifest") rmSync(manifestPath);
+			if (name === "invalid manifest")
+				writeFileSync(manifestPath, "invalid JSON");
+			if (!updated)
+				vi.spyOn(sessionService, "updateSession").mockResolvedValueOnce({
+					updated: false,
+				});
+			const readManifest = vi.spyOn(sessionService, "readSessionManifest");
+			await expect(manager.updateSession(sessionId, updates)).resolves.toEqual({
+				updated,
+			});
+			expect(readManifest).not.toHaveBeenCalled();
+			const expected =
+				name === "clear all"
+					? undefined
+					: updated && !missingManifest
+						? {
+								...(updates.metadata !== undefined ? updates.metadata : before),
+								title: updates.title ?? updates.prompt ?? "Named session",
+							}
+						: before;
+			expect(sessionService.readSessionManifest(sessionId)?.metadata).toEqual(
+				missingManifest ? undefined : expected,
+			);
+			expect((await manager.getSession(sessionId))?.metadata).toEqual(expected);
+			if (updates.metadata?.custom) {
+				updates.metadata.custom.status = "mutated after save";
+				expect((await manager.getSession(sessionId))?.metadata?.custom).toEqual(
+					{ status: "complete" },
+				);
+			}
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
 		const sessionId = "sess-abort-then-next-turn";
 		const manifest = createManifest(sessionId);
@@ -3988,6 +4098,116 @@ describe("LocalRuntimeHost", () => {
 				payload: expect.objectContaining({ sessionId, reason: "aborted" }),
 			}),
 		);
+	});
+
+	it("aborts a turn whose Stop arrived while the turn was still being prepared", async () => {
+		const sessionId = "sess-abort-during-prep";
+		const manifest = createManifest(sessionId);
+		let releaseStatusUpdate: (() => void) | undefined;
+		const statusUpdateStarted = new Promise<void>((resolve) => {
+			releaseStatusUpdate = resolve;
+		});
+		let finishStatusUpdate: (() => void) | undefined;
+		const statusUpdateGate = new Promise<void>((resolve) => {
+			finishStatusUpdate = resolve;
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			// markTurnRunning is the last preparation step before the agent run;
+			// hold it open so the abort lands while no run exists yet.
+			updateSessionStatus: vi.fn(async (_id: string, status: string) => {
+				if (status === "running") {
+					releaseStatusUpdate?.();
+					await statusUpdateGate;
+				}
+				return { updated: true };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let activeRun = false;
+		let abortedAfterRunStarted = false;
+		const run = vi.fn(async () => {
+			activeRun = true;
+			// Mirrors SessionRuntime: an abort requested once the run exists ends
+			// it as "aborted" before any model call.
+			await Promise.resolve();
+			activeRun = false;
+			return createResult({
+				text: "",
+				finishReason: abortedAfterRunStarted ? "aborted" : "completed",
+				messages: [{ role: "user", content: "stop me" }],
+			});
+		});
+		const agent = {
+			run,
+			continue: run,
+			abort: vi.fn(() => {
+				if (activeRun) abortedAfterRunStarted = true;
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn(() => []),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// A Stop between turns targets a run that already ended and must not
+			// leak into the next turn.
+			await manager.abort(sessionId, new Error("stale abort"));
+
+			const turn = manager.runTurn({ sessionId, prompt: "stop me" });
+			await statusUpdateStarted;
+			expect(run).not.toHaveBeenCalled();
+			await manager.abort(sessionId, new Error("user cancelled"));
+			finishStatusUpdate?.();
+
+			await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+			expect(run).toHaveBeenCalledTimes(1);
+			// The first abort had no run to cancel; the host re-issued it once
+			// the run existed.
+			expect(agent.abort).toHaveBeenCalledTimes(3);
+			expect(agent.abort.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
+				run.mock.invocationCallOrder[0] ?? 0,
+			);
+			await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+				status: "idle",
+			});
+
+			// The stale abort alone must not abort a later turn.
+			abortedAfterRunStarted = false;
+			await expect(
+				manager.runTurn({ sessionId, prompt: "next" }),
+			).resolves.toMatchObject({ finishReason: "completed" });
+			expect(run).toHaveBeenCalledTimes(2);
+			expect(agent.abort).toHaveBeenCalledTimes(3);
+		} finally {
+			await manager.dispose();
+		}
 	});
 
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
@@ -5022,6 +5242,7 @@ describe("LocalRuntimeHost", () => {
 					continue: continueFn,
 					canStartRun: vi.fn(() => canStartRun),
 					abort: vi.fn(),
+					notifyPendingUserMessage: vi.fn(),
 					subscribeEvents: vi.fn().mockReturnValue(() => {}),
 					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -5324,6 +5545,7 @@ describe("LocalRuntimeHost", () => {
 					continue: vi.fn().mockResolvedValue(createResult({ text: "next" })),
 					canStartRun: vi.fn(() => false),
 					abort: vi.fn(),
+					notifyPendingUserMessage: vi.fn(),
 					subscribeEvents: vi.fn().mockReturnValue(() => {}),
 					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-root-1"),

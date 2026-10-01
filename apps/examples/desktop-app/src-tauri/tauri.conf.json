@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
 	"productName": "Cline",
-	"version": "0.0.26",
+	"version": "0.0.40",
 	"identifier": "bot.cline.app",
 	"build": {
 		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
@@ -37,8 +37,16 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
+		"category": "DeveloperTool",
+		"shortDescription": "Cline AI coding agent",
+		"longDescription": "Cline is an AI coding agent. It reads your code, edits files, runs commands, and works through tasks with you in any project on your machine.",
+		"homepage": "https://cline.bot",
 		"externalBin": ["bin/code-sidecar"],
-		"resources": ["icons/app/*.png"],
+		"resources": [
+			"icons/app/*.png",
+			"icons/app/macos/*.png",
+			"bin/remote-helpers/*"
+		],
 		"icon": [
 			"icons/32x32.png",
 			"icons/128x128.png",
@@ -46,6 +54,18 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
+		"linux": {
+			"deb": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/stable"
+				}
+			},
+			"rpm": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/stable"
+				}
+			}
+		},
 		"macOS": {
 			"entitlements": "entitlements.plist",
 			"hardenedRuntime": true,

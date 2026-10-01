@@ -543,6 +543,7 @@ export type HubCommandName =
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
+	| "session.steer_first_pending_prompt"
 	| "session.update_pending_prompt"
 	| "session.remove_pending_prompt"
 	| "session.fork"

@@ -44,7 +44,10 @@ import {
 } from "ai";
 import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
-import { classifyProviderError } from "./error-classification";
+import {
+	classifyProviderError,
+	isRetryableBeyondSdkRetries,
+} from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
@@ -1005,6 +1008,12 @@ function mapFinishReason(
 	if (value === "length" || value === "max_tokens") {
 		return "max-tokens";
 	}
+	// Kept distinct from the `stop` fallback below: a filtered turn that
+	// produced no content must not be reported (or retried) as a transient
+	// empty response — see `AgentModelFinishReason`.
+	if (value === "content-filter" || value === "content_filter") {
+		return "content-filter";
+	}
 	if (value === "error") {
 		return "error";
 	}
@@ -1059,12 +1068,31 @@ function getNestedUsageValue(
 	return getNumericValue(current) ?? 0;
 }
 
+/**
+ * AI SDK request-level retries for each model call (the SDK default is 2). The
+ * SDK retries the *initial* request on transient failures — 429/5xx/network —
+ * with exponential backoff that honors `retry-after` headers. It never sees an
+ * error the provider emits *mid-stream* (OpenRouter's "Provider returned error"
+ * arrives as a stream part after a 200), so the agent loop keeps its own
+ * turn-level retry for those.
+ *
+ * Each failure class has exactly one retrying layer, so the counts never
+ * multiply: request-start failures belong to this setting (a `RetryError` is
+ * terminal for the turn-level retry, see `isRetryableBeyondSdkRetries`);
+ * pre-output socket deaths and empty responses belong to
+ * `withEmptyResponseRetry`, which never sees request-start rejections; and
+ * mid-stream provider errors belong to the turn-level retry alone.
+ */
+const MODEL_REQUEST_MAX_RETRIES = 5;
+
 type UsagePath = readonly [string] | readonly [string, string];
 
 const REASONING_TOKEN_PATHS: UsagePath[] = [
 	["outputTokenDetails", "reasoningTokens"],
 	["output_tokens_details", "reasoning_tokens"],
 	["completion_tokens_details", "reasoning_tokens"],
+	// AI SDK v4's nested outputTokens shape ({ total, text, reasoning, ... }).
+	["outputTokens", "reasoning"],
 	["reasoningTokens"],
 	["reasoning_tokens"],
 ];
@@ -1315,6 +1343,19 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		// Providers report reasoning tokens as a subset of outputTokens (e.g.
+		// OpenAI's completion_tokens_details.reasoning_tokens), not additional
+		// to it. Strip them back out here so outputTokens reflects the actual
+		// non-reasoning output, with reasoningTokenCount tracked separately —
+		// otherwise every downstream consumer (session totals, telemetry,
+		// Harbor's n_output_tokens) double-books reasoning as both its own
+		// count and part of "output". Cost above is computed from the
+		// pre-subtraction outputTokens, since reasoning tokens are still
+		// billed at the output rate.
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
@@ -1410,6 +1451,16 @@ interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
+	 * Whether the agent loop's turn-level retry may re-run this turn, decided
+	 * while the structured error is still in hand and forwarded as
+	 * `errorRetryable` on the `finish` event (the flattened message the agent
+	 * loop receives cannot carry it). Transient by the AI SDK's own typed
+	 * `isRetryable` flag, except that a `RetryError` is terminal: the SDK
+	 * already spent its request-start retries, and the turn-level retry must
+	 * not multiply them.
+	 */
+	retryable: boolean;
+	/**
 	 * This layer already recorded `sdk.error` telemetry for the failure.
 	 * Forwarded as `errorReported` on the `finish` event so the agent loop
 	 * does not report the same failure a second time.
@@ -1421,6 +1472,7 @@ function captureStreamError(error: unknown): CapturedStreamError {
 	return {
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
+		retryable: isRetryableBeyondSdkRetries(error),
 	};
 }
 
@@ -1435,6 +1487,7 @@ async function* emitAiSdkEvents(
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
+	let requestId: string | undefined;
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
@@ -1459,6 +1512,16 @@ async function* emitAiSdkEvents(
 	try {
 		if (stream.fullStream) {
 			for await (const part of stream.fullStream) {
+				if (part.type === "start-step") {
+					requestId = undefined;
+					continue;
+				}
+				if (part.type === "finish-step") {
+					requestId = Object.entries(part.response?.headers ?? {}).find(
+						([name]) => name.toLowerCase() === "x-request-id",
+					)?.[1];
+					continue;
+				}
 				if (part.type === "text-delta") {
 					const text =
 						(part.textDelta as string | undefined) ??
@@ -1937,8 +2000,10 @@ async function* emitAiSdkEvents(
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
+		...(requestId ? { requestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorRetryable: streamError?.retryable,
 		errorReported: streamError?.reported,
 	};
 }
@@ -2266,6 +2331,7 @@ function createAiSdkProvider(
 							...(useSystemOption ? { system: systemPrompt } : {}),
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
+							maxRetries: MODEL_REQUEST_MAX_RETRIES,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
 								...aiSdkTelemetry,
@@ -2376,6 +2442,7 @@ function createAiSdkProvider(
 					reason: "error",
 					error: msg,
 					errorClass: captured.errorClass,
+					errorRetryable: captured.retryable,
 					errorReported: reported || captured.reported,
 				};
 			}

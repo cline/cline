@@ -183,6 +183,74 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 	});
 });
 
+describe("rule scope grouping", () => {
+	it.each([
+		"/workspace",
+		"/workspace/",
+		"/home/user",
+		"/",
+		"C:\\Users\\test\\",
+	])("classifies only exact workspace rule roots as Project for %s", async (workspaceRoot) => {
+		const prefix = workspaceRoot.replaceAll("\\", "/").replace(/\/+$/, "");
+		const ruleCases = [
+			["legacy-rule", `${prefix}/.clinerules/legacy-rule.md`, "Project"],
+			["new-rule", `${prefix}/.cline/rules/new-rule.md`, "Project"],
+			["nested-rule", `${prefix}/.cline/rules/team/nested.md`, "Project"],
+			["single-file", `${prefix}/.clinerules`, "Project"],
+			["nested-global", `${prefix}/other/.cline/rules/global.md`, "Global"],
+			["nested-legacy", `${prefix}/other/.clinerules/global.md`, "Global"],
+			["prefix-sibling", `${prefix}/.cline/rules-other/rule.md`, "Global"],
+			["outside-rule", "/elsewhere/.cline/rules/global.md", "Global"],
+		];
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			if (command === "list_user_instruction_configs") {
+				return {
+					workspaceRoot,
+					rules: ruleCases.map(([name, path]) => ({
+						name,
+						path,
+						instructions: name,
+					})),
+					workflows: [],
+					skills: [],
+					agents: [],
+					plugins: [],
+					tools: [],
+					hooks: [],
+					mcp: { servers: [] },
+					warnings: [],
+				};
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+
+		await act(async () => {
+			root.render(<CustomizationSectionView section="Rules" />);
+		});
+
+		await vi.waitFor(() => {
+			for (const [name] of ruleCases)
+				expect(container.textContent).toContain(name);
+		});
+
+		const scopeByRule = new Map<string, string>();
+		for (const row of container.querySelectorAll<HTMLElement>(
+			'[role="switch"][aria-label^="Toggle "]',
+		)) {
+			const card = row.closest("div.grid");
+			const name = row.getAttribute("aria-label")?.replace(/^Toggle /, "");
+			const badge = card
+				?.querySelector('[data-slot="badge"]')
+				?.textContent?.trim();
+			if (name) scopeByRule.set(name, badge ?? "");
+		}
+		for (const [name, , scope] of ruleCases)
+			expect(scopeByRule.get(name)).toBe(scope);
+	});
+});
+
 describe("tool state controls", () => {
 	it.each([
 		true,

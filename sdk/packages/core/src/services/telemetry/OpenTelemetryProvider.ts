@@ -1,3 +1,4 @@
+import { LangfuseAttributesSpanProcessor } from "@cline/llms";
 import type {
 	BasicLogger,
 	ITelemetryService,
@@ -312,7 +313,9 @@ export class OpenTelemetryProvider {
 
 		const tracerProvider = new NodeTracerProvider({
 			resource,
-			spanProcessors: processors,
+			spanProcessors: hasOtlpProcessor
+				? [new LangfuseAttributesSpanProcessor(), ...processors]
+				: processors,
 		});
 		if (hasOtlpProcessor) {
 			// Console-only tracing must not read as the collector relay

@@ -14,6 +14,8 @@ import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
 const desktopMocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -142,6 +144,12 @@ const signedInUser = {
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	window.localStorage.clear();
 	invoke.mockReset();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
@@ -185,6 +193,82 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("preserves row context-menu rename focus, Escape, and Enter through the shared row", async () => {
+		const thread = makeThread("alpha", 1);
+		const history = makeSessionHistory([thread], vi.fn());
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={thread.id}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={history}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+		const startRename = async () => {
+			await act(async () => {
+				buttonWithText(thread.title).dispatchEvent(
+					new MouseEvent("contextmenu", {
+						bubbles: true,
+						cancelable: true,
+						button: 2,
+					}),
+				);
+			});
+			const rename = [...document.querySelectorAll('[role="menuitem"]')].find(
+				(element) => element.textContent?.includes("Rename"),
+			);
+			if (!rename) throw new Error("Missing Rename menu item");
+			await click(rename);
+			const input = container.querySelector<HTMLInputElement>("input");
+			if (!input) throw new Error("Missing rename input");
+			expect(document.activeElement).toBe(input);
+			expect(input.selectionStart).toBe(0);
+			expect(input.selectionEnd).toBe(0);
+			return input;
+		};
+		let input = await startRename();
+		await act(async () =>
+			input.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Escape",
+					bubbles: true,
+					cancelable: true,
+				}),
+			),
+		);
+		expect(container.querySelector("input")).toBeNull();
+		expect(history.renameThread).not.toHaveBeenCalled();
+		input = await startRename();
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(input, "Renamed session");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await act(async () =>
+			input.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					bubbles: true,
+					cancelable: true,
+				}),
+			),
+		);
+		expect(history.renameThread).toHaveBeenCalledWith(
+			thread.id,
+			"Renamed session",
+		);
+	});
+
 	it("marks scheduled sessions with a clock icon in the row", async () => {
 		const scheduled = {
 			...makeThread("alpha", 1),
@@ -495,8 +579,50 @@ describe("AgentSidebar session organization", () => {
 			return button as HTMLButtonElement;
 		});
 		expect(document.body.textContent).toContain("Delete session?");
+		// A regular workspace: nothing but history goes away.
+		expect(document.body.textContent).not.toContain("git worktree");
 		await click(confirm);
 		expect(deleteThread).toHaveBeenCalledWith("alpha-1");
+	});
+
+	it("warns that deleting a task-worktree session also removes its worktree", async () => {
+		registerTaskWorktreeRoot("/home/host/cline-dir/worktrees");
+		try {
+			const thread = {
+				...makeThread("alpha", 1),
+				workspacePath: "/home/host/cline-dir/worktrees/ab12c/alpha",
+			};
+			const sessionHistory = makeSessionHistory([thread], vi.fn());
+
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={sessionHistory}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+
+			await click(
+				container.querySelector(
+					'[aria-label="Delete alpha session 1"]',
+				) as HTMLButtonElement,
+			);
+
+			await vi.waitFor(() => {
+				expect(document.body.textContent).toContain("Delete session?");
+			});
+			expect(document.body.textContent).toContain(TASK_WORKTREE_DELETE_WARNING);
+		} finally {
+			registerTaskWorktreeRoot("");
+		}
 	});
 
 	it("pins sessions to the top of their project group in project sort", async () => {
@@ -725,6 +851,21 @@ describe("AgentSidebar session organization", () => {
 		).toEqual([
 			["Schedule", "Daily date report"],
 			["Run", "6"],
+		]);
+	});
+
+	it("labels a cloud session by repository", () => {
+		expect(
+			getSessionOverviewItems({
+				...makeThread("cloud", 1),
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/cline",
+				workspacePath: "https://github.com/cline/cline",
+			}),
+		).toContainEqual([
+			"Repository",
+			"https://github.com/cline/cline",
+			"https://github.com/cline/cline",
 		]);
 	});
 
@@ -1092,7 +1233,7 @@ describe("AgentSidebar session organization", () => {
 			...(actionsNav?.querySelectorAll<HTMLButtonElement>("button") ?? []),
 		];
 		expect(rows.map((row) => row.textContent)).toEqual([
-			"New",
+			"Session",
 			"Schedule",
 			"Customize",
 		]);
@@ -1101,7 +1242,7 @@ describe("AgentSidebar session organization", () => {
 		}
 		expect(actionsNav?.contains(logo as Element)).toBe(false);
 
-		await click(buttonWithText("New", actionsNav as ParentNode));
+		await click(buttonWithText("Session", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
@@ -1183,7 +1324,7 @@ describe("AgentSidebar session organization", () => {
 				);
 			});
 			return buttonWithText(
-				"New",
+				"Session",
 				container.querySelector('[aria-label="Sidebar actions"]') as ParentNode,
 			);
 		};

@@ -54,10 +54,11 @@
 	}
 
 	/* Selectable content surfaces: chat message bodies (incl. markdown and
-	 * code blocks), reasoning/tool panels, and diff text. */
+	 * code blocks), reasoning/tool panels, settings, and diff text. */
 	.cline-chat-message-content,
 	.cline-markdown,
 	.cline-chat-selectable,
+	.cline-settings-content,
 	pre,
 	code {
 		-webkit-user-select: text;

@@ -119,11 +119,14 @@ describe("createVscodeRunCommandsTool", () => {
 		// A profile change takes effect at the next description read (the
 		// model-request boundary), without a session rebuild.
 		mocks.getGlobalSettingsKey.mockReturnValue("powershell-7")
-		expect(tool.description).toContain("Microsoft PowerShell (pwsh.exe)")
+		expect(tool.description).toContain("PowerShell (pwsh.exe)")
+		expect(tool.description).not.toMatch(/PowerShell (?:Core|\d)/)
+		expect(tool.description).toContain("quote paths and arguments for pwsh.exe")
 		expect(tool.description).toContain("another pwsh.exe -Command invocation")
 
 		mocks.getGlobalSettingsKey.mockReturnValue("powershell-legacy")
 		expect(tool.description).toContain("Windows PowerShell (powershell.exe)")
+		expect(tool.description).toContain("quote paths and arguments for powershell.exe")
 		expect(tool.description).toContain("another powershell.exe -Command invocation")
 	})
 
@@ -145,7 +148,7 @@ describe("createVscodeRunCommandsTool", () => {
 		expect(getOrCreateTerminal).toHaveBeenLastCalledWith("C:\\workspace", "powershell-legacy")
 
 		const nextDescription = tool.description
-		expect(nextDescription).toContain("Microsoft PowerShell (pwsh.exe)")
+		expect(nextDescription).toContain("PowerShell (pwsh.exe)")
 		expect(nextDescription).not.toBe(legacyDescription)
 		expect(tool.description).toBe(nextDescription)
 		manager.runCommand = () => createFakeTerminalProcess({ lines: ["ok"] })

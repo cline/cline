@@ -1,4 +1,5 @@
 import {
+	buildClineClientHeaders,
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getGeneratedProviderModels,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
@@ -133,11 +134,12 @@ async function fetchWithTimeout(
 	fetchImpl: typeof fetch,
 	input: string,
 	timeoutMs: number,
+	headers: Record<string, string>,
 ): Promise<Response> {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
-		return await fetchImpl(input, { signal: controller.signal });
+		return await fetchImpl(input, { headers, signal: controller.signal });
 	} finally {
 		clearTimeout(timer);
 	}
@@ -265,6 +267,7 @@ export async function fetchClineRecommendedModels(
 			fetchImpl,
 			`${base}/api/v1/ai/cline/recommended-models`,
 			timeoutMs,
+			buildClineClientHeaders(),
 		);
 		if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 		const json: unknown = await resp.json();
@@ -373,7 +376,7 @@ const FEATURED_TIER_BUCKETS: Record<
 	],
 };
 
-function idSlug(modelId: string): string {
+export function idSlug(modelId: string): string {
 	return modelId.split("/").at(-1) ?? modelId;
 }
 

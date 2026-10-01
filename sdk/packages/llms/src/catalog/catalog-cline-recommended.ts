@@ -1,4 +1,5 @@
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { buildClineClientHeaders } from "../providers/cline-client-headers";
 import type { ModelInfo } from "./types";
 
 export interface ClineRecommendedModelEntry {
@@ -159,7 +160,7 @@ export async function fetchClineRecommendedModelsPayload(
 	fetcher: typeof fetch = fetch,
 ): Promise<ClineRecommendedModelsPayload> {
 	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/recommended-models`;
-	const response = await fetcher(url);
+	const response = await fetcher(url, { headers: buildClineClientHeaders() });
 	if (!response.ok) {
 		throw new Error(
 			`Failed to load Cline recommended models from ${url}: HTTP ${response.status}`,

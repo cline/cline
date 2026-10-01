@@ -13,7 +13,7 @@ import {
 	type FeatureFlag,
 	FeatureFlagDefaultValue,
 } from "@cline/shared";
-import { CORE_TELEMETRY_EVENTS } from "../..";
+import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -54,6 +54,7 @@ export class FeatureFlagsService {
 	private context: FeatureFlagsContext;
 	private cache: Map<FeatureFlag, FeatureFlagPayload | undefined> = new Map();
 	private cacheInfo: CacheInfo = { updateTime: 0, userId: null };
+	private pendingPoll?: { userId: string | null; promise: Promise<void> };
 
 	constructor(options: FeatureFlagsServiceOptions) {
 		this.provider = options.provider;
@@ -71,6 +72,7 @@ export class FeatureFlagsService {
 		const identityChanged = this.cacheInfo.userId !== (context.userId ?? null);
 		this.context = { ...context };
 		if (identityChanged) {
+			this.pendingPoll = undefined;
 			this.cache.clear();
 			this.cacheInfo = { updateTime: 0, userId: context.userId ?? null };
 		}
@@ -95,6 +97,22 @@ export class FeatureFlagsService {
 
 	async poll(userId?: string | null): Promise<void> {
 		const resolvedUserId = userId ?? this.context.userId ?? null;
+		if (this.pendingPoll?.userId === resolvedUserId) {
+			return this.pendingPoll.promise;
+		}
+		const pending = {
+			userId: resolvedUserId,
+			promise: this.pollFlags(resolvedUserId),
+		};
+		this.pendingPoll = pending;
+		try {
+			await pending.promise;
+		} finally {
+			if (this.pendingPoll === pending) this.pendingPoll = undefined;
+		}
+	}
+
+	private async pollFlags(resolvedUserId: string | null): Promise<void> {
 		const timeNow = Date.now();
 		if (timeNow - this.cacheInfo.updateTime < this.cacheTtlMs) {
 			if (this.cacheInfo.userId === resolvedUserId) {
@@ -135,9 +153,21 @@ export class FeatureFlagsService {
 
 	private hydrateFromPersistentCache(): void {
 		const snapshot = this.readPersistentCache();
-		if (snapshot) {
-			this.hydrateCache(snapshot);
+		if (!snapshot) {
+			return;
 		}
+		// A persisted snapshot from a DIFFERENT known identity must not seed
+		// this identity's flags. When either side is unresolved the fallback
+		// stays — starting before the account id is known is the documented,
+		// deliberate case (setContext resolves it and clears on mismatch).
+		if (
+			snapshot.userId &&
+			this.context.userId &&
+			snapshot.userId !== this.context.userId
+		) {
+			return;
+		}
+		this.hydrateCache(snapshot);
 	}
 
 	private isFeatureFlagPayload(value: unknown): value is FeatureFlagPayload {

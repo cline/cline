@@ -203,6 +203,11 @@ function getCapabilityOwnerClientId(
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
+/** `null` is meaningful for prompt/title updates (it clears the field). */
+function asNullableString(value: unknown): string | null | undefined {
+	return typeof value === "string" || value === null ? value : undefined;
+}
+
 function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
@@ -1052,7 +1057,13 @@ export async function handleSessionUpdate(
 	const metadata = stripServerOwnedSessionMetadata(
 		asPlainRecord(envelope.payload?.metadata),
 	);
-	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
+	const prompt = asNullableString(envelope.payload?.prompt);
+	const title = asNullableString(envelope.payload?.title);
+	const updated = await ctx.sessionHost.updateSession(sessionId, {
+		metadata,
+		...(prompt !== undefined ? { prompt } : {}),
+		...(title !== undefined ? { title } : {}),
+	});
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
 		readCoreSessionSnapshot(ctx, sessionId),
@@ -1204,6 +1215,26 @@ export async function handleSessionPendingPrompts(
 	}
 	const prompts = await service.list({ sessionId });
 	return okReply(envelope, { sessionId, prompts });
+}
+
+export async function handleSessionSteerFirstPendingPrompt(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	const service = ctx.sessionHost.pendingPrompts;
+	if (!service) {
+		return errorReply(
+			envelope,
+			"pending_prompts_unavailable",
+			"Pending prompt service is not available.",
+		);
+	}
+	const result = await service.steerFirst({ sessionId });
+	return okReply(
+		envelope,
+		result as unknown as Record<string, JsonValue | undefined>,
+	);
 }
 
 export async function handleSessionUpdatePendingPrompt(

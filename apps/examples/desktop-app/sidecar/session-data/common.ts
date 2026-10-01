@@ -1,13 +1,17 @@
-import { formatDisplayUserInput } from "@cline/shared";
+import { isUserRunMessage, resolveMessageDisplayRole } from "@cline/core";
+import {
+	normalizeSessionTitle,
+	stringifyMessageContent,
+} from "@cline/core/cloud";
+
+export {
+	normalizeSessionTitle,
+	resolveSessionListTitle,
+	stringifyMessageContent,
+} from "@cline/core/cloud";
+
 import { readSessionManifest } from "../paths";
 import type { JsonRecord } from "../types";
-
-export function normalizeSessionTitle(
-	title?: string | null,
-): string | undefined {
-	const trimmed = title?.trim();
-	return trimmed ? formatDisplayUserInput(trimmed).slice(0, 120) : undefined;
-}
 
 export function parseTimestamp(value?: string | number | null): number {
 	if (typeof value === "number" && Number.isFinite(value)) {
@@ -43,85 +47,6 @@ export function compareSessionRecordsByStartedAtDesc(
 	return rightId.localeCompare(leftId);
 }
 
-export function stringifyMessageContent(value: unknown): string {
-	if (typeof value === "string") {
-		return value;
-	}
-	if (Array.isArray(value)) {
-		const parts: string[] = [];
-		for (const block of value) {
-			if (typeof block === "string") {
-				if (block.trim()) {
-					parts.push(block);
-				}
-				continue;
-			}
-			if (!block || typeof block !== "object") {
-				continue;
-			}
-			const record = block as JsonRecord;
-			const blockType = typeof record.type === "string" ? record.type : "";
-			const piece =
-				blockType === "text"
-					? String(record.text ?? "")
-					: blockType === "thinking"
-						? String(record.thinking ?? "")
-						: blockType === "tool_use"
-							? `[tool] ${String(record.name ?? "tool_call")}`
-							: blockType === "tool_result"
-								? `[tool_result]\n${stringifyMessageContent(record.content)}`
-								: blockType === "image"
-									? "[image]"
-									: blockType === "redacted_thinking"
-										? "[redacted_thinking]"
-										: typeof record.text === "string"
-											? record.text
-											: "";
-			if (piece.trim()) {
-				parts.push(piece);
-			}
-		}
-		return parts.join("\n");
-	}
-	if (value && typeof value === "object") {
-		const record = value as JsonRecord;
-		if (typeof record.text === "string") {
-			return record.text;
-		}
-	}
-	return "";
-}
-
-function titleFromPrompt(prompt?: string | null): string | undefined {
-	const normalized = normalizeSessionTitle(prompt ?? undefined);
-	if (!normalized) {
-		return undefined;
-	}
-	return normalized.split("\n")[0]?.trim().slice(0, 70) || undefined;
-}
-
-function titleFromMessages(messages: unknown[]): string | undefined {
-	for (const role of ["user", "assistant"] as const) {
-		for (const rawMessage of messages) {
-			if (!rawMessage || typeof rawMessage !== "object") {
-				continue;
-			}
-			const message = rawMessage as JsonRecord;
-			if (message.role !== role) {
-				continue;
-			}
-			const text = normalizeSessionTitle(
-				stringifyMessageContent(message.content),
-			);
-			if (!text) {
-				continue;
-			}
-			return text.split("\n")[0]?.trim().slice(0, 70) || undefined;
-		}
-	}
-	return undefined;
-}
-
 export function derivePromptFromMessages(
 	messages: unknown[],
 ): string | undefined {
@@ -138,8 +63,10 @@ export function derivePromptFromMessages(
 				? (record.metadata as JsonRecord)
 				: undefined;
 		if (
-			typeof metadata?.kind === "string" &&
-			metadata.kind === "recovery_notice"
+			!isUserRunMessage(record) ||
+			resolveMessageDisplayRole(record) !== "user" ||
+			metadata?.kind === "compaction" ||
+			metadata?.kind === "compaction_summary"
 		) {
 			continue;
 		}
@@ -147,36 +74,19 @@ export function derivePromptFromMessages(
 		if (content.trim()) {
 			return content.trim();
 		}
+		if (
+			Array.isArray(record.content) &&
+			record.content.some(
+				(block) =>
+					block &&
+					typeof block === "object" &&
+					(block as JsonRecord).type === "file",
+			)
+		) {
+			return "[file]";
+		}
 	}
 	return undefined;
-}
-
-export function resolveSessionListTitle(options: {
-	sessionId: string;
-	metadata?: unknown;
-	prompt?: string | null;
-	messages?: unknown[];
-}): string {
-	const metadataTitle =
-		options.metadata && typeof options.metadata === "object"
-			? normalizeSessionTitle(
-					(options.metadata as JsonRecord).title as string | undefined,
-				)
-			: undefined;
-	if (metadataTitle) {
-		return metadataTitle.slice(0, 70);
-	}
-	const promptTitle = titleFromPrompt(options.prompt);
-	if (promptTitle) {
-		return promptTitle;
-	}
-	const messageTitle = options.messages
-		? titleFromMessages(options.messages)
-		: undefined;
-	if (messageTitle) {
-		return messageTitle;
-	}
-	return `Session ${options.sessionId.slice(-6)}`;
 }
 
 export function readSessionMetadataTitle(

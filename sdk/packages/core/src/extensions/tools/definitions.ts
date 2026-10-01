@@ -16,7 +16,7 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { CommandExitError } from "./executors/bash";
+import { CommandExitError, CommandTerminationError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
@@ -232,7 +232,10 @@ async function executeShellCommands(
 							durationMs: Date.now() - startedAt,
 						});
 					}
-					if (error instanceof CommandExitError) {
+					if (
+						error instanceof CommandExitError ||
+						error instanceof CommandTerminationError
+					) {
 						return {
 							query,
 							result: error.output,
@@ -444,7 +447,7 @@ export function buildRunCommandsDescription(
 			edition === "windows"
 				? `Windows PowerShell (${executable})`
 				: edition === "core"
-					? `Microsoft PowerShell (${executable})`
+					? `PowerShell (${executable})`
 					: executable;
 		const wrapper = `${executable} ${shellKind === "powershell" ? "-Command" : "/c"}`;
 		const sequencingOperator = shellKind === "powershell" ? "';'" : "'&&'";
@@ -452,7 +455,7 @@ export function buildRunCommandsDescription(
 			`Run non-interactive shell commands from the root of the workspace${isWindows ? " in Windows environment" : ""}. ` +
 			RUN_COMMANDS_SHARED_INSTRUCTIONS +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-			`Commands run through ${shellName}; quote paths and arguments for ${shellName} and use ${sequencingOperator} to sequence commands. ` +
+			`Commands run through ${shellName}; quote paths and arguments for ${executable} and use ${sequencingOperator} to sequence commands. ` +
 			`Write commands directly; do not wrap them in another ${wrapper} invocation. ` +
 			"Only start another shell when you intentionally need a different shell or a separate process. " +
 			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
@@ -844,8 +847,10 @@ export function createSubmitAndExitTool(
 		description:
 			"Submit the final answer and exit the conversation. " +
 			"For example, submit a summary of the investigation and confirm the issue is resolved. " +
-			"You should only submit once all necessary steps are completed. " +
-			"Make sure to verify your output matches the expected format, data types, and file locations specified. " +
+			"You should only submit once all necessary steps are completed AND you have verified the result by execution. " +
+			"Before calling this, re-read the task, then confirm from your own tool output that every required file exists at the specified path and that its contents match the expected format, data types, and values. " +
+			"If the task provides tests, run them and confirm they pass; if it does not, run your own solution end to end and read the output back as evidence. " +
+			"Do not submit on the assumption that your solution works — submit because you have observed evidence that it does. " +
 			"Provide a summary of the investigation and confirm the issue is resolved.",
 		inputSchema: zodToJsonSchema(SubmitInputSchema),
 		lifecycle: {
