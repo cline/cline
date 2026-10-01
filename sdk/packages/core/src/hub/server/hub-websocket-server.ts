@@ -504,6 +504,9 @@ export async function startHubWebSocketServer(
 				coreVersion: versionPayload.coreVersion,
 				buildId: versionPayload.buildId,
 				buildEpochMs: versionPayload.buildEpochMs,
+				// Lets a client with no auth token retire this hub if its
+				// discovery record is ever lost (see ensureDetachedHubServer).
+				pid: versionPayload.pid,
 				draining: transport.isDraining(),
 				host,
 				port,

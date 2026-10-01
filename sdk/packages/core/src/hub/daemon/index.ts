@@ -46,6 +46,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { findListeningPid } from "./bind-diagnostics";
 
 export interface DetachedHubOptions extends HubEndpointOverrides {
 	allowPortFallback?: boolean;
@@ -641,45 +642,78 @@ async function ensureDetachedHubServerLocked(
 					authToken: token,
 				});
 			}
-			const upgradeHint = retiredUnusableDiscovery
-				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
-				: "";
-			throw new Error(
-				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable and no usable auth token is available. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
-			);
-		}
-		const expectedOutcome = await retireIncompatibleHub(
-			expectedForRetirement,
-			owner.discoveryPath,
-		);
-		if (expectedOutcome === "deferred_busy") {
-			// Same as above: the older Hub is still serving sessions, so attach
-			// with whichever token verifies instead of replacing it.
-			for (const token of [
-				expectedForRetirement.authToken,
-				discovered?.authToken,
-			].filter(
-				(candidate): candidate is string =>
-					typeof candidate === "string" && candidate.trim().length > 0,
-			)) {
-				if (await verifyHubConnection(expected.url, { authToken: token })) {
-					return rememberIfManaged({ url: expected.url, authToken: token });
-				}
-			}
-			if (endpointOverrides.allowPortFallback !== true && endpoint.port !== 0) {
+			// No token reaches this hub, and discovery is what every client reads,
+			// so nothing will ever attach to it again: it is an orphan holding the
+			// port. Retire it and fall through to a fresh spawn. Throwing here
+			// instead made the desktop sidecar die on every launch until the user
+			// found 'cline doctor fix' (hundreds of startups a day per machine).
+			// Compatible hubs normally carry their pid in discovery; this one has
+			// none, so fall back to the OS listener table — the probe already
+			// proved the port's occupant is a Hub, so the pid is not a guess.
+			const orphanPid =
+				expected.pid ??
+				discovered?.pid ??
+				superseded?.pid ??
+				findListeningPid(expected.port);
+			const retiredOrphan =
+				orphanPid !== undefined &&
+				(await retireDiscoveredHub(
+					{
+						url: expected.url,
+						authToken: discovered?.authToken ?? superseded?.authToken,
+						pid: orphanPid,
+					},
+					owner.discoveryPath,
+				));
+			if (!retiredOrphan) {
+				const upgradeHint = retiredUnusableDiscovery
+					? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
+					: "";
+				const pidHint =
+					orphanPid === undefined
+						? " Its process could not be identified, so it was not stopped automatically."
+						: " It could not be stopped automatically.";
 				throw new Error(
-					`An older Cline Hub is running at ${expectedUrl} and is still serving active sessions, so it was not replaced, but no usable auth token is available to attach to it. Finish those sessions, or run 'cline doctor fix' to stop the hub.`,
+					`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable and no usable auth token is available.${pidHint} Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
 				);
 			}
-		}
-		if (
-			expectedOutcome === "failed" &&
-			endpointOverrides.allowPortFallback !== true &&
-			endpoint.port !== 0
-		) {
-			throw new Error(
-				`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+		} else {
+			const expectedOutcome = await retireIncompatibleHub(
+				expectedForRetirement,
+				owner.discoveryPath,
 			);
+			if (expectedOutcome === "deferred_busy") {
+				// Same as above: the older Hub is still serving sessions, so attach
+				// with whichever token verifies instead of replacing it.
+				for (const token of [
+					expectedForRetirement.authToken,
+					discovered?.authToken,
+				].filter(
+					(candidate): candidate is string =>
+						typeof candidate === "string" && candidate.trim().length > 0,
+				)) {
+					if (await verifyHubConnection(expected.url, { authToken: token })) {
+						return rememberIfManaged({ url: expected.url, authToken: token });
+					}
+				}
+				if (
+					endpointOverrides.allowPortFallback !== true &&
+					endpoint.port !== 0
+				) {
+					throw new Error(
+						`An older Cline Hub is running at ${expectedUrl} and is still serving active sessions, so it was not replaced, but no usable auth token is available to attach to it. Finish those sessions, or run 'cline doctor fix' to stop the hub.`,
+					);
+				}
+			}
+			if (
+				expectedOutcome === "failed" &&
+				endpointOverrides.allowPortFallback !== true &&
+				endpoint.port !== 0
+			) {
+				throw new Error(
+					`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+				);
+			}
 		}
 	}
 	const shouldUseFallbackPort =
