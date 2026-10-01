@@ -1,6 +1,7 @@
 import type { AgentMessage } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
+import type { PullRequestStatus } from "./pull-request";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 import type {
 	AgendaAutomationPolicy,
@@ -23,6 +24,7 @@ export type HubCapabilityName =
 	| "session.create"
 	| "session.list"
 	| "session.get"
+	| "session.pull_request_status"
 	| "session.run"
 	| "session.abort"
 	| "schedule.create"
@@ -53,6 +55,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"session.create",
 	"session.list",
 	"session.get",
+	"session.pull_request_status",
 	"session.run",
 	"session.abort",
 	"schedule.create",
@@ -487,6 +490,7 @@ export interface HubSessionSearchHit {
  * envelope.
  */
 export interface HubCommandInputMap {
+	"session.pull_request_status": { sessionId: string };
 	"session.search": HubSessionSearchInput;
 	"task.create": HubTaskCreateInput;
 	"task.list": AgendaTaskListInput;
@@ -501,6 +505,10 @@ export interface HubCommandInputMap {
 
 /** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"session.pull_request_status": {
+		sessionId: string;
+		status: PullRequestStatus | null;
+	};
 	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": { task: AgendaTaskRecord };
 	"task.list": { tasks: AgendaTaskRecord[] };
@@ -535,6 +543,7 @@ export type HubCommandName =
 	| "session.attach"
 	| "session.detach"
 	| "session.get"
+	| "session.pull_request_status"
 	| "session.messages"
 	| "session.restore"
 	| "session.delete"

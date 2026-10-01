@@ -1095,6 +1095,13 @@ export {
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";
 export {
+	createPullRequestStatusReader,
+	GITHUB_AVAILABILITY_CACHE_MS,
+	getPullRequestStatus,
+	githubRepository,
+	normalizeCheck,
+} from "./services/workspace/pull-request";
+export {
 	createSessionCompactionState,
 	parseSessionCompactionState,
 	projectSessionCompactionState,

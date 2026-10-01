@@ -60,6 +60,17 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
+	it("dispatches pull-request reads without accepting workspace overrides", async () => {
+		const transport = createTransport();
+		expect(
+			await transport.handleCommand({
+				version: "v1",
+				command: "session.pull_request_status",
+				payload: { sessionId: "session-1", cwd: "/override" },
+			}),
+		).toMatchObject({ ok: false, error: { code: "invalid_request" } });
+	});
+
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

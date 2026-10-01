@@ -350,6 +350,7 @@ export {
 } from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
+export type { PullRequestCheck, PullRequestStatus } from "./pull-request";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	clearMaterializedRemoteConfigRuntime,

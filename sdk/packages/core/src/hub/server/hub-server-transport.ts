@@ -73,6 +73,7 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import { handleSessionPullRequestStatus } from "./handlers/pull-request-handlers";
 import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
@@ -101,9 +102,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -829,6 +830,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionAttach(this.ctx, envelope);
 			case "session.detach":
 				return await handleSessionDetach(this.ctx, envelope);
+			case "session.pull_request_status":
+				return await handleSessionPullRequestStatus(this.ctx, envelope);
 			case "session.get":
 				return await handleSessionGet(this.ctx, envelope);
 			case "session.messages":
