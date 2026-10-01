@@ -661,10 +661,6 @@ function ConnectorDetailDialog({
 										</dd>
 									</>
 								) : null}
-								<dt className="text-muted-foreground">Slug</dt>
-								<dd className="font-mono text-xs leading-5 text-foreground">
-									{entry.slug}
-								</dd>
 								{typeof entry.toolsCount === "number" ||
 								(status === "connected" && toolNames.length > 0) ? (
 									<>
@@ -672,10 +668,7 @@ function ConnectorDetailDialog({
 										<dd className="text-foreground">
 											{status === "connected" && toolNames.length > 0 ? (
 												<>
-													{toolNames.length}
-													{typeof entry.toolsCount === "number"
-														? `/${entry.toolsCount}`
-														: null}{" "}
+													{toolNames.length}{" "}
 													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 														available in new sessions
 													</span>
