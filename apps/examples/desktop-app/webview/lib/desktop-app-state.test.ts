@@ -119,7 +119,10 @@ describe("desktopAppReducer", () => {
 		expect(consumed?.initialHandoffFollowUpId).toBeUndefined();
 	});
 
-	it("does not reapply recovery to the active cloud composer, but restores it after leaving", () => {
+	it.each([
+		"chat",
+		"settings",
+	] as const)("preserves the mounted cloud composer from %s, but restores recovery after unmount", (view) => {
 		const open = {
 			type: "open-session" as const,
 			session: { ...createSession("cloud-target"), origin: "cloud" as const },
@@ -137,7 +140,25 @@ describe("desktopAppReducer", () => {
 			type: "consume-initial-prompt-draft",
 			threadId,
 		});
-		expect(desktopAppReducer(state, open)).toBe(state);
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view },
+		});
+		const reopened = desktopAppReducer(state, open);
+		expect(reopened.threads).toBe(state.threads);
+		expect(reopened.navigation.current.view).toBe("chat");
+		state = desktopAppReducer(reopened, {
+			type: "navigate",
+			destination: { ...reopened.navigation.current, view: "sessions" },
+		});
+		state = desktopAppReducer(state, open);
+		expect(
+			state.threads.find((thread) => thread.id === threadId),
+		).toMatchObject({
+			initialPromptDraft: open.initialPromptDraft,
+			initialAttachments: open.initialAttachments,
+			initialHandoffFollowUpId: open.initialHandoffFollowUpId,
+		});
 
 		state = desktopAppReducer(state, {
 			type: "open-session",
