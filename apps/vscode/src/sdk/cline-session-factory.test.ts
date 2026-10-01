@@ -1458,9 +1458,13 @@ describe("buildSessionConfig", () => {
 		expect(actConfig.systemPrompt).toContain("# Plan / Act Modes")
 		expect(actConfig.systemPrompt).toContain("<mode_notice>")
 		expect(actConfig.systemPrompt).not.toContain("# Plan Mode\n")
+		expect(actConfig.systemPrompt).not.toContain("# VS Code Plan-Mode Tool Restrictions")
 
 		expect(planConfig.systemPrompt).toContain("# Plan / Act Modes")
 		expect(planConfig.systemPrompt).toContain("# Plan Mode\n")
+		expect(planConfig.systemPrompt).toContain("# VS Code Plan-Mode Tool Restrictions")
+		expect(planConfig.systemPrompt).toContain("Do not attempt to call `editor`, `apply_patch`, or `write_file`")
+		expect(planConfig.systemPrompt).toContain("Do not use `run_commands` to create, modify, or delete files")
 		expect(planConfig.systemPrompt).toContain(
 			"run_commands tool remains available in plan mode strictly for read-only inspection",
 		)
