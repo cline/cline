@@ -8,7 +8,6 @@ SetCompressorDictSize 32
 !include "LogicLib.nsh"
 !include "x64.nsh"
 !include "WinMessages.nsh"
-!include "Win\RestartManager.nsh"
 
 Name "Cline CLI"
 OutFile "${OUTPUT_FILE}"
@@ -61,28 +60,31 @@ Function un.onInit
   !insertmacro Initialize
 FunctionEnd
 
-; Check the installed executable itself, across architectures. An installer
-; must not replace a running CLI/hub or stop another Cline installation.
+; Opening the executable for writing without truncating it checks Windows'
+; actual image lock. Process registries can retain already-exited processes.
+; Only this installation is checked, and no running process is stopped.
 !macro CheckRunningCLI PREFIX
 Function ${PREFIX}CheckRunningCLI
   IfFileExists "$INSTDIR\bin\cline.exe" 0 done
   retry:
-    System::Call 'rstrtmgr::RmStartSession(*i .r1, i 0, w .r2) i .r0'
-    ${If} $0 != 0
-      Goto failed
-    ${EndIf}
-    !insertmacro RestartManager_RegisterFile $1 "$INSTDIR\bin\cline.exe"
-    ${If} $0 == 0
-      StrCpy $3 0
-      StrCpy $2 0
-      System::Call 'rstrtmgr::RmGetList(i r1, *i .r2, *i r3, p 0, *i .r4) i .r0'
-    ${EndIf}
-    System::Call 'rstrtmgr::RmEndSession(i r1)'
-    ${If} $0 == 0
+    StrCpy $3 25
+  probe:
+    System::Call 'kernel32::CreateFileW(w "$INSTDIR\bin\cline.exe", i 0x40000000, i 7, p 0, i 3, i 0x80, p 0) p .r0 ?e'
+    Pop $1
+    ${If} $0 != -1
+      System::Call 'kernel32::CloseHandle(p r0)'
       Goto done
     ${EndIf}
-  failed:
-    MessageBox MB_RETRYCANCEL|MB_ICONSTOP "Close Cline and its background hub using:$\r$\n$INSTDIR\bin\cline.exe$\r$\n$\r$\nThen retry setup. Windows error: $0." /SD IDCANCEL IDRETRY retry
+    StrCpy $0 $1
+    ; Antivirus scanners may briefly hold a newly written executable.
+    ${If} $0 == 32
+      IntOp $3 $3 - 1
+      ${If} $3 > 0
+        Sleep 200
+        Goto probe
+      ${EndIf}
+    ${EndIf}
+    MessageBox MB_RETRYCANCEL|MB_ICONSTOP "Close Cline, then stop its background hub:$\r$\n$\"$INSTDIR\bin\cline.exe$\" hub stop$\r$\n$\r$\nThen retry setup. Windows error: $0." /SD IDCANCEL IDRETRY retry
     SetErrorLevel 2
     Abort
   done:
@@ -110,6 +112,7 @@ FunctionEnd
 Section "Install"
   Call CheckRunningCLI
   !include "${INSTALL_FILES}"
+  SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   !insertmacro UpdatePath Add
   WriteRegStr HKCU "${INSTALL_KEY}" "DisplayName" "Cline CLI (${ARCH})"

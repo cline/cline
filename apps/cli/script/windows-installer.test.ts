@@ -33,13 +33,19 @@ const registryPreamble =
 let testRoot: string;
 let setup: string;
 let fixture: string;
+let originalRegistryPath: { value: string | null; kind: string | null };
 
 function quote(value: string): string {
 	return `'${value.replaceAll("'", "''")}'`;
 }
 
-async function powershell(script: string): Promise<string> {
-	const encoded = Buffer.from(script, "utf16le").toString("base64");
+async function powershell(script: string, path?: string): Promise<string> {
+	const encoded = Buffer.from(
+		"$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); " +
+			(path ? `$env:Path = ${quote(path)}; ` : "") +
+			script,
+		"utf16le",
+	).toString("base64");
 	const child = Bun.spawn(
 		[
 			"powershell.exe",
@@ -49,7 +55,11 @@ async function powershell(script: string): Promise<string> {
 			"-EncodedCommand",
 			encoded,
 		],
-		{ stdout: "pipe", stderr: "pipe", windowsHide: true },
+		{
+			stdout: "pipe",
+			stderr: "pipe",
+			windowsHide: true,
+		},
 	);
 	const [output, error, code] = await Promise.all([
 		new Response(child.stdout).text(),
@@ -74,13 +84,13 @@ async function resetRegistry(
 	);
 }
 
-async function readPath(): Promise<{
+async function readPath(key = environmentKey): Promise<{
 	value: string | null;
 	kind: string | null;
 }> {
 	return JSON.parse(
 		await powershell(
-			`${registryPreamble}$key = $registry.OpenSubKey(${quote(environmentKey)}); ` +
+			`${registryPreamble}$key = $registry.OpenSubKey(${quote(key)}); ` +
 				"$value = $key.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); " +
 				"$kind = $null; if ($null -ne $value) { $kind = $key.GetValueKind('Path').ToString() }; " +
 				"@{value = $value; kind = $kind} | ConvertTo-Json -Compress; $key.Dispose(); $registry.Dispose();",
@@ -131,6 +141,7 @@ async function uninstall(dir: string): Promise<number> {
 
 describe.skipIf(!windows)("Windows CLI installer", () => {
 	beforeAll(async () => {
+		originalRegistryPath = await readPath("Environment");
 		testRoot = mkdtempSync(join(resolve(tmpdir()), "cline-setup-test-"));
 		const payload = join(testRoot, "payload $ space");
 		mkdirSync(join(payload, "bin"), { recursive: true });
@@ -181,6 +192,7 @@ describe.skipIf(!windows)("Windows CLI installer", () => {
 			});
 		}
 		expect(process.env.PATH).toBe(originalUserPath);
+		expect(await readPath("Environment")).toEqual(originalRegistryPath);
 	}, 30_000);
 
 	test("preserves long raw PATH values, their type, and later user edits", async () => {
@@ -242,6 +254,12 @@ describe.skipIf(!windows)("Windows CLI installer", () => {
 		expect((await readPath()).value).toBe(
 			`${join(dir, "bin")};${originalPath}`,
 		);
+		expect(
+			await powershell(
+				"cline --version",
+				`${join(dir, "bin")};${originalUserPath}`,
+			),
+		).toBe("1.2.3");
 		writeFileSync(join(dir, "keep-user-file.txt"), "keep");
 		expect(await uninstall(dir)).toBe(0);
 		expect((await readPath()).value).toBe(originalPath);
@@ -275,6 +293,7 @@ describe.skipIf(!windows)("Windows CLI installer", () => {
 			child.kill();
 			await child.exited;
 		}
+		writeFileSync(join(dir, "bin/cline.exe"), readFileSync(fixture));
 		expect(await uninstall(dir)).toBe(0);
 	}, 60_000);
 });
