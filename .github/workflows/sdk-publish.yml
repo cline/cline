@@ -1,6 +1,14 @@
 name: sdk-publish
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "sdk/packages/shared/package.json"
+      - "sdk/packages/llms/package.json"
+      - "sdk/packages/agents/package.json"
+      - "sdk/packages/core/package.json"
+      - "sdk/packages/sdk/package.json"
   workflow_dispatch:
     inputs:
       channel:
@@ -28,8 +36,44 @@ defaults:
   run:
     working-directory: .
 
+concurrency:
+  group: sdk-publish-${{ github.event_name == 'push' && 'latest' || inputs.channel || 'nightly' }}
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Detect SDK version bump
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then
+            bun .github/scripts/sdk-release.mjs check-push
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: validate
+    if: needs.validate.outputs.publish == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/sdk-test.yml
@@ -64,7 +108,9 @@ jobs:
           INPUT_CHANNEL: ${{ inputs.channel }}
         run: |
           # Default to nightly for scheduled runs
-          if [ "$EVENT_NAME" = "schedule" ]; then
+          if [ "$EVENT_NAME" = "push" ]; then
+            echo "channel=latest" >> $GITHUB_OUTPUT
+          elif [ "$EVENT_NAME" = "schedule" ]; then
             echo "channel=nightly" >> $GITHUB_OUTPUT
           else
             echo "channel=$INPUT_CHANNEL" >> $GITHUB_OUTPUT
@@ -163,7 +209,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update all package versions and lockfile
-        if: steps.check_commits.outputs.skip != 'true'
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'nightly'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: bun sdk/scripts/version.ts "$VERSION"
@@ -311,7 +357,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: sdk/sdk/v${{ steps.version.outputs.version }}
           name: "SDK v${{ steps.version.outputs.version }}"
