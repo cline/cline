@@ -331,14 +331,109 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
     }
 }
 
-/// Lock order: `process` may be held while acquiring `ws_endpoint`, never
-/// the reverse. Anything that touches both (including stop()) must either
-/// nest in that order or take them strictly sequentially.
+/// Pacing for a sidecar that keeps exiting before it publishes an endpoint.
+/// The first relaunch waits this long (the same spacing the endpoint wait
+/// already used), and each further consecutive failure doubles it up to
+/// `SIDECAR_RESPAWN_BACKOFF_MAX`. Without the cap a sidecar that cannot start
+/// (e.g. an orphaned Hub holding the port, cline/cline#14129) was relaunched
+/// every 2-5s by the health-check loop and the webview's endpoint retries —
+/// 10-20 fatal startup errors a minute per machine, for hours.
+const SIDECAR_RESPAWN_BACKOFF_BASE: Duration = Duration::from_secs(2);
+const SIDECAR_RESPAWN_BACKOFF_MAX: Duration = Duration::from_secs(60);
+
 #[derive(Default)]
+struct SidecarStartupFailures {
+    /// Children that exited without publishing an endpoint, since the last
+    /// one that did.
+    consecutive: u32,
+    last_spawn: Option<Instant>,
+}
+
+/// Lock order: `process` may be held while acquiring `ws_endpoint`, never
+/// the reverse. `startup_failures` is taken only briefly, under `process` or
+/// on its own, and nothing else is acquired while it is held. Anything that
+/// touches several of these must either nest in that order or take them
+/// strictly sequentially.
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
     shutting_down: AtomicBool,
+    startup_failures: Mutex<SidecarStartupFailures>,
+    respawn_backoff_base: Duration,
+    respawn_backoff_max: Duration,
+}
+
+impl Default for DesktopBackendState {
+    fn default() -> Self {
+        Self::with_respawn_backoff(SIDECAR_RESPAWN_BACKOFF_BASE, SIDECAR_RESPAWN_BACKOFF_MAX)
+    }
+}
+
+impl DesktopBackendState {
+    fn with_respawn_backoff(base: Duration, max: Duration) -> Self {
+        Self {
+            ws_endpoint: Mutex::default(),
+            process: Mutex::default(),
+            shutting_down: AtomicBool::default(),
+            startup_failures: Mutex::default(),
+            respawn_backoff_base: base,
+            respawn_backoff_max: max,
+        }
+    }
+
+    /// How long to wait before relaunching after `consecutive` startup
+    /// failures in a row: 0 after a success, then base, 2×base, 4×base, …
+    /// capped at the maximum.
+    fn respawn_delay(&self, consecutive: u32) -> Duration {
+        if consecutive == 0 {
+            return Duration::ZERO;
+        }
+        let doublings = (consecutive - 1).min(16);
+        self.respawn_backoff_base
+            .saturating_mul(1u32 << doublings)
+            .min(self.respawn_backoff_max)
+    }
+
+    /// Records that a child exited without publishing and reports whether the
+    /// next relaunch is still inside its backoff window.
+    fn note_startup_failure_and_check_backoff(&self) -> Result<Option<Duration>, String> {
+        let mut failures = self
+            .startup_failures
+            .lock()
+            .map_err(|_| "failed to lock desktop backend startup state")?;
+        failures.consecutive = failures.consecutive.saturating_add(1);
+        let delay = self.respawn_delay(failures.consecutive);
+        Ok(match failures.last_spawn {
+            Some(at) if at.elapsed() < delay => Some(delay - at.elapsed()),
+            _ => None,
+        })
+    }
+
+    /// Whether a relaunch is still inside the backoff window of the failures
+    /// recorded so far (for callers that find no tracked child at all).
+    fn respawn_backoff_remaining(&self) -> Result<Option<Duration>, String> {
+        let failures = self
+            .startup_failures
+            .lock()
+            .map_err(|_| "failed to lock desktop backend startup state")?;
+        let delay = self.respawn_delay(failures.consecutive);
+        Ok(match failures.last_spawn {
+            Some(at) if at.elapsed() < delay => Some(delay - at.elapsed()),
+            _ => None,
+        })
+    }
+
+    fn note_spawned(&self) {
+        if let Ok(mut failures) = self.startup_failures.lock() {
+            failures.last_spawn = Some(Instant::now());
+        }
+    }
+
+    fn note_endpoint_published(&self) {
+        if let Ok(mut failures) = self.startup_failures.lock() {
+            failures.consecutive = 0;
+        }
+    }
 }
 
 impl DesktopBackendState {
@@ -581,8 +676,8 @@ fn ensure_desktop_backend_started_locked(
     if state.is_shutting_down() {
         return Ok(());
     }
-    if let Some(existing) = process_guard.as_mut() {
-        match existing.try_wait() {
+    let backoff_remaining = match process_guard.as_mut() {
+        Some(existing) => match existing.try_wait() {
             // A live child owns startup even while its endpoint is still
             // pending (login-shell PATH resolution plus session-manager init
             // take a few seconds). Spawning again here would orphan it and
@@ -593,11 +688,30 @@ fn ensure_desktop_backend_started_locked(
                 if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
                     *endpoint_guard = None;
                 }
+                // Count the failure once, when the exit is first observed. A
+                // child that had published resets the count on its ready line,
+                // so a crash after a healthy run still relaunches promptly.
+                let remaining = state.note_startup_failure_and_check_backoff()?;
+                if let Some(remaining) = remaining {
+                    eprintln!(
+                        "[desktop-backend] sidecar exited before publishing its endpoint; next relaunch in {remaining:?}"
+                    );
+                }
+                remaining
             }
-        }
+        },
+        // The exit was already observed (and counted) by an earlier caller;
+        // every path that could relaunch must still honor the same window.
+        None => state.respawn_backoff_remaining()?,
+    };
+    if backoff_remaining.is_some() {
+        // Not an error: the health-check loop and endpoint waits call again on
+        // their next tick, and the first one past the window relaunches.
+        return Ok(());
     }
 
     let mut child = spawn_backend()?;
+    state.note_spawned();
 
     let stdout = child
         .stdout
@@ -631,6 +745,7 @@ fn ensure_desktop_backend_started_locked(
                         if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
                             *endpoint_guard = Some(endpoint);
                         }
+                        state_for_stdout.note_endpoint_published();
                     }
                     continue;
                 }
@@ -1617,6 +1732,122 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
+    fn respawn_delay_doubles_per_consecutive_failure_up_to_the_cap() {
+        let state = DesktopBackendState::with_respawn_backoff(
+            Duration::from_secs(2),
+            Duration::from_secs(60),
+        );
+        assert_eq!(state.respawn_delay(0), Duration::ZERO);
+        assert_eq!(state.respawn_delay(1), Duration::from_secs(2));
+        assert_eq!(state.respawn_delay(2), Duration::from_secs(4));
+        assert_eq!(state.respawn_delay(3), Duration::from_secs(8));
+        assert_eq!(state.respawn_delay(6), Duration::from_secs(60));
+        assert_eq!(state.respawn_delay(40), Duration::from_secs(60));
+        assert_eq!(state.respawn_delay(u32::MAX), Duration::from_secs(60));
+    }
+
+    /// The crash loop behind most desktop error volume: a sidecar that dies
+    /// on every launch (an orphaned Hub holds the port) must be relaunched
+    /// progressively less often, by every caller, not once per tick.
+    #[test]
+    fn repeated_startup_failures_back_off_before_relaunching() {
+        let state = Arc::new(DesktopBackendState::with_respawn_backoff(
+            Duration::from_millis(150),
+            Duration::from_millis(600),
+        ));
+        let spawn_count = AtomicUsize::new(0);
+        let try_relaunch = || {
+            ensure_desktop_backend_started_with(&state, || {
+                spawn_count.fetch_add(1, Ordering::SeqCst);
+                spawn_exiting_sidecar()
+            })
+            .expect("relaunch attempts must not error")
+        };
+
+        try_relaunch();
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 1);
+        wait_until_tracked_child_exits(&state);
+
+        // First failure: inside the base window, both the caller that observes
+        // the exit and a later caller that finds no child stay their hand.
+        try_relaunch();
+        try_relaunch();
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 1);
+        thread::sleep(Duration::from_millis(170));
+        try_relaunch();
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 2);
+        wait_until_tracked_child_exits(&state);
+
+        // Second failure: the window has doubled, so the base delay is no
+        // longer enough.
+        try_relaunch();
+        thread::sleep(Duration::from_millis(170));
+        try_relaunch();
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 2);
+        thread::sleep(Duration::from_millis(170));
+        try_relaunch();
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 3);
+
+        state.stop();
+    }
+
+    #[test]
+    fn a_published_endpoint_resets_the_startup_backoff() {
+        let state = Arc::new(DesktopBackendState::with_respawn_backoff(
+            Duration::from_millis(100),
+            Duration::from_millis(400),
+        ));
+        for _ in 0..2 {
+            ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+                .expect("startup should succeed");
+            wait_until_tracked_child_exits(&state);
+            ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+                .expect("observing the exit must not error");
+            thread::sleep(Duration::from_millis(250));
+        }
+        assert!(
+            state
+                .startup_failures
+                .lock()
+                .expect("startup state lock")
+                .consecutive
+                >= 2
+        );
+
+        ensure_desktop_backend_started_with(&state, || {
+            spawn_ready_sidecar("ws://127.0.0.1:3126/transport?approval_token=reset")
+        })
+        .expect("startup should succeed");
+        let endpoint = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+            || panic!("a live child must not be respawned"),
+        )
+        .expect("endpoint should become ready");
+        assert_eq!(
+            endpoint,
+            "ws://127.0.0.1:3126/transport?approval_token=reset"
+        );
+        assert_eq!(
+            state
+                .startup_failures
+                .lock()
+                .expect("startup state lock")
+                .consecutive,
+            0
+        );
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
     fn macos_bundle_declares_voice_input_permissions() {
         let info_plist = include_str!("../Info.plist");
         assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
@@ -2110,7 +2341,13 @@ mod tests {
 
     #[test]
     fn exited_child_is_replaced_on_next_startup_check() {
-        let state = Arc::new(DesktopBackendState::default());
+        // A short backoff window: a child that exits before publishing is
+        // replaced on the first check *after* the window, not on the very next
+        // tick (see repeated_startup_failures_back_off_before_relaunching).
+        let state = Arc::new(DesktopBackendState::with_respawn_backoff(
+            Duration::from_millis(50),
+            Duration::from_millis(50),
+        ));
         let spawn_count = AtomicUsize::new(0);
         let spawn_exiting = || {
             spawn_count.fetch_add(1, Ordering::SeqCst);
@@ -2139,6 +2376,7 @@ mod tests {
             }
             thread::sleep(Duration::from_millis(10));
         }
+        thread::sleep(Duration::from_millis(60));
         ensure_desktop_backend_started_with(&state, || spawn_exiting())
             .expect("startup check should succeed");
         assert_eq!(spawn_count.load(Ordering::SeqCst), 2);
