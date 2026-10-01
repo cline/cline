@@ -132,7 +132,6 @@ export class TeamPersistenceWriter {
 		} catch (error) {
 			// Persistence must never break the agent: report, keep the batch so the
 			// next flush retries it (e.g. after a transient SQLite lock).
-			this.opts.onError?.(error);
 			source.requeueStateDelta(delta);
 			const merged = events.concat(this.pendingEvents);
 			this.pendingEvents =
@@ -142,6 +141,11 @@ export class TeamPersistenceWriter {
 			this.teammatesDirty = this.teammatesDirty || teammatesDirty;
 			if (!this.disposed) {
 				this.schedule();
+			}
+			try {
+				this.opts.onError?.(error);
+			} catch {
+				// Error reporting must not prevent the batch from being retried.
 			}
 		}
 	}

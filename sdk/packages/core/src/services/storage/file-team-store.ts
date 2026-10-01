@@ -171,10 +171,12 @@ export class FileTeamStore implements TeamStore {
 	 * batch. Batching plus compacted run results keep that file small.
 	 */
 	persistBatch(teamName: string, batch: TeamPersistenceBatch): void {
+		// State first: rewriting it is idempotent, so if the history append then
+		// fails the writer's retry re-sends both without duplicating history.
+		this.persistRuntime(teamName, batch.getFullState(), batch.teammates);
 		if (batch.events.length > 0) {
 			this.appendHistory(teamName, batch.events);
 		}
-		this.persistRuntime(teamName, batch.getFullState(), batch.teammates);
 	}
 
 	private appendHistory(
@@ -194,7 +196,13 @@ export class FileTeamStore implements TeamStore {
 				.join(""),
 			"utf8",
 		);
-		this.compactHistoryIfNeeded(path);
+		// Events are on disk; compaction is best-effort and must not make the
+		// caller retry (and re-append) them.
+		try {
+			this.compactHistoryIfNeeded(path);
+		} catch {
+			// Retried on the next append.
+		}
 	}
 
 	/** Keep the newest `retentionPerTeam` lines once the file grows too big. */

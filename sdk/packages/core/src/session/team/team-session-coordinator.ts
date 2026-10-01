@@ -177,6 +177,9 @@ export function emitTeamProgress(
 		telemetryProgressThrottle.set(teamRuntime, throttle);
 	}
 	if (isDurableTeamEvent(event)) {
+		// A newer durable event supersedes any queued telemetry progress; sending
+		// it afterwards would make e.g. a completed run look active again.
+		throttle.pending = undefined;
 		send();
 		return;
 	}

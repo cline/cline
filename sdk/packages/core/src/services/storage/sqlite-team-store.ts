@@ -622,7 +622,13 @@ export class SqliteTeamStore implements TeamStore {
 			this.writeTeammates(db, safeTeamName, batch.teammates);
 		});
 		if (batch.events.length > 0) {
-			this.pruneTeamEvents(db, safeTeamName);
+			// The batch is committed; pruning is best-effort. Throwing here would
+			// make the writer retry and re-append already-committed events.
+			try {
+				this.pruneTeamEvents(db, safeTeamName);
+			} catch {
+				// Retried on the next batch.
+			}
 		}
 	}
 
