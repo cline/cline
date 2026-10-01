@@ -119,6 +119,77 @@ describe("resolveProviderRequestHeaders", () => {
 		});
 	});
 
+	it("adds a request-scoped LiteLLM trace id for OpenAI-compatible providers", () => {
+		expect(
+			resolveProviderRequestHeaders({
+				providerId: "openai-compatible",
+				sessionId: "session-a",
+				defaultSource: "cli",
+				coreVersion: "0.2.0",
+			}),
+		).toEqual({ "x-litellm-trace-id": "session-a" });
+	});
+
+	it("keeps interleaved OpenAI-compatible sessions correlated independently", () => {
+		const sessionA = resolveProviderRequestHeaders({
+			providerId: "openai-compatible",
+			sessionId: "session-a",
+			defaultSource: "cli",
+			coreVersion: "0.2.0",
+		});
+		const sessionB = resolveProviderRequestHeaders({
+			providerId: "openai-compatible",
+			sessionId: "session-b",
+			defaultSource: "cli",
+			coreVersion: "0.2.0",
+		});
+		const sessionAAgain = resolveProviderRequestHeaders({
+			providerId: "openai-compatible",
+			sessionId: "session-a",
+			defaultSource: "cli",
+			coreVersion: "0.2.0",
+		});
+
+		expect(sessionA?.["x-litellm-trace-id"]).toBe("session-a");
+		expect(sessionB?.["x-litellm-trace-id"]).toBe("session-b");
+		expect(sessionAAgain?.["x-litellm-trace-id"]).toBe("session-a");
+	});
+
+	it("does not add or override LiteLLM trace ids for other providers", () => {
+		expect(
+			resolveProviderRequestHeaders({
+				providerId: "anthropic",
+				sessionId: "session-anthropic",
+				defaultSource: "cli",
+				coreVersion: "0.2.0",
+				headers: {
+					config: { "x-litellm-trace-id": "configured-trace" },
+				},
+			}),
+		).toEqual({ "x-litellm-trace-id": "configured-trace" });
+	});
+
+	it("gives the current session id precedence over configured trace headers", () => {
+		const headers = resolveProviderRequestHeaders({
+			providerId: "openai-compatible",
+			sessionId: "session-current",
+			defaultSource: "cli",
+			coreVersion: "0.2.0",
+			headers: {
+				stored: { "X-LiteLLM-Trace-ID": "stored-trace" },
+				config: { "x-litellm-trace-id": "configured-trace" },
+				session: { "X-LITELLM-TRACE-ID": "session-trace" },
+			},
+		});
+
+		expect(headers).toEqual({ "x-litellm-trace-id": "session-current" });
+		expect(
+			Object.keys(headers ?? {}).filter(
+				(key) => key.toLowerCase() === "x-litellm-trace-id",
+			),
+		).toEqual(["x-litellm-trace-id"]);
+	});
+
 	it("preserves existing precedence for providers without required headers", () => {
 		expect(
 			resolveProviderRequestHeaders({
