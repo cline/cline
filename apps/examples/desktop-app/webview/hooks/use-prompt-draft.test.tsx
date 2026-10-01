@@ -54,6 +54,19 @@ async function openSession(environmentId = "local") {
 	});
 }
 
+function pendingSend() {
+	const pane = current;
+	let resolve!: (accepted: boolean) => void;
+	const response = new Promise<boolean>((done) => {
+		resolve = done;
+	});
+	const restorePrompt = pane.clearPromptForSend();
+	const finished = response.then((accepted) => {
+		if (!accepted) restorePrompt("Submitted prompt");
+	});
+	return { resolve, finished };
+}
+
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	container = document.createElement("div");
@@ -70,6 +83,142 @@ afterEach(async () => {
 });
 
 describe("usePromptDraft", () => {
+	it("restores an unchanged draft after a failed send, including the composer's clear acknowledgement", async () => {
+		await navigate();
+		let send!: ReturnType<typeof pendingSend>;
+		act(() => {
+			send = pendingSend();
+			current.handlePromptInputChange("");
+		});
+		await act(async () => {
+			send.resolve(false);
+			await send.finished;
+		});
+		expect(current.promptDraft.value).toBe("Submitted prompt");
+		expect(drafts.get("new-session")).toBe("Submitted prompt");
+	});
+
+	it("does not restore a failed send after the user types and erases newer text", async () => {
+		await navigate();
+		let send!: ReturnType<typeof pendingSend>;
+		act(() => {
+			send = pendingSend();
+			current.handlePromptInputChange("Changed my mind");
+			current.handlePromptInputChange("");
+		});
+		await act(async () => {
+			send.resolve(false);
+			await send.finished;
+		});
+		expect(current.promptInputRef.current).toBe("");
+		expect(drafts.has("new-session")).toBe(false);
+	});
+
+	it("invalidates recovery for an equal-valued external replacement", async () => {
+		await navigate();
+		let restore!: (value: string) => boolean;
+		act(() => {
+			restore = current.clearPromptForSend();
+			current.setPromptInput("");
+		});
+		act(() => expect(restore("Old prompt")).toBe(false));
+		expect(drafts.has("new-session")).toBe(false);
+	});
+
+	it("does not let an earlier send's failure replace a later send's draft", async () => {
+		await navigate();
+		let first!: ReturnType<typeof pendingSend>;
+		let second!: ReturnType<typeof pendingSend>;
+		act(() => {
+			first = pendingSend();
+			second = pendingSend();
+		});
+		await act(async () => {
+			first.resolve(false);
+			await first.finished;
+		});
+		expect(current.promptInputRef.current).toBe("");
+		await act(async () => {
+			second.resolve(false);
+			await second.finished;
+		});
+		expect(current.promptInputRef.current).toBe("Submitted prompt");
+	});
+
+	it("does not let a retired pane's failed send overwrite a newer draft", async () => {
+		await navigate();
+		let send!: ReturnType<typeof pendingSend>;
+		act(() => {
+			send = pendingSend();
+		});
+		await openSession();
+		await navigate({ type: "back" });
+		act(() => current.handlePromptInputChange("Newer draft"));
+		await act(async () => {
+			send.resolve(false);
+			await send.finished;
+		});
+		await openSession();
+		await navigate({ type: "back" });
+		expect(current.promptDraft.value).toBe("Newer draft");
+	});
+
+	it("does not recreate a deleted thread's draft after a late send failure", async () => {
+		await navigate();
+		let send!: ReturnType<typeof pendingSend>;
+		act(() => {
+			send = pendingSend();
+		});
+		await navigate({
+			type: "delete-session",
+			deletedSessionId: "pending-session",
+			deletedThreadId: "new-session",
+			fallbackThreadId: "replacement",
+			fallbackEnvironmentId: "local",
+		});
+		drafts.delete("new-session");
+		await act(async () => {
+			send.resolve(false);
+			await send.finished;
+		});
+		expect(drafts.has("new-session")).toBe(false);
+		expect(current.promptInputRef.current).toBe("");
+	});
+
+	it("preserves a newly started session's follow-up when reopened through history", async () => {
+		await navigate();
+		await navigate({
+			type: "thread-started",
+			threadId: "new-session",
+			sessionId: "existing-session",
+		});
+		act(() => current.handlePromptInputChange("Follow-up to my new session"));
+		// The same session ID on a different host must not reuse the local thread.
+		await openSession("remote");
+		expect(current.promptInputRef.current).toBe("");
+		act(() => current.handlePromptInputChange("Remote follow-up"));
+		await openSession("local");
+		expect(appState.navigation.current.activeThreadId).toBe("new-session");
+		expect(current.promptDraft.value).toBe("Follow-up to my new session");
+		await openSession("remote");
+		expect(current.promptDraft.value).toBe("Remote follow-up");
+	});
+
+	it("keeps the same pane and draft when clicking its own newly started session", async () => {
+		await navigate();
+		await navigate({
+			type: "thread-started",
+			threadId: "new-session",
+			sessionId: "existing-session",
+		});
+		act(() => current.handlePromptInputChange("Unsent follow-up"));
+		const inputRef = current.promptInputRef;
+		await openSession();
+		expect(current.promptInputRef).toBe(inputRef);
+		expect(current.promptInputRef.current).toBe("Unsent follow-up");
+		expect(appState.threads).toHaveLength(1);
+	});
+
 	it("restores a new session draft after switching to a session and back", async () => {
 		await navigate();
 		const renderCount = renders;

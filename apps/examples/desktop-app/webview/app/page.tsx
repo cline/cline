@@ -298,7 +298,7 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
-	const [promptDrafts] = useState(() => new Map<string, string>());
+	const { current: promptDrafts } = useRef(new Map<string, string>());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -1196,7 +1196,7 @@ function ChatThreadPane({
 		}
 	}, [onThreadStarted, sessionId, threadId]);
 	const {
-		promptInputRef,
+		clearPromptForSend,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
@@ -1835,6 +1835,14 @@ function ChatThreadPane({
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
+		// Opening the current live session's sidebar row now reuses this pane.
+		// Don't reset its stream/attachments just to hydrate the same session.
+		if (
+			historySession.sessionId === sessionId &&
+			initialPromptDraft === undefined
+		) {
+			return;
+		}
 		if (initialPromptDraft !== undefined) {
 			setPromptInput(initialPromptDraft);
 			onInitialPromptDraftConsumed?.(threadId);
@@ -1847,6 +1855,7 @@ function ChatThreadPane({
 		hydrateSession,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
+		sessionId,
 		setPendingAttachments,
 		setPromptInput,
 		threadId,
@@ -1909,7 +1918,7 @@ function ChatThreadPane({
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			setPromptInput("");
+			const restorePrompt = clearPromptForSend();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			const promptTaken = await sendPrompt(trimmed, toSend, {
@@ -1917,24 +1926,22 @@ function ChatThreadPane({
 			});
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
-			// without retyping. Leave anything they typed meanwhile alone.
-			if (!promptTaken && promptInputRef.current.trim() === "") {
-				setPromptInput(trimmed);
+			// without retyping, but only if this pane still owns the unchanged draft.
+			if (!promptTaken && restorePrompt(trimmed)) {
 				handleAttachFiles(toSend);
 			}
 		},
 		[
+			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
 			isNewThread,
 			onThreadStarted,
 			pendingAttachments,
-			promptInputRef,
 			sendPrompt,
 			sessionId,
 			setPendingAttachments,
-			setPromptInput,
 			threadId,
 			workIn,
 		],

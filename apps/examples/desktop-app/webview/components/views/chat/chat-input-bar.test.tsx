@@ -257,11 +257,13 @@ async function renderVoiceComposer({
 function DraftComposer({
 	drafts,
 	threadId,
+	sendPrompt,
 }: {
 	drafts: Map<string, string>;
 	threadId: string;
+	sendPrompt?: (prompt: string) => Promise<boolean>;
 }) {
-	const { promptDraft, handlePromptInputChange, setPromptInput } =
+	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
 		usePromptDraft(drafts, threadId);
 	return (
 		<WorkspaceProvider value={workspaceValue}>
@@ -285,7 +287,10 @@ function DraftComposer({
 				onReasoningChange={vi.fn()}
 				onRemoveAttachment={vi.fn()}
 				onRemovePromptInQueue={vi.fn()}
-				onSend={() => setPromptInput("")}
+				onSend={async (prompt) => {
+					const restorePrompt = clearPromptForSend();
+					if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
+				}}
 				onSteerPromptInQueue={vi.fn()}
 				onSwitchGitBranch={vi.fn(async () => true)}
 				promptDraft={promptDraft}
@@ -301,6 +306,29 @@ function DraftComposer({
 }
 
 describe("ChatInputBar draft navigation", () => {
+	it("restores a failed send after the real composer acknowledges the external clear", async () => {
+		const drafts = new Map([["A", "Try again"]]);
+		const response = deferred<boolean>();
+		await act(async () => {
+			root.render(
+				<DraftComposer
+					drafts={drafts}
+					threadId="A"
+					sendPrompt={() => response.promise}
+				/>,
+			);
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')
+				?.click();
+		});
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await act(async () => response.resolve(false));
+		expect(container.querySelector("textarea")?.value).toBe("Try again");
+		expect(drafts.get("A")).toBe("Try again");
+	});
+
 	it("restores typed text on return and does not restore it after sending", async () => {
 		const drafts = new Map<string, string>();
 		const showThread = async (threadId: string) => {
