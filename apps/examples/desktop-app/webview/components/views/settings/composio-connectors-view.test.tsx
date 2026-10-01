@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 	connect: vi.fn(),
 	disconnect: vi.fn(),
 	cancel: vi.fn(),
+	refresh: vi.fn(),
+	loadError: null as string | null,
 }));
 vi.mock("@/lib/composio", () => ({
 	fetchComposioToolkitCatalog: mocks.catalog,
@@ -28,6 +30,9 @@ vi.mock("@/lib/use-composio-connections", () => ({
 		connect: mocks.connect,
 		disconnect: mocks.disconnect,
 		cancelConnect: mocks.cancel,
+		refresh: mocks.refresh,
+		refreshing: false,
+		loadError: mocks.loadError,
 	}),
 }));
 
@@ -38,6 +43,7 @@ let container: HTMLDivElement;
 beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
+	mocks.loadError = null;
 	mocks.integrations = [
 		{
 			toolkit: "gmail",
@@ -156,7 +162,14 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		await act(async () => button("View")?.click());
+		// The card itself opens the detail dialog.
+		await act(async () =>
+			(
+				container.querySelector(
+					'[aria-label="Open Google Calendar details"]',
+				) as HTMLElement
+			).click(),
+		);
 		const dialog = document.querySelector('[role="dialog"]');
 		expect(dialog?.textContent).toContain("47 available in new sessions");
 		expect(dialog?.textContent).not.toContain("47/47");
@@ -168,7 +181,7 @@ describe("installed connectors", () => {
 		expect(mocks.catalog).not.toHaveBeenCalled();
 	});
 
-	it("uses the real catalog total when it is available", async () => {
+	it("shows the installed tool count, not the stale catalog total", async () => {
 		mocks.catalog.mockResolvedValue({
 			configured: true,
 			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
@@ -176,11 +189,39 @@ describe("installed connectors", () => {
 		await render();
 		await act(async () => button("View")?.click());
 		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-			"1/47 available in new sessions",
+			"1 available in new sessions",
 		);
+		expect(
+			document.querySelector('[role="dialog"]')?.textContent,
+		).not.toContain("/47");
+		expect(
+			document.querySelector('[role="dialog"]')?.textContent,
+		).not.toContain("Slug");
 	});
 
-	it("shows only the Marketplace button when no connectors are installed", async () => {
+	it("shows zero installed tools instead of the catalog total when none were retrieved", async () => {
+		mocks.integrations = [
+			{
+				toolkit: "gmail",
+				name: "Gmail",
+				description: "Email",
+				recommended: true,
+				status: "connected",
+				toolNames: [],
+			},
+		];
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
+		});
+		await render();
+		await act(async () => button("View")?.click());
+		const text = document.querySelector('[role="dialog"]')?.textContent;
+		expect(text).toContain("0 available in new sessions");
+		expect(text).not.toContain("47");
+	});
+
+	it("shows the empty state when no connectors are installed", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -190,23 +231,67 @@ describe("installed connectors", () => {
 				status: "not_connected",
 			},
 		];
-		const openMarketplace = vi.fn();
 		await act(async () =>
-			root.render(
-				<ComposioConnectorsView
-					variant="installed"
-					onOpenMarketplace={openMarketplace}
-				/>,
-			),
+			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).toBe(
-			"Browse all connectors in the Marketplace",
-		);
+		const installed = container.querySelector("section");
+		expect(installed?.textContent).toContain("Installed0");
+		expect(installed?.textContent).toContain("No connectors installed");
+		expect(installed?.textContent).not.toContain("Gmail");
 		expect(mocks.catalog).not.toHaveBeenCalled();
+		// Every recipe is suggested; chips install their connector.
+		expect(container.textContent).toContain("Suggested");
+		expect(container.textContent).toContain("Organize your day");
+		expect(container.textContent).toContain("Debug production incidents");
 		await act(async () =>
-			button("Browse all connectors in the Marketplace")?.click(),
+			(
+				container.querySelector('[aria-label="Install Sentry"]') as HTMLElement
+			).click(),
 		);
-		expect(openMarketplace).toHaveBeenCalledOnce();
+		expect(mocks.connect).toHaveBeenCalledWith("sentry");
+	});
+
+	it("hides a recipe once all of its connectors are connected", async () => {
+		mocks.integrations = [
+			["gmail", "Gmail"],
+			["slack", "Slack"],
+			["googlecalendar", "Google Calendar"],
+		].map(([toolkit, name]) => ({
+			toolkit,
+			name,
+			description: "",
+			recommended: toolkit !== "slack",
+			status: "connected" as const,
+		}));
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).not.toContain("Organize your day");
+		expect(container.textContent).toContain("Debug production incidents");
+		// Slack is connected, so it is a non-interactive chip there.
+		expect(container.querySelector('[aria-label="Install Slack"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Install Sentry"]'),
+		).not.toBeNull();
+	});
+
+	it("refreshes from the toolbar and keeps the list when a refresh fails", async () => {
+		mocks.loadError = "Network down";
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).toContain("Gmail");
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Network down",
+		);
+		await act(async () =>
+			(
+				container.querySelector(
+					'[aria-label="Refresh connectors"]',
+				) as HTMLElement
+			).click(),
+		);
+		expect(mocks.refresh).toHaveBeenCalledOnce();
 	});
 
 	it("lists installed connectors without fetching or showing recommendations", async () => {
@@ -229,9 +314,12 @@ describe("installed connectors", () => {
 		await act(async () =>
 			root.render(<ComposioConnectorsView variant="installed" />),
 		);
-		expect(container.textContent).toContain("Gmail");
-		expect(container.textContent).not.toContain("GitHub");
+		const installed = container.querySelector("section");
+		expect(installed?.textContent).toContain("Gmail");
+		expect(installed?.textContent).not.toContain("GitHub");
 		expect(container.textContent).not.toContain("Recommended");
 		expect(mocks.catalog).not.toHaveBeenCalled();
+		await act(async () => button("Uninstall")?.click());
+		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");
 	});
 });

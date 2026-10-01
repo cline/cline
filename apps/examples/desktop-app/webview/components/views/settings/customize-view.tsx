@@ -211,9 +211,6 @@ export function CustomizeView({
 			) : tab === "integrations" ? (
 				<ComposioConnectorsView
 					onChanged={handleInventoryChanged}
-					onOpenMarketplace={
-						onOpenMarketplace ? () => onOpenMarketplace("connector") : undefined
-					}
 					variant="installed"
 				/>
 			) : tab === "plugins" ? (

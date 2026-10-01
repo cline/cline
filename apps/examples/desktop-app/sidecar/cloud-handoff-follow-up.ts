@@ -143,11 +143,14 @@ export async function sendWithCloudHandoffFollowUp<
 	const result = await send({
 		beforeDispatch: () => {
 			const current = readCloudHandoffFollowUp(targetSessionId);
-			if (matches(current) && current)
-				saveCloudHandoffFollowUp(targetSessionId, {
-					...current,
-					unconfirmed: true,
-				});
+			if (!current || !matches(current))
+				throw new Error(
+					"The saved cloud follow-up changed before sending. Try again.",
+				);
+			saveCloudHandoffFollowUp(targetSessionId, {
+				...current,
+				unconfirmed: true,
+			});
 		},
 		onAccepted: clearAccepted,
 	});
