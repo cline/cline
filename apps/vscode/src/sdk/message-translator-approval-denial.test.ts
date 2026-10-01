@@ -2,7 +2,21 @@ import type { CoreSessionEvent } from "@cline/core"
 import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import {
+	buildToolApprovalDenialReason,
+	DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
+	USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
+} from "./tool-approval-denial"
+
+describe("buildToolApprovalDenialReason - edit tool stale state guidance", () => {
+	it("tells the model to re-read before retrying with fresh old_text", () => {
+		const reason = buildToolApprovalDenialReason("editor", "make them bigger")
+		expect(reason).toContain("The file was NOT modified")
+		expect(reason).toContain("Re-read the file before retrying")
+		expect(reason).toContain("fresh old_text")
+		expect(reason).toContain("<feedback>\nmake them bigger\n</feedback>")
+	})
+})
 
 describe("translateSessionEvent - user-message tool approval denial", () => {
 	it("suppresses tool lifecycle events for approval replies routed as user feedback", () => {

@@ -4,7 +4,7 @@ import { isEditTool } from "./sdk-tool-policies"
 export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = USER_REJECTED_TOOL_REASON
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."
 export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
-	"The user denied this edit. The file was NOT modified and still contains its original content."
+	"The user denied this edit. The file was NOT modified and still contains its original content. Re-read the file before retrying with fresh old_text from the current contents."
 
 /**
  * Builds the model-facing reason for a denied tool approval.
