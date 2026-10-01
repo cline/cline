@@ -47,6 +47,12 @@ export interface CompactionSummaryMetadata {
 	details: FileOperationSummary;
 	tokensBefore: number;
 	generatedAt: number;
+	/** Set when the provider reported this summary as incomplete (e.g. "max_output_tokens"). */
+	truncated?: boolean;
+	/** Provider-reported reason the summary was cut off. */
+	truncatedReason?: string;
+	/** Whether a reduced-input retry was attempted before accepting this summary. */
+	retriedAfterTruncation?: boolean;
 }
 
 export type EstimateMessageTokens = (message: MessageWithMetadata) => number;
@@ -770,6 +776,9 @@ export function buildSummaryMessage(options: {
 	fileOps: FileOperationSummary;
 	tokensBefore: number;
 	userRunSpan: number;
+	truncated?: boolean;
+	truncatedReason?: string;
+	retriedAfterTruncation?: boolean;
 }): MessageWithMetadata {
 	return {
 		role: "user",
@@ -787,6 +796,15 @@ export function buildSummaryMessage(options: {
 			details: options.fileOps,
 			tokensBefore: options.tokensBefore,
 			generatedAt: Date.now(),
+			// Only set when the summarizer reported the response as incomplete, so an
+			// untruncated summary keeps the same shape it had before.
+			...(options.truncated
+				? {
+						truncated: true,
+						truncatedReason: options.truncatedReason,
+						retriedAfterTruncation: options.retriedAfterTruncation ?? false,
+					}
+				: {}),
 		} satisfies CompactionSummaryMetadata,
 	};
 }
