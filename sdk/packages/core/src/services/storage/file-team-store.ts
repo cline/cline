@@ -5,13 +5,23 @@ import {
 	readdirSync,
 	readFileSync,
 	renameSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import type { TeamRuntimeState, TeamTeammateSpec } from "@cline/shared";
 import { resolveTeamDataDir } from "@cline/shared/storage";
 import type { TeamEvent } from "../../extensions/tools/team";
-import type { TeamStore } from "../../types/storage";
+import {
+	isDurableTeamEvent,
+	toPersistableTeamEvent,
+	toTeamRunResultRecord,
+} from "../../extensions/tools/team/persistence-policy";
+import type { TeamPersistenceBatch, TeamStore } from "../../types/storage";
+import { TEAM_EVENT_RETENTION_PER_TEAM } from "./sqlite-team-store";
+
+/** Compact `task-history.jsonl` once it grows past this size. */
+const FILE_HISTORY_COMPACT_BYTES = 4 * 1024 * 1024;
 
 function nowIso(): string {
 	return new Date().toISOString();
@@ -148,12 +158,61 @@ export class FileTeamStore implements TeamStore {
 	}
 
 	handleTeamEvent(teamName: string, event: TeamEvent): void {
+		if (!isDurableTeamEvent(event)) {
+			return;
+		}
+		this.appendHistory(teamName, [
+			{ type: event.type, payload: toPersistableTeamEvent(event) },
+		]);
+	}
+
+	/**
+	 * The file store cannot apply deltas, so it rewrites `state.json` once per
+	 * batch. Batching plus compacted run results keep that file small.
+	 */
+	persistBatch(teamName: string, batch: TeamPersistenceBatch): void {
+		if (batch.events.length > 0) {
+			this.appendHistory(teamName, batch.events);
+		}
+		this.persistRuntime(teamName, batch.getFullState(), batch.teammates);
+	}
+
+	private appendHistory(
+		teamName: string,
+		events: Array<{ type: string; payload: unknown }>,
+	): void {
 		this.ensureTeamSubdir(teamName);
+		const ts = nowIso();
+		const path = this.historyPath(teamName);
 		appendFileSync(
-			this.historyPath(teamName),
-			`${JSON.stringify({ ts: nowIso(), eventType: event.type, payload: event })}\n`,
+			path,
+			events
+				.map(
+					(e) =>
+						`${JSON.stringify({ ts, eventType: e.type, payload: e.payload })}\n`,
+				)
+				.join(""),
 			"utf8",
 		);
+		this.compactHistoryIfNeeded(path);
+	}
+
+	/** Keep the newest `retentionPerTeam` lines once the file grows too big. */
+	private compactHistoryIfNeeded(path: string): void {
+		let size = 0;
+		try {
+			size = statSync(path).size;
+		} catch {
+			return;
+		}
+		if (size < FILE_HISTORY_COMPACT_BYTES) {
+			return;
+		}
+		const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
+		const kept = lines.slice(-TEAM_EVENT_RETENTION_PER_TEAM);
+		const tempPath = `${path}.tmp`;
+		writeFileSync(tempPath, `${kept.join("\n")}\n`, "utf8");
+		renameSync(tempPath, path);
 	}
 
 	persistRuntime(
@@ -165,7 +224,13 @@ export class FileTeamStore implements TeamStore {
 		const envelope: PersistedTeamEnvelope = {
 			version: 1,
 			updatedAt: nowIso(),
-			teamState: state,
+			teamState: {
+				...state,
+				runs: state.runs.map((run) => ({
+					...run,
+					result: toTeamRunResultRecord(run.result),
+				})),
+			},
 			teammates,
 		};
 		const path = this.statePath(teamName);

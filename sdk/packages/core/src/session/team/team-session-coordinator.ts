@@ -6,6 +6,7 @@ import {
 import type { TeamEvent } from "../../extensions/tools/team";
 import {
 	buildTeamProgressSummary,
+	isDurableTeamEvent,
 	toTeamProgressLifecycleEvent,
 } from "../../extensions/tools/team";
 import type { CoreSessionEvent } from "../../types/events";
@@ -143,14 +144,31 @@ export async function dispatchTeamEventToBackend(
 	}
 }
 
+/** Minimum gap between `team_progress` emits driven by telemetry events. */
+export const TEAM_PROGRESS_TELEMETRY_THROTTLE_MS = 1000;
+
+const lastTelemetryProgressAt = new WeakMap<object, number>();
+
 export function emitTeamProgress(
 	session: ActiveSession,
 	rootSessionId: string,
 	event: TeamEvent,
 	emit: (event: CoreSessionEvent) => void,
+	now: () => number = Date.now,
 ): void {
-	if (!session.runtime.teamRuntime) return;
-	const teamName = session.runtime.teamRuntime.getTeamName();
+	const teamRuntime = session.runtime.teamRuntime;
+	if (!teamRuntime) return;
+	// Streamed chunks and heartbeats don't change the summary's counts; building
+	// it copies the whole team state, so throttle those to ~1/s per team.
+	if (!isDurableTeamEvent(event)) {
+		const last = lastTelemetryProgressAt.get(teamRuntime) ?? 0;
+		const ts = now();
+		if (ts - last < TEAM_PROGRESS_TELEMETRY_THROTTLE_MS) {
+			return;
+		}
+		lastTelemetryProgressAt.set(teamRuntime, ts);
+	}
+	const teamName = teamRuntime.getTeamName();
 	emit({
 		type: "team_progress",
 		payload: {
@@ -161,10 +179,7 @@ export function emitTeamProgress(
 				sessionId: rootSessionId,
 				event,
 			}),
-			summary: buildTeamProgressSummary(
-				teamName,
-				session.runtime.teamRuntime.exportState(),
-			),
+			summary: buildTeamProgressSummary(teamName, teamRuntime.exportState()),
 		},
 	});
 }
