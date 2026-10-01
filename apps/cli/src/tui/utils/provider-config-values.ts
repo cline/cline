@@ -1,4 +1,4 @@
-import type { ProviderConfigFieldKey } from "@cline/core";
+import type { ProviderConfigFieldKey, ProviderSettings } from "@cline/core";
 import { resolveAwsRegion } from "../../utils/aws-region";
 
 export type ProviderConfigValues = Partial<
@@ -7,6 +7,36 @@ export type ProviderConfigValues = Partial<
 
 const DEFAULT_AWS_REGION = "us-east-1";
 const DEFAULT_GCP_REGION = "us-central1";
+
+export function getProviderConfigProtocol(
+	settings: ProviderSettings | undefined,
+): "openai-chat" | "openai-responses" {
+	if (settings?.routingProviderId === "openai-native")
+		return "openai-responses";
+	if (settings?.routingProviderId === "openai-compatible") return "openai-chat";
+	return settings?.protocol === "openai-responses" ||
+		settings?.client === "openai"
+		? "openai-responses"
+		: "openai-chat";
+}
+
+export function resolveProviderConfigProtocol(values: ProviderConfigValues): {
+	protocol: "openai-chat" | "openai-responses";
+	client: "openai-compatible" | "openai";
+	routingProviderId: string;
+} {
+	return values.protocol === "openai-responses"
+		? {
+				protocol: "openai-responses",
+				client: "openai",
+				routingProviderId: "openai-native",
+			}
+		: {
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				routingProviderId: "openai-compatible",
+			};
+}
 
 export function getDefaultAwsRegion(profile?: string): string {
 	return (

@@ -172,6 +172,11 @@ const openAiAdapterRule: ProviderOptionRule = {
 	build: (input) => ({
 		openai: {
 			strictJsonSchema: false,
+			// Generic endpoints receive the complete history on every request,
+			// including function-call outputs, without server-side item references.
+			...(input.request.providerId === "openai-compatible"
+				? { store: false }
+				: {}),
 			...(["openai", "openai-native"].includes(input.request.providerId)
 				? buildOpenAINativeProviderOptions()
 				: {}),

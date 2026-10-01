@@ -1,4 +1,54 @@
-import type { GatewayProviderSettings } from "@cline/shared";
+import type {
+	GatewayProviderSettings,
+	GatewayResolvedProviderConfig,
+} from "@cline/shared";
+
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchWithOptionalPreconnect = typeof fetch & {
+	preconnect?: (...args: unknown[]) => unknown;
+};
+
+function withAzureApiVersion(
+	input: FetchInput,
+	apiVersion: string,
+): FetchInput {
+	let url: URL;
+	try {
+		url = new URL(input instanceof Request ? input.url : input.toString());
+	} catch {
+		return input;
+	}
+	if (
+		!url.pathname.startsWith("/openai/deployments/") ||
+		url.searchParams.has("api-version")
+	) {
+		return input;
+	}
+	url.searchParams.set("api-version", apiVersion);
+	if (input instanceof Request) return new Request(url.toString(), input);
+	return (typeof input === "string" ? url.toString() : url) as FetchInput;
+}
+
+/** Azure deployment URLs require the API version on both OpenAI API routes. */
+export function createAzureApiVersionFetch(
+	config: GatewayResolvedProviderConfig,
+): typeof fetch | undefined {
+	const apiVersion = config.options?.apiVersion;
+	if (typeof apiVersion !== "string" || !apiVersion.trim()) return config.fetch;
+	const baseFetch = config.fetch ?? globalThis.fetch;
+	if (!baseFetch) return config.fetch;
+	const azureFetch = ((input, init) =>
+		baseFetch(
+			withAzureApiVersion(input, apiVersion.trim()),
+			init,
+		)) as typeof fetch;
+	const baseFetchWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
+	(azureFetch as FetchWithOptionalPreconnect).preconnect =
+		typeof baseFetchWithPreconnect.preconnect === "function"
+			? baseFetchWithPreconnect.preconnect.bind(baseFetch)
+			: () => undefined;
+	return azureFetch;
+}
 
 export function ensureFetch(fetchImpl?: typeof fetch): typeof fetch {
 	const resolved = fetchImpl ?? globalThis.fetch;

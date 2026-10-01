@@ -79,6 +79,15 @@ cline auth --provider anthropic --apikey sk-... --modelid claude-sonnet-4-6
 
 `cline auth` without a provider opens the interactive auth setup TUI with the same options as the old CLI flow (Sign in with Cline, Sign in with ChatGPT Subscription, Sign in with OCA, or use your own API key).
 
+When connecting **OpenAI Compatible**, choose **chat.completions** (the default)
+or **responses** in the **API** field. Press Tab to focus the field, Up/Down to
+choose, then Enter to save. Use the server's API base URL, such as
+`http://localhost:8000/v1`; Cline appends `/chat/completions` or `/responses`.
+The same choice is available when reconfiguring the provider in the model picker.
+Responses uses the server's Responses API for streaming text, reasoning, and
+function calls. The server must support that API; Chat Completions remains the
+default for existing configurations.
+
 OAuth-supported providers (`cline`, `openai-codex`, `oca`) do not auto-launch a browser on normal startup. Authenticate explicitly first with `cline auth <provider>`. For non-interactive runs, if an OAuth provider is selected and no saved credentials are available, `cline` fails fast with an authentication message instead of launching a hidden browser flow.
 
 ## Modes

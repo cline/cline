@@ -3,8 +3,30 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { resolveApiKey } from "../http";
+import {
+	createAzureApiVersionFetch,
+	ensureFetch,
+	resolveApiKey,
+} from "../http";
 import type { ProviderFactoryResult } from "./types";
+
+type FetchWithOptionalPreconnect = typeof fetch & {
+	preconnect?: (...args: unknown[]) => unknown;
+};
+
+function createKeylessFetch(baseFetch: typeof fetch): typeof fetch {
+	const keylessFetch = ((input, init) => {
+		const headers = new Headers(init?.headers);
+		if (headers.get("authorization") === "Bearer") {
+			headers.delete("authorization");
+		}
+		return baseFetch(input, { ...init, headers });
+	}) as typeof fetch;
+	const baseFetchWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
+	(keylessFetch as FetchWithOptionalPreconnect).preconnect =
+		baseFetchWithPreconnect.preconnect?.bind(baseFetch) ?? (() => {});
+	return keylessFetch;
+}
 
 function isChatGptOAuthBaseUrl(baseUrl: string | undefined): boolean {
 	if (!baseUrl) {
@@ -23,11 +45,19 @@ export async function createOpenAIProviderModule(
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	const apiKey = await resolveApiKey(config);
+	const isKeylessCompatible =
+		context.provider.id === "openai-compatible" && !apiKey;
+	const providerFetch = createAzureApiVersionFetch(config);
 	const provider = createOpenAI({
-		apiKey,
+		// Local compatible servers may accept requests without a key. Supplying
+		// an empty key disables the native SDK's OPENAI_API_KEY fallback/check;
+		// omit its Authorization header so the server decides authentication.
+		apiKey: isKeylessCompatible ? "" : apiKey,
 		baseURL: config.baseUrl,
 		headers: config.headers,
-		fetch: config.fetch,
+		fetch: isKeylessCompatible
+			? createKeylessFetch(ensureFetch(providerFetch))
+			: providerFetch,
 		name: context.provider.id,
 	});
 	// The ChatGPT OAuth Codex backend rejects `max_output_tokens`, and the

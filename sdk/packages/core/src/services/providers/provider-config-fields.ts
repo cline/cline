@@ -4,6 +4,7 @@ import { isOAuthProvider } from "../../auth/provider-auth-registry";
 export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
+	| "protocol"
 	| "azureApiVersion"
 	| "awsRegion"
 	| "awsProfile"
@@ -21,6 +22,7 @@ export interface ProviderConfigFieldRequirement {
 	note?: string;
 	placeholder?: string;
 	optional?: boolean;
+	options?: Array<{ label: string; value: string }>;
 }
 
 export interface ProviderConfigFields {
@@ -36,6 +38,7 @@ export interface ProviderConfigFields {
 const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
+	"protocol",
 	"azureApiVersion",
 	"awsRegion",
 	"awsProfile",
@@ -63,6 +66,17 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 		description:
 			"For Azure AI Foundry deployments, use a Base URL ending at /openai/deployments/<deployment> and set the Azure API version.",
 		fields: {
+			protocol: {
+				label: "API",
+				defaultValue: "openai-chat",
+				options: [
+					{
+						label: "chat.completions (/chat/completions)",
+						value: "openai-chat",
+					},
+					{ label: "responses (/responses)", value: "openai-responses" },
+				],
+			},
 			azureApiVersion: {
 				label: "Azure API Version (optional)",
 				placeholder: "2025-01-01-preview",

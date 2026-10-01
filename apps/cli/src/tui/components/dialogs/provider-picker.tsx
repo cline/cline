@@ -25,10 +25,12 @@ import { listLocalProviders } from "../../../utils/provider-catalog";
 import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
+	getProviderConfigProtocol,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
+	resolveProviderConfigProtocol,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -456,6 +458,7 @@ const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"gcpProjectId",
 	"gcpRegion",
 	"baseUrl",
+	"protocol",
 	"azureApiVersion",
 	"apiKey",
 	"awsProfile",
@@ -471,11 +474,9 @@ export type ProviderConfigInputFields = Partial<
 >;
 
 /**
- * Single-purpose configure dialog: collects API key and (when applicable)
- * base URL. Model selection happens separately in the standard model picker
- * after this dialog resolves. No fields are required. The dialog accepts
- * blanks. If credentials are missing or wrong, the API call surfaces the
- * provider's own error to the user.
+ * Collects provider credentials, endpoint, and API selection when supported.
+ * Model selection follows in the standard model picker. Blank credentials
+ * are accepted; the server's response determines authentication requirements.
  */
 export function ProviderConfigInputContent(
 	props: ChoiceContext<boolean> & {
@@ -509,6 +510,9 @@ export function ProviderConfigInputContent(
 		providerSettingsManager.getProviderSettings(providerId);
 	const [values, setValues] = useState<ProviderConfigValues>(() => {
 		const initial: ProviderConfigValues = {};
+		if (config.fields.protocol) {
+			initial.protocol = getProviderConfigProtocol(existingSettings);
+		}
 		if (config.fields.baseUrl) {
 			initial.baseUrl =
 				existingSettings?.baseUrl?.trim() ??
@@ -571,6 +575,9 @@ export function ProviderConfigInputContent(
 		try {
 			await saveLocalProviderSettings(providerSettingsManager, {
 				providerId,
+				...(config.fields.protocol
+					? resolveProviderConfigProtocol(values)
+					: {}),
 				apiKey: config.fields.apiKey ? apiKey : undefined,
 				baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
 				azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
@@ -637,15 +644,44 @@ export function ProviderConfigInputContent(
 							borderColor={focusedField === key ? palette.act : "gray"}
 							paddingX={1}
 						>
-							<input
-								value={values[key] ?? ""}
-								onInput={(v: string) =>
-									setValues((prev) => updateProviderConfigValue(prev, key, v))
-								}
-								placeholder={placeholder}
-								flexGrow={1}
-								focused={focusedField === key}
-							/>
+							{requirement.options ? (
+								<select
+									options={requirement.options.map((option) => ({
+										name: option.label,
+										description: "",
+										value: option.value,
+									}))}
+									selectedIndex={Math.max(
+										0,
+										requirement.options.findIndex(
+											(option) => option.value === values[key],
+										),
+									)}
+									onChange={(_index, option) => {
+										if (option) {
+											setValues((prev) =>
+												updateProviderConfigValue(prev, key, option.value),
+											);
+										}
+									}}
+									height={requirement.options.length}
+									showDescription={false}
+									selectedBackgroundColor={palette.selection}
+									selectedTextColor={palette.textOnSelection}
+									flexGrow={1}
+									focused={focusedField === key}
+								/>
+							) : (
+								<input
+									value={values[key] ?? ""}
+									onInput={(v: string) =>
+										setValues((prev) => updateProviderConfigValue(prev, key, v))
+									}
+									placeholder={placeholder}
+									flexGrow={1}
+									focused={focusedField === key}
+								/>
+							)}
 						</box>
 					</box>
 				);
@@ -653,9 +689,11 @@ export function ProviderConfigInputContent(
 
 			<text fg="gray">
 				<em>
-					{fieldKeys.length > 1
-						? "Tab to switch fields, Enter to save, Esc to go back"
-						: "Enter to save, Esc to go back"}
+					{config.fields.protocol
+						? "Tab to switch fields, Up/Down to choose API, Enter to save, Esc to go back"
+						: fieldKeys.length > 1
+							? "Tab to switch fields, Enter to save, Esc to go back"
+							: "Enter to save, Esc to go back"}
 				</em>
 			</text>
 		</box>

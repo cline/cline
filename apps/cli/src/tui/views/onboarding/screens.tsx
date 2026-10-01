@@ -337,17 +337,44 @@ export function OnboardingProviderConfigScreen(props: {
 								borderColor={isFocused ? colors.accent : "gray"}
 								paddingX={1}
 							>
-								<input
-									value={value}
-									onInput={(v: string) => props.onFieldInput(key, v)}
-									onSubmit={props.onSubmit}
-									placeholder={placeholder}
-									textColor={defaultFg}
-									focusedTextColor={defaultFg}
-									cursorColor={defaultFg}
-									focused={isFocused}
-									flexGrow={1}
-								/>
+								{requirement.options ? (
+									<select
+										options={requirement.options.map((option) => ({
+											name: option.label,
+											description: "",
+											value: option.value,
+										}))}
+										selectedIndex={Math.max(
+											0,
+											requirement.options.findIndex(
+												(option) => option.value === value,
+											),
+										)}
+										onChange={(_index, option) => {
+											if (option) props.onFieldInput(key, option.value);
+										}}
+										onSelect={props.onSubmit}
+										height={requirement.options.length}
+										showDescription={false}
+										textColor={defaultFg}
+										selectedBackgroundColor={colors.selection}
+										selectedTextColor={colors.textOnSelection}
+										focused={isFocused}
+										flexGrow={1}
+									/>
+								) : (
+									<input
+										value={value}
+										onInput={(v: string) => props.onFieldInput(key, v)}
+										onSubmit={props.onSubmit}
+										placeholder={placeholder}
+										textColor={defaultFg}
+										focusedTextColor={defaultFg}
+										cursorColor={defaultFg}
+										focused={isFocused}
+										flexGrow={1}
+									/>
+								)}
 							</box>
 						</box>
 					);
@@ -355,9 +382,11 @@ export function OnboardingProviderConfigScreen(props: {
 
 				<text fg="gray">
 					<em>
-						{visibleFields.length > 1
-							? "Tab to switch fields, Enter to save, Esc to go back, Ctrl+C to exit"
-							: "Enter to save, Esc to go back, Ctrl+C to exit"}
+						{props.fields.protocol
+							? "Tab to switch fields, Up/Down to choose API, Enter to save, Esc to go back, Ctrl+C to exit"
+							: visibleFields.length > 1
+								? "Tab to switch fields, Enter to save, Esc to go back, Ctrl+C to exit"
+								: "Enter to save, Esc to go back, Ctrl+C to exit"}
 					</em>
 				</text>
 			</box>

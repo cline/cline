@@ -4,6 +4,7 @@ import type { ProviderConfigFieldKey } from "@cline/core";
 export const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"awsRegion",
 	"baseUrl",
+	"protocol",
 	"azureApiVersion",
 	"apiKey",
 	"awsProfile",

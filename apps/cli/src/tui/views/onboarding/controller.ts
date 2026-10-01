@@ -42,9 +42,11 @@ import {
 import { useTheme } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
+	getProviderConfigProtocol,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
+	resolveProviderConfigProtocol,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -543,6 +545,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			// Build initial values from existing settings
 			const existing = providerSettingsManager.getProviderSettings(provider.id);
 			const initialValues: ProviderConfigValues = {};
+			if (config.fields.protocol) {
+				initialValues.protocol = getProviderConfigProtocol(existing);
+			}
 			if (config.fields.baseUrl) {
 				initialValues.baseUrl =
 					existing?.baseUrl?.trim() ??
@@ -644,6 +649,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			await saveLocalProviderSettings(providerSettingsManager, {
 				providerId: activeProviderId,
 				apiKey: byoFields.apiKey ? apiKey : undefined,
+				...(byoFields.protocol ? resolveProviderConfigProtocol(byoValues) : {}),
 				baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
 				azure: hasAzureFields
 					? resolveProviderConfigAzure(byoValues)

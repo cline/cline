@@ -211,6 +211,17 @@ hooks remain inherited and can block tool execution.
 
 ## Saving provider credentials
 
+OpenAI-compatible endpoints can select the Responses transport by saving
+`protocol: "openai-responses"` (or `client: "openai"`) in their provider settings.
+`toProviderConfig` routes these requests through the existing OpenAI Responses
+adapter while preserving the endpoint, credentials, headers, and model catalog.
+The CLI's API selector saves matching `protocol`, `client`, and `routingProviderId`
+values so switching back to Chat Completions also replaces any previous Responses
+route. New and existing configurations without this choice use Chat Completions.
+Generic Responses requests send the full conversation with `store: false`; they
+do not require server-side conversation storage. Both transports forward Azure
+API versions for `/openai/deployments/<deployment>` base URLs.
+
 `saveLocalProviderSettings` is asynchronous; callers must await it before
 reloading provider catalogs or continuing onboarding. When a saved
 provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh

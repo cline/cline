@@ -1,12 +1,18 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+	ProviderSettingsManager,
+	saveLocalProviderSettings,
+} from "@cline/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	getDefaultAwsRegion,
+	getProviderConfigProtocol,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
+	resolveProviderConfigProtocol,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "./provider-config-values";
@@ -18,6 +24,83 @@ afterEach(() => {
 });
 
 describe("provider config values", () => {
+	it("defaults new compatible configurations to Chat Completions", () => {
+		expect(getProviderConfigProtocol(undefined)).toBe("openai-chat");
+		expect(getProviderConfigProtocol({ provider: "openai-compatible" })).toBe(
+			"openai-chat",
+		);
+	});
+
+	it("restores Responses selected by protocol, client, or routing provider", () => {
+		for (const settings of [
+			{ protocol: "openai-responses" as const },
+			{ client: "openai" as const },
+			{ routingProviderId: "openai-native" },
+		]) {
+			expect(
+				getProviderConfigProtocol({
+					provider: "openai-compatible",
+					...settings,
+				}),
+			).toBe("openai-responses");
+		}
+	});
+
+	it("replaces stale Responses routing when selecting Chat Completions", () => {
+		const settings = {
+			provider: "openai-compatible",
+			...resolveProviderConfigProtocol({ protocol: "openai-responses" }),
+			...resolveProviderConfigProtocol({ protocol: "openai-chat" }),
+		};
+		expect(settings).toMatchObject({
+			protocol: "openai-chat",
+			client: "openai-compatible",
+			routingProviderId: "openai-compatible",
+		});
+		expect(getProviderConfigProtocol(settings)).toBe("openai-chat");
+	});
+
+	it("persists the API choice across reloads and can switch back while preserving other settings", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-provider-protocol-"));
+		try {
+			const filePath = join(dir, "providers.json");
+			const manager = new ProviderSettingsManager({ filePath });
+			manager.saveProviderSettings({
+				provider: "openai-compatible",
+				model: "custom-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "x-custom-header": "test" },
+				azure: { apiVersion: "2025-04-01-preview" },
+			});
+			for (const protocol of ["openai-responses", "openai-chat"] as const) {
+				await saveLocalProviderSettings(manager, {
+					providerId: "openai-compatible",
+					...resolveProviderConfigProtocol({ protocol }),
+				});
+				const reloaded = new ProviderSettingsManager({ filePath });
+				expect(
+					getProviderConfigProtocol(
+						reloaded.getProviderSettings("openai-compatible"),
+					),
+				).toBe(protocol);
+				expect(reloaded.getProviderConfig("openai-compatible")).toMatchObject({
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					apiKey: "test-key",
+					baseUrl: "https://proxy.example/v1",
+					headers: { "x-custom-header": "test" },
+					azure: { apiVersion: "2025-04-01-preview" },
+					routingProviderId:
+						protocol === "openai-responses"
+							? "openai-native"
+							: "openai-compatible",
+				});
+			}
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
 	it("updates an auto-filled AWS region when the profile changes", () => {
 		delete process.env.AWS_REGION;
 		delete process.env.AWS_DEFAULT_REGION;

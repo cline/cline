@@ -5,6 +5,20 @@ import { toProviderConfig } from "./provider-settings";
 
 describe("core agent per-model protocol routing", () => {
 	it.each([
+		["openai-responses", "responses", "input"],
+		["openai-chat", "chat/completions", "messages"],
+	] as const)("routes compatible agent runs using saved protocol %s", async (protocol, endpoint, inputField) => {
+		const providerConfig = toProviderConfig({
+			provider: "openai-compatible",
+			model: "custom-model",
+			apiKey: "test-key",
+			baseUrl: "https://proxy.example/v1",
+			protocol,
+		});
+		await expectEndpoint(providerConfig, endpoint, inputField);
+	});
+
+	it.each([
 		["muse-spark-1.3-contributor", "responses", "input"],
 		["minimax-m2.7", "messages", "messages"],
 		["qwen3.7-plus", "messages", "messages"],
@@ -113,7 +127,7 @@ async function expectEndpoint(
 	);
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 	const [url, init] = fetchMock.mock.calls[0];
-	expect(String(url)).toBe(`https://opencode.ai/zen/go/v1/${endpoint}`);
+	expect(String(url)).toBe(`${providerConfig.baseUrl}/${endpoint}`);
 	const body = JSON.parse(String(init?.body));
 	expect(body[inputField]).toBeDefined();
 	if (inputField !== "contents") {

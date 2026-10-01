@@ -8,7 +8,11 @@ import type {
 import { modelProducesImages } from "@cline/shared";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
-import { ensureFetch, resolveApiKey } from "../http";
+import {
+	createAzureApiVersionFetch,
+	ensureFetch,
+	resolveApiKey,
+} from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import { isOpenAIReasoningEraModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
@@ -24,65 +28,6 @@ function trimTrailingSlashes(value: string): string {
 		end -= 1;
 	}
 	return value.slice(0, end);
-}
-
-function readAzureApiVersion(
-	config: GatewayResolvedProviderConfig,
-): string | undefined {
-	const apiVersion = config.options?.apiVersion;
-	if (typeof apiVersion !== "string") {
-		return undefined;
-	}
-	const trimmed = apiVersion.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function shouldAddAzureApiVersion(url: URL): boolean {
-	return (
-		url.pathname.startsWith("/openai/deployments/") &&
-		!url.searchParams.has("api-version")
-	);
-}
-
-function withAzureApiVersion(
-	input: FetchInput,
-	apiVersion: string,
-): FetchInput {
-	let url: URL;
-	try {
-		url = new URL(input instanceof Request ? input.url : input.toString());
-	} catch {
-		return input;
-	}
-	if (!shouldAddAzureApiVersion(url)) {
-		return input;
-	}
-	url.searchParams.set("api-version", apiVersion);
-	if (input instanceof Request) {
-		return new Request(url.toString(), input);
-	}
-	return (typeof input === "string" ? url.toString() : url) as FetchInput;
-}
-
-function createAzureApiVersionFetch(
-	config: GatewayResolvedProviderConfig,
-): typeof fetch | undefined {
-	const apiVersion = readAzureApiVersion(config);
-	if (!apiVersion) {
-		return config.fetch;
-	}
-	const baseFetch = config.fetch ?? globalThis.fetch;
-	if (!baseFetch) {
-		return config.fetch;
-	}
-	const azureFetch = ((input, init) =>
-		baseFetch(withAzureApiVersion(input, apiVersion), init)) as typeof fetch;
-	const baseFetchWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
-	(azureFetch as FetchWithOptionalPreconnect).preconnect =
-		typeof baseFetchWithPreconnect.preconnect === "function"
-			? baseFetchWithPreconnect.preconnect.bind(baseFetch)
-			: () => undefined;
-	return azureFetch;
 }
 
 type ResponseErrorHandler = (response: Response) => Promise<void> | void;

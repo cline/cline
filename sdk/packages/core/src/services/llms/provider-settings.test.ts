@@ -2,6 +2,40 @@ import { describe, expect, it } from "vitest";
 import { safeParseSettings, toProviderConfig } from "./provider-settings";
 
 describe("provider settings", () => {
+	it("routes compatible Responses settings without changing the endpoint or model", () => {
+		const config = toProviderConfig({
+			provider: "openai-compatible",
+			protocol: "openai-responses",
+			apiKey: "proxy-key",
+			baseUrl: "https://proxy.example/v1",
+			model: "custom-model",
+			headers: { "x-proxy-header": "custom" },
+			azure: { apiVersion: "2025-04-01-preview" },
+		});
+		expect(config).toMatchObject({
+			providerId: "openai-compatible",
+			routingProviderId: "openai-native",
+			apiKey: "proxy-key",
+			baseUrl: "https://proxy.example/v1",
+			modelId: "custom-model",
+			headers: { "x-proxy-header": "custom" },
+			azure: { apiVersion: "2025-04-01-preview" },
+		});
+	});
+
+	it("keeps compatible configurations on Chat Completions by default", () => {
+		expect(
+			toProviderConfig({ provider: "openai-compatible" }).routingProviderId,
+		).toBeUndefined();
+		expect(
+			toProviderConfig({
+				provider: "openai-compatible",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+			}).routingProviderId,
+		).toBeUndefined();
+	});
+
 	it("formats Cline OAuth access tokens for runtime API keys", () => {
 		const config = toProviderConfig({
 			provider: "cline",

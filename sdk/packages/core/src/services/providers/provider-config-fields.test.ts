@@ -89,7 +89,7 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
-	it("returns api-key auth with apiKey, baseUrl, and Azure API version for OpenAI Compatible", () => {
+	it("offers both OpenAI APIs alongside endpoint and credential fields", () => {
 		const result = getProviderConfigFields("openai-compatible");
 		expect(result.providerId).toBe("openai-compatible");
 		expect(result.authMethod).toBe("api-key");
@@ -98,6 +98,14 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.baseUrl?.defaultValue).toBe(
 			"https://api.openai.com/v1",
 		);
+		expect(result.fields.protocol).toEqual({
+			label: "API",
+			defaultValue: "openai-chat",
+			options: [
+				{ label: "chat.completions (/chat/completions)", value: "openai-chat" },
+				{ label: "responses (/responses)", value: "openai-responses" },
+			],
+		});
 		expect(result.fields.azureApiVersion).toMatchObject({
 			label: "Azure API Version (optional)",
 			placeholder: "2025-01-01-preview",
