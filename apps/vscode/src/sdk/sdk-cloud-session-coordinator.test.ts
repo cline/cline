@@ -92,6 +92,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		onAskResponse: vi.fn(async () => undefined),
 		onCancelTask: vi.fn(async () => undefined),
 		clearTask: vi.fn(async () => undefined),
+		onStartFailed: vi.fn(),
 		claimTaskViewGeneration: () => () => false,
 		requestToolApproval: vi.fn(),
 		getAuthToken: vi.fn(async () => "token"),
@@ -915,7 +916,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
 	})
 
-	it("reports the displayed task as provisioning until a failed start has settled", async () => {
+	it("reports the displayed task as provisioning until a failed start has settled, then offers the start again", async () => {
 		const provisioned = deferred<void>()
 		const created = deferred<CloudSessionRecord>()
 		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions: { startNewSession: vi.fn() } as never })
@@ -931,7 +932,8 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			postedStatuses.push(coordinator.getCurrentTaskInfo()?.status)
 		})
 
-		const starting = coordinator.beginCloudTask({ prompt: "test", repoUrl: "https://github.com/cline/fixture" })()
+		const input = { prompt: "test", images: ["img"], repoUrl: "https://github.com/cline/fixture", branch: "main" }
+		const starting = coordinator.beginCloudTask(input)()
 		await provisioned.promise
 		expect(coordinator.getCurrentTaskInfo()?.status).toBe("provisioning")
 
@@ -939,6 +941,29 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(await starting).toBeUndefined()
 
 		expect(postedStatuses.at(-1)).toBe("unknown")
+		// The failure is shown on the task that is still displayed, and Retry re-runs the same input.
+		expect(options.onStartFailed).toHaveBeenCalledWith(options.getTask(), input)
+		expect(vi.mocked(options.onStartFailed).mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(options.setTurnPhase).mock.invocationCallOrder.at(-1)!,
+		)
+	})
+
+	it("does not offer to retry a start the user cancelled", async () => {
+		const provisioned = deferred<void>()
+		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions: { startNewSession: vi.fn() } as never })
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning, signal) => {
+			onProvisioning?.(record.id)
+			provisioned.resolve()
+			await new Promise<void>((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason)))
+			throw new Error("unreachable")
+		})
+
+		const starting = coordinator.beginCloudTask({ prompt: "test", repoUrl: "https://github.com/cline/fixture" })()
+		await provisioned.promise
+		coordinator.cancelPendingStart()
+		await starting
+
+		expect(options.onStartFailed).not.toHaveBeenCalled()
 	})
 
 	it("defeats a start that is claimed but not yet running when the user cancels first", async () => {

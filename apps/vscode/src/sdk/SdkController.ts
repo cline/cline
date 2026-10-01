@@ -75,7 +75,7 @@ import {
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
-import { SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
+import { type CloudTaskInput, SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
 import { SdkCloudTaskTarget } from "./sdk-cloud-task-target"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
@@ -167,18 +167,29 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 }
 
 /**
- * The prompt a "Sign in to Cline" error offers to retry, and the task that
- * shows the error.
+ * A task start that failed before it had a session, kept so the footer's
+ * Retry (or a prompt typed into the composer) can run it again: a local start
+ * refused with "Sign in to Cline", or a cloud start whose sandbox never came
+ * up. `task` is the task view that shows the error.
  */
-interface ClineAuthRetry {
+interface StartRetry {
 	task: TaskProxy
 	prompt: string
+	images?: string[]
+	/** Set for a cloud start; the retry runs on the same repository and branch. */
+	cloudTarget?: CloudTarget
 	/**
 	 * The error was shown on a task that already had a conversation, such as
 	 * a failed edit or checkpoint restore, rather than on a new task that
 	 * failed before its session was created.
 	 */
 	hasConversation: boolean
+}
+
+/** Where a cloud task runs; the composer submits it and a retry reuses it. */
+export interface CloudTarget {
+	repoUrl: string
+	branch?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +261,7 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
-	private pendingClineAuthRetry?: ClineAuthRetry
+	private pendingStartRetry?: StartRetry
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
@@ -647,7 +658,7 @@ export class Controller {
 			buildStartSessionInput,
 			createHistoryItemFromSession,
 			clearTask: async () => {
-				this.pendingClineAuthRetry = undefined
+				this.pendingStartRetry = undefined
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -692,9 +703,10 @@ export class Controller {
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			onCancelTask: () => this.cancelTask(),
 			clearTask: async () => {
-				this.pendingClineAuthRetry = undefined
+				this.pendingStartRetry = undefined
 				await this.taskControl.clearTask()
 			},
+			onStartFailed: (task, input) => this.offerCloudStartRetry(task, input),
 			claimTaskViewGeneration: () => this.taskControl.claimTaskViewGeneration(),
 			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
 			getAuthToken: () => this.authService.getAuthToken(),
@@ -1344,6 +1356,17 @@ export class Controller {
 	 *   2. say:'api_req_started' – opens the API request row
 	 *   3. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders auth UI
 	 */
+	/** A cloud start failed before it had a session; the footer's Retry runs the same input again. */
+	private offerCloudStartRetry(task: TaskProxy, input: CloudTaskInput): void {
+		this.pendingStartRetry = {
+			task,
+			prompt: input.prompt,
+			images: input.images,
+			cloudTarget: { repoUrl: input.repoUrl, branch: input.branch },
+			hasConversation: false,
+		}
+	}
+
 	private emitClineAuthError(task?: string): void {
 		const ts = Date.now()
 		const hasConversation = this.task !== undefined
@@ -1354,7 +1377,7 @@ export class Controller {
 				() => this.cancelTask(),
 			)
 		}
-		this.pendingClineAuthRetry = task === undefined ? undefined : { task: this.task, prompt: task, hasConversation }
+		this.pendingStartRetry = task === undefined ? undefined : { task: this.task, prompt: task, hasConversation }
 
 		const clineError = new ClineError(
 			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
@@ -1476,7 +1499,7 @@ export class Controller {
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
-		cloudTarget?: { repoUrl: string; branch?: string },
+		cloudTarget?: CloudTarget,
 	): Promise<string | undefined> {
 		if (cloudTarget) {
 			// Register the cloud start before the first await so a Cancel that
@@ -1490,7 +1513,7 @@ export class Controller {
 				branch: cloudTarget.branch,
 			})
 			await this.waitForInitialRemoteConfig()
-			this.pendingClineAuthRetry = undefined
+			this.pendingStartRetry = undefined
 			return startCloudTask()
 		}
 		await this.waitForInitialRemoteConfig()
@@ -1585,7 +1608,7 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		this.pendingClineAuthRetry = undefined
+		this.pendingStartRetry = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		// A cloud task still provisioning has no SDK session for taskControl to end;
@@ -1609,28 +1632,38 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
-		// The sign-in retry answers only the next response to the task that
-		// showed the error; a task opened since then does not inherit it.
-		const retry = this.pendingClineAuthRetry
-		this.pendingClineAuthRetry = undefined
+		// A start retry answers only the next response to the task that showed
+		// the error; a task opened since then does not inherit it.
+		const retry = this.pendingStartRetry
+		this.pendingStartRetry = undefined
 		if (retry && retry.task === this.task) {
 			const askResponse = this.task.taskState.askResponse
 			if (askResponse === "yesButtonClicked") {
-				await this.initTask(retry.prompt, images, files)
+				await this.initTask(retry.prompt, images ?? retry.images, files, undefined, undefined, retry.cloudTarget)
 				return
 			}
 			// A task that failed before it had a session has nothing to
 			// continue, so a prompt typed in the composer starts it again. With
 			// attachments but no text, the original prompt is kept.
 			if (askResponse === "messageResponse" && !retry.hasConversation) {
-				await this.initTask(prompt?.trim() ? prompt : retry.prompt, images, files)
+				await this.initTask(
+					prompt?.trim() ? prompt : retry.prompt,
+					images,
+					files,
+					undefined,
+					undefined,
+					retry.cloudTarget,
+				)
 				return
 			}
 		}
 
 		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
 			// No sandbox to send to: still provisioning (only reachable through the
-			// extension API, the composer is disabled), or expired / failed.
+			// extension API, the composer is disabled), or expired. Refusing the
+			// response is itself a turn outcome: the footer holds its Retry claim
+			// until the turn phase advances, so set the phase even though it does
+			// not change.
 			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
 			this.messages.appendAndEmit(
 				[
@@ -1646,6 +1679,7 @@ export class Controller {
 				],
 				{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
 			)
+			this.turnStateTracker.set("error")
 			await this.postStateToWebview()
 			return
 		}

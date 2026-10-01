@@ -120,7 +120,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | und
 }
 const SCOPE_DRAIN_TIMEOUT_MS = 15_000
 
-interface CloudTaskInput {
+export interface CloudTaskInput {
 	prompt: string
 	images?: string[]
 	repoUrl: string
@@ -151,6 +151,11 @@ export interface SdkCloudSessionCoordinatorOptions {
 	onCancelTask: () => Promise<void>
 	/** Ends the current task view (local or cloud) before a cloud task is installed. */
 	clearTask: () => Promise<void>
+	/**
+	 * A cloud start failed before it had a session and `task` now shows the
+	 * error. The controller keeps `input` so the footer's Retry runs it again.
+	 */
+	onStartFailed: (task: TaskProxy, input: CloudTaskInput) => void
 	claimTaskViewGeneration: () => () => boolean
 	requestToolApproval: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
 	getAuthToken: () => Promise<string | null | undefined>
@@ -958,6 +963,7 @@ export class SdkCloudSessionCoordinator {
 				],
 				{ type: "status", payload: { sessionId: sessionId ?? provisionalId, status: "error" } },
 			)
+			this.options.onStartFailed(task, input)
 			this.options.setTurnPhase("error")
 			await this.options.postStateToWebview().catch(() => {})
 			return undefined
