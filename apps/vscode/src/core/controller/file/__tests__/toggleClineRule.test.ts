@@ -30,21 +30,29 @@ afterEach(async () => {
 })
 
 function createController() {
-	const globalToggles: Record<string, boolean> = {}
 	const localToggles: Record<string, boolean> = {}
-	const remoteToggles: Record<string, boolean> = {}
+	const globalState = new Map<string, unknown>([
+		["globalClineRulesToggles", {}],
+		["remoteRulesToggles", {}],
+		["clineRulesFrontmatterAuthoritative", {}],
+	])
+	const workspaceState = new Map<string, unknown>([
+		["localClineRulesToggles", localToggles],
+		["localClineRulesFrontmatterAuthoritative", {}],
+	])
 
 	return {
 		controller: {
 			stateManager: {
-				getGlobalSettingsKey: () => globalToggles,
-				getWorkspaceStateKey: () => localToggles,
-				getGlobalStateKey: () => remoteToggles,
-				setGlobalState: () => undefined,
-				setWorkspaceState: () => undefined,
+				getGlobalSettingsKey: (key: string) => globalState.get(key) ?? {},
+				getWorkspaceStateKey: (key: string) => workspaceState.get(key) ?? {},
+				getGlobalStateKey: (key: string) => globalState.get(key) ?? {},
+				setGlobalState: (key: string, value: unknown) => globalState.set(key, value),
+				setWorkspaceState: (key: string, value: unknown) => workspaceState.set(key, value),
 			},
 		},
 		localToggles,
+		workspaceState,
 	}
 }
 
@@ -52,7 +60,7 @@ describe("toggleClineRule", () => {
 	it("persists a workspace rule toggle in both extension state and the rule file the SDK reads", async () => {
 		const rulePath = path.join(workspace, ".clinerules", "project-rule.md")
 		await fs.writeFile(rulePath, "Follow this rule")
-		const { controller, localToggles } = createController()
+		const { controller, localToggles, workspaceState } = createController()
 
 		await toggleClineRule(
 			controller as never,
@@ -61,6 +69,7 @@ describe("toggleClineRule", () => {
 
 		expect(localToggles[rulePath]).toBe(false)
 		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).toBe(true)
+		expect(workspaceState.get("localClineRulesFrontmatterAuthoritative")).toEqual({ [rulePath]: true })
 
 		await toggleClineRule(
 			controller as never,
@@ -103,7 +112,7 @@ describe("toggleClineRule", () => {
 		const rulePath = path.join(workspace, ".clinerules", "read-only.md")
 		await fs.writeFile(rulePath, "Locked rule")
 		await fs.chmod(rulePath, 0o444)
-		const { controller, localToggles } = createController()
+		const { controller, localToggles, workspaceState } = createController()
 		try {
 			const response = await toggleClineRule(
 				controller as never,
@@ -113,6 +122,7 @@ describe("toggleClineRule", () => {
 			expect(localToggles[rulePath]).toBe(true)
 			expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(true)
 			expect(await fs.readFile(rulePath, "utf-8")).toBe("Locked rule")
+			expect(workspaceState.get("localClineRulesFrontmatterAuthoritative")).toEqual({})
 		} finally {
 			await fs.chmod(rulePath, 0o644)
 		}

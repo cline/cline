@@ -57,7 +57,9 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	// are written as well. The write is confined to rule documents directly
 	// inside the scope's rule roots; anything else keeps only the state toggle.
 	// If a rule file cannot be written, the state toggle is reverted so the
-	// panel keeps showing what the SDK will actually load.
+	// panel keeps showing what the SDK will actually load. A successful write
+	// makes the file authoritative for this rule, so a later hand edit of the
+	// file is never overwritten by the one-time back-fill.
 	if (scope !== RuleScope.REMOTE) {
 		let result: RuleFrontmatterWriteResult = "failed"
 		try {
@@ -76,6 +78,20 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 				const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 				toggles[rulePath] = !enabled
 				controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
+			}
+		} else if (result === "written") {
+			if (scope === RuleScope.GLOBAL) {
+				const authoritative = controller.stateManager.getGlobalStateKey("clineRulesFrontmatterAuthoritative")
+				controller.stateManager.setGlobalState("clineRulesFrontmatterAuthoritative", {
+					...authoritative,
+					[rulePath]: true,
+				})
+			} else {
+				const authoritative = controller.stateManager.getWorkspaceStateKey("localClineRulesFrontmatterAuthoritative")
+				controller.stateManager.setWorkspaceState("localClineRulesFrontmatterAuthoritative", {
+					...authoritative,
+					[rulePath]: true,
+				})
 			}
 		}
 	}

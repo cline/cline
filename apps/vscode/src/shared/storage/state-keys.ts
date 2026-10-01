@@ -81,10 +81,12 @@ const GLOBAL_STATE_FIELDS = {
 	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
-	// Set once the global rule toggles saved before cline/cline#13695 were
-	// written into their rule files' frontmatter; afterwards the files are
-	// authoritative. The workspace-scope counterpart lives in workspace state.
-	clineRulesTogglesWrittenToFrontmatter: { default: false as boolean },
+	// Global rule paths whose file frontmatter is authoritative for the Rules
+	// panel: either the toggle saved before cline/cline#13695 has been written
+	// into the file, or state and file already agreed. Paths not listed are
+	// still pending that one-time back-fill. The workspace counterpart lives in
+	// workspace state.
+	clineRulesFrontmatterAuthoritative: { default: {} as Record<string, boolean> },
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
 	multiRootEnabled: { default: true as boolean },
 	lastDismissedInfoBannerVersion: { default: 0 as number },
@@ -368,10 +370,10 @@ const SECRETS_KEYS = [
 // uses dynamic keys like pendingFileContextWarning_${taskId}.
 export const LocalStateKeys = [
 	"localClineRulesToggles",
-	// Workspace paths whose pre-cline/cline#13695 rule toggles were written into
-	// their rule files' frontmatter. Kept in workspace state (per window) rather
-	// than global state so concurrent windows cannot overwrite each other's marker.
-	"localClineRulesTogglesWrittenToFrontmatter",
+	// Workspace rule paths whose file frontmatter is authoritative for the Rules
+	// panel (see clineRulesFrontmatterAuthoritative). Kept in workspace state,
+	// which is per window, so concurrent windows cannot overwrite it.
+	"localClineRulesFrontmatterAuthoritative",
 	"localCursorRulesToggles",
 	"localWindsurfRulesToggles",
 	"localAgentsRulesToggles",

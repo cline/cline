@@ -88,11 +88,25 @@ function isEnabledFalseLine(line: string): boolean {
 	return /^(?:enabled|"enabled"|'enabled')\s*:\s*(?:false|False|FALSE)\s*(#.*)?$/.test(line)
 }
 
+function parsesAsYaml(text: string): boolean {
+	try {
+		yaml.load(text, { schema: yaml.JSON_SCHEMA })
+		return true
+	} catch {
+		return false
+	}
+}
+
 /**
- * Number of lines the top-level entry starting at `index` spans: the key line
- * plus any indented continuation lines (block scalars, nested maps, lists).
- * An entry with an inline scalar value (`disabled: true`) is one line, so an
- * indented comment after it belongs to the author, not to the entry.
+ * Number of lines the top-level entry starting at `index` spans.
+ *
+ * - An inline value that is complete on its own line (`disabled: true`) is one
+ *   line, so an indented comment after it belongs to the author.
+ * - An inline value that continues on later lines (a flow collection or a
+ *   quoted string split across lines) spans up to the first line at which the
+ *   entry parses.
+ * - An empty value or a block scalar (`|`, `>`) takes its indented
+ *   continuation lines (nested maps, lists, block text).
  */
 function topLevelEntryLength(lines: ReadonlyArray<string>, index: number): number {
 	const value = lines[index]
@@ -100,6 +114,14 @@ function topLevelEntryLength(lines: ReadonlyArray<string>, index: number): numbe
 		.replace(/\s+#.*$/, "")
 		.trim()
 	if (value !== "" && !/^[|>]/.test(value)) {
+		if (parsesAsYaml(lines[index])) {
+			return 1
+		}
+		for (let end = index + 1; end < lines.length; end++) {
+			if (parsesAsYaml(lines.slice(index, end + 1).join("\n"))) {
+				return end - index + 1
+			}
+		}
 		return 1
 	}
 	let length = 1

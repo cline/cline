@@ -140,29 +140,36 @@ export async function setRuleDisabledInFrontmatter(
 }
 
 /**
- * Bring extension-state toggles and on-disk frontmatter into agreement. The
- * file is the source of truth, since it is what the SDK loads: a rule whose
- * frontmatter disables it shows as off in the panel, and a rule whose
- * frontmatter was hand-edited back to enabled shows as on.
+ * Bring extension-state toggles and on-disk frontmatter into agreement, one
+ * rule at a time.
  *
- * With `backfillFromState`, toggles turned off before the toggle wrote
- * frontmatter are written to their files first, so they keep taking effect
- * after upgrading. Run once; afterwards a `false` in state with no `disabled`
- * in the file means the user re-enabled the rule by editing it. A back-fill
- * write that fails keeps the `false` toggle and reports `backfillComplete:
- * false`, so the caller retries on the next refresh instead of treating the
- * unwritten file as re-enabled.
+ * Once a rule is in `authoritative`, its file is the source of truth, since it
+ * is what the SDK loads: frontmatter that disables it shows as off in the
+ * panel, and removing `disabled` from the file shows it as on again.
  *
- * Files outside `allowedRoots` are left alone.
+ * A rule not yet in `authoritative` gets a one-time back-fill: a toggle turned
+ * off before the toggle wrote frontmatter (cline/cline#13695) is written into
+ * its file. When that write does not succeed (read-only file, malformed
+ * frontmatter) the rule stays off and stays pending, so the next refresh
+ * retries just that rule. Any other pending rule joins `authoritative`
+ * immediately: state and file either agree, or the file disables a rule state
+ * still shows as on, in which case the file wins.
+ *
+ * Files outside `allowedRoots` are left alone, and paths no longer in
+ * `toggles` are dropped from the returned `authoritative`.
  */
 export async function reconcileRuleTogglesWithFrontmatter(
 	toggles: ClineRulesToggles,
 	allowedRoots: ReadonlyArray<string>,
-	options: { backfillFromState?: boolean } = {},
-): Promise<{ toggles: ClineRulesToggles; backfillComplete: boolean }> {
+	authoritative: Readonly<Record<string, boolean>> = {},
+): Promise<{ toggles: ClineRulesToggles; authoritative: Record<string, boolean> }> {
 	const updated: ClineRulesToggles = { ...toggles }
-	let backfillComplete = true
+	const nextAuthoritative: Record<string, boolean> = {}
 	for (const [rulePath, enabled] of Object.entries(toggles)) {
+		const wasAuthoritative = authoritative[rulePath] === true
+		if (wasAuthoritative) {
+			nextAuthoritative[rulePath] = true
+		}
 		const filePath = await resolveWritableRuleFile(rulePath, allowedRoots)
 		if (!filePath) {
 			continue
@@ -177,19 +184,17 @@ export async function reconcileRuleTogglesWithFrontmatter(
 		if (parseError) {
 			continue
 		}
-		const fileDisabled = isFrontmatterDisabled(data)
-		if (enabled === !fileDisabled) {
-			continue
-		}
-		if (!enabled && options.backfillFromState) {
-			if ((await setRuleDisabledInFrontmatter(rulePath, false, allowedRoots)) !== "written") {
-				backfillComplete = false
+		const fileEnabled = !isFrontmatterDisabled(data)
+		if (!wasAuthoritative && !enabled && fileEnabled) {
+			if ((await setRuleDisabledInFrontmatter(rulePath, false, allowedRoots)) === "written") {
+				nextAuthoritative[rulePath] = true
 			}
 			continue
 		}
-		updated[rulePath] = !fileDisabled
+		updated[rulePath] = fileEnabled
+		nextAuthoritative[rulePath] = true
 	}
-	return { toggles: updated, backfillComplete }
+	return { toggles: updated, authoritative: nextAuthoritative }
 }
 
 /**
@@ -223,28 +228,20 @@ export async function refreshClineRulesToggles(
 	// in (resolved through the OS, so it follows redirected Documents folders),
 	// plus every global location the shared SDK resolver loads rules from
 	// (e.g. ~/.cline/rules), so the panel shows what actually reaches the model.
-	// Toggles saved before the toggle wrote frontmatter (cline/cline#13695) are
-	// pushed into the files once per scope; from then on the files are the
-	// source of truth for that scope. The global marker is a global flag; the
-	// workspace marker lives in this window's workspace state, keyed by
-	// workspace path, so windows cannot clobber each other's marker through
-	// their separate copies of global state.
-	const globalBackfilled = controller.stateManager.getGlobalStateKey("clineRulesTogglesWrittenToFrontmatter") === true
-	const backfilledWorkspaces = controller.stateManager.getWorkspaceStateKey("localClineRulesTogglesWrittenToFrontmatter")
-	const workspaceBackfilled = backfilledWorkspaces[workingDirectory] === true
-
+	// Each scope tracks, per rule, whether its file has become authoritative
+	// (see reconcileRuleTogglesWithFrontmatter). The global set lives in global
+	// state; the workspace set lives in this window's workspace state, so
+	// windows cannot clobber each other's progress.
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalRuleDirectories = await resolveGlobalRuleDirectories()
 	const globalResult = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(globalRuleDirectories, globalClineRulesToggles),
 		globalRuleDirectories,
-		{ backfillFromState: !globalBackfilled },
+		controller.stateManager.getGlobalStateKey("clineRulesFrontmatterAuthoritative"),
 	)
 	const updatedGlobalToggles = globalResult.toggles
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
-	if (!globalBackfilled && globalResult.backfillComplete) {
-		controller.stateManager.setGlobalState("clineRulesTogglesWrittenToFrontmatter", true)
-	}
+	controller.stateManager.setGlobalState("clineRulesFrontmatterAuthoritative", globalResult.authoritative)
 
 	// Local toggles: both supported workspace layouts — the legacy
 	// `.clinerules` directory (or single file) and `.cline/rules` — via the
@@ -258,16 +255,11 @@ export async function refreshClineRulesToggles(
 			CLINERULES_EXCLUDED_SUBDIRECTORIES,
 		),
 		localRuleDirectories,
-		{ backfillFromState: !workspaceBackfilled },
+		controller.stateManager.getWorkspaceStateKey("localClineRulesFrontmatterAuthoritative"),
 	)
 	const updatedLocalToggles = localResult.toggles
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
-	if (!workspaceBackfilled && localResult.backfillComplete) {
-		controller.stateManager.setWorkspaceState("localClineRulesTogglesWrittenToFrontmatter", {
-			...backfilledWorkspaces,
-			[workingDirectory]: true,
-		})
-	}
+	controller.stateManager.setWorkspaceState("localClineRulesFrontmatterAuthoritative", localResult.authoritative)
 
 	return {
 		globalToggles: updatedGlobalToggles,

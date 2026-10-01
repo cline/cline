@@ -157,6 +157,16 @@ describe("updateUserInstructionMarkdownDisabledState preserves authored frontmat
 		)
 	})
 
+	it("replaces and removes a disabled value that spans several lines", () => {
+		const input = ["---", "disabled: [", "  true,", "]", "paths:", "  - src/**", "---", "Body"].join("\n")
+		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(
+			["---", "disabled: true", "paths:", "  - src/**", "---", "Body"].join("\n"),
+		)
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+			["---", "paths:", "  - src/**", "---", "Body"].join("\n"),
+		)
+	})
+
 	it("recognizes quoted keys", () => {
 		const disabledQuoted = ["---", '"disabled": true', "---", "Body"].join("\n")
 		expect(updateUserInstructionMarkdownDisabledState(disabledQuoted, true)).to.equal("Body")
