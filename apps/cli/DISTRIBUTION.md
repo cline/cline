@@ -196,6 +196,16 @@ bun run --cwd apps/cli build:platforms:single
 
 This builds the SDK and CLI, then creates `apps/cli/dist/cli-windows-<arch>/bin/cline.exe`, where `<arch>` is the architecture of the running Bun executable (`x64` or `arm64`). The build uses the operating system's temporary directory and does not require Git Bash or Unix file commands.
 
+To build a Windows setup executable:
+
+```powershell
+bun run --cwd apps/cli build:installer:windows
+```
+
+The installer is written to `apps/cli/dist/installers/ClineCLI-<version>-windows-<arch>-setup.exe`. It defaults to `%USERPROFILE%\cline`, includes the CLI, plugin bootstrap and hub webview, and adds the installation's `bin` folder to the user PATH without requiring administrator access. Open a new terminal after installation to run `cline`. The uninstaller is available in Windows Installed apps and removes only packaged files and the PATH entry added by setup.
+
+The build downloads and verifies NSIS 3.11 into the repository's ignored `tmp/cli-installer` folder if no compiler is available. Set `MAKENSIS_PATH` to use an existing NSIS compiler. Pass `--skip-build` to package an already built CLI; add `--arch=x64` or `--arch=arm64` when packaging a different existing platform package. Installer checks run with `bun run --cwd apps/cli test:windows-installer` against disposable install folders and registry keys.
+
 Direct `bun pm pack` and `bun pm pack --dry-run` from `apps/cli` are blocked because the source package is not the npm release package. Build platform packages first, then use `bun run publish:npm:dry` to preview the generated packages under `dist/`.
 
 ## Build Script (`script/build.ts`)
