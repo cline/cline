@@ -606,6 +606,9 @@ function ConnectorDetailDialog({
 }) {
 	const status = summary?.status ?? "not_connected";
 	const toolNames = summary?.toolNames ?? [];
+	// A connected connector reports what new sessions actually get, even zero;
+	// the catalog total only describes connectors that aren't installed.
+	const isConnected = status === "connected";
 	return (
 		<Dialog onOpenChange={onOpenChange} open={entry !== null}>
 			{/* Fixed dimensions so every connector opens the same-sized window;
@@ -661,12 +664,11 @@ function ConnectorDetailDialog({
 										</dd>
 									</>
 								) : null}
-								{typeof entry.toolsCount === "number" ||
-								(status === "connected" && toolNames.length > 0) ? (
+								{isConnected || typeof entry.toolsCount === "number" ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
 										<dd className="text-foreground">
-											{status === "connected" && toolNames.length > 0 ? (
+											{isConnected ? (
 												<>
 													{toolNames.length}{" "}
 													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -677,7 +679,7 @@ function ConnectorDetailDialog({
 												entry.toolsCount
 											)}
 										</dd>
-										{status === "connected" && toolNames.length > 0 ? (
+										{isConnected && toolNames.length > 0 ? (
 											<dd className="col-span-2 mb-3 mt-1">
 												<ul className="flex flex-wrap gap-1.5">
 													{toolNames.map((name) => (

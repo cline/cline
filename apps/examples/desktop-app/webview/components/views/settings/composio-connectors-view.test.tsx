@@ -186,6 +186,28 @@ describe("installed connectors", () => {
 		).not.toContain("Slug");
 	});
 
+	it("shows zero installed tools instead of the catalog total when none were retrieved", async () => {
+		mocks.integrations = [
+			{
+				toolkit: "gmail",
+				name: "Gmail",
+				description: "Email",
+				recommended: true,
+				status: "connected",
+				toolNames: [],
+			},
+		];
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
+		});
+		await render();
+		await act(async () => button("View")?.click());
+		const text = document.querySelector('[role="dialog"]')?.textContent;
+		expect(text).toContain("0 available in new sessions");
+		expect(text).not.toContain("47");
+	});
+
 	it("shows only the Marketplace button when no connectors are installed", async () => {
 		mocks.integrations = [
 			{
