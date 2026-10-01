@@ -57,22 +57,45 @@ describe("commit-message-generator", () => {
 			inputBox.value.should.equal("")
 		})
 
-		it("cancels a running generation when a new one starts", async () => {
-			const firstHandler = deferred<unknown>()
+		it("Stop cancels every running generation", async () => {
+			const first = deferred<unknown>()
+			const second = deferred<unknown>()
 			const firstCreateMessage = sinon.stub().callsFake(() => textStream("feat: first"))
 			const secondCreateMessage = sinon.stub().callsFake(() => textStream("feat: second"))
-			buildApiHandlerWithHostContextStub.onFirstCall().returns(firstHandler.promise)
-			buildApiHandlerWithHostContextStub.onSecondCall().resolves({ createMessage: secondCreateMessage })
-			const inputBox = { value: "" }
+			buildApiHandlerWithHostContextStub.onFirstCall().returns(first.promise)
+			buildApiHandlerWithHostContextStub.onSecondCall().returns(second.promise)
+			const firstBox = { value: "" }
+			const secondBox = { value: "" }
 
-			const first = performCommitMsgGeneration(fakeController, "diff", inputBox)
-			await performCommitMsgGeneration(fakeController, "diff", inputBox)
-			firstHandler.resolve({ createMessage: firstCreateMessage })
-			await first
+			const generations = [
+				performCommitMsgGeneration(fakeController, "diff", firstBox),
+				performCommitMsgGeneration(fakeController, "diff", secondBox),
+			]
+			abortCommitGeneration()
+			first.resolve({ createMessage: firstCreateMessage })
+			second.resolve({ createMessage: secondCreateMessage })
+			await Promise.all(generations)
 
 			firstCreateMessage.called.should.be.false()
-			secondCreateMessage.calledOnce.should.be.true()
-			inputBox.value.should.equal("feat: second")
+			secondCreateMessage.called.should.be.false()
+		})
+
+		it("a generation started later does not cancel one already running", async () => {
+			const first = deferred<unknown>()
+			const firstCreateMessage = sinon.stub().callsFake(() => textStream("feat: first"))
+			const secondCreateMessage = sinon.stub().callsFake(() => textStream("feat: second"))
+			buildApiHandlerWithHostContextStub.onFirstCall().returns(first.promise)
+			buildApiHandlerWithHostContextStub.onSecondCall().resolves({ createMessage: secondCreateMessage })
+			const firstBox = { value: "" }
+			const secondBox = { value: "" }
+
+			const running = performCommitMsgGeneration(fakeController, "diff", firstBox)
+			await performCommitMsgGeneration(fakeController, "diff", secondBox)
+			first.resolve({ createMessage: firstCreateMessage })
+			await running
+
+			firstBox.value.should.equal("feat: first")
+			secondBox.value.should.equal("feat: second")
 		})
 
 		it("sends the request when not cancelled", async () => {

@@ -23,7 +23,11 @@ export async function getGitDiffStagedFirst(cwd: string): Promise<string> {
 	}
 }
 
-let commitGenerationAbortController: AbortController | undefined
+// Every generation still running. Stop aborts all of them: a second
+// generation can start while one runs (the Generate keybinding stays live, and
+// "Generate for all repositories" starts one per repository), and nothing but
+// Stop may cancel a generation.
+const activeCommitGenerations = new Set<AbortController>()
 
 type GitRepositoryInputBox = {
 	value: string
@@ -191,19 +195,12 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 }
 
 export async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
-	// This generation's cancel handle, installed before the first await. The SCM
-	// stop action is live as soon as the context key flips, so a controller
-	// created after resolving the host identity would miss a cancel issued
-	// meanwhile and send the request anyway. Read through this local, not the
-	// module slot, so a later generation can't swap the signal an earlier one
-	// checks.
-	//
-	// At most one generation runs: the stop action only reaches the stored
-	// controller, so a new generation (the Generate keybinding stays live while
-	// one runs) cancels the previous one rather than leaving it unstoppable.
-	commitGenerationAbortController?.abort()
+	// This generation's cancel handle, registered before the first await. The
+	// SCM stop action is live as soon as the context key flips, so a handle
+	// registered after resolving the host identity would miss a cancel issued meanwhile and
+	// send the request anyway.
 	const abortController = new AbortController()
-	commitGenerationAbortController = abortController
+	activeCommitGenerations.add(abortController)
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
@@ -278,17 +275,18 @@ export async function performCommitMsgGeneration(controller: Controller, gitDiff
 			message: `Failed to generate commit message: ${errorMessage}`,
 		})
 	} finally {
-		// Only the current generation owns the context key: an older one that
-		// settles late must not flip the button back while a newer one runs.
-		if (commitGenerationAbortController === abortController) {
-			commitGenerationAbortController = undefined
+		// The button shows Stop while any generation runs, not just this one.
+		activeCommitGenerations.delete(abortController)
+		if (activeCommitGenerations.size === 0) {
 			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 		}
 	}
 }
 
 export function abortCommitGeneration() {
-	commitGenerationAbortController?.abort()
+	for (const generation of activeCommitGenerations) {
+		generation.abort()
+	}
 	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 }
 
