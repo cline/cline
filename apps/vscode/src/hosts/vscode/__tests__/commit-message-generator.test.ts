@@ -83,6 +83,29 @@ describe("commit-message-generator", () => {
 			inputBox.value.should.equal("")
 		})
 
+		it("Stop ends a generation without waiting for the rules to finish loading", async () => {
+			const rules = deferred<string>()
+			const createMessage = sinon.stub().callsFake(() => textStream("feat: x"))
+			buildApiHandlerWithHostContextStub.resolves({ createMessage })
+			const inputBox = { value: "" }
+
+			const generation = performCommitMsgGeneration(
+				fakeController(() => rules.promise),
+				"diff",
+				inputBox,
+			)
+			abortCommitGeneration()
+			const settled = await Promise.race([
+				generation.then(() => "settled"),
+				new Promise<string>((res) => setTimeout(() => res("still waiting"), 200)),
+			])
+			rules.resolve("")
+			await generation
+
+			settled.should.equal("settled")
+			createMessage.called.should.be.false()
+		})
+
 		it("Stop cancels every running generation", async () => {
 			const first = deferred<unknown>()
 			const second = deferred<unknown>()

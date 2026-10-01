@@ -249,8 +249,11 @@ export async function performCommitMsgGeneration(controller: Controller, gitDiff
 		// themselves, and answers anything else with HTTP 403.
 		const apiHandler = await buildApiHandlerWithHostContext(apiConfiguration, currentMode, { disableReasoning: true })
 
-		// Create a system prompt, including the user's rules.
-		const systemPrompt = buildCommitMessageSystemPrompt(await controller.getRulesForSystemPrompt())
+		// Create a system prompt, including the user's rules. Stop must not wait
+		// out the first rules scan, which can be slow; the scan itself carries on
+		// and warms the watcher chat uses.
+		const rules = await untilAborted(controller.getRulesForSystemPrompt(), abortController.signal)
+		const systemPrompt = buildCommitMessageSystemPrompt(rules)
 
 		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]
@@ -305,6 +308,30 @@ export function abortCommitGeneration() {
 		generation.abort()
 	}
 	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+}
+
+/**
+ * Settles like `promise`, or rejects with the signal's abort reason as soon as
+ * the signal fires. The promise keeps running; only the wait is cut short.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+	if (signal.aborted) {
+		return Promise.reject(signal.reason)
+	}
+	return new Promise<T>((resolve, reject) => {
+		const onAbort = () => reject(signal.reason)
+		signal.addEventListener("abort", onAbort, { once: true })
+		promise.then(
+			(value) => {
+				signal.removeEventListener("abort", onAbort)
+				resolve(value)
+			},
+			(error) => {
+				signal.removeEventListener("abort", onAbort)
+				reject(error)
+			},
+		)
+	})
 }
 
 /**
