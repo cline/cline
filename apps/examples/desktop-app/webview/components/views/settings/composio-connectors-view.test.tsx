@@ -168,7 +168,7 @@ describe("installed connectors", () => {
 		expect(mocks.catalog).not.toHaveBeenCalled();
 	});
 
-	it("uses the real catalog total when it is available", async () => {
+	it("shows the installed tool count, not the stale catalog total", async () => {
 		mocks.catalog.mockResolvedValue({
 			configured: true,
 			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
@@ -176,8 +176,36 @@ describe("installed connectors", () => {
 		await render();
 		await act(async () => button("View")?.click());
 		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-			"1/47 available in new sessions",
+			"1 available in new sessions",
 		);
+		expect(
+			document.querySelector('[role="dialog"]')?.textContent,
+		).not.toContain("/47");
+		expect(
+			document.querySelector('[role="dialog"]')?.textContent,
+		).not.toContain("Slug");
+	});
+
+	it("shows zero installed tools instead of the catalog total when none were retrieved", async () => {
+		mocks.integrations = [
+			{
+				toolkit: "gmail",
+				name: "Gmail",
+				description: "Email",
+				recommended: true,
+				status: "connected",
+				toolNames: [],
+			},
+		];
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
+		});
+		await render();
+		await act(async () => button("View")?.click());
+		const text = document.querySelector('[role="dialog"]')?.textContent;
+		expect(text).toContain("0 available in new sessions");
+		expect(text).not.toContain("47");
 	});
 
 	it("shows only the Marketplace button when no connectors are installed", async () => {
