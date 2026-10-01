@@ -60,10 +60,7 @@ import {
 } from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import {
-	serializeAttachments,
-	toChatMessageImages,
-} from "@/hooks/chat-session/attachments";
+import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type {
 	ProcessContext,
@@ -96,6 +93,7 @@ import {
 import {
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
+	shouldPreserveCloudComposer,
 } from "@/lib/cloud-handoff-follow-up";
 import {
 	createHandoffLifecycle,
@@ -106,14 +104,10 @@ import {
 	prepareHandoffWithGit,
 } from "@/lib/cloud-handoff-preparation";
 import {
-	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
 	hasLivePendingHandoff,
-	matchingUserPromptCount,
-	type PendingHandoffPrompt,
-	pendingHandoffPromptCaughtUp,
 	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
@@ -733,13 +727,14 @@ export default function Home() {
 		): Promise<boolean> => {
 			const revision = ++sessionOpenRevision.current;
 			const location = activeLocationRef.current;
-			const open = (draft?: string, attachments?: File[]) =>
+			const open = (draft?: string, attachments?: File[], draftId?: string) =>
 				dispatchApp({
 					type: "open-session",
 					session,
 					environmentId: session.environmentId,
 					initialPromptDraft: draft,
 					initialAttachments: attachments,
+					initialHandoffFollowUpId: draftId,
 				});
 			if (session.origin !== "cloud") {
 				open(initialPromptDraft, initialAttachments);
@@ -1209,6 +1204,9 @@ export default function Home() {
 											}
 											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
+											initialHandoffFollowUpId={
+												activeThread.initialHandoffFollowUpId
+											}
 											handoffLifecycle={handoffLifecycle}
 											confirmHandoffGit={confirmHandoffGit}
 											knownWorkspacePaths={historyWorkspacePaths}
@@ -1342,6 +1340,7 @@ function ChatThreadPane({
 	liveHistoryStatus,
 	initialAttachments,
 	initialPromptDraft,
+	initialHandoffFollowUpId,
 	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -1372,6 +1371,7 @@ function ChatThreadPane({
 	/** Attachments to restore into the composer alongside initialPromptDraft. */
 	initialAttachments?: File[];
 	initialPromptDraft?: string;
+	initialHandoffFollowUpId?: string;
 	/** Home-level coordinator owning handoff completion/failure ordering. */
 	handoffLifecycle: Pick<
 		HandoffLifecycle,
@@ -1654,6 +1654,8 @@ function ChatThreadPane({
 	const [uncertainFollowUp, setUncertainFollowUp] =
 		useState<CloudHandoffFollowUp | null>(null);
 	const [updatingFollowUp, setUpdatingFollowUp] = useState(false);
+	const restoredFollowUpIdRef = useRef<string | undefined>(undefined);
+	const lastRestoredFollowUpIdRef = useRef<string | undefined>(undefined);
 	const followUpSessionRef = useRef(sessionId);
 	followUpSessionRef.current = sessionId;
 	const followUpReadRef = useRef(0);
@@ -1696,7 +1698,9 @@ function ChatThreadPane({
 						targetSessionId: sessionId,
 						expected: uncertainFollowUp,
 						canRestore,
-						restore: (draft, attachments) => {
+						restore: (draft, attachments, draftId) => {
+							restoredFollowUpIdRef.current = draftId;
+							lastRestoredFollowUpIdRef.current = draftId;
 							setPromptInput(draft);
 							setPendingAttachments(attachments);
 						},
@@ -2232,8 +2236,23 @@ function ChatThreadPane({
 		const hasInitialComposerState =
 			initialPromptDraft !== undefined || initialAttachments !== undefined;
 		if (hasInitialComposerState) {
-			setPromptInput(initialPromptDraft ?? "");
-			setPendingAttachments(initialAttachments ? [...initialAttachments] : []);
+			if (
+				historySession.origin !== "cloud" ||
+				hydratedSessionRef.current !== historySession.sessionId ||
+				!shouldPreserveCloudComposer(
+					promptInputRef.current,
+					attachmentCountRef.current,
+					lastRestoredFollowUpIdRef.current,
+					initialHandoffFollowUpId,
+				)
+			) {
+				restoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				setPromptInput(initialPromptDraft ?? "");
+				setPendingAttachments(
+					initialAttachments ? [...initialAttachments] : [],
+				);
+			}
 			onInitialPromptDraftConsumed?.(threadId);
 		}
 		if (hydratedSessionRef.current === historySession.sessionId) {
@@ -2241,6 +2260,8 @@ function ChatThreadPane({
 		}
 		hydratedSessionRef.current = historySession.sessionId;
 		if (!hasInitialComposerState) {
+			restoredFollowUpIdRef.current = undefined;
+			lastRestoredFollowUpIdRef.current = undefined;
 			setPromptInput("");
 			setPendingAttachments([]);
 		}
@@ -2251,6 +2272,7 @@ function ChatThreadPane({
 		hydrateSession,
 		initialAttachments,
 		initialPromptDraft,
+		initialHandoffFollowUpId,
 		onInitialPromptDraftConsumed,
 		setPendingAttachments,
 		setPromptInput,
@@ -2354,7 +2376,6 @@ function ChatThreadPane({
 			attachments: SerializedAttachments,
 			sourceSessionId: string,
 			handoffAttemptId: string,
-			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
 				type: "progress",
@@ -2383,7 +2404,6 @@ function ChatThreadPane({
 					result,
 					nextCommand,
 					sourceAttachments,
-					pendingPrompt,
 					isThreadActive,
 				});
 			} catch (error) {
@@ -2471,31 +2491,12 @@ function ChatThreadPane({
 				sourceSessionId,
 				threadId,
 			);
-			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
 				const attachments = await serializeAttachments(sourceAttachments);
-				const pendingPrompt: PendingHandoffPrompt | undefined = nextCommand
-					? {
-							content: nextCommand,
-							submittedAt,
-							baselineOccurrences: matchingUserPromptCount(
-								messages,
-								nextCommand,
-							),
-							baselineTailMessageId: pendingHandoffRecovery
-								? undefined
-								: messages.at(-1)?.id,
-							images: toChatMessageImages(
-								attachments.userImages,
-								`handoff_prompt_${sourceSessionId}`,
-							),
-						}
-					: undefined;
 				onHandoffUiAction({
 					type: "start",
 					sourceSessionId,
-					pendingPrompt,
 				});
 				const preflight = await prepareHandoffWithGit({
 					inspect: () =>
@@ -2547,7 +2548,6 @@ function ChatThreadPane({
 					attachments,
 					sourceSessionId,
 					handoffAttemptId,
-					pendingPrompt,
 				);
 			} catch (error) {
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
@@ -2570,9 +2570,7 @@ function ChatThreadPane({
 			historySession?.sessionId,
 			isCloudSession,
 			isThreadActive,
-			messages,
 			pendingAttachments,
-			pendingHandoffRecovery,
 			promptsInQueue.length,
 			runHandoff,
 			sessionId,
@@ -2617,8 +2615,11 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
+			const restoredFollowUpId = restoredFollowUpIdRef.current;
+			restoredFollowUpIdRef.current = undefined;
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
+				handoffFollowUpId: restoredFollowUpId,
 			});
 			const savedFollowUp = await refreshFollowUp().catch(() => undefined);
 			if (promptTaken && !isCloudSession && sourceSessionId) {
@@ -2633,6 +2634,8 @@ function ChatThreadPane({
 				!savedFollowUp?.unconfirmed &&
 				promptInputRef.current.trim() === ""
 			) {
+				if (savedFollowUp?.draftId === restoredFollowUpId)
+					restoredFollowUpIdRef.current = restoredFollowUpId;
 				setPromptInput(trimmed);
 				handleAttachFiles(toSend);
 			}
@@ -3135,17 +3138,7 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi
-		? []
-		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
-	useEffect(() => {
-		if (sourceSessionId && pendingHandoffPromptCaughtUp(messages, handoffUi)) {
-			onHandoffUiAction({
-				type: "prompt_reconciled",
-				sourceSessionId,
-			});
-		}
-	}, [handoffUi, messages, onHandoffUiAction, sourceSessionId]);
+	const displayedMessages = hideDeletedSessionUi ? [] : messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
