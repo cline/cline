@@ -169,6 +169,8 @@ export async function startLocalCloudEnvironment(
 		seedExpiredSessions?: boolean
 		/** Every scripted model reply is the hosted API's 402 insufficient-credits response. */
 		insufficientCredits?: boolean
+		/** Every session socket upgrade is refused, so a start fails after the sandbox is ready. */
+		refuseSessionSockets?: boolean
 	} = {},
 ): Promise<LocalCloudEnvironment> {
 	const accessToken = options.accessToken ?? `local-cloud-${randomUUID()}`
@@ -483,6 +485,11 @@ export async function startLocalCloudEnvironment(
 			socket.end(
 				`HTTP/1.1 410 Gone\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
 			)
+			return
+		}
+		if (options.refuseSessionSockets) {
+			socket.write("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n")
+			socket.destroy()
 			return
 		}
 		void activateSession(owned.record.id)
