@@ -1,7 +1,25 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { AgentRuntime } from "@cline/agents";
+import type { AgentModel, AgentTool, ITelemetryService } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RuntimeEventAdapter } from "../../runtime/orchestration/runtime-event-adapter";
+import {
+	type AgentEventContext,
+	handleAgentEvent,
+} from "../../services/agent-events";
+import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
+import type { CoreSessionConfig } from "../../types/config";
+
+// These tests supply a scripted model; no provider gateway is involved.
+vi.mock("@cline/llms", () => ({
+	createGateway: vi.fn(() => {
+		throw new Error("Unexpected provider gateway in scripted-model test");
+	}),
+	classifyProviderError: vi.fn(),
+	isRetryableProviderError: vi.fn(),
+}));
 
 /**
  * Connector tools execute through the Cline API connectors proxy, so the
@@ -428,5 +446,79 @@ describe("createComposioToolsExtension", () => {
 		auth.accountId = "account-b";
 		expect(await tool?.execute({})).toMatchObject({ successful: false });
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"COMPOSIO_MANAGE_CONNECTIONS",
+		"COMPOSIO_WAIT_FOR_CONNECTIONS",
+	])("records %s usage once through the runtime event pipeline", async (slug) => {
+		meta.session = { sessionId: "trs_1", tools: [{ slug }] };
+		const fetchMock = vi.fn(async () =>
+			Response.json({ successful: true, data: {} }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = await setupTools();
+		const toolName = slug.toLowerCase();
+		let turn = 0;
+		const model: AgentModel = {
+			async *stream() {
+				if (turn++ === 0) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "connect-call",
+						toolName,
+						inputText: "{}",
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "Connected." };
+					yield { type: "finish", reason: "stop" };
+				}
+			},
+		};
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as ITelemetryService;
+		const ctx: AgentEventContext = {
+			sessionId: "session-connect",
+			config: {
+				telemetry,
+				providerId: "cline",
+				modelId: "test-model",
+			} as CoreSessionConfig,
+			liveSession: undefined,
+			usageBySession: new Map(),
+			aggregateUsageBySession: new Map(),
+			persistMessages: vi.fn(),
+			emit: vi.fn(),
+		};
+		const runtime = new AgentRuntime({ model, tools: tools as AgentTool[] });
+		const adapter = new RuntimeEventAdapter();
+		runtime.subscribe((event) => {
+			for (const translated of adapter.translate(event)) {
+				handleAgentEvent(ctx, translated, {
+					agentId: runtime.snapshot().agentId,
+				});
+			}
+		});
+
+		expect((await runtime.run("Connect the app")).status).toBe("completed");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const toolUsage = capture.mock.calls.filter(
+			([event]) => event.event === CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+		);
+		expect(toolUsage).toEqual([
+			[
+				expect.objectContaining({
+					properties: expect.objectContaining({
+						ulid: "session-connect",
+						tool: toolName,
+						success: true,
+						provider: "cline",
+						modelId: "test-model",
+						agentId: runtime.snapshot().agentId,
+					}),
+				}),
+			],
+		]);
 	});
 });
