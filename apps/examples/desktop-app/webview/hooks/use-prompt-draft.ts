@@ -1,71 +1,41 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
+import type { PromptDraftStore } from "@/lib/prompt-draft-store";
 
 /**
- * Keeps drafts outside the keyed chat pane so navigation can safely unmount it.
- * Keystrokes only update the ref/cache; external edits also update the composer.
- * The caller remounts this hook when the thread changes.
+ * Connects a keyed chat pane to the app-owned draft store. Keystrokes update
+ * the store without rendering the pane; external changes are versioned so the
+ * composer applies them even when the stored string is unchanged.
  */
-export function usePromptDraft(drafts: Map<string, string>, threadId: string) {
-	const promptInputRef = useRef(drafts.get(threadId) ?? "");
-	const mountedRef = useRef(true);
-	const revisionRef = useRef(0);
-	useLayoutEffect(() => {
-		mountedRef.current = true;
-		return () => {
-			mountedRef.current = false;
-			revisionRef.current += 1;
-		};
-	}, []);
+export function usePromptDraft(store: PromptDraftStore, threadId: string) {
 	const [promptDraft, setPromptDraft] = useState(() => ({
 		version: 0,
-		value: promptInputRef.current,
+		value: store.getDraft(threadId),
 	}));
+	useLayoutEffect(
+		() =>
+			store.subscribe(threadId, (value) =>
+				setPromptDraft((prev) => ({ version: prev.version + 1, value })),
+			),
+		[store, threadId],
+	);
 	const handlePromptInputChange = useCallback(
-		(value: string) => {
-			if (!mountedRef.current) return;
-			// The composer echoes external replacements. Those acknowledgements
-			// aren't new edits and must not invalidate a pending send's recovery.
-			if (promptInputRef.current !== value) revisionRef.current += 1;
-			promptInputRef.current = value;
-			if (value) {
-				drafts.set(threadId, value);
-			} else {
-				drafts.delete(threadId);
-			}
-		},
-		[drafts, threadId],
+		(value: string) => store.edit(threadId, value),
+		[store, threadId],
 	);
 	const setPromptInput = useCallback(
-		(value: string) => {
-			if (!mountedRef.current) return;
-			// Even an equal-valued external replacement supersedes pending work.
-			revisionRef.current += 1;
-			handlePromptInputChange(value);
-			setPromptDraft((prev) => ({ version: prev.version + 1, value }));
-		},
-		[handlePromptInputChange],
+		(value: string) => store.replace(threadId, value),
+		[store, threadId],
 	);
-	const clearPromptForSend = useCallback(() => {
-		setPromptInput("");
-		const revision = revisionRef.current;
-		return (value: string): boolean => {
-			if (
-				!mountedRef.current ||
-				revisionRef.current !== revision ||
-				promptInputRef.current.trim() !== ""
-			) {
-				return false;
-			}
-			setPromptInput(value);
-			return true;
-		};
-	}, [setPromptInput]);
+	const beginSend = useCallback(
+		(prompt: string, attachments: readonly File[]) =>
+			store.beginSend(threadId, prompt, attachments),
+		[store, threadId],
+	);
 
 	return {
-		promptInputRef,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
-		clearPromptForSend,
+		beginSend,
 	};
 }
