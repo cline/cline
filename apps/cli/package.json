@@ -61,6 +61,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts",
+		"test:tui:smoke": "bun script/tui-smoke.tsx",
 		"test:windows-installer": "bun test script/windows-installer.test.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
 		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",

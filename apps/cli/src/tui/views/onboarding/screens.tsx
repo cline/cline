@@ -1,4 +1,3 @@
-import "opentui-spinner/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
@@ -15,6 +14,7 @@ import {
 	SearchableList,
 	type SearchableListState,
 } from "../../components/searchable-list";
+import { Spinner } from "../../components/spinner";
 import {
 	TrackedRobot,
 	type useMouseTracker,
@@ -132,7 +132,7 @@ export function OnboardingOAuthPendingScreen(props: {
 
 				{!props.authError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
-						<spinner name="dots" color={colors.accent} />
+						<Spinner name="dots" color={colors.accent} />
 						<text fg="gray">{props.authStatus}</text>
 					</box>
 				)}
@@ -192,7 +192,7 @@ export function OnboardingDeviceCodeScreen(props: {
 
 				{!props.deviceUserCode && !props.deviceError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
-						<spinner name="dots" color={colors.accent} />
+						<Spinner name="dots" color={colors.accent} />
 						<text fg="gray">{props.deviceStatus}</text>
 					</box>
 				)}
@@ -231,7 +231,7 @@ export function OnboardingDeviceCodeScreen(props: {
 
 				{props.deviceUserCode && !props.deviceError && (
 					<box flexDirection="row" gap={1} justifyContent="center">
-						<spinner name="dots" color={colors.accent} />
+						<Spinner name="dots" color={colors.accent} />
 						<text fg="gray">Waiting for sign-in...</text>
 					</box>
 				)}
@@ -420,7 +420,7 @@ export function OnboardingLocalCliScreen(props: {
 
 				{props.checking && (
 					<box flexDirection="row" gap={1}>
-						<spinner name="dots" color="gray" />
+						<Spinner name="dots" color="gray" />
 						<text fg="gray">Checking for {props.activeProviderName}...</text>
 					</box>
 				)}
@@ -481,7 +481,7 @@ export function OnboardingProviderPickerScreen(props: {
 
 			{props.providersLoading ? (
 				<box flexDirection="row" gap={1} paddingX={1}>
-					<spinner name="dots" color="gray" />
+					<Spinner name="dots" color="gray" />
 					<text fg="gray">Loading providers...</text>
 				</box>
 			) : (
@@ -613,7 +613,7 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 
 						{isLoading ? (
 							<box flexDirection="row" gap={1} flexShrink={0}>
-								<spinner name="dots" color="gray" />
+								<Spinner name="dots" color="gray" />
 								<text fg="gray">Checking your ClinePass subscription...</text>
 							</box>
 						) : isSubscribed ? (
@@ -756,7 +756,7 @@ export function OnboardingModelPickerScreen(props: {
 
 			{props.modelsLoading ? (
 				<box flexDirection="row" gap={1} paddingX={1}>
-					<spinner name="dots" color="gray" />
+					<Spinner name="dots" color="gray" />
 					<text fg="gray">Loading models...</text>
 				</box>
 			) : (

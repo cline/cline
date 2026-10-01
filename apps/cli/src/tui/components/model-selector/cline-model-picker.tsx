@@ -6,9 +6,9 @@ import {
 } from "@cline/core";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import "opentui-spinner/react";
 import { useDialogPalette } from "../../hooks/use-theme";
 import type { DialogPalette } from "../../themes";
+import { Spinner } from "../spinner";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
@@ -64,7 +64,7 @@ export function ClineModelPicker(props: {
 	if (loading) {
 		return (
 			<box flexDirection="row" gap={1} paddingX={1}>
-				<spinner name="dots" color="gray" />
+				<Spinner name="dots" color="gray" />
 				<text fg="gray">Loading models...</text>
 			</box>
 		);

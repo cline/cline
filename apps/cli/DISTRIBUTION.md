@@ -196,6 +196,8 @@ bun run --cwd apps/cli build:platforms:single
 
 This builds the SDK and CLI, then creates `apps/cli/dist/cli-windows-<arch>/bin/cline.exe`, where `<arch>` is the architecture of the running Bun executable (`x64` or `arm64`). The build uses the operating system's temporary directory and does not require Git Bash or Unix file commands.
 
+For the host platform, the build checks the version, boots an isolated hub, and compiles and renders the TUI's loading dialog and model picker to verify spinner registration survives bundling. Run `bun run --cwd apps/cli test:tui:smoke` to check those loading views from source after building the SDK.
+
 To build a Windows setup executable:
 
 ```powershell

@@ -191,6 +191,7 @@ async function buildCompiledBinary(input: {
 	bunTarget: Bun.Build.CompileTarget;
 	dirName: string;
 	outfile: string;
+	entrypoint?: string;
 }): Promise<void> {
 	const parserWorker = findOpenTuiParserWorker();
 	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
@@ -202,7 +203,7 @@ async function buildCompiledBinary(input: {
 
 	// Build in the OS temp directory so Bun's temp-file rename stays on one
 	// filesystem layer in containers and uses an absolute drive path on Windows.
-	const entrypoint = join(cliDir, "src/index.ts");
+	const entrypoint = input.entrypoint ?? join(cliDir, "src/index.ts");
 	const tmpDir = mkdtempSync(
 		join(resolve(tmpdir()), `cline-build-${input.dirName}-`),
 	);
@@ -283,7 +284,6 @@ for (const item of targets) {
 			// that only surface once real modules load, so also boot the hub
 			// daemon from this binary in an isolated data dir and confirm it
 			// answers a health probe before shipping.
-			console.log(`  Smoke test: ${outfile} hub start/status/stop`);
 			const smokeHome = mkdtempSync(join(tmpdir(), "cline-smoke-"));
 			const smokeEnv = {
 				...process.env,
@@ -298,6 +298,20 @@ for (const item of targets) {
 				CLINE_HUB_PORT: String(await findFreePort()),
 			};
 			try {
+				// A working daemon does not exercise the TUI's extended component
+				// catalogue. Render the real loading views with the same compile
+				// options to catch stripped spinner registration before packaging.
+				console.log("  Smoke test: compiled TUI loading dialogs");
+				const tuiSmokeBinary = join(smokeHome, binaryName);
+				await buildCompiledBinary({
+					bunTarget,
+					dirName: `${dirName}-tui-smoke`,
+					outfile: tuiSmokeBinary,
+					entrypoint: join(cliDir, "script/tui-smoke.tsx"),
+				});
+				console.log(await $`${tuiSmokeBinary}`.env(smokeEnv).text());
+
+				console.log(`  Smoke test: ${outfile} hub start/status/stop`);
 				await $`${outfile} hub start`.env(smokeEnv).quiet();
 				const status = JSON.parse(
 					await $`${outfile} hub status`.env(smokeEnv).text(),

@@ -1,8 +1,8 @@
-import "opentui-spinner/react";
 import { useEffect, useState } from "react";
 import { useSession } from "../contexts/session-context";
 import { useTheme } from "../hooks/use-theme";
 import type { QueuedPromptItem } from "../types";
+import { Spinner } from "./spinner";
 
 function truncatePrompt(prompt: string): string {
 	return prompt.length > 64 ? `${prompt.slice(0, 64)}...` : prompt;
@@ -93,7 +93,7 @@ function QueuedPromptRow(props: {
 			backgroundColor={selected ? theme.selection : undefined}
 		>
 			{item.steer && !editing ? (
-				<spinner
+				<Spinner
 					name="dots"
 					color={selected ? theme.textOnSelection : "gray"}
 				/>

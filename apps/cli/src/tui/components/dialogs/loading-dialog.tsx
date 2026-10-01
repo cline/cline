@@ -4,7 +4,7 @@ import type {
 	DialogSize,
 	DialogStyle,
 } from "@opentui-ui/dialog/react";
-import "opentui-spinner/react";
+import { Spinner } from "../spinner";
 import {
 	type LoadingDialogActions,
 	withShownDialog,
@@ -17,7 +17,7 @@ export interface LoadingDialogContentProps {
 export function LoadingDialogContent(props: LoadingDialogContentProps) {
 	return (
 		<box flexDirection="row" gap={1} paddingX={1}>
-			<spinner name="dots" color="gray" />
+			<Spinner name="dots" color="gray" />
 			<text fg="gray">{props.message}</text>
 		</box>
 	);

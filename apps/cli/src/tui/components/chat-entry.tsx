@@ -5,7 +5,6 @@ import {
 import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import "opentui-spinner/react";
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassLimitDetailMessage,
@@ -39,6 +38,7 @@ import {
 	parseWebFetchInput,
 	shortenPath,
 } from "../utils/tool-parsing";
+import { Spinner } from "./spinner";
 import { ToolOutput } from "./tool-output";
 
 function trimLeading(text: string): string {
@@ -60,7 +60,7 @@ function ReasoningBlock(props: { text: string; streaming: boolean }) {
 		if (props.streaming) {
 			return (
 				<box flexDirection="row" gap={1}>
-					<spinner name="dots" color="gray" />
+					<Spinner name="dots" color="gray" />
 					<text fg="gray">
 						<em>Thinking...</em>
 					</text>
@@ -75,7 +75,7 @@ function ReasoningBlock(props: { text: string; streaming: boolean }) {
 		return (
 			<box flexDirection="column">
 				<box flexDirection="row" gap={1}>
-					<spinner name="dots" color="gray" />
+					<Spinner name="dots" color="gray" />
 					<text fg="gray">
 						<em>Thinking...</em>
 					</text>
@@ -239,7 +239,7 @@ function ToolCallView(props: {
 			<box flexDirection="row">
 				<box width={2}>
 					{streaming ? (
-						<spinner name="dots" color="gray" />
+						<Spinner name="dots" color="gray" />
 					) : warningFailure ? (
 						<text fg="yellow">!</text>
 					) : failed ? (
@@ -457,7 +457,7 @@ function CompactionDividerRow(props: {
 		<box flexDirection="row">
 			{inProgress ? (
 				<box width={2}>
-					<spinner name="dots" color={labelColor} />
+					<Spinner name="dots" color={labelColor} />
 				</box>
 			) : (
 				<text fg="gray" content="── " />
@@ -641,7 +641,7 @@ export function ChatEntryView(props: {
 				<box flexDirection="row">
 					<box width={2}>
 						{entry.streaming ? (
-							<spinner name="dots" color={accent} />
+							<Spinner name="dots" color={accent} />
 						) : (
 							<text fg={accent}>*</text>
 						)}
