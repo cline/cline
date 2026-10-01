@@ -29,6 +29,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: ["NEW"],
 			},
 			{
+				id: "openai/gpt-6.1-sol",
+				name: "gpt-6.1-sol",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "moonshotai/kimi-k3",
 				name: "kimi-k3",
 				description:
@@ -37,12 +43,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			},
 		],
 		free: [
-			{
-				id: "stealth/pixel-canary",
-				name: "Pixel Canary",
-				description: "Anonymous large model with strong coding capabilities",
-				tags: [],
-			},
 			{
 				id: "stealth/space-bunny-alpha",
 				name: "space-bunny-alpha",
@@ -127,6 +127,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
+				tags: [],
+			},
+			{
 				id: "cline-pass/qwen3.7-plus",
 				name: "cline-pass/qwen3.7-plus",
 				description: "Fast multimodal agent model with vision and video input",
@@ -136,12 +142,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
-				tags: [],
-			},
-			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{

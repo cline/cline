@@ -1,5 +1,15 @@
 # Cline Desktop Changelog
 
+## 0.0.40
+
+- Custom providers added with **Add Provider** now work when you run a task. They showed up in the provider and model pickers but failed with `Unknown or disabled provider`
+- New chats remember whether you last used **Cloud** or **Local**, and which Cloud model you picked, instead of always going back to Local. Switching a thread from Local to Cloud also opens on your remembered Cloud model
+- Saving provider credentials no longer fails when the provider's model list can't be fetched, and the model list refreshes when you change a provider's API key or endpoint
+- MCP settings always use the same file. With `CLINE_MCP_SETTINGS_PATH`, `CLINE_DATA_DIR`, or `CLINE_DIR` set, reading and saving servers, MCP OAuth sign-in, and **Open MCP settings** now all use that path, where some could open a different file before
+- Tool diffs now follow the app's font size setting instead of a fixed 13px
+- When an MCP tool returns more output than fits in context, the agent can now read the rest. It gets a preview plus a link it can page through, so the output past the cutoff is no longer lost
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol. Default models change for 302.AI (Claude Sonnet 5.5), NanoGPT (Ling 3.1 Flash), Vivgrid (GPT-6.1 Sol), and Vultr (MiMo V2.6 Flash RL). Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected
+
 ## 0.0.39
 
 - On Linux with the proprietary NVIDIA driver, the app window no longer opens blank. The app now turns off WebKitGTK's DMA-BUF renderer when it detects the NVIDIA driver. To keep that renderer on (for example, on a hybrid-GPU system), set `WEBKIT_DISABLE_DMABUF_RENDERER=0`
