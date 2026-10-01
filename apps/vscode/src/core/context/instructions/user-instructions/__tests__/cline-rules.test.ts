@@ -95,6 +95,27 @@ describe("setRuleDisabledInFrontmatter", () => {
 		}
 	})
 
+	it("reports a failure when malformed frontmatter prevents a safe edit", async () => {
+		const rulesDir = await makeTempDir()
+		const rulePath = path.join(rulesDir, "broken.md")
+		const content = "---\npaths: [invalid\n---\nBody"
+		await fs.writeFile(rulePath, content)
+
+		expect(await setRuleDisabledInFrontmatter(rulePath, false, [rulesDir])).to.equal("failed")
+		expect(await fs.readFile(rulePath, "utf-8")).to.equal(content)
+	})
+
+	it("reports success without writing when the file already carries the requested state", async () => {
+		const rulesDir = await makeTempDir()
+		const rulePath = path.join(rulesDir, "already-off.md")
+		const content = "---\ndisabled: true\n---\nBody"
+		await fs.writeFile(rulePath, content)
+		const before = (await fs.stat(rulePath)).mtimeMs
+
+		expect(await setRuleDisabledInFrontmatter(rulePath, false, [rulesDir])).to.equal("written")
+		expect((await fs.stat(rulePath)).mtimeMs).to.equal(before)
+	})
+
 	it("rejects relative and missing paths", async () => {
 		const rulesDir = await makeTempDir()
 		expect(await setRuleDisabledInFrontmatter("relative.md", false, [rulesDir])).to.equal("skipped")

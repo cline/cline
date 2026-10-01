@@ -96,8 +96,9 @@ export async function resolveWritableRuleFile(rulePath: string, allowedRoots: Re
  * - `written`: the file now carries the requested state (or already did);
  * - `skipped`: the path is not a rule document the SDK loads, so there was
  *   nothing to write;
- * - `failed`: the file is a rule document but could not be read or written,
- *   so the SDK will keep loading its previous state.
+ * - `failed`: the file is a rule document but could not be read, written, or
+ *   safely edited (malformed frontmatter), so the SDK will keep loading its
+ *   previous state.
  */
 export type RuleFrontmatterWriteResult = "written" | "skipped" | "failed"
 
@@ -121,6 +122,15 @@ export async function setRuleDisabledInFrontmatter(
 		const updated = updateUserInstructionMarkdownDisabledState(content, enabled)
 		if (updated !== content) {
 			await fs.writeFile(filePath, updated)
+			return "written"
+		}
+		// An unchanged document either already carried the requested state or
+		// could not be edited safely (malformed frontmatter); only the former is
+		// a success, otherwise the panel would claim a state the SDK never sees.
+		const { data, parseError } = parseYamlFrontmatter(content)
+		if (parseError || isFrontmatterDisabled(data) !== !enabled) {
+			Logger.warn(`Rule frontmatter at ${filePath} could not be updated; leaving the document untouched`)
+			return "failed"
 		}
 		return "written"
 	} catch (error) {

@@ -118,6 +118,22 @@ describe("toggleClineRule", () => {
 		}
 	})
 
+	it("reverts the state toggle when malformed frontmatter prevents a safe edit", async () => {
+		const rulePath = path.join(workspace, ".clinerules", "broken.md")
+		const content = "---\npaths: [invalid\n---\nBody"
+		await fs.writeFile(rulePath, content)
+		const { controller, localToggles } = createController()
+
+		const response = await toggleClineRule(
+			controller as never,
+			ToggleClineRuleRequest.create({ scope: RuleScope.LOCAL, rulePath, enabled: false }),
+		)
+
+		expect(localToggles[rulePath]).toBe(true)
+		expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(true)
+		expect(await fs.readFile(rulePath, "utf-8")).toBe(content)
+	})
+
 	it("does not write frontmatter into non-rule files that happen to live in .clinerules", async () => {
 		const rulePath = path.join(workspace, ".clinerules", "notes.json")
 		await fs.writeFile(rulePath, "{}")
