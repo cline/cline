@@ -84,6 +84,14 @@ function buildGatewayProviderOptions(
 		const workspace = config.extensionContext?.workspace;
 		Object.assign(options, {
 			cwd: workspace?.cwd ?? workspace?.rootPath,
+			// Forward caller-supplied Claude Code options (notably
+			// `defaultSettings.pathToClaudeCodeExecutable`, which hosts like the
+			// VS Code extension set from a user-configured CLI path). Without
+			// this spread, `config.claudeCode` is silently dropped here even
+			// though `resolveConnectionProviderConfig` preserves it on
+			// `ProviderConfig` -- the gateway/provider module only ever sees
+			// whatever this function assembles into `options`.
+			...config.claudeCode,
 		});
 	}
 
