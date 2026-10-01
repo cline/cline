@@ -34,7 +34,6 @@ function createController() {
 	const globalState = new Map<string, unknown>([
 		["globalClineRulesToggles", {}],
 		["remoteRulesToggles", {}],
-		["clineRulesFrontmatterAuthoritative", {}],
 	])
 	const workspaceState = new Map<string, unknown>([
 		["localClineRulesToggles", localToggles],

@@ -1,6 +1,6 @@
 import { resolveGlobalRulesConfigPaths, resolveWorkspaceRulesConfigPaths } from "@cline/shared/storage"
 import { combineRuleToggles, synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
-import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { ensureRulesDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { getCwd, getDesktopDir } from "@utils/path"
 import * as fs from "fs/promises"
@@ -197,6 +197,66 @@ export async function reconcileRuleTogglesWithFrontmatter(
 	return { toggles: updated, authoritative: nextAuthoritative }
 }
 
+const GLOBAL_RULE_AUTHORITY_FILE_NAME = "cline-rules-frontmatter-authority.json"
+
+async function globalRuleAuthorityFilePath(): Promise<string> {
+	return path.join(await ensureSettingsDirectoryExists(), GLOBAL_RULE_AUTHORITY_FILE_NAME)
+}
+
+/**
+ * Read the global rule paths whose file frontmatter is authoritative (see
+ * reconcileRuleTogglesWithFrontmatter) straight from disk.
+ *
+ * They are kept in their own file rather than in global state because every
+ * window holds its own cached copy of global state and persists that whole
+ * snapshot, so another window's progress could be overwritten and a stale
+ * window could back-fill a rule the user has since re-enabled by hand.
+ */
+export async function readGlobalRuleAuthority(): Promise<Record<string, boolean>> {
+	try {
+		const parsed: unknown = JSON.parse(await fs.readFile(await globalRuleAuthorityFilePath(), "utf-8"))
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			return {}
+		}
+		return Object.fromEntries(Object.entries(parsed).filter(([, value]) => value === true)) as Record<string, boolean>
+	} catch {
+		return {}
+	}
+}
+
+/**
+ * Add global rule paths to the authority file. The file is re-read and merged
+ * on every call, so concurrent windows only ever add to it; entries whose rule
+ * file no longer exists are dropped.
+ */
+export async function recordGlobalRuleAuthority(rulePaths: Iterable<string>): Promise<void> {
+	try {
+		const current = await readGlobalRuleAuthority()
+		const merged: Record<string, boolean> = { ...current }
+		for (const rulePath of rulePaths) {
+			merged[rulePath] = true
+		}
+		for (const rulePath of Object.keys(merged)) {
+			try {
+				await fs.stat(rulePath)
+			} catch {
+				delete merged[rulePath]
+			}
+		}
+		const unchanged =
+			Object.keys(merged).length === Object.keys(current).length && Object.keys(merged).every((key) => current[key])
+		if (unchanged) {
+			return
+		}
+		const filePath = await globalRuleAuthorityFilePath()
+		const temporaryPath = `${filePath}.${process.pid}.tmp`
+		await fs.writeFile(temporaryPath, JSON.stringify(merged, null, 2))
+		await fs.rename(temporaryPath, filePath)
+	} catch (error) {
+		Logger.warn("Failed to record global rule frontmatter authority:", error)
+	}
+}
+
 /**
  * Synchronizes rule toggles across every directory a rule may live in.
  * `synchronizeRuleToggles` prunes toggles for files outside the directory it
@@ -229,19 +289,19 @@ export async function refreshClineRulesToggles(
 	// plus every global location the shared SDK resolver loads rules from
 	// (e.g. ~/.cline/rules), so the panel shows what actually reaches the model.
 	// Each scope tracks, per rule, whether its file has become authoritative
-	// (see reconcileRuleTogglesWithFrontmatter). The global set lives in global
-	// state; the workspace set lives in this window's workspace state, so
-	// windows cannot clobber each other's progress.
+	// (see reconcileRuleTogglesWithFrontmatter): the global set in its own
+	// settings file, re-read on every refresh, and the workspace set in this
+	// workspace's state.
 	const globalClineRulesToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const globalRuleDirectories = await resolveGlobalRuleDirectories()
 	const globalResult = await reconcileRuleTogglesWithFrontmatter(
 		await synchronizeRuleTogglesAcrossDirectories(globalRuleDirectories, globalClineRulesToggles),
 		globalRuleDirectories,
-		controller.stateManager.getGlobalStateKey("clineRulesFrontmatterAuthoritative"),
+		await readGlobalRuleAuthority(),
 	)
 	const updatedGlobalToggles = globalResult.toggles
 	controller.stateManager.setGlobalState("globalClineRulesToggles", updatedGlobalToggles)
-	controller.stateManager.setGlobalState("clineRulesFrontmatterAuthoritative", globalResult.authoritative)
+	await recordGlobalRuleAuthority(Object.keys(globalResult.authoritative))
 
 	// Local toggles: both supported workspace layouts — the legacy
 	// `.clinerules` directory (or single file) and `.cline/rules` — via the

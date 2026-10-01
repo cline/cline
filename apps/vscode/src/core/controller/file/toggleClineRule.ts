@@ -1,5 +1,6 @@
 import {
 	type RuleFrontmatterWriteResult,
+	recordGlobalRuleAuthority,
 	resolveRuleWriteRoots,
 	setRuleDisabledInFrontmatter,
 } from "@core/context/instructions/user-instructions/cline-rules"
@@ -81,11 +82,7 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 			}
 		} else if (result === "written") {
 			if (scope === RuleScope.GLOBAL) {
-				const authoritative = controller.stateManager.getGlobalStateKey("clineRulesFrontmatterAuthoritative")
-				controller.stateManager.setGlobalState("clineRulesFrontmatterAuthoritative", {
-					...authoritative,
-					[rulePath]: true,
-				})
+				await recordGlobalRuleAuthority([rulePath])
 			} else {
 				const authoritative = controller.stateManager.getWorkspaceStateKey("localClineRulesFrontmatterAuthoritative")
 				controller.stateManager.setWorkspaceState("localClineRulesFrontmatterAuthoritative", {

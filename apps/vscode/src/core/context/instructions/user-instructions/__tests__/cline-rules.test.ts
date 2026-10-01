@@ -4,8 +4,12 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import type { Controller } from "@/core/controller"
+import { HostProvider } from "@/hosts/host-provider"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import {
+	readGlobalRuleAuthority,
 	reconcileRuleTogglesWithFrontmatter,
+	recordGlobalRuleAuthority,
 	refreshClineRulesToggles,
 	resolveWritableRuleFile,
 	setRuleDisabledInFrontmatter,
@@ -192,10 +196,7 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 
 describe("refreshClineRulesToggles back-fill", () => {
 	function makeController(localToggles: Record<string, boolean>, localAuthoritative: Record<string, boolean> = {}) {
-		const globalState = new Map<string, unknown>([
-			["globalClineRulesToggles", {}],
-			["clineRulesFrontmatterAuthoritative", {}],
-		])
+		const globalState = new Map<string, unknown>([["globalClineRulesToggles", {}]])
 		const workspaceState = new Map<string, unknown>([
 			["localClineRulesToggles", localToggles],
 			["localClineRulesFrontmatterAuthoritative", localAuthoritative],
@@ -279,5 +280,84 @@ describe("refreshClineRulesToggles back-fill", () => {
 		await refreshClineRulesToggles(controller, workspace)
 
 		expect(workspaceState.get("localClineRulesFrontmatterAuthoritative")).to.deep.equal({ [rulePath]: true })
+	})
+})
+
+describe("global rule authority file", () => {
+	let globalStorage: string
+
+	afterEach(() => {
+		HostProvider.reset()
+	})
+
+	async function useGlobalStorage(): Promise<void> {
+		globalStorage = await makeTempDir()
+		setVscodeHostProviderMock({ globalStorageFsPath: globalStorage })
+	}
+
+	it("merges records from separate windows instead of overwriting them", async () => {
+		await useGlobalStorage()
+		const rulesDir = await makeTempDir()
+		const first = path.join(rulesDir, "first.md")
+		const second = path.join(rulesDir, "second.md")
+		await fs.writeFile(first, "First")
+		await fs.writeFile(second, "Second")
+
+		await recordGlobalRuleAuthority([first])
+		await recordGlobalRuleAuthority([second])
+
+		expect(await readGlobalRuleAuthority()).to.deep.equal({ [first]: true, [second]: true })
+	})
+
+	it("drops records whose rule file no longer exists", async () => {
+		await useGlobalStorage()
+		const rulesDir = await makeTempDir()
+		const kept = path.join(rulesDir, "kept.md")
+		const gone = path.join(rulesDir, "gone.md")
+		await fs.writeFile(kept, "Kept")
+		await fs.writeFile(gone, "Gone")
+		await recordGlobalRuleAuthority([kept, gone])
+
+		await fs.rm(gone)
+		await recordGlobalRuleAuthority([])
+
+		expect(await readGlobalRuleAuthority()).to.deep.equal({ [kept]: true })
+	})
+
+	it("treats a missing or corrupt file as no records", async () => {
+		await useGlobalStorage()
+		expect(await readGlobalRuleAuthority()).to.deep.equal({})
+		await fs.mkdir(path.join(globalStorage, "settings"), { recursive: true })
+		await fs.writeFile(path.join(globalStorage, "settings", "cline-rules-frontmatter-authority.json"), "{not json")
+		expect(await readGlobalRuleAuthority()).to.deep.equal({})
+	})
+
+	it("keeps a stale window from re-disabling a global rule the user re-enabled by hand", async () => {
+		await useGlobalStorage()
+		const rulesDir = await makeTempDir()
+		const rulePath = path.join(rulesDir, "global-rule.md")
+		await fs.writeFile(rulePath, "Toggled off before the fix")
+
+		// Window A back-fills the rule and records it.
+		const windowA = await reconcileRuleTogglesWithFrontmatter(
+			{ [rulePath]: false },
+			[rulesDir],
+			await readGlobalRuleAuthority(),
+		)
+		await recordGlobalRuleAuthority(Object.keys(windowA.authoritative))
+		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).to.equal(true)
+
+		// The user re-enables the rule by editing the file.
+		await fs.writeFile(rulePath, "Re-enabled by hand")
+
+		// Window B still has the old off toggle cached, but reads the records from disk.
+		const windowB = await reconcileRuleTogglesWithFrontmatter(
+			{ [rulePath]: false },
+			[rulesDir],
+			await readGlobalRuleAuthority(),
+		)
+
+		expect(windowB.toggles[rulePath]).to.equal(true)
+		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
 	})
 })
