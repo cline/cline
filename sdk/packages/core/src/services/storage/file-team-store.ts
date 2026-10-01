@@ -17,6 +17,7 @@ import {
 	toPersistableTeamEvent,
 	toTeamRunResultRecord,
 } from "../../extensions/tools/team/persistence-policy";
+import { sanitizeTeamName } from "../../extensions/tools/team/sanitize-team-name";
 import type { TeamPersistenceBatch, TeamStore } from "../../types/storage";
 import { TEAM_EVENT_RETENTION_PER_TEAM } from "./sqlite-team-store";
 
@@ -25,16 +26,6 @@ const FILE_HISTORY_COMPACT_BYTES = 4 * 1024 * 1024;
 
 function nowIso(): string {
 	return new Date().toISOString();
-}
-
-function sanitizeTeamName(name: string): string {
-	const collapsed = name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
-	// Index-based trim: `/^-+|-+$/` backtracks quadratically on long `-` runs.
-	let start = 0;
-	let end = collapsed.length;
-	while (start < end && collapsed[start] === "-") start++;
-	while (end > start && collapsed[end - 1] === "-") end--;
-	return collapsed.slice(start, end);
 }
 
 function reviveTeamRuntimeStateDates(

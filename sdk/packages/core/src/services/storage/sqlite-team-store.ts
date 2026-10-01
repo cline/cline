@@ -18,20 +18,11 @@ import {
 	toPersistableTeamEvent,
 	toTeamRunResultRecord,
 } from "../../extensions/tools/team/persistence-policy";
+import { sanitizeTeamName } from "../../extensions/tools/team/sanitize-team-name";
 import type { TeamPersistenceBatch, TeamStore } from "../../types/storage";
 
 function defaultTeamDir(): string {
 	return resolveDbDataDir();
-}
-
-function sanitizeTeamName(name: string): string {
-	const collapsed = name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
-	// Index-based trim: `/^-+|-+$/` backtracks quadratically on long `-` runs.
-	let start = 0;
-	let end = collapsed.length;
-	while (start < end && collapsed[start] === "-") start++;
-	while (end > start && collapsed[end - 1] === "-") end--;
-	return collapsed.slice(start, end);
 }
 
 export interface SqliteTeamStoreOptions {
