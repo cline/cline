@@ -31,6 +31,10 @@ interface SandboxEventMessage {
 }
 
 export interface SubprocessSandboxOptions {
+	/** Extra interpreter flags, before the bootstrap script/file. */
+	runtimeArgs?: string[];
+	/** Environment overrides scoped to the sandbox child. */
+	runtimeEnv?: NodeJS.ProcessEnv;
 	/** Inline script to execute via `node -e`. Mutually exclusive with {@link bootstrapFile}. */
 	bootstrapScript?: string;
 	/** Path to a JavaScript file to execute via `node <file>`. Mutually exclusive with {@link bootstrapScript}. */
@@ -258,16 +262,22 @@ export class SubprocessSandbox {
 			? [this.options.bootstrapFile]
 			: ["-e", this.options.bootstrapScript ?? ""];
 
-		const command = buildSubprocessSandboxCommand(args, {
-			name: this.options.name,
-			runtimeExecutable: this.options.runtimeExecutable,
-		});
+		const command = buildSubprocessSandboxCommand(
+			[...(this.options.runtimeArgs ?? []), ...args],
+			{
+				name: this.options.name,
+				runtimeExecutable: this.options.runtimeExecutable,
+			},
+		);
 		const child = spawn(
 			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
 			command.slice(1),
 			{
 				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
+				env: withResolvedClineBuildEnv({
+					...process.env,
+					...this.options.runtimeEnv,
+				}),
 				// Prevent a console window from flashing on Windows.
 				windowsHide: true,
 			},

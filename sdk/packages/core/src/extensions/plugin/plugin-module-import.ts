@@ -291,7 +291,8 @@ function resolveHostPackageExport(specifier: string): string | null {
 }
 
 function getHostPackageSearchRoots(): string[] {
-	const roots = [MODULE_DIR];
+	const runtimeRoot = process.env.CLINE_PLUGIN_RUNTIME_DIR?.trim();
+	const roots = runtimeRoot ? [runtimeRoot, MODULE_DIR] : [MODULE_DIR];
 	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
 	if (wrapperPath) {
 		roots.push(dirname(dirname(wrapperPath)));
@@ -584,6 +585,26 @@ type JitiTransform = (opts: {
 	[key: string]: unknown;
 }) => { code: string; error?: unknown };
 
+// Babel installs a global stack formatter both on import and while transforming.
+// Scope it to those operations so Bun dependencies using Error.captureStackTrace
+// with custom Error prototypes do not inherit Babel's formatter.
+function withScopedErrorFormatter<T>(operation: () => T): T {
+	const descriptors = ["prepareStackTrace", "stackTraceLimit"].map(
+		(key) => [key, Object.getOwnPropertyDescriptor(Error, key)] as const,
+	);
+	try {
+		return operation();
+	} finally {
+		for (const [key, descriptor] of descriptors) {
+			// Assignment also updates Bun's active formatter; defineProperty alone
+			// restores the descriptor but leaves its stack-capture formatter stale.
+			Reflect.set(Error, key, descriptor?.value);
+			if (descriptor) Object.defineProperty(Error, key, descriptor);
+			else Reflect.deleteProperty(Error, key);
+		}
+	}
+}
+
 let cachedJitiTransform: JitiTransform | null | undefined;
 
 function loadJitiBabelTransform(): JitiTransform | null {
@@ -610,7 +631,9 @@ function loadJitiBabelTransform(): JitiTransform | null {
 	}
 	try {
 		const requireFromBabel = createRequire(babelPath);
-		const transform = requireFromBabel(babelPath) as unknown;
+		const transform = withScopedErrorFormatter(() =>
+			requireFromBabel(babelPath),
+		) as unknown;
 		cachedJitiTransform =
 			typeof transform === "function" ? (transform as JitiTransform) : null;
 	} catch {
@@ -660,15 +683,27 @@ export async function importPluginModule(
 	// instance so the loader sees raw exports.
 	const baseBabelTransform = loadJitiBabelTransform();
 	const babelTransform: JitiTransform | undefined = baseBabelTransform
-		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
+		? (opts) =>
+				withScopedErrorFormatter(() =>
+					baseBabelTransform({ ...opts, interopDefault: true }),
+				)
 		: undefined;
+
 	const jiti = createJiti(pluginPath, {
 		alias: sortedAliases,
 		cache: options.useCache,
 		requireCache: options.useCache,
 		esmResolve: true,
 		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
+		// Installed JavaScript packages must keep their own dependency resolution.
+		// Transforming their internals through the plugin's root aliases rewrites
+		// imports such as zod/v4 to <zod entry file>/v4 and breaks packaged SDKs.
+		nativeModules: [
+			...BUILTIN_MODULES,
+			...Object.entries(sortedAliases)
+				.filter(([, target]) => !shouldTransformAliasTarget(target))
+				.map(([specifier]) => specifier),
+		],
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns

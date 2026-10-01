@@ -22,6 +22,25 @@ From `apps/examples/desktop-app/`:
 
 Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
 
+### Packaged plugin runtime
+
+The desktop bundle includes `plugin-runtime/`: the freshly built SDK packages,
+the plugin sandbox bootstrap, jiti (including its transformer), and their locked
+runtime dependencies. The Rust launcher passes its resource directory and sidecar
+executable to the backend; the Hub inherits them. Sandbox children run that same
+sidecar as the Bun interpreter using `BUN_BE_BUN=1`, with the on-disk bootstrap.
+Only the child receives that flag, and the bootstrap clears it before plugin code
+runs. No globally installed Node, Bun, CLI, or SDK is required for plugin loading.
+
+The agent runtime and sandbox can load separate SDK instances; they communicate
+through IPC descriptors and calls. Both copies come from this checkout's SDK build
+and dependency lock, rather than an unrelated CLI installation.
+
+`bun run test:plugin-runtime` tests discovery, Settings contributions, and command
+execution in an isolated directory with an empty runtime PATH. Native sidecar builds
+also run that test against their actual executable and resource payload before
+Tauri packages the installer.
+
 ## Pull Requests
 
 The composer shows the current branch's GitHub pull request, merge status,

@@ -230,6 +230,16 @@ export function selectBootstrapCandidate(options: {
  * bootstrap through jiti from an inline script.
  */
 function resolveBootstrap(): { file: string } | { script: string } {
+	const runtimeDir = process.env.CLINE_PLUGIN_RUNTIME_DIR?.trim();
+	if (runtimeDir) {
+		const file = join(
+			runtimeDir,
+			"node_modules/@cline/core/dist/extensions/plugin-sandbox-bootstrap.js",
+		);
+		if (!existsSync(file))
+			throw new Error(`Packaged plugin bootstrap not found: ${file}`);
+		return { file };
+	}
 	const dir = dirname(fileURLToPath(import.meta.url));
 	const requireFromHere = createRequire(import.meta.url);
 	// In dev, the bootstrap sits next to this file in src/extensions/.
@@ -269,8 +279,6 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		].join("\n"),
 	};
 }
-
-const BOOTSTRAP = resolveBootstrap();
 
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
@@ -319,11 +327,29 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
+	const bootstrap = resolveBootstrap();
+	const runtimeDir = process.env.CLINE_PLUGIN_RUNTIME_DIR?.trim();
+	const runtimeExecutable = process.env.CLINE_PLUGIN_RUNTIME_EXECUTABLE?.trim();
+	if (Boolean(runtimeDir) !== Boolean(runtimeExecutable))
+		throw new Error(
+			"Packaged plugin runtime requires both its directory and executable",
+		);
 	const sandbox = new SubprocessSandbox({
 		name: "plugin-sandbox",
-		...("file" in BOOTSTRAP
-			? { bootstrapFile: BOOTSTRAP.file }
-			: { bootstrapScript: BOOTSTRAP.script }),
+		...("file" in bootstrap
+			? { bootstrapFile: bootstrap.file }
+			: { bootstrapScript: bootstrap.script }),
+		...(runtimeDir && runtimeExecutable
+			? {
+					runtimeExecutable,
+					runtimeArgs: [
+						"--no-env-file",
+						`--config=${join(runtimeDir, "bunfig.toml")}`,
+						"--use-system-ca",
+					],
+					runtimeEnv: { BUN_BE_BUN: "1" },
+				}
+			: {}),
 		idleTimeoutMs,
 		onEvent: options.onEvent,
 	});

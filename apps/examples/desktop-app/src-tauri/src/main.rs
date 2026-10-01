@@ -94,6 +94,7 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    plugin_runtime_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -486,15 +487,6 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     }
 
     for binary_name in desktop_backend_binary_names() {
-        candidates.push(
-            PathBuf::from(&context.workspace_root)
-                .join("apps")
-                .join("examples")
-                .join("desktop-app")
-                .join("src-tauri")
-                .join("bin")
-                .join(&binary_name),
-        );
         if let Some(path) = current_exe
             .as_ref()
             .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
@@ -508,6 +500,17 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
         }) {
             candidates.push(path);
         }
+        // Prefer the installed binary and its matching resource payload over
+        // a development build in the workspace the user opened.
+        candidates.push(
+            PathBuf::from(&context.workspace_root)
+                .join("apps")
+                .join("examples")
+                .join("desktop-app")
+                .join("src-tauri")
+                .join("bin")
+                .join(&binary_name),
+        );
     }
 
     candidates.into_iter().find(|path| path.exists())
@@ -515,7 +518,19 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
 
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
-        let mut command = Command::new(binary_path);
+        let runtime_dir = context
+            .plugin_runtime_dir
+            .as_ref()
+            .ok_or("plugin runtime directory unavailable")?;
+        if !runtime_dir
+            .join("node_modules/@cline/core/dist/extensions/plugin-sandbox-bootstrap.js")
+            .is_file()
+        {
+            return Err("packaged plugin SDK runtime is missing".to_string());
+        }
+        let mut command = Command::new(&binary_path);
+        command.env("CLINE_PLUGIN_RUNTIME_EXECUTABLE", &binary_path);
+        command.env("CLINE_PLUGIN_RUNTIME_DIR", runtime_dir);
         command.current_dir(&context.workspace_root);
         command
     } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
@@ -1492,6 +1507,7 @@ fn main() {
     let app_context = AppContext {
         launch_cwd,
         workspace_root,
+        plugin_runtime_dir: None,
     };
 
     tauri::Builder::default()
@@ -1506,10 +1522,15 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
-        .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
-        .setup(|app| {
+        .setup(move |app| {
+            let mut app_context = app_context.clone();
+            if !cfg!(debug_assertions) {
+                app_context.plugin_runtime_dir =
+                    Some(app.path().resource_dir()?.join("plugin-runtime"));
+            }
+            app.manage(app_context);
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),

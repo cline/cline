@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { packagePluginRuntime } from "./plugin-runtime";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -156,6 +157,24 @@ const main = async () => {
 		await buildSidecar(targetTriple);
 	}
 	await buildRemoteHelpers();
+	await packagePluginRuntime(
+		fileURLToPath(new URL("../src-tauri/plugin-runtime", import.meta.url)),
+	);
+	// Exercise the shipping interpreter and payload outside this checkout.
+	// Cross-target binaries cannot execute here; native CI jobs run this gate.
+	const hostTarget =
+		(await $`rustc -vV`.text())
+			.split("\n")
+			.find((line) => line.startsWith("host: "))
+			?.slice(6)
+			.trim() ?? "";
+	if (
+		resolveBunCompileTarget(targetTriple) ===
+			resolveBunCompileTarget(hostTarget) ||
+		(targetTriple === "universal-apple-darwin" && process.platform === "darwin")
+	) {
+		await $`bun run scripts/plugin-runtime-smoke.ts ${sidecarOutfile(targetTriple)} ./src-tauri/plugin-runtime`;
+	}
 };
 
 main().catch((error: unknown) => {
