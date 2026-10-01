@@ -463,12 +463,31 @@ export interface HubTaskAutomationSetInput {
 	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
 }
 
+export interface HubSessionSearchInput {
+	query: string;
+	limit?: number;
+	workspaceRoot?: string;
+}
+
+export interface HubSessionSearchHit {
+	sessionId: string;
+	documentId: string;
+	ordinal: number;
+	role: string;
+	startedAt: string;
+	workspaceRoot: string;
+	title: string;
+	snippet: string;
+	score: number;
+}
+
 /**
  * Strongly typed task command payloads. This map is intentionally extensible so
  * other Hub command families can adopt typed payloads without changing the wire
  * envelope.
  */
 export interface HubCommandInputMap {
+	"session.search": HubSessionSearchInput;
 	"task.create": HubTaskCreateInput;
 	"task.list": AgendaTaskListInput;
 	"task.get": HubTaskIdInput;
@@ -482,6 +501,7 @@ export interface HubCommandInputMap {
 
 /** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": { task: AgendaTaskRecord };
 	"task.list": { tasks: AgendaTaskRecord[] };
 	"task.get": { task?: AgendaTaskRecord };
@@ -510,6 +530,7 @@ export type HubCommandName =
 	| "mention_files.search"
 	| "catalog.list"
 	| "session.list"
+	| "session.search"
 	| "session.create"
 	| "session.attach"
 	| "session.detach"
@@ -522,6 +543,7 @@ export type HubCommandName =
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
+	| "session.steer_first_pending_prompt"
 	| "session.update_pending_prompt"
 	| "session.remove_pending_prompt"
 	| "session.fork"
@@ -978,4 +1000,26 @@ export interface HubUINotifyPayload {
 export interface HubUIShowWindowPayload {
 	windowId?: string;
 	focus?: boolean;
+}
+
+/**
+ * Human phrase for the live work an outdated Hub is serving, used by the
+ * "Hub update required" surfaces in the CLI and the desktop app - the two
+ * must read identically, which is why the copy lives here. Falls back to an
+ * unquantified phrase when the Hub could not answer the activity query.
+ */
+export function describeOutdatedHubSessions(counts: {
+	activeSessionCount?: number;
+	participantClientCount?: number;
+}): string {
+	const sessions = counts.activeSessionCount;
+	if (typeof sessions !== "number" || sessions <= 0) {
+		return "active sessions from other Cline clients";
+	}
+	const sessionsPhrase = `${sessions} active session${sessions === 1 ? "" : "s"}`;
+	const clients = counts.participantClientCount;
+	if (typeof clients !== "number" || clients <= 0) {
+		return sessionsPhrase;
+	}
+	return `${sessionsPhrase} from ${clients} connected Cline client${clients === 1 ? "" : "s"}`;
 }

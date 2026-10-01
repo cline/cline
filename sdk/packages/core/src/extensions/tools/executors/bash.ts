@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import {
 	createWriteStream,
 	type Dirent,
+	existsSync,
 	mkdtempSync,
 	renameSync,
 	rmSync,
@@ -43,6 +44,12 @@ const DETACHED_LOG_FILENAME = "output.log";
 const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command.json";
 const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
 const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
+/**
+ * How long the executor waits after the shell process exits for its stdio
+ * streams to close before completing a command whose background children
+ * still hold the pipes open.
+ */
+const EXIT_STREAM_GRACE_MS = 1_000;
 
 type CommandProgressStream = "stdout" | "stderr";
 
@@ -318,6 +325,59 @@ export class CommandExitError extends Error {
 	) {
 		super(`Command exited with code ${exitCode}`);
 		this.name = "CommandExitError";
+	}
+}
+
+function commandCompletionMessage(
+	code: number | null,
+	signal: NodeJS.Signals | null,
+): string {
+	if (code !== null) return `Command exited with code ${code}`;
+	return signal
+		? `Command terminated by signal ${signal}`
+		: "Command terminated without an exit code";
+}
+
+/** The process terminated without a numeric exit code, usually by signal. */
+export class CommandTerminationError extends Error {
+	constructor(
+		readonly signal: NodeJS.Signals | null,
+		readonly output: string,
+	) {
+		super(commandCompletionMessage(null, signal));
+		this.name = "CommandTerminationError";
+	}
+}
+
+/**
+ * The shell process could not be started, so the command never ran and there
+ * is no exit code. `code` carries the operating system error libuv reported —
+ * `ENOENT`, `EACCES`, `EFTYPE` for a file that is not a valid executable — so
+ * a host can count "the shell is missing" separately from "the command
+ * failed" without parsing the message.
+ *
+ * `ENOENT` alone is ambiguous: spawn reports it both when the executable is
+ * not found and when the working directory no longer exists, with the same
+ * message. `missing` settles it by checking the directory at failure time, so
+ * "shell not on PATH" and "workspace folder gone" stay separately countable.
+ */
+export class CommandSpawnError extends Error {
+	readonly code: string | undefined;
+	/** For `ENOENT`, which path was absent. Undefined for every other code. */
+	readonly missing: "executable" | "cwd" | undefined;
+
+	constructor(cause: Error, options: { cwd?: string } = {}) {
+		super(`Failed to execute command: ${cause.message}`);
+		this.name = "CommandSpawnError";
+		const code = (cause as NodeJS.ErrnoException).code;
+		this.code = typeof code === "string" ? code : undefined;
+		if (this.code !== "ENOENT") {
+			this.missing = undefined;
+		} else if (options.cwd !== undefined && !existsSync(options.cwd)) {
+			this.missing = "cwd";
+		} else {
+			this.missing = "executable";
+		}
 	}
 }
 
@@ -692,6 +752,8 @@ function spawnAndCollect(
 		let processStartToken: string | undefined;
 		let killed = false;
 		let settled = false;
+		let settledOnExitGrace = false;
+		let exitStreamGraceTimer: NodeJS.Timeout | undefined;
 		let detached = false;
 		let detachedLog: ReturnType<typeof createDetachedLog> | undefined;
 		let unregisterExecution = () => {};
@@ -758,6 +820,9 @@ function spawnAndCollect(
 		const abortHandler = () => killAndReject(new Error("Command was aborted"));
 		const cleanup = () => {
 			clearTimeout(timeout);
+			if (exitStreamGraceTimer) {
+				clearTimeout(exitStreamGraceTimer);
+			}
 			context.signal?.removeEventListener("abort", abortHandler);
 			unregisterExecution();
 		};
@@ -896,18 +961,17 @@ function spawnAndCollect(
 			progress.append("stderr", chunk);
 		});
 
-		child.on("close", (code) => {
-			if (killed) return;
-
+		// Shared completion path for 'close' (stdio drained) and the
+		// exit-grace fallback below: snapshot the collectors, flush the final
+		// decoder chunks, and settle with the exit code or signal. `trailingNote` is
+		// appended after truncation so it always reaches the caller.
+		const completeCommand = (
+			code: number | null,
+			signal: NodeJS.Signals | null,
+			trailingNote: string,
+		) => {
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
-			if (detached) {
-				detachedLog?.write(out.finalChunk);
-				detachedLog?.write(err.finalChunk);
-				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
-				detachedLog?.complete();
-				return;
-			}
 			if (out.finalChunk) {
 				progress.append("stdout", out.finalChunk);
 			}
@@ -918,7 +982,6 @@ function spawnAndCollect(
 			cleanup();
 
 			if (code !== 0) {
-				const exitCode = code ?? 1;
 				let failureOutput = combineOutput
 					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
 					: out.text;
@@ -932,11 +995,17 @@ function spawnAndCollect(
 						totalChars,
 					});
 				}
+				const notice = `[${commandCompletionMessage(code, signal)}]`;
 				const result =
-					failureOutput.length > 0
-						? `[Command exited with code ${exitCode}]\n${failureOutput}`
-						: `[Command exited with code ${exitCode}]`;
-				settle(() => reject(new CommandExitError(exitCode, result)));
+					failureOutput.length > 0 ? `${notice}\n${failureOutput}` : notice;
+				const output = trailingNote ? `${result}\n${trailingNote}` : result;
+				settle(() =>
+					reject(
+						code === null
+							? new CommandTerminationError(signal, output)
+							: new CommandExitError(code, output),
+					),
+				);
 			} else {
 				let output = combineOutput
 					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
@@ -951,8 +1020,79 @@ function spawnAndCollect(
 						totalChars,
 					});
 				}
-				settle(() => resolve(output));
+				settle(() =>
+					resolve(trailingNote ? `${output}\n${trailingNote}` : output),
+				);
 			}
+		};
+
+		child.on("close", (code, signal) => {
+			if (killed || settledOnExitGrace) return;
+
+			const out = stdout.snapshot();
+			const err = stderr.snapshot();
+			if (detached) {
+				// The log is finalized here; the exit-grace timer must not
+				// double-write it later.
+				if (exitStreamGraceTimer) {
+					clearTimeout(exitStreamGraceTimer);
+				}
+				detachedLog?.write(out.finalChunk);
+				detachedLog?.write(err.finalChunk);
+				detachedLog?.write(`\n[${commandCompletionMessage(code, signal)}]\n`);
+				detachedLog?.complete();
+				return;
+			}
+			completeCommand(code, signal ?? null, "");
+		});
+
+		// 'close' fires only once the stdio streams have drained. A command
+		// that backgrounds a child (`cmd &`, Start-Process, nohup) leaves the
+		// inherited pipe write-ends held open, so after the shell itself exits
+		// 'close' never arrives and the command would hang until the timeout
+		// kills the whole tree — even though the command, like a prompt
+		// returning in an interactive terminal, actually finished (GitHub
+		// #12417). When the process has exited and the streams stay open past
+		// a grace period, settle with the exit code and the output collected
+		// so far, and release the stream handles so the host process is not
+		// kept alive by the orphaned pipes. Output still trickling in after
+		// the grace belongs to the background processes and is intentionally
+		// not awaited; a command whose own final output needs more than the
+		// grace to drain after exit is rare, and its collected output is
+		// preserved up to that point. A detached command gets the same
+		// treatment for its log: without this, a detached shell that exits
+		// while a descendant holds the pipes would leave the log forever in
+		// the active state, waiting for a 'close' that never comes.
+		child.on("exit", (code, signal) => {
+			if (killed) return;
+			exitStreamGraceTimer = setTimeout(() => {
+				if (killed || settledOnExitGrace) return;
+				if (detached) {
+					// Write the exit record and complete the log here instead
+					// of leaving it for the startup reaper to retire as stale.
+					const out = stdout.snapshot();
+					const err = stderr.snapshot();
+					detachedLog?.write(out.finalChunk);
+					detachedLog?.write(err.finalChunk);
+					detachedLog?.write(`\n[${commandCompletionMessage(code, signal)}]\n`);
+					detachedLog?.complete();
+					return;
+				}
+				if (settled) return;
+				settledOnExitGrace = true;
+				(
+					child.stdout as (typeof child.stdout & { unref?: () => void }) | null
+				)?.unref?.();
+				(
+					child.stderr as (typeof child.stderr & { unref?: () => void }) | null
+				)?.unref?.();
+				child.unref();
+				completeCommand(
+					code,
+					signal ?? null,
+					"[Command completed with background processes still running; their output is no longer captured]",
+				);
+			}, EXIT_STREAM_GRACE_MS);
 		});
 
 		child.on("error", (error) => {
@@ -964,9 +1104,7 @@ function spawnAndCollect(
 			}
 			progress.stop({ flush: true });
 			cleanup();
-			settle(() =>
-				reject(new Error(`Failed to execute command: ${error.message}`)),
-			);
+			settle(() => reject(new CommandSpawnError(error, { cwd: config.cwd })));
 		});
 
 		child.stdin?.on("error", (error) => {
@@ -1019,14 +1157,14 @@ export function createShellExecutor(
 		// Same key-presence rule as the VS Code host's formatCommandForTerminal.
 		const directExec = typeof command !== "string" && "args" in command;
 		const invocation = directExec
-			? { args: command.args ?? [] }
+			? { executable: command.command, args: command.args ?? [] }
 			: getShellInvocation(
 					shell,
 					typeof command === "string" ? command : command.command,
 				);
 		return spawnAndCollect(
 			{
-				executable: directExec ? command.command : shell,
+				executable: invocation.executable,
 				args: invocation.args,
 				cwd,
 				env,

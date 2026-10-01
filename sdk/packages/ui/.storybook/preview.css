@@ -21,3 +21,8 @@ body,
 	background: var(--background);
 	color: var(--foreground);
 }
+
+/* Inline docs examples should size to their content, not the browser viewport. */
+.cline-storybook-surface[data-view-mode="docs"] {
+	min-height: 0;
+}

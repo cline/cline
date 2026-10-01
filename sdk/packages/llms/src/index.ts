@@ -1,4 +1,9 @@
-export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+/** @deprecated Import from `@cline/shared`; kept for compatibility. */
+export {
+	CLINE_DEFAULT_MODEL_ID,
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "@cline/shared";
 export type {
 	GetModelsForProviderOptions,
 	ModelCollection,
@@ -15,11 +20,14 @@ export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	fetchVercelTranscriptionModels,
 	filterImageOutputModels,
 	filterOpenAICodexModels,
+	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,
@@ -75,6 +83,7 @@ export {
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	getGeneratedModelsForRuntimeProvider,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
@@ -90,11 +99,14 @@ export {
 	isClinePassLimitMessage,
 	isProviderApiLine,
 	isRegisteredHandlerAsync,
+	isRetryableProviderError,
 	normalizeProviderId,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 	type ProviderApiLine,
 	registerAsyncHandler,
 	registerHandler,
+	resolveGatewayProviderRegistration,
+	resolveGatewayProviderRegistrationSync,
 	resolveProviderApiLineBaseUrl,
 } from "./providers";
 export {
@@ -102,11 +114,14 @@ export {
 	resolveProviderUsageCostDisplay,
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
+export { buildClineClientHeaders } from "./providers/cline-client-headers";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
+export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	builtinProviderSupportsModelOperation,
+	getBuiltinStreamingTranscriptionModels,
 	providerManifestSupportsModelOperation,
 	resolveModelOperation,
 } from "./providers/model-operations";
@@ -132,7 +147,12 @@ export {
 	type ClineWebSearchResult,
 	createCline,
 } from "./providers/vendors/cline";
-export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export { LangfuseAttributesSpanProcessor } from "./services/LangfuseAttributesSpanProcessor";
+export {
+	disposeLangfuseTelemetry,
+	type LangfuseTraceAttributes,
+	withLangfuseTraceAttributes,
+} from "./services/langfuse-telemetry";
 export {
 	type AudioTranscriptionRequest,
 	type AudioTranscriptionResult,

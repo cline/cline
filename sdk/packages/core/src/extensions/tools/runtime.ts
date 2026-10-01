@@ -92,7 +92,7 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 	{
 		id: "tasks",
 		description:
-			"Create and manage durable Todo items or explicitly requested one-time and recurring agent schedules.",
+			"Create and manage explicitly requested one-time and recurring agent schedules.",
 		headlessToolNames: ["tasks"],
 		unavailableClientTypes: ["cli", "vscode"],
 	},

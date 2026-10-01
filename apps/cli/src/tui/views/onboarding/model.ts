@@ -4,8 +4,14 @@ import type {
 	ModelOperation,
 } from "@cline/shared";
 import { isChatProviderModel } from "../../../utils/chat-models";
-import { isOpenAICodexCliProvider } from "../../../utils/codex-cli";
-import { isOAuthProvider } from "../../../utils/provider-auth";
+import type {
+	LocalCliStatus,
+	ProviderLocalCli,
+} from "../../../utils/local-cli";
+import {
+	isLocalAuthProvider,
+	isOAuthProvider,
+} from "../../../utils/provider-auth";
 
 export type OnboardingStep =
 	| "menu"
@@ -13,7 +19,7 @@ export type OnboardingStep =
 	| "device_code"
 	| "byo_provider"
 	| "byo_apikey"
-	| "codex_cli_setup"
+	| "local_cli_setup"
 	| "cline_pass_subscription"
 	| "cline_model"
 	| "model_picker"
@@ -84,6 +90,35 @@ export const MAIN_MENU: MenuOption[] = [
 		icon: "\u26b7",
 	},
 ];
+
+/**
+ * Which setup flow a provider needs. Keyed off how the provider authenticates,
+ * so every caller routes the same way.
+ */
+export type ProviderSetupRoute = "oauth" | "local_cli" | "api_key";
+
+export function resolveProviderSetupRoute(
+	providerId: string,
+): ProviderSetupRoute {
+	if (isOAuthProvider(providerId)) return "oauth";
+	if (isLocalAuthProvider(providerId)) return "local_cli";
+	return "api_key";
+}
+
+/**
+ * Whether the local-CLI setup screen lets the user connect.
+ */
+export function canContinueLocalCliSetup(
+	_cli: ProviderLocalCli | undefined,
+	_status: LocalCliStatus | undefined,
+): boolean {
+	// The probe only looks on PATH, while the runtime also accepts an explicit
+	// pathToClaudeCodeExecutable and a bundled platform binary, and Codex falls
+	// back through `npx`. A PATH miss therefore means "not on PATH", not
+	// "unusable", so the screen reports it without blocking — a provider that
+	// really cannot start says so on the first turn, in its own words.
+	return true;
+}
 
 export function getMainMenuOptions(options?: {
 	isClinePassEnabled?: boolean;
@@ -174,7 +209,7 @@ export function toProviderEntry(provider: ProviderCatalogItem): ProviderEntry {
 		id: provider.id,
 		name: provider.name,
 		isOAuth: isOAuthProvider(provider.id),
-		isLocalAuth: isOpenAICodexCliProvider(provider.id),
+		isLocalAuth: isLocalAuthProvider(provider.id),
 		hasAuth:
 			Boolean(provider.apiKey) || provider.oauthAccessTokenPresent === true,
 		...(provider.capabilities ? { capabilities: provider.capabilities } : {}),

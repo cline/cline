@@ -6,6 +6,7 @@ import type { JsonRecord } from "../types";
 import {
 	compareSessionRecordsByStartedAtDesc,
 	derivePromptFromMessages,
+	parseTimestamp,
 	resolveSessionListTitle,
 } from "./common";
 import { readPersistedChatMessages } from "./messages";
@@ -48,10 +49,15 @@ export function discoverChatSessions(
 	const out: JsonRecord[] = [];
 	const store = new SqliteSessionStore();
 	for (const [sessionId, session] of ctx.liveSessions.entries()) {
-		if (!session.busy && !session.prompt && session.messages.length === 0) {
+		if (session.config.executionTarget === "cloud") {
 			continue;
 		}
-		const prompt = session.prompt ?? derivePromptFromMessages(session.messages);
+		const prompt =
+			session.prompt?.trim() || derivePromptFromMessages(session.messages);
+		// Runtime startup status is not evidence that a user has started a turn.
+		if (!prompt) {
+			continue;
+		}
 		const resolvedTitle = resolveSessionListTitle({
 			sessionId,
 			metadata: session.title ? { title: session.title } : undefined,
@@ -118,6 +124,7 @@ export function discoverChatSessions(
 					? { ...(manifest.metadata as JsonRecord) }
 					: undefined;
 			const prompt = derivePromptFromMessages(messages);
+			if (!prompt) continue;
 			const resolvedTitle = resolveSessionListTitle({
 				sessionId,
 				metadata,
@@ -160,7 +167,7 @@ export function mergeDiscoveredSessionLists(
 	cli: unknown[],
 	limit: number,
 ): unknown[] {
-	const merged = new Map<string, unknown>();
+	const merged = new Map<string, JsonRecord>();
 	for (const item of [...chat, ...cli]) {
 		if (!item || typeof item !== "object") {
 			continue;
@@ -168,11 +175,15 @@ export function mergeDiscoveredSessionLists(
 		const sessionId = String(
 			(item as JsonRecord).sessionId ?? (item as JsonRecord).session_id ?? "",
 		).trim();
-		if (!sessionId || merged.has(sessionId)) {
+		const key = JSON.stringify([
+			(item as JsonRecord).environmentId ?? "local",
+			sessionId,
+		]);
+		if (!sessionId || merged.has(key)) {
 			continue;
 		}
 		const normalized = item as JsonRecord;
-		merged.set(sessionId, {
+		merged.set(key, {
 			...normalized,
 			sessionId,
 			startedAt:
@@ -185,12 +196,20 @@ export function mergeDiscoveredSessionLists(
 				"",
 		});
 	}
+	const activityTime = (record: JsonRecord) =>
+		Math.max(
+			...[
+				record.lastActivityAt,
+				record.updatedAt,
+				record.endedAt,
+				record.startedAt,
+			].map((value) => parseTimestamp(value as string | number | undefined)),
+		);
 	return Array.from(merged.values())
-		.sort((left, right) =>
-			compareSessionRecordsByStartedAtDesc(
-				left as JsonRecord,
-				right as JsonRecord,
-			),
+		.sort(
+			(left, right) =>
+				activityTime(right) - activityTime(left) ||
+				compareSessionRecordsByStartedAtDesc(left, right),
 		)
 		.slice(0, limit);
 }

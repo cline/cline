@@ -325,4 +325,55 @@ describe("hub discovery", () => {
 			globalThis.fetch = originalFetch;
 		}
 	});
+
+	// Bun's fetch honors HTTP(S)_PROXY with no localhost bypass, so on proxy
+	// machines every loopback hub probe went to the proxy and the healthy hub
+	// looked unreachable (cline/cline#14265, #14292). The probe must exempt
+	// loopback before dialing.
+	it("exempts loopback from a configured proxy before probing", async () => {
+		const previous = {
+			HTTP_PROXY: process.env.HTTP_PROXY,
+			http_proxy: process.env.http_proxy,
+			NO_PROXY: process.env.NO_PROXY,
+			no_proxy: process.env.no_proxy,
+		};
+		// Clear before setting: on Windows process.env is case-insensitive, so
+		// deleting http_proxy after assigning HTTP_PROXY would remove the
+		// variable that was just set and the bypass would correctly do nothing.
+		delete process.env.http_proxy;
+		delete process.env.NO_PROXY;
+		delete process.env.no_proxy;
+		process.env.HTTP_PROXY = "http://127.0.0.1:59999";
+		const fetchMock = async () =>
+			({
+				ok: true,
+				json: async () => ({
+					ok: true,
+					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 25463,
+					url: "ws://127.0.0.1:25463/hub",
+				}),
+			}) as Response;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = fetchMock as typeof fetch;
+		try {
+			await probeHubServer("ws://127.0.0.1:25463/hub");
+			for (const key of ["NO_PROXY", "no_proxy"] as const) {
+				const value = process.env[key] ?? "";
+				expect(value).toContain("127.0.0.1");
+				expect(value).toContain("localhost");
+				expect(value).toContain("::1");
+			}
+		} finally {
+			globalThis.fetch = originalFetch;
+			for (const [key, value] of Object.entries(previous)) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}
+	});
 });

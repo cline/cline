@@ -5,7 +5,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon } from "lucide-react"
+import { AtSignIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -260,7 +260,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-		const { selectedProvider, selectedModelId } = useNormalizedApiConfiguration(mode)
+		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
+		// Images are attached regardless; when the selected model has no image input the thumbnails get a warning
+		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
+		const modelSupportsImages = selectedModelInfo.supportsImages !== false
+		const unsupportedImagesAttached = selectedImages.length > 0 && !modelSupportsImages
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -1563,6 +1567,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<Thumbnails
 							files={selectedFiles}
 							images={selectedImages}
+							imagesUnsupported={unsupportedImagesAttached}
 							onHeightChange={handleThumbnailsHeightChange}
 							setFiles={setSelectedFiles}
 							setImages={setSelectedImages}
@@ -1592,6 +1597,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 				</div>
+				{unsupportedImagesAttached && (
+					<div
+						className="flex items-center gap-1.5 px-3.5 pb-1.5 text-xs"
+						data-testid="images-unsupported-notice"
+						role="status"
+						style={{ color: "var(--vscode-editorWarning-foreground)" }}>
+						<TriangleAlertIcon className="shrink-0" size={12} />
+						<span className="min-w-0">
+							{selectedModelId} doesn't support images, so{" "}
+							{selectedImages.length === 1 ? "the attached image" : `the ${selectedImages.length} attached images`}{" "}
+							will be ignored.{" "}
+							<button
+								className="underline cursor-pointer bg-transparent border-0 p-0 m-0 text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+								data-testid="images-unsupported-choose-model"
+								onClick={handleModelButtonClick}
+								type="button">
+								Choose an image-capable model
+							</button>{" "}
+							or remove {selectedImages.length === 1 ? "it" : "them"}.
+						</span>
+					</div>
+				)}
 				<div className="flex justify-between items-center -mt-[2px] px-3 pb-2">
 					{/* Always render both components, but control visibility with CSS */}
 					<div className="relative flex-1 min-w-0 h-5">

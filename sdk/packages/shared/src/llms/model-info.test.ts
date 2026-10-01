@@ -1,11 +1,52 @@
 import { describe, expect, it } from "vitest";
 import {
 	isChatCompatibleModel,
+	isTranscriptionModel,
 	ModelInfoSchema,
 	modelHasCapability,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	supportsChatModalities,
 } from "./model-info";
+
+describe("isTranscriptionModel", () => {
+	it("accepts exact audio-to-text modalities without requiring a name or operation", () => {
+		expect(
+			isTranscriptionModel({
+				modalities: { input: ["audio"], output: ["text"] },
+			}),
+		).toBe(true);
+	});
+	it("rejects multimodal realtime models even when labeled transcription", () => {
+		const model = {
+			operation: "transcription" as const,
+			modalities: { input: ["audio", "text", "image"], output: ["text"] },
+		};
+		expect(isTranscriptionModel(model)).toBe(false);
+		const missing = { operation: "transcription" as const };
+		expect(isTranscriptionModel({ modalities: undefined, ...missing })).toBe(
+			false,
+		);
+	});
+	it("does not treat general multimodal chat or speech generation as transcription", () => {
+		expect(
+			isTranscriptionModel({
+				modalities: { input: ["audio", "text"], output: ["text"] },
+			}),
+		).toBe(false);
+		expect(
+			isTranscriptionModel({
+				modalities: { input: ["audio"], output: ["audio", "text"] },
+			}),
+		).toBe(false);
+		expect(
+			isTranscriptionModel({
+				modalities: { input: ["text"], output: ["audio"] },
+			}),
+		).toBe(false);
+		expect(isTranscriptionModel({})).toBe(false);
+	});
+});
 
 describe("supportsChatModalities", () => {
 	it("keeps models with absent legacy modality metadata", () => {
@@ -51,6 +92,7 @@ describe("isChatCompatibleModel", () => {
 
 	it("rejects non-language operations even without modality metadata", () => {
 		expect(isChatCompatibleModel({ operation: "transcription" })).toBe(false);
+		expect(isChatCompatibleModel({ operation: "realtime" })).toBe(false);
 		expect(isChatCompatibleModel({ operation: "speech-generation" })).toBe(
 			false,
 		);
@@ -135,6 +177,20 @@ describe("modelSupportsToolCalling", () => {
 		expect(modelSupportsToolCalling({ capabilities: ["tools"] })).toBe(true);
 		expect(
 			modelSupportsToolCalling({ capabilities: ["images", "prompt-cache"] }),
+		).toBe(false);
+	});
+});
+
+describe("modelSupportsImageInput", () => {
+	it("fails open when capability metadata is missing or empty", () => {
+		expect(modelSupportsImageInput({})).toBe(true);
+		expect(modelSupportsImageInput({ capabilities: [] })).toBe(true);
+	});
+
+	it("trusts a populated capability list", () => {
+		expect(modelSupportsImageInput({ capabilities: ["images"] })).toBe(true);
+		expect(
+			modelSupportsImageInput({ capabilities: ["tools", "prompt-cache"] }),
 		).toBe(false);
 	});
 });

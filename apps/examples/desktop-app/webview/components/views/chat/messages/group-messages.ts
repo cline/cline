@@ -1,5 +1,6 @@
 import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { parseToolPayload } from "./tool-summaries";
 
 export type ChatRenderItem =
 	| {
@@ -28,6 +29,24 @@ export type ChatRenderItem =
 			id: string;
 			items: ChatRenderItem[];
 	  };
+
+/**
+ * Runtime steering notes injected into the conversation as user-role
+ * messages (completion-tool reminders, team-obligation nudges). They are
+ * machinery talking to the model, not the person talking, so the transcript
+ * renders them as subtle system rows and folds them into the run's working
+ * span instead of showing user bubbles.
+ */
+export function isSystemSteeringMessage(message: ChatMessage): boolean {
+	return (
+		message.role === "user" &&
+		// Injected reminders carry userRunSpan 0 (they are not user turns);
+		// requiring it keeps a person's genuine prompt that happens to start
+		// with "[SYSTEM]" visible and turn-counted.
+		message.meta?.userRunSpan === 0 &&
+		message.content.trimStart().startsWith("[SYSTEM]")
+	);
+}
 
 export function hasMessageReasoning(message: ChatMessage): boolean {
 	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
@@ -66,7 +85,8 @@ export function buildUserRunCountMap(
 
 	for (const message of messages) {
 		const userRunSpan =
-			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
+			message.meta?.userRunSpan ??
+			(message.role === "user" && !isSystemSteeringMessage(message) ? 1 : 0);
 		const storedRunCount =
 			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
 		if (storedRunCount !== undefined) {
@@ -119,8 +139,9 @@ export type CollapseWorkOptions = {
  */
 function isCollapsibleWorkItem(item: ChatRenderItem): boolean {
 	if (item.type === "tools") return true;
+	if (item.type !== "message") return false;
+	if (isSystemSteeringMessage(item.message)) return true;
 	return (
-		item.type === "message" &&
 		item.message.role === "assistant" &&
 		!item.message.images?.length &&
 		!item.message.media?.length
@@ -154,6 +175,18 @@ function maxFiniteTimestamp(
 	return max;
 }
 
+/**
+ * A `submit_and_exit` call carries the run's final report (scheduled tasks
+ * end with it), so a run that ends on one treats that row as its deliverable
+ * — it must stay visible when the working rows fold into a work summary.
+ */
+function isSubmitAndExitMessage(message: ChatMessage): boolean {
+	if (message.role !== "tool") return false;
+	const toolName =
+		message.meta?.toolName || parseToolPayload(message.content)?.toolName;
+	return toolName?.toLowerCase() === "submit_and_exit";
+}
+
 function firstMessageId(item: ChatRenderItem): string | undefined {
 	if (item.type === "tools") return item.messages[0]?.id;
 	if (item.type === "message") {
@@ -165,7 +198,8 @@ function firstMessageId(item: ChatRenderItem): string | undefined {
 /**
  * Folds each finished run's working rows (tool calls, thinking traces,
  * intermediate narration) into a single expandable `work` item, keeping the
- * run's final answer — the assistant text the run ended on — visible after it.
+ * run's final answer — the assistant text or submit_and_exit report the run
+ * ended on — visible after it.
  * Working rows that stay visible (live stream, tool-less runs, tails that
  * never produced an answer) are grouped into a `run` item instead, so they
  * share one tight rhythm and hold their position when the collapse happens.
@@ -177,7 +211,11 @@ export function collapseCompletedWork(
 	let lastUserIndex = -1;
 	for (let index = items.length - 1; index >= 0; index--) {
 		const item = items[index];
-		if (item.type === "message" && item.message.role === "user") {
+		if (
+			item.type === "message" &&
+			item.message.role === "user" &&
+			!isSystemSteeringMessage(item.message)
+		) {
 			lastUserIndex = index;
 			break;
 		}
@@ -191,13 +229,33 @@ export function collapseCompletedWork(
 
 	const flushSpan = (nextIndex: number) => {
 		if (span.length === 0) return;
-		// "Done" means assistant text not followed by more tool calls: that
-		// message is the run's answer and stays visible below the summary.
+		// "Done" means the run ended on its deliverable: assistant text not
+		// followed by more tool calls, or a submit_and_exit call carrying the
+		// run's final report. That item is the run's answer and stays visible
+		// below the summary.
 		const last = span.at(-1);
-		const answer =
-			last?.type === "message" && last.message.content.trim()
-				? last
-				: undefined;
+		let answer: ChatRenderItem | undefined;
+		let workRows = span;
+		if (
+			last?.type === "message" &&
+			last.message.role === "assistant" &&
+			last.message.content.trim()
+		) {
+			answer = last;
+			workRows = span.slice(0, -1);
+		} else if (last?.type === "tools") {
+			const lastToolMessage = last.messages.at(-1);
+			if (lastToolMessage && isSubmitAndExitMessage(lastToolMessage)) {
+				answer = { type: "tools", messages: [lastToolMessage] };
+				workRows =
+					last.messages.length > 1
+						? [
+								...span.slice(0, -1),
+								{ type: "tools", messages: last.messages.slice(0, -1) },
+							]
+						: span.slice(0, -1);
+			}
+		}
 		// A span is settled once a later user message exists. The trailing span
 		// settles only when the session stopped running AND the run actually
 		// ended on an answer — a cancelled or failed tail keeps its rows
@@ -205,7 +263,7 @@ export function collapseCompletedWork(
 		const complete =
 			nextIndex <= lastUserIndex ||
 			(collapseTrailingRun && answer !== undefined);
-		const collapsed = complete && answer ? span.slice(0, -1) : span;
+		const collapsed = complete && answer ? workRows : span;
 		const toolCallCount = collapsed.reduce(
 			(count, item) =>
 				item.type === "tools" ? count + item.messages.length : count,
@@ -216,8 +274,11 @@ export function collapseCompletedWork(
 			// Not collapsed: group the working rows (everything but a trailing
 			// answer-looking message) so they render with the tight in-run
 			// rhythm instead of full transcript spacing. Pure prose spans have
-			// no tool work to group and keep normal spacing.
-			const body = answer ? span.slice(0, -1) : span;
+			// no tool work to group and keep normal spacing. A trailing submit
+			// row stays inside the group here — it only pops out once the run
+			// actually collapses.
+			const messageAnswer = answer?.type === "message" ? answer : undefined;
+			const body = messageAnswer ? span.slice(0, -1) : span;
 			const firstBody = body[0];
 			const hasToolWork = body.some((item) => item.type === "tools");
 			if (body.length >= 2 && hasToolWork && firstBody !== undefined) {
@@ -226,8 +287,8 @@ export function collapseCompletedWork(
 					id: firstMessageId(firstBody) ?? "run",
 					items: body,
 				});
-				if (answer) {
-					out.push(answer);
+				if (messageAnswer) {
+					out.push(messageAnswer);
 				}
 			} else {
 				out.push(...span);

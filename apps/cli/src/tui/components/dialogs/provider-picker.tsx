@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
@@ -15,11 +16,10 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-	checkCodexCliInstalled,
-	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
+	checkLocalCliInstalled,
+	type LocalCliStatus,
+	type ProviderLocalCli,
+} from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { useDialogPalette } from "../../hooks/use-theme";
@@ -33,6 +33,7 @@ import {
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
 import { getProviderSection } from "../../utils/provider-sections";
+import { canContinueLocalCliSetup } from "../../views/onboarding/model";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -82,7 +83,7 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: isOpenAICodexCliProvider(p.id),
+					isLocalAuth: isLocalAuthProvider(p.id),
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -493,6 +494,7 @@ export function ProviderConfigInputContent(
 		providerSettingsManager,
 	} = props;
 	const palette = useDialogPalette();
+	const [saveError, setSaveError] = useState("");
 
 	const config = useMemo(
 		() => getProviderConfigFields(providerId),
@@ -553,7 +555,7 @@ export function ProviderConfigInputContent(
 		() => fieldKeys[0] ?? "apiKey",
 	);
 
-	const submit = () => {
+	const submit = async () => {
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAzureFields = config.fields.azureApiVersion;
@@ -565,22 +567,27 @@ export function ProviderConfigInputContent(
 			config.fields.sapTokenUrl ||
 			config.fields.sapResourceGroup ||
 			config.fields.sapDeploymentId;
-		saveLocalProviderSettings(providerSettingsManager, {
-			providerId,
-			apiKey: config.fields.apiKey ? apiKey : undefined,
-			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
-			azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
-			aws: hasAwsFields
-				? {
-						region: resolveProviderConfigAwsRegion(values),
-						authentication: apiKey ? "api-key" : "profile",
-						profile: apiKey ? undefined : awsProfile || undefined,
-					}
-				: undefined,
-			gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
-			sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
-		});
-		resolve(true);
+		setSaveError("");
+		try {
+			await saveLocalProviderSettings(providerSettingsManager, {
+				providerId,
+				apiKey: config.fields.apiKey ? apiKey : undefined,
+				baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
+				azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
+				aws: hasAwsFields
+					? {
+							region: resolveProviderConfigAwsRegion(values),
+							authentication: apiKey ? "api-key" : "profile",
+							profile: apiKey ? undefined : awsProfile || undefined,
+						}
+					: undefined,
+				gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
+				sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
+			});
+			resolve(true);
+		} catch (error) {
+			setSaveError(error instanceof Error ? error.message : String(error));
+		}
 	};
 
 	useDialogKeyboard((key) => {
@@ -607,6 +614,7 @@ export function ProviderConfigInputContent(
 			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
+			{saveError && <text fg="red">{saveError}</text>}
 
 			{config.description && <text fg="gray">{config.description}</text>}
 
@@ -654,29 +662,25 @@ export function ProviderConfigInputContent(
 	);
 }
 
-export function CodexCliStatusContent(
+export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
+		cli?: ProviderLocalCli;
 		providerName: string;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
+	const { resolve, dismiss, dialogId, cli, providerName } = props;
 	const palette = useDialogPalette();
-	const [status, setStatus] = useState<CodexCliStatus | undefined>();
+	const [status, setStatus] = useState<LocalCliStatus | undefined>();
 	const [checking, setChecking] = useState(false);
 
 	const refresh = useCallback(() => {
+		if (!cli) return;
 		setStatus(undefined);
 		setChecking(true);
-		checkCodexCliInstalled()
+		checkLocalCliInstalled(cli)
 			.then(setStatus)
-			.catch((error: unknown) => {
-				setStatus({
-					installed: false,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			})
 			.finally(() => setChecking(false));
-	}, []);
+	}, [cli]);
 
 	useEffect(() => {
 		refresh();
@@ -691,7 +695,7 @@ export function CodexCliStatusContent(
 			refresh();
 			return;
 		}
-		if (key.name === "return" && status?.installed) {
+		if (key.name === "return" && canContinueLocalCliSetup(cli, status)) {
 			resolve(true);
 		}
 	}, dialogId);
@@ -702,31 +706,37 @@ export function CodexCliStatusContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			{checking && <text fg="gray">Checking for Codex CLI...</text>}
+			{checking && <text fg="gray">Checking for {providerName}...</text>}
 
 			{status?.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg={palette.success}>{"\u25cf"} Codex CLI installed</text>
+					<text fg={palette.success}>
+						{"\u25cf"} {providerName} installed
+					</text>
 					<text fg="gray">{status.version}</text>
 				</box>
 			)}
 
 			{status && !status.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg="yellow">Codex CLI was not found</text>
+					<text fg="yellow">{providerName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install Codex CLI from:</text>
-					<text fg={palette.act} selectable>
-						{CODEX_CLI_INSTALL_URL}
-					</text>
+					{cli?.docsUrl && (
+						<box flexDirection="column">
+							<text fg="gray">Install {providerName} from:</text>
+							<text fg={palette.act} selectable>
+								{cli.docsUrl}
+							</text>
+						</box>
+					)}
 				</box>
 			)}
 
 			<text fg="gray">
 				<em>
-					{status?.installed
+					{cli
 						? "Enter to continue, R to recheck, Esc to go back"
-						: "R to recheck, Esc to go back"}
+						: "Enter to continue, Esc to go back"}
 				</em>
 			</text>
 		</box>
@@ -976,13 +986,23 @@ export function OAuthApiKeyInputContent(
 		providerSettingsManager,
 	} = props;
 	const palette = useDialogPalette();
+	const [saveError, setSaveError] = useState("");
 	const [value, setValue] = useState("");
 
-	const submit = () => {
+	const submit = async () => {
 		const apiKey = value.trim();
 		if (!apiKey) return;
-		saveManualProviderApiKey(providerSettingsManager, providerId, apiKey);
-		resolve(true);
+		setSaveError("");
+		try {
+			await saveManualProviderApiKey(
+				providerSettingsManager,
+				providerId,
+				apiKey,
+			);
+			resolve(true);
+		} catch (error) {
+			setSaveError(error instanceof Error ? error.message : String(error));
+		}
 	};
 
 	useDialogKeyboard((key) => {
@@ -1000,6 +1020,7 @@ export function OAuthApiKeyInputContent(
 			<text fg={palette.act}>
 				<strong>{providerName}</strong>
 			</text>
+			{saveError && <text fg="red">{saveError}</text>}
 
 			<text fg="gray">
 				Use an API key from your Cline dashboard instead of OAuth login. This

@@ -27,6 +27,12 @@
 	font-variant: inherit;
 	letter-spacing: inherit;
 	line-height: inherit;
+	/* The Button base sets `whitespace-nowrap`, and clsx keeps both classes on
+	 * the element, letting the utility stylesheet's order pick nowrap. This
+	 * unlayered rule beats layered utilities so long options wrap instead of
+	 * clipping under the item's overflow:hidden. */
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .cline-ui-agent-ask-question__option:hover:not(:disabled) {

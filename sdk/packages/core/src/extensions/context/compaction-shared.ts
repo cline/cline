@@ -15,9 +15,21 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 export const CONTEXT_WINDOW_INPUT_RATIO = 0.9;
 /** Compact once the transcript consumes this share of the usable input budget. */
 export const COMPACTION_TRIGGER_RATIO = 0.9;
+/**
+ * Upper bound on how far the provider's actual input count may scale the
+ * compaction budget down relative to the character-based estimate. Dense
+ * content realistically tokenizes ~2-3x denser than the 3-chars-per-token
+ * assumption; the cap stops a pathologically small estimate from collapsing
+ * the budget and compacting every turn.
+ */
+export const MAX_INPUT_UNDERESTIMATE_FACTOR = 4;
 export const DEFAULT_TARGET_RATIO = 0.7;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
-export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 4_096;
+// Headroom for the summarizer's output. Raised from 4096: models that reason
+// by default can spend part of a tight budget on thinking and return no
+// summary text at all, which skips compaction entirely. 8192 leaves room for a
+// real summary even when some reasoning slips through.
+export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 8_192;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
 export const FILE_CONTENT_CHAR_LIMIT = 2_000;
 export const MIN_TRUNCATED_MESSAGE_TOKENS = 8;

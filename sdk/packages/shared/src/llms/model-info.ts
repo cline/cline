@@ -66,6 +66,10 @@ export const ModelMetadataSchema = z
 	// Keep metadata open for catalog-defined facts while typing routing fields.
 	.object({
 		reasoningDefaultOn: z.boolean().optional(),
+		/** Per-model wire protocol for gateways that serve multiple API formats. */
+		apiProtocol: z
+			.enum(["openai-chat", "openai-responses", "anthropic", "gemini"])
+			.optional(),
 	})
 	.catchall(z.unknown());
 
@@ -125,9 +129,25 @@ export const ModelOperationSchema = z.enum([
 	"speech-generation",
 	"video-generation",
 	"transcription",
+	"realtime",
 ]);
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
+
+/** Voice input requires exactly audio input and text output. Model names and
+ * operation labels cannot widen this to a multimodal realtime session. */
+export function isTranscriptionModel(model: {
+	modalities?: { input?: readonly string[]; output?: readonly string[] };
+}): boolean {
+	const input = model.modalities?.input;
+	const output = model.modalities?.output;
+	return (
+		input?.length === 1 &&
+		input[0] === "audio" &&
+		output?.length === 1 &&
+		output[0] === "text"
+	);
+}
 
 export type ChatCompatibleModelDescriptor = {
 	readonly operation?: ModelOperation;
@@ -218,6 +238,19 @@ export function modelSupportsToolCalling(model: {
 	capabilities?: readonly string[];
 }): boolean {
 	return modelHasCapability(model, "tools", { assumeWhenUnspecified: true });
+}
+
+/**
+ * Whether a model can receive image parts in a request. Fails open on the
+ * same grounds as `modelSupportsToolCalling`: a host boundary that reports no
+ * capabilities at all has not declared the model text-only, and stripping
+ * images from a vision-capable model loses user content silently. A populated
+ * list without `images` is authoritative.
+ */
+export function modelSupportsImageInput(model: {
+	capabilities?: readonly string[];
+}): boolean {
+	return modelHasCapability(model, "images", { assumeWhenUnspecified: true });
 }
 
 export const ModelInfoSchema = z.object({

@@ -22,6 +22,7 @@ import {
 	truncateHookContext,
 } from "./subprocess";
 import {
+	type RunSubprocessEventOptions,
 	type RunSubprocessEventResult,
 	runSubprocessEvent,
 } from "./subprocess-runner";
@@ -75,6 +76,21 @@ type HookCommandSessionShutdownContext = HookContextBase & {
 	reason?: string;
 };
 
+/**
+ * Reports how long a fire-and-forget hook actually ran, once per hook. Hosts
+ * use it to learn the real runtime distribution of detached hooks —
+ * unmeasurable while nothing awaits them — before deciding to run any of them
+ * blocking. `exited: false` is a censored observation (the hook was still
+ * running after the observation window, so it ran at least `durationMs`),
+ * which is what keeps the sample from covering only hooks that finish.
+ */
+export type HookRuntimeObserver = (event: {
+	hookName: HookEventName;
+	durationMs: number;
+	exitCode: number | null;
+	exited: boolean;
+}) => void;
+
 type HookRuntimeOptions = {
 	cwd: string;
 	workspacePath: string;
@@ -83,6 +99,18 @@ type HookRuntimeOptions = {
 	toolCallTimeoutMs?: number;
 	/** Keep asynchronous hooks attached until exit. Intended for deterministic tests. */
 	detachAsyncHooks?: boolean;
+	/**
+	 * Run agent_start/agent_resume hooks blocking, honoring their control
+	 * output (cancel, contextModification). Off by default: these hooks have
+	 * always been fire-and-forget with stdio ignored, so an existing
+	 * long-running script would otherwise stall every run start until the
+	 * timeout. A host that flips this on must tell hook authors that
+	 * long-running run-start hooks need to background themselves (spawn a
+	 * detached child and exit).
+	 */
+	blockingRunStartHooks?: boolean;
+	/** Observes how long detached hooks run. See {@link HookRuntimeObserver}. */
+	onHookRuntime?: HookRuntimeObserver;
 	/** Structured git + path metadata forwarded into every hook payload. */
 	workspaceInfo?: WorkspaceInfo;
 };
@@ -235,6 +263,7 @@ async function runHookCommand(
 		env?: NodeJS.ProcessEnv;
 		detached: boolean;
 		timeoutMs?: number;
+		onDetachedSettled?: RunSubprocessEventOptions["onDetachedSettled"];
 	},
 ): Promise<RunSubprocessEventResult | undefined> {
 	if (options.command.length === 0) {
@@ -430,8 +459,11 @@ async function runAsyncHookCommands(options: {
 	cwd: string;
 	logger?: BasicLogger;
 	detached: boolean;
+	onHookRuntime?: HookRuntimeObserver;
 }): Promise<void> {
 	if (options.detached) {
+		const observer = options.onHookRuntime;
+		const hookName = options.payload.hookName;
 		for (const command of options.commands) {
 			const commandLabel = command.join(" ");
 			void runHookCommand(options.payload, {
@@ -439,6 +471,15 @@ async function runAsyncHookCommands(options: {
 				cwd: options.cwd,
 				env: process.env,
 				detached: true,
+				onDetachedSettled: observer
+					? (event) =>
+							observer({
+								hookName,
+								durationMs: event.durationMs,
+								exitCode: event.exitCode,
+								exited: event.exited,
+							})
+					: undefined,
 			}).catch((error) => {
 				logHookError(
 					options.logger,
@@ -564,7 +605,9 @@ function beforeToolResultFromControl(
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function afterToolResultFromControl(
+// Shared by afterTool and beforeRun: both may stop the run or inject
+// context, and neither can override tool input.
+function stopOrContextResultFromControl(
 	control: HookCommandControl | undefined,
 ): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
 	if (!control) {
@@ -689,7 +732,13 @@ export function createHookAuditHooks(options: {
 			}
 		},
 		onEvent: async (event: AgentRuntimeEvent) => {
-			if (event.type !== "message-added" || event.message.role !== "user") {
+			if (
+				event.type !== "message-added" ||
+				event.message.role !== "user" ||
+				// Injected hook-context blocks are user-role messages with a
+				// system display role; they are not user prompts.
+				event.message.metadata?.displayRole === "system"
+			) {
 				return;
 			}
 			const commandCtx = runStartContext(
@@ -719,34 +768,51 @@ export function createHookConfigFileHooks(
 		return undefined;
 	}
 
+	// With blockingRunStartHooks, run-start hooks execute blocking so their
+	// output is collected: like the tool hooks, they may cancel the run or
+	// inject context, neither of which is possible from a detached spawn with
+	// ignored stdio. The default stays fire-and-forget so existing
+	// long-running run-start scripts don't stall every run until the timeout.
 	const runAgentStart = async (
 		ctx: HookContextBase,
 		hookName: "agent_start" | "agent_resume",
-	): Promise<void> => {
+	): Promise<HookCommandControl | undefined> => {
 		const commandPaths = commandMap[hookName] ?? [];
 		if (commandPaths.length === 0) {
-			return;
+			return undefined;
 		}
-		await runAsyncHookCommands({
+		const payload =
+			hookName === "agent_resume"
+				? {
+						...createPayloadBase(ctx, options),
+						hookName,
+						taskResume: {
+							taskMetadata: {},
+							previousState: {},
+						},
+					}
+				: {
+						...createPayloadBase(ctx, options),
+						hookName,
+						taskStart: { taskMetadata: {} },
+					};
+		if (!options.blockingRunStartHooks) {
+			await runAsyncHookCommands({
+				commands: commandPaths,
+				cwd: options.cwd,
+				logger: options.logger,
+				detached: options.detachAsyncHooks ?? true,
+				onHookRuntime: options.onHookRuntime,
+				payload,
+			});
+			return undefined;
+		}
+		return runBlockingHookCommands({
 			commands: commandPaths,
 			cwd: options.cwd,
 			logger: options.logger,
-			detached: options.detachAsyncHooks ?? true,
-			payload:
-				hookName === "agent_resume"
-					? {
-							...createPayloadBase(ctx, options),
-							hookName,
-							taskResume: {
-								taskMetadata: {},
-								previousState: {},
-							},
-						}
-					: {
-							...createPayloadBase(ctx, options),
-							hookName,
-							taskStart: { taskMetadata: {} },
-						},
+			timeoutMs: options.toolCallTimeoutMs ?? 120000,
+			payload,
 		});
 	};
 
@@ -760,6 +826,7 @@ export function createHookConfigFileHooks(
 				cwd: options.cwd,
 				logger: options.logger,
 				detached: options.detachAsyncHooks ?? true,
+				onHookRuntime: options.onHookRuntime,
 				payload: {
 					...createPayloadBase(ctx, options),
 					hookName: "prompt_submit",
@@ -842,6 +909,7 @@ export function createHookConfigFileHooks(
 			cwd: options.cwd,
 			logger: options.logger,
 			detached: options.detachAsyncHooks ?? true,
+			onHookRuntime: options.onHookRuntime,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "agent_end",
@@ -864,6 +932,7 @@ export function createHookConfigFileHooks(
 			cwd: options.cwd,
 			logger: options.logger,
 			detached: options.detachAsyncHooks ?? true,
+			onHookRuntime: options.onHookRuntime,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "agent_error",
@@ -888,6 +957,7 @@ export function createHookConfigFileHooks(
 					cwd: options.cwd,
 					logger: options.logger,
 					detached: options.detachAsyncHooks ?? true,
+					onHookRuntime: options.onHookRuntime,
 					payload: {
 						...createPayloadBase(ctx, options),
 						hookName: "agent_abort",
@@ -906,6 +976,7 @@ export function createHookConfigFileHooks(
 			cwd: options.cwd,
 			logger: options.logger,
 			detached: options.detachAsyncHooks ?? true,
+			onHookRuntime: options.onHookRuntime,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "session_shutdown",
@@ -929,13 +1000,29 @@ export function createHookConfigFileHooks(
 					process.env.CLINE_HOOK_AGENT_RESUME === "1"
 						? "agent_resume"
 						: "agent_start";
-				await runAgentStart(baseContextFromSnapshot(ctx.snapshot), hookName);
-				return undefined;
+				const control = await runAgentStart(
+					baseContextFromSnapshot(ctx.snapshot),
+					hookName,
+				);
+				return stopOrContextResultFromControl(control);
 			};
 		}
 		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
+			// prompt_submit dispatches on message-added, which has no return
+			// channel, so prompt hooks at this layer cannot cancel or inject
+			// context. Note the two host paths differ: a directly-driven
+			// runtime pushes the prompt as run input (visible here, absent
+			// from the beforeRun snapshot), while orchestrated sessions seed
+			// the prompt into the runtime's initial messages (visible to
+			// beforeRun, never emitted as message-added).
 			hooks.onEvent = async (event: AgentRuntimeEvent) => {
-				if (event.type !== "message-added" || event.message.role !== "user") {
+				if (
+					event.type !== "message-added" ||
+					event.message.role !== "user" ||
+					// Injected hook-context blocks are user-role messages with a
+					// system display role; they are not user prompts.
+					event.message.metadata?.displayRole === "system"
+				) {
 					return;
 				}
 				await runPromptSubmit(
@@ -956,7 +1043,7 @@ export function createHookConfigFileHooks(
 	if ((commandMap.tool_result?.length ?? 0) > 0) {
 		hooks.afterTool = async (ctx: AgentAfterToolContext) => {
 			const control = await runToolCallEnd(toolCallEndContext(ctx));
-			return afterToolResultFromControl(control);
+			return stopOrContextResultFromControl(control);
 		};
 	}
 	if ((commandMap.agent_end?.length ?? 0) > 0) {
@@ -1035,6 +1122,12 @@ function mergeHookFunction<K extends keyof AgentHooks>(
 						typeof value === "string" && value.length > 0,
 				)
 				.join("\n\n");
+			// A stopping layer ends the merge: later layers' hooks are not run
+			// for a turn that is already cancelled (each is a blocking
+			// subprocess with its own timeout budget).
+			if (record.stop === true) {
+				return { ...(merged ?? {}), ...record, stop: true };
+			}
 			merged = {
 				...(merged ?? {}),
 				...record,

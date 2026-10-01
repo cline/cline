@@ -109,7 +109,9 @@ export async function handleDesktopCommand(
 		const provider = String(args?.provider ?? "").trim();
 		return await getLocalProviderModels(
 			provider,
-			providerSettingsManager.getProviderConfig(provider),
+			providerSettingsManager.getProviderConfig(provider, {
+				includeKnownModels: false,
+			}),
 		);
 	}
 	if (command === "save_provider_settings") {
@@ -263,6 +265,19 @@ export async function handleDesktopCommand(
 		command === "list_discovered_sessions"
 	) {
 		return [...ctx.sessions.values()].map(toWebviewSessionSummary);
+	}
+	if (command === "search_sessions") {
+		if (!ctx.uiClient) throw new Error("Hub is not connected");
+		const query = String(args?.query ?? "").trim();
+		if (!query) return [];
+		return await ctx.uiClient.searchSessions({
+			query,
+			limit: typeof args?.limit === "number" ? args.limit : 50,
+			workspaceRoot:
+				typeof args?.workspaceRoot === "string"
+					? args.workspaceRoot
+					: undefined,
+		});
 	}
 	if (command === "read_session_hooks") {
 		return [];

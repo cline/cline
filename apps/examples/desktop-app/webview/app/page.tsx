@@ -1,6 +1,11 @@
 "use client";
 
-import { ImagePlus, Loader2 } from "lucide-react";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	type ProviderAuthInfo,
+} from "@cline/shared/browser";
+import { AttachmentDropZone } from "@cline/ui";
+import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -13,6 +18,7 @@ import {
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -32,39 +38,70 @@ import {
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
+import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
+import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
-import { AccountProvider } from "@/contexts/account-context";
+import { WhatsNewDialog } from "@/components/whats-new-dialog";
+import {
+	WindowTitleBar,
+	WindowTitleBarContent,
+	WindowTitleBarProvider,
+} from "@/components/window-title-bar";
+import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { useAppUpdate } from "@/hooks/use-app-update";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import type { ProcessContext } from "@/hooks/chat-session/types";
+import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
+import {
+	humanizeCloudSessionError,
+	parseCloudSessionError,
+} from "@/lib/cloud-session-error";
 import {
 	createDesktopAppState,
 	type DesktopAppLocation,
 	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
 	subscribeToDesktopActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	cloudImageAttachmentError,
+	imageAttachmentMediaType,
+	isSupportedImageAttachment,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
+import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
+import {
+	readModelSelectionStorageFromWindow,
+	writeExecutionTargetToWindow,
+	writeModelSelectionStorageToWindow,
+} from "@/lib/model-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -72,6 +109,11 @@ import {
 	subscribeToProviderCatalogInvalidation,
 	writeProviderCatalogSnapshot,
 } from "@/lib/provider-model-catalog";
+import type {
+	RemoteEnvironmentConnectResult,
+	RemoteEnvironmentListResult,
+	RemoteEnvironmentProfile,
+} from "@/lib/remote-environments";
 import {
 	buildSessionAgentActivity,
 	mergeAgentActivity,
@@ -81,9 +123,31 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
+import { readImportedFromTool } from "@/lib/session-import";
+import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
+	markCurrentWhatsNewSeen,
+	markWhatsNewSeen,
+	pendingWhatsNew,
+} from "@/lib/whats-new";
+import type { WhatsNewRelease } from "@/lib/whats-new-content";
+import {
+	readWorkInFromWindow,
+	startsNewThread,
+	TASK_WORKTREE_DELETE_WARNING,
+	type WorkIn,
+	writeWorkInToWindow,
+} from "@/lib/work-in-selection";
+import {
+	type RemoteWorkspaceEnvironment,
+	remoteWorkspaceEnvironmentFromContext,
+} from "@/lib/workspace-environment";
+import {
 	filterWorkspacePaths,
+	isTaskWorktreePath,
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -144,6 +208,82 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
+const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
+
+function readCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	return value === "provisioning" ||
+		value === "cloning_repo" ||
+		value === "agent_starting" ||
+		value === "ready" ||
+		value === "failed"
+		? value
+		: undefined;
+}
+
+function useCloudProvisioningPhase(
+	repoUrl: string | undefined,
+	active: boolean,
+	phase: CloudProvisioningPhase | undefined,
+	startedAt: string | undefined,
+): string {
+	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
+	const [longRunning, setLongRunning] = useState(false);
+	useEffect(() => {
+		if (!active) {
+			setLongRunning(false);
+			return;
+		}
+		const parsedStartedAt = Date.parse(startedAt ?? "");
+		const elapsed = Number.isFinite(parsedStartedAt)
+			? Math.max(0, Date.now() - parsedStartedAt)
+			: 0;
+		if (elapsed >= LONG_PROVISIONING_THRESHOLD_MS) {
+			setLongRunning(true);
+			return;
+		}
+		setLongRunning(false);
+		const timeout = window.setTimeout(
+			() => setLongRunning(true),
+			LONG_PROVISIONING_THRESHOLD_MS - elapsed,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [active, startedAt]);
+	const label =
+		phase === "cloning_repo"
+			? repoLabel
+				? `Cloning ${repoLabel}`
+				: "Cloning your repository"
+			: phase === "agent_starting"
+				? "Starting the agent"
+				: "Starting your workspace";
+	return longRunning
+		? `${label}... This may take several minutes.`
+		: `${label}...`;
+}
+
+function CloudProvisioningPane({ phase }: { phase: string }) {
+	return (
+		<div className="px-6 py-6">
+			<div
+				aria-live="polite"
+				className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"
+			>
+				<LoaderCircle className="h-4 w-4 animate-spin" />
+				<span className="cline-chat-streaming-title">{phase}</span>
+			</div>
+		</div>
+	);
+}
+
 function toThreadTitle(options: { title?: string; prompt?: string }): string {
 	const preferredTitle = options.title?.trim();
 	if (preferredTitle) {
@@ -159,18 +299,50 @@ export default function Home() {
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
-		(threadId) => createDesktopAppState(threadId, "General"),
+		(threadId) =>
+			createDesktopAppState(
+				threadId,
+				"General",
+				LOCAL_WORKSPACE_ENVIRONMENT_ID,
+			),
 	);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
+	const [commandBarOpen, setCommandBarOpen] = useState(false);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
+	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
+	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
 	// the in-app "connect a model" notice, which should land directly on the
 	// provider setup step.
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
+	const environmentSelectionRevision = useRef(0);
+	const localEnvironmentSelection = useMemo(
+		createLocalEnvironmentSelection,
+		[],
+	);
+	const [activeRemoteEnvironment, setActiveRemoteEnvironment] =
+		useState<RemoteWorkspaceEnvironment | null>(null);
+	const [remoteEnvironmentProfiles, setRemoteEnvironmentProfiles] = useState<
+		RemoteEnvironmentProfile[]
+	>([]);
+	const [
+		remoteEnvironmentProfilesLoading,
+		setRemoteEnvironmentProfilesLoading,
+	] = useState(true);
+	const [remoteDirectoryPicker, setRemoteDirectoryPicker] =
+		useState<RemoteWorkspaceEnvironment | null>(null);
+	const remoteDirectoryPickerResolverRef = useRef<
+		((path: string | null) => void) | null
+	>(null);
+	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
+	const activeEnvironmentId =
+		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
 	const navigate = useCallback((destination: AppLocation) => {
 		dispatchApp({ type: "navigate", destination });
@@ -191,7 +363,13 @@ export default function Home() {
 	useAppUpdate();
 
 	useEffect(() => {
-		setShowOnboarding(!hasCompletedOnboarding());
+		const onboarded = hasCompletedOnboarding();
+		setShowOnboarding(!onboarded);
+		// Returning users get the catch-up once; first-run users see onboarding
+		// instead, and completing it marks the catch-up as seen.
+		if (onboarded) {
+			setWhatsNew(pendingWhatsNew());
+		}
 		const handleReset = () => setShowOnboarding(true);
 		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
 		return () =>
@@ -206,8 +384,8 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		// The dock reverts to the bundled icon every launch; re-apply the
-		// user's choice once the shell is up.
+		// The native app icon reverts to the bundled icon every launch; re-apply
+		// the user's choice once the shell is up.
 		void syncAppIcon();
 	}, []);
 
@@ -215,15 +393,244 @@ export default function Home() {
 		void syncDesktopWindowTitle();
 	}, []);
 
+	useEffect(() => {
+		let cancelled = false;
+		const revision = environmentSelectionRevision.current;
+		desktopClient
+			.invoke<ProcessContext>("get_process_context")
+			.then((context) => {
+				if (!cancelled && revision === environmentSelectionRevision.current) {
+					const remoteEnvironment =
+						remoteWorkspaceEnvironmentFromContext(context);
+					setActiveRemoteEnvironment(remoteEnvironment);
+					if (remoteEnvironment) {
+						dispatchApp({
+							type: "select-environment-draft",
+							threadId: makeThreadId(),
+							environmentId: remoteEnvironment.id,
+						});
+					}
+				}
+			})
+			.catch(() => {
+				// The chat bootstrap reports backend availability separately.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (view !== "chat") return;
+		let revision = 0;
+		const refresh = () => {
+			const requestRevision = ++revision;
+			setRemoteEnvironmentProfilesLoading(true);
+			void desktopClient
+				.invoke<RemoteEnvironmentListResult>("list_remote_environments")
+				.then((result) => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfiles(result.profiles);
+				})
+				.catch(() => {
+					// The Settings > Remote surface owns profile-management errors.
+				})
+				.finally(() => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfilesLoading(false);
+				});
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"remote_environment_profiles_changed",
+			refresh,
+		);
+		refresh();
+		return () => {
+			++revision;
+			unsubscribe();
+		};
+	}, [view]);
+
+	useEffect(
+		() => () => {
+			remoteDirectoryPickerResolverRef.current?.(null);
+			remoteDirectoryPickerResolverRef.current = null;
+		},
+		[],
+	);
+
 	useEffect(() => watchDesktopTrayStatus(), []);
 	useEffect(() => watchDesktopNotifications(), []);
 
-	const handleNewThread = useCallback(() => {
-		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
+	const createThreadForEnvironment = useCallback((environmentId: string) => {
+		dispatchApp({
+			type: "new-thread",
+			threadId: makeThreadId(),
+			environmentId,
+		});
+		requestPromptInputFocus();
 	}, []);
+	const handleNewThread = useCallback(() => {
+		createThreadForEnvironment(activeEnvironmentId);
+	}, [activeEnvironmentId, createThreadForEnvironment]);
+	const selectEnvironmentDraft = useCallback((environmentId: string) => {
+		dispatchApp({
+			type: "select-environment-draft",
+			environmentId,
+			threadId: makeThreadId(),
+		});
+	}, []);
+	const handleSelectEnvironment = useCallback(
+		async (environmentId: string) => {
+			environmentSelectionRevision.current += 1;
+			if (environmentId === activeRemoteEnvironment?.id) {
+				// Already connected (e.g. after navigating Back to a local draft);
+				// reconnecting would tear down and rebuild the remote runtime.
+				selectEnvironmentDraft(environmentId);
+				return;
+			}
+			try {
+				if (environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID) {
+					await localEnvironmentSelection.select(
+						async () => {
+							if (activeRemoteEnvironment) {
+								await desktopClient.invoke(
+									"disconnect_remote_environment",
+									{ id: activeRemoteEnvironment.id },
+									{ timeoutMs: null },
+								);
+							}
+						},
+						() => {
+							setActiveRemoteEnvironment(null);
+							selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+						},
+					);
+					return;
+				}
+
+				const result =
+					await desktopClient.invoke<RemoteEnvironmentConnectResult>(
+						"connect_remote_environment",
+						{ id: environmentId },
+						{ timeoutMs: null },
+					);
+				const connectedEnvironmentId = result.environmentId.trim();
+				const homeDir = result.homeDir.trim() || result.workspaceRoot.trim();
+				if (
+					connectedEnvironmentId !== environmentId ||
+					result.activeEnvironmentId !== connectedEnvironmentId ||
+					result.activeProfileId !== connectedEnvironmentId ||
+					!homeDir
+				) {
+					throw new Error(
+						"The SSH host connected without a valid environment identity or home directory.",
+					);
+				}
+
+				const storedWorkspace = readWorkspaceSelectionFromWindow(
+					connectedEnvironmentId,
+				);
+				if (!storedWorkspace.lastWorkspace) {
+					writeWorkspaceSelectionToWindow(connectedEnvironmentId, {
+						...storedWorkspace,
+						lastWorkspace: homeDir,
+					});
+				}
+				setActiveRemoteEnvironment({
+					id: connectedEnvironmentId,
+					homeDir,
+				});
+				selectEnvironmentDraft(connectedEnvironmentId);
+			} catch (error) {
+				toast({
+					title:
+						environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+							? "Unable to switch to Local"
+							: "Unable to connect to SSH host",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+				throw error;
+			}
+		},
+		[
+			activeRemoteEnvironment,
+			localEnvironmentSelection,
+			selectEnvironmentDraft,
+		],
+	);
+	const pickRemoteWorkspaceDirectory = useCallback(
+		(environment: RemoteWorkspaceEnvironment): Promise<string | null> => {
+			remoteDirectoryPickerResolverRef.current?.(null);
+			return new Promise((resolve) => {
+				remoteDirectoryPickerResolverRef.current = resolve;
+				setRemoteDirectoryPicker(environment);
+			});
+		},
+		[],
+	);
+	const completeRemoteDirectoryPicker = useCallback((path: string | null) => {
+		const resolve = remoteDirectoryPickerResolverRef.current;
+		remoteDirectoryPickerResolverRef.current = null;
+		setRemoteDirectoryPicker(null);
+		resolve?.(path);
+	}, []);
+
+	useEffect(
+		() =>
+			desktopClient.subscribe("remote_environment_changed", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const event = payload as {
+					status?: unknown;
+					environmentId?: unknown;
+					homeDir?: unknown;
+					workspaceRoot?: unknown;
+				};
+				if (
+					event.status === "connected" &&
+					typeof event.environmentId === "string" &&
+					typeof event.homeDir === "string"
+				) {
+					environmentSelectionRevision.current += 1;
+					selectLocalDraftWhenChatVisibleRef.current = false;
+					setActiveRemoteEnvironment({
+						id: event.environmentId,
+						homeDir: event.homeDir,
+					});
+				}
+				if (event.status === "disconnected") {
+					environmentSelectionRevision.current += 1;
+					completeRemoteDirectoryPicker(null);
+					setActiveRemoteEnvironment(null);
+					localEnvironmentSelection.onDisconnected(() => {
+						if (view === "chat") {
+							selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+						} else {
+							selectLocalDraftWhenChatVisibleRef.current = true;
+						}
+					});
+				}
+			}),
+		[
+			completeRemoteDirectoryPicker,
+			localEnvironmentSelection,
+			selectEnvironmentDraft,
+			view,
+		],
+	);
+
+	useEffect(() => {
+		if (view !== "chat" || !selectLocalDraftWhenChatVisibleRef.current) {
+			return;
+		}
+		selectLocalDraftWhenChatVisibleRef.current = false;
+		selectEnvironmentDraft(LOCAL_WORKSPACE_ENVIRONMENT_ID);
+	}, [selectEnvironmentDraft, view]);
 
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
+		markCurrentWhatsNewSeen();
 		setShowOnboarding(false);
 		setOnboardingInitialStep("welcome");
 		// A fresh thread remounts the chat pane so it picks up credentials and
@@ -238,26 +645,46 @@ export default function Home() {
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
-			dispatchApp({ type: "open-session", session, initialPromptDraft });
-		},
-		[],
-	);
-
-	const handleDeleteSession = useCallback(
-		(deletedSessionId: string, deletedThreadId?: string) => {
 			dispatchApp({
-				type: "delete-session",
-				deletedSessionId,
-				deletedThreadId,
-				fallbackThreadId: makeThreadId(),
+				type: "open-session",
+				session,
+				environmentId: session.environmentId,
+				initialPromptDraft,
 			});
 		},
 		[],
 	);
 
+	const handleDeleteSession = useCallback(
+		(
+			deletedSessionId: string,
+			deletedThreadId?: string,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
+			dispatchApp({
+				type: "delete-session",
+				environmentId,
+				deletedSessionId,
+				deletedThreadId,
+				fallbackThreadId: makeThreadId(),
+				fallbackEnvironmentId: activeEnvironmentId,
+			});
+		},
+		[activeEnvironmentId],
+	);
+
 	const handleUpdateSessionMetadata = useCallback(
-		(sessionId: string, metadata: SessionMetadata) => {
-			dispatchApp({ type: "update-session-metadata", sessionId, metadata });
+		(
+			sessionId: string,
+			metadata: SessionMetadata,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
+			dispatchApp({
+				type: "update-session-metadata",
+				sessionId,
+				metadata,
+				environmentId,
+			});
 		},
 		[],
 	);
@@ -274,13 +701,16 @@ export default function Home() {
 			if (!sessionId) {
 				return;
 			}
-			handleDeleteSession(sessionId);
+			handleDeleteSession(sessionId, undefined, eventEnvironmentId(payload));
 		});
 	}, [handleDeleteSession]);
 
-	const activeHistorySessionId =
-		threads.find((thread) => thread.id === activeThreadId)?.historySession
-			?.sessionId ?? null;
+	const activeHistorySession = threads.find(
+		(thread) => thread.id === activeThreadId,
+	)?.historySession;
+	const activeHistorySessionId = activeHistorySession
+		? sessionKey(activeHistorySession)
+		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
 	const handleHome = useCallback(() => {
@@ -289,6 +719,7 @@ export default function Home() {
 			return;
 		}
 		navigateWith({ view: "chat" });
+		requestPromptInputFocus();
 	}, [activeThread, handleNewThread, navigateWith]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
@@ -296,14 +727,21 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	// The sidebar's New row reads as selected while the fresh, not-yet-started
+	// task page is showing; once the task starts the session row takes over.
+	const newTaskActive =
+		view === "chat" &&
+		activeThread !== undefined &&
+		!activeThread.hasStarted &&
+		!activeThread.historySession;
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
 			navigateWith({ settingsSection: section, view: "settings" });
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
-	// settings — matching the tray menu actions.
+	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
+	// new session, and Cmd/Ctrl+, for settings.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding) {
@@ -315,6 +753,9 @@ export default function Home() {
 			if (event.key === "n" || event.key === "N") {
 				event.preventDefault();
 				handleNewThread();
+			} else if (event.key === "p" || event.key === "P") {
+				event.preventDefault();
+				setCommandBarOpen((current) => !current);
 			} else if (event.key === ",") {
 				event.preventDefault();
 				handleViewChange("settings");
@@ -323,15 +764,19 @@ export default function Home() {
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [handleNewThread, handleViewChange, showOnboarding]);
-	const handleThreadStarted = useCallback((threadId: string) => {
-		dispatchApp({ type: "thread-started", threadId });
-	}, []);
+	const handleThreadStarted = useCallback(
+		(threadId: string, sessionId?: string) => {
+			dispatchApp({ type: "thread-started", threadId, sessionId });
+		},
+		[],
+	);
 	const handleInitialPromptDraftConsumed = useCallback((threadId: string) => {
 		dispatchApp({ type: "consume-initial-prompt-draft", threadId });
 	}, []);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
-		onDeleteSession: handleDeleteSession,
+		onDeleteSession: (sessionId, environmentId) =>
+			handleDeleteSession(sessionId, undefined, environmentId),
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
@@ -340,9 +785,12 @@ export default function Home() {
 		sessionHistoryRef.current = sessionHistory.sessions;
 	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string) => {
+		async (sessionId: string, environmentId?: string): Promise<void> => {
 			const cachedSession = sessionHistoryRef.current.find(
-				(session) => session.sessionId === sessionId,
+				(session) =>
+					session.sessionId === sessionId &&
+					session.environmentId ===
+						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
 				handleOpenSession(cachedSession);
@@ -351,16 +799,29 @@ export default function Home() {
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
-					{ sessionId },
+					{
+						environmentId: environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+						sessionId: sessionId,
+					},
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
+				}
+				if (
+					environmentId !== undefined &&
+					session.environmentId !== environmentId
+				) {
+					throw new Error(
+						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
+					);
 				}
 				handleOpenSession(session);
 			} catch (error) {
 				toast({
 					title: "Unable to open run",
-					description: error instanceof Error ? error.message : String(error),
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
 					variant: "destructive",
 				});
 			}
@@ -380,6 +841,12 @@ export default function Home() {
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
 						break;
+					case "export-diagnostics":
+						setExportDiagnosticsOpen(true);
+						break;
+					case "check-for-updates":
+						void checkForUpdateAndNotify();
+						break;
 					case "zoom-in":
 					case "zoom-out":
 					case "zoom-reset":
@@ -389,9 +856,14 @@ export default function Home() {
 			}),
 		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
+
 	const historyWorkspacePaths = useMemo(
-		() => workspacePathsFromSessions(sessionHistory.sessions),
-		[sessionHistory.sessions],
+		() =>
+			workspacePathsFromSessions(
+				sessionHistory.sessions,
+				activeThread?.environmentId ?? activeEnvironmentId,
+			),
+		[activeEnvironmentId, activeThread?.environmentId, sessionHistory.sessions],
 	);
 	// A child agent session names its parent, but only the history list knows the
 	// parent's title — resolve it here so the chat header can point back to it.
@@ -402,112 +874,203 @@ export default function Home() {
 			return undefined;
 		}
 		const title = sessionHistory.threads.find(
-			(thread) => thread.id === parentSessionId,
+			(thread) =>
+				thread.id ===
+				sessionKey({
+					sessionId: parentSessionId,
+					environmentId: activeThread.environmentId,
+				}),
 		)?.title;
 		return { sessionId: parentSessionId, title };
-	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
+	}, [
+		activeThread?.historySession?.parentSessionId,
+		activeThread?.environmentId,
+		sessionHistory.threads,
+	]);
 
 	return (
 		<AccountProvider>
 			<SidebarProvider>
-				<div
-					aria-hidden={showOnboarding ? true : undefined}
-					className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-					// The onboarding overlay is opaque and sits on top of the whole
-					// shell; hiding the shell keeps its aurora + animations from
-					// being composited every frame underneath while it still mounts
-					// and loads (providers, history, transport) in the background.
-					// `inert` additionally keeps the covered controls out of the
-					// keyboard tab order and assistive tech while it is hidden.
-					inert={showOnboarding ? true : undefined}
-					style={showOnboarding ? { visibility: "hidden" } : undefined}
+				<WindowTitleBarProvider
+					contentEnabled={!showOnboarding && view === "chat"}
 				>
-					<Sidebar
-						className="border-r border-sidebar-border"
-						collapsible="icon"
+					<div
+						aria-hidden={showOnboarding ? true : undefined}
+						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+						// The onboarding overlay is opaque and sits on top of the whole
+						// shell; hiding the shell keeps its aurora + animations from
+						// being composited every frame underneath while it still mounts
+						// and loads (providers, history, transport) in the background.
+						// `inert` additionally keeps the covered controls out of the
+						// keyboard tab order and assistive tech while it is hidden.
+						inert={showOnboarding ? true : undefined}
+						style={showOnboarding ? { visibility: "hidden" } : undefined}
 					>
-						<AgentSidebar
-							activeSessionId={activeHistorySessionId}
-							onHome={handleHome}
-							onNavigateBack={handleNavigateBack}
-							onNavigateForward={handleNavigateForward}
-							onNewThread={handleNewThread}
-							onOpenSessionById={handleOpenSessionById}
-							onSettingsSectionChange={handleSettingsSectionChange}
-							sessionHistory={sessionHistory}
-							setView={handleViewChange}
-							settingsSection={settingsSection}
-							view={view}
-							workspaceRoot={
-								activeThread?.historySession?.workspaceRoot ||
-								activeThread?.historySession?.cwd ||
-								historyWorkspacePaths[0]
-							}
-							canNavigateBack={navigation.back.length > 0}
-							canNavigateForward={navigation.forward.length > 0}
-						/>
-						<SidebarRail />
-					</Sidebar>
-					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-						{view === "sessions" ? (
-							<SessionsView
+						<Sidebar
+							className="border-r border-sidebar-border"
+							collapsible="icon"
+						>
+							<AgentSidebar
 								activeSessionId={activeHistorySessionId}
-								history={sessionHistory}
+								newTaskActive={newTaskActive}
+								onHome={handleHome}
+								onNavigateBack={handleNavigateBack}
+								onNavigateForward={handleNavigateForward}
+								onOpenSearch={handleOpenCommandBar}
+								onSettingsSectionChange={handleSettingsSectionChange}
+								sessionHistory={sessionHistory}
+								setView={handleViewChange}
+								settingsSection={settingsSection}
+								view={view}
+								canNavigateBack={navigation.back.length > 0}
+								canNavigateForward={navigation.forward.length > 0}
 							/>
-						) : activeThread ? (
-							<div
-								aria-hidden={view === "settings" ? true : undefined}
-								className="flex min-h-0 flex-1 flex-col"
-								inert={view === "settings" ? true : undefined}
-							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
-									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									onOpenSetup={handleOpenSetup}
-									onOpenModelSettings={() =>
-										handleSettingsSectionChange("Models")
-									}
-									parentSession={activeParentSession}
-									onOpenVoiceInputSettings={() =>
-										handleSettingsSectionChange("Models")
-									}
-									onThreadStarted={handleThreadStarted}
+							<SidebarRail />
+						</Sidebar>
+						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+							<WindowTitleBar />
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
+									/>
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={`${activeThread.id}:${activeThread.environmentId}`}
+											environmentId={activeThread.environmentId}
+											environmentProfiles={remoteEnvironmentProfiles}
+											environmentProfilesLoading={
+												remoteEnvironmentProfilesLoading
+											}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
+											onPickRemoteWorkspaceDirectory={
+												pickRemoteWorkspaceDirectory
+											}
+											onSelectEnvironment={handleSelectEnvironment}
+											remoteEnvironment={
+												activeRemoteEnvironment?.id ===
+												activeThread.environmentId
+													? activeRemoteEnvironment
+													: null
+											}
+											historySession={activeThread.historySession}
+											liveHistoryStatus={
+												sessionHistory.sessions.find(
+													(session) =>
+														session.sessionId ===
+															activeThread.historySession?.sessionId &&
+														(session.environmentId ??
+															LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
+															activeThread.environmentId,
+												)?.status ?? activeThread.historySession?.status
+											}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={(sessionId, metadata) =>
+												handleUpdateSessionMetadata(
+													sessionId,
+													metadata,
+													activeThread.environmentId,
+												)
+											}
+											threadId={activeThread.id}
+											onDeleteSession={(sessionId, threadId) =>
+												handleDeleteSession(
+													sessionId,
+													threadId,
+													activeThread.environmentId,
+												)
+											}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
+											}
+											parentSession={activeParentSession}
+											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
+						</SidebarInset>
+					</div>
+					{showOnboarding ? (
+						<div className="fixed inset-0 z-50 bg-background">
+							<WindowTitleBar
+								className="absolute inset-x-0 top-0 z-10"
+								hostContent={false}
+							/>
+							<div className="h-full">
+								<OnboardingView
+									initialStep={onboardingInitialStep}
+									onComplete={completeOnboarding}
 								/>
 							</div>
-						) : null}
-						{view === "settings" ? (
-							<div className="absolute inset-0 z-30 bg-background text-foreground">
-								<SettingsView
-									onNavigateSection={handleSettingsSectionChange}
-									onOpenSession={handleOpenSessionById}
-									section={settingsSection}
-								/>
-							</div>
-						) : null}
-					</SidebarInset>
-				</div>
+						</div>
+					) : null}
+				</WindowTitleBarProvider>
 			</SidebarProvider>
-			{showOnboarding ? (
-				<div className="fixed inset-0 z-50">
-					<OnboardingView
-						initialStep={onboardingInitialStep}
-						onComplete={completeOnboarding}
-					/>
-				</div>
-			) : null}
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
 			<HubUpdateRequiredDialog />
+			{whatsNew ? (
+				<WhatsNewDialog
+					onOpenChange={(open) => {
+						if (!open) {
+							markWhatsNewSeen(whatsNew.id);
+							setWhatsNew(null);
+						}
+					}}
+					onShowAllChanges={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("About");
+					}}
+					open={!showOnboarding}
+					release={whatsNew}
+				/>
+			) : null}
+			<SessionCommandBar
+				onOpenChange={setCommandBarOpen}
+				onOpenSession={handleOpenSessionById}
+				open={commandBarOpen && !showOnboarding}
+			/>
+			{remoteDirectoryPicker ? (
+				<RemoteDirectoryPicker
+					environmentId={remoteDirectoryPicker.id}
+					homeDir={remoteDirectoryPicker.homeDir}
+					onCancel={() => completeRemoteDirectoryPicker(null)}
+					onSelect={completeRemoteDirectoryPicker}
+					open
+				/>
+			) : null}
 		</AccountProvider>
 	);
 }
@@ -521,23 +1084,35 @@ let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
 	threadId,
+	environmentId,
+	environmentProfiles,
+	environmentProfilesLoading,
 	historySession,
+	liveHistoryStatus,
 	initialPromptDraft,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
+	onAddSshHost,
 	onDeleteSession,
 	onNewThread,
 	onOpenSession,
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenAccountSettings,
+	onPickRemoteWorkspaceDirectory,
+	onSelectEnvironment,
 	parentSession,
-	onOpenVoiceInputSettings,
+	remoteEnvironment,
 	onThreadStarted,
 }: {
 	threadId: string;
+	environmentId: string;
+	environmentProfiles: RemoteEnvironmentProfile[];
+	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
+	liveHistoryStatus?: SessionHistoryItem["status"];
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
@@ -545,18 +1120,27 @@ function ChatThreadPane({
 		sessionId: string,
 		metadata: SessionMetadata,
 	) => void;
+	onAddSshHost: () => void;
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 	onOpenSession?: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
 	) => void;
-	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	onOpenSessionById?: (
+		sessionId: string,
+		environmentId?: string,
+	) => void | Promise<void>;
+	onPickRemoteWorkspaceDirectory: (
+		environment: RemoteWorkspaceEnvironment,
+	) => Promise<string | null>;
+	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
-	onOpenVoiceInputSettings?: () => void;
-	onThreadStarted?: (threadId: string) => void;
+	remoteEnvironment: RemoteWorkspaceEnvironment | null;
+	onThreadStarted?: (threadId: string, sessionId?: string) => void;
 }) {
 	const {
 		sessionId,
@@ -564,7 +1148,9 @@ function ChatThreadPane({
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
+		isCloudSessionExpired,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -588,7 +1174,14 @@ function ChatThreadPane({
 		reset,
 		abort,
 		hydrateSession,
-	} = useChatSession();
+	} = useChatSession(environmentId);
+	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
+	// the sidebar) can close this pane even when it was not opened from history.
+	useEffect(() => {
+		if (sessionId) {
+			onThreadStarted?.(threadId, sessionId);
+		}
+	}, [onThreadStarted, sessionId, threadId]);
 	// The live composer text lives inside ChatInputBar so typing does not
 	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
 	// pushes external updates (quick actions, undo, resets) via promptDraft.
@@ -601,9 +1194,13 @@ function ChatThreadPane({
 	const handlePromptInputChange = useCallback((value: string) => {
 		promptInputRef.current = value;
 	}, []);
-	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-	const dragDepthRef = useRef(0);
+	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
+	const [workInSelection, setWorkInSelection] =
+		useState<WorkIn>(readWorkInFromWindow);
+	const setWorkIn = useCallback((next: WorkIn) => {
+		setWorkInSelection(next);
+		writeWorkInToWindow(next);
+	}, []);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -615,8 +1212,87 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
+	// Wait for the flag before falling back from remembered Cloud to Local.
+	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState<
+		boolean | null
+	>(null);
+	const cloudAgentsEnabled =
+		cloudAgentsFlagEnabled === true &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const { user: accountUser, activeOrganization } = useAccount();
+	const accountUserId = accountUser?.id ?? null;
+	const openGitHubConnect = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization],
+	);
+	useEffect(() => {
+		void accountUserId;
+		let cancelled = false;
+		let retryTimer: number | undefined;
+		let attempts = 0;
+		const fetchFlags = () => {
+			desktopClient
+				.invoke("get_feature_flags", {})
+				.then((flags) => {
+					if (!cancelled) {
+						setCloudAgentsFlagEnabled(
+							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
+						);
+					}
+				})
+				.catch(() => {
+					attempts += 1;
+					if (cancelled) {
+						return;
+					}
+					if (attempts < 10) {
+						retryTimer = window.setTimeout(fetchFlags, 2_000);
+					} else {
+						setCloudAgentsFlagEnabled(false);
+					}
+				});
+		};
+		fetchFlags();
+		// Reflect Settings changes without restarting or switching accounts.
+		const unsubscribe = desktopClient.subscribe(
+			"feature_flags_changed",
+			(payload) => {
+				if (!cancelled) {
+					setCloudAgentsFlagEnabled(
+						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
+					);
+				}
+			},
+		);
+		return () => {
+			cancelled = true;
+			unsubscribe();
+			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+		};
+	}, [accountUserId]);
+	// Worktrees are cut by the local sidecar's git, so they are only offered
+	// for the local environment. The choice also only holds while the
+	// workspace is a git repo; a plain folder (or pending discovery) silently
+	// falls back to running locally.
+	const canWorkInWorktree =
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+		config.executionTarget !== "cloud" &&
+		historySession?.origin !== "cloud";
+	const workIn: WorkIn =
+		canWorkInWorktree &&
+		workInSelection === "worktree" &&
+		gitBranch &&
+		gitBranch !== "no-git"
+			? "worktree"
+			: "local";
 	const [providerCredentials, setProviderCredentials] = useState<
-		Record<string, { apiKey: string }>
+		Record<string, { apiKey: string; auth?: ProviderAuthInfo }>
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
 		useState<Record<string, Record<string, number>>>(
@@ -635,7 +1311,7 @@ function ChatThreadPane({
 		filterWorkspacePaths(
 			mergeWorkspacePaths(
 				knownWorkspacePaths,
-				readWorkspaceSelectionFromWindow().workspaces,
+				readWorkspaceSelectionFromWindow(environmentId).workspaces,
 			),
 		),
 	);
@@ -655,27 +1331,103 @@ function ChatThreadPane({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
 	};
-	const activeWorkspaceCwd = (config.cwd || config.workspaceRoot || "").trim();
+	const isCloudSession =
+		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const headerStatus = resolveSessionHeaderStatus({
+		chatStatus: status,
+		isCloudSession,
+		liveHistoryStatus,
+	});
+	const [liveProvisioningPhase, setLiveProvisioningPhase] =
+		useState<CloudProvisioningPhase>();
+	useEffect(() => {
+		setLiveProvisioningPhase(undefined);
+		return desktopClient.subscribe("chat_session_status", (payload) => {
+			if (
+				payload &&
+				typeof payload === "object" &&
+				"sessionId" in payload &&
+				payload.sessionId === sessionId &&
+				"phase" in payload
+			) {
+				setLiveProvisioningPhase(
+					payload.phase === "ready"
+						? undefined
+						: readCloudProvisioningPhase(payload.phase),
+				);
+			}
+		});
+	}, [sessionId]);
+	const isProvisioningCloudSession =
+		isCloudSession &&
+		status === "starting" &&
+		(liveHistoryStatus === "provisioning" ||
+			liveProvisioningPhase !== undefined);
+	const provisioningPhase = useCloudProvisioningPhase(
+		config.repoUrl || historySession?.repoUrl,
+		isCloudSession && status === "starting",
+		liveProvisioningPhase ??
+			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
+		historySession?.startedAt,
+	);
+	const activeWorkspaceCwd = isCloudSession
+		? ""
+		: (config.cwd || config.workspaceRoot || "").trim();
+	// Threads opened on Cloud have no captured Local config.
+	const localConfigRef = useRef<Pick<
+		ChatSessionConfig,
+		"provider" | "model" | "apiKey" | "workspaceRoot" | "cwd"
+	> | null>(
+		config.executionTarget === "cloud"
+			? null
+			: {
+					provider: config.provider,
+					model: config.model,
+					apiKey: config.apiKey,
+					workspaceRoot: config.workspaceRoot,
+					cwd: config.cwd,
+				},
+	);
 
 	useEffect(() => {
 		setWorkspaces((current) => {
+			const stored = readWorkspaceSelectionFromWindow(environmentId);
 			const merged = filterWorkspacePaths(
-				mergeWorkspacePaths(knownWorkspacePaths, current),
+				mergeWorkspacePaths(knownWorkspacePaths, stored.workspaces),
 			);
 			return current.length === merged.length &&
 				current.every((workspace, index) => workspace === merged[index])
 				? current
 				: merged;
 		});
-	}, [knownWorkspacePaths]);
+	}, [environmentId, knownWorkspacePaths]);
 
 	useEffect(() => {
-		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
-		writeWorkspaceSelectionToWindow({
+		// Do not persist a sandbox's synthetic path as the local workspace.
+		if (
+			config.executionTarget === "cloud" ||
+			(config.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !== environmentId
+		) {
+			return;
+		}
+		const active = (config.workspaceRoot || config.cwd || "").trim();
+		// A task worktree is transient: keep remembering the repo it was cut
+		// from, so the next thread (and next launch) start back on that repo.
+		const lastWorkspace = isTaskWorktreePath(active)
+			? readWorkspaceSelectionFromWindow(environmentId).lastWorkspace
+			: active;
+		writeWorkspaceSelectionToWindow(environmentId, {
 			lastWorkspace,
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
 		});
-	}, [config.cwd, config.workspaceRoot, workspaces]);
+	}, [
+		config.cwd,
+		config.environmentId,
+		config.executionTarget,
+		config.workspaceRoot,
+		environmentId,
+		workspaces,
+	]);
 
 	const providerCredentialsRequestRef = useRef(0);
 	const loadProviderCredentials = useCallback(async () => {
@@ -685,7 +1437,8 @@ function ChatThreadPane({
 			if (providerCredentialsRequestRef.current !== requestId) {
 				return;
 			}
-			const next: Record<string, { apiKey: string }> = {};
+			const next: Record<string, { apiKey: string; auth?: ProviderAuthInfo }> =
+				{};
 			const nextContextWindows: Record<string, Record<string, number>> = {};
 			let anyConnected = false;
 			for (const provider of payload.providers ?? []) {
@@ -695,6 +1448,7 @@ function ChatThreadPane({
 				}
 				next[id] = {
 					apiKey: provider.apiKey?.trim() ?? "",
+					auth: provider.auth,
 				};
 				if (isProviderConnected(provider)) {
 					anyConnected = true;
@@ -747,14 +1501,21 @@ function ChatThreadPane({
 			return;
 		}
 		const nextApiKey = selected.apiKey;
-		if (config.apiKey === nextApiKey) {
+		if (config.apiKey === nextApiKey && config.providerAuth === selected.auth) {
 			return;
 		}
 		setConfig((prev) => ({
 			...prev,
 			apiKey: nextApiKey,
+			providerAuth: selected?.auth,
 		}));
-	}, [config.apiKey, config.provider, providerCredentials, setConfig]);
+	}, [
+		config.apiKey,
+		config.provider,
+		config.providerAuth,
+		providerCredentials,
+		setConfig,
+	]);
 
 	const getWorkspaceCwd = useCallback(
 		() =>
@@ -774,10 +1535,13 @@ function ChatThreadPane({
 			return;
 		}
 		try {
-			const payload = await desktopClient.invoke<{ branch?: string }>(
-				"get_git_branch",
-				{ cwd },
-			);
+			const payload = await desktopClient.invoke<{
+				environmentId: string;
+				branch?: string;
+			}>("get_git_branch", { cwd, environmentId });
+			if (payload.environmentId !== environmentId) {
+				return;
+			}
 			if (!gitBranchRequestGateRef.current.commit(requestId)) {
 				return;
 			}
@@ -786,7 +1550,7 @@ function ChatThreadPane({
 		} catch {
 			// Preserve the latest successful branch through transient failures.
 		}
-	}, [getWorkspaceCwd]);
+	}, [environmentId, getWorkspaceCwd]);
 
 	const invalidateGitBranch = useCallback(() => {
 		gitBranchRequestGateRef.current.invalidate();
@@ -805,9 +1569,13 @@ function ChatThreadPane({
 		}
 		try {
 			const payload = await desktopClient.invoke<{
+				environmentId: string;
 				current?: string;
 				branches?: string[];
-			}>("list_git_branches", { cwd });
+			}>("list_git_branches", { cwd, environmentId });
+			if (payload.environmentId !== environmentId) {
+				return { current: "no-git", branches: [] };
+			}
 			const current = payload?.current?.trim() || "no-git";
 			const branches = Array.isArray(payload?.branches)
 				? payload.branches.filter((item) => item.trim().length > 0)
@@ -816,7 +1584,7 @@ function ChatThreadPane({
 		} catch {
 			return { current: "no-git", branches: [] };
 		}
-	}, [getWorkspaceCwd]);
+	}, [environmentId, getWorkspaceCwd]);
 
 	const switchGitBranch = useCallback(
 		async (nextBranch: string): Promise<boolean> => {
@@ -825,10 +1593,17 @@ function ChatThreadPane({
 				return false;
 			}
 			try {
-				await desktopClient.invoke<{ branch?: string }>("checkout_git_branch", {
+				const payload = await desktopClient.invoke<{
+					environmentId: string;
+					branch?: string;
+				}>("checkout_git_branch", {
 					cwd,
 					branch: nextBranch,
+					environmentId,
 				});
+				if (payload.environmentId !== environmentId) {
+					return false;
+				}
 				invalidateGitBranch();
 				await refreshGitBranch();
 				return true;
@@ -836,7 +1611,7 @@ function ChatThreadPane({
 				return false;
 			}
 		},
-		[getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
+		[environmentId, getWorkspaceCwd, invalidateGitBranch, refreshGitBranch],
 	);
 
 	const listWorkspaces = useCallback(
@@ -851,10 +1626,14 @@ function ChatThreadPane({
 			// process cwd fallback); it renders via its own registration in the
 			// selector and welcome screen instead of joining the catalog.
 			return filterWorkspacePaths(
-				mergeWorkspacePaths(knownWorkspacePaths, [preferred, current]),
+				mergeWorkspacePaths(
+					knownWorkspacePaths,
+					readWorkspaceSelectionFromWindow(environmentId).workspaces,
+					[preferred, current],
+				),
 			);
 		},
-		[knownWorkspacePaths],
+		[environmentId, knownWorkspacePaths],
 	);
 
 	const refreshWorkspaces = useCallback(
@@ -862,7 +1641,7 @@ function ChatThreadPane({
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
 				setWorkspaces((current) => {
-					const merged = mergeWorkspacePaths(results, current);
+					const merged = results;
 					return current.length === merged.length &&
 						current.every((workspace, index) => workspace === merged[index])
 						? current
@@ -899,6 +1678,7 @@ function ChatThreadPane({
 					valid?: boolean;
 					path?: string;
 				}>("validate_workspace_directory", {
+					environmentId,
 					path: nextWorkspace,
 				})
 				.catch(() => ({ valid: false, path: undefined }));
@@ -927,7 +1707,7 @@ function ChatThreadPane({
 
 			return true;
 		},
-		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
+		[environmentId, invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
@@ -936,16 +1716,19 @@ function ChatThreadPane({
 		setWorkspacePath("");
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
-
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures
 			// (e.g. no zenity/kdialog on Linux) so callers can surface an error
 			// and offer manual path entry instead of a silent no-op.
+			if (remoteEnvironment) {
+				return await onPickRemoteWorkspaceDirectory(remoteEnvironment);
+			}
 			try {
 				const selected = await desktopClient.invoke<string | null>(
 					"pick_workspace_directory",
 					{
+						environmentId,
 						initialPath: initialPath?.trim() || undefined,
 					},
 				);
@@ -962,8 +1745,24 @@ function ChatThreadPane({
 				);
 			}
 		},
-		[],
+		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
+
+	// Let the sidecar load the workspace's plugin sandbox now so the slash
+	// menu lists plugin commands without paying the cold spawn on first open.
+	useEffect(() => {
+		if (!activeWorkspaceCwd) {
+			return;
+		}
+		void desktopClient
+			.invoke("warm_plugin_commands", {
+				workspacePath: activeWorkspaceCwd,
+				environmentId,
+			})
+			.catch(() => {
+				// Best effort; the menu falls back to loading on open.
+			});
+	}, [activeWorkspaceCwd, environmentId]);
 
 	useEffect(() => {
 		void refreshGitBranch();
@@ -1020,7 +1819,14 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
+	}, [
+		historySession,
+		manualTitle,
+		reset,
+		threadId,
+		setPromptInput,
+		setPendingAttachments,
+	]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -1042,14 +1848,62 @@ function ChatThreadPane({
 		hydrateSession,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
+		setPendingAttachments,
 		setPromptInput,
 		threadId,
 	]);
+
+	const isNewThread = startsNewThread(sessionId, messages);
+
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const supportedFiles = files.filter((file) =>
+				isCloudSession
+					? isSupportedImageAttachment(file)
+					: !isUnsupportedImageAttachment(file),
+			);
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: isCloudSession
+						? "Unsupported cloud attachment"
+						: "Unsupported image format",
+					description: isCloudSession
+						? "Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files."
+						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+				});
+			}
+			setPendingAttachments((current) => {
+				const existing = new Set(
+					current.map(
+						(file) => `${file.name}:${file.size}:${file.lastModified}`,
+					),
+				);
+				const next = [...current];
+				for (const file of supportedFiles) {
+					const key = `${file.name}:${file.size}:${file.lastModified}`;
+					if (!existing.has(key)) {
+						existing.add(key);
+						next.push(file);
+					}
+				}
+				const error = isCloudSession && cloudImageAttachmentError(next);
+				if (error) {
+					toast({ title: "Cloud attachment limit", description: error });
+					return current;
+				}
+				return next;
+			});
+		},
+		[isCloudSession, setPendingAttachments],
+	);
 
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			if (!trimmed && pendingAttachments.length === 0) {
+				return;
+			}
+			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
 				return;
 			}
 			onThreadStarted?.(threadId);
@@ -1059,9 +1913,31 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend, {
+				inNewWorktree: workIn === "worktree" && isNewThread,
+			});
+			// The prompt never reached the runtime (e.g. the provider connection
+			// failed): hand it back so the user can fix the provider and resend
+			// without retyping. Leave anything they typed meanwhile alone.
+			if (!promptTaken && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				handleAttachFiles(toSend);
+			}
 		},
-		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
+		[
+			config.repoUrl,
+			handleAttachFiles,
+			isCloudSession,
+			isNewThread,
+			onThreadStarted,
+			pendingAttachments,
+			sendPrompt,
+			sessionId,
+			setPendingAttachments,
+			setPromptInput,
+			threadId,
+			workIn,
+		],
 	);
 
 	const handleReasoningChange = useCallback(
@@ -1125,6 +2001,7 @@ function ChatThreadPane({
 			const cwd = config.cwd ?? workspaceRoot;
 			const forkedHistorySession: SessionHistoryItem = {
 				sessionId: result.newSessionId,
+				environmentId: config.environmentId,
 				status: "completed",
 				provider: config.provider,
 				model: config.model,
@@ -1147,6 +2024,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -1187,6 +2074,7 @@ function ChatThreadPane({
 				"delete_chat_session",
 				{
 					sessionId: activeSessionToDelete,
+					environmentId,
 				},
 			);
 			if (!deleted) {
@@ -1205,6 +2093,7 @@ function ChatThreadPane({
 				new CustomEvent("cline:session-deleted", {
 					detail: {
 						sessionId: activeSessionToDelete,
+						environmentId,
 					},
 				}),
 			);
@@ -1230,73 +2119,124 @@ function ChatThreadPane({
 	}, [
 		activeSessionToDelete,
 		deletingSession,
+		environmentId,
 		onDeleteSession,
 		reset,
 		threadId,
+		setPendingAttachments,
 		setPromptInput,
 	]);
 
-	const handleAttachFiles = useCallback((files: File[]) => {
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-			);
-			const next = [...prev];
-			for (const file of files) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
-			}
-			return next;
-		});
-	}, []);
-
-	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
-	// Tauri window — otherwise the native shell swallows OS file drags and these
-	// HTML5 events never fire.
-	const handleDragEnter = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		dragDepthRef.current += 1;
-		setIsDraggingFiles(true);
-	}, []);
-
-	const handleDragOver = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "copy";
-	}, []);
-
-	const handleDragLeave = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-		if (dragDepthRef.current === 0) {
-			setIsDraggingFiles(false);
-		}
-	}, []);
-
-	const handleDrop = useCallback(
-		(event: React.DragEvent) => {
-			if (!event.dataTransfer.types.includes("Files")) {
+	const handleExecutionTargetChange = useCallback(
+		(target: "local" | "cloud") => {
+			if (target === "cloud" && !cloudAgentsEnabled) {
 				return;
 			}
-			event.preventDefault();
-			dragDepthRef.current = 0;
-			setIsDraggingFiles(false);
-			const files = Array.from(event.dataTransfer.files);
-			if (files.length > 0) {
-				handleAttachFiles(files);
+			setConfig((prev) => {
+				if (target === prev.executionTarget) return prev;
+				if (target === "cloud") {
+					localConfigRef.current = {
+						provider: prev.provider,
+						model: prev.model,
+						apiKey: prev.apiKey,
+						workspaceRoot: prev.workspaceRoot,
+						cwd: prev.cwd,
+					};
+					const remembered = readModelSelectionStorageFromWindow("cloud");
+					return {
+						...prev,
+						executionTarget: "cloud",
+						provider: "cline",
+						model:
+							remembered.lastModelByProvider.cline ||
+							(prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID),
+						apiKey: providerCredentials.cline?.apiKey ?? "",
+						workspaceRoot: "",
+						cwd: "",
+					};
+				}
+				const captured = localConfigRef.current;
+				const local =
+					captured ??
+					getInitialChatConfig(environmentId, { executionTarget: "local" });
+				return {
+					...prev,
+					provider: local.provider,
+					model: local.model,
+					apiKey: local.apiKey,
+					// Prefer a validated workspace; retain the saved path while discovery
+					// is pending so persistence does not overwrite it with an empty value.
+					workspaceRoot:
+						captured?.workspaceRoot ||
+						prev.workspaceRoot ||
+						local.workspaceRoot,
+					cwd: captured?.cwd || prev.cwd || local.cwd,
+					executionTarget: "local",
+					repoUrl: undefined,
+					branch: undefined,
+				};
+			});
+			if (target === "cloud") {
+				setPendingAttachments([]);
+				setShowDiffView(false);
 			}
 		},
-		[handleAttachFiles],
+		[
+			environmentId,
+			providerCredentials.cline?.apiKey,
+			setConfig,
+			cloudAgentsEnabled,
+			setPendingAttachments,
+		],
+	);
+	// Automatic fallbacks must not overwrite the user's preference.
+	const handleSelectExecutionTarget = useCallback(
+		(target: "local" | "cloud") => {
+			if (target === "cloud" && !cloudAgentsEnabled) {
+				return;
+			}
+			writeExecutionTargetToWindow(target);
+			handleExecutionTargetChange(target);
+		},
+		[cloudAgentsEnabled, handleExecutionTargetChange],
+	);
+
+	// Reset only new composers when the flag turns off; existing sessions attach.
+	useEffect(() => {
+		if (
+			cloudAgentsFlagEnabled !== null &&
+			!cloudAgentsEnabled &&
+			config.executionTarget === "cloud" &&
+			!historySession &&
+			!sessionId
+		) {
+			handleExecutionTargetChange("local");
+		}
+	}, [
+		cloudAgentsEnabled,
+		cloudAgentsFlagEnabled,
+		config.executionTarget,
+		historySession,
+		handleExecutionTargetChange,
+		sessionId,
+	]);
+
+	const handleCloudRepoUrlChange = useCallback(
+		(repoUrl: string) => {
+			setConfig((prev) =>
+				prev.repoUrl === repoUrl ? prev : { ...prev, repoUrl },
+			);
+		},
+		[setConfig],
+	);
+
+	const handleCloudBranchChange = useCallback(
+		(branch: string) => {
+			setConfig((prev) =>
+				prev.branch === branch ? prev : { ...prev, branch },
+			);
+		},
+		[setConfig],
 	);
 
 	const attachmentList = useMemo(
@@ -1304,27 +2244,45 @@ function ChatThreadPane({
 			pendingAttachments.map((file, index) => ({
 				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 				name: file.name,
-				isImage: file.type.startsWith("image/"),
+				isImage: imageAttachmentMediaType(file) !== undefined,
 			})),
 		[pendingAttachments],
 	);
-	const handleRemoveAttachment = useCallback((id: string) => {
-		setPendingAttachments((prev) =>
-			prev.filter((file, index) => {
-				const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
-				return fileId !== id;
-			}),
-		);
-	}, []);
+	const handleRemoveAttachment = useCallback(
+		(id: string) => {
+			setPendingAttachments((prev) =>
+				prev.filter((file, index) => {
+					const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
+					return fileId !== id;
+				}),
+			);
+		},
+		[setPendingAttachments],
+	);
 	const handleAbort = useCallback(() => {
 		void abort();
 	}, [abort]);
 	const handleModelChange = useCallback(
-		(nextModel: string) =>
+		(nextModel: string) => {
+			// The shared model picker only persists Local selections.
+			if (config.executionTarget === "cloud") {
+				try {
+					writeModelSelectionStorageToWindow(
+						{
+							lastProvider: "cline",
+							lastModelByProvider: { cline: nextModel },
+						},
+						"cloud",
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
+			}
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
-			),
-		[setConfig],
+			);
+		},
+		[config.executionTarget, setConfig],
 	);
 	const handleModeToggle = useCallback(
 		() =>
@@ -1339,13 +2297,18 @@ function ChatThreadPane({
 			setConfig((prev) => {
 				const selected = providerCredentials[nextProvider];
 				const nextApiKey = selected?.apiKey ?? "";
-				if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
+				if (
+					prev.provider === nextProvider &&
+					prev.apiKey === nextApiKey &&
+					prev.providerAuth === selected?.auth
+				) {
 					return prev;
 				}
 				return {
 					...prev,
 					provider: nextProvider,
 					apiKey: nextApiKey,
+					providerAuth: selected?.auth,
 				};
 			}),
 		[providerCredentials, setConfig],
@@ -1385,13 +2348,24 @@ function ChatThreadPane({
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 	const displayedMessages = hideDeletedSessionUi ? [] : messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
+	const cloudSessionError = isCloudSession
+		? parseCloudSessionError(displayedError)
+		: null;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
 		: isHydratingSession;
+	// Existing empty sessions are loading or empty, never a fresh prompt.
 	const isWelcomeState =
-		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
+		displayedMessages.length === 0 &&
+		!displayedIsSwitching &&
+		!displayedError &&
+		!isProvisioningCloudSession &&
+		!historySession;
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
@@ -1413,7 +2387,8 @@ function ChatThreadPane({
 		loading: agentsLoading,
 		error: agentsError,
 	} = useSessionAgents({
-		sessionId: displayedSessionId,
+		environmentId,
+		sessionId: isCloudSession ? null : displayedSessionId,
 		panelOpen: agentPanelOpen,
 		sessionActive: isSessionActive,
 	});
@@ -1427,8 +2402,10 @@ function ChatThreadPane({
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
-		(agentSessionId: string) => onOpenSessionById?.(agentSessionId),
-		[onOpenSessionById],
+		async (agentSessionId: string) => {
+			await onOpenSessionById?.(agentSessionId, environmentId);
+		},
+		[environmentId, onOpenSessionById],
 	);
 
 	const handleRenameTitle = useCallback(
@@ -1440,6 +2417,7 @@ function ChatThreadPane({
 			try {
 				await desktopClient.invoke("update_chat_session_title", {
 					sessionId: activeSessionForTitle,
+					environmentId,
 					title: nextTitle,
 				});
 				const normalizedTitle = nextTitle.trim();
@@ -1452,16 +2430,26 @@ function ChatThreadPane({
 					new CustomEvent("cline:session-title-updated", {
 						detail: {
 							sessionId: activeSessionForTitle,
+							environmentId,
 							title: normalizedTitle,
 						},
 					}),
 				);
+			} catch (error) {
+				toast({
+					title: "Rename failed",
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
+					variant: "destructive",
+				});
 			} finally {
 				setRenamingSession(false);
 			}
 		},
 		[
 			activeSessionForTitle,
+			environmentId,
 			historySession?.metadata,
 			onUpdateSessionMetadata,
 			renamingSession,
@@ -1521,7 +2509,10 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
+			environmentId={environmentId}
+			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -1530,7 +2521,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
-			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1538,6 +2529,10 @@ function ChatThreadPane({
 			onProviderChange={handleProviderChange}
 			onSend={handleSendPrompt}
 			gitBranch={gitBranch}
+			cloudBranch={config.branch}
+			executionTarget={isCloudSession ? "cloud" : "local"}
+			hasActiveSession={Boolean(sessionId)}
+			repoUrl={config.repoUrl}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
 			mode={config.mode}
@@ -1552,64 +2547,67 @@ function ChatThreadPane({
 		/>
 	);
 
+	const cloudConnectUrl =
+		cloudSessionError?.code === "github_not_connected"
+			? cloudSessionError.connectUrl
+			: undefined;
+
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
-			<div
+			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+			<AttachmentDropZone
 				className={
 					isWelcomeState
-						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
+				disabled={isCloudSessionExpired}
+				description={
+					isCloudSession
+						? "Images will be added to your next message"
+						: undefined
+				}
+				onAttachFiles={handleAttachFiles}
 			>
-				{isDraggingFiles ? (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
-							<ImagePlus className="h-8 w-8 text-primary" />
-							<p className="text-sm font-medium text-foreground">
-								Drop to attach
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Screenshots and files will be added to your next message
-							</p>
-						</div>
-					</div>
-				) : null}
 				{!isWelcomeState ? (
-					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							agentActivity={agentActivity}
-							agents={agents}
-							agentsError={agentsError}
-							agentsLoading={agentsLoading}
-							onAgentsOpenChange={setAgentPanelOpen}
-							onOpenAgentSession={onOpenAgentSession}
-							onOpenParentSession={onOpenSessionById}
-							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
-							deletingSession={deletingSession}
-							diff={headerDiff}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={handleOpenDiff}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={status}
-							title={threadTitle}
-						/>
-					</div>
+					<WindowTitleBarContent>
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={isCloudSession ? undefined : agentActivity}
+								agents={isCloudSession ? undefined : agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenAgentSession}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={isCloudSession ? undefined : headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={handleOpenDiff}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={headerStatus}
+								title={threadTitle}
+							/>
+						</div>
+					</WindowTitleBarContent>
 				) : null}
 				<WelcomeScreen
 					active={isWelcomeState}
 					body={
-						showDiffView ? (
+						isCloudSession &&
+						displayedIsSwitching &&
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
+							<CloudProvisioningPane phase="Opening session..." />
+						) : showDiffView && !isCloudSession ? (
 							<DiffView
 								cwd={config.cwd || config.workspaceRoot}
+								environmentId={environmentId}
 								fileDiffs={fileDiffs}
 								onClose={() => setShowDiffView(false)}
 							/>
@@ -1619,22 +2617,58 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
-								error={displayedError}
+								activityLabel={activityLabel}
+								error={cloudSessionError?.message ?? displayedError}
+								errorAction={
+									cloudConnectUrl
+										? {
+												label: "Connect GitHub",
+												onClick: () => openGitHubConnect(cloudConnectUrl),
+											}
+										: undefined
+								}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
-								onEditMessage={handleEditMessage}
-								onRestoreCheckpoint={handleRestoreCheckpoint}
-								onForkSession={handleForkSession}
-								onProceedWhileRunning={proceedWhileRunning}
+								onEditMessage={isCloudSession ? undefined : handleEditMessage}
+								onRestoreCheckpoint={
+									isCloudSession ? undefined : handleRestoreCheckpoint
+								}
+								onForkSession={isCloudSession ? undefined : handleForkSession}
+								onProceedWhileRunning={
+									isCloudSession ? undefined : proceedWhileRunning
+								}
+								startingLabel={
+									isProvisioningCloudSession
+										? provisioningPhase
+										: isCloudSession && !displayedSessionId
+											? provisioningPhase
+											: undefined
+								}
+								onFixCredentials={handleFixCredentials}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
 								streamingMessageId={activeAssistantMessageId}
 								isSessionSwitching={displayedIsSwitching}
-								status={displayedStatus}
+								status={
+									isProvisioningCloudSession ? "starting" : displayedStatus
+								}
 							/>
 						)
 					}
 					composer={composer}
+					environmentSelector={
+						<EnvironmentSelector
+							activeEnvironmentId={environmentId}
+							cloudEnabled={cloudAgentsEnabled}
+							executionTarget={isCloudSession ? "cloud" : "local"}
+							onSelectExecutionTarget={handleSelectExecutionTarget}
+							loading={environmentProfilesLoading}
+							onAddSshHost={onAddSshHost}
+							onSelectEnvironment={onSelectEnvironment}
+							profiles={environmentProfiles}
+						/>
+					}
 					gitBranch={gitBranch}
 					notice={
 						providersLoaded &&
@@ -1650,8 +2684,20 @@ function ChatThreadPane({
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
+					executionTarget={isCloudSession ? "cloud" : "local"}
+					repoUrl={config.repoUrl ?? ""}
+					cloudBranch={config.branch ?? ""}
+					onRepoUrlChange={handleCloudRepoUrlChange}
+					onCloudBranchChange={handleCloudBranchChange}
+					cloudAgentsEnabled={
+						cloudAgentsEnabled ||
+						(cloudAgentsFlagEnabled === null &&
+							config.executionTarget === "cloud")
+					}
+					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+					workIn={workIn}
 				/>
-			</div>
+			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {
@@ -1665,7 +2711,13 @@ function ChatThreadPane({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This session will be removed from local history.
+							{isCloudSession
+								? "This cloud session and its workspace will be deleted."
+								: "This session will be removed from local history."}
+							{!isCloudSession &&
+							isTaskWorktreePath(config.workspaceRoot || config.cwd || "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

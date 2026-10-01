@@ -5,7 +5,9 @@ import type {
 	ModelOperation,
 	ModelOperationMode,
 } from "../llms/model-info";
+import type { ModelToolName } from "../llms/model-tools";
 import type { ReasoningLevel } from "../llms/reasoning-options";
+import type { ProviderAuthInfo } from "../provider-auth";
 import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
@@ -20,6 +22,8 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
+	/** Additional Agent Plugins package roots resolved by the hub runtime. */
+	agentPluginPaths?: string[];
 	autoApproveTools?: boolean;
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
@@ -206,12 +210,21 @@ export interface ProviderConfigField {
 }
 
 export interface ProviderListItem {
+	/** Native tools offered by at least some models, resolved by the host. */
+	modelTools: ModelToolName[];
+	auth: ProviderAuthInfo;
 	id: string;
 	name: string;
 	models: number | null;
 	color: string;
 	letter: string;
 	enabled: boolean;
+	/**
+	 * True when the persisted settings hold real credentials or a usable
+	 * keyless endpoint (see @cline/core's isProviderSettingsUsable), unlike
+	 * `enabled` which is set by any persisted entry.
+	 */
+	configured?: boolean;
 	apiKey?: string;
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;

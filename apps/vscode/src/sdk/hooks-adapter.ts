@@ -16,6 +16,7 @@ import type {
 	AgentBeforeToolContext,
 	AgentHooks,
 	AgentRunLifecycleContext,
+	AgentRunStartResult,
 	AgentStopControl,
 } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
@@ -54,6 +55,25 @@ function mapStopControl(hookOutput: {
 	}
 }
 
+/**
+ * Maps a hook's output to a stop-or-context result: cancel stops the run (its
+ * message travels as the reason, never as context), otherwise
+ * contextModification is returned for injection as a <hook_context> block.
+ * HookFactory already truncates contextModification at 50KB.
+ */
+function mapStopOrContextResult(hookOutput: {
+	cancel?: boolean
+	errorMessage?: string
+	contextModification?: string
+}): AgentRunStartResult | undefined {
+	const stopControl = mapStopControl(hookOutput)
+	if (stopControl) {
+		return stopControl
+	}
+	const contextModification = hookOutput.contextModification?.trim()
+	return contextModification ? { appendContext: contextModification } : undefined
+}
+
 function taskIdFromSnapshot(snapshot: AgentRunLifecycleContext["snapshot"]): string {
 	return snapshot.conversationId ?? snapshot.runId ?? snapshot.agentId
 }
@@ -68,7 +88,10 @@ function textFromMessageContent(content: readonly { type: string; text?: string 
 function latestUserPrompt(ctx: AgentRunLifecycleContext): string {
 	for (let index = ctx.snapshot.messages.length - 1; index >= 0; index -= 1) {
 		const message = ctx.snapshot.messages[index]
-		if (message?.role === "user") {
+		// Injected hook-context blocks are user-role messages with a system
+		// display role; feeding one back to a hook as "the prompt" would hand
+		// hooks their own previous output.
+		if (message?.role === "user" && message.metadata?.displayRole !== "system") {
 			return textFromMessageContent(message.content)
 		}
 	}
@@ -100,18 +123,25 @@ export function buildAgentHooks(
 	sessionWorkspaceRoot?: string,
 ): AgentHooks {
 	const hooksEnabled = () => getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
-	// Session-scoped discovery: the shared workspaceRoots global state can be
-	// repointed by another Cline instance, so the factory also scans this
-	// session's own workspace for hook files.
+	// Session-scoped discovery: the session's root is not always among the
+	// window's workspace folders (e.g. the chat-workspace fallback when no
+	// folder is open), so the factory also scans this session's own workspace.
 	const createFactory = () => new HookFactory({ sessionWorkspaceRoot })
 
 	return {
-		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentStopControl | undefined> {
-			const taskStartControl = await runTaskStart(ctx, hooksEnabled, createFactory, emitHookMessage)
-			if (taskStartControl) {
-				return taskStartControl
+		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentRunStartResult | undefined> {
+			const taskStart = await runTaskStart(ctx, hooksEnabled, createFactory, emitHookMessage)
+			if (taskStart?.stop) {
+				return taskStart
 			}
-			return runUserPromptSubmit(ctx, hooksEnabled, createFactory, emitHookMessage)
+			const promptSubmit = await runUserPromptSubmit(ctx, hooksEnabled, createFactory, emitHookMessage)
+			if (promptSubmit?.stop) {
+				return promptSubmit
+			}
+			const appendContext = [taskStart?.appendContext, promptSubmit?.appendContext]
+				.filter((text): text is string => Boolean(text?.trim()))
+				.join("\n\n")
+			return appendContext ? { appendContext } : undefined
 		},
 
 		async beforeTool(
@@ -123,19 +153,20 @@ export function buildAgentHooks(
 					return undefined
 				}
 
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
+				const toolName = ctx.toolCall.toolName
 				const factory = createFactory()
-				if (!(await factory.hasHook("PreToolUse"))) {
+				const runner = await factory.create("PreToolUse", taskId, toolName)
+				if (runner.isNoOp) {
 					return undefined
 				}
 
-				const toolName = ctx.toolCall.toolName
 				const runningMsg = buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
-				const runner = await factory.create("PreToolUse")
 				const result = await runner.run({
-					taskId: taskIdFromSnapshot(ctx.snapshot),
+					taskId,
 					preToolUse: {
 						toolName,
 						parameters: toStringRecord(ctx.input),
@@ -150,15 +181,7 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				const stopControl = mapStopControl(result)
-				if (stopControl) {
-					return stopControl
-				}
-				// The runtime injects appendContext into the conversation as a
-				// <hook_context> block, restoring the documented contextModification
-				// behavior. HookFactory already truncates it at 50KB.
-				const contextModification = result.contextModification?.trim()
-				return contextModification ? { appendContext: contextModification } : undefined
+				return mapStopOrContextResult(result)
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -182,19 +205,20 @@ export function buildAgentHooks(
 					return undefined
 				}
 
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
+				const toolName = ctx.toolCall.toolName
 				const factory = createFactory()
-				if (!(await factory.hasHook("PostToolUse"))) {
+				const runner = await factory.create("PostToolUse", taskId, toolName)
+				if (runner.isNoOp) {
 					return undefined
 				}
 
-				const toolName = ctx.toolCall.toolName
 				const runningMsg = buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
-				const runner = await factory.create("PostToolUse")
 				const result = await runner.run({
-					taskId: taskIdFromSnapshot(ctx.snapshot),
+					taskId,
 					postToolUse: {
 						toolName,
 						parameters: toStringRecord(ctx.input),
@@ -212,15 +236,7 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				const stopControl = mapStopControl(result)
-				if (stopControl) {
-					return stopControl
-				}
-				// The runtime injects appendContext into the conversation as a
-				// <hook_context> block, restoring the documented contextModification
-				// behavior. HookFactory already truncates it at 50KB.
-				const contextModification = result.contextModification?.trim()
-				return contextModification ? { appendContext: contextModification } : undefined
+				return mapStopOrContextResult(result)
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -253,18 +269,18 @@ export function buildAgentHooks(
 					return
 				}
 
+				const taskId = taskIdFromSnapshot(ctx.snapshot)
 				const factory = createFactory()
-				if (!(await factory.hasHook(hookName))) {
+				const runner = await factory.create(hookName, taskId)
+				if (runner.isNoOp) {
 					return
 				}
 
-				const taskId = taskIdFromSnapshot(ctx.snapshot)
 				const runningMsg = buildHookStatusMessage({ hookName, status: "running" })
 				runningTs = runningMsg.ts
 				emitHookMessage?.(runningMsg)
 
 				if (hookName === "TaskComplete") {
-					const runner = await factory.create("TaskComplete")
 					await runner.run({
 						taskId,
 						taskComplete: {
@@ -277,7 +293,6 @@ export function buildAgentHooks(
 						},
 					})
 				} else {
-					const runner = await factory.create("TaskCancel")
 					await runner.run({
 						taskId,
 						taskCancel: {
@@ -307,15 +322,17 @@ async function runTaskStart(
 	hooksEnabled: () => boolean,
 	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
-): Promise<AgentStopControl | undefined> {
+): Promise<AgentRunStartResult | undefined> {
 	let runningTs: number | undefined
 	try {
 		if (!hooksEnabled()) {
 			return undefined
 		}
 
+		const taskId = taskIdFromSnapshot(ctx.snapshot)
 		const factory = createFactory()
-		if (!(await factory.hasHook("TaskStart"))) {
+		const runner = await factory.create("TaskStart", taskId)
+		if (runner.isNoOp) {
 			return undefined
 		}
 
@@ -323,8 +340,6 @@ async function runTaskStart(
 		runningTs = runningMsg.ts
 		emitHookMessage?.(runningMsg)
 
-		const taskId = taskIdFromSnapshot(ctx.snapshot)
-		const runner = await factory.create("TaskStart")
 		const result = await runner.run({
 			taskId,
 			taskStart: {
@@ -343,7 +358,7 @@ async function runTaskStart(
 				ts: runningTs,
 			}),
 		)
-		return mapStopControl(result)
+		return mapStopOrContextResult(result)
 	} catch (error) {
 		emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed", ts: runningTs }))
 		Logger.error("[HooksAdapter] beforeRun (TaskStart) hook failed:", error)
@@ -356,15 +371,17 @@ async function runUserPromptSubmit(
 	hooksEnabled: () => boolean,
 	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
-): Promise<AgentStopControl | undefined> {
+): Promise<AgentRunStartResult | undefined> {
 	let runningTs: number | undefined
 	try {
 		if (!hooksEnabled()) {
 			return undefined
 		}
 
+		const taskId = taskIdFromSnapshot(ctx.snapshot)
 		const factory = createFactory()
-		if (!(await factory.hasHook("UserPromptSubmit"))) {
+		const runner = await factory.create("UserPromptSubmit", taskId)
+		if (runner.isNoOp) {
 			return undefined
 		}
 
@@ -372,9 +389,8 @@ async function runUserPromptSubmit(
 		runningTs = runningMsg.ts
 		emitHookMessage?.(runningMsg)
 
-		const runner = await factory.create("UserPromptSubmit")
 		const result = await runner.run({
-			taskId: taskIdFromSnapshot(ctx.snapshot),
+			taskId,
 			userPromptSubmit: {
 				prompt: latestUserPrompt(ctx),
 				attachments: [],
@@ -388,7 +404,7 @@ async function runUserPromptSubmit(
 				ts: runningTs,
 			}),
 		)
-		return mapStopControl(result)
+		return mapStopOrContextResult(result)
 	} catch (error) {
 		emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed", ts: runningTs }))
 		Logger.error("[HooksAdapter] beforeRun (UserPromptSubmit) hook failed:", error)

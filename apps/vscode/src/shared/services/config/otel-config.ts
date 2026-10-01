@@ -21,6 +21,12 @@ export interface OpenTelemetryClientConfig {
 	logsExporter?: string
 
 	/**
+	 * Traces exporter type(s)
+	 * Examples: "otlp"
+	 */
+	tracesExporter?: string
+
+	/**
 	 * Protocol for OTLP exporters: "grpc", "http/json", "http/protobuf"
 	 */
 	otlpProtocol?: string
@@ -102,6 +108,7 @@ export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>):
 		enabled: !!settings.openTelemetryEnabled,
 		metricsExporter: settings.openTelemetryMetricsExporter,
 		logsExporter: settings.openTelemetryLogsExporter,
+		tracesExporter: settings.openTelemetryTracesExporter,
 		otlpProtocol: settings.openTelemetryOtlpProtocol,
 		otlpEndpoint: settings.openTelemetryOtlpEndpoint,
 		otlpHeaders: settings.openTelemetryOtlpHeaders,
@@ -126,6 +133,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 		enabled: BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "1" || BUILD_CONSTANTS.OTEL_TELEMETRY_ENABLED === "true",
 		metricsExporter: BUILD_CONSTANTS.OTEL_METRICS_EXPORTER,
 		logsExporter: BUILD_CONSTANTS.OTEL_LOGS_EXPORTER,
+		tracesExporter: BUILD_CONSTANTS.OTEL_TRACES_EXPORTER,
 		otlpProtocol: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_PROTOCOL,
 		otlpEndpoint: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_ENDPOINT,
 		metricExportInterval: BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL
@@ -172,6 +180,7 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 		enabled: process.env.CLINE_OTEL_TELEMETRY_ENABLED === "true",
 		metricsExporter: process.env.CLINE_OTEL_METRICS_EXPORTER,
 		logsExporter: process.env.CLINE_OTEL_LOGS_EXPORTER,
+		tracesExporter: process.env.CLINE_OTEL_TRACES_EXPORTER,
 		otlpProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_PROTOCOL,
 		otlpEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_ENDPOINT,
 		otlpMetricsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
@@ -207,7 +216,7 @@ export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): c
 		return false
 	}
 
-	const hasOneExporterConfigured = !!(config.metricsExporter || config.logsExporter)
+	const hasOneExporterConfigured = !!(config.metricsExporter || config.logsExporter || config.tracesExporter)
 	return hasOneExporterConfigured
 }
 

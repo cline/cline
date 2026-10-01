@@ -38,8 +38,7 @@
 @keyframes cline-ui-search-combobox-open {
 	from {
 		opacity: 0;
-		transform: translateY(var(--cline-ui-search-combobox-slide, 0))
-			scale(0.97);
+		transform: translateY(var(--cline-ui-search-combobox-slide, 0)) scale(0.97);
 	}
 	to {
 		opacity: 1;

@@ -4,7 +4,19 @@ export default defineConfig({
 	test: {
 		environment: "node",
 		include: ["src/**/*.e2e.test.ts"],
-		testTimeout: 30_000,
+		// Above the 30s discovery hang guard: a test that spawns two real bun
+		// daemons back-to-back on a loaded 2-core Windows runner can legitimately
+		// need more than 30s without anything being hung.
+		testTimeout: 60_000,
 		hookTimeout: 30_000,
+		// These e2e files spawn real daemon processes and assert on wall-clock
+		// budgets (discovery within 30s, exit within 5s, a 2s shutdown
+		// watchdog). Run them one file at a time: in parallel they compete for
+		// the runner's cores, and on a 2-core Windows runner the contention
+		// alone blew those budgets — singleton.e2e.test.ts holds daemons up for
+		// ~15s, which is long enough to starve shutdown.e2e.test.ts into either
+		// missing discovery or being forced to exit before its HTTP response
+		// flushed.
+		fileParallelism: false,
 	},
 });

@@ -9,8 +9,9 @@ import type {
 /**
  * Durable ingress for normalized automation events.
  *
- * This layer persists the incoming event before matching, then materializes
- * queued `cron_runs` for matching event specs. It deliberately does not
+ * This layer atomically persists the incoming event and materializes queued
+ * `cron_runs` for matching event specs. Failed acceptance rolls back so the
+ * same event can be redelivered without partial fan-out. It deliberately does not
  * execute agents; the normal runner claim loop owns execution.
  */
 
@@ -183,15 +184,40 @@ export class CronEventIngress {
 	public ingestEvent(event: AutomationEventEnvelope): CronEventIngressResult {
 		const receivedAt = new Date(this.nowFn()).toISOString();
 		const normalized = normalizeEvent(event, receivedAt);
+		try {
+			const result = this.store.eventTransaction(() =>
+				this.materializeEvent(normalized, receivedAt),
+			);
+			this.logger?.debug(
+				result.duplicate ? "cron.event.duplicate" : "cron.event.processed",
+				{
+					eventId: result.event.eventId,
+					eventType: result.event.eventType,
+					source: result.event.source,
+					status: result.event.processingStatus,
+					matchedSpecCount: result.event.matchedSpecCount,
+					queuedRunCount: result.event.queuedRunCount,
+				},
+			);
+			return result;
+		} catch (error) {
+			this.logger?.error?.("cron.event.failed", {
+				eventId: normalized.eventId,
+				eventType: normalized.eventType,
+				error,
+			});
+			throw error;
+		}
+	}
+
+	private materializeEvent(
+		normalized: AutomationEventEnvelope,
+		receivedAt: string,
+	): CronEventIngressResult {
 		const inserted = this.store.insertEventLog(normalized, {
 			receivedAtIso: receivedAt,
 		});
 		if (!inserted.created) {
-			this.logger?.debug("cron.event.duplicate", {
-				eventId: inserted.record.eventId,
-				eventType: inserted.record.eventType,
-				source: inserted.record.source,
-			});
 			return {
 				event: inserted.record,
 				duplicate: true,
@@ -206,85 +232,63 @@ export class CronEventIngress {
 			};
 		}
 
-		try {
-			const allCandidateSpecs = this.store.listEventSpecsForType(
-				normalized.eventType,
-			);
-			const suppressions: CronEventSuppression[] = [];
-			const matchedSpecs: CronSpecRecord[] = [];
-			const queuedRuns: CronRunRecord[] = [];
+		const allCandidateSpecs = this.store.listEventSpecsForType(
+			normalized.eventType,
+		);
+		const suppressions: CronEventSuppression[] = [];
+		const matchedSpecs: CronSpecRecord[] = [];
+		const queuedRuns: CronRunRecord[] = [];
 
-			for (const spec of allCandidateSpecs) {
-				if (!automationEventMatchesFilters(normalized, spec.filters)) {
-					suppressions.push({
-						specId: spec.specId,
-						externalId: spec.externalId,
-						reason: "filter_mismatch",
-						dedupeKey: normalized.dedupeKey,
-					});
-					continue;
-				}
-				matchedSpecs.push(spec);
-				const run = this.materializeForSpec(
-					spec,
-					normalized,
-					inserted.record.receivedAt,
-				);
-				if (run.run) {
-					queuedRuns.push(run.run);
-				} else {
-					suppressions.push({
-						specId: spec.specId,
-						externalId: spec.externalId,
-						reason: run.reason,
-						dedupeKey: normalized.dedupeKey,
-					});
-				}
+		for (const spec of allCandidateSpecs) {
+			if (!automationEventMatchesFilters(normalized, spec.filters)) {
+				suppressions.push({
+					specId: spec.specId,
+					externalId: spec.externalId,
+					reason: "filter_mismatch",
+					dedupeKey: normalized.dedupeKey,
+				});
+				continue;
 			}
-
-			const status =
-				matchedSpecs.length === 0
-					? "unmatched"
-					: queuedRuns.length > 0
-						? "queued"
-						: "suppressed";
-			this.store.updateEventLogProcessing(inserted.record.eventId, {
-				status,
-				matchedSpecCount: matchedSpecs.length,
-				queuedRunCount: queuedRuns.length,
-				suppressedCount: suppressions.filter(
-					(s) => s.reason !== "filter_mismatch",
-				).length,
-			});
-			const updated = this.store.getEventLog(inserted.record.eventId);
-			this.logger?.debug("cron.event.processed", {
-				eventId: inserted.record.eventId,
-				eventType: inserted.record.eventType,
-				status,
-				matchedSpecCount: matchedSpecs.length,
-				queuedRunCount: queuedRuns.length,
-			});
-			return {
-				event: updated ?? inserted.record,
-				duplicate: false,
-				matchedSpecs,
-				queuedRuns,
-				suppressions,
-			};
-		} catch (err) {
-			this.store.updateEventLogProcessing(inserted.record.eventId, {
-				status: "failed",
-				error: err instanceof Error ? err.message : String(err),
-			});
-			if (this.logger?.error) {
-				this.logger.error("cron.event.failed", {
-					eventId: inserted.record.eventId,
-					eventType: inserted.record.eventType,
-					error: err,
+			matchedSpecs.push(spec);
+			const run = this.materializeForSpec(
+				spec,
+				normalized,
+				inserted.record.receivedAt,
+			);
+			if (run.run) {
+				queuedRuns.push(run.run);
+			} else {
+				suppressions.push({
+					specId: spec.specId,
+					externalId: spec.externalId,
+					reason: run.reason,
+					dedupeKey: normalized.dedupeKey,
 				});
 			}
-			throw err;
 		}
+
+		const status =
+			matchedSpecs.length === 0
+				? "unmatched"
+				: queuedRuns.length > 0
+					? "queued"
+					: "suppressed";
+		this.store.updateEventLogProcessing(inserted.record.eventId, {
+			status,
+			matchedSpecCount: matchedSpecs.length,
+			queuedRunCount: queuedRuns.length,
+			suppressedCount: suppressions.filter(
+				(s) => s.reason !== "filter_mismatch",
+			).length,
+		});
+		const updated = this.store.getEventLog(inserted.record.eventId);
+		return {
+			event: updated ?? inserted.record,
+			duplicate: false,
+			matchedSpecs,
+			queuedRuns,
+			suppressions,
+		};
 	}
 
 	private materializeForSpec(

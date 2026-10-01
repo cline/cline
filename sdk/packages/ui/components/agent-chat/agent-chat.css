@@ -161,7 +161,6 @@
 		border-radius: var(--radius);
 		background: color-mix(in oklab, var(--background) 92%, transparent);
 		backdrop-filter: blur(4px);
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
 		pointer-events: none;
 		opacity: 0;
 	}
@@ -328,11 +327,7 @@
 		/* Legible first, de-emphasized second: plain muted-foreground reads
 		 * too faint for multi-line prose, so lean most of the way back toward
 		 * the body text color. */
-		color: color-mix(
-			in oklab,
-			var(--foreground) 75%,
-			var(--muted-foreground)
-		);
+		color: color-mix(in oklab, var(--foreground) 75%, var(--muted-foreground));
 	}
 
 	/* The reveal rule below is `.cline-chat-message:hover`, so hovering anywhere

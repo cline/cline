@@ -2,6 +2,8 @@ import type {
 	ModelModality,
 	ModelOperation,
 	ModelOperationMode,
+	ModelToolName,
+	ProviderAuthInfo,
 } from "@cline/shared/browser";
 
 /** Which tier of the Cline recommended-models feed featured a model. */
@@ -61,12 +63,20 @@ export interface ProviderConfigField {
 }
 
 export interface Provider {
+	modelTools?: ModelToolName[];
+	auth?: ProviderAuthInfo;
 	id: string;
 	name: string;
 	models: number | null;
 	color: string;
 	letter: string;
 	enabled: boolean;
+	/**
+	 * Sidecar-computed readiness: true when the persisted settings hold real
+	 * credentials or a usable keyless endpoint, unlike `enabled` which is set
+	 * by any persisted entry (including ones seeded by legacy migration).
+	 */
+	configured?: boolean;
 	apiKey?: string;
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;

@@ -72,6 +72,29 @@ function run(target) {
 	});
 	if (result.error) {
 		console.error(result.error.message);
+		// Windows application control (Smart App Control, WDAC, AppLocker)
+		// blocks the child exe at launch, which Node surfaces only as an
+		// opaque "spawnSync ... UNKNOWN" error. Point users at the real cause.
+		const code = result.error.code;
+		if (
+			os.platform() === "win32" &&
+			(code === "UNKNOWN" || code === "EACCES" || code === "EPERM")
+		) {
+			console.error(
+				"\nWindows refused to start the Cline binary:\n  " +
+					target +
+					"\n\n" +
+					"This usually means an application control policy (Smart App Control,\n" +
+					"WDAC, or AppLocker) or antivirus blocked the executable. To confirm,\n" +
+					"run the path above directly in a terminal and check the error Windows\n" +
+					"reports, or inspect its signature with:\n\n" +
+					'  Get-AuthenticodeSignature "' +
+					target +
+					'"\n\n' +
+					"If it was blocked by policy, allow the file or ask your administrator\n" +
+					"to trust it. See https://github.com/cline/cline/issues for known issues.",
+			);
+		}
 		process.exit(1);
 	}
 	if (typeof result.status === "number") {

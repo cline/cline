@@ -4,15 +4,8 @@ import type { Mode } from "@shared/storage/types"
 /**
  * Button action types that determine the behavior
  */
-export type ButtonActionType =
-	| "approve" // Send yesButtonClicked
-	| "reject" // Send noButtonClicked
-	| "proceed" // Send messageResponse or yesButtonClicked
-	| "proceed_while_running" // Detach the running foreground terminal command
-	| "new_task" // Start a new task
-	| "cancel" // Cancel streaming
-	| "utility" // Execute utility function (condense, report_bug)
-	| "retry" // Retry the last action
+export type SubmittingButtonActionType = "approve" | "reject" | "proceed"
+export type ButtonActionType = SubmittingButtonActionType | "proceed_while_running" | "new_task" | "cancel" | "utility" | "retry"
 
 /**
  * Button configuration for different message states
@@ -415,8 +408,24 @@ export function getButtonConfigFromState(
 	foregroundCommandRunning = false,
 ): ButtonConfig {
 	if (turnState) {
-		const anchored = turnState.anchorTs !== undefined ? messages.find((m) => m.ts === turnState.anchorTs) : undefined
+		const anchored = getTurnStateMessage(messages, turnState)
 		return buttonsForPhase(turnState, anchored, foregroundCommandRunning)
 	}
 	return getButtonConfigForMessages(messages, mode)
+}
+
+export function getTurnStateMessage(messages: ClineMessage[], turnState: TurnState | undefined): ClineMessage | undefined {
+	return turnState?.anchorTs !== undefined ? messages.find((message) => message.ts === turnState.anchorTs) : undefined
+}
+
+export function isOptionsAskActive(
+	message: ClineMessage,
+	turnState: TurnState | undefined,
+	isLast: boolean,
+	lastModifiedMessage: ClineMessage | undefined,
+): boolean {
+	if (turnState) {
+		return turnState.phase === "awaiting_followup" && turnState.anchorTs === message.ts
+	}
+	return isLast && lastModifiedMessage?.ask === message.ask
 }

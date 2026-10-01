@@ -17,6 +17,11 @@ export type MarketplaceEnvVar = {
 	url?: string;
 };
 
+export type MarketplaceAuthor = {
+	name: string;
+	url?: string;
+};
+
 export type MarketplaceEntry = {
 	id: string;
 	type: MarketplacePrimitiveType;
@@ -25,6 +30,12 @@ export type MarketplaceEntry = {
 	tagline: string;
 	description: string;
 	tags: string[];
+	author?: MarketplaceAuthor;
+	homepage?: string;
+	repo?: string;
+	icon?: string;
+	license?: string;
+	verified?: boolean;
 	install: {
 		args: string[];
 		env?: MarketplaceEnvVar[];
@@ -98,6 +109,20 @@ function parseEnv(value: unknown): MarketplaceEnvVar[] | undefined {
 		})
 		.filter((item): item is MarketplaceEnvVar => item !== null);
 	return env.length > 0 ? env : undefined;
+}
+
+function parseAuthor(value: unknown): MarketplaceAuthor | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const candidate = value as Record<string, unknown>;
+	if (typeof candidate.name !== "string") return undefined;
+	return {
+		name: candidate.name,
+		url: typeof candidate.url === "string" ? candidate.url : undefined,
+	};
+}
+
+function parseOptionalString(value: unknown): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
@@ -188,6 +213,15 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 						tagline: candidate.tagline,
 						description: candidate.description,
 						tags: toStringArray(candidate.tags),
+						author: parseAuthor(candidate.author),
+						homepage: parseOptionalString(candidate.homepage),
+						repo: parseOptionalString(candidate.repo),
+						icon: parseOptionalString(candidate.icon),
+						license: parseOptionalString(candidate.license),
+						verified:
+							typeof candidate.verified === "boolean"
+								? candidate.verified
+								: undefined,
 						install: {
 							args: toStringArray(install.args),
 							command: install.command,

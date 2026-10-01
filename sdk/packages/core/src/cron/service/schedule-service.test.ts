@@ -261,6 +261,69 @@ describe("HubScheduleService", () => {
 		},
 	);
 
+	sqliteIt(
+		"captures the local timezone on creation and preserves it on updates",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "unused" })),
+					sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			const resolved = Intl.DateTimeFormat().resolvedOptions();
+			const timezone = vi
+				.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions")
+				.mockReturnValue({ ...resolved, timeZone: "Asia/Tokyo" });
+			try {
+				const created = service.createSchedule({
+					name: "Local morning",
+					cronPattern: "0 9 * * *",
+					prompt: "Review work",
+					workspaceRoot: "/workspace",
+				});
+				expect(created.timezone).toBe("Asia/Tokyo");
+				expect(service.getSchedule(created.scheduleId)?.timezone).toBe(
+					"Asia/Tokyo",
+				);
+				expect(new Date(created.nextRunAt ?? NaN).getUTCHours()).toBe(0);
+				timezone.mockReturnValue({ ...resolved, timeZone: "America/New_York" });
+				const updated = service.updateSchedule(created.scheduleId, {
+					scheduleId: created.scheduleId,
+					name: "Renamed",
+				});
+				expect(updated?.timezone).toBe("Asia/Tokyo");
+				expect(updated?.nextRunAt).toBe(created.nextRunAt);
+				const explicit = service.createSchedule({
+					name: "Explicit timezone",
+					cronPattern: "0 9 * * *",
+					timezone: "Europe/London",
+					prompt: "Review work",
+					workspaceRoot: "/workspace",
+				});
+				expect(explicit.timezone).toBe("Europe/London");
+				const once = service.createSchedule({
+					name: "Once",
+					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+					metadata: {
+						[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: Date.now() + 60_000,
+					},
+					prompt: "Review work",
+					workspaceRoot: "/workspace",
+				});
+				expect(once.timezone).toBeUndefined();
+			} finally {
+				timezone.mockRestore();
+				await service.dispose();
+			}
+		},
+	);
+
 	sqliteIt("persists and validates recurring schedule timezones", async () => {
 		const dbPath = await createTempDbPath();
 		cleanupPaths.push(dbPath);
@@ -494,6 +557,138 @@ describe("HubScheduleService", () => {
 				);
 				expect(spoofedCreate.payload?.schedule).toMatchObject({
 					workspaceRoot: resolve("/workspace"),
+				});
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
+
+	sqliteIt(
+		"grants explicit cross-workspace schedule access to authorized clients",
+		async () => {
+			const dbPath = await createTempDbPath();
+			cleanupPaths.push(dbPath);
+			const service = new HubScheduleService({
+				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+				runtimeHandlers: {
+					startSession: vi.fn(async () => ({ sessionId: "session-3" })),
+					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
+					abortSession: vi.fn(async () => ({ applied: true })),
+					stopSession: vi.fn(async () => ({ applied: true })),
+				},
+			});
+			try {
+				const commands = new HubScheduleCommandService(service);
+				// Like an agent-created schedule: written directly through the
+				// service with the chat session's workspace, not the client's.
+				const agentSchedule = service.createSchedule({
+					name: "Agent routine",
+					cronPattern: "0 * * * *",
+					prompt: "Created from a chat session",
+					workspaceRoot: "/chat-workspace",
+					cwd: "/chat-workspace",
+					createdBy: "agent:agent-1",
+				});
+				const scopedAuthority = {
+					clientId: "scoped-client",
+					workspaceContext: { workspaceRoot: "/desktop", cwd: "/desktop" },
+				};
+				const crossAuthority = { ...scopedAuthority, crossWorkspace: true };
+
+				// allWorkspaces is ignored without cross-workspace authority.
+				const scopedList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: { allWorkspaces: true },
+					},
+					scopedAuthority,
+				);
+				expect(scopedList.payload?.schedules).toEqual([]);
+				const scopedGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "scoped-client",
+						payload: {
+							scheduleId: agentSchedule.scheduleId,
+							allWorkspaces: true,
+						},
+					},
+					scopedAuthority,
+				);
+				expect(scopedGet).toMatchObject({
+					ok: false,
+					error: { message: "schedule does not exist in this workspace" },
+				});
+
+				// Cross-workspace authority still stays scoped by default.
+				const defaultList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+					},
+					crossAuthority,
+				);
+				expect(defaultList.payload?.schedules).toEqual([]);
+
+				// With the explicit flag, the schedule is visible and editable.
+				const allList = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "scoped-client",
+						payload: { allWorkspaces: true },
+					},
+					crossAuthority,
+				);
+				expect(allList.payload?.schedules).toMatchObject([
+					{ scheduleId: agentSchedule.scheduleId },
+				]);
+				const renamed = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "scoped-client",
+						payload: {
+							scheduleId: agentSchedule.scheduleId,
+							name: "Renamed agent routine",
+							allWorkspaces: true,
+						},
+					},
+					crossAuthority,
+				);
+				expect(renamed.payload?.schedule).toMatchObject({
+					name: "Renamed agent routine",
+					// The update keeps the schedule in its own workspace instead
+					// of pulling it into the client's connection scope.
+					workspaceRoot: resolve("/chat-workspace"),
+				});
+
+				// Cross-workspace creates honor the requested workspace.
+				const created = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "scoped-client",
+						payload: {
+							name: "Cross-workspace routine",
+							cronPattern: "30 * * * *",
+							prompt: "Run elsewhere",
+							workspaceRoot: "/another-workspace",
+							cwd: "/another-workspace",
+							allWorkspaces: true,
+						},
+					},
+					crossAuthority,
+				);
+				expect(created.payload?.schedule).toMatchObject({
+					workspaceRoot: resolve("/another-workspace"),
+					cwd: resolve("/another-workspace"),
 				});
 			} finally {
 				await service.dispose();

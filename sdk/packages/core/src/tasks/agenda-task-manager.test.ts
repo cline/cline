@@ -29,7 +29,10 @@ function future(days = 7): string {
 
 function createHarness(
 	result: "completed" | "failed" = "completed",
-	options: { interactiveClientAvailable?: boolean } = {},
+	options: {
+		interactiveClientAvailable?: boolean;
+		automationEnabled?: boolean;
+	} = {},
 ) {
 	const root = mkdtempSync(join(tmpdir(), "cline-agenda-manager-"));
 	const events: string[] = [];
@@ -51,6 +54,7 @@ function createHarness(
 		dbPath: join(root, "tasks.db"),
 		globalSpecsDir: join(root, "specs"),
 		watchFiles: false,
+		automationEnabled: options.automationEnabled,
 		publish: (event) => events.push(event),
 	});
 	managers.push(manager);
@@ -233,6 +237,66 @@ describe("AgendaTaskManager", () => {
 			manager.runTask(approved.taskId, { kind: "user" }, approved.revision),
 		).rejects.toThrow("task spec is invalid");
 		expect(runtime.startSession).not.toHaveBeenCalled();
+	});
+
+	it("reconciles external spec edits before applying an update", async () => {
+		const { root, manager } = createHarness();
+		await manager.start();
+		const pending = await createPending(manager, {
+			title: "Original intent",
+			instructions: "Perform the original work.",
+		});
+		if (!pending.specPath) throw new Error("task has no spec path");
+		const files = new AgendaTaskSpecFileStore({
+			scope: "global",
+			taskSpecsDir: join(root, "specs"),
+		});
+		const source = files.readSpec(pending.specPath);
+		if (!source.ok || !source.spec.taskId) {
+			throw new Error("task spec fixture is invalid");
+		}
+		files.writeSpec(
+			{
+				...source.spec,
+				taskId: source.spec.taskId,
+				title: "Edited intent",
+			},
+			{
+				specPath: source.specPath,
+				expectedContentHash: source.contentHash,
+			},
+		);
+
+		// With watchers off, nothing has reconciled the on-disk edit yet. The
+		// update must fold it in on its own and surface a retryable
+		// stale-revision conflict — not dead-end on the signature check until
+		// an unrelated read reconciles the scope.
+		await expect(
+			manager.updateTask({
+				taskId: pending.taskId,
+				expectedRevision: pending.revision,
+				title: "Caller title",
+				updatedBy: { kind: "user", clientId: "desktop" },
+			}),
+		).rejects.toThrow("requested revision is stale");
+
+		const reconciled = await manager.getTask(pending.taskId);
+		if (!reconciled) throw new Error("edited task was not reconciled");
+		expect(reconciled).toMatchObject({
+			title: "Edited intent",
+			revision: pending.revision + 1,
+		});
+		const updated = await manager.updateTask({
+			taskId: reconciled.taskId,
+			expectedRevision: reconciled.revision,
+			title: "Caller title",
+			updatedBy: { kind: "user", clientId: "desktop" },
+		});
+		expect(updated).toMatchObject({
+			title: "Caller title",
+			revision: reconciled.revision + 1,
+			status: "pending_approval",
+		});
 	});
 
 	it("rehydrates known workspaces and watches their task specs after restart", async () => {
@@ -626,6 +690,51 @@ describe("AgendaTaskManager", () => {
 			expect((await manager.getTask(task.taskId))?.status).toBe("completed");
 		});
 		expect(runtime.startSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a persisted automation policy idle when automation is disabled", async () => {
+		const { root, manager, runtime } = createHarness("completed", {
+			automationEnabled: false,
+		});
+		await manager.start();
+		await manager.setAutomationPolicy(
+			{
+				scopeKey: "global",
+				mode: "unattended",
+				applyToAgentCreated: true,
+				maxConcurrentRuns: 1,
+				maxChainDepth: 3,
+				maxStartsPerHour: 20,
+			},
+			{ kind: "user", clientId: "desktop" },
+		);
+		const task = await createPending(manager);
+		manager.notifyAutomationReadinessChanged();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		expect((await manager.getTask(task.taskId))?.status).toBe(
+			"pending_approval",
+		);
+		expect(runtime.startSession).not.toHaveBeenCalled();
+		await manager.dispose();
+
+		// A restarted Hub with the same store and the flag still off must not
+		// pick the persisted unattended policy back up either.
+		const restarted = new AgendaTaskManager({
+			runtime,
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+		});
+		managers.push(restarted);
+		await restarted.start();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		expect((await restarted.getTask(task.taskId))?.status).toBe(
+			"pending_approval",
+		);
+		expect(runtime.startSession).not.toHaveBeenCalled();
 	});
 
 	it("only automates tasks in the policy workspace", async () => {

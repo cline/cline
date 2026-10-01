@@ -123,37 +123,89 @@ describe("applyCheckpointToWorktree", () => {
 		expect(readFileSync(join(dir, "untracked.txt"), "utf8")).toBe("keep me\n");
 	});
 
-	it("restores a stash checkpoint on its original base after later commits", async () => {
+	it("refuses to restore when commits were made after the checkpoint", async () => {
 		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
 		const checkpointRef = git(dir, [
 			"stash",
 			"create",
 			"checkpoint before edited run",
 		]);
-		const checkpointBase = git(dir, ["rev-parse", `${checkpointRef}^1`]);
 
-		writeFileSync(join(dir, "tracked.txt"), "discarded later state\n", "utf8");
+		writeFileSync(join(dir, "tracked.txt"), "committed later state\n", "utf8");
 		git(dir, ["add", "tracked.txt"]);
-		git(dir, ["commit", "-m", "discarded later commit"]);
+		git(dir, ["commit", "-m", "commit after checkpoint"]);
+		const laterHead = git(dir, ["rev-parse", "HEAD"]);
 		writeFileSync(join(dir, "later-untracked.txt"), "keep me\n", "utf8");
 
-		await applyCheckpointToWorktree(dir, {
-			ref: checkpointRef,
-			createdAt: Date.now(),
-			runCount: 2,
-			kind: "stash",
-		});
-
-		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
-			"checkpoint state\n",
+		await expect(
+			applyCheckpointToWorktree(dir, {
+				ref: checkpointRef,
+				createdAt: Date.now(),
+				runCount: 2,
+				kind: "stash",
+			}),
+		).rejects.toThrow(
+			/1 commit was added to the current branch after this checkpoint/,
 		);
-		// Legacy 2-parent stash (no untracked third parent): untracked files
-		// cannot be reconstructed, so they are left untouched rather than
-		// destroyed.
+
+		// The refusal must leave the branch and worktree untouched.
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(laterHead);
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"committed later state\n",
+		);
 		expect(readFileSync(join(dir, "later-untracked.txt"), "utf8")).toBe(
 			"keep me\n",
 		);
-		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointBase);
+	});
+
+	it("refuses to restore a commit checkpoint when HEAD has moved", async () => {
+		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
+		writeFileSync(join(dir, "tracked.txt"), "first later state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "first commit after checkpoint"]);
+		writeFileSync(join(dir, "tracked.txt"), "second later state\n", "utf8");
+		git(dir, ["add", "tracked.txt"]);
+		git(dir, ["commit", "-m", "second commit after checkpoint"]);
+		const laterHead = git(dir, ["rev-parse", "HEAD"]);
+
+		await expect(
+			applyCheckpointToWorktree(dir, {
+				ref: checkpointRef,
+				createdAt: Date.now(),
+				runCount: 1,
+				kind: "commit",
+			}),
+		).rejects.toThrow(
+			/2 commits were added to the current branch after this checkpoint/,
+		);
+
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(laterHead);
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe(
+			"second later state\n",
+		);
+	});
+
+	it("refuses to restore after the branch diverged from the checkpoint base", async () => {
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint state\n", "utf8");
+		const checkpointRef = git(dir, [
+			"stash",
+			"create",
+			"checkpoint before amend",
+		]);
+
+		git(dir, ["commit", "--amend", "--allow-empty", "-m", "amended initial"]);
+		const amendedHead = git(dir, ["rev-parse", "HEAD"]);
+
+		await expect(
+			applyCheckpointToWorktree(dir, {
+				ref: checkpointRef,
+				createdAt: Date.now(),
+				runCount: 1,
+				kind: "stash",
+			}),
+		).rejects.toThrow(/would be removed by the restore/);
+
+		expect(git(dir, ["rev-parse", "HEAD"])).toBe(amendedHead);
 	});
 
 	it("fully rewinds a snapshot checkpoint: untracked reverted, created-after removed, no apply conflict", async () => {
@@ -213,9 +265,10 @@ describe("applyCheckpointToWorktree", () => {
 		const checkpointBase = git(dir, ["rev-parse", `${checkpointRef}^1`]);
 
 		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
-		git(dir, ["add", "tracked.txt"]);
-		git(dir, ["commit", "-m", "discarded commit"]);
 
+		// If the stash were misinferred as a "commit" checkpoint, the restore
+		// base would be the stash object itself (not HEAD) and the HEAD-moved
+		// guard would reject the restore.
 		await applyCheckpointToWorktree(dir, {
 			ref: checkpointRef,
 			createdAt: Date.now(),
@@ -231,8 +284,6 @@ describe("applyCheckpointToWorktree", () => {
 	it("restores a kindless root commit without reading a nonexistent parent", async () => {
 		const checkpointRef = git(dir, ["rev-parse", "HEAD"]);
 		writeFileSync(join(dir, "tracked.txt"), "discarded state\n", "utf8");
-		git(dir, ["add", "tracked.txt"]);
-		git(dir, ["commit", "-m", "discarded commit"]);
 		writeFileSync(join(dir, "later-untracked.txt"), "keep me\n", "utf8");
 
 		await applyCheckpointToWorktree(dir, {

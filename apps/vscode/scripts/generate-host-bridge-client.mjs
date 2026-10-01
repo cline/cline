@@ -17,10 +17,14 @@ const VSCODE_CLIENT_FILE = path.resolve("src/generated/hosts/vscode/hostbridge-g
  */
 export async function main() {
 	const { hostServices } = await loadServicesFromProtoDescriptor()
+	// CoreConnectionService is an internal transport used only by external
+	// cores. It is implemented directly by the Host Bridge and must not become
+	// part of the public HostProvider client surface or the VS Code emulation.
+	const { CoreConnectionService: _coreConnectionService, ...publicHostServices } = hostServices
 
-	await generateTypesFile(hostServices)
-	await generateExternalClientFile(hostServices)
-	await generateVscodeClientFile(hostServices)
+	await generateTypesFile(publicHostServices)
+	await generateExternalClientFile(publicHostServices)
+	await generateVscodeClientFile(publicHostServices)
 
 	console.log(`Generated Host Bridge client files at:`)
 	console.log(`- ${TYPES_FILE}`)
@@ -98,8 +102,9 @@ import { asyncIteratorToCallbacks } from "@/standalone/utils"
 import * as niceGrpc from "@generated/nice-grpc/index"
 import { StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
-import { Channel, createClient } from "nice-grpc"
+import { Channel } from "nice-grpc"
 import { BaseGrpcClient } from "@/hosts/external/grpc-types"
+import { createHostBridgeClient } from "@/hosts/external/host-bridge-auth"
 
 ${imports.join("\n")}
 
@@ -125,9 +130,9 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 				return `    ${methodName}(request: ${requestType}): Promise<${responseType}> {
       return this.makeRequest((client) => client.${methodName}(request))
     }`
-			} else {
-				// Generate streaming method
-				return `  ${methodName}(
+			}
+			// Generate streaming method
+			return `  ${methodName}(
 		request: ${requestType},
 		callbacks: StreamingCallbacks<${responseType}>,
 	): () => void {
@@ -150,7 +155,6 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 			abortController.abort()
 		}
 	}\n`
-			}
 		})
 		.join("\n")
 
@@ -163,7 +167,7 @@ export class ${serviceName}ClientImpl
 	implements ${serviceName}ClientInterface {
 
 	protected createClient(channel: Channel): niceGrpc.host.${serviceName}Client {
-		return createClient(niceGrpc.host.${serviceName}Definition, channel)
+		return createHostBridgeClient(niceGrpc.host.${serviceName}Definition, channel)
 	}
 
 ${methods}
@@ -222,9 +226,8 @@ function generateVscodeClientImplementation(serviceName, serviceDefinition) {
 			const isStreamingResponse = methodDef.responseStream
 			if (!isStreamingResponse) {
 				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName})`
-			} else {
-				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
 			}
+			return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
 		})
 		.join("\n")
 

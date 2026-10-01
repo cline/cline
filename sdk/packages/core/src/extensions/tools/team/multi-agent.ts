@@ -82,11 +82,14 @@ export interface TaskResult {
 	metadata?: Record<string, unknown>;
 }
 
+type TeamTaskEndStatus = "completed" | "failed" | "cancelled";
+
 export type TeamEvent =
 	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
 	| {
 			type: TeamMessageType.TaskEnd;
 			agentId: string;
+			status?: TeamTaskEndStatus;
 			result?: AgentResult;
 			error?: Error;
 			messages?: AgentResult["messages"];
@@ -155,11 +158,20 @@ function isAbortLikeError(error: unknown): boolean {
 	);
 }
 
-function isIntentionalShutdownAbort(
+function isIntentionalTeammateAbort(
 	member: TeamMemberState | undefined,
 	error: unknown,
 ): boolean {
-	return member?.status === "stopped" && isAbortLikeError(error);
+	return (
+		member?.abortRequested === true ||
+		(member?.status === "stopped" && isAbortLikeError(error))
+	);
+}
+
+function taskEndStatusFromResult(result: AgentResult): TeamTaskEndStatus {
+	if (result.finishReason === "aborted") return "cancelled";
+	if (result.finishReason === "error") return "failed";
+	return "completed";
 }
 
 // =============================================================================
@@ -514,6 +526,8 @@ export function createWorkerReviewerTeam(configs: {
 interface TeamMemberState extends TeamMemberSnapshot {
 	agent?: SessionRuntime;
 	runningCount: number;
+	abortRequested?: boolean;
+	abortReason?: string;
 	lastMissionStep: number;
 	lastMissionAt: number;
 	pendingSteerMessage?: string;
@@ -1026,6 +1040,8 @@ export class AgentTeamsRuntime {
 			);
 		}
 
+		member.abortRequested = false;
+		member.abortReason = undefined;
 		member.runningCount++;
 		member.status = "running";
 		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
@@ -1042,23 +1058,40 @@ export class AgentTeamsRuntime {
 			const result = options?.continueConversation
 				? await member.agent.continue(enrichedMessage)
 				: await member.agent.run(enrichedMessage);
-			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
-			this.recordProgressStep(
-				agentId,
-				`Completed a delegated run (${result.iterations} iterations)`,
-				options?.taskId,
-				true,
-			);
-			return result;
-		} catch (error) {
-			const err = error instanceof Error ? error : new Error(String(error));
+			const taskEndStatus = taskEndStatusFromResult(result);
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
+				status: taskEndStatus,
+				result,
+			});
+			if (taskEndStatus === "completed") {
+				this.recordProgressStep(
+					agentId,
+					`Completed a delegated run (${result.iterations} iterations)`,
+					options?.taskId,
+					true,
+				);
+			} else if (taskEndStatus === "failed") {
+				this.appendMissionLog({
+					agentId,
+					taskId: options?.taskId,
+					kind: "error",
+					summary: result.text || "Teammate run failed",
+				});
+			}
+			return result;
+		} catch (error) {
+			const err = error instanceof Error ? error : new Error(String(error));
+			const intentionalAbort = isIntentionalTeammateAbort(member, err);
+			this.emitEvent({
+				type: TeamMessageType.TaskEnd,
+				agentId,
+				status: intentionalAbort ? "cancelled" : "failed",
 				error: err,
 				messages: member.agent.getMessages(),
 			});
-			if (!isIntentionalShutdownAbort(member, err)) {
+			if (!intentionalAbort) {
 				this.appendMissionLog({
 					agentId,
 					taskId: options?.taskId,
@@ -1218,6 +1251,14 @@ export class AgentTeamsRuntime {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
+			if (this.runs.get(run.id)?.status !== "running") {
+				return;
+			}
+			const cancellationReason = this.members.get(run.agentId)?.abortReason;
+			if (cancellationReason !== undefined) {
+				this.cancelRun(run.id, cancellationReason);
+				return;
+			}
 			// Model-stream failures surface as results with finishReason
 			// "error" rather than throws; route them through the failure
 			// path so the run is reported as failed (and retried when
@@ -1235,17 +1276,17 @@ export class AgentTeamsRuntime {
 				error instanceof Error
 					? error.message
 					: String(error ?? "Unknown error");
+			if (this.runs.get(run.id)?.status !== "running") {
+				return;
+			}
 			run.error = message;
 			run.endedAt = new Date();
 			const member = this.members.get(run.agentId);
-			if (isIntentionalShutdownAbort(member, error)) {
-				run.status = "cancelled";
-				run.currentActivity = "cancelled";
-				this.emitEvent({
-					type: TeamMessageType.RunCancelled,
-					run: { ...run },
-					reason: message,
-				});
+			if (
+				isAbortLikeError(error) &&
+				isIntentionalTeammateAbort(member, error)
+			) {
+				this.cancelRun(run.id, member?.abortReason ?? message);
 			} else if (run.retryCount < run.maxRetries) {
 				run.retryCount++;
 				run.status = "queued";
@@ -1314,12 +1355,62 @@ export class AgentTeamsRuntime {
 		return this.listRuns();
 	}
 
+	/**
+	 * Cancel work owned by this team runtime without removing teammate or
+	 * conversation state. Used when the owning lead session is aborted.
+	 */
+	cancelOutstandingWork(reason?: unknown): void {
+		const message =
+			typeof reason === "string"
+				? reason
+				: reason instanceof Error
+					? reason.message
+					: reason === undefined
+						? "parent_session_abort"
+						: String(reason);
+		this.clearQueuedRunDispatchTimer();
+		let firstAbortError: unknown;
+
+		for (const run of this.runs.values()) {
+			if (run.status === "queued" || run.status === "running") {
+				this.cancelRun(run.id, message);
+			}
+		}
+		for (const member of this.members.values()) {
+			if (
+				member.role !== "teammate" ||
+				!member.agent ||
+				member.runningCount <= 0 ||
+				member.abortRequested
+			) {
+				continue;
+			}
+			member.abortRequested = true;
+			member.abortReason = message;
+			try {
+				member.agent.abort(new Error(message));
+			} catch (error) {
+				if (!isAbortLikeError(error) && firstAbortError === undefined) {
+					firstAbortError = error;
+				}
+			}
+		}
+		if (firstAbortError !== undefined) {
+			throw firstAbortError;
+		}
+	}
+
 	cancelRun(runId: string, reason?: string): TeamRunRecord {
 		const run = this.runs.get(runId);
 		if (!run) {
 			throw new Error(`Run "${runId}" was not found`);
 		}
-		if (run.status === "completed" || run.status === "failed") {
+		if (
+			run.status === "completed" ||
+			run.status === "failed" ||
+			run.status === "cancelled" ||
+			run.status === "interrupted"
+		) {
 			return { ...run };
 		}
 		run.status = "cancelled";

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	buildToolPresentation,
+	extractSubmitSummaryText,
 	formatToolValue,
 	parseToolPayload,
 } from "./tool-summaries";
@@ -48,6 +49,30 @@ describe("formatToolValue", () => {
 		expect(formatToolValue({ a: 1 })).toBe('{\n  "a": 1\n}');
 		expect(formatToolValue(null)).toBe("");
 		expect(formatToolValue(undefined)).toBe("");
+	});
+});
+
+describe("extractSubmitSummaryText", () => {
+	it("reads the summary from structured or JSON-string input", () => {
+		expect(
+			extractSubmitSummaryText({
+				toolName: "submit_and_exit",
+				input: { summary: "All done.", verified: true },
+			}),
+		).toBe("All done.");
+		expect(
+			extractSubmitSummaryText({
+				toolName: "submit_and_exit",
+				input: '{"summary":"From string input."}',
+			}),
+		).toBe("From string input.");
+	});
+
+	it("returns empty for missing payloads or summaries", () => {
+		expect(extractSubmitSummaryText(null)).toBe("");
+		expect(
+			extractSubmitSummaryText({ toolName: "submit_and_exit", input: {} }),
+		).toBe("");
 	});
 });
 

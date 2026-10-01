@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
@@ -512,13 +513,34 @@ export async function getValidOcaCredentials(
 	try {
 		return await refreshOcaToken(currentCredentials, providerOptions);
 	} catch (error) {
+		const telemetry = providerOptions?.telemetry ?? options?.telemetry;
+		const failureDetails = {
+			status: error instanceof OcaOAuthTokenError ? error.status : undefined,
+			errorCode:
+				error instanceof OcaOAuthTokenError ? error.errorCode : undefined,
+			errorName: error instanceof Error ? error.name : undefined,
+		};
 		if (error instanceof OcaOAuthTokenError && error.isLikelyInvalidGrant()) {
-			captureAuthLoggedOut(providerOptions?.telemetry, "oca", "invalid_grant");
+			captureAuthLoggedOut(telemetry, "oca", "invalid_grant", {
+				status: error.status,
+				errorCode: error.errorCode,
+			});
 			return null;
 		}
-		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
+		const tokenExpired =
+			currentCredentials.expires - Date.now() <= retryableTokenGraceMs;
+		captureAuthRefreshSoftFailure(telemetry, "oca", {
+			...failureDetails,
+			tokenExpired,
+		});
+		if (!tokenExpired) {
 			return currentCredentials;
 		}
-		return null;
+		// Rethrow instead of returning null. A null from this function means the
+		// refresh token was REJECTED (re-auth required); a network blip or server
+		// error that happens to land after expiry must not be mistaken for that —
+		// callers turn null into a forced "requires re-authentication" stop even
+		// though the very next refresh attempt would likely succeed.
+		throw error;
 	}
 }

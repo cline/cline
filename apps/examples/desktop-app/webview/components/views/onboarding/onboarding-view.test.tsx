@@ -9,13 +9,24 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import type { Provider } from "@/lib/provider-schema";
-import { OnboardingView, sortProvidersForApiKeySetup } from "./onboarding-view";
+import {
+	GITHUB_ONBOARDING_FEATURE_FLAG,
+	OnboardingView,
+	sortProvidersForApiKeySetup,
+} from "./onboarding-view";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+const { invoke, openExternalUrl } = vi.hoisted(() => ({
+	invoke: vi.fn(),
 	openExternalUrl: vi.fn(),
 }));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
+	openExternalUrl,
+}));
+
+const GITHUB_STEP_ENABLED_FLAGS = {
+	flags: { [GITHUB_ONBOARDING_FEATURE_FLAG]: true },
+};
 
 class StorageStub implements Storage {
 	readonly #values = new Map<string, string>();
@@ -141,6 +152,9 @@ describe("OnboardingView", () => {
 					settingsPath: "/tmp/providers.json",
 				};
 			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
 			return {};
 		});
 		container = document.createElement("div");
@@ -209,6 +223,15 @@ describe("OnboardingView", () => {
 		const clineOption = container.querySelector(
 			'[data-onboarding-option="cline"]',
 		);
+		expect(
+			Array.from(clineOption?.querySelectorAll("li") ?? []).map((item) =>
+				item.textContent?.trim(),
+			),
+		).toEqual([
+			"Regular free model promotions",
+			"Subscribe to ClinePass for generous usage across the best open weights models like DeepSeek, Kimi, and GLM",
+			"No API key needed",
+		]);
 		const apiKeyOption = container.querySelector(
 			'[data-onboarding-option="api-key"]',
 		);
@@ -375,6 +398,19 @@ describe("OnboardingView", () => {
 			if (command === "list_provider_catalog") {
 				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
 			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
+			if (command === "list_cline_recommended_models") {
+				return {
+					recommended: [],
+					free: [
+						{ id: "deepseek/deepseek-v4-flash", name: "deepseek-v4-flash" },
+						{ id: "cline-free/solar-pro4", name: "Solar Pro 4" },
+					],
+					clinePass: [],
+				};
+			}
 			return {};
 		});
 		await render();
@@ -386,9 +422,27 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Continue").click();
 		});
+		// Connecting a Cline account routes through the GitHub integration step.
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
+		});
 		// The redesigned completion step places transparent content over a static,
 		// wide version of the hero grid.
 		expect(container.textContent).toContain("You're all set");
+		// A Cline sign-in ends on the current free models plus the ClinePass upsell.
+		const clineModels = container.querySelector(
+			"[data-onboarding-cline-models]",
+		);
+		expect(clineModels?.textContent).toContain("Free models");
+		expect(clineModels?.textContent).toContain("deepseek-v4-flash");
+		expect(clineModels?.textContent).toContain("Solar Pro 4");
+		await act(async () => {
+			buttonByText("Get ClinePass").click();
+		});
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://app.cline.bot/onboarding/individual-plan",
+		);
 		const doneGrid = container.querySelector<HTMLElement>(
 			'[data-welcome-hero-variant="grid-only"]',
 		);
@@ -402,6 +456,57 @@ describe("OnboardingView", () => {
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
 			).lastProvider,
 		).toBe("cline");
+	});
+
+	it("skips the GitHub step silently when the integration is already connected", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "cline_integrations") {
+				return [{ provider: "github" }];
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			if (command === "get_feature_flags") {
+				return GITHUB_STEP_ENABLED_FLAGS;
+			}
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).toContain("You're all set");
+	});
+
+	it("bypasses the GitHub step when the rollout flag is off", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			// get_feature_flags falls through to the empty snapshot, which is
+			// also what an unreachable sidecar resolves to: flag disabled.
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(invoke).toHaveBeenCalledWith("get_feature_flags");
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).toContain("You're all set");
 	});
 
 	it("lets the user cancel a pending browser sign-in", async () => {
@@ -481,6 +586,10 @@ describe("OnboardingView", () => {
 			provider: "cline",
 			enabled: true,
 			api_key: "cline_key_123",
+		});
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(container.textContent).toContain("Your Cline account is connected");
@@ -580,8 +689,16 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Sign in").click();
 		});
-		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
-			provider: "cline",
+		expect(invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			// The browser round-trip must get the extended OAuth deadline, not
+			// the default 120s command deadline (cline/cline#14201).
+			{ timeoutMs: 15 * 60_000 },
+		);
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(

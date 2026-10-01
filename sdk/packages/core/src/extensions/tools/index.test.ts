@@ -7,7 +7,11 @@ const spawn = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", () => ({ spawn }));
 
-import { createBuiltinTools } from "./index";
+import {
+	CommandTerminationError,
+	createBuiltinTools,
+	createShellExecutor,
+} from "./index";
 
 const context: AgentToolContext = {
 	agentId: "agent-1",
@@ -15,15 +19,20 @@ const context: AgentToolContext = {
 	iteration: 1,
 };
 
-function createSuccessfulChildProcess(): ChildProcessWithoutNullStreams {
+const pwshExecutable = process.platform === "win32" ? "pwsh.exe" : "pwsh";
+
+function createChildProcess(
+	code: number | null = 0,
+	signal: NodeJS.Signals | null = null,
+): ChildProcessWithoutNullStreams {
 	const child = Object.assign(new EventEmitter(), {
 		stdout: new EventEmitter(),
 		stderr: new EventEmitter(),
-		stdin: new EventEmitter(),
+		stdin: Object.assign(new EventEmitter(), { end: vi.fn() }),
 		pid: 123,
 		kill: vi.fn(() => true),
 	});
-	queueMicrotask(() => child.emit("close", 0));
+	queueMicrotask(() => child.emit("close", code, signal));
 	return child as unknown as ChildProcessWithoutNullStreams;
 }
 
@@ -44,7 +53,22 @@ async function executeRunCommands(
 describe("createBuiltinTools shell configuration", () => {
 	beforeEach(() => {
 		spawn.mockReset();
-		spawn.mockImplementation(() => createSuccessfulChildProcess());
+		spawn.mockImplementation(() => createChildProcess());
+	});
+
+	it("does not invent an exit code when neither code nor signal is reported", async () => {
+		spawn.mockImplementation(() => createChildProcess(null, null));
+		const error = await createShellExecutor()(
+			"echo ok",
+			process.cwd(),
+			context,
+		).catch((caught: unknown) => caught);
+		expect(error).toBeInstanceOf(CommandTerminationError);
+		expect(error).toMatchObject({
+			signal: null,
+			output: "[Command terminated without an exit code]",
+		});
+		expect(error).not.toHaveProperty("exitCode");
 	});
 
 	it.each([
@@ -58,7 +82,14 @@ describe("createBuiltinTools shell configuration", () => {
 			name: "executor shell",
 			options: { executorOptions: { bash: { shell: "powershell.exe" } } },
 			expectedShell: "powershell.exe",
-			expectedDescription: "Commands run through PowerShell",
+			expectedDescription:
+				"Commands run through Windows PowerShell (powershell.exe)",
+		},
+		{
+			name: "pwsh executable",
+			options: { shell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
+			expectedShell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+			expectedDescription: `Commands run through PowerShell (${pwshExecutable})`,
 		},
 		{
 			name: "top-level shell precedence",

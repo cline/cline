@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentCommandOutput, GeneratedMediaContent } from "@cline/ui";
 import {
 	ToolActivity,
 	ToolActivityCode,
@@ -11,16 +12,23 @@ import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { ChatMessage } from "@/lib/chat-schema";
+import {
+	type ChatMessage,
+	type ChatMessageImage,
+	ChatMessageImageSchema,
+} from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
+import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
+import { MessageImageCarousel } from "./image-carousel";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
 	extractRunCommandOutput,
+	extractSubmitSummaryText,
 	formatToolValue,
 } from "./tool-summaries";
 
@@ -53,14 +61,41 @@ function ToolLabel({
 
 const ToolCallRow = memo(function ToolCallRow({
 	message,
+	isRunActive,
+	onExpandImage,
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
+	isRunActive: boolean;
+	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
+	// A missing result can outlive its run. Only gate the running display;
+	// keep the message intact so a later result can still replace it.
+	const isRunning = inProgress && isRunActive;
 	const isCommand = summary.kind === "command";
+	// submit_and_exit carries the run's final answer (scheduled tasks end with
+	// it), so surface it expanded and rendered as markdown rather than leaving
+	// it collapsed behind a code block.
+	const isSubmit = summary.toolName === "submit_and_exit";
+	const submitText = isSubmit
+		? extractSubmitSummaryText(payload) || summary.outputText || ""
+		: "";
+	// The generic fallback label ("Submit and exit") describes the tool, not
+	// the moment; name the milestone the row represents instead.
+	const labelParts = isSubmit
+		? [
+				{
+					text: inProgress
+						? "Completing scheduled task"
+						: payload?.isError
+							? "Scheduled task failed"
+							: "Scheduled task completed",
+				},
+			]
+		: summary.labelParts;
 	const commandOutputSource = isCommand
 		? message.meta?.toolOutput ||
 			(payload?.isError
@@ -73,7 +108,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const toolSessionId = message.sessionId;
 	const toolCallId = message.meta?.toolCallId;
 	const canProceed = Boolean(
-		inProgress &&
+		isRunning &&
 			isCommand &&
 			message.meta?.toolDetachable === true &&
 			toolSessionId &&
@@ -106,8 +141,23 @@ const ToolCallRow = memo(function ToolCallRow({
 			: [];
 	});
 	const hasFileDiffs = fileDiffs.length > 0;
+	const outputImages = summary.outputMedia.flatMap((media, index) => {
+		if (media.modality !== "image") return [];
+		const image = ChatMessageImageSchema.safeParse({
+			id: `${message.id}_tool_image_${index}`,
+			mediaType: media.mediaType,
+			data: media.data,
+		});
+		return image.success ? [image.data] : [];
+	});
+	const otherOutputMedia = summary.outputMedia.filter(
+		(media) => media.modality !== "image",
+	);
 	const shouldAutoOpen =
-		hasFileDiffs || (inProgress && (Boolean(commandOutput) || canProceed));
+		hasFileDiffs ||
+		Boolean(submitText) ||
+		summary.outputMedia.length > 0 ||
+		(inProgress && (Boolean(commandOutput) || canProceed));
 	const [open, setOpen] = useState(shouldAutoOpen);
 	const [userToggled, setUserToggled] = useState(false);
 	const [isProceeding, setIsProceeding] = useState(false);
@@ -147,7 +197,9 @@ const ToolCallRow = memo(function ToolCallRow({
 	const hasExpandedSections =
 		details.length > 0 ||
 		fileDiffs.length > 0 ||
+		Boolean(submitText) ||
 		Boolean(isCommand ? commandOutput : summary.outputText) ||
+		summary.outputMedia.length > 0 ||
 		Boolean(summary.errorText) ||
 		Boolean(inputPreview) ||
 		canProceed;
@@ -169,9 +221,9 @@ const ToolCallRow = memo(function ToolCallRow({
 						<Icon className="size-4" />
 					)
 				}
-				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
+				label={<ToolLabel isRunning={isRunning} parts={labelParts} />}
 				showDisclosureIcon={false}
-				status={hasError ? "error" : inProgress ? "running" : "success"}
+				status={hasError ? "error" : isRunning ? "running" : "success"}
 			/>
 			<ToolActivityContent presentation="rail">
 				{details.length > 0 ? (
@@ -206,14 +258,50 @@ const ToolCallRow = memo(function ToolCallRow({
 					),
 				)}
 				{commandOutput ? (
-					<CommandOutputTerminal
-						isRunning={inProgress}
-						output={commandOutput}
-					/>
+					<AgentCommandOutput isRunning={isRunning} output={commandOutput}>
+						<Ansi>{commandOutput}</Ansi>
+					</AgentCommandOutput>
+				) : submitText ? (
+					// The summary is the run's final answer: full foreground color,
+					// not the panel's muted tool-detail gray.
+					<div className="mt-1 min-w-0 max-w-full wrap-break-word text-foreground">
+						<MemoizedMarkdown content={submitText} />
+					</div>
 				) : summary.outputText ? (
 					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
 						{summary.outputText}
 					</ToolActivityCode>
+				) : null}
+				{outputImages.length > 0 ? (
+					<div className="mt-2">
+						<MessageImageCarousel
+							images={outputImages}
+							onExpandImage={onExpandImage}
+						/>
+					</div>
+				) : null}
+				{otherOutputMedia.length > 0 ? (
+					<div className="mt-2 flex max-w-2xl flex-col gap-2">
+						{otherOutputMedia.map((media, index) => (
+							<GeneratedMediaContent
+								classNames={{
+									audio: "w-full",
+									video: "max-h-96 max-w-full rounded-lg",
+									file: "text-sm underline",
+									unavailable:
+										"rounded-lg border border-border bg-muted p-3 text-sm",
+								}}
+								key={`${message.id}_tool_media_${index}`}
+								media={{
+									id: `${message.id}_tool_media_${index}`,
+									modality: media.modality,
+									mediaType: media.mediaType,
+									name: media.name,
+									source: { type: "base64", data: media.data },
+								}}
+							/>
+						))}
+					</div>
 				) : null}
 				{inputPreview ? (
 					<div className="space-y-1">
@@ -254,62 +342,16 @@ const ToolCallRow = memo(function ToolCallRow({
 	);
 });
 
-function CommandOutputTerminal({
-	output,
-	isRunning,
-}: {
-	output: string;
-	isRunning: boolean;
-}) {
-	const containerRef = useRef<HTMLDivElement>(null);
-	const shouldAutoScrollRef = useRef(true);
-	useEffect(() => {
-		const container = containerRef.current;
-		if (container && shouldAutoScrollRef.current) {
-			container.scrollTop = output ? container.scrollHeight : 0;
-		}
-	}, [output]);
-
-	return (
-		<div className="mt-2 space-y-1">
-			<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-				Output
-			</div>
-			<div
-				aria-label="Command output"
-				aria-live="off"
-				className="max-h-64 overflow-auto rounded-md border border-border/70 bg-black/90 p-3 font-mono text-xs leading-relaxed text-zinc-100"
-				onScroll={(event) => {
-					const container = event.currentTarget;
-					shouldAutoScrollRef.current =
-						container.scrollHeight -
-							container.scrollTop -
-							container.clientHeight <
-						24;
-				}}
-				ref={containerRef}
-				role="log"
-			>
-				<pre className="whitespace-pre-wrap break-words">
-					<Ansi>{output}</Ansi>
-					{isRunning ? (
-						<span
-							aria-hidden="true"
-							className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-zinc-100"
-						/>
-					) : null}
-				</pre>
-			</div>
-		</div>
-	);
-}
-
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
 		messages,
+		isRunActive,
+		onExpandImage,
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
+		isRunActive: boolean;
+		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
 	}) {
 		if (messages.length === 0) return null;
@@ -317,8 +359,10 @@ export const ToolMessageBlock = memo(
 			<div className="flex flex-col gap-1">
 				{messages.map((message) => (
 					<ToolCallRow
+						isRunActive={isRunActive}
 						key={message.id}
 						message={message}
+						onExpandImage={onExpandImage}
 						onProceedWhileRunning={onProceedWhileRunning}
 					/>
 				))}
@@ -326,7 +370,9 @@ export const ToolMessageBlock = memo(
 		);
 	},
 	(prev, next) =>
+		prev.isRunActive === next.isRunActive &&
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
+		prev.onExpandImage === next.onExpandImage &&
 		prev.onProceedWhileRunning === next.onProceedWhileRunning,
 );

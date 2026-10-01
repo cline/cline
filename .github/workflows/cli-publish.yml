@@ -61,7 +61,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -154,6 +154,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -189,6 +191,19 @@ jobs:
             fi
             ls -lh "$dir/bin/"
           done
+
+      - name: Sign Windows binaries
+        uses: ./.github/actions/sign-windows-cli
+        with:
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
+          files: |
+            apps/cli/dist/cli-windows-x64/bin/cline.exe
+            apps/cli/dist/cli-windows-arm64/bin/cline.exe
 
       - name: Publish to NPM with latest tag
         env:
@@ -328,7 +343,7 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       - name: Setup Node.js
         if: steps.check_commits.outputs.skip != 'true'
@@ -410,6 +425,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -446,6 +463,20 @@ jobs:
             fi
             ls -lh "$dir/bin/"
           done
+
+      - name: Sign Windows binaries
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: ./.github/actions/sign-windows-cli
+        with:
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
+          files: |
+            apps/cli/dist/cli-windows-x64/bin/cline.exe
+            apps/cli/dist/cli-windows-arm64/bin/cline.exe
 
       - name: Publish to NPM with nightly tag
         if: steps.check_commits.outputs.skip != 'true'

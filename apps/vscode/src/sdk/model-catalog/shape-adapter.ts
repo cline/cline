@@ -32,7 +32,7 @@
  * | contextWindow | `sdk.contextWindow`, or positive `sdk.maxInputTokens` for legacy display compatibility | safe default: 128_000 |
  * | maxInputTokens | `sdk.maxInputTokens` if finite number (null = missing) | omitted (undefined) |
  * | maxTokens | `sdk.maxTokens` if finite number (null = missing) | safe default: -1 |
- * | supportsImages | capabilities includes `images` or `vision` | safe default: true when capabilities absent |
+ * | supportsImages | `modalities.input` includes `image` when declared, else capabilities includes `images` or `vision` | safe default: true when both absent |
  * | supportsPromptCache | capabilities includes `prompt-cache` | safe default: false when capabilities absent |
  * | supportsReasoning | capabilities includes `reasoning` | omitted (undefined) |
  * | inputPrice | `sdk.pricing.input` if finite number | safe default: 0 |
@@ -291,6 +291,12 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		}
 	} else {
 		result.supportsImages = openAiModelInfoSafeDefaults.supportsImages
+	}
+	// Declared input modalities win over capabilities, matching what the provider
+	// layer sends (`supportedInputModalities`), so the UI never offers image input
+	// that the request formatter would strip.
+	if (modalities?.input) {
+		result.supportsImages = modalities.input.includes("image")
 	}
 
 	if (pricing?.cacheRead !== undefined) {

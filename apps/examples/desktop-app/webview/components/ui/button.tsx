@@ -24,13 +24,15 @@ const buttonVariants = cva(
 				sidebarItem:
 					"!h-auto w-full justify-start text-left gap-2 rounded-md !px-2 py-2 !text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground",
 				sidebarText:
-					"!h-auto justify-start gap-1 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-sidebar-foreground",
+					"!h-auto justify-start gap-1 px-3 py-1.5 !text-sm font-normal text-muted-foreground hover:text-sidebar-foreground",
 				text: "bg-transparent text-sm font-medium text-muted-foreground hover:text-foreground",
 			},
 			size: {
 				default: "h-9 px-4 py-2 has-[>svg]:pl-2 has-[>svg]:pr-2.5 text-base",
 				sm: "h-8 gap-1.5 px-2.5 py-1.5 has-[>svg]:pl-2.5 has-[>svg]:pr-3 text-sm",
-				xs: "h-7 gap-1.5 px-2.5 py-1.5 has-[>svg]:size-3 text-xs",
+				// (has-[>svg]:size-3 was a leftover from when xs was a 12px micro
+				// button; it collapsed any xs button containing an icon.)
+				xs: "h-7 gap-1.5 px-2.5 py-1.5 has-[>svg]:px-2 text-xs",
 				lg: "h-10 rounded-md px-6 has-[>svg]:px-4 text-lg",
 				icon: "size-5",
 				"icon-sm": "size-3 p-1",

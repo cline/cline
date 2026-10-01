@@ -9,10 +9,7 @@ import {
 } from "@cline/shared";
 import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
-import {
-	rememberRecoverableLocalHubUrl,
-	verifyHubConnection,
-} from "../client";
+import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
 import { hubHasLiveSessions, retireDiscoveredHub } from "../daemon";
 import {
 	clearHubDiscovery,
@@ -62,13 +59,17 @@ type NodeWebSocketLike = {
 	on(event: "message", listener: (data: unknown) => void): void;
 	on(event: "close", listener: () => void): void;
 	on(event: "pong", listener: () => void): void;
-	once(event: "close", listener: () => void): void;
+	once(
+		event: "close",
+		listener: (code?: number, reason?: unknown) => void,
+	): void;
 	ping?(): void;
 	terminate?(): void;
 };
 
 type TrackedNodeWebSocket = NodeWebSocketLike & {
 	isAlive?: boolean;
+	heartbeatTerminated?: boolean;
 };
 
 type NodeUpgradeSocketLike = {
@@ -592,10 +593,19 @@ export async function startHubWebSocketServer(
 				res.end("Unauthorized");
 				return;
 			}
-			res.statusCode = 202;
-			res.setHeader("content-type", "application/json");
-			res.end(JSON.stringify({ ok: true }));
-			queueMicrotask(() => {
+			// This response races the teardown it triggers: shutdown ends in
+			// process.exit(), which does not flush pending socket writes. Scheduling
+			// teardown on a microtask ran it before the event loop ever reached its
+			// write phase, so the accepted 202 could be lost and the caller saw a
+			// socket hang up. Unix hid this because uv_try_write lands small loopback
+			// writes in the kernel synchronously; Windows has no such fast path and
+			// lost the race regularly.
+			let teardownStarted = false;
+			const startTeardown = (): void => {
+				if (teardownStarted) {
+					return;
+				}
+				teardownStarted = true;
 				try {
 					void Promise.resolve(options.onShutdownRequested?.()).catch(
 						() => undefined,
@@ -611,6 +621,24 @@ export async function startHubWebSocketServer(
 					// must not take the daemon's unhandledRejection fatal path.
 					closeServer().catch(() => undefined);
 				}
+			};
+			res.statusCode = 202;
+			res.setHeader("content-type", "application/json");
+			// Ask for a clean close so the client gets a FIN after the body rather
+			// than an abort from the imminent exit.
+			res.setHeader("connection", "close");
+			// A caller that vanishes mid-write must never strand the daemon: the
+			// write callback can then go unfired, so a timer starts the same
+			// (idempotent) teardown regardless. The request was already accepted.
+			const teardownFallback = setTimeout(startTeardown, 1_000);
+			teardownFallback.unref?.();
+			res.end(JSON.stringify({ ok: true }), () => {
+				// `end`'s callback fires once the body has been handed to the socket;
+				// setImmediate then yields a loop turn so the write actually drains.
+				setImmediate(() => {
+					clearTimeout(teardownFallback);
+					startTeardown();
+				});
 			});
 			return;
 		}
@@ -621,6 +649,7 @@ export async function startHubWebSocketServer(
 	heartbeatTimer = setInterval(() => {
 		for (const websocket of sockets) {
 			if (websocket.isAlive === false) {
+				websocket.heartbeatTerminated = true;
 				try {
 					websocket.terminate?.();
 				} catch {
@@ -676,6 +705,17 @@ export async function startHubWebSocketServer(
 						tracked.isAlive = true;
 					});
 					sockets.add(tracked);
+					// Clients only see "Hub connection closed (code=1006)"; this is
+					// the one place that knows whether the heartbeat sweep dropped
+					// the socket, the server was closing, or the peer went away.
+					tracked.once("close", (code, reason) => {
+						logHubMessage("info", "socket.closed", {
+							code,
+							reason: decodeSocketData(reason).slice(0, 200) || undefined,
+							heartbeatTerminated: tracked.heartbeatTerminated ?? false,
+							serverClosing: closeHandle !== undefined,
+						});
+					});
 					const detach = adapter.attach(wrapWsSocket(websocket), {
 						allowRegisteredWorkspace: isTokenAuthorized,
 					});
@@ -724,6 +764,12 @@ export async function startHubWebSocketServer(
 		if (heartbeatTimer) {
 			clearInterval(heartbeatTimer);
 			heartbeatTimer = undefined;
+		}
+		// A bind failure while the singleton lock is held means the occupant
+		// is not a live Hub for this owner; record which case this was.
+		if (error instanceof Error) {
+			(error as Error & { hubInstanceLockHeld?: boolean }).hubInstanceLockHeld =
+				instanceLock.held;
 		}
 		await settlesWithin(
 			Promise.resolve().then(() => transport.stop()),

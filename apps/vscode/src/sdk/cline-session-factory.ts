@@ -9,6 +9,7 @@
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
 import {
+	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
 	type CoreSessionConfig,
 	getProviderAuthHandler,
@@ -25,7 +26,7 @@ import {
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
-import { buildClineSystemPrompt } from "@cline/shared"
+import { buildClineSystemPrompt, isClineProvider } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -91,6 +92,12 @@ export interface ActiveSession {
 	startResult?: StartSessionResult
 	/** Whether the session is currently running */
 	isRunning: boolean
+	/**
+	 * Prompts Core holds in this session's queue. Core drains the queue itself
+	 * as soon as a turn ends, so a session with queued prompts is about to run
+	 * again and is not idle for passive rebuilds.
+	 */
+	queuedPromptCount: number
 }
 
 function createSdkLogger() {
@@ -612,6 +619,55 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+/**
+ * Resolve Azure OpenAI settings (API version / Entra ID auth) for the OpenAI
+ * Compatible provider. The webview saves them only to legacy state
+ * (`azureApiVersion` / `azureIdentity`); the providers.json `azure` block is
+ * the fallback for entries written by the CLI onboarding or the one-shot
+ * legacy migration. Without this mapping the SDK gateway never appends
+ * `?api-version=` to Azure deployment URLs and Azure rejects every request
+ * with "Resource not found" (#13655).
+ *
+ * Values resolved from legacy state are also mirrored into providers.json so
+ * the CLI — which reads only providers.json — sees the same Azure
+ * configuration the extension uses. The legacy migration never updates
+ * existing entries, so this mirror is the only ongoing sync for these fields.
+ */
+export function resolveAzureProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "azure"> | undefined {
+	const apiVersion = config.azureApiVersion?.trim() || undefined
+	const useIdentity = typeof config.azureIdentity === "boolean" ? config.azureIdentity : undefined
+
+	let stored: ProviderSettings | undefined
+	try {
+		stored = getProviderSettingsManager().getProviderSettings("openai-compatible")
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible Azure settings from providers.json")
+	}
+
+	if (apiVersion === undefined && useIdentity === undefined) {
+		return stored?.azure ? { azure: stored.azure } : undefined
+	}
+
+	const azure: NonNullable<ProviderSettings["azure"]> = {
+		...(stored?.azure ?? {}),
+		...(apiVersion !== undefined ? { apiVersion } : {}),
+		...(useIdentity !== undefined ? { useIdentity } : {}),
+	}
+
+	if (stored?.azure?.apiVersion !== azure.apiVersion || stored?.azure?.useIdentity !== azure.useIdentity) {
+		try {
+			getProviderSettingsManager().saveProviderSettings(
+				{ ...(stored ?? {}), provider: "openai-compatible", azure },
+				{ setLastUsed: false },
+			)
+		} catch {
+			Logger.warn("[SessionFactory] Failed to mirror Azure settings into providers.json")
+		}
+	}
+
+	return { azure }
+}
+
 type OllamaProviderConfig = {
 	modelInfo?: { id: string; name: string; contextWindow: number }
 	timeoutMs?: number
@@ -786,6 +842,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
+	let azureProviderConfig: Pick<ProviderSettings, "azure"> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -831,6 +888,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			if (providerId === "ollama") {
 				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
+			}
+
+			// The OpenAI Compatible provider is spelled "openai" after the
+			// legacy fold above; keep the SDK spelling as a defensive alias.
+			if (providerId === "openai" || providerId === "openai-compatible") {
+				azureProviderConfig = resolveAzureProviderConfig(apiConfig)
 			}
 
 			Logger.log(
@@ -901,10 +964,17 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
 			: resolveProviderReasoningConfig(providerId)
 
-	// Build the system prompt using the shared prompt builder. Core still
-	// expects callers to provide a concrete systemPrompt, but the prompt builder
-	// can derive baseline workspace context from the root path and workspace
-	// name, so we avoid duplicating core's richer workspace metadata pass here.
+	// Include rich workspace metadata so Cline API observability can extract
+	// git remotes and the latest commit hash from the system message.
+	let workspaceMetadata: string | undefined
+	if (isClineProvider(providerId)) {
+		try {
+			workspaceMetadata = await buildWorkspaceMetadata(workspaceRoot)
+		} catch (error) {
+			Logger.warn("[SessionFactory] Failed to build workspace metadata:", error)
+		}
+	}
+
 	let systemPrompt = ""
 	try {
 		const workspaceName = resolveWorkspaceName(cwd)
@@ -912,6 +982,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			ide: "VS Code",
 			workspaceRoot,
 			workspaceName,
+			metadata: workspaceMetadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
@@ -985,6 +1056,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
 		...(cloudProviderConfig ?? {}),
+		// Only spread when defined: an explicit `azure: undefined` key would
+		// clobber the providers.json azure block core merges in downstream
+		// (buildProviderConfig spreads this session config over stored settings).
+		...(azureProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),

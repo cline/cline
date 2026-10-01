@@ -60,6 +60,26 @@ describe("file indexer", () => {
 		}
 	});
 
+	it("does not index the home directory", async () => {
+		const cwd = await createTempWorkspace();
+		const homedir = vi.spyOn(os, "homedir").mockReturnValue(cwd);
+		try {
+			await writeFile(path.join(cwd, "notes.md"), "# Notes\n", "utf8");
+
+			const index = await getFileIndex(cwd, { ttlMs: 0 });
+			expect(index.size).toBe(0);
+		} finally {
+			homedir.mockRestore();
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("does not index the filesystem root", async () => {
+		const root = path.parse(process.cwd()).root;
+		const index = await getFileIndex(root, { ttlMs: 0 });
+		expect(index.size).toBe(0);
+	});
+
 	it("prewarm rebuilds index and includes new files", async () => {
 		const cwd = await createTempWorkspace();
 		try {
