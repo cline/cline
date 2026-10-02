@@ -1,5 +1,16 @@
 # Cline Desktop Changelog
 
+## 0.0.41
+
+- Cloud sessions can now use the same models as Cline on the web. The model picker lists **Cline Usage-Billing**, **ClinePass**, and **ClineFree** models (organization accounts don't get ClinePass), instead of only Cline. A new Cloud session waits until a model is ready before sending, and you can retry if the model list fails to load
+- An unsent prompt is no longer lost when you switch to another session and back. **New** in the sidebar returns to your unfinished draft; **Cmd/Ctrl+N** still starts a fresh session
+- Sessions you start in the app are now highlighted in the sidebar while open, instead of only sessions reopened from history. They also no longer get marked unread by their own messages
+- **Customize → Connectors** now matches the Skills, Plugins, and MCP tabs, with search, a refresh button, and an Installed section. A new Suggested section offers ready-made connector combos (such as incident root-cause analysis or organizing your day), each with an example prompt and one-click installs for its connectors
+- Marketplace rows now show what type each item is, so same-named entries like the Figma MCP server and the Figma connector are easy to tell apart. Category filters moved into a single dropdown
+- A connector's details now show how many tools it adds to new sessions, instead of the catalog's total tool count
+- Agent teams stay fast in long sessions and while teammates are streaming. Existing team data is compacted automatically the first time it's opened
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
 ## 0.0.40
 
 - Custom providers added with **Add Provider** now work when you run a task. They showed up in the provider and model pickers but failed with `Unknown or disabled provider`
