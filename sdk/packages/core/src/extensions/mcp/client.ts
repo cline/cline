@@ -214,6 +214,8 @@ class StdioMcpClient implements McpServerClient {
 	private framedParser = new FramedMessageParser();
 	private newlineParser = new NewlineMessageParser();
 	private stderrBuffer = "";
+	// Set when a write to the current child's stdin failed; see spawnProcess.
+	private stdinFailure: string | undefined;
 	private connected = false;
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
@@ -404,6 +406,7 @@ class StdioMcpClient implements McpServerClient {
 		this.framedParser = new FramedMessageParser();
 		this.newlineParser = new NewlineMessageParser();
 		this.stderrBuffer = "";
+		this.stdinFailure = undefined;
 		this.protocolMode = protocolMode;
 
 		const platformOptions =
@@ -449,16 +452,13 @@ class StdioMcpClient implements McpServerClient {
 		// written fails that write asynchronously on the stdin stream. Without
 		// a listener Node raises it as an uncaught exception on the host
 		// process. The "exit" handler reports the server's fate for anything
-		// still pending; the write error only needs a home.
+		// still pending, and that is the useful message (exit code, stderr), so
+		// the write error is only recorded to annotate it.
 		child.stdin.on("error", (error) => {
 			if (this.process !== child) {
 				return;
 			}
-			this.failAllPending(
-				new Error(
-					`MCP process for "${this.registration.name}" stopped accepting input: ${toErrorMessage(error)}`,
-				),
-			);
+			this.stdinFailure = toErrorMessage(error);
 		});
 		child.once("exit", (code, signal) => {
 			if (this.process !== child) {
@@ -471,7 +471,7 @@ class StdioMcpClient implements McpServerClient {
 				: "";
 			this.failAllPending(
 				new Error(
-					`MCP process exited for "${this.registration.name}" (code=${code ?? "null"}, signal=${signal ?? "null"}).${suffix}`,
+					`MCP process exited for "${this.registration.name}" (code=${code ?? "null"}, signal=${signal ?? "null"}).${suffix}${this.describeStdinFailure()}`,
 				),
 			);
 		});
@@ -602,8 +602,15 @@ class StdioMcpClient implements McpServerClient {
 
 	private createTimeoutError(method: string, timeoutMs: number): Error {
 		return new Error(
-			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method),
+			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method) +
+				this.describeStdinFailure(),
 		);
+	}
+
+	private describeStdinFailure(): string {
+		return this.stdinFailure === undefined
+			? ""
+			: ` The server stopped reading its input before the request was fully delivered (${this.stdinFailure}).`;
 	}
 
 	private notify(method: string, params?: Record<string, unknown>): void {

@@ -133,8 +133,8 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
-// Answers initialize normally, then exits the moment a tools/call request
-// starts arriving -- without draining stdin. A request body larger than the
+// Answers initialize normally, then crashes (exit code 3) the moment a
+// tools/call request starts arriving -- without draining stdin. A request body larger than the
 // pipe buffer is then still partly queued on the client side when the reader
 // disappears, which is how a stdin write fails asynchronously with EPIPE.
 const EXIT_ON_CALL_SERVER_SCRIPT = `
@@ -142,7 +142,8 @@ let buffer = "";
 process.stdin.on("data", (chunk) => {
 	const text = chunk.toString("utf8");
 	if (text.includes('"tools/call"')) {
-		process.exit(0);
+		process.stderr.write("fatal: server crashed while reading request\\n");
+		process.exit(3);
 	}
 	buffer += text;
 	let idx;
@@ -632,7 +633,7 @@ describe("default connect budget", () => {
 });
 
 describe("mcp client stdin failures", () => {
-	it("fails the request instead of crashing when the server exits mid-write", async () => {
+	it("reports the server's exit, not the broken pipe, when it dies mid-write", async () => {
 		const uncaught: unknown[] = [];
 		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
 			uncaught.push(error);
@@ -649,7 +650,7 @@ describe("mcp client stdin failures", () => {
 					name: "anything",
 					arguments: { blob: "x".repeat(1_000_000) },
 				}),
-			).rejects.toThrow(/MCP process/);
+			).rejects.toThrow(/MCP process exited for "fake-server" \(code=3/);
 			// Give a late pipe error a chance to surface before asserting.
 			await new Promise((resolve) => setTimeout(resolve, 200));
 			expect(uncaught).toEqual([]);
