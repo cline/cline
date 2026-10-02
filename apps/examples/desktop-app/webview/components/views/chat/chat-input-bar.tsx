@@ -109,6 +109,7 @@ type UserInstructionConfigResponse = {
 };
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{ name: "compact", description: "Compact context" },
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",

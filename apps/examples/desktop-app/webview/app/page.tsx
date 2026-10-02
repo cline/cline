@@ -1188,6 +1188,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		compactSession,
 		proceedWhileRunning,
 		reset,
 		abort,
@@ -1910,10 +1911,37 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
+	// `/compact` is a local command like in the CLI: it summarizes the session's
+	// working context instead of being sent to the model as a prompt.
+	const handleCompactCommand = useCallback(async () => {
+		try {
+			const result = await compactSession();
+			toast(
+				result.compacted
+					? {
+							title: "Context compacted",
+							description: `${result.messagesBefore} messages were summarized into ${result.messagesAfter}.`,
+						}
+					: { title: "Nothing to compact" },
+			);
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not compact context",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}, [compactSession]);
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			if (!trimmed && pendingAttachments.length === 0) {
+				return;
+			}
+			if (/^\/compact(\s|$)/i.test(trimmed)) {
+				clearPromptForSend();
+				await handleCompactCommand();
 				return;
 			}
 			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
@@ -1940,6 +1968,7 @@ function ChatThreadPane({
 			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
+			handleCompactCommand,
 			isCloudSession,
 			isNewThread,
 			onThreadStarted,
