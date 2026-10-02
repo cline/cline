@@ -389,8 +389,15 @@ describe("createComposioToolsExtension", () => {
 			tools: [
 				{
 					slug: "COMPOSIO_MANAGE_CONNECTIONS",
-					description: "Get a Connect Link.",
-					input_parameters: { type: "object", properties: {} },
+					description: "First call COMPOSIO_SEARCH_TOOLS for the user's query.",
+					input_parameters: {
+						type: "object",
+						properties: {
+							toolkits: { type: "array", items: { type: "string" } },
+							session_id: { type: "string" },
+						},
+						required: ["toolkits", "session_id"],
+					},
 				},
 				{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
 			],
@@ -401,10 +408,14 @@ describe("createComposioToolsExtension", () => {
 			"composio_wait_for_connections",
 		]);
 		expect(tools[0]?.retryable).toBe(false);
-		expect(tools[0]?.description).toMatch(
-			/^Use this whenever the user asks for something in an external app/,
-		);
-		expect(tools[0]?.description).toContain("Get a Connect Link.");
+		// Provider text points at tools this session does not expose.
+		expect(tools[0]?.description).toMatch(/^Connect the user's external apps/);
+		expect(tools[0]?.description).not.toContain("COMPOSIO_SEARCH_TOOLS");
+		expect(tools[0]?.inputSchema).toEqual({
+			type: "object",
+			properties: { toolkits: { type: "array", items: { type: "string" } } },
+			required: ["toolkits"],
+		});
 	});
 
 	it("executes meta tools with the session id through the proxy", async () => {
