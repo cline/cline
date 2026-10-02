@@ -427,7 +427,7 @@ export class AcpAgent implements Agent {
 		if (!session) {
 			throw new Error(`unknown session: ${params.sessionId}`);
 		}
-		session.currentMode = params.modeId;
+		await this.applySessionMode(session, params.modeId);
 		sendCurrentModeUpdate(this.conn, params.sessionId, params.modeId);
 		return {};
 	}
@@ -535,7 +535,7 @@ export class AcpAgent implements Agent {
 						`Invalid mode: ${value} (must be "plan" or "act")`,
 					);
 				}
-				session.currentMode = value;
+				await this.applySessionMode(session, value);
 				sendCurrentModeUpdate(this.conn, params.sessionId, value);
 				break;
 			}
@@ -610,6 +610,24 @@ export class AcpAgent implements Agent {
 		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
 	}
 
+	private async applySessionMode(
+		session: SessionState,
+		mode: "plan" | "act",
+	): Promise<void> {
+		if (session.currentMode === mode) {
+			return;
+		}
+
+		if (session.sessionManager) {
+			// Mode controls the runtime's system prompt, tools, and command guards.
+			// Rebuild the active runtime so a completed plan turn cannot leave the
+			// next act turn attached to the old read-only task.
+			await this.teardownSessionManager(session, "session_manager_dispose");
+		}
+
+		session.currentMode = mode;
+	}
+
 	private async getOrganizationConfigOption(
 		providerId: string,
 	): Promise<SessionConfigOption | undefined> {
@@ -650,7 +668,10 @@ export class AcpAgent implements Agent {
 	 * Tear down the current session manager, preserving conversation messages
 	 * so they can be replayed into a new session manager.
 	 */
-	private async teardownSessionManager(session: SessionState): Promise<void> {
+	private async teardownSessionManager(
+		session: SessionState,
+		disposeReason = "provider_change",
+	): Promise<void> {
 		if (!session.sessionManager) {
 			return;
 		}
@@ -673,7 +694,7 @@ export class AcpAgent implements Agent {
 				.abort(session.activeSessionId)
 				.catch(() => {});
 		}
-		await session.sessionManager.dispose("provider_change").catch(() => {});
+		await session.sessionManager.dispose(disposeReason).catch(() => {});
 		session.sessionManager = undefined;
 		session.activeSessionId = undefined;
 	}
