@@ -65,7 +65,7 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
 			{
 				title: "Suggested combos",
 				description:
-					"Ready-made connector sets, like organizing your day, each with a prompt to try.",
+					"Ready-made connector sets for jobs like organizing your day.",
 				icon: Sparkles,
 			},
 			{
