@@ -1,0 +1,121 @@
+# TUI cases drive `cline -i` in a real terminal (tmux recommended so the agent can
+# send keys and read the screen: tmux new -d -s tui 'cline -i'; tmux send-keys …; tmux capture-pane -p).
+feature: cli.tui
+title: Terminal UI
+docs: [docs/usage/tui.mdx]
+cases:
+  - id: cli.tui.launch-and-first-turn
+    title: cline -i opens the TUI and completes a first turn
+    surface: cli
+    priority: P0
+    maturity: draft
+    estimated_minutes: 3
+    tags: [tui, chat]
+    touches: [apps/cli/src/tui]
+    requires: [std.cli]
+    provides: [task.completed]
+    isolation: none
+    steps:
+      - do: In the sample project, `tmux new -d -s tui -x 120 -y 40 'cline -i'`; wait 5 s; `tmux capture-pane -pt tui`.
+      - expect: The welcome/status area shows model name, workspace, Plan/Act state and an input prompt; no error text.
+      - capture: tui-welcome
+      - do: "`tmux send-keys -t tui 'Reply with exactly the word PONG.' Enter`; poll capture-pane for up to 90 s."
+      - expect: PONG appears in the chat area; the status line shows non-zero context/tokens.
+      - capture: tui-first-turn
+
+  - id: cli.tui.tab-toggles-plan-act
+    title: Tab toggles Plan/Act and the status line reflects it
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 1
+    tags: [tui, plan-act]
+    touches: [apps/cli/src/tui]
+    requires: [std.cli.no-inference]
+    isolation: none
+    steps:
+      - do: With the TUI open (tmux session tui), note the mode in the status area. `tmux send-keys -t tui Tab`.
+      - expect: The mode indicator flips (Act↔Plan). Press Tab again and it flips back.
+
+  - id: cli.tui.slash-help-and-model
+    title: /help lists commands and /model opens the model picker
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [tui, slash-commands]
+    touches: [apps/cli/src/tui/commands]
+    requires: [std.cli.no-inference]
+    isolation: none
+    steps:
+      - do: "`tmux send-keys -t tui '/help' Enter`."
+      - expect: A list including /settings, /model, /account, /mcp, /compact, /undo, /clear, /history, /help, /quit renders.
+      - do: "`tmux send-keys -t tui '/model' Enter`."
+      - expect: A model picker dialog opens listing models for the current provider; Escape closes it.
+      - capture: tui-model-picker
+
+  - id: cli.tui.approval-prompt-accept
+    title: A file edit shows an inline approval prompt; accepting writes the file
+    surface: cli
+    priority: P0
+    maturity: draft
+    estimated_minutes: 3
+    tags: [tui, approval, edit]
+    touches: [apps/cli/src/tui]
+    requires: [std.cli]
+    provides: [task.edited-file]
+    isolation: none
+    steps:
+      - do: Make sure auto-approve-all is OFF (status line; Shift+Tab toggles it). Send "In greeting.txt change Hello to Goodbye. Only that change."
+      - expect: A diff preview with an approve/reject prompt appears and the file is still Hello on disk.
+      - capture: tui-approval
+      - do: Accept (Enter / y as indicated on screen).
+      - expect: The file now says Goodbye; the turn completes.
+      - do: "`git checkout greeting.txt`."
+
+  - id: cli.tui.undo
+    title: /undo rewinds the last workspace change
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [tui, checkpoints, undo]
+    touches: [apps/cli/src/tui, sdk/packages/core/src/checkpoints]
+    requires: [std.cli, task.edited-file]
+    isolation: none
+    steps:
+      - do: Right after an accepted edit that changed greeting.txt to Goodbye (do not git checkout first), send `/undo`.
+      - expect: The TUI confirms the undo; `cat greeting.txt` prints Hello again.
+
+  - id: cli.tui.ctrl-c-abort-then-exit
+    title: Ctrl+C aborts a running turn; a second Ctrl+C exits the TUI
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [tui, cancel]
+    touches: [apps/cli/src/tui]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: Send "Write a 600-word essay about rivers. Do not use tools." As soon as text streams, `tmux send-keys -t tui C-c`.
+      - expect: Streaming stops; the TUI is still open and accepting input.
+      - do: "`tmux send-keys -t tui C-c` again (with an empty prompt)."
+      - expect: The TUI exits and the tmux pane shows the shell prompt (or the pane closes) — no stack trace.
+      - do: Relaunch the TUI for later cases if needed.
+
+  - id: cli.tui.history-resume
+    title: /history lists previous sessions and one can be resumed
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [tui, history]
+    touches: [apps/cli/src/tui, apps/cli/src/commands]
+    requires: [std.cli, task.completed]
+    isolation: none
+    steps:
+      - do: Send `/history`.
+      - expect: A list of sessions with the earlier PONG session in it.
+      - do: Select it (Enter).
+      - expect: The earlier conversation renders; sending "What did I ask before?" gets an answer referencing PONG.

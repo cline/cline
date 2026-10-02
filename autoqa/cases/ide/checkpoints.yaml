@@ -1,0 +1,88 @@
+# Checkpoints in the IDE. Note the current UI: per-user-message "Reset Code" button
+# (UserMessage.tsx) and the completion row's "View Changes" (CompletionOutputRow.tsx).
+# The older Compare/Restore menu described in docs/core-workflows/checkpoints.mdx is
+# not the shipping UI — cases follow the code.
+feature: ide.checkpoints
+title: Checkpoints
+docs: [docs/core-workflows/checkpoints.mdx]
+cases:
+  - id: ide.checkpoints.view-changes-button
+    title: The View Changes button on a completion row opens a multi-file diff of the turn's edits
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [checkpoints, view-changes, diff]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CompletionOutputRow.tsx
+      - apps/vscode/src/core/controller/checkpoints/checkpointViewLatestChanges.ts
+      - apps/vscode/src/core/controller/checkpoints/checkpointLatestChangesCount.ts
+    requires: [std.ide, ide.checkpoints-enabled, task.edited-file]
+    isolation: fresh-task
+    steps:
+      - do: In the task where a file was just edited (or run smoke.chat.edit-file-approve first), look at the final completion row.
+      - expect: A "View Changes" button is visible on the completion row (not faded/disabled) because the turn changed a file.
+      - do: Click View Changes.
+      - expect: A diff view opens showing greeting.txt with the Hello → Goodbye change (VS Code multi-diff editor / JetBrains diff viewer).
+      - capture: view-changes-diff
+
+  - id: ide.checkpoints.view-changes-hidden-when-no-changes
+    title: View Changes is hidden (not faded) on completion rows for turns that changed nothing
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [checkpoints, view-changes]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CompletionOutputRow.tsx
+    refs: []
+    requires: [std.ide, ide.checkpoints-enabled, task.completed]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task and send "What is 2+2? Answer in one word, do not use tools."
+      - expect: The completion row has NO View Changes button at all (previously it rendered faded with a misleading tooltip — .changeset view-changes-hidden-until-changes).
+      - capture: no-view-changes
+
+  - id: ide.checkpoints.reset-code-button
+    title: The Reset Code button on a user message restores the workspace files to that message's checkpoint
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [checkpoints, reset-code, restore]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/UserMessage.tsx
+      - apps/vscode/src/sdk/sdk-checkpoints.ts
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide, ide.checkpoints-enabled, task.edited-file]
+    isolation: fresh-task
+    steps:
+      - do: Confirm greeting.txt currently says Goodbye (from the edit case). Hover/click the user message that asked for the edit.
+      - expect: The message enters edit mode showing the text box plus a "Reset Code" button (tooltip "Rewind conversation, reset code edits"), enabled.
+      - capture: reset-code-visible
+      - do: Click Reset Code.
+      - expect: The button shows "Restoring…" briefly, then the chat rewinds to that message and regenerates.
+      - expect: greeting.txt on disk is back to "Hello" (the pre-edit checkpoint) — check immediately, before the regenerated turn re-applies an edit; cancel the regeneration if needed.
+      - capture: reset-code-restored
+
+  - id: ide.checkpoints.reset-code-disabled-when-checkpoints-off
+    title: Reset Code is disabled with an explanatory popover when checkpoints are turned off
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [checkpoints, reset-code, settings]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/UserMessage.tsx
+      - apps/vscode/webview-ui/src/components/settings/sections/FeatureSettingsSection.tsx
+    requires: [std.ide]
+    isolation: fresh-window
+    steps:
+      - do: Settings → Features → uncheck "Checkpoints". Return to chat and start a new task.
+      - do: Send "In greeting.txt change the first word to Hi." and approve the edit.
+      - do: Click the user message to enter edit mode.
+      - expect: Reset Code is rendered disabled (aria-disabled, dimmed).
+      - do: Click the disabled Reset Code.
+      - expect: A popover says no checkpoint is available and offers a link to enable Checkpoints in settings; clicking the link navigates to Settings → Features with the Checkpoints toggle highlighted.
+      - capture: reset-code-disabled-popover
+      - do: Re-enable Checkpoints and restore greeting.txt manually (git checkout greeting.txt in the sample project) so later cases start clean.

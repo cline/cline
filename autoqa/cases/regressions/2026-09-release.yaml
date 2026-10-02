@@ -1,0 +1,141 @@
+# Regression cases derived from the pending .changeset/*.md entries and CHANGELOG
+# 4.1.20–4.1.21. Each one is "confirm the fix works". When a fix ships and a case has
+# passed on two platforms, promote it to `trusted` and move it into the owning feature
+# file; keep this file small and current. `refs` should point at the fixing PR so a
+# pass here lets the triage agent comment on it.
+feature: regressions.r2026-09
+title: Regression checks for the September 2026 release train
+docs: [CHANGELOG.md]
+cases:
+  - id: regressions.r2026-09.retry-keeps-composer-draft
+    title: Clicking Retry after a failed request keeps unsent text typed in the composer
+    surface: regressions
+    hosts: [vscode, jetbrains]
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [retry, composer, draft]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/ChatTextArea.tsx
+      - apps/vscode/webview-ui/src/components/chat/chat-view
+    refs: []
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: Start a task. Temporarily break the provider (Settings → API Configuration → append "x" to the key) and send "Reply PONG."
+      - expect: An error row with a Retry button appears.
+      - do: Type "draft text that must survive" into the composer but do NOT send. Fix the key. Click Retry.
+      - expect: The request succeeds AND the composer still contains "draft text that must survive" (4.1.20 fix).
+      - capture: retry-draft-kept
+      - do: Clear the composer.
+
+  - id: regressions.r2026-09.background-command-streams-output
+    title: Output from a long-running background command streams into the command row while it runs
+    surface: regressions
+    hosts: [vscode, jetbrains]
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [terminal, background, streaming]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CommandOutputRow.tsx
+      - apps/vscode/src/integrations/terminal
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: 'Send "Run this command and wait for it: for i in 1 2 3 4 5 6; do echo tick $i; sleep 2; done" (Windows: "1..6 | % { echo tick $_; sleep 2 }"). Approve it.'
+      - expect: The lines tick 1, tick 2 … appear in the command row progressively over ~12 s, not all at once at the end (4.1.20 fix).
+      - capture: background-stream
+
+  - id: regressions.r2026-09.failed-task-reopens-with-retry
+    title: Reopening a task that ended in an API error shows the error with Retry, not a completed state
+    surface: regressions
+    hosts: [vscode, jetbrains]
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [history, errors, retry]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/ErrorRow.tsx
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide, task.in-history]
+    isolation: fresh-task
+    steps:
+      - do: Break the provider key, start a new task "Reply PONG", get the error row. Fix the key but do not retry. Open History and reopen that task.
+      - expect: The error row and its Retry button are shown; the task is not presented as completed (4.1.21 fix).
+      - do: Click Retry.
+      - expect: PONG arrives.
+
+  - id: regressions.r2026-09.rules-panel-lists-all-rule-dirs
+    title: The Rules panel lists rules from .cline/rules and ~/.cline/rules, not only .clinerules
+    surface: regressions
+    hosts: [vscode, jetbrains]
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [rules, panel]
+    touches:
+      - apps/vscode/webview-ui/src/components/cline-rules
+      - apps/vscode/src/core/context/instructions
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: "In the sample project create `.cline/rules/project-rule.md` and `~/.cline/rules/global-rule.md` (each with one line of text). Open the Rules/Skills panel (scale icon near the model selector)."
+      - expect: Both project-rule.md and global-rule.md are listed with their toggles (4.1.20 fix); toggling one off and on works.
+      - capture: rules-panel
+      - do: Remove both files.
+    notes:
+      windows: Also check with Documents redirected to OneDrive if the container has it — the global folder ~/Documents/Cline/Rules must still be found.
+
+  - id: regressions.r2026-09.workflow-slash-command-expands
+    title: A /workflow.md slash command expands and runs the workflow, and the Workflows tab is present in the rules modal
+    surface: regressions
+    hosts: [vscode, jetbrains]
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [workflows, slash-commands]
+    touches:
+      - apps/vscode/src/sdk/slash-command-expansion.ts
+      - apps/vscode/webview-ui/src/components/cline-rules
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: "Create `.clinerules/workflows/shout.md` containing 'Reply to the user in ALL CAPS and end with WORKFLOW-OK.'. Reload the webview."
+      - do: Type "/" in the composer.
+      - expect: The entry shout (or shout.md) appears in the slash menu without restarting the IDE.
+      - do: Select it so the input reads "/shout.md " (legacy spelling), append "say hi", send.
+      - expect: Reply is in caps and ends with WORKFLOW-OK (the literal "/shout.md" text did not reach the model unexpanded).
+      - do: Open the rules modal.
+      - expect: A Workflows tab exists (last in the tab list) with a deprecation notice pointing to Skills, and disabling the workflow there stops it from expanding.
+      - capture: workflow-expanded
+
+  - id: regressions.r2026-09.lmstudio-no-compact-prompt-toggle
+    title: The LM Studio provider settings no longer show a "Use compact prompt" toggle
+    surface: regressions
+    hosts: [vscode, jetbrains]
+    priority: P3
+    maturity: draft
+    estimated_minutes: 1
+    tags: [settings, lmstudio]
+    touches: [apps/vscode/webview-ui/src/components/settings/providers]
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: Settings → API Configuration → provider LM Studio.
+      - expect: No "Use compact prompt" checkbox is rendered (.changeset brave-moons-refuse). Restore the previous provider.
+
+  - id: regressions.r2026-09.cancel-during-empty-response-backoff
+    title: Cancelling while the client waits to retry an empty model response takes effect immediately
+    surface: regressions
+    hosts: [vscode, jetbrains, cli]
+    priority: P3
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cancel, retry, backoff]
+    touches: [sdk/packages/core/src/agent, apps/vscode/src/sdk/SdkController.ts]
+    requires: [provider.working]
+    isolation: fresh-task
+    steps:
+      - do: This needs an empty-response condition, which is hard to force; attempt it with a tiny local model if LM Studio/Ollama is available in the container, otherwise record skip with note "needs empty-response provider".
+      - expect: When an "empty response, retrying in N s" indicator is visible and Cancel is clicked, the task stops within 2 s rather than after the backoff (4.1.21 fix).

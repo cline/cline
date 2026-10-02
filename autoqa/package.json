@@ -1,0 +1,22 @@
+{
+	"name": "@cline/autoqa",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Agent-driven QA cases, prerequisites, runs and tooling for Cline product surfaces",
+	"repository": "github:cline/autoqa",
+	"license": "Apache-2.0",
+	"type": "module",
+	"engines": {
+		"bun": ">=1.2"
+	},
+	"scripts": {
+		"autoqa": "bun scripts/autoqa.ts",
+		"validate": "bun scripts/autoqa.ts validate",
+		"typecheck": "bunx tsc --noEmit -p tsconfig.json",
+		"test": "bun test scripts"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.2.0",
+		"typescript": "^5.9.0"
+	}
+}

@@ -1,0 +1,153 @@
+feature: cli.features
+title: CLI features — auth, MCP, rules/skills, plugins, schedules
+docs:
+  - docs/cli/cli-reference.mdx
+  - docs/cli/scheduling.mdx
+  - docs/customization/cline-rules.mdx
+  - docs/customization/skills.mdx
+  - docs/customization/plugins.mdx
+cases:
+  - id: cli.features.auth-apikey-configures-provider
+    title: cline auth --provider … --apikey … --modelid … persists to providers.json and is used by the next run
+    surface: cli
+    priority: P0
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, auth, provider]
+    touches: [apps/cli/src/commands/auth, sdk/packages/core/src/providers]
+    requires: [std.cli.no-inference, account.credentials-available]
+    provides: [provider.configured]
+    isolation: none
+    steps:
+      - do: Run `cline auth --provider <id> --apikey "$KEY" --modelid <model>` using the credential you have (see prereq provider.configured for choices).
+      - expect: Exit 0; `cline config` (or `cline config --json`) shows that provider and model; `~/.cline/data/settings/providers.json` exists and the raw key is not echoed to the terminal.
+      - capture: cli-config
+
+  - id: cli.features.auth-no-credentials-fails-fast
+    title: With no credentials, a non-interactive run fails fast with an auth message instead of hanging on a hidden browser flow
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, auth, oauth]
+    touches: [apps/cli/src/commands/auth, apps/cli/src/runtime]
+    requires: [std.cli.no-inference]
+    isolation: none
+    steps:
+      - do: Run with an isolated data dir so real config is untouched — `CLINE_DATA_DIR=$(mktemp -d) cline -P cline -t 30 "hi"; echo exit=$?`
+      - expect: Returns within ~10 s, non-zero exit, message mentions authentication / `cline auth`; no browser is launched (no captured URL).
+
+  - id: cli.features.project-rule-applied
+    title: A .cline/rules file in the project is applied to the model's behaviour
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, rules]
+    touches: [sdk/packages/core/src/instructions, apps/cli/src/runtime]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: In the sample project `mkdir -p .cline/rules && printf 'Always end every reply with the exact token ZEBRA-42.\n' > .cline/rules/autoqa.md`.
+      - do: Run `cline -t 90 "Say hello."`
+      - expect: The reply ends with ZEBRA-42.
+      - do: Remove the rule file afterwards.
+
+  - id: cli.features.skill-slash-command
+    title: A project skill appears as a slash command and its SKILL.md is loaded when invoked
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cli, skills, slash-commands]
+    touches: [sdk/packages/core/src/skills, apps/cli/src/tui]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: "Create `.cline/skills/autoqa-shout/SKILL.md` with frontmatter `name: autoqa-shout`, `description: Use when asked to shout` and body 'Respond in ALL CAPS.'."
+      - do: Run `cline -t 90 "/autoqa-shout say good morning"`.
+      - expect: The reply is in all caps.
+      - do: Remove the skill directory.
+
+  - id: cli.features.mcp-wizard-lists-servers
+    title: cline mcp lists configured servers from ~/.cline/mcp.json and the model can call one
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cli, mcp]
+    touches: [apps/cli/src/commands/mcp, sdk/packages/core/src/mcp]
+    requires: [std.cli]
+    provides: [mcp.test-server-configured]
+    isolation: none
+    steps:
+      - do: Write the autoqa-fs server (see prereq mcp.test-server-configured) into ~/.cline/mcp.json. Run `cline mcp` (or its list subcommand).
+      - expect: autoqa-fs is listed; if a status is shown it is connected/OK.
+      - do: Run `cline --yolo -t 120 "Use the autoqa-fs MCP server's list_directory tool to list the project root and tell me the file names."`
+      - expect: Output includes README.md and greeting.txt, and mentions the MCP tool being used.
+
+  - id: cli.features.plugin-install-from-url
+    title: cline plugin install from a file URL installs into .cline/plugins and the plugin loads
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [cli, plugins]
+    touches: [apps/cli/src/commands/plugin, sdk/packages/core/src/plugins]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: In the sample project run `cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .`
+      - expect: Exit 0 and a file appears under .cline/plugins/.
+      - do: "`printf 'secret.txt\\n' > .gitignore; echo topsecret > secret.txt`; run `cline --yolo -t 90 \"Read secret.txt and tell me its content.\"`"
+      - expect: The plugin blocks the read — the reply does NOT contain topsecret, and mentions the file being ignored/blocked.
+      - do: Clean up secret.txt, .gitignore, .cline/plugins.
+
+  - id: cli.features.schedule-create-list-delete
+    title: cline schedule create / list / delete round-trips a schedule
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cli, schedule]
+    touches: [apps/cli/src/commands/schedule, sdk/packages/core/src/cron]
+    requires: [std.cli.no-inference, cli.hub-running]
+    isolation: none
+    steps:
+      - do: Run `cline schedule create "autoqa-ping" --cron "0 3 1 1 *" --prompt "Reply PONG" --workspace "$PWD"` (a yearly cron so it never fires during the run).
+      - expect: Exit 0 and an id is printed.
+      - do: Run `cline schedule list`.
+      - expect: autoqa-ping appears with its cron and a next-run time.
+      - do: Run `cline schedule delete <id>`; then `cline schedule list` again.
+      - expect: autoqa-ping is gone.
+
+  - id: cli.features.schedule-trigger-now
+    title: cline schedule trigger runs a schedule immediately and records an execution
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [cli, schedule]
+    touches: [apps/cli/src/commands/schedule, sdk/packages/core/src/cron]
+    requires: [std.cli, cli.hub-running]
+    isolation: none
+    steps:
+      - do: Create the yearly autoqa-ping schedule as above; run `cline schedule trigger <id>`; wait up to 2 min; run `cline schedule executions <id>`.
+      - expect: One execution with a success status, duration and token count.
+      - do: Delete the schedule.
+
+  - id: cli.features.zen-background-session
+    title: --zen hands the task to the hub and returns immediately; the session later appears in history
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cli, zen, hub]
+    touches: [apps/cli/src/runtime, apps/cline-hub]
+    requires: [std.cli, cli.hub-running]
+    isolation: none
+    steps:
+      - do: "`time cline --zen \"Reply with the word ZENPONG.\"`"
+      - expect: The command returns in a few seconds with a session id, well before a model reply could arrive.
+      - do: Wait 60 s; run `cline history`.
+      - expect: The ZENPONG session is listed as completed.

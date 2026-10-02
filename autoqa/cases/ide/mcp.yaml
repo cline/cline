@@ -1,0 +1,83 @@
+feature: ide.mcp
+title: MCP servers
+docs: [docs/mcp/mcp-overview.mdx]
+cases:
+  - id: ide.mcp.configure-local-server
+    title: Adding a local stdio MCP server via the Configure tab connects it and lists its tools
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 5
+    tags: [mcp, configuration]
+    touches:
+      - apps/vscode/webview-ui/src/components/mcp/configuration
+      - apps/vscode/src/services/mcp
+      - apps/vscode/src/sdk
+    requires: [std.ide.no-inference]
+    provides: [mcp.test-server-configured]
+    isolation: fresh-window
+    steps:
+      - do: Open MCP Servers (stacked-servers icon / cline.mcpButtonClicked) → Configure tab → "Configure MCP Servers".
+      - expect: A JSON settings file opens in the editor with an mcpServers object.
+      - do: Add the server from prereq mcp.test-server-configured ("autoqa-fs", npx @modelcontextprotocol/server-filesystem <sample project path>). Save the file.
+      - expect: Within ~30 s the Installed tab lists autoqa-fs with a green status and an expandable tools list containing read_file / list_directory (or similar).
+      - capture: mcp-connected
+    notes:
+      windows: npx must be on PATH for the extension host; if the server stays red with ENOENT, record fail with the error text — that is a real Windows bug class.
+
+  - id: ide.mcp.tool-call-with-approval
+    title: The model can call an MCP tool, and the call waits for approval when MCP auto-approve is off
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [mcp, approval]
+    touches:
+      - apps/vscode/webview-ui/src/components/mcp/chat-display
+      - apps/vscode/src/sdk
+    requires: [std.ide, mcp.test-server-configured, ide.auto-approve-off]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Send "Using the autoqa-fs MCP server's list_directory tool (not your built-in tools), list the files in the project root."
+      - expect: An MCP tool-call row appears naming autoqa-fs / list_directory with Approve / Reject.
+      - do: Approve.
+      - expect: The row shows the tool result (file names incl. README.md); Cline summarizes them.
+      - capture: mcp-tool-call
+
+  - id: ide.mcp.restart-and-delete-server
+    title: Restart reconnects a server; Delete removes it from the list and the config file
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [mcp, configuration]
+    touches:
+      - apps/vscode/webview-ui/src/components/mcp/configuration
+      - apps/vscode/src/services/mcp
+    requires: [std.ide.no-inference, mcp.test-server-configured]
+    isolation: fresh-window
+    steps:
+      - do: MCP Servers → Installed → autoqa-fs → click Restart Server.
+      - expect: Status goes yellow/connecting then green within ~30 s.
+      - do: Click Delete Server; confirm.
+      - expect: autoqa-fs disappears from the list; the JSON config file no longer contains it.
+      - do: Re-add it (run the establish steps for mcp.test-server-configured) so later cases are not blocked, and set the prereq true again.
+
+  - id: ide.mcp.remote-server-tab-validation
+    title: The Remote Servers tab rejects an empty/invalid URL and accepts a valid one
+    surface: ide
+    priority: P3
+    maturity: draft
+    estimated_minutes: 2
+    tags: [mcp, remote, validation]
+    touches:
+      - apps/vscode/webview-ui/src/components/mcp/configuration/tabs
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: MCP Servers → Remote Servers tab. Leave Server Name empty, click Add Server.
+      - expect: A validation message appears; nothing is added.
+      - do: Enter name "autoqa-remote", URL "not a url", click Add Server.
+      - expect: A validation message about the URL.
+      - do: Enter URL "https://example.com/mcp", transport Streamable HTTP, Add Server.
+      - expect: The server is added to Installed (it will show an error/red status because example.com is not an MCP server — that is fine). Delete it afterwards.

@@ -1,0 +1,151 @@
+# Smoke: the core send-task → tool approval → completion loop. These run on every
+# host and deliberately `provide` the task.* prerequisites that unlock feature cases.
+feature: smoke.chat
+title: Core chat loop
+docs:
+  - docs/usage/ide.mdx
+  - docs/core-workflows/working-with-files.mdx
+  - docs/core-workflows/using-commands.mdx
+cases:
+  - id: smoke.chat.first-task
+    title: Sending a first task returns a streamed reply and a completion
+    surface: smoke
+    hosts: [vscode, jetbrains, desktop]
+    priority: P0
+    maturity: draft
+    estimated_minutes: 3
+    tags: [chat, streaming, completion]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/ChatView.tsx
+      - apps/vscode/webview-ui/src/components/chat/chat-view
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide]
+    provides: [task.completed, task.in-history]
+    isolation: fresh-task
+    steps:
+      - do: Click "+" / New Task so the chat is empty. Make sure the mode toggle at the bottom shows Act.
+      - do: 'Type exactly: "Read README.md in this project and tell me its title in one sentence. Do not edit anything." and press Enter.'
+      - expect: Your message appears immediately as a user bubble; a request/thinking indicator appears within ~3 s.
+      - expect: Cline reads README.md (a read-file row appears; approve it if asked) and streams text in progressively, not all at once.
+      - expect: Within 90 s a completion row appears containing the words "AutoQA sample"; no red error row anywhere in the chat.
+      - capture: first-task-complete
+      - expect: The task header at the top shows a token count and a cost (cost may be $0.0000 for free models).
+    notes:
+      desktop: In Cline Desktop the "New Session" button replaces "+"; the completion appears in the session pane.
+      jetbrains: Approval buttons render inside the tool window; if the panel is narrow, scroll the chat to find them.
+
+  - id: smoke.chat.edit-file-approve
+    title: Approving a proposed file edit writes the change to disk
+    surface: smoke
+    hosts: [vscode, jetbrains, desktop]
+    priority: P0
+    maturity: draft
+    estimated_minutes: 4
+    tags: [edit, diff, approval]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/DiffEditRow.tsx
+      - apps/vscode/src/integrations/editor
+    requires: [std.ide, ide.auto-approve-off]
+    provides: [task.completed, task.edited-file, task.in-history]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task (+). Send "In greeting.txt change the word Hello to Goodbye. Make only that change."
+      - expect: Cline proposes an edit to greeting.txt and stops, showing Save / Reject (or Approve / Reject) buttons. The file on disk is still "Hello" at this point (check with cat / type).
+      - capture: edit-proposed
+      - do: Click Save / Approve.
+      - expect: The edit row collapses to a completed state; a completion row follows.
+      - expect: "`cat greeting.txt` (or PowerShell `Get-Content`) prints Goodbye."
+      - expect: In the IDE, greeting.txt is open in a normal editor tab after the diff preview closes (recent behaviour change — see .changeset tidy-owls-return).
+      - capture: edit-saved
+    notes:
+      desktop: Desktop has no diff-preview editor tab; only assert the disk content and the collapsed edit row.
+
+  - id: smoke.chat.edit-file-reject
+    title: Rejecting a proposed file edit leaves the file untouched and tells the model
+    surface: smoke
+    hosts: [vscode, jetbrains, desktop]
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [edit, approval]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/DiffEditRow.tsx
+    requires: [std.ide, ide.auto-approve-off]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Send "Append the line 'unwanted' to README.md."
+      - expect: Cline proposes an edit to README.md with Save / Reject.
+      - do: Click Reject. If a feedback box opens, type "Do not change README.md, just say OK." and submit.
+      - expect: README.md on disk does NOT contain "unwanted".
+      - expect: Cline acknowledges the rejection in its next message rather than re-proposing the same edit in a loop (max one re-proposal is acceptable; a second identical proposal is a fail).
+      - capture: edit-rejected
+
+  - id: smoke.chat.run-command-approve
+    title: Approving a terminal command runs it and streams output into the chat
+    surface: smoke
+    hosts: [vscode, jetbrains, desktop]
+    priority: P0
+    maturity: draft
+    estimated_minutes: 3
+    tags: [terminal, command, approval]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CommandOutputRow.tsx
+      - apps/vscode/src/integrations/terminal
+    requires: [std.ide, ide.auto-approve-off]
+    provides: [task.ran-command, task.completed]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Send "Run the command `git status --short` in this project and tell me how many files it lists. Do not edit anything."
+      - expect: A command row shows the command with Run Command / Reject buttons before anything executes.
+      - do: Click Run Command.
+      - expect: The command output (possibly empty) streams into the command row; the row does not show a raw JSON blob like [{"query":…}] (regression fixed in 4.1.21).
+      - expect: Cline reports a count that matches what you see when you run the same command yourself.
+      - capture: command-output
+    notes:
+      vscode: The command runs in an integrated terminal; the terminal panel may open. Both the panel and the chat row must show output.
+      windows: Default shell is PowerShell; `git status --short` works there too.
+
+  - id: smoke.chat.plan-mode-no-edits
+    title: Plan mode discusses without editing files, and switching to Act executes
+    surface: smoke
+    hosts: [vscode, jetbrains, desktop]
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [plan-act, mode]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/chat-textarea-mode-toggle.ts
+      - apps/vscode/webview-ui/src/components/chat/PlanCompletionOutputRow.tsx
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Click the Plan/Act toggle so it shows Plan.
+      - do: Send "Add a subtract(a, b) function to math.js."
+      - expect: Cline responds with a plan/discussion (a Plan response row) and does NOT propose an edit; math.js on disk is unchanged.
+      - capture: plan-response
+      - do: Click the toggle to switch to Act (approve the mode switch if asked). If nothing happens automatically, send "Go ahead."
+      - expect: Cline now proposes an edit to math.js; approve it.
+      - expect: math.js contains "subtract".
+      - expect: Reopen the task from History — the hidden mode-switch prompt is NOT shown as a user message (regression fixed in .changeset hidden-mode-prompts-history).
+
+  - id: smoke.chat.cancel-streaming
+    title: Cancelling mid-stream stops the response and leaves the task resumable
+    surface: smoke
+    hosts: [vscode, jetbrains, desktop]
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cancel, streaming, resume]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/chat-view
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Send "Write a 600-word essay about the history of version control. Do not use tools."
+      - do: As soon as text starts streaming, click Cancel (the stop/cancel button near the input).
+      - expect: Streaming stops within ~2 s; the partial text stays visible; no error row.
+      - expect: A Resume Task (or similar) affordance is present, and the chat input is enabled again.
+      - capture: cancelled
+      - do: Type "Summarize what you wrote so far in one line." and send.
+      - expect: Cline responds normally — the task is not stuck.

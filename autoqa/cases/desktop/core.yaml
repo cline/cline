@@ -1,0 +1,117 @@
+# Cline Desktop (Tauri). Docs only advertise macOS/Windows; Linux is the PM's ask this
+# week, so these cases are platform-neutral and the *Linux-specific* install/launch
+# behaviour is a case of its own. Requires AUTOQA_DESKTOP_PKG pointing at a build.
+feature: desktop.core
+title: Cline Desktop core
+docs: [docs/usage/cline-desktop.mdx]
+cases:
+  - id: desktop.core.linux-install-and-launch
+    title: The Linux Desktop package installs and launches to the workspace picker
+    surface: desktop
+    platforms: [linux]
+    priority: P0
+    maturity: draft
+    estimated_minutes: 5
+    tags: [desktop, linux, install]
+    touches: [apps/examples/desktop-app/src-tauri, apps/examples/desktop-app/sidecar]
+    requires: [env.gui, env.sample-project, desktop.installed]
+    provides: [desktop.open]
+    isolation: fresh-profile
+    steps:
+      - do: Launch the installed package (AppImage `--no-sandbox`, or the .deb-installed binary) with DISPLAY=:1. Capture stdout/stderr to a log file.
+      - expect: A window appears within 20 s. A `libEGL`/DRI3 warning in the log is acceptable; a crash, blank white window, or "sidecar failed to start" is a fail.
+      - capture: desktop-launch
+      - do: Pick ~/autoqa-sample in the workspace picker; choose the default branch.
+      - expect: The main view shows the workspace name and a provider/model selector.
+
+  - id: desktop.core.provider-setup
+    title: Configuring a provider in Desktop settings makes the model selector usable
+    surface: desktop
+    priority: P0
+    maturity: draft
+    estimated_minutes: 3
+    tags: [desktop, provider, settings]
+    touches: [apps/examples/desktop-app/webview/components/views/settings]
+    requires: [env.gui, desktop.open, account.credentials-available]
+    provides: [provider.configured]
+    isolation: none
+    steps:
+      - do: Open Settings → API Providers. Add the provider matching your credential (Cline API key preferred) and pick a cheap model.
+      - expect: The selector in the main view shows the provider/model with no error badge.
+      - capture: desktop-provider
+
+  - id: desktop.core.new-session-first-turn
+    title: A new session sends a prompt and streams a reply
+    surface: desktop
+    priority: P0
+    maturity: draft
+    estimated_minutes: 3
+    tags: [desktop, chat]
+    touches: [apps/examples/desktop-app/webview/components/views/chat]
+    requires: [std.desktop]
+    provides: [task.completed]
+    isolation: none
+    steps:
+      - do: Click New Session. Send "Read README.md and tell me its title. Do not edit anything."
+      - expect: Text streams progressively; a completion mentions "AutoQA sample"; no error toast.
+      - capture: desktop-first-turn
+
+  - id: desktop.core.parallel-sessions
+    title: Two sessions run at the same time without mixing output
+    surface: desktop
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [desktop, sessions, parallel]
+    touches: [apps/examples/desktop-app/webview, apps/examples/desktop-app/sidecar]
+    requires: [std.desktop]
+    isolation: none
+    steps:
+      - do: Start session A with "Count slowly from 1 to 30, one number per line, no tools." Immediately start session B with "Reply with exactly the word BRAVO."
+      - expect: B completes with BRAVO while A is still streaming; switching between the two shows only each session's own content.
+      - capture: desktop-parallel
+
+  - id: desktop.core.schedule-create-ui
+    title: A schedule can be created from the Schedule view and appears in the list
+    surface: desktop
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [desktop, schedule]
+    touches: [apps/examples/desktop-app/webview, sdk/packages/core/src/cron]
+    requires: [std.desktop]
+    isolation: none
+    steps:
+      - do: Open Schedule → New Schedule. Name "autoqa-desktop", yearly frequency (or a far-future one-time date), prompt "Reply PONG", the current provider/model/workspace. Save.
+      - expect: The schedule appears in the list with the next run time; no validation error.
+      - do: Delete it.
+
+  - id: desktop.core.customize-installed-inventory
+    title: Customize → Installed lists tools, skills, rules, MCP servers and hooks without errors
+    surface: desktop
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [desktop, customize, marketplace]
+    touches: [apps/examples/desktop-app/webview]
+    requires: [env.gui, desktop.open]
+    isolation: none
+    steps:
+      - do: Open Customize → Installed and click each category tab.
+      - expect: Each tab renders a list or an explicit empty state; the built-in tools tab is non-empty.
+      - do: Open Marketplace and search "github".
+      - expect: Results appear (network permitting) or a clear "no results / offline" state — not a spinner forever.
+
+  - id: desktop.core.web-search-toggle-persists
+    title: The Web Search toggle in Settings persists across an app restart
+    surface: desktop
+    priority: P3
+    maturity: draft
+    estimated_minutes: 3
+    tags: [desktop, settings, web-search]
+    touches: [apps/examples/desktop-app/webview/components/views/settings]
+    requires: [env.gui, desktop.open]
+    isolation: fresh-window
+    steps:
+      - do: Settings → toggle Web Search off. Quit the app fully and relaunch; reopen Settings.
+      - expect: Web Search is still off. Toggle it back on.

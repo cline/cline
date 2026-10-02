@@ -1,0 +1,124 @@
+feature: cli.headless
+title: CLI headless / one-shot mode
+docs:
+  - docs/usage/cli-overview.mdx
+  - docs/cli/cli-reference.mdx
+cases:
+  - id: cli.headless.version-and-doctor
+    title: cline version and cline doctor run cleanly
+    surface: cli
+    priority: P0
+    maturity: draft
+    estimated_minutes: 1
+    tags: [cli, doctor]
+    touches: [apps/cli/src/commands]
+    requires: [std.cli.no-inference]
+    isolation: none
+    steps:
+      - do: Run `cline version` and `cline -V`.
+      - expect: Both print the same semver string; exit code 0. Record it in run.yaml build.cli.
+      - do: Run `cline doctor`.
+      - expect: Exit code 0 and no line marked as an error/failure for hub, data dir or config. Paste the output into the journal.
+
+  - id: cli.headless.one-shot-prompt
+    title: A one-shot prompt streams a reply and exits 0
+    surface: cli
+    priority: P0
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, headless]
+    touches: [apps/cli/src/runtime, apps/cli/src/main.ts]
+    requires: [std.cli]
+    provides: [task.completed, cli.hub-running]
+    isolation: none
+    steps:
+      - do: cd into the sample project. Run `cline -t 120 "Reply with exactly the word PONG and nothing else."`
+      - expect: Output contains PONG; the process exits with code 0 within the timeout; no stack trace on stderr.
+      - expect: The hub daemon is now running (`cline hub status` or `cline doctor`).
+
+  - id: cli.headless.json-output
+    title: --json emits one well-formed NDJSON object per line with type/say/ask fields
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, json, headless]
+    touches: [apps/cli/src/runtime, apps/cli/src/output]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: Run `cline --json -t 120 "Reply with exactly the word PONG." > out.ndjson; echo $?`
+      - expect: Exit 0. Every non-empty line of out.ndjson parses as JSON (`while read -r l; do echo "$l" | jq -e . >/dev/null || echo BAD; done < out.ndjson` prints no BAD).
+      - expect: At least one object has "type" of say/ask (or agent_event) and some object's text contains PONG. Nothing non-JSON (banners, spinners) is on stdout.
+
+  - id: cli.headless.file-edit-yolo
+    title: A one-shot task with auto-approve edits a file on disk
+    surface: cli
+    priority: P0
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, edit, yolo]
+    touches: [apps/cli/src/runtime, sdk/packages/core/src/tools]
+    requires: [std.cli]
+    provides: [task.edited-file]
+    isolation: none
+    steps:
+      - do: In the sample project run `cline --yolo -t 180 "In greeting.txt change Hello to Goodbye. Only that change."`
+      - expect: Exit 0; `cat greeting.txt` prints Goodbye; no other files changed (`git status --short` lists only greeting.txt).
+      - do: Reset with `git checkout greeting.txt`.
+
+  - id: cli.headless.no-auto-approve-prompts
+    title: --auto-approve false makes a headless run stop and ask before editing
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [cli, approval]
+    touches: [apps/cli/src/runtime]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: Run `cline --auto-approve false -t 90 "Create a file called ask.txt with the word ask."` in a terminal you can type into (interactive) — or, if truly headless, pipe `printf 'n\n'`.
+      - expect: The CLI shows an approval prompt for the file write; with "n"/reject the file is NOT created and the run ends without a stack trace.
+
+  - id: cli.headless.stdin-pipe
+    title: Piped stdin is included as context for the prompt
+    surface: cli
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, stdin, headless]
+    touches: [apps/cli/src/main.ts]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: Run `printf 'The secret word is PINEAPPLE.\n' | cline -t 90 "What is the secret word in the input? Reply with just the word."`
+      - expect: Output contains PINEAPPLE.
+
+  - id: cli.headless.timeout-honoured
+    title: -t stops a runaway task and exits non-zero (or with a timeout message) instead of hanging
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, timeout]
+    touches: [apps/cli/src/runtime]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: Run `time cline --yolo -t 15 "Run the command 'sleep 120' and wait for it to finish, then say done."`
+      - expect: The process returns within ~15–30 s (not 120+), prints something indicating timeout/abort, and leaves no orphan `sleep 120` in `ps`.
+
+  - id: cli.headless.command-permissions
+    title: CLINE_COMMAND_PERMISSIONS deny rules block a shell command
+    surface: cli
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [cli, permissions, security]
+    touches: [apps/cli/src/runtime, sdk/packages/core/src/tools]
+    requires: [std.cli]
+    isolation: none
+    steps:
+      - do: Run `CLINE_COMMAND_PERMISSIONS='{"deny":["touch *"]}' cline --yolo -t 90 "Run the command 'touch denied.txt' and report what happened."`
+      - expect: denied.txt does NOT exist afterwards; the output mentions the command was denied/blocked (not a generic tool error).

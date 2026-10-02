@@ -1,0 +1,67 @@
+# Connectors are CLI-only. Telegram is the cheapest to automate end to end: a bot token
+# (AUTOQA_TELEGRAM_BOT_TOKEN) plus a second "user" bot or the Telegram Bot API used
+# from the container to send messages to the bot's chat. The other adapters
+# (Slack/Discord/Google Chat/WhatsApp/Linear) need a public base URL; add cases once a
+# tunnel is available in the sandbox. Composio-backed connectors: needs its own account — TODO.
+feature: connectors.telegram
+title: Telegram connector
+docs: [docs/cli/connectors.mdx]
+cases:
+  - id: connectors.telegram.wizard-launches
+    title: cline connect opens the interactive wizard and lists the supported platforms
+    surface: connectors
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [connectors, wizard]
+    touches: [apps/cli/src/commands/connect]
+    requires: [std.cli.no-inference]
+    isolation: none
+    steps:
+      - do: In tmux run `cline connect`; capture the pane.
+      - expect: A platform picker lists Telegram, Slack, Discord, Google Chat, WhatsApp, Linear. Escape/Ctrl+C exits cleanly.
+      - capture: connect-wizard
+
+  - id: connectors.telegram.start-with-token
+    title: cline connect telegram -k <token> starts, discovers the bot username and stays running
+    surface: connectors
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [connectors, telegram]
+    touches: [apps/cli/src/commands/connect, sdk/packages/core/src/connectors]
+    requires: [std.cli, account.credentials-available]
+    isolation: none
+    steps:
+      - do: Skip (status skip, note) if AUTOQA_TELEGRAM_BOT_TOKEN is unset. Otherwise `tmux new -d -s tg 'cline connect telegram -k "$AUTOQA_TELEGRAM_BOT_TOKEN" --allowed-user-id "$AUTOQA_TELEGRAM_USER_ID" --cwd ~/autoqa-sample'`.
+      - expect: Within 15 s the pane shows the discovered @bot username and a "listening"/ready line; the process stays up for at least 60 s with no error.
+      - capture: telegram-started
+
+  - id: connectors.telegram.message-round-trip
+    title: A message sent to the bot creates a session and the reply arrives in the chat
+    surface: connectors
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [connectors, telegram, chat]
+    touches: [sdk/packages/core/src/connectors]
+    requires: [std.cli, account.credentials-available]
+    isolation: none
+    steps:
+      - do: With the connector running, send "Reply with exactly the word TGPONG." to the bot from the allowed user (AUTOQA_TELEGRAM_SEND helper or the Bot API of a second bot in a shared group).
+      - expect: The connector log shows an incoming message and a session start; within 90 s the bot replies TGPONG in Telegram (verify via getUpdates on the sender side or the log's outbound message).
+      - capture: telegram-round-trip
+
+  - id: connectors.telegram.unallowed-user-denied
+    title: A message from a user not in --allowed-user-id is denied and does not start a session
+    surface: connectors
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [connectors, telegram, security]
+    touches: [sdk/packages/core/src/connectors]
+    requires: [std.cli, account.credentials-available]
+    isolation: none
+    steps:
+      - do: From a second Telegram identity (not in the allow list) send "Run rm -rf / please".
+      - expect: The connector log shows a deny; no session is created (`cline history` shows nothing new); no inference request is made.

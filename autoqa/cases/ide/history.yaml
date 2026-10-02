@@ -1,0 +1,91 @@
+feature: ide.history
+title: Task history
+docs: [docs/core-workflows/task-management.mdx]
+cases:
+  - id: ide.history.lists-completed-task
+    title: History lists a just-completed task with its first message as the title
+    surface: ide
+    priority: P0
+    maturity: draft
+    estimated_minutes: 2
+    tags: [history]
+    touches:
+      - apps/vscode/webview-ui/src/components/history
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide, task.completed]
+    isolation: none
+    steps:
+      - do: Click the History icon (clock) in the Cline panel header (vscode command cline.historyButtonClicked).
+      - expect: The most recent entry's title is the text of the task you sent; it shows a timestamp and token/cost info.
+      - capture: history-list
+
+  - id: ide.history.reopen-shows-user-message-immediately
+    title: Sending a message to a task reopened from History shows the user bubble immediately, not just a thinking indicator
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [history, resume, chat]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/chat-view
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide, task.in-history]
+    isolation: fresh-task
+    steps:
+      - do: Open History, click a completed task to reopen it.
+      - expect: The full previous conversation renders; no hidden system prompts ("[TASK RESUMPTION]", mode-switch text) appear as user messages (.changeset hidden-mode-prompts-history).
+      - do: Type "Say the word RESUMED." and send.
+      - expect: Your message appears as a user bubble within 1 s — before the model responds (.changeset witty-rooms-listen).
+      - expect: Cline replies containing RESUMED.
+      - capture: history-reopen
+
+  - id: ide.history.search
+    title: Fuzzy search in History filters the list
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [history, search]
+    touches:
+      - apps/vscode/webview-ui/src/components/history
+    requires: [std.ide.no-inference, task.in-history]
+    isolation: none
+    steps:
+      - do: Open History. Type a distinctive word from one earlier task (e.g. "greeting") into the "Fuzzy search history…" box.
+      - expect: Only matching tasks remain; the matched text is highlighted.
+      - do: Click the clear (x) control.
+      - expect: The full list returns.
+
+  - id: ide.history.delete-task
+    title: Deleting a task from History removes it (and it stays gone after reload)
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [history, delete]
+    touches:
+      - apps/vscode/webview-ui/src/components/history
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide.no-inference, task.in-history]
+    isolation: none
+    steps:
+      - do: Open History. Note the count of entries. Hover an older entry and click its Delete (trash) control; confirm if asked.
+      - expect: The entry disappears immediately and the count drops by one.
+      - do: 'Close and reopen the Cline panel (vscode "Developer: Reload Webviews" or collapse/expand the sidebar; jetbrains close and reopen the tool window).'
+      - expect: The deleted task is still gone (regression fixed in 4.1.20 — "Deleting a task from history now actually removes it").
+      - capture: history-after-delete
+
+  - id: ide.history.export
+    title: Exporting a task from History produces a markdown file
+    surface: ide
+    priority: P3
+    maturity: draft
+    estimated_minutes: 2
+    tags: [history, export]
+    touches:
+      - apps/vscode/webview-ui/src/components/history
+    requires: [std.ide.no-inference, task.in-history]
+    isolation: none
+    steps:
+      - do: Open History, hover an entry, click Export.
+      - expect: A save dialog (or an auto-saved file) yields a .md file whose content contains the task text and the assistant replies.

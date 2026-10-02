@@ -1,0 +1,67 @@
+feature: ide.auto-approve
+title: Auto-approve & YOLO
+docs: [docs/features/auto-approve.mdx]
+cases:
+  - id: ide.auto-approve.read-edit-skips-prompts
+    title: With Read files + Edit files auto-approved, reads and edits run without approval but commands still ask
+    surface: ide
+    priority: P0
+    maturity: draft
+    estimated_minutes: 4
+    tags: [auto-approve, approval]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/auto-approve-menu
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide, ide.auto-approve-read-edit]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Send "Read math.js, then add a multiply(a, b) function to it, then run `node -e \"console.log(1)\"`."
+      - expect: The read-file row and the edit row complete WITHOUT Save/Approve buttons appearing (they show as auto-approved).
+      - expect: The command row STOPS and shows Run Command / Reject — commands were not auto-approved.
+      - capture: auto-approve-partial
+      - do: Click Run Command.
+      - expect: The task completes; math.js contains "multiply".
+      - do: Restore state for later cases by running the establish steps for ide.auto-approve-off and `git checkout math.js` in the sample project.
+
+  - id: ide.auto-approve.checkboxes-persist-after-new-task
+    title: Auto-approve checkboxes remain toggleable after clicking New Task
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [auto-approve, new-task, settings]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/auto-approve-menu
+      - apps/vscode/src/sdk/SdkController.ts
+    refs: []
+    requires: [std.ide, task.completed]
+    isolation: fresh-window
+    steps:
+      - do: With a completed task open, open the auto-approve menu and toggle "Read files" on. Close the menu.
+      - do: Click "+" (New Task).
+      - do: Open the auto-approve menu again and toggle "Read files" off, then on, then off.
+      - expect: Each click changes the checkbox state immediately; the checkbox does not freeze (.changeset clear-task-settings-overlay).
+      - do: Reload the webview (or collapse/expand the panel).
+      - expect: The checkbox shows the last state you set (off).
+      - capture: auto-approve-after-new-task
+
+  - id: ide.auto-approve.yolo-runs-everything
+    title: YOLO mode auto-approves file edits and commands without any prompt
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [yolo, auto-approve]
+    touches:
+      - apps/vscode/webview-ui/src/components/settings/sections/FeatureSettingsSection.tsx
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide]
+    isolation: fresh-window
+    steps:
+      - do: Settings → Features → check "YOLO Mode". Return to chat, start a new task.
+      - do: Send "Create yolo.txt containing the word yolo, then run `git status --short`, then tell me the output."
+      - expect: The file edit and the command both execute with no approval buttons ever appearing.
+      - expect: yolo.txt exists on disk; Cline reports git output that includes yolo.txt.
+      - capture: yolo-run
+      - do: Uncheck YOLO Mode in Settings → Features; delete yolo.txt.
+      - expect: Starting a new task and asking for another file creation now shows Save/Reject again.

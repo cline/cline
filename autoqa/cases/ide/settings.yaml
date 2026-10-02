@@ -1,0 +1,104 @@
+feature: ide.settings
+title: Settings & provider configuration
+docs:
+  - docs/getting-started/authorizing-with-cline.mdx
+  - docs/provider-config/openai-compatible.mdx
+  - docs/core-workflows/plan-and-act.mdx
+cases:
+  - id: ide.settings.tabs-render
+    title: Every settings tab opens without a blank panel or console error
+    surface: ide
+    priority: P0
+    maturity: draft
+    estimated_minutes: 2
+    tags: [settings]
+    touches:
+      - apps/vscode/webview-ui/src/components/settings/SettingsView.tsx
+      - apps/vscode/webview-ui/src/components/settings/sections
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: Open Settings (gear icon / cline.settingsButtonClicked).
+      - do: Click through each tab in turn — API Configuration, Features, Terminal, General, Remote Config (if present), About, Debug (if dev mode).
+      - expect: Each tab renders controls (no empty white/black area, no "Something went wrong" boundary).
+      - capture: settings-features
+      - do: Click Done / back.
+      - expect: The chat view returns with the input focused or focusable.
+
+  - id: ide.settings.feature-toggle-round-trip
+    title: A Features toggle persists across a webview reload
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [settings, persistence]
+    touches:
+      - apps/vscode/webview-ui/src/components/settings/sections/FeatureSettingsSection.tsx
+      - apps/vscode/src/core/controller/state/updateSettings.ts
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: Settings → Features. Note the state of "Feature Tips" (expected default OFF — .changeset tidy-crabs-rest) and "Auto Compact" (expected default ON — .changeset proud-crabs-compact). Record both in the journal.
+      - do: 'Flip "Feature Tips" to the opposite value. Close settings. Reload the webview (VS Code "Developer: Reload Webviews" / JetBrains close+reopen the tool window).'
+      - expect: Settings → Features shows your new value for Feature Tips.
+      - do: Flip it back.
+
+  - id: ide.settings.switch-provider-byo-key
+    title: Switching to a BYO-key provider and back keeps chat working
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 5
+    tags: [settings, provider, api-key]
+    touches:
+      - apps/vscode/webview-ui/src/components/settings/ApiOptions.tsx
+      - apps/vscode/webview-ui/src/components/settings/providers
+      - apps/vscode/src/sdk/model-catalog
+    requires: [std.ide]
+    isolation: fresh-window
+    steps:
+      - do: Settings → API Configuration. Note the current provider and model. Change the provider dropdown to a provider for which you have a key (Anthropic if ANTHROPIC_API_KEY, else OpenRouter). Paste the key, pick a cheap model.
+      - expect: No red validation error; the model dropdown populates (for OpenRouter, the searchable list loads).
+      - do: Done → start a new task → send "Reply PONG".
+      - expect: PONG within 60 s; the task header shows the new model name.
+      - capture: provider-switched
+      - do: Switch back to the original provider/model and send "Reply PONG" again.
+      - expect: PONG again; the header shows the original model.
+    notes:
+      general: If only one credential exists in the container, record skip with a note instead of blocked — this case needs two.
+
+  - id: ide.settings.openai-compatible-trailing-slash
+    title: OpenAI Compatible base URL with a trailing slash still populates the model list
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [settings, provider, openai-compatible]
+    touches:
+      - apps/vscode/webview-ui/src/components/settings/providers
+      - apps/vscode/src/core/controller/models
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: Settings → API Configuration → provider "OpenAI Compatible". Base URL "https://openrouter.ai/api/v1/" (WITH trailing slash), API key OPENROUTER_API_KEY if available, else any non-empty string.
+      - expect: The model dropdown populates with a list (with a real key) or the request goes to …/v1/models — not …/v1//models — visible in the network/debug logs (.changeset lazy-pugs-cheer).
+      - capture: openai-compat-models
+      - do: Restore the previous provider.
+
+  - id: ide.settings.plan-act-separate-models
+    title: With separate Plan/Act models enabled, toggling mode switches the model shown in the header
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [plan-act, settings, provider]
+    touches:
+      - apps/vscode/webview-ui/src/components/settings/ApiOptions.tsx
+      - apps/vscode/src/sdk/SdkController.ts
+    requires: [std.ide]
+    isolation: fresh-window
+    steps:
+      - do: Settings → API Configuration → enable "Use different models for Plan and Act mode". Set a different model for Plan than for Act (same provider is fine).
+      - do: Done → in the chat, click the Plan/Act toggle a few times.
+      - expect: The model name shown next to the toggle (or in the header) changes with the mode, every time, and the setting survives a webview reload.
+      - do: Disable the separate-models option.

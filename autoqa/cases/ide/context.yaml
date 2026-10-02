@@ -1,0 +1,121 @@
+feature: ide.context
+title: Chat input context — @-mentions, slash commands, images, compaction
+docs:
+  - docs/core-workflows/task-management.mdx
+  - docs/features/auto-compact.mdx
+  - docs/customization/skills.mdx
+cases:
+  - id: ide.context.mention-file-picker
+    title: Typing @ opens a file picker that lists workspace files with full relative paths
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [mentions, file-search, chat-input]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/ChatTextArea.tsx
+      - apps/vscode/webview-ui/src/components/chat/ContextMenu.tsx
+      - apps/vscode/src/core/controller/file
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: In the sample project create a nested file `docs/README.md` (mkdir -p docs; echo nested > docs/README.md). Focus the chat input and type "@".
+      - expect: A context menu appears with categories (Problems, Terminal, Git, Folders, Files…).
+      - do: Continue typing "READ".
+      - expect: Both README.md and docs/README.md are listed, each with its workspace-relative path; the nested one is NOT shown as bare "/README.md", and no file is listed twice with mixed / and \ separators (.changeset mention-search-posix-paths — Windows-specific regression, check on every platform).
+      - capture: mention-picker
+      - do: Select docs/README.md.
+      - expect: The input now contains "@/docs/README.md " and a chip/highlight for it.
+
+  - id: ide.context.mention-file-injects-content
+    title: An @file mention puts that file's content into the model's context
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 3
+    tags: [mentions, chat]
+    touches:
+      - apps/vscode/src/core/mentions
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: Start a new task. Type "@/greeting.txt What is the exact content of this file? Do not use tools." and send.
+      - expect: Cline answers with the file's content (Hello or Goodbye depending on earlier cases) without a read-file tool row appearing.
+
+  - id: ide.context.slash-menu-lists-commands
+    title: Typing / shows the slash-command menu with /compact, /newtask, /deep-planning and any skills/workflows
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 2
+    tags: [slash-commands, workflows, skills]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/SlashCommandMenu.tsx
+      - apps/vscode/webview-ui/src/utils/slash-commands.ts
+      - apps/vscode/src/shared/slashCommands.ts
+    requires: [std.ide.no-inference]
+    isolation: none
+    steps:
+      - do: Focus the empty chat input and type "/".
+      - expect: A menu lists at least compact, newtask, smol and deep-planning with descriptions.
+      - do: Type "comp".
+      - expect: The list filters to /compact (and no unrelated entries).
+      - capture: slash-menu
+
+  - id: ide.context.compact-command
+    title: /compact condenses the conversation, clears the input immediately, and updates the context-window header
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [compact, slash-commands, context-window]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CompactionRow.tsx
+      - apps/vscode/webview-ui/src/components/chat/task-header
+      - apps/vscode/webview-ui/src/components/chat/chat-view/hooks
+    requires: [std.ide, task.completed]
+    isolation: fresh-task
+    steps:
+      - do: In a task with at least two completed turns, note the context-window usage shown in the task header.
+      - do: Type "/compact" and press Enter.
+      - expect: The chat input is empty immediately after submit (not after compaction finishes — .changeset tidy-crabs-compact).
+      - expect: A compaction divider row appears; when finished, it is fully readable at the current sidebar width — drag the sidebar narrow and the row wraps rather than overflowing.
+      - expect: The context-window header value changes after compaction (either direction — the point is that it updates).
+      - capture: compacted
+      - do: Send "What did I ask you to do first in this task?"
+      - expect: Cline answers correctly from the summary.
+
+  - id: ide.context.image-warning-for-text-only-model
+    title: Attaching an image while a text-only model is selected shows a warning badge and a switch-model offer
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 4
+    tags: [images, model-capabilities, chat-input]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/ChatTextArea.tsx
+    requires: [std.ide]
+    isolation: fresh-task
+    steps:
+      - do: In Settings → API Configuration pick a model that does not support images (e.g. a DeepSeek chat model, or a model whose card lists no image support). Return to chat.
+      - do: Attach any PNG via the Add Files & Images button (use one of your own screenshots).
+      - expect: The thumbnail shows a warning badge, and the composer offers to switch to an image-capable model; images are not silently dropped (.changeset text-only-model-image-warning).
+      - capture: image-warning
+      - do: Switch back to the run's default model.
+
+  - id: ide.context.copy-button-on-completion
+    title: Completion rows have a "Completed" header with a working copy button
+    surface: ide
+    priority: P3
+    maturity: draft
+    estimated_minutes: 2
+    tags: [completion, copy]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CompletionOutputRow.tsx
+    requires: [std.ide.no-inference, task.completed]
+    isolation: none
+    steps:
+      - do: Find the last completion row in a completed task.
+      - expect: A subtle "Completed" header is shown above it with a copy icon (.changeset response-header-copy-button).
+      - do: Click the copy icon, then paste into the chat input.
+      - expect: The pasted text equals the completion text. Clear the input afterwards.

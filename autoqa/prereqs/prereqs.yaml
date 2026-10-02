@@ -1,0 +1,288 @@
+# Prerequisite catalog. Each prereq is a named bit of world state the agent can
+# check and establish. Sets are shorthand bundles. See ../SCHEMA.md.
+#
+# Conventions for ids:  <area>.<state>
+#   env.*        the container / OS
+#   ide.*        an IDE host (vscode or jetbrains) and the Cline panel inside it
+#   cli.*        the cline CLI binary and hub daemon
+#   desktop.*    Cline Desktop app
+#   account.*    Cline account / auth
+#   provider.*   an inference provider
+#   workspace.*  the sample project the agent works in
+#   task.*       state left behind by a task (produced by cases via `provides`)
+#   mcp.*        MCP server configuration
+
+prereqs:
+  # ---------------------------------------------------------------- env
+  - id: env.gui
+    title: A graphical display is available
+    check:
+      agent: A desktop is visible and you can take a screenshot of it.
+      command: test -n "$DISPLAY" || uname | grep -qiE 'darwin|mingw|msys'
+    establish:
+      agent: |
+        Linux containers: the display is expected at DISPLAY=:1 (already running).
+        If `echo $DISPLAY` is empty, export DISPLAY=:1. Windows/macOS: always true.
+
+  - id: env.sample-project
+    title: The AutoQA sample project exists on disk
+    check:
+      command: test -f "${AUTOQA_SAMPLE_DIR:-$HOME/autoqa-sample}/README.md"
+    establish:
+      agent: |
+        Create a small throwaway git repo the cases can edit safely:
+          mkdir -p ~/autoqa-sample && cd ~/autoqa-sample && git init -q
+          printf 'Hello\n' > greeting.txt
+          printf '# AutoQA sample\n\nA tiny project Cline is allowed to modify.\n' > README.md
+          printf 'export function add(a, b) {\n  return a + b\n}\n' > math.js
+          git add -A && git -c user.email=qa@example.com -c user.name=autoqa commit -qm init
+        On Windows use PowerShell equivalents (New-Item, Set-Content). Set
+        AUTOQA_SAMPLE_DIR if you used a different path.
+      command: |
+        d="${AUTOQA_SAMPLE_DIR:-$HOME/autoqa-sample}"; mkdir -p "$d" && cd "$d" && git init -q 2>/dev/null;
+        printf 'Hello\n' > greeting.txt; printf '# AutoQA sample\n\nA tiny project Cline is allowed to modify.\n' > README.md;
+        printf 'export function add(a, b) {\n  return a + b\n}\n' > math.js;
+        git add -A && git -c user.email=qa@example.com -c user.name=autoqa commit -qm init || true
+
+  # ---------------------------------------------------------------- account / provider
+  - id: account.credentials-available
+    title: AutoQA account credentials (or a dummy provider key) are present in the environment
+    check:
+      command: test -n "$CLINE_API_KEY" || test -n "$AUTOQA_CLINE_EMAIL" || test -n "$ANTHROPIC_API_KEY" || test -n "$OPENROUTER_API_KEY"
+      agent: One of CLINE_API_KEY, AUTOQA_CLINE_EMAIL/AUTOQA_CLINE_PASSWORD, ANTHROPIC_API_KEY or OPENROUTER_API_KEY is set. Keys are dummies swapped at egress by the broker; treat them as real.
+    establish:
+      agent: |
+        You cannot create credentials. Record status "blocked" with blocked_on:
+        account.credentials-available and continue with cases that do not need a provider.
+
+  - id: account.logged-in
+    title: Signed in to a Cline account in the surface under test
+    requires: [account.credentials-available]
+    check:
+      agent: |
+        IDE: the Account view (cline.accountButtonClicked / the account icon) shows an email or
+        org name and a credit balance, not a "Sign in to Cline" button.
+        CLI: `cline auth` or `/account` in the TUI shows the signed-in account.
+        Desktop: Settings shows the account.
+    establish:
+      agent: |
+        Preferred: a Cline API key. IDE → Settings → API Configuration → provider "Cline" → paste
+        CLINE_API_KEY if the UI offers a key field; otherwise click "Sign in to Cline". The browser
+        may be captured by the sandbox: look for the verification-code box and follow the flow
+        with AUTOQA_CLINE_EMAIL / AUTOQA_CLINE_PASSWORD. CLI: `cline auth cline` (OAuth) or
+        `cline auth --provider cline --apikey "$CLINE_API_KEY"`.
+        If the sign-in cannot be completed inside the sandbox, mark false with a note and use
+        provider.working via a BYO key instead.
+
+  - id: provider.configured
+    title: An inference provider + model is selected in the surface under test
+    requires: [account.credentials-available]
+    check:
+      agent: The model selector at the bottom of the chat (IDE/Desktop) or `cline config` (CLI) shows a provider and model with no red error text.
+    establish:
+      agent: |
+        Prefer the Cline provider when account.logged-in is true (default model is fine).
+        Otherwise BYO key: IDE → Settings → API Configuration → pick the provider matching the
+        env var you have (Anthropic / OpenRouter), paste the key, pick a cheap fast model
+        (e.g. claude-haiku or an OpenRouter :free model).
+        CLI: cline auth --provider <id> --apikey "$KEY" --modelid <model>.
+        Record which provider/model you chose in the journal — it matters for triage.
+
+  - id: provider.working
+    title: The configured provider returns a completion
+    requires: [provider.configured]
+    volatile: true
+    check:
+      agent: Send "Reply with exactly the word PONG and nothing else." in a fresh task. Expect a PONG reply in under 60 s with no error row.
+      command: cline --json -t 90 "Reply with exactly the word PONG and nothing else." 2>/dev/null | grep -q PONG
+    establish:
+      agent: |
+        If the PONG check fails: read the error row. Credit/limit errors → try the other
+        credential you have. 401/403 → the key is wrong for this provider; re-do
+        provider.configured. Network errors → check the proxy (curl https://api.cline.bot
+        should respond) and record env details. After two failures mark false and record
+        every provider-dependent case as blocked.
+
+  # ---------------------------------------------------------------- IDE
+  - id: ide.installed
+    title: The IDE under test and the Cline plugin are installed
+    requires: [env.gui]
+    surfaces: [ide]
+    check:
+      agent: |
+        vscode: `code --list-extensions | grep -i saoudrizwan.claude-dev` (or the extension dev
+        path build is present). jetbrains: the IDE binary exists and Cline appears under
+        Settings → Plugins → Installed.
+    establish:
+      agent: |
+        vscode: `code --install-extension saoudrizwan.claude-dev` (marketplace release) or, for a
+        branch build, `code --install-extension <path>.vsix`. Record the version in run.yaml build.
+        jetbrains: install from disk via Settings → Plugins → ⚙ → Install Plugin from Disk with the
+        zip provided in the container (AUTOQA_JB_PLUGIN_ZIP), or from the marketplace.
+
+  - id: ide.open
+    title: The IDE is running with the sample project open as the workspace
+    requires: [ide.installed, env.sample-project]
+    surfaces: [ide]
+    check:
+      agent: A single IDE window is visible with the sample project's folder name in the title bar / explorer.
+    establish:
+      agent: |
+        vscode (linux): DISPLAY=:1 code --no-sandbox --user-data-dir=$HOME/autoqa-vscode-profile ~/autoqa-sample
+        vscode (windows/macos): code ~/autoqa-sample
+        jetbrains: launch the IDE, File → Open → ~/autoqa-sample → OK; dismiss trust/welcome dialogs.
+        Wait for the window to settle (no progress bars) before proceeding. Close any other IDE
+        windows so screenshots are unambiguous.
+
+  - id: ide.cline-panel-open
+    title: The Cline panel is visible and on the chat (new task) view
+    requires: [ide.open]
+    surfaces: [ide]
+    check:
+      agent: The Cline chat input ("Type your task here…" or similar) is visible.
+    establish:
+      agent: |
+        vscode: click the Cline icon in the Activity Bar, or Ctrl/Cmd+Shift+P → "Cline: Open In New Tab".
+        Then dismiss any full-screen promo/onboarding overlay (look for a close/skip control).
+        jetbrains: View → Tool Windows → Cline. If the panel shows Settings/History, click the
+        "+" (New Task) icon in the panel header.
+
+  - id: ide.auto-approve-off
+    title: Auto-approve is fully off (Cline asks before every tool)
+    requires: [ide.cline-panel-open]
+    surfaces: [ide]
+    check:
+      agent: The auto-approve control near the chat input shows nothing enabled (no "Read files / Edit files / Execute commands" ticks) and YOLO is off in Settings → Features.
+    establish:
+      agent: Open the auto-approve menu near the chat input and untick every option; in Settings → Features make sure "YOLO Mode" is unchecked.
+
+  - id: ide.auto-approve-read-edit
+    title: Auto-approve enabled for Read files and Edit files only
+    requires: [ide.cline-panel-open]
+    surfaces: [ide]
+    check:
+      agent: The auto-approve menu shows Read files and Edit files ticked; Execute commands, Fetch web content and Use MCP servers unticked.
+    establish:
+      agent: Open the auto-approve menu near the chat input, tick Read files and Edit files, leave the rest unticked, close the menu.
+
+  - id: ide.checkpoints-enabled
+    title: Checkpoints feature toggle is ON
+    requires: [ide.cline-panel-open]
+    surfaces: [ide]
+    check:
+      agent: Settings (gear) → Features → "Checkpoints" is checked.
+    establish:
+      agent: Open Settings → Features and check "Checkpoints"; return to the chat view.
+
+  # ---------------------------------------------------------------- CLI
+  - id: cli.installed
+    title: The cline CLI under test is on PATH
+    surfaces: [cli, kanban, acp, connectors]
+    check:
+      command: cline version
+      agent: "`cline version` prints a version. Record it in run.yaml build.cli."
+    establish:
+      agent: |
+        Release: npm install -g cline (or cline@nightly for the nightly channel).
+        Branch build: from the repo root `bun install && bun run build` then use `bun run cli …`
+        or the produced binary in apps/cli/dist. Record which.
+
+  - id: cli.hub-running
+    title: The cline hub daemon is running
+    requires: [cli.installed]
+    surfaces: [cli, kanban]
+    check:
+      command: cline hub status 2>/dev/null | grep -qiE 'running|healthy|ok'
+      agent: "`cline hub status` (or `cline doctor`) reports the hub as running."
+    establish:
+      agent: Any `cline "<prompt>"` invocation auto-spawns the hub; alternatively `cline hub start`. Check `cline doctor` for problems.
+
+  # ---------------------------------------------------------------- Desktop
+  - id: desktop.installed
+    title: Cline Desktop is installed
+    requires: [env.gui]
+    surfaces: [desktop]
+    check:
+      agent: >-
+        The Desktop binary/app exists (linux: an AppImage/.deb from AUTOQA_DESKTOP_PKG;
+        windows: Start-menu entry; macos: /Applications/Cline.app).
+    establish:
+      agent: |
+        Install the artifact provided in AUTOQA_DESKTOP_PKG (linux: chmod +x *.AppImage or
+        sudo dpkg -i *.deb; windows: run the installer silently if it supports it, else
+        click through). If no artifact is provided, mark false and record desktop cases as blocked.
+
+  - id: desktop.open
+    title: Cline Desktop is running with the sample project selected as the workspace
+    requires: [desktop.installed, env.sample-project]
+    surfaces: [desktop]
+    check:
+      agent: The Desktop window is visible and the workspace picker shows autoqa-sample.
+    establish:
+      agent: >-
+        Launch the app (linux: DISPLAY=:1 ./Cline*.AppImage --no-sandbox), pick ~/autoqa-sample
+        in the workspace picker, choose the default branch.
+
+  # ---------------------------------------------------------------- MCP
+  - id: mcp.test-server-configured
+    title: A trivial local MCP server is configured and connected
+    requires: [account.credentials-available]
+    check:
+      agent: MCP Servers view (IDE) / `cline mcp` (CLI) lists "autoqa-fs" as connected with at least one tool.
+    establish:
+      agent: |
+        Add a stdio server that needs no credentials, e.g. the filesystem reference server:
+        { "mcpServers": { "autoqa-fs": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "<sample project path>"] } } }
+        IDE: MCP Servers → Configure → "Configure MCP Servers" opens the JSON. CLI: ~/.cline/mcp.json
+        (or the `cline mcp` wizard). Wait for the status dot to turn green.
+
+  # ---------------------------------------------------------------- task state (set by cases via provides)
+  - id: task.completed
+    title: At least one task has run to completion in this session
+    check:
+      agent: A completed task with a completion result is visible in the chat, or in History.
+    establish:
+      agent: Run case smoke.chat.first-task (or any case that provides this).
+
+  - id: task.edited-file
+    title: A task has edited a file in the sample project (a checkpoint exists)
+    requires: [task.completed]
+    check:
+      agent: The chat shows an approved file edit and `git status` in the sample project shows a modification.
+    establish:
+      agent: Run case smoke.chat.edit-file-approve.
+
+  - id: task.ran-command
+    title: A task has executed a terminal command
+    check:
+      agent: The chat shows a command row with output.
+    establish:
+      agent: Run case smoke.chat.run-command-approve.
+
+  - id: task.in-history
+    title: At least one completed task appears in History
+    requires: [task.completed]
+    check:
+      agent: History view lists at least one task.
+    establish:
+      agent: Complete any task, then open History.
+
+sets:
+  - id: std.base
+    title: Container basics
+    includes: [env.sample-project, account.credentials-available]
+  - id: std.ide
+    title: Typical IDE state — IDE open on the sample project, Cline panel open, provider working
+    includes: [env.gui, env.sample-project, ide.open, ide.cline-panel-open, provider.working]
+  - id: std.ide.no-inference
+    title: IDE open with the panel, no provider needed (settings/UI-only cases)
+    includes: [env.gui, env.sample-project, ide.open, ide.cline-panel-open]
+  - id: std.cli
+    title: Typical CLI state — cline on PATH, provider working, sample project present
+    includes: [env.sample-project, cli.installed, provider.working]
+  - id: std.cli.no-inference
+    title: CLI on PATH, no provider needed
+    includes: [env.sample-project, cli.installed]
+  - id: std.desktop
+    title: Typical Desktop state
+    includes: [env.gui, env.sample-project, desktop.open, provider.working]

@@ -1,0 +1,61 @@
+feature: ide.account
+title: Cline account & sign-in
+docs:
+  - docs/getting-started/cline-provider.mdx
+  - docs/getting-started/clinepass.mdx
+cases:
+  - id: ide.account.sign-in-flow-reachable
+    title: Sign in to Cline opens the auth flow and shows a centred verification-code box
+    surface: ide
+    priority: P1
+    maturity: draft
+    estimated_minutes: 4
+    tags: [account, auth, sign-in]
+    touches:
+      - apps/vscode/webview-ui/src/components/account
+      - apps/vscode/webview-ui/src/components/welcome
+      - apps/vscode/src/services/auth
+    requires: [std.ide.no-inference, account.credentials-available]
+    provides: [account.logged-in]
+    isolation: fresh-profile
+    steps:
+      - do: If already signed in, open Account (cline.accountButtonClicked) and Log out first. Then click "Sign in to Cline" (Account view or the welcome screen).
+      - expect: The IDE attempts to open a browser URL (the sandbox may capture it — check the captured-URL log) AND the panel shows a verification-code entry box that is horizontally centred in the panel (.changeset lucky-doors-shine).
+      - capture: sign-in-code-box
+      - do: Complete the flow with AUTOQA_CLINE_EMAIL / AUTOQA_CLINE_PASSWORD via the captured URL if the sandbox allows; otherwise stop here and record pass for the UI expectations plus a note "flow not completed in sandbox" — and do NOT mark account.logged-in true.
+      - expect: (if completed) The Account view shows the AutoQA account email/org and a credit balance.
+
+  - id: ide.account.view-shows-balance-and-history
+    title: The Account view shows credit balance and a usage/credit history table while signed in
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 2
+    tags: [account, credits]
+    touches:
+      - apps/vscode/webview-ui/src/components/account/AccountView.tsx
+      - apps/vscode/webview-ui/src/components/account/CreditsHistoryTable.tsx
+    requires: [std.ide.no-inference, account.logged-in]
+    isolation: none
+    steps:
+      - do: Open Account.
+      - expect: A numeric credit balance renders (not "NaN", not a spinner forever) and a history table with at least the header row.
+      - capture: account-view
+
+  - id: ide.account.credit-error-row
+    title: A request that hits a credit/limit error renders the dedicated error row with a Buy Credits / Retry action rather than a raw JSON error
+    surface: ide
+    priority: P2
+    maturity: draft
+    estimated_minutes: 3
+    tags: [account, errors, credits]
+    touches:
+      - apps/vscode/webview-ui/src/components/chat/CreditLimitError.tsx
+      - apps/vscode/webview-ui/src/components/chat/ErrorRow.tsx
+    requires: [std.ide.no-inference, account.credentials-available]
+    isolation: fresh-task
+    steps:
+      - do: Only if a zero-credit AutoQA account or key is available (AUTOQA_CLINE_API_KEY_NOCREDITS). Configure it as the Cline provider key and send "Reply PONG".
+      - expect: An error row specific to credits/limits appears (with actionable buttons), not a generic error string with raw JSON in it.
+      - capture: credit-error
+      - do: Restore the working key. If no such key exists, record skip with note.
