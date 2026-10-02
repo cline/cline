@@ -350,6 +350,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		if (olderTasks.length > 0) {
 			groups.push({ tasks: olderTasks, label: "Older" })
 		}
+		if (sortOption === "oldest") {
+			groups.reverse()
+		}
 
 		return {
 			groupedTasks: groups.flatMap((g) => g.tasks),
