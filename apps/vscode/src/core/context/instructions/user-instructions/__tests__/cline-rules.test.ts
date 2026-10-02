@@ -4,15 +4,11 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import type { Controller } from "@/core/controller"
-import { HostProvider } from "@/hosts/host-provider"
-import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import {
-	readGlobalRuleAuthority,
-	reconcileRuleTogglesWithFrontmatter,
-	recordGlobalRuleAuthority,
 	refreshClineRulesToggles,
 	resolveWritableRuleFile,
 	setRuleDisabledInFrontmatter,
+	syncRuleTogglesFromFrontmatter,
 } from "../cline-rules"
 import { parseYamlFrontmatter } from "../frontmatter"
 
@@ -127,45 +123,30 @@ describe("setRuleDisabledInFrontmatter", () => {
 	})
 })
 
-describe("reconcileRuleTogglesWithFrontmatter", () => {
-	it("writes disabled frontmatter for toggles that were persisted before the file was synced", async () => {
+describe("syncRuleTogglesFromFrontmatter", () => {
+	it("shows a toggle saved before the fix as on and leaves its file untouched", async () => {
 		const rulesDir = await makeTempDir()
 		const offPath = path.join(rulesDir, "off.md")
 		const onPath = path.join(rulesDir, "on.md")
 		await fs.writeFile(offPath, "Was toggled off in state only")
 		await fs.writeFile(onPath, "Still on")
 
-		const { toggles, authoritative } = await reconcileRuleTogglesWithFrontmatter({ [offPath]: false, [onPath]: true }, [
-			rulesDir,
-		])
+		const toggles = await syncRuleTogglesFromFrontmatter({ [offPath]: false, [onPath]: true }, [rulesDir])
 
-		expect(toggles).to.deep.equal({ [offPath]: false, [onPath]: true })
-		expect(authoritative).to.deep.equal({ [offPath]: true, [onPath]: true })
-		expect(parseYamlFrontmatter(await fs.readFile(offPath, "utf-8")).data.disabled).to.equal(true)
-		expect(await fs.readFile(onPath, "utf-8")).to.equal("Still on")
+		expect(toggles).to.deep.equal({ [offPath]: true, [onPath]: true })
+		expect(await fs.readFile(offPath, "utf-8")).to.equal("Was toggled off in state only")
 	})
 
-	it("lets frontmatter that disables a rule win over a stale enabled toggle", async () => {
+	it("shows a rule as off when its frontmatter disables it", async () => {
 		const rulesDir = await makeTempDir()
 		const rulePath = path.join(rulesDir, "hand-edited.md")
 		const content = "---\ndisabled: true\n---\nDisabled by hand"
 		await fs.writeFile(rulePath, content)
 
-		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: true }, [rulesDir])
+		const toggles = await syncRuleTogglesFromFrontmatter({ [rulePath]: true }, [rulesDir])
 
 		expect(toggles[rulePath]).to.equal(false)
 		expect(await fs.readFile(rulePath, "utf-8")).to.equal(content)
-	})
-
-	it("follows the file when a user re-enables a rule by removing disabled from it", async () => {
-		const rulesDir = await makeTempDir()
-		const rulePath = path.join(rulesDir, "hand-enabled.md")
-		await fs.writeFile(rulePath, "Re-enabled by hand")
-
-		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: false }, [rulesDir], { [rulePath]: true })
-
-		expect(toggles[rulePath]).to.equal(true)
-		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
 	})
 
 	it("matches the SDK precedence: disabled: false beats enabled: false", async () => {
@@ -173,191 +154,48 @@ describe("reconcileRuleTogglesWithFrontmatter", () => {
 		const rulePath = path.join(rulesDir, "both-flags.md")
 		await fs.writeFile(rulePath, "---\ndisabled: false\nenabled: false\n---\nInjected by the SDK")
 
-		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [rulePath]: false }, [rulesDir], { [rulePath]: true })
+		const toggles = await syncRuleTogglesFromFrontmatter({ [rulePath]: false }, [rulesDir])
 
 		expect(toggles[rulePath]).to.equal(true)
 	})
 
-	it("ignores files outside the allowed roots and non-rule files", async () => {
+	it("keeps the stored toggle for files it cannot read as rules", async () => {
 		const rulesDir = await makeTempDir()
 		const elsewhere = await makeTempDir()
 		const outside = path.join(elsewhere, "outside.md")
 		const json = path.join(rulesDir, "data.json")
+		const broken = path.join(rulesDir, "broken.md")
 		await fs.writeFile(outside, "Outside")
 		await fs.writeFile(json, "{}")
+		await fs.writeFile(broken, "---\npaths: [invalid\n---\nBody")
 
-		const { toggles } = await reconcileRuleTogglesWithFrontmatter({ [outside]: false, [json]: false }, [rulesDir])
+		const toggles = await syncRuleTogglesFromFrontmatter({ [outside]: false, [json]: false, [broken]: false }, [rulesDir])
 
-		expect(toggles).to.deep.equal({ [outside]: false, [json]: false })
-		expect(await fs.readFile(outside, "utf-8")).to.equal("Outside")
-		expect(await fs.readFile(json, "utf-8")).to.equal("{}")
+		expect(toggles).to.deep.equal({ [outside]: false, [json]: false, [broken]: false })
 	})
 })
 
-describe("refreshClineRulesToggles back-fill", () => {
-	function makeController(localToggles: Record<string, boolean>, localAuthoritative: Record<string, boolean> = {}) {
-		const globalState = new Map<string, unknown>([["globalClineRulesToggles", {}]])
-		const workspaceState = new Map<string, unknown>([
-			["localClineRulesToggles", localToggles],
-			["localClineRulesFrontmatterAuthoritative", localAuthoritative],
-		])
-		return {
-			controller: {
-				stateManager: {
-					getGlobalSettingsKey: (key: string) => globalState.get(key) ?? {},
-					getGlobalStateKey: (key: string) => globalState.get(key) ?? {},
-					getWorkspaceStateKey: (key: string) => workspaceState.get(key) ?? {},
-					setGlobalState: (key: string, value: unknown) => globalState.set(key, value),
-					setWorkspaceState: (key: string, value: unknown) => workspaceState.set(key, value),
-				},
-			} as unknown as Controller,
-			workspaceState,
-		}
-	}
-
-	async function makeRule(workspace: string, name: string, content: string): Promise<string> {
-		const rulePath = path.join(workspace, ".clinerules", name)
-		await fs.mkdir(path.dirname(rulePath), { recursive: true })
-		await fs.writeFile(rulePath, content)
-		return rulePath
-	}
-
-	it("writes pre-existing off toggles into the files once, then lets the files win", async () => {
+describe("refreshClineRulesToggles", () => {
+	it("derives workspace toggles from the rule files", async () => {
 		const workspace = await makeTempDir()
-		const rulePath = await makeRule(workspace, "old-toggle.md", "Toggled off before the fix")
+		const offPath = path.join(workspace, ".clinerules", "off.md")
+		const stalePath = path.join(workspace, ".clinerules", "stale.md")
+		await fs.mkdir(path.dirname(offPath), { recursive: true })
+		await fs.writeFile(offPath, "---\ndisabled: true\n---\nOff")
+		await fs.writeFile(stalePath, "Toggled off before the fix")
+		const workspaceState = new Map<string, unknown>([["localClineRulesToggles", { [stalePath]: false }]])
+		const controller = {
+			stateManager: {
+				getGlobalSettingsKey: () => ({}),
+				getWorkspaceStateKey: (key: string) => workspaceState.get(key) ?? {},
+				setGlobalState: () => undefined,
+				setWorkspaceState: (key: string, value: unknown) => workspaceState.set(key, value),
+			},
+		} as unknown as Controller
 
-		const first = makeController({ [rulePath]: false })
-		const firstResult = await refreshClineRulesToggles(first.controller, workspace)
-		expect(firstResult.localToggles[rulePath]).to.equal(false)
-		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).to.equal(true)
-		const authoritative = first.workspaceState.get("localClineRulesFrontmatterAuthoritative") as Record<string, boolean>
-		expect(authoritative).to.deep.equal({ [rulePath]: true })
+		const { localToggles } = await refreshClineRulesToggles(controller, workspace)
 
-		// The user re-enables the rule by editing the file: no back-fill any more.
-		await fs.writeFile(rulePath, "Re-enabled by hand")
-		const second = makeController({ [rulePath]: false }, authoritative)
-		const secondResult = await refreshClineRulesToggles(second.controller, workspace)
-		expect(secondResult.localToggles[rulePath]).to.equal(true)
-		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
-	})
-
-	it("retries only the rule whose back-fill failed, leaving a rule re-enabled by hand alone", async () => {
-		const workspace = await makeTempDir()
-		const lockedPath = await makeRule(workspace, "locked.md", "Locked during the upgrade")
-		const editedPath = await makeRule(workspace, "edited.md", "Will be re-enabled by hand")
-		await fs.chmod(lockedPath, 0o444)
-
-		let authoritative: Record<string, boolean>
-		try {
-			const first = makeController({ [lockedPath]: false, [editedPath]: false })
-			const firstResult = await refreshClineRulesToggles(first.controller, workspace)
-			expect(firstResult.localToggles).to.deep.equal({ [lockedPath]: false, [editedPath]: false })
-			authoritative = first.workspaceState.get("localClineRulesFrontmatterAuthoritative") as Record<string, boolean>
-			expect(authoritative).to.deep.equal({ [editedPath]: true })
-		} finally {
-			await fs.chmod(lockedPath, 0o644)
-		}
-
-		await fs.writeFile(editedPath, "Will be re-enabled by hand")
-		const second = makeController({ [lockedPath]: false, [editedPath]: false }, authoritative)
-		const secondResult = await refreshClineRulesToggles(second.controller, workspace)
-
-		expect(secondResult.localToggles).to.deep.equal({ [lockedPath]: false, [editedPath]: true })
-		expect(parseYamlFrontmatter(await fs.readFile(lockedPath, "utf-8")).data.disabled).to.equal(true)
-		expect(await fs.readFile(editedPath, "utf-8")).to.equal("Will be re-enabled by hand")
-		expect(second.workspaceState.get("localClineRulesFrontmatterAuthoritative")).to.deep.equal({
-			[lockedPath]: true,
-			[editedPath]: true,
-		})
-	})
-
-	it("drops rules that no longer exist from the authoritative set", async () => {
-		const workspace = await makeTempDir()
-		const rulePath = await makeRule(workspace, "kept.md", "Kept")
-		const gonePath = path.join(workspace, ".clinerules", "gone.md")
-
-		const { controller, workspaceState } = makeController({ [rulePath]: true }, { [rulePath]: true, [gonePath]: true })
-		await refreshClineRulesToggles(controller, workspace)
-
-		expect(workspaceState.get("localClineRulesFrontmatterAuthoritative")).to.deep.equal({ [rulePath]: true })
-	})
-})
-
-describe("global rule authority file", () => {
-	let globalStorage: string
-
-	afterEach(() => {
-		HostProvider.reset()
-	})
-
-	async function useGlobalStorage(): Promise<void> {
-		globalStorage = await makeTempDir()
-		setVscodeHostProviderMock({ globalStorageFsPath: globalStorage })
-	}
-
-	it("merges records from separate windows instead of overwriting them", async () => {
-		await useGlobalStorage()
-		const rulesDir = await makeTempDir()
-		const first = path.join(rulesDir, "first.md")
-		const second = path.join(rulesDir, "second.md")
-		await fs.writeFile(first, "First")
-		await fs.writeFile(second, "Second")
-
-		await recordGlobalRuleAuthority([first])
-		await recordGlobalRuleAuthority([second])
-
-		expect(await readGlobalRuleAuthority()).to.deep.equal({ [first]: true, [second]: true })
-	})
-
-	it("drops records whose rule file no longer exists", async () => {
-		await useGlobalStorage()
-		const rulesDir = await makeTempDir()
-		const kept = path.join(rulesDir, "kept.md")
-		const gone = path.join(rulesDir, "gone.md")
-		await fs.writeFile(kept, "Kept")
-		await fs.writeFile(gone, "Gone")
-		await recordGlobalRuleAuthority([kept, gone])
-
-		await fs.rm(gone)
-		await recordGlobalRuleAuthority([])
-
-		expect(await readGlobalRuleAuthority()).to.deep.equal({ [kept]: true })
-	})
-
-	it("treats a missing or corrupt file as no records", async () => {
-		await useGlobalStorage()
-		expect(await readGlobalRuleAuthority()).to.deep.equal({})
-		await fs.mkdir(path.join(globalStorage, "settings"), { recursive: true })
-		await fs.writeFile(path.join(globalStorage, "settings", "cline-rules-frontmatter-authority.json"), "{not json")
-		expect(await readGlobalRuleAuthority()).to.deep.equal({})
-	})
-
-	it("keeps a stale window from re-disabling a global rule the user re-enabled by hand", async () => {
-		await useGlobalStorage()
-		const rulesDir = await makeTempDir()
-		const rulePath = path.join(rulesDir, "global-rule.md")
-		await fs.writeFile(rulePath, "Toggled off before the fix")
-
-		// Window A back-fills the rule and records it.
-		const windowA = await reconcileRuleTogglesWithFrontmatter(
-			{ [rulePath]: false },
-			[rulesDir],
-			await readGlobalRuleAuthority(),
-		)
-		await recordGlobalRuleAuthority(Object.keys(windowA.authoritative))
-		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).to.equal(true)
-
-		// The user re-enables the rule by editing the file.
-		await fs.writeFile(rulePath, "Re-enabled by hand")
-
-		// Window B still has the old off toggle cached, but reads the records from disk.
-		const windowB = await reconcileRuleTogglesWithFrontmatter(
-			{ [rulePath]: false },
-			[rulesDir],
-			await readGlobalRuleAuthority(),
-		)
-
-		expect(windowB.toggles[rulePath]).to.equal(true)
-		expect(await fs.readFile(rulePath, "utf-8")).to.equal("Re-enabled by hand")
+		expect(localToggles).to.deep.equal({ [offPath]: false, [stalePath]: true })
+		expect(await fs.readFile(stalePath, "utf-8")).to.equal("Toggled off before the fix")
 	})
 })

@@ -76,8 +76,10 @@ describe("refreshClineRulesToggles workspace layouts", () => {
 			await fs.mkdir(clineRulesDir, { recursive: true })
 			const legacyRule = path.join(legacyDir, "a.md")
 			const newRule = path.join(clineRulesDir, "b.md")
-			await fs.writeFile(legacyRule, "A")
-			await fs.writeFile(newRule, "B")
+			// Disabled rules carry `disabled: true`, which is what the SDK loader
+			// and the panel read.
+			await fs.writeFile(legacyRule, "---\ndisabled: true\n---\nA")
+			await fs.writeFile(newRule, "---\ndisabled: true\n---\nB")
 
 			const controller = makeControllerStub({
 				localClineRulesToggles: {

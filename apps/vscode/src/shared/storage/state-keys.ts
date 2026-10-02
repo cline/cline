@@ -364,12 +364,6 @@ const SECRETS_KEYS = [
 // uses dynamic keys like pendingFileContextWarning_${taskId}.
 export const LocalStateKeys = [
 	"localClineRulesToggles",
-	// Workspace rule paths whose file frontmatter is authoritative for the Rules
-	// panel (see reconcileRuleTogglesWithFrontmatter). Workspace state is a
-	// separate file per workspace, and a workspace is open in one window at a
-	// time, so no other window can overwrite it. The global counterpart lives
-	// in its own settings file (see recordGlobalRuleAuthority).
-	"localClineRulesFrontmatterAuthoritative",
 	"localCursorRulesToggles",
 	"localWindsurfRulesToggles",
 	"localAgentsRulesToggles",

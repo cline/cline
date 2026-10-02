@@ -35,10 +35,7 @@ function createController() {
 		["globalClineRulesToggles", {}],
 		["remoteRulesToggles", {}],
 	])
-	const workspaceState = new Map<string, unknown>([
-		["localClineRulesToggles", localToggles],
-		["localClineRulesFrontmatterAuthoritative", {}],
-	])
+	const workspaceState = new Map<string, unknown>([["localClineRulesToggles", localToggles]])
 
 	return {
 		controller: {
@@ -51,7 +48,6 @@ function createController() {
 			},
 		},
 		localToggles,
-		workspaceState,
 	}
 }
 
@@ -59,7 +55,7 @@ describe("toggleClineRule", () => {
 	it("persists a workspace rule toggle in both extension state and the rule file the SDK reads", async () => {
 		const rulePath = path.join(workspace, ".clinerules", "project-rule.md")
 		await fs.writeFile(rulePath, "Follow this rule")
-		const { controller, localToggles, workspaceState } = createController()
+		const { controller, localToggles } = createController()
 
 		await toggleClineRule(
 			controller as never,
@@ -68,7 +64,6 @@ describe("toggleClineRule", () => {
 
 		expect(localToggles[rulePath]).toBe(false)
 		expect(parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data.disabled).toBe(true)
-		expect(workspaceState.get("localClineRulesFrontmatterAuthoritative")).toEqual({ [rulePath]: true })
 
 		await toggleClineRule(
 			controller as never,
@@ -111,7 +106,7 @@ describe("toggleClineRule", () => {
 		const rulePath = path.join(workspace, ".clinerules", "read-only.md")
 		await fs.writeFile(rulePath, "Locked rule")
 		await fs.chmod(rulePath, 0o444)
-		const { controller, localToggles, workspaceState } = createController()
+		const { controller, localToggles } = createController()
 		try {
 			const response = await toggleClineRule(
 				controller as never,
@@ -121,7 +116,6 @@ describe("toggleClineRule", () => {
 			expect(localToggles[rulePath]).toBe(true)
 			expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(true)
 			expect(await fs.readFile(rulePath, "utf-8")).toBe("Locked rule")
-			expect(workspaceState.get("localClineRulesFrontmatterAuthoritative")).toEqual({})
 		} finally {
 			await fs.chmod(rulePath, 0o644)
 		}
