@@ -401,6 +401,10 @@ describe("createComposioToolsExtension", () => {
 			"composio_wait_for_connections",
 		]);
 		expect(tools[0]?.retryable).toBe(false);
+		expect(tools[0]?.description).toMatch(
+			/^Use this whenever the user asks for something in an external app/,
+		);
+		expect(tools[0]?.description).toContain("Get a Connect Link.");
 	});
 
 	it("executes meta tools with the session id through the proxy", async () => {

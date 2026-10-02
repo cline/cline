@@ -53,6 +53,18 @@ import {
 
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
 
+/**
+ * Provider descriptions are generic ("manage connections to user's apps"), so
+ * models tell the user they lack access instead of offering to connect. Lead
+ * with when to call each tool.
+ */
+const META_TOOL_GUIDANCE: Record<string, string> = {
+	COMPOSIO_MANAGE_CONNECTIONS:
+		"Use this whenever the user asks for something in an external app (e.g. Gmail, Google Calendar, Slack, GitHub, Linear, Notion) that has no tools in this session — never tell the user you lack access without calling it first. It returns a Connect Link: show it to the user, then call composio_wait_for_connections. The app's tools become available in a new session after connecting.\n\n",
+	COMPOSIO_WAIT_FOR_CONNECTIONS:
+		"Call after showing the user a Connect Link from composio_manage_connections to wait until they finish connecting.\n\n",
+};
+
 type StoredComposioTool = {
 	slug: string;
 	name?: string;
@@ -310,7 +322,7 @@ export async function createComposioToolsExtension(options?: {
 					api.registerTool(
 						createTool({
 							name: toolName,
-							description: `${tool.description || tool.name || tool.slug} Connecting an app here makes its tools available in new sessions.`,
+							description: `${META_TOOL_GUIDANCE[tool.slug] ?? ""}${tool.description || tool.name || tool.slug}`,
 							inputSchema: (tool.input_parameters ?? {
 								type: "object",
 								properties: {},
