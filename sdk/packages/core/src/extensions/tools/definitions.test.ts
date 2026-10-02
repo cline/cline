@@ -1880,6 +1880,17 @@ describe("zod schema conversion", () => {
 });
 
 describe("default editor tool", () => {
+	it("publishes old_text as an optional string without null", () => {
+		const tool = createEditorTool(async () => "patched");
+		const schema = tool.inputSchema as {
+			required?: string[];
+			properties?: Record<string, { type?: string | string[] }>;
+		};
+
+		expect(schema.required).not.toContain("old_text");
+		expect(schema.properties?.old_text?.type).toBe("string");
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
