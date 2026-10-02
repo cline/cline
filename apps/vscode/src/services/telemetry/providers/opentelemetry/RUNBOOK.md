@@ -100,6 +100,15 @@ precedence, including after an earlier direct request. Relay opt-out, sampling
 and content controls still apply, with no fallback to direct export when those
 controls disable a request.
 
+Third-party (BYOK) providers such as `openrouter` are traced only when the
+operator sets `CLINE_LANGFUSE_ALL_PROVIDERS=1` alongside direct `LANGFUSE_*`
+credentials. That opt-in uses the isolated direct exporter exclusively and never
+the host relay, so BYOK prompts cannot reach a collector the operator did not
+configure. `LANGFUSE_TRACING_ENVIRONMENT` sets the Langfuse environment on the
+direct exporter, and `CLINE_LANGFUSE_TAGS` (comma-separated) plus
+`CLINE_LANGFUSE_METADATA` (JSON object or `key=value,...`) add trace-level tags
+and metadata to every trace the process emits, on both the direct and relay paths.
+
 ## Cross-repository fixture and staging acceptance
 
 The real-stream integration test includes synthetic generation, step and tool

@@ -647,10 +647,12 @@ async function withAiSdkLangfuseTraceContext<T>(
 	const sessionId =
 		typeof metadata.sessionId === "string" ? metadata.sessionId : undefined;
 
-	if (!enabled || (!distinctId && !sessionId && !tags?.length)) {
+	if (!enabled) {
 		return await callback();
 	}
 
+	// Operator env tags/metadata are merged inside the runtime, which also
+	// skips propagation when nothing at all is set.
 	const runtime = await import("../services/langfuse-telemetry");
 	return await runtime.withLangfuseTraceAttributes(
 		true,
