@@ -626,6 +626,7 @@ describe("ChatInputBar", () => {
 						kind: "skill",
 					},
 					{ id: "skill:fork", name: "fork", kind: "skill" },
+					{ id: "skill:compact", name: "compact", kind: "skill" },
 				],
 			}),
 		).toEqual([

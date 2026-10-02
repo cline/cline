@@ -44,6 +44,7 @@ import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
 } from "./cloud-sessions";
+import { compactDesktopSessionMessages } from "./compaction";
 import {
 	cancelSidecarMistakeQuestions,
 	emitChunk,
@@ -128,7 +129,7 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["compact", "fork", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -1864,6 +1865,77 @@ async function handleReset(
 	return { sessionId: request.sessionId, ok: true };
 }
 
+async function handleCompact(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
+	const liveSession = ctx.liveSessions.get(sessionId);
+	const sessionRecord = await manager.get(sessionId);
+	if (
+		(liveSession && hasActiveWorkspaceTurn(liveSession)) ||
+		sessionRecord?.status === "running" ||
+		sessionRecord?.status === "pending"
+	) {
+		throw new Error(
+			"Cannot compact while the current turn is running. Wait for it to finish or stop it first.",
+		);
+	}
+	const messages = await manager.readMessages(sessionId);
+	const messagesBefore = messages.length;
+	if (messagesBefore === 0) {
+		return { sessionId, compacted: false, messagesBefore, messagesAfter: 0 };
+	}
+	// Turns resolve provider credentials inside the Hub, but the summarizer
+	// runs in this process, so resolve the desktop's stored credentials the
+	// same way remote sessions receive them.
+	const config = buildCoreSessionConfig(
+		await withRemoteProviderCredentials({
+			...(liveSession?.config ?? {}),
+			...(request.config ?? {}),
+		}),
+		ctx.telemetryUser,
+	) as unknown as ClineCoreStartConfig;
+	if (!config.providerId || !config.modelId) {
+		throw new Error("provider and model are required to compact");
+	}
+	const result = await compactDesktopSessionMessages({
+		sessionId,
+		config,
+		messages,
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
+	});
+	if (!result.compactionState) {
+		return {
+			sessionId,
+			compacted: false,
+			messagesBefore,
+			messagesAfter: messagesBefore,
+		};
+	}
+	const updated = await manager.updateSessionCompactionState(
+		sessionId,
+		result.compactionState,
+	);
+	if (!updated.updated) {
+		throw new Error("Compaction could not be saved. Try again.");
+	}
+	return {
+		sessionId,
+		compacted: true,
+		messagesBefore,
+		messagesAfter: result.compactionState.messages.length,
+	};
+}
+
 async function handleRestoreCheckpoint(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -2091,6 +2163,7 @@ const ACTION_HANDLERS: Record<
 	stop: handleStop,
 	abort: handleAbort,
 	fork: handleFork,
+	compact: handleCompact,
 	reset: handleReset,
 	restore_checkpoint: handleRestoreCheckpoint,
 	pending_prompts: handlePendingPrompts,

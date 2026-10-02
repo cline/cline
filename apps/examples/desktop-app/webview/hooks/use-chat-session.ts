@@ -1064,6 +1064,7 @@ export function useChatSession(environmentId: string) {
 			};
 			if (
 				body.action === "send" ||
+				body.action === "compact" ||
 				(body.action === "start" && bodyConfig.executionTarget === "cloud")
 			) {
 				return await desktopClient.invoke<ChatSessionCommandResponse>(
@@ -4130,6 +4131,36 @@ export function useChatSession(environmentId: string) {
 		[config, environmentId, postSession, status],
 	);
 
+	// Manual `/compact`: the sidecar summarizes the transcript and persists the
+	// compacted working context; the visible transcript is left intact.
+	const compactSession = useCallback(async (): Promise<{
+		compacted: boolean;
+		messagesBefore: number;
+		messagesAfter: number;
+	}> => {
+		const activeSessionId = activeSessionIdRef.current;
+		if (!activeSessionId) {
+			throw new Error("No active session to compact.");
+		}
+		if (BUSY_STATUSES.has(status)) {
+			throw new Error("Wait for the current turn to finish before compacting.");
+		}
+		const payload = (await postSession({
+			action: "compact",
+			sessionId: activeSessionId,
+			config,
+		})) as {
+			compacted?: boolean;
+			messagesBefore?: number;
+			messagesAfter?: number;
+		};
+		return {
+			compacted: payload.compacted === true,
+			messagesBefore: payload.messagesBefore ?? 0,
+			messagesAfter: payload.messagesAfter ?? 0,
+		};
+	}, [config, postSession, status]);
+
 	const steerPromptInQueue = useCallback(
 		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
@@ -4273,6 +4304,7 @@ export function useChatSession(environmentId: string) {
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		compactSession,
 		proceedWhileRunning,
 		abort,
 		stop: abort,
