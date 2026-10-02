@@ -314,6 +314,7 @@ export interface LocalRuntimeBootstrap {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	pluginSandboxShutdown?: () => Promise<void>;
+	pluginCommandError?: string;
 	runtimeBuilderInput: RuntimeBuilderInput;
 }
 
@@ -444,6 +445,7 @@ export async function prepareLocalRuntimeBootstrap(
 			});
 	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
 
+	let pluginCommandError: string | undefined;
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
@@ -464,6 +466,9 @@ export async function prepareLocalRuntimeBootstrap(
 				telemetry: extensionContext.telemetry,
 				automation: extensionContext.automation,
 			});
+			pluginCommandError = loadedPlugins.failures.length
+				? loadedPlugins.failures.map((f) => f.message).join("; ")
+				: undefined;
 			logPluginDiagnostics(
 				loadedPlugins.failures,
 				loadedPlugins.warnings,
@@ -471,6 +476,7 @@ export async function prepareLocalRuntimeBootstrap(
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
+			pluginCommandError = message;
 			localConfig?.logger?.log?.(
 				`plugin loading failed; continuing without plugins (${message})`,
 			);
@@ -594,6 +600,7 @@ export async function prepareLocalRuntimeBootstrap(
 		toolPolicies,
 		requestToolApproval,
 		pluginSandboxShutdown: loadedPlugins?.shutdown,
+		pluginCommandError,
 		runtimeBuilderInput: {
 			config,
 			hooks,

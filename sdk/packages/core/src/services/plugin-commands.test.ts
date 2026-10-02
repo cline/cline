@@ -1,156 +1,284 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
+import type { watch } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPluginCommandService } from "./plugin-commands";
+import type { AgentExtensionApi, AgentTool, Message } from "@cline/shared";
+import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { executePluginCommand, parsePluginCommand } from "./plugin-command-api";
+import { PluginCommandManager } from "./plugin-commands";
 
-describe("createPluginCommandService", () => {
-	const tempRoots: string[] = [];
-	const shutdowns: Array<() => Promise<void>> = [];
-
-	afterEach(async () => {
-		await Promise.all(shutdowns.map((shutdown) => shutdown()));
-		shutdowns.length = 0;
-		await Promise.all(
-			tempRoots.map((dir) => rm(dir, { recursive: true, force: true })),
-		);
-		tempRoots.length = 0;
-	});
-
-	async function createWorkspace(): Promise<{
-		workspacePath: string;
-		pluginPath: string;
-	}> {
-		const workspacePath = await mkdtemp(join(tmpdir(), "plugin-commands-"));
-		tempRoots.push(workspacePath);
-		const pluginsDir = join(workspacePath, ".cline", "plugins");
-		await mkdir(pluginsDir, { recursive: true });
-		const pluginPath = join(pluginsDir, "goalish.js");
-		await writeFile(
-			pluginPath,
-			[
-				"export default {",
-				"  name: 'goalish-plugin',",
-				"  manifest: { capabilities: ['commands'] },",
-				"  setup(api) {",
-				"    api.registerCommand({",
-				"      name: 'Goalish',",
-				"      description: 'Set a goal',",
-				"      handler: async (input) => {",
-				"        const trimmed = input.trim();",
-				"        if (!trimmed || trimmed === 'status') return 'No goal is active.';",
-				"        return { reply: 'Goal set: ' + trimmed, submitPrompt: trimmed };",
-				"      },",
-				"    });",
-				"  },",
-				"};",
-			].join("\n"),
-		);
-		return { workspacePath, pluginPath };
-	}
-
-	it("lists normalized commands and runs handlers", async () => {
-		const { workspacePath } = await createWorkspace();
-		const service = createPluginCommandService({ cwd: workspacePath });
-		shutdowns.push(service.shutdown);
-
-		const commands = await service.listCommands();
-		expect(commands).toContainEqual({
-			name: "goalish",
-			description: "Set a goal",
-		});
-		await expect(service.run("/Goalish", " status ")).resolves.toEqual({
-			reply: "No goal is active.",
-			submitPrompt: undefined,
-		});
-		await expect(service.run("goalish", "fix the tests")).resolves.toEqual({
-			reply: "Goal set: fix the tests",
-			submitPrompt: "fix the tests",
-		});
-		await expect(service.run("not-a-command", "")).resolves.toBeUndefined();
-	});
-
-	it("continues without commands when a plugin fails to load, retrying only when plugins change", async () => {
-		const { workspacePath, pluginPath } = await createWorkspace();
-		await writeFile(
-			pluginPath,
-			"export default { name: 'broken', manifest: { capabilities: ['bogus'] }, setup() {} };",
-		);
-		const errors: string[] = [];
-		const service = createPluginCommandService({
-			cwd: workspacePath,
-			logger: {
-				debug: () => {},
-				log: () => {},
-				error: (message) => errors.push(message),
+const originalHome = process.env.HOME;
+const originalClineDir = process.env.CLINE_DIR;
+const roots: string[] = [];
+beforeEach(async () => {
+	const home = await workspace();
+	setHomeDir(home);
+	setClineDir(join(home, ".cline"));
+});
+const managers: PluginCommandManager[] = [];
+afterEach(async () => {
+	await Promise.all(managers.splice(0).map((m) => m.dispose()));
+	setHomeDir(originalHome ?? "~");
+	setClineDir(originalClineDir ?? join(originalHome ?? "~", ".cline"));
+	await Promise.all(
+		roots.splice(0).map((r) => rm(r, { recursive: true, force: true })),
+	);
+});
+async function workspace() {
+	const p = await mkdtemp(join(tmpdir(), "plugin-catalog-"));
+	roots.push(p);
+	return p;
+}
+function loaded(
+	handler: (input: string) => Promise<string> = async (input) =>
+		`echo:${input}`,
+) {
+	return {
+		extensions: [
+			{
+				name: "echo-plugin",
+				manifest: { capabilities: ["commands" as const] },
+				setup(api: AgentExtensionApi<AgentTool, Message[]>) {
+					api.registerCommand({ name: "Echo", description: "Echo", handler });
+				},
 			},
+		],
+		pluginPaths: [],
+		failures: [],
+		warnings: [],
+		shutdown: vi.fn(async () => {}),
+	};
+}
+describe("runtime plugin catalogs", () => {
+	it("shares initialization across callers and preserves arguments", async () => {
+		const workspacePath = await workspace();
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({ load });
+		managers.push(manager);
+		const [a, b] = await Promise.all([
+			manager.list({ workspacePath }),
+			manager.list({ workspacePath }),
+		]);
+		expect(a).toEqual(b);
+		expect(load).toHaveBeenCalledTimes(1);
+		expect(a.commands).toEqual([{ name: "echo", description: "Echo" }]);
+		await expect(
+			manager.run({
+				workspacePath,
+				prompt: "/Echo first  line\n  second line",
+			}),
+		).resolves.toMatchObject({ reply: "echo:first  line\n  second line" });
+		await expect(
+			manager.run({ workspacePath, prompt: "/unknown" }),
+		).resolves.toBeUndefined();
+	});
+	it("retries only failed paths while retaining healthy command state", async () => {
+		const workspacePath = await workspace();
+		const brokenPath = join(workspacePath, "broken.js");
+		const failures = [
+			{ pluginPath: brokenPath, phase: "setup" as const, message: "broken" },
+		];
+		let counter = 0;
+		let recover = false;
+		const healthy = loaded(async () => String(++counter));
+		const recovered = loaded();
+		recovered.extensions[0].setup = (api) =>
+			api.registerCommand({ name: "fixed", handler: () => "recovered" });
+		const load = vi.fn(async (_options: { pluginPaths: string[] }) => {
+			if (load.mock.calls.length === 1) return { ...healthy, failures };
+			return recover ? recovered : { ...loaded(), extensions: [], failures };
 		});
-		shutdowns.push(service.shutdown);
-
-		await expect(service.listCommands()).resolves.toEqual([]);
-		await expect(service.run("goalish", "status")).resolves.toBeUndefined();
-		expect(errors).toHaveLength(1);
-
-		// The failure may have been transient, so it is retried after a delay.
-		const realNow = Date.now;
-		const nowSpy = vi
-			.spyOn(Date, "now")
-			.mockImplementation(() => realNow() + 60_000);
-		try {
-			await expect(service.run("goalish", "status")).resolves.toBeUndefined();
-			expect(errors).toHaveLength(2);
-		} finally {
-			nowSpy.mockRestore();
-		}
-
-		await writeFile(
-			pluginPath,
-			[
-				"export default {",
-				"  name: 'goalish-plugin',",
-				"  manifest: { capabilities: ['commands'] },",
-				"  setup(api) {",
-				"    api.registerCommand({ name: 'goalish', handler: () => { throw new Error('handler boom'); } });",
-				"  },",
-				"};",
-			].join("\n"),
+		const manager = new PluginCommandManager({ load, retryDelayMs: 10 });
+		managers.push(manager);
+		const updates = vi.fn();
+		manager.subscribe(updates);
+		await manager.list({ workspacePath });
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "1" },
 		);
-		const later = new Date(Date.now() + 5_000);
-		await utimes(pluginPath, later, later);
-
-		// Handler failures are the plugin's own errors and still surface.
-		await expect(service.run("goalish", "status")).rejects.toThrow(
-			"handler boom",
+		await vi.waitFor(
+			() => expect(load.mock.calls.length).toBeGreaterThanOrEqual(3),
+			{ timeout: 5000 },
+		);
+		expect(healthy.shutdown).not.toHaveBeenCalled();
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "2" },
+		);
+		for (const [options] of load.mock.calls.slice(1))
+			expect(options.pluginPaths).toEqual([brokenPath]);
+		recover = true;
+		await vi.waitFor(
+			() =>
+				expect(updates).toHaveBeenLastCalledWith(
+					expect.objectContaining({ status: "ready" }),
+				),
+			{ timeout: 5000 },
+		);
+		expect(
+			await manager.run({ workspacePath, prompt: "/fixed" }),
+		).toMatchObject({ reply: "recovered" });
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "3" },
+		);
+		expect(healthy.shutdown).not.toHaveBeenCalled();
+	});
+	it("recovers from initialization timeout without another client request", async () => {
+		const workspacePath = await workspace();
+		const load = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("plugin-sandbox initialize timed out"))
+			.mockResolvedValue(loaded());
+		const manager = new PluginCommandManager({ load, retryDelayMs: 10 });
+		managers.push(manager);
+		const updates = vi.fn();
+		manager.subscribe(updates);
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			status: "error",
+			commands: [],
+			error: expect.stringContaining("timed out"),
+		});
+		await vi.waitFor(
+			() =>
+				expect(updates).toHaveBeenLastCalledWith(
+					expect.objectContaining({
+						status: "ready",
+						commands: [{ name: "echo", description: "Echo" }],
+					}),
+				),
+			{ timeout: 5000 },
+		);
+		await expect(
+			manager.run({ workspacePath, prompt: "/echo recovered" }),
+		).resolves.toMatchObject({ reply: "echo:recovered" });
+	});
+	it("watches newly created plugin directories in non-Git workspaces", async () => {
+		const workspacePath = await workspace();
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({ load });
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		await writeFile(join(directory, "echo.js"), "export default {};");
+		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1), {
+			timeout: 3000,
+		});
+		const calls = load.mock.calls.length;
+		await writeFile(
+			join(directory, "echo.js"),
+			"export default {name:'changed'};",
+		);
+		await vi.waitFor(
+			() => expect(load.mock.calls.length).toBeGreaterThan(calls),
+			{ timeout: 3000 },
 		);
 	});
-
-	it("reloads plugins when the plugin set changes", async () => {
-		const { workspacePath, pluginPath } = await createWorkspace();
-		const service = createPluginCommandService({ cwd: workspacePath });
-		shutdowns.push(service.shutdown);
-		await expect(service.run("goalish", "status")).resolves.toEqual({
-			reply: "No goal is active.",
-			submitPrompt: undefined,
+	it.each([
+		"add",
+		"edit",
+		"remove",
+		"unchanged",
+		"watch-throw",
+	])("reconciles %s during watcher outages without resetting unchanged plugins", async (change) => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const file = join(directory, "echo.js");
+		if (change !== "add") await writeFile(file, "before");
+		const watchers: EventEmitter[] = [];
+		let unavailable = change === "watch-throw";
+		const watchFiles = vi.fn(() => {
+			if (unavailable) throw new Error("watch unavailable");
+			const watcher = Object.assign(new EventEmitter(), { close: vi.fn() });
+			watchers.push(watcher);
+			return watcher;
 		});
-
-		await writeFile(
-			pluginPath,
-			[
-				"export default {",
-				"  name: 'goalish-plugin',",
-				"  manifest: { capabilities: ['commands'] },",
-				"  setup(api) {",
-				"    api.registerCommand({ name: 'goalish', handler: () => 'reloaded' });",
-				"  },",
-				"};",
-			].join("\n"),
+		const initial = loaded();
+		const load = vi.fn(async () => initial);
+		const manager = new PluginCommandManager({
+			load,
+			watch: watchFiles as unknown as typeof watch,
+		});
+		managers.push(manager);
+		const updates = vi.fn();
+		manager.subscribe(updates);
+		await manager.list({ workspacePath });
+		const attempts = watchFiles.mock.calls.length;
+		watchers[0]?.emit("error", new Error("watch lost"));
+		if (change === "remove") await rm(file);
+		else if (change !== "unchanged") await writeFile(file, "after");
+		unavailable = false;
+		await vi.waitFor(
+			() => expect(watchFiles.mock.calls.length).toBeGreaterThan(attempts),
+			{ timeout: 3000 },
 		);
-		const later = new Date(Date.now() + 5_000);
-		await utimes(pluginPath, later, later);
-
-		await expect(service.run("goalish", "status")).resolves.toEqual({
-			reply: "reloaded",
-			submitPrompt: undefined,
+		if (change === "unchanged") {
+			expect(load).toHaveBeenCalledTimes(1);
+			expect(initial.shutdown).not.toHaveBeenCalled();
+		} else {
+			await vi.waitFor(() => expect(updates).toHaveBeenCalledTimes(2));
+			expect(load).toHaveBeenCalledTimes(2);
+			expect(initial.shutdown).toHaveBeenCalledTimes(1);
+		}
+	});
+	it("waits for active handlers before disposing the sandbox", async () => {
+		const workspacePath = await workspace();
+		let finish!: (result: string) => void;
+		const handler = vi.fn(
+			() =>
+				new Promise<string>((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const plugins = loaded(handler);
+		const manager = new PluginCommandManager({ load: async () => plugins });
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		const run = manager.run({ workspacePath, prompt: "/echo" });
+		await vi.waitFor(() => expect(handler).toHaveBeenCalled());
+		const dispose = manager.dispose();
+		expect(plugins.shutdown).not.toHaveBeenCalled();
+		finish("done");
+		await run;
+		await dispose;
+		expect(plugins.shutdown).toHaveBeenCalledTimes(1);
+		await expect(manager.list({ workspacePath })).rejects.toThrow("disposed");
+	});
+	it("isolates workspaces and propagates handler errors", async () => {
+		const a = await workspace();
+		const b = await workspace();
+		const load = vi.fn(async (options?: { cwd?: string }) =>
+			loaded(async () => options?.cwd ?? ""),
+		);
+		const manager = new PluginCommandManager({ load });
+		managers.push(manager);
+		await manager.list({ workspacePath: a });
+		await manager.list({ workspacePath: b });
+		expect(load).toHaveBeenCalledTimes(2);
+		await expect(
+			manager.run({ workspacePath: a, prompt: "/echo" }),
+		).resolves.toMatchObject({ reply: a });
+		await expect(
+			executePluginCommand(
+				[
+					{
+						name: "bad",
+						handler: () => {
+							throw new Error("handler boom");
+						},
+					},
+				],
+				"/bad",
+			),
+		).rejects.toThrow("handler boom");
+	});
+	it("parses slash input without changing internal whitespace", () => {
+		expect(parsePluginCommand(" \n/GOAL a  b\nc ")).toEqual({
+			name: "goal",
+			input: "a  b\nc",
 		});
+		expect(parsePluginCommand("ordinary text")).toBeUndefined();
 	});
 });

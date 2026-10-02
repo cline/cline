@@ -10,9 +10,15 @@ import type { TuiProps } from "../types";
 export function useSlashCommands(input: {
 	workflowSlashCommands: TuiProps["workflowSlashCommands"];
 	loadAdditionalSlashCommands: TuiProps["loadAdditionalSlashCommands"];
+	subscribeAdditionalSlashCommands: TuiProps["subscribeAdditionalSlashCommands"];
 	canFork: boolean;
 }) {
-	const { workflowSlashCommands, loadAdditionalSlashCommands, canFork } = input;
+	const {
+		workflowSlashCommands,
+		loadAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands,
+		canFork,
+	} = input;
 	const [additionalSlashCommands, setAdditionalSlashCommands] = useState<
 		TuiProps["workflowSlashCommands"] | undefined
 	>(loadAdditionalSlashCommands ? [] : undefined);
@@ -23,21 +29,34 @@ export function useSlashCommands(input: {
 			return;
 		}
 		let cancelled = false;
-		void loadAdditionalSlashCommands()
-			.then((commands) => {
-				if (!cancelled) {
-					setAdditionalSlashCommands(commands);
-				}
+		let requestId = 0;
+		const refresh = () => {
+			const id = ++requestId;
+			void loadAdditionalSlashCommands()
+				.then((commands) => {
+					if (!cancelled && id === requestId) {
+						setAdditionalSlashCommands(commands);
+					}
+				})
+				.catch(() => {
+					if (!cancelled && id === requestId) {
+						setAdditionalSlashCommands([]);
+					}
+				});
+		};
+		refresh();
+		let unsubscribe: (() => void) | undefined;
+		void subscribeAdditionalSlashCommands?.(refresh)
+			.then((stop) => {
+				if (cancelled) stop();
+				else unsubscribe = stop;
 			})
-			.catch(() => {
-				if (!cancelled) {
-					setAdditionalSlashCommands([]);
-				}
-			});
+			.catch(() => {});
 		return () => {
+			unsubscribe?.();
 			cancelled = true;
 		};
-	}, [loadAdditionalSlashCommands]);
+	}, [loadAdditionalSlashCommands, subscribeAdditionalSlashCommands]);
 
 	const registry = useMemo(() => {
 		return buildSlashCommandRegistry({

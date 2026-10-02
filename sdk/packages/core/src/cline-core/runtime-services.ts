@@ -6,6 +6,10 @@ import type {
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
 } from "../runtime/host/runtime-host";
+import type {
+	PluginCommandsApi,
+	PluginCommandsRuntimeService,
+} from "../services/plugin-command-api";
 import {
 	type ClineCoreSettingsApi,
 	type CoreSettingsListInput,
@@ -76,5 +80,22 @@ export function createClineCorePendingPromptsApi(
 		delete(input) {
 			return getService().delete(input);
 		},
+	};
+}
+
+export function createClineCorePluginCommandsApi(
+	host: RuntimeHost,
+): PluginCommandsApi {
+	const service = () => {
+		const api = (host as RuntimeHost & Partial<PluginCommandsRuntimeService>)
+			.pluginCommands;
+		if (!api)
+			throw new Error("Plugin commands are unavailable on this runtime");
+		return api;
+	};
+	return {
+		list: (target) => service().list(target),
+		run: (input) => service().run(input),
+		subscribe: (listener) => service().subscribe(listener),
 	};
 }

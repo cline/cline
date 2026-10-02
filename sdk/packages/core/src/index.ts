@@ -640,14 +640,16 @@ export {
 	uninstallMcpServer,
 } from "./services/mcp-install";
 export type {
+	PluginCommandCatalog,
 	PluginCommandResult,
-	PluginCommandService,
+	PluginCommandsApi,
+	PluginCommandTarget,
 	PluginSlashCommand,
-} from "./services/plugin-commands";
+} from "./services/plugin-command-api";
 export {
-	createPluginCommandService,
 	normalizePluginCommandName,
-} from "./services/plugin-commands";
+	parsePluginCommand,
+} from "./services/plugin-command-api";
 export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
@@ -1003,6 +1005,7 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";

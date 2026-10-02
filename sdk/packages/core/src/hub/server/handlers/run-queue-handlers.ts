@@ -33,6 +33,7 @@ const DRAIN_REFUSED_COMMANDS = new Set<string>([
 	"run.start",
 	"session.send_input",
 	"run.enqueue",
+	"plugins.commands.run",
 ]);
 
 export function isDrainRefusedCommand(command: string): boolean {
