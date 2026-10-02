@@ -230,7 +230,9 @@ describe("Hub agenda task vertical slice", () => {
 					(tool) => tool.name === "tasks",
 				),
 			).toBe(true);
-			expect(capturedStart?.localRuntime?.extraTools).toHaveLength(1);
+			expect(
+				capturedStart?.localRuntime?.extraTools?.map((tool) => tool.name),
+			).toEqual(expect.arrayContaining(["tasks", "report_status"]));
 			expect(
 				capturedStart?.localRuntime?.extensions?.some(
 					(extension) => extension.name === "hub-task-guidance",

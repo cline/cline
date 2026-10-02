@@ -3544,6 +3544,19 @@ export async function handleCommand(
 		return await handleRoutineScheduleCommand(ctx, command, args);
 	}
 
+	// Status Hub reads use the same authenticated local Hub as desktop chats.
+	if (
+		command === "status.board" ||
+		command === "status.query" ||
+		command === "status.summary"
+	) {
+		const client = await ensureSharedHubClient(ctx);
+		const reply = await client.command(command, args);
+		if (!reply.ok)
+			throw new Error(reply.error?.message ?? "Unable to load Status Hub.");
+		return reply.payload;
+	}
+
 	// ── Agenda task queue ─────────────────────────────────────────────
 	if (AGENDA_TASK_COMMANDS.has(command)) {
 		if (

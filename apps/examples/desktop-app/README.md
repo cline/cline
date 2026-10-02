@@ -22,6 +22,31 @@ From `apps/examples/desktop-app/`:
 
 Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
 
+## Status Hub
+
+Open **Status Hub** below **Schedule** and **Customize** in the sidebar.
+**Board** shows the latest report for each piece of work, with blockers and
+failures first. **Changelog** shows the full update history, newest first.
+Search headlines and details, filter by state, inspect an item's history, or
+open its reporting chat. Load more to read beyond the first 50 results.
+
+New Hub-hosted chats report meaningful work through `report_status`; existing
+chats need to be restored or restarted to receive the new tool. History is
+stored in the local Hub's `status.db` across app restarts. This view covers
+local Hub chats; SSH and cloud histories are not aggregated here. Current-work
+counts describe all local reports, independently of the visible page or filters.
+
+Reports update the first page live. Once you load more, new updates offer a
+**Show latest** action so they do not move your reading position. Reconnecting
+refreshes the first page or offers **Show latest** while reading later pages.
+Load failures show an error and retry action; they
+never appear as an empty history. Switching views preserves the current chat
+and its draft. Unfinished reports close when their reporting session ends.
+
+Verification: `bun run test:status-hub`, `bun run test:sidecar`,
+`bun run typecheck`, and `bun run build:web`; SDK status store and Hub integration
+tests run with the core unit suite after `bun run build:sdk`.
+
 ## Pull Requests
 
 The composer shows the current branch's GitHub pull request, merge status,

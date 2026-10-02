@@ -19,6 +19,25 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it("opens Status Hub and returns to the same chat through navigation history", () => {
+		const initial = createDesktopAppState(
+			"draft-chat",
+			settingsSection,
+			"local",
+		);
+		const status = desktopAppReducer(initial, {
+			type: "navigate",
+			destination: { ...initial.navigation.current, view: "status-hub" },
+		});
+		expect(status.threads).toBe(initial.threads);
+		expect(status.navigation.current.activeThreadId).toBe("draft-chat");
+		const back = desktopAppReducer(status, { type: "back" });
+		expect(back.navigation.current.view).toBe("chat");
+		expect(back.threads).toBe(initial.threads);
+		expect(
+			desktopAppReducer(back, { type: "forward" }).navigation.current.view,
+		).toBe("status-hub");
+	});
 	it("reuses a bound thread when opening its session and keeps other environments separate", () => {
 		let state = createDesktopAppState("new-local", settingsSection, "local");
 		state = desktopAppReducer(state, {

@@ -929,7 +929,7 @@ export function handleHubLiveEvent(
 	// session yet (pending and approved tasks explicitly predate their session).
 	// Forward them before the session-only live-chat projection below so Agenda
 	// surfaces stay current without polling.
-	if (event.event.startsWith("task.")) {
+	if (event.event.startsWith("task.") || event.event === "status.updated") {
 		sendEvent(ctx, event.event, {
 			...(event.payload ?? {}),
 			...(event.sessionId ? { sessionId: event.sessionId } : {}),

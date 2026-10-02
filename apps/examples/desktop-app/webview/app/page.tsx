@@ -45,6 +45,7 @@ import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import { StatusHubView } from "@/components/views/status-hub/status-hub-view";
 import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import {
 	WindowTitleBar,
@@ -953,9 +954,17 @@ export default function Home() {
 									/>
 								) : activeThread ? (
 									<div
-										aria-hidden={view === "settings" ? true : undefined}
+										aria-hidden={
+											view === "settings" || view === "status-hub"
+												? true
+												: undefined
+										}
 										className="flex min-h-0 flex-1 flex-col"
-										inert={view === "settings" ? true : undefined}
+										inert={
+											view === "settings" || view === "status-hub"
+												? true
+												: undefined
+										}
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}
@@ -1019,6 +1028,15 @@ export default function Home() {
 											}
 											parentSession={activeParentSession}
 											onThreadStarted={handleThreadStarted}
+										/>
+									</div>
+								) : null}
+								{view === "status-hub" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<StatusHubView
+											onOpenSession={(sessionId) =>
+												handleOpenSessionById(sessionId)
+											}
 										/>
 									</div>
 								) : null}
