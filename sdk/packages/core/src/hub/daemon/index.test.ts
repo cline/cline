@@ -24,9 +24,11 @@ const {
 	resolveHubBuildIdentity,
 	withHubStartupLock,
 	writeHubDiscovery,
+	findListeningPid,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
+	findListeningPid: vi.fn((_port: number): number | undefined => undefined),
 	closeSync: vi.fn(),
 	mkdirSync: vi.fn(),
 	openSync: vi.fn(() => 17),
@@ -141,6 +143,10 @@ vi.mock("../discovery/workspace", () => ({
 	resolveSharedHubOwnerContext,
 }));
 
+vi.mock("./bind-diagnostics", () => ({
+	findListeningPid,
+}));
+
 vi.mock("../discovery", () => ({
 	clearHubDiscovery,
 	compareHubBuilds,
@@ -187,6 +193,8 @@ describe("ensureDetachedHubServer", () => {
 		requestHubDrain.mockReset();
 		requestHubDrain.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
+		findListeningPid.mockReset();
+		findListeningPid.mockReturnValue(undefined);
 		vi.stubGlobal("fetch", fetchMock);
 	});
 
@@ -678,18 +686,92 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("throws when a compatible expected hub has no discovery record", async () => {
+	// A compatible hub whose discovery record is gone and that no token can
+	// reach is an orphan: nothing can attach to it, yet it holds the port. This
+	// used to throw on every launch, which is the desktop crash loop behind most
+	// desktop error volume (`No compatible hub runtime is available: ... its
+	// discovery record is missing`). The orphan must be retired and replaced.
+	it("retires an orphaned compatible hub with no discovery record and starts a replacement", async () => {
+		const orphan = {
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+			host: "127.0.0.1",
+			port: 25463,
+		};
+		// Older hubs report no pid on /health; the OS listener table names it.
+		findListeningPid.mockReturnValue(4242);
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			buildId: "current-build",
+			authToken: "new-token",
+		});
+		probeHubServer
+			.mockResolvedValueOnce(orphan) // expected-url probe finds the orphan
+			.mockResolvedValueOnce(undefined) // gone after the shutdown request
+			.mockResolvedValueOnce(orphan); // the replacement, once published
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		expect(findListeningPid).toHaveBeenCalledWith(25463);
+		expect(requestHubShutdown).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			undefined,
+		);
+		expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+		expect(spawn).toHaveBeenCalledTimes(1);
+	});
+
+	it("prefers the pid the orphaned hub reports over the OS listener table", async () => {
+		const orphan = {
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+			host: "127.0.0.1",
+			port: 25463,
+			pid: 777,
+		};
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			buildId: "current-build",
+			authToken: "new-token",
+		});
+		probeHubServer
+			.mockResolvedValueOnce(orphan)
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce(orphan);
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		expect(findListeningPid).not.toHaveBeenCalled();
+		expect(spawn).toHaveBeenCalledTimes(1);
+	});
+
+	it("still fails, without spawning, when the orphaned hub's process cannot be identified", async () => {
 		readHubDiscovery.mockResolvedValue(undefined);
 		probeHubServer.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
 			protocolVersion: "v1",
 			buildId: "current-build",
+			host: "127.0.0.1",
+			port: 25463,
 		});
 
 		const { ensureDetachedHubServer } = await import(".");
 		await expect(ensureDetachedHubServer("/workspace")).rejects.toThrow(
-			"A compatible Cline Hub is already running at ws://127.0.0.1:25463/hub, but its discovery record is missing or unreadable and no usable auth token is available.",
+			"A compatible Cline Hub is already running at ws://127.0.0.1:25463/hub, but its discovery record is missing or unreadable and no usable auth token is available. Its process could not be identified, so it was not stopped automatically.",
 		);
+		// Without a pid there is nothing safe to retire; a blind shutdown request
+		// would only ever reach a hub we already failed to authenticate to.
+		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
 	});
 
@@ -920,6 +1002,8 @@ describe("upgradeManagedHub", () => {
 		requestHubDrain.mockReset();
 		requestHubDrain.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
+		findListeningPid.mockReset();
+		findListeningPid.mockReturnValue(undefined);
 		vi.stubGlobal("fetch", fetchMock);
 	});
 
