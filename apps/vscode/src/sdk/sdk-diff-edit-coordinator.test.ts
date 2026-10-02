@@ -291,7 +291,9 @@ describe("SdkDiffEditCoordinator", () => {
 
 	it("opens a populated preview before approval for an existing-file edit", async () => {
 		await writeFile("a.ts", "line1\nline2\n")
-		await coordinator.openForApproval("tc1", "editor", { path: "a.ts", old_text: "line1", new_text: "changed" })
+		await expect(
+			coordinator.openForApproval("tc1", "editor", { path: "a.ts", old_text: "line1", new_text: "changed" }),
+		).resolves.toBeUndefined()
 
 		expect(previews).toHaveLength(1)
 		expect(previews[0].opened).toMatchObject({
@@ -337,18 +339,18 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews).toHaveLength(0)
 	})
 
-	it("never throws from openForApproval and the executor still applies the edit", async () => {
-		await writeFile("a.ts", "content")
-		// old_text won't match — computeNewEditorContent throws, preview is skipped
-		await coordinator.openForApproval("tc1", "editor", { path: "a.ts", old_text: "nope", new_text: "x" })
+	it.each([
+		["text not found", "content", "nope", "No replacement performed: text not found"],
+		["ambiguous text", "content\\ncontent", "content", "No replacement performed: multiple occurrences of text found"],
+	])("skips approval for %s and lets the executor return its canonical error", async (_, content, oldText, error) => {
+		await writeFile("a.ts", content)
+		const input = { path: "a.ts", old_text: oldText, new_text: "x" }
+
+		await expect(coordinator.openForApproval("tc1", "editor", input)).resolves.toBe("skip")
 		expect(previews).toHaveLength(0)
 
-		// the executor delegates to the disk executor, which produces the canonical error
-		const input = { path: "a.ts", old_text: "nope", new_text: "x" }
-		fallbackEditor.mockRejectedValueOnce(new Error("No replacement performed: text not found in a.ts."))
-		await expect(coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))).rejects.toThrow(
-			"No replacement performed: text not found",
-		)
+		await expect(coordinator.executeEditorTool(input, tempDir, makeContext("tc1"))).rejects.toThrow(error)
+		expect(fallbackEditor).not.toHaveBeenCalled()
 	})
 
 	it("closes the pre-approval preview and delegates the write on execution", async () => {
