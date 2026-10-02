@@ -5450,8 +5450,11 @@ describe("sdk-gateway", () => {
 		{
 			providerId: "vercel-ai-gateway",
 			modelId: "alibaba/qwen3.6-plus",
-			providerOptionsKey: "vercel-ai-gateway",
-			aliasKey: "vercelAiGateway",
+			// Hyphenated openai-compatible ids are written under the camelCase
+			// alias only; the raw name would trigger the AI SDK deprecation
+			// warning on every chunk.
+			providerOptionsKey: "vercelAiGateway",
+			aliasKey: undefined,
 		},
 	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
 		providerId,
@@ -5888,12 +5891,13 @@ describe("sdk-gateway", () => {
 					vercelAiGateway: expect.objectContaining({
 						reasoning: { exclude: true },
 					}),
-					"vercel-ai-gateway": expect.objectContaining({
-						reasoning: { exclude: true },
-					}),
 				}),
 			}),
 		);
+		expect(
+			(streamTextSpy.mock.calls[3]?.[0] as { providerOptions?: object })
+				.providerOptions,
+		).not.toHaveProperty("vercel-ai-gateway");
 		// Unlisted GLM ids route explicit enablement through the portable
 		// top-level reasoning option instead of the routed include shape.
 		expect(streamTextSpy).toHaveBeenNthCalledWith(

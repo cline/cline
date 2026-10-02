@@ -1,4 +1,5 @@
 import { isClineProvider } from "@cline/shared";
+import { inferProviderOptionsTarget } from "./provider-options-types";
 
 export type ProviderOptionsPatch = Record<string, Record<string, unknown>>;
 
@@ -15,9 +16,31 @@ export function createEphemeralCacheControl() {
 }
 
 /**
+ * Resolve the `providerOptions` bucket name the AI SDK reads for a provider
+ * id.
+ *
+ * Providers served by `@ai-sdk/openai-compatible` (the `openai-compatible`
+ * options target: the generic `openai-compatible` provider, gateways such as
+ * `vercel-ai-gateway`, and user-defined ids) read `providerOptions[<name>]`
+ * and its camelCase alias, and since `@ai-sdk/openai-compatible` 3.0.30 they
+ * log a deprecation warning on every stream chunk for a hyphenated raw name
+ * (`providerOptions key 'openai-compatible'`, `Use 'openaiCompatible'
+ * instead.`). Those providers are therefore written under the camelCase
+ * alias only; the SDK reads that alias for every provider name, so no
+ * request-body passthrough is lost. Every other target keeps its raw id so
+ * the native and community vendor packages see the buckets they expect.
+ */
+export function toProviderOptionsBucket(providerId: string): string {
+	return inferProviderOptionsTarget(providerId) === "openai-compatible"
+		? toProviderOptionsKey(providerId)
+		: providerId;
+}
+
+/**
  * Target the AI SDK provider-name bucket for the provider id and, when
- * distinct, its camelCase alias bucket (e.g. `vercel-ai-gateway` +
- * `vercelAiGateway`).
+ * distinct, its camelCase alias bucket (e.g. `openai-codex` +
+ * `openaiCodex`). Hyphenated openai-compatible ids collapse to the alias
+ * alone (see `toProviderOptionsBucket`).
  *
  * The bucket name must match the AI SDK provider `name`, because the
  * openai-compatible model only applies request-body passthrough from
@@ -33,17 +56,17 @@ export function buildProviderAndAliasPatch(options: {
 	bucketOptions: Record<string, unknown>;
 }): ProviderOptionsPatch {
 	const { bucketOptions } = options;
-	const providerId = isClineProvider(options.providerId)
+	const providerBucket = isClineProvider(options.providerId)
 		? "cline"
-		: options.providerId;
-	const providerOptionsKey = isClineProvider(options.providerId)
+		: toProviderOptionsBucket(options.providerId);
+	const aliasBucket = isClineProvider(options.providerId)
 		? "cline"
 		: options.providerOptionsKey;
 	const needsAlias =
-		providerOptionsKey !== providerId && providerOptionsKey !== "anthropic";
+		aliasBucket !== providerBucket && aliasBucket !== "anthropic";
 	return {
-		[providerId]: bucketOptions,
-		...(needsAlias ? { [providerOptionsKey]: bucketOptions } : {}),
+		[providerBucket]: bucketOptions,
+		...(needsAlias ? { [aliasBucket]: bucketOptions } : {}),
 	};
 }
 
