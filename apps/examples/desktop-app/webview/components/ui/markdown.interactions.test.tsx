@@ -59,7 +59,10 @@ beforeEach(() => {
 	vi.spyOn(window, "open").mockImplementation(openWindow);
 	mermaidMocks.initialize.mockClear();
 	mermaidMocks.render.mockReset();
-	mermaidMocks.render.mockImplementation(() => new Promise(() => {}));
+	// Resolve by default: Mermaid renders run through one shared queue, so a
+	// render that never settles (e.g. a theme re-render a test triggers on
+	// cleanup) would block every later test's diagram.
+	mermaidMocks.render.mockImplementation(async () => ({ svg: "<svg></svg>" }));
 	vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => {
 		callback({ didTimeout: false, timeRemaining: () => 50 });
 		return 1;
@@ -165,6 +168,46 @@ function getButton(label: string): HTMLButtonElement {
 	return button as HTMLButtonElement;
 }
 
+function getLabelledButton(label: string): HTMLButtonElement {
+	const button = document.querySelector<HTMLButtonElement>(
+		`button[aria-label="${label}"]`,
+	);
+	expect(button, label).not.toBeNull();
+	return button as HTMLButtonElement;
+}
+
+function getButtonByPrefix(prefix: string): HTMLButtonElement {
+	const button = [
+		...document.querySelectorAll<HTMLButtonElement>("button[aria-label]"),
+	].find((candidate) =>
+		candidate.getAttribute("aria-label")?.startsWith(prefix),
+	);
+	expect(button, prefix).toBeDefined();
+	return button as HTMLButtonElement;
+}
+
+function getMenuItem(text: string): HTMLButtonElement {
+	const item = [
+		...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+	].find((candidate) => candidate.textContent?.includes(text));
+	expect(item, text).toBeDefined();
+	return item as HTMLButtonElement;
+}
+
+async function renderReadyDiagram(source: string, meta = ""): Promise<void> {
+	mermaidMocks.render.mockResolvedValueOnce({
+		svg: '<svg data-testid="rendered-mermaid" viewBox="0 0 10 10"></svg>',
+	});
+	await renderMarkdown({
+		content: `\`\`\`mermaid ${meta}\n${source}\n\`\`\``,
+	});
+	await waitFor(() => {
+		expect(
+			container.querySelector('[data-testid="rendered-mermaid"]'),
+		).not.toBeNull();
+	});
+}
+
 describe("MemoizedMarkdown interactions", () => {
 	test("does not load Mermaid for ordinary Markdown", async () => {
 		const moduleLoads = mermaidMocks.moduleLoads;
@@ -178,17 +221,31 @@ describe("MemoizedMarkdown interactions", () => {
 		expect(mermaidMocks.moduleLoads).toBe(moduleLoads);
 	});
 
-	test("renders Mermaid fences with interactive controls", async () => {
+	test("renders Mermaid fences in the owned block with a themed base config", async () => {
 		const source = "flowchart LR\nA[Text] --> B[SVG]";
 		const render = deferredRender();
 		mermaidMocks.render.mockReturnValueOnce(render.promise);
-		await renderMarkdown({ content: `\`\`\`mermaid\n${source}\n\`\`\`` });
+		await renderMarkdown({
+			content: `\`\`\`mermaid title="app-infrastructure-architecture"\n${source}\n\`\`\``,
+		});
 		await waitFor(() => {
 			expect(mermaidMocks.render).toHaveBeenCalledWith(
 				expect.any(String),
 				`${source}\n`,
 			);
 		});
+		// The site theme is Mermaid's `base` theme with concrete colors, never
+		// `default`, so user init/classDef/style layer on top of it.
+		expect(mermaidMocks.initialize).toHaveBeenCalledWith(
+			expect.objectContaining({
+				htmlLabels: false,
+				securityLevel: "strict",
+				theme: "base",
+				themeVariables: expect.objectContaining({
+					primaryColor: expect.stringMatching(/^#[\da-f]{6}$/),
+				}),
+			}),
+		);
 		await act(async () => {
 			render.resolve({
 				svg: `<svg data-testid="rendered-mermaid"><text>${source}</text></svg>`,
@@ -201,43 +258,154 @@ describe("MemoizedMarkdown interactions", () => {
 				container.querySelector('[data-testid="rendered-mermaid"]'),
 			).not.toBeNull();
 		});
-		const diagram = container.querySelector<SVGElement>(
-			'[data-testid="rendered-mermaid"]',
-		);
-		expect(diagram?.textContent).toContain(source);
 		expect(
-			container.querySelector('[data-streamdown="mermaid-block-actions"]'),
+			container.querySelector('[data-streamdown="mermaid-block"]'),
 		).not.toBeNull();
-		expect(container.querySelector('button[title="Copy Code"]')).not.toBeNull();
+		// Header shows the filename, not Streamdown's literal "mermaid" label.
 		expect(
-			container.querySelector('button[title="Download diagram"]'),
-		).not.toBeNull();
-		expect(
-			container.querySelector('button[title="View fullscreen"]'),
-		).not.toBeNull();
+			container.querySelector(".cline-mermaid__filename")?.textContent,
+		).toBe("app-infrastructure-architecture.mmd");
+		expect(container.querySelector('button[title="Copy Code"]')).toBeNull();
+		expect(getLabelledButton("Zoom in")).toBeDefined();
+		expect(getLabelledButton("Zoom out")).toBeDefined();
+		expect(getLabelledButton("View fullscreen").disabled).toBe(false);
+	});
 
-		await click(
-			container.querySelector('button[title="Copy Code"]') as HTMLButtonElement,
-		);
+	test("re-renders with the dark theme when the app switches to dark mode", async () => {
+		const root = document.documentElement;
+		root.classList.remove("dark");
+		try {
+			await renderReadyDiagram("flowchart LR\nA --> B");
+			// No `initialize` assertion for the light render: the Mermaid service
+			// is a module singleton that only re-initializes when the themed
+			// config object changes, and earlier tests may have applied it.
+			const rendersBefore = mermaidMocks.render.mock.calls.length;
+			mermaidMocks.render.mockResolvedValueOnce({
+				svg: '<svg data-testid="dark-mermaid" viewBox="0 0 10 10"></svg>',
+			});
+
+			// The desktop app flips `.dark` on <html> (see webview/lib/theme.ts).
+			await act(async () => {
+				root.classList.add("dark");
+				// MutationObserver callbacks are delivered asynchronously, and the
+				// re-render resolves a few awaits later (fonts, then Mermaid), so
+				// flush several ticks to keep every state update inside act.
+				for (let tick = 0; tick < 5; tick += 1) {
+					await new Promise((resolve) => setTimeout(resolve, 0));
+				}
+			});
+			await waitFor(() => {
+				expect(mermaidMocks.render.mock.calls.length).toBeGreaterThan(
+					rendersBefore,
+				);
+				expect(
+					container.querySelector('[data-testid="dark-mermaid"]'),
+				).not.toBeNull();
+			});
+			expect(mermaidMocks.initialize).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					theme: "base",
+					themeVariables: expect.objectContaining({ darkMode: true }),
+				}),
+			);
+		} finally {
+			// Restore inside act: the observer would otherwise schedule a theme
+			// state update on the still-mounted block outside of act.
+			await act(async () => {
+				root.classList.remove("dark");
+				await new Promise((resolve) => setTimeout(resolve, 0));
+			});
+		}
+	});
+
+	test("copies the diagram source", async () => {
+		const source = "flowchart LR\nA[Text] --> B[SVG]";
+		await renderReadyDiagram(source);
+		await click(getLabelledButton("Copy diagram source"));
 		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith(expect.stringContaining(source));
+			expect(writeText).toHaveBeenCalledWith(`${source}\n`);
 		});
+	});
 
-		await click(
-			container.querySelector(
-				'button[title="View fullscreen"]',
-			) as HTMLButtonElement,
-		);
+	test("offers PNG and MMD downloads only, never SVG", async () => {
+		await renderReadyDiagram("flowchart LR\nA --> B", 'title="my-flow"');
+		await click(getLabelledButton("Download diagram"));
+		const items = [
+			...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+		].map((item) => item.textContent?.trim());
+		expect(items).toHaveLength(2);
+		expect(items[0]).toContain("PNG");
+		expect(items[1]).toContain(".mmd");
+		expect(items.join(" ").toLowerCase()).not.toContain("svg");
+	});
+
+	test("downloads the source as <slug>.mmd", async () => {
+		const createObjectURL = vi.fn(() => "blob:mock");
+		const revokeObjectURL = vi.fn();
+		Object.assign(URL, { createObjectURL, revokeObjectURL });
+		const downloads: string[] = [];
+		vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+			this: HTMLAnchorElement,
+		) {
+			downloads.push(this.download);
+		});
+		await renderReadyDiagram("flowchart LR\nA --> B", 'title="my-flow"');
+		await click(getLabelledButton("Download diagram"));
+		await click(getMenuItem(".mmd"));
+		expect(downloads).toEqual(["my-flow.mmd"]);
+		expect(createObjectURL).toHaveBeenCalledOnce();
+	});
+
+	test("opens fullscreen and closes it with the button and Escape", async () => {
+		await renderReadyDiagram("flowchart LR\nA --> B");
+		await click(getLabelledButton("View fullscreen"));
+		await waitFor(() => {
+			expect(document.querySelector("dialog")).not.toBeNull();
+			expect(getLabelledButton("Exit fullscreen")).toBeDefined();
+		});
+		await click(getLabelledButton("Exit fullscreen"));
+		expect(document.querySelector("dialog")).toBeNull();
+
+		await click(getLabelledButton("View fullscreen"));
+		await act(async () => {
+			document
+				.querySelector("dialog")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+				);
+		});
+		expect(document.querySelector("dialog")).toBeNull();
+	});
+
+	test("zooms with the toolbar and resets", async () => {
+		await renderReadyDiagram("flowchart LR\nA --> B");
+		const canvas = () =>
+			container.querySelector<HTMLElement>(".cline-mermaid__canvas");
+		expect(canvas()?.style.transform).toContain("scale(1)");
+		await click(getLabelledButton("Zoom in"));
+		expect(canvas()?.style.transform).toContain("scale(1.25)");
+		await click(getButtonByPrefix("Reset zoom"));
+		expect(canvas()?.style.transform).toContain("scale(1)");
+	});
+
+	test("shows a skeleton, not an error, while the fence is still streaming", async () => {
+		mermaidMocks.render.mockClear();
+		await renderMarkdown({
+			content: '```mermaid title="partial"\nflowchart LR\nA --',
+			streaming: true,
+		});
 		await waitFor(() => {
 			expect(
-				document.querySelector('button[title="Exit fullscreen"]'),
-			).not.toBeNull();
+				container.querySelector(".cline-mermaid__skeleton")?.textContent,
+			).toContain("Drawing diagram");
 		});
-		await click(
-			document.querySelector(
-				'button[title="Exit fullscreen"]',
-			) as HTMLButtonElement,
-		);
+		expect(mermaidMocks.render).not.toHaveBeenCalled();
+		expect(container.querySelector('[role="alert"]')).toBeNull();
+		// Streamdown hands the renderer the fence `meta` while the block is still
+		// streaming, so the header already shows the model-provided name.
+		expect(
+			container.querySelector(".cline-mermaid__filename")?.textContent,
+		).toBe("partial.mmd");
 	});
 
 	test("contains Mermaid parse failures without crashing the message", async () => {
@@ -303,11 +471,14 @@ describe("MemoizedMarkdown interactions", () => {
 		});
 	});
 
-	test("keeps the latest diagram when streamed renders finish out of order", async () => {
-		const firstRender = deferredRender();
+	// Mermaid is a process-wide singleton, so renders are queued: the newer
+	// source only starts rendering once the older one settles. The older result
+	// arrives after the content already changed and must never be shown.
+	test("never shows a render that finishes after the source changed", async () => {
+		const staleRender = deferredRender();
 		const finalRender = deferredRender();
 		mermaidMocks.render
-			.mockReturnValueOnce(firstRender.promise)
+			.mockReturnValueOnce(staleRender.promise)
 			.mockReturnValueOnce(finalRender.promise);
 
 		await renderMarkdown({
@@ -322,27 +493,22 @@ describe("MemoizedMarkdown interactions", () => {
 			content: "```mermaid\nflowchart LR\nA --> B --> C\n```",
 			streaming: false,
 		});
+		await act(async () => {
+			staleRender.resolve({
+				svg: '<svg data-testid="stale-mermaid"><text>stale</text></svg>',
+			});
+			await staleRender.promise;
+		});
 		await waitFor(() => {
 			expect(mermaidMocks.render).toHaveBeenCalledTimes(2);
 		});
+		expect(container.querySelector('[data-testid="stale-mermaid"]')).toBeNull();
 
 		await act(async () => {
 			finalRender.resolve({
 				svg: '<svg data-testid="final-mermaid"><text>final</text></svg>',
 			});
 			await finalRender.promise;
-		});
-		await waitFor(() => {
-			expect(
-				container.querySelector('[data-testid="final-mermaid"]'),
-			).not.toBeNull();
-		});
-
-		await act(async () => {
-			firstRender.resolve({
-				svg: '<svg data-testid="stale-mermaid"><text>stale</text></svg>',
-			});
-			await firstRender.promise;
 		});
 		await waitFor(() => {
 			expect(

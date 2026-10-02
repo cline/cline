@@ -43,39 +43,47 @@ const ready = true;
 		expect(html).not.toContain('data-streamdown="blocked-image"');
 	});
 
-	test("recognizes Mermaid fences as lazy diagrams instead of plain code", () => {
+	test("recognizes Mermaid fences as the owned diagram block instead of plain code", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
 				content={"```mermaid\nflowchart LR\n  A[Text] --> B[SVG]\n```"}
 			/>,
 		);
 
-		// Streamdown defers diagram rendering to the browser and emits its diagram
-		// loading shell during SSR. A normal fence would use data-streamdown=code-block.
-		expect(html).toContain("animate-spin");
+		// Diagrams render in the browser, so SSR emits the owned block's shell:
+		// a filename header (derived here from the diagram) and a skeleton, never
+		// Streamdown's literal "mermaid" label or a plain code-block.
+		expect(html).toContain('data-streamdown="mermaid-block"');
+		expect(html).toContain("flowchart-text-svg.mmd");
+		expect(html).toContain("cline-mermaid__skeleton");
 		expect(html).not.toContain('data-streamdown="code-block"');
 		expect(html).not.toContain("flowchart LR");
 	});
 
-	test("keeps the Desktop Mermaid renderer lazy and host-owned", async () => {
-		const renderer = {
-			initialize: vi.fn(),
-			render: vi.fn(async () => ({ svg: '<svg data-testid="diagram" />' })),
-		};
-		const loader = vi.fn(async () => ({ default: renderer }));
+	test("names the diagram from the fence title", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={
+					'```mermaid title="app-infrastructure-architecture"\nflowchart LR\n  A --> B\n```'
+				}
+			/>,
+		);
+
+		expect(html).toContain("app-infrastructure-architecture.mmd");
+	});
+
+	test("owns the Mermaid block through a lazy custom renderer", () => {
+		const loader = vi.fn(async () => ({
+			default: { initialize: vi.fn(), render: vi.fn() },
+		}));
 		const plugins = createDesktopMarkdownPlugins(loader);
 
+		// Streamdown checks `renderers` before its built-in Mermaid block, so the
+		// diagram plugin must not be registered (it would only be dead config).
+		expect(plugins).not.toHaveProperty("mermaid");
+		expect(plugins.renderers).toHaveLength(1);
+		expect(plugins.renderers[0]?.language).toBe("mermaid");
 		expect(loader).not.toHaveBeenCalled();
-		const instance = plugins.mermaid.getMermaid();
-		await expect(
-			instance.render("desktop-diagram", "flowchart LR\nA --> B"),
-		).resolves.toEqual({
-			svg: '<svg data-testid="diagram" />',
-		});
-		expect(loader).toHaveBeenCalledOnce();
-		expect(renderer.initialize).toHaveBeenCalledWith(
-			expect.objectContaining({ securityLevel: "strict" }),
-		);
 	});
 
 	test("repairs an unfinished code fence while streaming", () => {

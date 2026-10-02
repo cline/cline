@@ -1,10 +1,10 @@
 import {
-	agentMarkdownControlsWithMermaid,
-	createLazyMermaidPlugin,
+	agentMarkdownControls,
 	DIAGRAM_LINK_HREF_ATTRIBUTE,
-	type MermaidModuleLoader,
 	markdownCodeHighlighter,
 } from "@cline/ui/components/markdown";
+import { createMermaidRenderer } from "@cline/ui/components/mermaid-block";
+import type { MermaidModuleLoader } from "@cline/ui/components/mermaid-diagram";
 import { cjk } from "@streamdown/cjk";
 import type {
 	ComponentProps,
@@ -32,11 +32,16 @@ import {
 	AlertDialogTitle,
 } from "./alert-dialog";
 
+/**
+ * Mermaid is an owned block, not Streamdown's built-in: Streamdown consults
+ * `renderers` before its own Mermaid block, so no `mermaid` diagram plugin is
+ * registered. The renderer imports Mermaid lazily on the first diagram.
+ */
 export function createDesktopMarkdownPlugins(loader?: MermaidModuleLoader) {
 	return {
 		cjk,
 		code: markdownCodeHighlighter,
-		mermaid: createLazyMermaidPlugin(loader),
+		renderers: [createMermaidRenderer(loader)],
 	};
 }
 
@@ -396,7 +401,7 @@ export const MemoizedMarkdown = memo(
 				<Streamdown
 					className={cn("cline-markdown", classNames)}
 					components={markdownComponents}
-					controls={agentMarkdownControlsWithMermaid}
+					controls={agentMarkdownControls}
 					dir="auto"
 					isAnimating={streaming}
 					lineNumbers={false}

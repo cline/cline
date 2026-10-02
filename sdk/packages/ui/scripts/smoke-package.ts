@@ -47,6 +47,11 @@ import {
 	DIAGRAM_LINK_HREF_ATTRIBUTE,
 	neutralizeDiagramLinks,
 } from "@cline/ui/components/markdown";
+import { createMermaidRenderer } from "@cline/ui/components/mermaid-block";
+import {
+	computePngExportSize,
+	resolveDiagramSlug,
+} from "@cline/ui/components/mermaid-diagram";
 
 for (const specifier of [
 	"@cline/ui/components.css",
@@ -116,6 +121,14 @@ if (
 	!neutralizedDiagram.includes('data-cline-diagram-href="https://example.com/"')
 ) {
 	throw new Error("markdown subpath did not export diagram link neutralization");
+}
+if (
+	createMermaidRenderer().language !== "mermaid" ||
+	resolveDiagramSlug({ meta: 'title="Smoke Test"', source: "flowchart LR" }) !==
+		"smoke-test" ||
+	computePngExportSize({ height: 10_000, width: 100 }).height > 4096
+) {
+	throw new Error("mermaid subpaths returned unexpected results");
 }
 if (
 	!AgentConversationHeader ||

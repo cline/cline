@@ -239,7 +239,28 @@ cards). The Mermaid plugin dynamically imports the renderer only after a
 source. Import the CSS unlayered so it wins over Streamdown's Tailwind
 utilities, and keep `streamdown`, `shiki`, `@shikijs/langs`, `@shikijs/themes`,
 and (when enabling diagrams) `mermaid` installed as optional peer dependencies.
-Products keep their own `<Streamdown>` wrapper for link and image policy. Give
+Products keep their own `<Streamdown>` wrapper for link and image policy.
+
+Hosts that want a native-looking diagram block register
+`createMermaidRenderer()` from `@cline/ui/components/mermaid-block` through
+`<Streamdown plugins={{ renderers: [createMermaidRenderer()] }} />` instead of
+the `mermaid` diagram plugin (Streamdown consults `renderers` first, so the
+built-in block is skipped). The block shows the diagram's filename in its
+header — from the fence title (```` ```mermaid title="my-diagram" ````), the
+diagram's frontmatter `title:`, or a name derived from its contents — and
+offers zoom, fullscreen, copy, and a Download menu with PNG and Mermaid
+source (`.mmd`) only. Diagrams use Mermaid's `base` theme with variables
+resolved from the live design tokens (`--card`, `--foreground`, `--primary`,
+...) as concrete sRGB, follow light/dark (`.dark` on the root) and the accent
+palette, and re-render when either changes; a diagram's own `%%{init}%%`,
+frontmatter `config:`, `classDef`, and `style` still override the site theme.
+PNG exports are opaque (filled with the surface color), rendered at 2x-3x
+(following the device pixel ratio, not Streamdown's fixed 5x), and capped at
+4096px on the longest edge, re-encoding smaller if needed, so they stay under
+the ~5 MiB image attachment limit. The pure naming, theming, and
+sizing logic lives in `@cline/ui/components/mermaid-diagram` (DOM-free).
+
+Give
 each conversation a bounded height through an explicit height or a complete
 flex/min-height chain so its viewport can scroll.
 

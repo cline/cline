@@ -2,11 +2,17 @@ import { describe, expect, test, vi } from "vitest";
 import {
 	agentMarkdownControls,
 	agentMarkdownControlsWithMermaid,
+	buildMermaidConfig,
 	createLazyMermaidPlugin,
+	DEFAULT_MERMAID_CONFIG,
 	DIAGRAM_LINK_HREF_ATTRIBUTE,
 	type MermaidModuleLoader,
 	neutralizeDiagramLinks,
 } from "../components/markdown";
+import {
+	FALLBACK_MERMAID_TOKENS,
+	MERMAID_FONT_FAMILY,
+} from "../components/mermaid-diagram";
 
 function createRenderer() {
 	return {
@@ -16,6 +22,28 @@ function createRenderer() {
 		})),
 	};
 }
+
+describe("DEFAULT_MERMAID_CONFIG", () => {
+	test("is the light base theme with an Inter-first font, not `default`/monospace", () => {
+		expect(DEFAULT_MERMAID_CONFIG).toMatchObject({
+			fontFamily: MERMAID_FONT_FAMILY,
+			securityLevel: "strict",
+			startOnLoad: false,
+			suppressErrorRendering: true,
+			theme: "base",
+		});
+		expect(DEFAULT_MERMAID_CONFIG.fontFamily).not.toBe("monospace");
+		expect(DEFAULT_MERMAID_CONFIG.themeVariables?.darkMode).toBe(false);
+	});
+
+	test("has a light/dark aware builder", () => {
+		const dark = buildMermaidConfig(FALLBACK_MERMAID_TOKENS.dark, "dark");
+		expect(dark.themeVariables?.darkMode).toBe(true);
+		expect(dark.themeVariables?.background).toBe(
+			FALLBACK_MERMAID_TOKENS.dark.background,
+		);
+	});
+});
 
 describe("createLazyMermaidPlugin", () => {
 	test("keeps Mermaid opt-in while enabling the full interactive control set", () => {
@@ -57,6 +85,8 @@ describe("createLazyMermaidPlugin", () => {
 				securityLevel: "strict",
 				startOnLoad: false,
 				suppressErrorRendering: true,
+				theme: "base",
+				themeVariables: expect.objectContaining({ darkMode: false }),
 			}),
 		);
 		expect(renderer.render).toHaveBeenCalledWith(
