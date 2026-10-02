@@ -4,15 +4,157 @@ import {
 	buildRunCommandsDescription,
 	createDefaultTools,
 	createEditorTool,
+	createMonitorTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
 	createSkillsTool,
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
+import { MonitorRegistry } from "./executors/monitor";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
+
+describe("monitor tool", () => {
+	const context = {
+		agentId: "agent-1",
+		conversationId: "conv-1",
+		iteration: 1,
+	};
+
+	const shellExecutors = { bash: async () => "ok" };
+
+	it("is omitted when the caller supplies no registry", () => {
+		const tools = createDefaultTools({ executors: shellExecutors });
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("is created once a caller-owned registry is supplied", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		const tools = createDefaultTools({
+			executors: shellExecutors,
+			monitorRegistry: registry,
+		});
+		expect(tools.map((tool) => tool.name)).toContain("monitor");
+	});
+
+	it("can be disabled even with a registry", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		const tools = createDefaultTools({
+			executors: shellExecutors,
+			monitorRegistry: registry,
+			enableMonitor: false,
+		});
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("stays available when the shell executor is replaced, not refused", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		// The VS Code host suppresses the built-in bash executor
+		// (`toolExecutors.bash = undefined`) to register its own terminal-backed
+		// run_commands tool. Shell is fully enabled there, so gating monitor on
+		// executor presence read a replacement as a refusal and silently
+		// dropped the tool. Only the enableBash flag expresses intent.
+		const tools = createDefaultTools({
+			executors: { bash: undefined },
+			monitorRegistry: registry,
+		});
+		expect(tools.map((tool) => tool.name)).toContain("monitor");
+	});
+
+	it("is withheld when the shell tool is turned off", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		const tools = createDefaultTools({
+			executors: shellExecutors,
+			monitorRegistry: registry,
+			enableBash: false,
+		});
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("returns immediately rather than waiting for output", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			const result = await tool.execute(
+				{
+					action: "start",
+					name: "sleeper",
+					command: "sleep 30",
+					description: "a command that outlives the call",
+				},
+				context,
+			);
+
+			expect(result).toContain("Started monitor");
+			expect(registry.listRunning()).toHaveLength(1);
+		} finally {
+			registry.dispose();
+		}
+	});
+
+	it("reports start failures as text the model can act on", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			const start = {
+				action: "start" as const,
+				name: "dupe",
+				command: "sleep 30",
+				description: "watch",
+			};
+			await tool.execute(start, context);
+
+			const second = await tool.execute(start, context);
+			expect(second).toContain("already running");
+			expect(registry.listRunning()).toHaveLength(1);
+		} finally {
+			registry.dispose();
+		}
+	});
+
+	it("lists and stops monitors by name", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			await tool.execute(
+				{
+					action: "start",
+					name: "watcher",
+					command: "sleep 30",
+					description: "watch a thing",
+				},
+				context,
+			);
+
+			expect(await tool.execute({ action: "list" }, context)).toContain(
+				"watcher",
+			);
+			expect(
+				await tool.execute({ action: "stop", name: "watcher" }, context),
+			).toContain("Stopped monitor");
+			expect(registry.listRunning()).toHaveLength(0);
+		} finally {
+			registry.dispose();
+		}
+	});
+
+	it("requires a command to start", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			await expect(
+				tool.execute(
+					{ action: "start", name: "incomplete", description: "no command" },
+					context,
+				),
+			).rejects.toThrow();
+		} finally {
+			registry.dispose();
+		}
+	});
+});
 
 function hasSchemaKey(value: unknown, key: string): boolean {
 	if (Array.isArray(value)) {
