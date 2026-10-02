@@ -224,7 +224,7 @@ cline connect discord \
 Requires a service account credentials JSON file and public base URL.
 
 ```bash
-cline connect gchat --credentials <JSON> --base-url <URL>
+cline connect gchat --credentials-json <JSON> --base-url <URL>
 ```
 
 ## WhatsApp
@@ -232,7 +232,7 @@ cline connect gchat --credentials <JSON> --base-url <URL>
 Requires a phone number ID, access token, app secret, webhook verify token, and public base URL.
 
 ```bash
-cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --base-url <URL>
+cline connect whatsapp --phone-number-id <ID> --access-token <TOKEN> --app-secret <SECRET> --verify-token <VERIFY_TOKEN> --base-url <URL>
 ```
 
 ## Linear
@@ -240,7 +240,7 @@ cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --b
 Requires an API key, webhook signing secret, and public base URL.
 
 ```bash
-cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
+cline connect linear --api-key <KEY> --webhook-secret <SECRET> --base-url <URL>
 ```
 
 ## Managing Connectors
