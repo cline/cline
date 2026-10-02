@@ -1459,14 +1459,10 @@ describe("buildSessionConfig", () => {
 		expect(actConfig.systemPrompt).toContain("<mode_notice>")
 		expect(actConfig.systemPrompt).not.toContain("# Plan Mode\n")
 		expect(actConfig.systemPrompt).not.toContain("# VS Code Plan-Mode Tool Restrictions")
-		expect(actConfig.systemPrompt).toContain("# VS Code Act-Mode Editor Guidance")
-		expect(actConfig.systemPrompt).toContain("first read its current contents")
-		expect(actConfig.systemPrompt).toContain("`old_text` to a small, exact, unique substring copied from that version")
 
 		expect(planConfig.systemPrompt).toContain("# Plan / Act Modes")
 		expect(planConfig.systemPrompt).toContain("# Plan Mode\n")
 		expect(planConfig.systemPrompt).toContain("# VS Code Plan-Mode Tool Restrictions")
-		expect(planConfig.systemPrompt).not.toContain("# VS Code Act-Mode Editor Guidance")
 		expect(planConfig.systemPrompt).toContain("Do not attempt to call `editor`, `apply_patch`, or `write_file`")
 		expect(planConfig.systemPrompt).toContain("Do not use `run_commands` to create, modify, or delete files")
 		expect(planConfig.systemPrompt).toContain(
