@@ -2184,6 +2184,7 @@ export class AgentRuntime {
 			systemPrompt: request.systemPrompt,
 			tools: request.tools,
 			model: {
+				...this.config.messageModelInfo,
 				id: this.config.messageModelInfo?.id,
 				provider: this.config.messageModelInfo?.provider,
 			},
