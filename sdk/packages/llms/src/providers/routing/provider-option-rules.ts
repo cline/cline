@@ -8,6 +8,7 @@ import {
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMiniMaxM3Model,
 	isMoonshotKimiModelIdFallback,
+	isOpenAiDirectNoneEffortModel,
 	providerReasoningRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
@@ -468,6 +469,26 @@ const ollamaNativeOptionsRule: ProviderOptionRule = {
 	},
 };
 
+const openAiCompatibleDisabledReasoningRule: ProviderOptionRule = {
+	id: "provider.openai-compatible.openai-origin.disable-none",
+	phase: "provider-reasoning",
+	description:
+		"api.openai.com chat/completions rejects function tools for GPT-5.6 unless reasoning_effort is none, and the portable reasoning option deliberately drops none, so send it through provider options.",
+	applies: (input) =>
+		input.target === "openai-compatible" &&
+		input.request.reasoning?.enabled === false &&
+		isOpenAiDirectNoneEffortModel({
+			request: input.request,
+			context: input.context,
+		}),
+	build: (input) =>
+		buildProviderAndAliasPatch({
+			providerId: input.request.providerId,
+			providerOptionsKey: input.providerOptionsKey,
+			bucketOptions: { reasoningEffort: "none" },
+		}),
+};
+
 const nonGlmProviderRoutingSuppressionRule: ProviderOptionRule = {
 	id: "provider.routing.glm-thinking.non-glm.suppress-generic-thinking",
 	phase: "provider",
@@ -551,6 +572,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
 	ollamaNativeOptionsRule,
+	openAiCompatibleDisabledReasoningRule,
 	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	miniMaxThinkingRule,
