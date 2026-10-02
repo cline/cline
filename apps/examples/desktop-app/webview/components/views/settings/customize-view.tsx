@@ -1,14 +1,10 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	fetchComposioStatus,
-	getComposioAvailability,
-	subscribeComposioAvailability,
-} from "@/lib/composio";
+import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -68,21 +64,10 @@ export function CustomizeView({
 	onOpenMarketplace?: (filter?: "connector") => void;
 	onOpenModelProviders?: () => void;
 }) {
-	const [selectedTab, setTab] = useState<CustomizeTab>("integrations");
+	// Connectors is always the first tab; when the account cannot use them
+	// the tab itself explains why and offers sign-in.
+	const [tab, setTab] = useState<CustomizeTab>("integrations");
 	const [counts, setCounts] = useState<TabCounts>({});
-	// Connectors are an org-provisioned feature: the tab only exists when the
-	// account has Composio beta access. Unknown counts as available so the
-	// default tab does not flash to Tools while the status loads.
-	const connectorsAvailable =
-		useSyncExternalStore(
-			subscribeComposioAvailability,
-			getComposioAvailability,
-			() => null,
-		) !== false;
-	const tab =
-		selectedTab === "integrations" && !connectorsAvailable
-			? "tools"
-			: selectedTab;
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -91,7 +76,7 @@ export function CustomizeView({
 				.catch(() => null),
 			fetchComposioStatus().catch(() => null),
 		]);
-		const connectedIntegrations = composioStatus
+		const connectedIntegrations = composioStatus?.configured
 			? composioStatus.integrations.filter(
 					(integration) => integration.status === "connected",
 				).length
@@ -157,10 +142,7 @@ export function CustomizeView({
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{CUSTOMIZE_TABS.filter(
-					(customizeTab) =>
-						customizeTab.id !== "integrations" || connectorsAvailable,
-				).map((customizeTab) => {
+				{CUSTOMIZE_TABS.map((customizeTab) => {
 					const count = counts[customizeTab.id];
 					const active = tab === customizeTab.id;
 					return (

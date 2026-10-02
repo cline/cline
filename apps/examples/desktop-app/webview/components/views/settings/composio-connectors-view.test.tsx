@@ -7,19 +7,29 @@ import type { ComposioIntegrationSummary } from "@/lib/composio-types";
 
 const mocks = vi.hoisted(() => ({
 	integrations: [] as ComposioIntegrationSummary[],
+	configured: true,
 	catalog: vi.fn(),
 	connect: vi.fn(),
 	disconnect: vi.fn(),
 	cancel: vi.fn(),
 	refresh: vi.fn(),
+	invoke: vi.fn(),
+	openExternalUrl: vi.fn(),
 	loadError: null as string | null,
 }));
 vi.mock("@/lib/composio", () => ({
 	fetchComposioToolkitCatalog: mocks.catalog,
 }));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke: mocks.invoke, subscribe: () => () => {} },
+	openExternalUrl: mocks.openExternalUrl,
+}));
+vi.mock("@/lib/provider-model-catalog", () => ({
+	invalidateProviderCatalogCache: () => {},
+}));
 vi.mock("@/lib/use-composio-connections", () => ({
 	useComposioConnections: () => ({
-		configured: true,
+		configured: mocks.configured,
 		status: { integrations: mocks.integrations },
 		statusBySlug: new Map(
 			mocks.integrations.map((integration) => [
@@ -36,6 +46,7 @@ vi.mock("@/lib/use-composio-connections", () => ({
 	}),
 }));
 
+import { AccountProvider } from "@/contexts/account-context";
 import { ComposioConnectorsView } from "./composio-connectors-view";
 
 let root: Root;
@@ -44,6 +55,7 @@ beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
 	mocks.loadError = null;
+	mocks.configured = true;
 	mocks.catalog.mockResolvedValue({ configured: true, toolkits: [] });
 	mocks.integrations = [
 		{
@@ -359,6 +371,53 @@ describe("installed connectors", () => {
 		});
 		expect(container.textContent).toContain("Notion");
 		expect(container.textContent).not.toContain("GitHub");
+	});
+
+	it("offers Cline sign-in when connectors are unavailable and the user is signed out", async () => {
+		mocks.configured = false;
+		mocks.invoke.mockResolvedValue({});
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).toContain(
+			"Sign in to Cline to use connectors",
+		);
+		expect(container.textContent).not.toContain("Browse");
+		expect(
+			container.querySelector(
+				'img[src="https://logos.composio.dev/api/slack"]',
+			),
+		).not.toBeNull();
+		await act(async () => button("Sign in")?.click());
+		expect(mocks.invoke).toHaveBeenCalledWith(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			expect.anything(),
+		);
+		expect(mocks.refresh).toHaveBeenCalled();
+		await act(async () => button("Create account")?.click());
+		expect(mocks.openExternalUrl).toHaveBeenCalledWith("https://app.cline.bot");
+	});
+
+	it("explains the beta rollout when signed in without connector access", async () => {
+		mocks.configured = false;
+		mocks.invoke.mockResolvedValue({
+			email: "dev@cline.bot",
+			displayName: "Dev",
+		});
+		await act(async () =>
+			root.render(
+				<AccountProvider>
+					<ComposioConnectorsView variant="installed" />
+				</AccountProvider>,
+			),
+		);
+		expect(container.textContent).toContain(
+			"Connectors aren't enabled for your account yet",
+		);
+		expect(button("Sign in")).toBeUndefined();
+		await act(async () => button("Check again")?.click());
+		expect(mocks.refresh).toHaveBeenCalled();
 	});
 
 	it("shows catalog errors and retries in the Browse section", async () => {
