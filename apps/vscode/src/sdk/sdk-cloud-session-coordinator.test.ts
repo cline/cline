@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import * as os from "node:os"
+import path from "node:path"
 import * as sdkCore from "@cline/core"
 import type { CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -143,6 +146,49 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect.any(Function),
 		)
 		await coordinator.dispose()
+	})
+
+	it("records a provisioning sandbox for this extension host until its task has started", async () => {
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		const pendingFile = path.join(pendingStartsDir, `${process.pid}.json`)
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let recordedWhileProvisioning: unknown
+		const { coordinator, cloudSessions } = makeCoordinator({
+			pendingStartsDir,
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			recordedWhileProvisioning = JSON.parse(readFileSync(pendingFile, "utf8"))
+			return record
+		})
+
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBe(record.id)
+
+		expect(recordedWhileProvisioning).toEqual([record.id])
+		expect(existsSync(pendingFile)).toBe(false)
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
+	})
+
+	it("deletes sandboxes a terminated extension host left provisioning, but not a live window's", async () => {
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		const exitedPid = 2_147_483_646
+		writeFileSync(path.join(pendingStartsDir, `${exitedPid}.json`), JSON.stringify(["ses-abandoned"]))
+		writeFileSync(path.join(pendingStartsDir, `${process.ppid}.json`), JSON.stringify(["ses-other-window"]))
+		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir })
+
+		await coordinator.listHistoryRecords()
+
+		expect(cloudSessions.deleteSession).toHaveBeenCalledTimes(1)
+		expect(cloudSessions.deleteSession).toHaveBeenCalledWith("ses-abandoned")
+		expect(readdirSync(pendingStartsDir)).toEqual([`${process.ppid}.json`])
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
 	})
 
 	it("starts the sandbox on the model the composer showed, even when a fresher recommendation lands first", async () => {

@@ -52,6 +52,7 @@ import type { ClineExtensionContext } from "@/shared/cline"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { resolveDataDirFromEnv } from "@/shared/storage/storage-context"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
@@ -719,6 +720,7 @@ export class Controller {
 			invalidateHistoryCache: () => this.taskHistory.invalidateCache(),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			telemetry: this.sdkTelemetry.telemetry,
+			pendingStartsDir: path.join(resolveDataDirFromEnv(), "cloud-pending-starts"),
 		})
 		// Every account change, whichever path requests it, tears down the
 		// previous account's cloud task and connections first and holds cloud
