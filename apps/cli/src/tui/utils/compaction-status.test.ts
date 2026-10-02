@@ -36,6 +36,42 @@ describe("parseCompactionNoticeMetadata", () => {
 		).toEqual({ compactionMode: "auto", status: "started" });
 	});
 
+	it("extracts a divider entry from an overflow-recovery compaction notice", () => {
+		expect(
+			parseCompactionNoticeMetadata({
+				kind: "overflow_recovery_compaction",
+				reason: "overflow_recovery_compaction",
+				phase: "completed",
+				tokensBefore: 25_101,
+				tokensAfter: 6_300,
+				messagesBefore: 142,
+				messagesAfter: 9,
+			}),
+		).toEqual({
+			compactionMode: "auto",
+			status: "completed",
+			tokensBefore: 25_101,
+			tokensAfter: 6_300,
+			messagesBefore: 142,
+			messagesAfter: 9,
+		});
+	});
+
+	it("maps every overflow-recovery phase to a divider entry", () => {
+		expect(
+			parseCompactionNoticeMetadata({
+				kind: "overflow_recovery_compaction",
+				phase: "started",
+			}),
+		).toEqual({ compactionMode: "auto", status: "started" });
+		expect(
+			parseCompactionNoticeMetadata({
+				kind: "overflow_recovery_compaction",
+				phase: "skipped",
+			}),
+		).toEqual({ compactionMode: "auto", status: "skipped" });
+	});
+
 	it("maps manual compaction notices to manual mode", () => {
 		expect(
 			parseCompactionNoticeMetadata({
