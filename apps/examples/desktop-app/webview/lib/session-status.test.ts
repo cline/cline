@@ -1,5 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
+import {
+	resolveSessionHeaderStatus,
+	sessionStatusColor,
+	sessionStatusTone,
+} from "@/lib/session-status";
+
+describe("resolveSessionHeaderStatus", () => {
+	it.each([
+		["running", "running"],
+		["provisioning", "starting"],
+		["expired", "completed"],
+	] as const)("projects cloud history status %s to header status %s", (liveHistoryStatus, expected) => {
+		expect(
+			resolveSessionHeaderStatus({
+				chatStatus: "completed",
+				isCloudSession: true,
+				liveHistoryStatus,
+			}),
+		).toBe(expected);
+	});
+
+	it("keeps the chat status for local headers", () => {
+		expect(
+			resolveSessionHeaderStatus({
+				chatStatus: "completed",
+				isCloudSession: false,
+				liveHistoryStatus: "running",
+			}),
+		).toBe("completed");
+	});
+});
 
 describe("sessionStatusTone", () => {
 	it("marks running sessions as running", () => {

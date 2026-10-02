@@ -224,7 +224,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 	const authService = AuthService.getInstance()
 
 	if (isClinePassSelected(controller)) {
-		clearRemoteConfig()
+		await clearRemoteConfig()
 		controller.postStateToWebview()
 		return undefined
 	}
@@ -232,7 +232,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 	const discovered = await discoverRemoteConfigOrg()
 
 	if (!discovered) {
-		clearRemoteConfig()
+		await clearRemoteConfig()
 		controller.postStateToWebview()
 		return undefined
 	}
@@ -242,7 +242,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 	const remoteConfig = await resolveRemoteConfig(organizationId, discoveredValue)
 
 	if (!remoteConfig) {
-		clearRemoteConfig()
+		await clearRemoteConfig()
 		controller.postStateToWebview()
 		return undefined
 	}
@@ -274,7 +274,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 	if (isRemoteConfigEnabled(organizationId)) {
 		await applyRemoteConfig(remoteConfig, configuredApiKeys, controller.mcpHub)
 	} else {
-		clearRemoteConfig()
+		await clearRemoteConfig()
 	}
 	controller.postStateToWebview()
 

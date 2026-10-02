@@ -11,6 +11,15 @@ type DiscoveryMockOptions = {
 	 * settles under this file's fake timers.
 	 */
 	activity?: { activeSessionCount: number; participantClientCount: number };
+	/**
+	 * This client's own build identity; omitted keeps the real resolution
+	 * (env-driven buildId/epoch plus the actual core package version).
+	 */
+	selfIdentity?: {
+		buildId?: string;
+		buildEpochMs?: number;
+		coreVersion?: string;
+	};
 };
 
 function mockDiscovery(options: DiscoveryMockOptions): void {
@@ -38,6 +47,9 @@ function mockDiscovery(options: DiscoveryMockOptions): void {
 		return {
 			...actual,
 			resolveHubBuildId: () => options.expectedBuildId ?? "current-build",
+			...(options.selfIdentity
+				? { resolveHubBuildIdentity: () => options.selfIdentity }
+				: {}),
 			readHubDiscovery: vi.fn(async () => options.record),
 			probeHubServer: vi.fn(async () => options.probe),
 		};
@@ -60,6 +72,93 @@ describe("checkManagedHubBuildMismatch", () => {
 	afterEach(() => {
 		vi.unstubAllEnvs();
 		vi.resetModules();
+	});
+
+	// Two artifacts of the same release cut from different commits never share
+	// a build fingerprint or epoch (e.g. desktop-v0.0.22 and cli-v3.0.61 both
+	// bundling core 0.0.82). Neither side can act on that - "update" installs
+	// nothing newer - so neither direction may prompt.
+	it("does not prompt for a same-release hub with a different fingerprint (hub built earlier)", async () => {
+		mockDiscovery({
+			expectedBuildId: "desktop-fingerprint",
+			selfIdentity: {
+				buildId: "desktop-fingerprint",
+				buildEpochMs: 2_000,
+				coreVersion: "0.0.82",
+			},
+			record: liveRecord,
+			probe: {
+				protocolVersion: "v1",
+				buildId: "cli-fingerprint",
+				buildEpochMs: 1_000,
+				coreVersion: "0.0.82",
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		// Without the same-release rule this would classify as outdated_hub.
+		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+	});
+
+	it("does not prompt for a same-release hub with a different fingerprint (hub built later)", async () => {
+		mockDiscovery({
+			expectedBuildId: "desktop-fingerprint",
+			selfIdentity: {
+				buildId: "desktop-fingerprint",
+				buildEpochMs: 1_000,
+				coreVersion: "0.0.82",
+			},
+			record: liveRecord,
+			probe: {
+				protocolVersion: "v1",
+				buildId: "cli-fingerprint",
+				buildEpochMs: 2_000,
+				coreVersion: "0.0.82",
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		// Without the same-release rule this would classify as build_mismatch.
+		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+	});
+
+	it("still prompts across genuinely different releases", async () => {
+		mockDiscovery({
+			expectedBuildId: "desktop-fingerprint",
+			selfIdentity: {
+				buildId: "desktop-fingerprint",
+				buildEpochMs: 1_000,
+				coreVersion: "0.0.82",
+			},
+			record: liveRecord,
+			probe: {
+				protocolVersion: "v1",
+				buildId: "cli-fingerprint",
+				buildEpochMs: 2_000,
+				coreVersion: "0.0.83",
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(checkManagedHubBuildMismatch()).resolves.toMatchObject({
+			reason: "build_mismatch",
+			hubCoreVersion: "0.0.83",
+		});
 	});
 
 	it("reports a live hub running a newer build", async () => {

@@ -3,6 +3,7 @@
 import { AgentWelcomeHero, Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
+	Check,
 	CheckCircle2,
 	ChevronDown,
 	ExternalLink,
@@ -26,12 +27,14 @@ import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-gith
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import {
 	CLINE_DASHBOARD_URL,
 	getProviderApiKeyUrl,
@@ -50,6 +53,18 @@ import {
 import { cn } from "@/lib/utils";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
+const CLINE_PASS_SUBSCRIBE_URL =
+	"https://app.cline.bot/onboarding/individual-plan";
+
+const CLINE_SIGN_IN_BENEFITS = [
+	"Regular free model promotions",
+	"Subscribe to ClinePass for generous usage across the best open weights models like DeepSeek, Kimi, and GLM",
+	"No API key needed",
+];
+
+type ClineRecommendedModelsResponse = {
+	free?: { id: string; name?: string; description?: string }[];
+};
 
 export const GITHUB_ONBOARDING_FEATURE_FLAG = "code-onboarding-github";
 
@@ -228,7 +243,7 @@ function SetupOptionHeader({
 	title,
 }: {
 	accessory?: React.ReactNode;
-	description: string;
+	description: React.ReactNode;
 	icon: React.ReactNode;
 	title: string;
 }) {
@@ -239,7 +254,7 @@ function SetupOptionHeader({
 			</span>
 			<div className="min-w-0 mt-1 max-[720px]:col-span-3 max-[720px]:col-start-1 max-[720px]:row-start-2 max-[720px]:mt-0">
 				<h4 className="text-lg font-semibold text-foreground">{title}</h4>
-				<p className="mt-2 text-sm text-muted-foreground">{description}</p>
+				<div className="mt-2 text-sm text-muted-foreground">{description}</div>
 			</div>
 			{accessory ? (
 				<div className="mt-1 max-[720px]:col-start-3 max-[720px]:row-start-1 max-[720px]:mt-0">
@@ -322,6 +337,7 @@ function ConnectStep({
 }) {
 	const { user, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
+	const deviceUserCode = useOAuthUserCode(signingIn);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [clineApiKey, setClineApiKey] = useState("");
 	const [clineKeySaving, setClineKeySaving] = useState(false);
@@ -338,9 +354,13 @@ function ConnectStep({
 		setSigningIn(true);
 		setSignInError(null);
 		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				// The browser round-trip routinely outlives the default command
+				// deadline; the sidecar bounds the flow by device-code expiry.
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
 			if (signInAttemptRef.current !== attempt) {
 				// The sign-in completed after the user cancelled but before the
 				// backend processed the cancellation, so credentials were saved.
@@ -558,7 +578,19 @@ function ConnectStep({
 								Recommended
 							</Badge>
 						}
-						description="Latest models with regular free promos. No API keys needed."
+						description={
+							<ul className="flex flex-col gap-1">
+								{CLINE_SIGN_IN_BENEFITS.map((benefit) => (
+									<li className="flex gap-2" key={benefit}>
+										<Check
+											aria-hidden="true"
+											className="mt-0.5 size-3.5 shrink-0 text-primary"
+										/>
+										<span>{benefit}</span>
+									</li>
+								))}
+							</ul>
+						}
 						icon={<ClineLogo className="size-5" />}
 						title="Sign in with Cline"
 					/>
@@ -619,6 +651,14 @@ function ConnectStep({
 							)}
 						</div>
 					)}
+					{!user && signingIn && deviceUserCode ? (
+						<p className="mt-4 ml-12 text-sm text-muted-foreground max-[720px]:ml-0">
+							Confirm this code in your browser:{" "}
+							<span className="font-mono font-medium text-foreground">
+								{deviceUserCode}
+							</span>
+						</p>
+					) : null}
 					{signInError ? (
 						<p
 							className="mt-6 ml-12 text-xs text-destructive max-[720px]:ml-0"
@@ -982,6 +1022,80 @@ function ImportHistoryStep({
 	);
 }
 
+/**
+ * Shown after a Cline sign-in: the free models available right now (from the
+ * same feed as the composer's Free tier, bundled fallback offline) and the
+ * ClinePass upsell. The feed is display-only here; the user picks a model in
+ * the composer.
+ */
+function ClineModelsSummary() {
+	const [freeModels, setFreeModels] = useState<
+		NonNullable<ClineRecommendedModelsResponse["free"]>
+	>([]);
+
+	useEffect(() => {
+		let cancelled = false;
+		desktopClient
+			.invoke<ClineRecommendedModelsResponse>("list_cline_recommended_models")
+			.then((response) => {
+				if (!cancelled) {
+					setFreeModels(response?.free ?? []);
+				}
+			})
+			.catch(() => {
+				// The upsell still renders without the model list.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	return (
+		<div
+			className="mt-6 w-full rounded-xl border border-border bg-background p-5 text-left"
+			data-onboarding-cline-models
+		>
+			{freeModels.length > 0 ? (
+				<>
+					<h2 className="text-sm font-semibold text-foreground">Free models</h2>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Try with limited usage at no cost.
+					</p>
+					<ul className="mt-3 flex flex-wrap gap-1.5">
+						{freeModels.map((model) => (
+							<li key={model.id}>
+								<Badge variant="outline">
+									{model.name?.trim() || model.id}
+								</Badge>
+							</li>
+						))}
+					</ul>
+					<div className="my-4 border-t border-border" />
+				</>
+			) : null}
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="min-w-0 flex-1">
+					<h2 className="text-sm font-semibold text-foreground">ClinePass</h2>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Generous usage across the best open weights models like DeepSeek,
+						Kimi, and GLM.
+					</p>
+				</div>
+				<Button
+					onClick={() => void openExternalUrl(CLINE_PASS_SUBSCRIBE_URL)}
+					size="sm"
+					tone="neutral"
+					type="button"
+					variant="surface"
+				>
+					Get ClinePass
+					<ExternalLink className="size-3.5" />
+				</Button>
+			</div>
+		</div>
+	);
+}
+
 function DoneStep({
 	connection,
 	onFinish,
@@ -1001,6 +1115,7 @@ function DoneStep({
 						? `${connection.providerName} is connected.`
 						: "Your Cline account is connected."}
 				</p>
+				{connection?.kind === "cline" ? <ClineModelsSummary /> : null}
 				<Button
 					className="mt-8 w-full max-w-64"
 					onClick={onFinish}

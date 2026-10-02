@@ -10,6 +10,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	isBunEmbeddedModulePath,
 	isHubDaemonProcess,
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
@@ -46,7 +47,22 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
+export interface DetachedHubOptions extends HubEndpointOverrides {
+	allowPortFallback?: boolean;
+	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
+	manageConnectors?: boolean;
+}
+
+/**
+ * How long a freshly spawned Hub gets to publish a usable discovery record.
+ * A cold start of the compiled binary the Hub runs from (first launch after
+ * an install or update, while antivirus scans it) regularly takes 8-13s on
+ * Windows. The old 8s limit gave up just before those Hubs came up, which
+ * failed startup even though the next attempt attached fine. 15s covers most
+ * cold starts and still fits inside the desktop shell's 30s endpoint wait
+ * alongside login-shell PATH resolution.
+ */
+const HUB_STARTUP_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
@@ -65,6 +81,7 @@ export const __test__ = {
 	resetRetireAttempts(): void {
 		retireAttemptsByUrl.clear();
 	},
+	resolveDaemonEntryArgs,
 };
 
 /**
@@ -361,9 +378,29 @@ function resolveDaemonEntryPath(): string {
 	return fileURLToPath(new URL(`./entry.${extension}`, import.meta.url));
 }
 
+/**
+ * Compiled Bun binaries mount bundled modules on a virtual filesystem that a
+ * child cannot be handed as a script argument, so the child boots its embedded
+ * entrypoint and switches personality on the marker flag.
+ */
+function resolveDaemonEntryArgs(
+	daemonEntryPath: string,
+	isBunRuntime: boolean,
+): string[] {
+	if (isBunEmbeddedModulePath(daemonEntryPath)) {
+		return [COMPILED_BUN_HUB_DAEMON_ARG];
+	}
+	const useDevelopmentConditions =
+		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
+	return [
+		...(useDevelopmentConditions ? ["--conditions=development"] : []),
+		daemonEntryPath,
+	];
+}
+
 function resolveLaunchCommand(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides,
+	endpoint: DetachedHubOptions,
 ): {
 	launcher: string;
 	args: string[];
@@ -376,18 +413,16 @@ function resolveLaunchCommand(
 		throw new Error("unable to resolve runtime executable for hub daemon");
 	}
 	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
-	const isCompiledBunEmbeddedEntry = daemonEntryPath.startsWith("/$bunfs/");
-	const useDevelopmentConditions =
-		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
-	const entryArgs = isCompiledBunEmbeddedEntry
-		? [COMPILED_BUN_HUB_DAEMON_ARG]
-		: [
-				...(useDevelopmentConditions ? ["--conditions=development"] : []),
-				daemonEntryPath,
-			];
+	const entryArgs = resolveDaemonEntryArgs(daemonEntryPath, isBunRuntime);
 	return {
 		launcher: execPath,
-		args: [...entryArgs, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
+		args: [
+			...entryArgs,
+			"--cwd",
+			workspaceRoot,
+			...endpointArgs(endpoint),
+			...(endpoint.manageConnectors === false ? ["--no-connectors"] : []),
+		],
 		cwd: workspaceRoot,
 		env: {
 			...withResolvedClineBuildEnv(process.env),
@@ -411,7 +446,7 @@ function isTextFileBusyError(error: unknown): boolean {
 
 export function spawnDetachedHubServer(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
+	endpoint: DetachedHubOptions = {},
 ): void {
 	if (isHubDaemonProcess()) {
 		return;
@@ -438,7 +473,7 @@ export function spawnDetachedHubServer(
 
 export async function spawnDetachedHubServerWithRetry(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
+	endpoint: DetachedHubOptions = {},
 ): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
 		try {
@@ -456,7 +491,7 @@ export async function spawnDetachedHubServerWithRetry(
 
 export function prewarmDetachedHubServer(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides & { allowPortFallback?: boolean } = {},
+	endpoint: DetachedHubOptions = {},
 ): void {
 	if (isHubDaemonProcess()) {
 		return;
@@ -474,9 +509,7 @@ export interface DetachedHubResolution {
 async function ensureDetachedHubServerLocked(
 	owner: HubOwnerContext,
 	workspaceRoot: string,
-	endpointOverrides: HubEndpointOverrides & {
-		allowPortFallback?: boolean;
-	} = {},
+	endpointOverrides: DetachedHubOptions = {},
 ): Promise<DetachedHubResolution> {
 	const hasExplicitEndpoint =
 		endpointOverrides.host !== undefined ||
@@ -654,7 +687,10 @@ async function ensureDetachedHubServerLocked(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
-	await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
+	await spawnDetachedHubServerWithRetry(workspaceRoot, {
+		...spawnEndpoint,
+		manageConnectors: endpointOverrides.manageConnectors,
+	});
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
@@ -712,14 +748,14 @@ async function ensureDetachedHubServerLocked(
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
-	throw new Error("Timed out waiting for detached hub startup.");
+	throw new Error(
+		`Timed out after ${HUB_STARTUP_TIMEOUT_MS}ms waiting for detached hub startup.`,
+	);
 }
 
 export async function ensureDetachedHubServer(
 	workspaceRoot: string,
-	endpointOverrides: HubEndpointOverrides & {
-		allowPortFallback?: boolean;
-	} = {},
+	endpointOverrides: DetachedHubOptions = {},
 ): Promise<DetachedHubResolution> {
 	const owner = resolveDefaultHubOwnerContext();
 	return await withHubStartupLock(owner.discoveryPath, async () =>

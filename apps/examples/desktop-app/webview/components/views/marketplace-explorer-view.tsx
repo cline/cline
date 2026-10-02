@@ -1,6 +1,8 @@
 import {
 	ArrowUpRight,
 	BadgeCheck,
+	Cable,
+	ChevronDown,
 	Globe,
 	Puzzle,
 	Search,
@@ -13,9 +15,17 @@ import {
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
@@ -24,6 +34,13 @@ import {
 	type MarketplacePrimitiveType,
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
+import {
+	MarketplaceListRow,
+	MarketplaceTypeGlyph,
+	type MarketplaceTypeMeta,
+	MarketplaceTypePill,
+} from "./marketplace-list-row";
+import { ComposioConnectorsView } from "./settings/composio-connectors-view";
 
 /**
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
@@ -31,32 +48,53 @@ import { cn } from "@/lib/utils";
  * primitive maturity (Skills, then MCP, then plugins); clicking an entry
  * opens a detail panel with the catalog's metadata (author, verified state,
  * tags, install command, env setup) and a link out to the entry's homepage.
+ *
+ * Every row carries its type's glyph on a per-type tint, and each section
+ * header says what the type is, so a skill, an MCP server, and a connector
+ * that share a name (Figma) read as different things rather than duplicates.
  */
 
 /** Ordered most-mature first: skills > MCP servers > plugins. */
 const MATURITY_ORDER: MarketplacePrimitiveType[] = ["skill", "mcp", "plugin"];
 
-type TypeMeta = {
-	label: string;
-	plural: string;
-	icon: typeof Server;
-};
+export type MarketplaceTypeFilter = MarketplacePrimitiveType | "connector";
 
-const TYPE_META: Record<MarketplacePrimitiveType, TypeMeta> = {
+const TYPE_META: Record<MarketplaceTypeFilter, MarketplaceTypeMeta> = {
 	skill: {
 		label: "Skill",
 		plural: "Skills",
+		short: "Skill",
 		icon: Zap,
+		blurb: "Step-by-step instructions Cline follows for a workflow. No setup.",
+		text: "text-amber-600 dark:text-amber-300",
+		bg: "bg-amber-500/12",
 	},
 	mcp: {
-		label: "MCP Server",
-		plural: "MCP",
+		label: "MCP server",
+		plural: "MCP servers",
+		short: "MCP",
 		icon: Server,
+		blurb: "Live tools from an external server. You install and configure it.",
+		text: "text-sky-600 dark:text-sky-300",
+		bg: "bg-sky-500/12",
 	},
 	plugin: {
 		label: "Plugin",
 		plural: "Plugins",
+		short: "Plugin",
 		icon: Puzzle,
+		blurb: "A bundle of tools, hooks, and skills built for Cline.",
+		text: "text-violet-600 dark:text-violet-300",
+		bg: "bg-violet-500/12",
+	},
+	connector: {
+		label: "Connector",
+		plural: "Connectors",
+		short: "Connector",
+		icon: Cable,
+		blurb: "Sign in with your account and get hosted tools instantly. No keys.",
+		text: "text-emerald-600 dark:text-emerald-300",
+		bg: "bg-emerald-500/12",
 	},
 };
 
@@ -66,9 +104,6 @@ const CODE_FONT_STYLE: CSSProperties = {
 };
 
 const INSTALL_TIMEOUT_MS = 300_000;
-
-/** Tag pills shown while the category row is collapsed. */
-const COLLAPSED_TAG_COUNT = 4;
 
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
 	return `${entry.type}:${entry.id}`;
@@ -278,46 +313,24 @@ function isBusy(state: EntryActionState | undefined): boolean {
 	return state?.status === "installing" || state?.status === "uninstalling";
 }
 
-function ListRow({
-	entry,
-	installed,
-	onSelect,
-	selected,
+function SectionHeader({
+	beta = false,
+	meta,
 }: {
-	entry: MarketplaceEntry;
-	installed: boolean;
-	onSelect: () => void;
-	selected: boolean;
+	beta?: boolean;
+	meta: MarketplaceTypeMeta;
 }) {
 	return (
-		<button
-			className={cn(
-				"flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-				selected ? "bg-primary/10" : "hover:bg-surface-hover-lighter",
-			)}
-			onClick={onSelect}
-			type="button"
-		>
-			<span className="min-w-0 flex-1">
-				<span className="flex min-w-0 items-center gap-1">
-					<span className="truncate text-sm font-medium text-foreground">
-						{entry.name}
-					</span>
-					{entry.verified ? (
-						<BadgeCheck className="size-3.5 shrink-0 text-sky-500" />
-					) : null}
-				</span>
-				<span className="block truncate text-xs text-muted-foreground">
-					{entry.tagline}
-				</span>
+		<h2 className="flex min-w-0 items-center gap-2 px-2.5 pb-1.5 pt-1">
+			<MarketplaceTypeGlyph className="size-5 rounded-md" meta={meta} />
+			<span className="shrink-0 text-sm font-semibold text-foreground">
+				{meta.plural}
 			</span>
-			{installed ? (
-				<span
-					className="size-1.5 shrink-0 rounded-full bg-emerald-500"
-					title="Installed"
-				/>
-			) : null}
-		</button>
+			{beta ? <Badge>Beta</Badge> : null}
+			<span className="ml-1 min-w-0 flex-1 truncate text-xs text-muted-foreground/80">
+				{meta.blurb}
+			</span>
+		</h2>
 	);
 }
 
@@ -395,7 +408,8 @@ function DetailPane({
 	return (
 		<ScrollArea className="h-full min-w-0 flex-1">
 			<div className="grid max-w-3xl gap-6 px-8 py-8 max-[900px]:px-5">
-				<div className="flex items-start gap-5">
+				<div className="flex items-start gap-4">
+					<MarketplaceTypeGlyph className="size-12 rounded-xl" meta={meta} />
 					<div className="min-w-0 flex-1">
 						<div className="flex min-w-0 flex-wrap items-center gap-2">
 							<h1 className="min-w-0 truncate text-2xl font-semibold text-foreground">
@@ -407,9 +421,7 @@ function DetailPane({
 									Verified
 								</Badge>
 							) : null}
-							<Badge variant="outline" className="text-muted-foreground">
-								{meta.label}
-							</Badge>
+							<MarketplaceTypePill meta={meta} />
 						</div>
 						<p className="mt-1 text-sm text-muted-foreground">
 							{entry.tagline}
@@ -468,8 +480,21 @@ function DetailPane({
 					</Button>
 				</div>
 
-				<div className="grid grid-cols-2 gap-4 rounded-xl border bg-card p-4">
-					{entry.author ? (
+				<div
+					className={cn(
+						"flex items-start gap-3 rounded-lg p-3 text-xs",
+						meta.bg,
+					)}
+				>
+					<meta.icon className={cn("mt-0.5 size-4 shrink-0", meta.text)} />
+					<p className="text-foreground/80">
+						<span className={cn("font-medium", meta.text)}>{meta.label}.</span>{" "}
+						{meta.blurb}
+					</p>
+				</div>
+
+				{entry.author ? (
+					<div className="rounded-xl border bg-card p-4">
 						<MetaCell
 							icon={User}
 							label="Author"
@@ -480,9 +505,8 @@ function DetailPane({
 							}
 							value={entry.author.name}
 						/>
-					) : null}
-					<MetaCell icon={meta.icon} label="Type" value={meta.plural} />
-				</div>
+					</div>
+				) : null}
 
 				<section className="grid gap-2">
 					<h2 className="text-sm font-semibold text-foreground">About</h2>
@@ -560,15 +584,43 @@ function DetailPane({
 	);
 }
 
-export function MarketplaceExplorerView() {
+export function MarketplaceExplorerView({
+	initialTypeFilter = null,
+}: {
+	initialTypeFilter?: MarketplaceTypeFilter | null;
+}) {
 	const directory = useMarketplaceDirectory();
 	const [query, setQuery] = useState("");
-	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
-		null,
+	const [typeFilter, setTypeFilter] = useState<MarketplaceTypeFilter | null>(
+		initialTypeFilter,
 	);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
-	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
+	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
+	const [connectorCount, setConnectorCount] = useState<number | null>(null);
+	useEffect(() => {
+		let cancelled = false;
+		const refresh = async () => {
+			const status = await fetchComposioStatus().catch(() => null);
+			if (!cancelled) setConnectorsAvailable(status?.configured === true);
+		};
+		void refresh();
+		const unsubscribe = desktopClient.subscribe(
+			"settings.changed",
+			() => void refresh(),
+		);
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, []);
+	const showConnectors =
+		connectorsAvailable &&
+		!selectedTag &&
+		(typeFilter === null || typeFilter === "connector");
+	// Search results across every type sit close together with short
+	// sections, so each row also names its type.
+	const showTypePills = typeFilter === null && query.trim().length > 0;
 
 	// Type + query filtering happens before tag filtering so the tag pill
 	// counts reflect what each tag would narrow the current list down to.
@@ -593,11 +645,10 @@ export function MarketplaceExplorerView() {
 		return counts;
 	}, [typeAndQueryEntries]);
 
-	// Keep the selected tag's pill visible even when the current type/query
-	// has no matches for it, so an active filter can never silently empty the
-	// list while its pill is hidden. Sorted by the catalog's global tag count
-	// (static) so the collapsed row surfaces the most useful categories
-	// without pills reordering as filters change.
+	// Keep the selected tag listed even when the current type/query has no
+	// matches for it, so an active filter can never silently empty the list
+	// while its option is hidden. Sorted by the catalog's global tag count
+	// (static) so options don't reorder as filters change.
 	const visibleTags = useMemo(
 		() =>
 			(directory.catalog?.tags ?? [])
@@ -607,20 +658,6 @@ export function MarketplaceExplorerView() {
 				.sort((a, b) => b.count - a.count),
 		[directory.catalog?.tags, selectedTag, tagCounts],
 	);
-
-	// Collapsed, the pill row shows only the top categories (plus the active
-	// tag if it would otherwise be hidden) and a "+N more" toggle.
-	const displayedTags = useMemo(() => {
-		if (tagsExpanded) return visibleTags;
-		const slice = visibleTags.slice(0, COLLAPSED_TAG_COUNT);
-		if (selectedTag && !slice.some((tag) => tag.id === selectedTag)) {
-			const selected = visibleTags.find((tag) => tag.id === selectedTag);
-			if (selected) slice.push(selected);
-		}
-		return slice;
-	}, [selectedTag, tagsExpanded, visibleTags]);
-
-	const hiddenTagCount = visibleTags.length - displayedTags.length;
 
 	const filteredEntries = useMemo(
 		() =>
@@ -661,27 +698,8 @@ export function MarketplaceExplorerView() {
 		return counts;
 	}, [directory.catalog?.entries]);
 
-	if (directory.loading) {
-		return (
-			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-				<Spinner className="mr-2" />
-				Loading marketplace...
-			</div>
-		);
-	}
-
-	if (directory.errorMessage) {
-		return (
-			<div className="p-8">
-				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-					{directory.errorMessage}
-				</div>
-			</div>
-		);
-	}
-
 	return (
-		<div className="flex h-full min-h-0 min-w-0">
+		<div className="flex h-full min-h-0 min-w-0 select-text">
 			<aside
 				className={cn(
 					"flex flex-col",
@@ -701,7 +719,7 @@ export function MarketplaceExplorerView() {
 							value={query}
 						/>
 					</div>
-					<div className="flex flex-wrap gap-1.5">
+					<div className="flex flex-wrap items-center gap-1.5">
 						<Button
 							aria-pressed={typeFilter === null}
 							onClick={() => setTypeFilter(null)}
@@ -711,89 +729,121 @@ export function MarketplaceExplorerView() {
 						>
 							All
 						</Button>
-						{MATURITY_ORDER.map((type) => (
+						{MATURITY_ORDER.map((type) => {
+							const meta = TYPE_META[type];
+							const active = typeFilter === type;
+							return (
+								<Button
+									aria-pressed={active}
+									key={type}
+									onClick={() =>
+										setTypeFilter((current) => (current === type ? null : type))
+									}
+									size="xs"
+									type="button"
+									variant={active ? "default" : "outline"}
+								>
+									<meta.icon className={cn("size-3.5", !active && meta.text)} />
+									{meta.plural}
+									<span className="text-[10px] opacity-70">
+										{typeCounts.get(type) ?? 0}
+									</span>
+								</Button>
+							);
+						})}
+						{connectorsAvailable ? (
 							<Button
-								aria-pressed={typeFilter === type}
-								key={type}
-								onClick={() =>
-									setTypeFilter((current) => (current === type ? null : type))
-								}
+								aria-pressed={typeFilter === "connector"}
+								onClick={() => {
+									setTypeFilter((current) =>
+										current === "connector" ? null : "connector",
+									);
+									setSelectedTag(null);
+									setSelectedKey(null);
+								}}
 								size="xs"
 								type="button"
-								variant={typeFilter === type ? "default" : "outline"}
+								variant={typeFilter === "connector" ? "default" : "outline"}
 							>
-								{TYPE_META[type].plural}
+								<Cable
+									className={cn(
+										"size-3.5",
+										typeFilter !== "connector" && TYPE_META.connector.text,
+									)}
+								/>
+								Connectors
 								<span className="text-[10px] opacity-70">
-									{typeCounts.get(type) ?? 0}
+									{connectorCount ?? "…"}
 								</span>
 							</Button>
-						))}
-					</div>
-					{visibleTags.length > 0 ? (
-						<div className="flex flex-wrap gap-1">
-							{displayedTags.map((tag) => {
-								const active = selectedTag === tag.id;
-								return (
-									<button
-										aria-pressed={active}
-										className={cn(
-											"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-											active
-												? "border-primary/50 bg-primary/10 text-primary"
-												: "border-border/70 text-muted-foreground hover:bg-surface-hover-lighter hover:text-foreground",
-										)}
-										key={tag.id}
-										onClick={() =>
-											setSelectedTag((current) =>
-												current === tag.id ? null : tag.id,
-											)
-										}
+						) : null}
+						{typeFilter !== "connector" && visibleTags.length > 0 ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										aria-label="Filter by category"
+										className="ml-auto text-muted-foreground"
+										size="xs"
 										type="button"
+										variant="ghost"
 									>
-										{tag.label}
-										{active ? (
-											<X className="size-3" />
-										) : (
-											<span className="opacity-60">
-												{tagCounts.get(tag.id) ?? 0}
-											</span>
-										)}
-									</button>
-								);
-							})}
-							{hiddenTagCount > 0 || tagsExpanded ? (
-								<button
-									className="inline-flex items-center rounded-full border border-dashed border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-surface-hover-lighter hover:text-foreground"
-									onClick={() => setTagsExpanded((current) => !current)}
-									type="button"
-								>
-									{tagsExpanded ? "Show less" : `+${hiddenTagCount} more`}
-								</button>
-							) : null}
-						</div>
-					) : null}
+										{selectedTag
+											? (directory.tagLabels.get(selectedTag) ?? selectedTag)
+											: "All categories"}
+										<ChevronDown className="size-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="w-60">
+									<DropdownMenuRadioGroup
+										onValueChange={(value) =>
+											setSelectedTag(value === "" ? null : value)
+										}
+										value={selectedTag ?? ""}
+									>
+										<DropdownMenuRadioItem value="">
+											All categories
+										</DropdownMenuRadioItem>
+										{visibleTags.map((tag) => (
+											<DropdownMenuRadioItem key={tag.id} value={tag.id}>
+												{tag.label}
+												<span className="ml-auto text-xs text-muted-foreground">
+													{tagCounts.get(tag.id) ?? 0}
+												</span>
+											</DropdownMenuRadioItem>
+										))}
+									</DropdownMenuRadioGroup>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						) : null}
+					</div>
 				</div>
 				<ScrollArea className="min-h-0 flex-1">
 					<div className="grid gap-4 p-2 pb-6">
+						{typeFilter !== "connector" && directory.loading ? (
+							<p className="flex items-center justify-center p-6 text-sm text-muted-foreground">
+								<Spinner className="mr-2" />
+								Loading marketplace...
+							</p>
+						) : null}
+						{typeFilter !== "connector" && directory.errorMessage ? (
+							<p className="p-4 text-sm text-destructive" role="alert">
+								{directory.errorMessage}
+							</p>
+						) : null}
 						{groups.map((group) => {
 							const meta = TYPE_META[group.type];
-							const Icon = meta.icon;
 							return (
-								<div className="grid gap-1" key={group.type}>
-									<div className="flex items-center gap-1.5 px-2.5 pt-1">
-										<Icon className="size-3.5 text-primary" />
-										<span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-											{meta.plural}
-										</span>
-										<span className="text-xs text-muted-foreground/70">
-											{group.entries.length}
-										</span>
-									</div>
+								<div className="grid gap-0.5" key={group.type}>
+									<SectionHeader meta={meta} />
 									{group.entries.map((entry) => {
 										const key = entryKey(entry);
 										return (
-											<ListRow
-												entry={entry}
+											<MarketplaceListRow
+												name={entry.name}
+												description={entry.tagline}
+												meta={meta}
+												showType={showTypePills}
+												verified={entry.verified}
 												installed={directory.installedKeys.has(key)}
 												key={key}
 												onSelect={() => setSelectedKey(key)}
@@ -807,10 +857,34 @@ export function MarketplaceExplorerView() {
 								</div>
 							);
 						})}
-						{groups.length === 0 ? (
+						{groups.length === 0 &&
+						!showConnectors &&
+						!directory.loading &&
+						!directory.errorMessage ? (
 							<p className="px-3 py-6 text-center text-sm text-muted-foreground">
 								No entries match the current filters.
 							</p>
+						) : null}
+						{showConnectors ? (
+							<section className="grid gap-0.5" aria-label="Connectors">
+								<SectionHeader beta meta={TYPE_META.connector} />
+								<ComposioConnectorsView
+									appendOnScroll
+									searchQuery={query}
+									onCatalogCountChange={setConnectorCount}
+									renderItem={({ entry, status, onOpenDetails, selected }) => (
+										<MarketplaceListRow
+											name={entry.name}
+											description={entry.description}
+											meta={TYPE_META.connector}
+											showType={showTypePills}
+											installed={status === "connected"}
+											selected={selected}
+											onSelect={onOpenDetails}
+										/>
+									)}
+								/>
+							</section>
 						) : null}
 					</div>
 				</ScrollArea>

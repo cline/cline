@@ -66,6 +66,7 @@ export interface ProviderFactoryResult {
 
 export interface AiSdkStreamPart {
 	type?: string;
+	response?: { headers?: Record<string, string> };
 	[key: string]: unknown;
 }
 

@@ -1,8 +1,6 @@
-import { providerOffersModelTool } from "@cline/llms/browser";
-import { Import, Minus, Plus, RotateCcw } from "lucide-react";
+import { Switch } from "@cline/ui";
+import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -12,8 +10,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -27,6 +23,7 @@ import {
 	APP_ICONS,
 	type AppIconId,
 	appIconAssetPath,
+	appIconSurface,
 	DEFAULT_APP_ICON,
 	readStoredAppIcon,
 	setStoredAppIcon,
@@ -36,13 +33,12 @@ import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
+	OAUTH_LOGIN_TIMEOUT_MS,
 } from "@/lib/provider-connection";
 import {
-	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
-	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -60,17 +56,23 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceExplorerView } from "../marketplace-explorer-view";
+import {
+	MarketplaceExplorerView,
+	type MarketplaceTypeFilter,
+} from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
+import { AboutContent } from "./about-view";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
+import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
@@ -87,7 +89,6 @@ export {
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
-	tools?: Partial<Record<"web_search", { enabled: boolean }>>;
 };
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
@@ -105,12 +106,16 @@ export function SettingsView({
 	section,
 	onNavigateSection,
 	onOpenSession,
+	onExportDiagnostics,
 }: {
 	section: SettingsSection;
+	onExportDiagnostics: () => void;
 	onNavigateSection: (section: SettingsSection) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
+	const [marketplaceInitialFilter, setMarketplaceInitialFilter] =
+		useState<MarketplaceTypeFilter | null>(null);
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -143,7 +148,7 @@ export function SettingsView({
 	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
-		if (section !== "Models") {
+		if (section !== "Providers") {
 			setSelectedProviderId(null);
 			setAddingProvider(false);
 		}
@@ -209,7 +214,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Models") {
+		if (activeNav !== "Providers") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -440,9 +445,13 @@ export function SettingsView({
 			const result = await desktopClient.invoke<{
 				provider: string;
 				accessToken: string;
-			}>("run_provider_oauth_login", {
-				provider: id,
-			});
+			}>(
+				"run_provider_oauth_login",
+				{ provider: id },
+				// The browser round-trip routinely outlives the default command
+				// deadline; the sidecar bounds the flow by device-code expiry.
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
 					provider.id === id
@@ -473,7 +482,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		onNavigateSection("Models");
+		onNavigateSection("Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -488,7 +497,7 @@ export function SettingsView({
 	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection("Models");
+		onNavigateSection("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -516,7 +525,7 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection("Models");
+		onNavigateSection("Providers");
 		setAddingProvider(true);
 	};
 
@@ -557,7 +566,7 @@ export function SettingsView({
 			</p>
 		</div>
 	) : selectedProvider ? (
-		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
+		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(0,0.9fr)_minmax(0,1fr)]">
 			{/* min-h-0/min-w-0: grid items default to min-size auto, which lets
 			    the pane grow past its track and leaves the inner ScrollArea with
 			    nothing to scroll. */}
@@ -570,7 +579,7 @@ export function SettingsView({
 					variant="panel"
 				/>
 			</div>
-			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
+			<aside className="min-h-0 min-w-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
 					key={`${selectedProvider.id}:${detailResetToken}`}
 					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
@@ -603,31 +612,39 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "Models" ? (
+		activeNav === "Providers" ? (
 			<>
 				{providerContent}
 				{addProviderDialog}
 			</>
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
-				onOpenModelProviders={() => onNavigateSection("Models")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
-				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
+				onOpenMarketplace={(filter) => {
+					setMarketplaceInitialFilter(filter ?? null);
+					onNavigateSection("Marketplace");
+				}}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceExplorerView />
+			<MarketplaceExplorerView initialTypeFilter={marketplaceInitialFilter} />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
+		) : activeNav === "Import" ? (
+			<ImportContent />
+		) : activeNav === "Remote" ? (
+			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
+		) : activeNav === "About" ? (
+			<AboutContent />
 		) : activeNav === "General" ? (
-			<GeneralSettingsContent
-				onOpenModelProviders={() => onNavigateSection("Models")}
-			/>
+			<GeneralSettingsContent onExportDiagnostics={onExportDiagnostics} />
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
@@ -637,7 +654,7 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="h-full overflow-hidden bg-background">
+		<div className="cline-settings-content h-full overflow-hidden bg-background">
 			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
@@ -658,15 +675,14 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 ];
 
 function GeneralSettingsContent({
-	onOpenModelProviders,
+	onExportDiagnostics,
 }: {
-	onOpenModelProviders: () => void;
+	onExportDiagnostics: () => void;
 }) {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
-	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [accent, setAccent] = useState<HubAccent>(() => {
 		if (typeof window === "undefined") return "violet";
 		return readStoredHubAccent();
@@ -679,6 +695,9 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
 	});
+	const [appIconLocation, setAppIconLocation] = useState<
+		"Dock" | "Taskbar" | "desktop"
+	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
@@ -689,99 +708,80 @@ function GeneralSettingsContent({
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
-	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
-	const [webSearchLoading, setWebSearchLoading] = useState(true);
-	const [webSearchSaving, setWebSearchSaving] = useState(false);
-	const [webSearchError, setWebSearchError] = useState<string | null>(null);
-	// Connected providers that offer native web search; null until the
-	// catalog loads. The toggle silently does nothing with other providers,
-	// so the row spells out whether it will actually take effect.
-	const [webSearchReadyProviders, setWebSearchReadyProviders] = useState<
-		string[] | null
+	const [cloudSessionsEnabled, setCloudSessionsEnabled] = useState(false);
+	const [cloudSessionsLoading, setCloudSessionsLoading] = useState(true);
+	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
+	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
+		null,
+	);
+	// The environment override can differ from the stored opt-in.
+	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
+		boolean | null
 	>(null);
-	const [appVersion, setAppVersion] = useState<string | null>(null);
+	// Keep the preview hidden until the rollout service explicitly enables it.
+	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(false);
 
+	const refreshCloudSessionsEffective = useCallback(async () => {
+		try {
+			const flags = await desktopClient.invoke<{
+				cloudAgents?: boolean;
+				cloudAgentsAvailable?: boolean;
+			}>("get_feature_flags");
+			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+			setCloudSessionsAvailable(flags.cloudAgentsAvailable === true);
+		} catch {
+			setCloudSessionsEffective(null);
+			setCloudSessionsAvailable(false);
+		}
+	}, []);
+
+	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
-
-	useEffect(() => {
-		let cancelled = false;
-		const loadWebSearchSupport = () => {
-			void fetchProviderCatalog()
-				.then((payload) => {
-					if (cancelled) return;
-					setWebSearchReadyProviders(
-						(payload.providers ?? [])
-							.filter(
-								(provider) =>
-									provider.enabled &&
-									providerOffersModelTool(provider.id, "web_search"),
-							)
-							.map((provider) => provider.name),
-					);
-				})
-				.catch(() => {
-					// Support status is best-effort; the toggle works without it.
-				});
-		};
-		loadWebSearchSupport();
-		// Provider saves invalidate the catalog cache when they complete, so
-		// refetching on invalidation keeps the status current even when the
-		// user navigates here while a save is still in flight.
-		const unsubscribe =
-			subscribeToProviderCatalogInvalidation(loadWebSearchSupport);
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
-	}, []);
-
-	useEffect(() => {
-		let cancelled = false;
-		void desktopClient
-			.invoke<{ appVersion?: unknown }>("get_process_context")
-			.then((context) => {
-				if (cancelled) {
-					return;
-				}
-				const version =
-					typeof context?.appVersion === "string"
-						? context.appVersion.trim()
-						: "";
-				setAppVersion(version || null);
-			})
-			.catch(() => {
-				// Leave the About row versionless if the sidecar is unreachable.
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
-		setWebSearchLoading(true);
-		setWebSearchError(null);
-		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"get_global_settings",
-			);
-			setTelemetryOptOut(settings.telemetryOptOut);
-			setAutoUpdateEnabled(settings.autoUpdateEnabled);
-			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setTelemetryError(message);
-			setAutoUpdateError(message);
-			setWebSearchError(message);
-		} finally {
-			setTelemetryLoading(false);
-			setAutoUpdateLoading(false);
-			setWebSearchLoading(false);
-		}
-	}, []);
+		setCloudSessionsLoading(true);
+		setCloudSessionsError(null);
+		await Promise.all([
+			(async () => {
+				try {
+					const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+						"get_global_settings",
+					);
+					setTelemetryOptOut(settings.telemetryOptOut);
+					setAutoUpdateEnabled(settings.autoUpdateEnabled);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					setTelemetryError(message);
+					setAutoUpdateError(message);
+				} finally {
+					setTelemetryLoading(false);
+					setAutoUpdateLoading(false);
+				}
+			})(),
+			(async () => {
+				try {
+					const desktopSettings = await desktopClient.invoke<{
+						cloudSessionsEnabled: boolean;
+					}>("get_desktop_settings");
+					setCloudSessionsEnabled(
+						Boolean(desktopSettings.cloudSessionsEnabled),
+					);
+				} catch (error) {
+					setCloudSessionsError(
+						error instanceof Error ? error.message : String(error),
+					);
+				} finally {
+					setCloudSessionsLoading(false);
+				}
+			})(),
+			refreshCloudSessionsEffective(),
+		]);
+	}, [refreshCloudSessionsEffective]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -830,23 +830,23 @@ function GeneralSettingsContent({
 		}
 	};
 
-	const updateWebSearchEnabled = async (nextValue: boolean) => {
-		const previousValue = webSearchEnabled;
-		setWebSearchEnabled(nextValue);
-		setWebSearchSaving(true);
-		setWebSearchError(null);
+	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
+		const previousValue = cloudSessionsEnabled;
+		setCloudSessionsEnabled(nextValue);
+		setCloudSessionsSaving(true);
+		setCloudSessionsError(null);
 		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"set_web_search_enabled",
-				{ web_search_enabled: nextValue },
-			);
-			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+			const settings = await desktopClient.invoke<{
+				cloudSessionsEnabled: boolean;
+			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
+			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
+			await refreshCloudSessionsEffective();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setWebSearchEnabled(previousValue);
-			setWebSearchError(message);
+			setCloudSessionsEnabled(previousValue);
+			setCloudSessionsError(message);
 		} finally {
-			setWebSearchSaving(false);
+			setCloudSessionsSaving(false);
 		}
 	};
 
@@ -884,9 +884,6 @@ function GeneralSettingsContent({
 			}
 			setAppIcon(previousIcon);
 			setAppIconError(error instanceof Error ? error.message : String(error));
-			// Storage was written before the native call failed; roll it back
-			// so the persisted choice matches what the dock actually shows.
-			await setStoredAppIcon(previousIcon).catch(() => {});
 		}
 	};
 
@@ -996,7 +993,7 @@ function GeneralSettingsContent({
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">App icon</p>
 						<p className="text-sm text-muted-foreground">
-							Pick the icon Cline shows in the Dock.
+							Pick the icon Cline shows in the {appIconLocation}.
 						</p>
 						{appIconError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
@@ -1043,50 +1040,6 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Web search
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Let the model search the web during a task. Only providers with
-							built-in web search honor this setting; other providers ignore it.
-							Applies to new sessions.
-						</p>
-						{webSearchReadyProviders ===
-						null ? null : webSearchReadyProviders.length > 0 ? (
-							<p className="text-xs text-muted-foreground">
-								Ready to use with {webSearchReadyProviders.join(", ")} on models
-								that support it — no extra setup needed.
-							</p>
-						) : (
-							<p className="text-xs text-amber-700 dark:text-amber-300">
-								None of your connected providers include built-in web search, so
-								this setting has no effect yet.{" "}
-								<button
-									className="underline underline-offset-2 hover:text-foreground"
-									onClick={onOpenModelProviders}
-									type="button"
-								>
-									Connect a provider
-								</button>{" "}
-								that supports it, such as Anthropic, OpenAI, Google Gemini, or
-								Cline.
-							</p>
-						)}
-						{webSearchError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update web search setting: {webSearchError}
-							</p>
-						) : null}
-					</div>
-					<Switch
-						aria-label="Web search"
-						checked={webSearchEnabled}
-						disabled={webSearchLoading || webSearchSaving}
-						onCheckedChange={(checked) => void updateWebSearchEnabled(checked)}
-					/>
-				</div>
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
 							Keep CLI up to date
 						</p>
 						<p className="text-sm text-muted-foreground">
@@ -1107,6 +1060,46 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
+				{cloudSessionsAvailable ? (
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
+								Cloud sessions
+								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+									Preview
+								</span>
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Run Cline on your GitHub repositories in secure cloud sandboxes.
+								Adds a Cloud option to the new-session composer. Requires a
+								Cline account with GitHub connected.
+							</p>
+							{cloudSessionsError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update cloud sessions setting: {cloudSessionsError}
+								</p>
+							) : null}
+							{cloudSessionsEffective !== null &&
+							!cloudSessionsLoading &&
+							cloudSessionsEffective !== cloudSessionsEnabled ? (
+								<p className="mt-2 text-xs text-muted-foreground">
+									Cloud sessions are currently{" "}
+									{cloudSessionsEffective ? "enabled" : "disabled"} by the
+									CLINE_CODE_CLOUD_AGENTS environment override, which takes
+									precedence over this setting.
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Cloud sessions"
+							checked={cloudSessionsEnabled}
+							disabled={cloudSessionsLoading || cloudSessionsSaving}
+							onCheckedChange={(checked) =>
+								void updateCloudSessionsEnabled(checked)
+							}
+						/>
+					</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>
@@ -1129,31 +1122,6 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Import sessions
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Bring your conversation history from Claude Code, Codex, or
-							opencode into Cline.
-						</p>
-					</div>
-					<Button
-						className="shrink-0"
-						onClick={() => setImportDialogOpen(true)}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Import className="size-3" />
-						Import
-					</Button>
-				</div>
-				<ImportSessionsDialog
-					onOpenChange={setImportDialogOpen}
-					open={importDialogOpen}
-				/>
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
 							New user experience
 						</p>
 						<p className="text-sm text-muted-foreground">
@@ -1162,7 +1130,7 @@ function GeneralSettingsContent({
 						</p>
 					</div>
 					<Button
-						className="shrink-0"
+						className="w-24 shrink-0"
 						onClick={replayOnboarding}
 						size="sm"
 						type="button"
@@ -1174,23 +1142,24 @@ function GeneralSettingsContent({
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">About</p>
+						<p className="text-base font-semibold text-foreground">
+							Diagnostics
+						</p>
 						<p className="text-sm text-muted-foreground">
-							{productNameForVersion(appVersion)}
-							{appVersion ? ` v${appVersion}` : ""}
-							{isBetaVersion(appVersion)
-								? " — beta builds install side by side with the stable app and update from the beta channel."
-								: ""}
+							Export app info, recent logs, and the metadata of sessions you
+							choose as a file you can attach when reporting a problem.
 						</p>
 					</div>
-					{isBetaVersion(appVersion) ? (
-						<Badge
-							className="shrink-0 uppercase tracking-wide"
-							variant="secondary"
-						>
-							Beta
-						</Badge>
-					) : null}
+					<Button
+						className="w-24 shrink-0"
+						onClick={onExportDiagnostics}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<Download className="size-3" />
+						Export…
+					</Button>
 				</div>
 			</section>
 		</PageFrame>

@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import type { CoreSpawnReason } from "@cline/shared"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
@@ -12,7 +13,10 @@ export interface StartSessionResult {
 	sessionId: string
 }
 
-export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+export {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/output-limits"
 
 export interface StoredModelEntry {
 	id?: string
@@ -53,6 +57,7 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -62,6 +67,7 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
@@ -88,11 +94,12 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 export type ModelToolName = "web_search"
 
 export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH ?? ""
 	try {
-		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
-		return settings.tools?.[name]?.enabled === true
+		const settings = JSON.parse(readFileSync(filePath, "utf8"))
+		return settings.tools?.[name]?.enabled ?? true
 	} catch {
-		return false
+		return !existsSync(filePath)
 	}
 }
 
@@ -107,19 +114,11 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
-export function truncateCommandOutput(output: string): string {
-	return output
-}
-
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""
@@ -143,6 +142,10 @@ export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensio
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
 export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
+// Real source-of-truth values re-exported so the extension is tested against the
+// same session-source tag and core version the SDK stamps on a session's requests.
+export { SessionSource } from "../../../../sdk/packages/core/src/types/common"
+export { CORE_BUILD_VERSION } from "../../../../sdk/packages/core/src/version"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.
@@ -187,6 +190,15 @@ export function readSessionCheckpointHistory(session: { metadata?: Record<string
 	})
 }
 
+export function createRestoredCheckpointMetadata(
+	session: { metadata?: Record<string, unknown> } | undefined,
+	runCount: number,
+): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
+	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
+	const latest = history.at(-1)
+	return latest ? { latest, history } : undefined
+}
+
 export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
 	return history.reduce<CheckpointEntry | undefined>((best, entry) => {
 		if (entry.runCount > runCount) {
@@ -227,6 +239,8 @@ export interface TelemetryMetadata {
 	os_type: string
 	os_version: string
 	is_dev?: string
+	core_spawn_ordinal?: number
+	core_spawn_reason?: CoreSpawnReason
 }
 
 export interface ITelemetryService {
@@ -516,3 +530,5 @@ export async function loginOcaOAuth(): Promise<OAuthCredentials> {
 export async function loginOpenAICodex(): Promise<OAuthCredentials> {
 	return {}
 }
+
+export { resolveMessageDisplayRole } from "../../../../sdk/packages/core/src/session/user-run-messages"

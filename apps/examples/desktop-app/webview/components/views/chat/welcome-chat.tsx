@@ -1,29 +1,83 @@
 "use client";
 
 import type { AgendaTaskRecord } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared/browser";
 import {
+	AgentConversationLayout,
 	type AgentQuickAction,
 	AgentQuickActions,
 	AgentWelcomeHero,
 } from "@cline/ui";
+import { Cloud } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
+import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
+import {
+	type CloudBranchListOptions,
+	type CloudBranchListResult,
+	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
+	normalizeCloudRepositoryUrl,
+	readCloudRepositorySelection,
+	resolveRememberedCloudBranch,
+	writeCloudRepositorySelection,
+} from "@/lib/cloud-repositories";
+import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
-import { cn } from "@/lib/utils";
-import { SessionContent } from "./session-content";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
+import type { WorkIn } from "@/lib/work-in-selection";
+import {
+	CloudOnboardingCard,
+	type CloudOnboardingVariant,
+} from "./cloud-onboarding";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
+
+// Used only until the API's connectUrl arrives (or when it is blank), so a
+// staging/local build still points at its own dashboard.
+const FALLBACK_CONNECT_URL = `${getClineEnvironmentConfig().appBaseUrl}/dashboard/integrations`;
+const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;
+
+type CloudSetupState = {
+	status:
+		| "unknown"
+		| "checking"
+		| "ready"
+		| "not_connected"
+		| "no_repositories"
+		| "restore_error"
+		| "error";
+	connectUrl: string;
+	scope: string | null;
+	requestId: number;
+	repositories: CloudRepositoryOption[];
+	/** Normalized URLs of repositories the account can currently access. */
+	repositoryUrls: string[];
+};
+
+const noop = () => undefined;
 
 export function WelcomeScreen({
 	active,
 	body,
 	composer,
 	notice,
+	environmentSelector,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	executionTarget = "local",
+	repoUrl = "",
+	cloudBranch = "",
+	onRepoUrlChange = noop,
+	onCloudBranchChange = noop,
+	cloudAgentsEnabled = false,
+	workIn,
+	onWorkInChange,
 	onOpenSession,
 }: {
 	active: boolean;
@@ -33,10 +87,39 @@ export function WelcomeScreen({
 	notice?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	environmentSelector: ReactNode;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	onRepoUrlChange?: (repoUrl: string) => void;
+	onCloudBranchChange?: (branch: string) => void;
+	cloudAgentsEnabled?: boolean;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
+	const { user, activeOrganization, refreshAccount } = useAccount();
+	const cloudScope = user
+		? JSON.stringify([
+				getClineEnvironmentConfig().appBaseUrl,
+				user.id,
+				activeOrganization?.organizationId ?? null,
+			])
+		: null;
+	const [signingIn, setSigningIn] = useState(false);
+	const [signInError, setSignInError] = useState<string | null>(null);
+	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
+		status: "unknown",
+		connectUrl: FALLBACK_CONNECT_URL,
+		scope: null,
+		requestId: 0,
+		repositories: [],
+		repositoryUrls: [],
+	});
+	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
+	const cloudSetupRequestRef = useRef(0);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -45,6 +128,219 @@ export function WelcomeScreen({
 		pickWorkspaceDirectory,
 		selectChat,
 	} = useWorkspace();
+	const applyCloudSetupResult = useCallback(
+		(result: CloudRepositoryListResult, requestId: number) => {
+			setCloudSetup({
+				scope: cloudScope,
+				requestId,
+				repositories: result.repositories,
+				status:
+					result.connected === false
+						? "not_connected"
+						: result.repositories.length === 0
+							? "no_repositories"
+							: "ready",
+				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
+				repositoryUrls: result.repositories.map((repository) =>
+					normalizeCloudRepositoryUrl(repository.url),
+				),
+			});
+		},
+		[cloudScope],
+	);
+	const fetchCloudRepositories = useCallback(
+		() =>
+			desktopClient.invoke<CloudRepositoryListResult>(
+				"list_cloud_repositories",
+				{},
+			),
+		[],
+	);
+	const listCloudRepositories = useCallback(async () => {
+		// Keep stale-selection checks aligned with the latest account scope.
+		const requestId = ++cloudSetupRequestRef.current;
+		const result = await fetchCloudRepositories().catch((error) => {
+			// Resume saved-selection restoration if the picker refresh fails.
+			setCloudSetup((prev) =>
+				cloudSetupRequestRef.current === requestId && prev.status === "ready"
+					? { ...prev, requestId }
+					: prev,
+			);
+			throw error;
+		});
+		if (cloudSetupRequestRef.current === requestId) {
+			applyCloudSetupResult(result, requestId);
+		}
+		return result;
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const listCloudBranches = useCallback(
+		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
+			const result = await desktopClient.invoke<{
+				available?: boolean;
+				branches?: string[];
+				nextToken?: string;
+			}>("list_cloud_branches", { repositoryId, ...options });
+			return {
+				available: result.available !== false,
+				branches: Array.isArray(result.branches) ? result.branches : [],
+				nextToken:
+					typeof result.nextToken === "string" ? result.nextToken : undefined,
+			} satisfies CloudBranchListResult;
+		},
+		[],
+	);
+	const openExternalUrl = useCallback(async (url: string) => {
+		await desktopClient.invoke("open_external_url", { url });
+	}, []);
+	const connectGitHub = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization, openExternalUrl],
+	);
+
+	const cloudModeActive =
+		active && cloudAgentsEnabled && executionTarget === "cloud";
+	const signedIn = Boolean(user);
+	const accountUserId = user?.id ?? null;
+	// Read by the poll interval without making the state updater impure or
+	// re-subscribing the effect on every status change.
+	const cloudSetupStatusRef = useRef(cloudSetup.status);
+	cloudSetupStatusRef.current = cloudSetup.status;
+
+	const checkCloudSetup = useCallback(async () => {
+		const requestId = ++cloudSetupRequestRef.current;
+		setCloudSetupChecking(true);
+		try {
+			const result = await fetchCloudRepositories();
+			if (cloudSetupRequestRef.current !== requestId) return;
+			applyCloudSetupResult(result, requestId);
+		} catch {
+			if (cloudSetupRequestRef.current !== requestId) return;
+			setCloudSetup((prev) => ({ ...prev, status: "error" }));
+		} finally {
+			if (cloudSetupRequestRef.current === requestId) {
+				setCloudSetupChecking(false);
+			}
+		}
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const invalidateCloudScope = useCallback(() => {
+		setCloudSetup((prev) => ({
+			...prev,
+			status: "checking",
+			repositoryUrls: [],
+		}));
+		onRepoUrlChange("");
+		onCloudBranchChange("");
+	}, [onCloudBranchChange, onRepoUrlChange]);
+
+	// GitHub setup finishes in the browser; poll while onboarding is visible.
+	useEffect(() => {
+		void accountUserId;
+		if (!cloudModeActive || !signedIn) return;
+		invalidateCloudScope();
+		void checkCloudSetup();
+		const handleFocus = () => void checkCloudSetup();
+		window.addEventListener("focus", handleFocus);
+		const interval = window.setInterval(() => {
+			const status = cloudSetupStatusRef.current;
+			if (status === "not_connected" || status === "no_repositories") {
+				void checkCloudSetup();
+			}
+		}, CLOUD_SETUP_POLL_INTERVAL_MS);
+		return () => {
+			window.removeEventListener("focus", handleFocus);
+			window.clearInterval(interval);
+		};
+	}, [
+		accountUserId,
+		checkCloudSetup,
+		cloudModeActive,
+		invalidateCloudScope,
+		signedIn,
+	]);
+
+	// Refresh on account/org switches even after the onboarding poll stops.
+	useEffect(() => {
+		if (!cloudModeActive || !signedIn) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			invalidateCloudScope();
+			void checkCloudSetup();
+		});
+	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
+
+	// Keep sending blocked until the saved repository and branch are validated.
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			repoUrl ||
+			cloudSetup.status !== "ready" ||
+			cloudSetup.scope !== cloudScope ||
+			cloudSetup.requestId !== cloudSetupRequestRef.current
+		)
+			return;
+		const saved = readCloudRepositorySelection(cloudScope);
+		const repository = cloudSetup.repositories.find(
+			(candidate) =>
+				normalizeCloudRepositoryUrl(candidate.url) === saved?.repoUrl,
+		);
+		if (!saved || !repository) return;
+		let cancelled = false;
+		void resolveRememberedCloudBranch(
+			repository.id,
+			saved.branch,
+			repository.defaultBranch,
+			listCloudBranches,
+		)
+			.then((branch) => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				onRepoUrlChange(saved.repoUrl);
+				onCloudBranchChange(branch);
+			})
+			.catch(() => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				setCloudSetup((prev) => ({ ...prev, status: "restore_error" }));
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudModeActive,
+		cloudScope,
+		cloudSetup,
+		repoUrl,
+		listCloudBranches,
+		onRepoUrlChange,
+		onCloudBranchChange,
+	]);
+
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			cloudSetup.scope !== cloudScope ||
+			(cloudSetup.status !== "ready" &&
+				cloudSetup.status !== "restore_error") ||
+			!repoUrl ||
+			!cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl))
+		)
+			return;
+		writeCloudRepositorySelection(cloudScope, {
+			repoUrl: normalizeCloudRepositoryUrl(repoUrl),
+			branch: cloudBranch,
+		});
+		if (cloudSetup.status === "restore_error") {
+			setCloudSetup((prev) => ({ ...prev, status: "ready" }));
+		}
+	}, [cloudModeActive, cloudScope, cloudSetup, repoUrl, cloudBranch]);
+
 	const agenda = useAgendaTasks(
 		{
 			scope: "workspace",
@@ -106,72 +402,133 @@ export function WelcomeScreen({
 	);
 
 	useEffect(() => {
-		if (active) void refreshWorkspaces();
-	}, [active, refreshWorkspaces]);
+		if (active && executionTarget === "local") void refreshWorkspaces();
+	}, [active, executionTarget, refreshWorkspaces]);
+
+	// Clear repositories made inaccessible by account/org or GitHub access changes.
+	useEffect(() => {
+		if (!cloudModeActive || cloudSetup.status === "unknown") return;
+		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
+			return;
+		}
+		const normalized = normalizeCloudRepositoryUrl(repoUrl);
+		if (!normalized) return;
+		if (!cloudSetup.repositoryUrls.includes(normalized)) {
+			onRepoUrlChange("");
+			onCloudBranchChange("");
+		}
+	}, [
+		cloudModeActive,
+		cloudSetup,
+		onCloudBranchChange,
+		onRepoUrlChange,
+		repoUrl,
+	]);
+
+	const signIn = async () => {
+		if (signingIn) return;
+		setSigningIn(true);
+		setSignInError(null);
+		try {
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
+			invalidateProviderCatalogCache();
+			await refreshAccount();
+		} catch (error) {
+			setSignInError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setSigningIn(false);
+		}
+	};
+
+	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
+		? null
+		: !signedIn
+			? "signed_out"
+			: cloudSetup.status === "not_connected"
+				? "not_connected"
+				: cloudSetup.status === "no_repositories"
+					? "no_repositories"
+					: cloudSetup.status === "error" ||
+							cloudSetup.status === "restore_error"
+						? "error"
+						: null;
+	// A failed restore must still allow a manual repository selection.
+	const showCloudOnboarding =
+		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";
 
 	return (
-		<div
-			className={cn(
-				active
-					? "relative h-full min-h-0 overflow-hidden bg-background"
-					: "contents",
-			)}
-		>
-			<div
-				className={cn(
-					active
-						? "relative z-10 h-full w-full overflow-x-hidden overflow-y-auto"
-						: "contents",
-				)}
-			>
-				<div
-					className={cn(
-						active
-							? "mx-auto flex min-h-full w-full max-w-240 flex-col justify-center px-6 py-16 max-[720px]:px-4 max-[720px]:py-10"
-							: "contents",
-					)}
-				>
-					{active ? (
-						<div className="cline-view-enter">
-							<h1 className="sr-only">What would you like to build?</h1>
-							<AgentWelcomeHero />
+		<AgentConversationLayout
+			welcome={active}
+			body={body}
+			bodyClassName="cline-view-enter"
+			composer={composer}
+			notice={notice && !showCloudOnboarding ? notice : null}
+			hideWelcomeComposer={showCloudOnboarding}
+			welcomeHeader={
+				<div className="cline-view-enter">
+					<h1 className="sr-only">What would you like to build?</h1>
+					<AgentWelcomeHero />
 
-							<div className="mt-11 flex min-w-0 items-center">
-								<WelcomeWorkspaceControls
-									currentBranch={gitBranch}
-									onListGitBranches={onListGitBranches}
-									onPickWorkspaceDirectory={pickWorkspaceDirectory}
-									onRefreshWorkspaces={refreshWorkspaces}
-									onSelectChat={selectChat}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={switchWorkspace}
-									workspaceRoot={workspaceRoot}
-									workspaces={workspaces}
-								/>
-							</div>
-						</div>
-					) : null}
-
-					<div
-						className={
-							active
-								? "hidden"
-								: "cline-view-enter h-full min-h-0 overflow-hidden"
-						}
-						key="conversation-body"
-					>
-						{body}
+					<div className="mt-11 flex min-w-0 items-center gap-2">
+						{environmentSelector}
+						<WelcomeWorkspaceControls
+							cloudBranch={cloudBranch}
+							cloudControlsHidden={showCloudOnboarding}
+							cloudEnabled={cloudAgentsEnabled}
+							currentBranch={gitBranch}
+							executionTarget={executionTarget}
+							onCloudBranchChange={onCloudBranchChange}
+							onListCloudBranches={listCloudBranches}
+							onListCloudRepositories={listCloudRepositories}
+							onListGitBranches={onListGitBranches}
+							onOpenExternalUrl={connectGitHub}
+							onPickWorkspaceDirectory={pickWorkspaceDirectory}
+							onRefreshWorkspaces={refreshWorkspaces}
+							onRepoUrlChange={onRepoUrlChange}
+							onSignIn={signIn}
+							onSelectChat={selectChat}
+							onSwitchGitBranch={onSwitchGitBranch}
+							onSwitchWorkspace={switchWorkspace}
+							repoUrl={repoUrl}
+							signedIn={signedIn}
+							signingIn={signingIn}
+							onWorkInChange={onWorkInChange}
+							workIn={workIn}
+							workspaceRoot={workspaceRoot}
+							workspaces={workspaces}
+						/>
+						{signInError ? (
+							<p className="mt-2 text-xs text-destructive">
+								Sign in failed: {signInError}
+							</p>
+						) : null}
 					</div>
-
-					{active && notice ? notice : null}
-
-					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6"}
-						key="persistent-composer"
-					>
-						{active ? composer : <SessionContent>{composer}</SessionContent>}
+				</div>
+			}
+			welcomeSetup={
+				cloudOnboardingVariant !== null ? (
+					<div className="mt-4 w-full">
+						<CloudOnboardingCard
+							checking={cloudSetupChecking}
+							onConnect={() =>
+								void (cloudOnboardingVariant === "not_connected"
+									? connectGitHub(cloudSetup.connectUrl)
+									: openExternalUrl(cloudSetup.connectUrl))
+							}
+							onRefresh={() => void checkCloudSetup()}
+							onSignIn={() => void signIn()}
+							signingIn={signingIn}
+							variant={cloudOnboardingVariant}
+						/>
 					</div>
-
+				) : null
+			}
+			welcomeFooter={
+				<>
 					{active && AGENDA_UI_ENABLED ? (
 						<>
 							<AgentQuickActions
@@ -210,8 +567,15 @@ export function WelcomeScreen({
 							) : null}
 						</>
 					) : null}
-				</div>
-			</div>
-		</div>
+					{active && cloudModeActive && !showCloudOnboarding ? (
+						<p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+							<Cloud aria-hidden="true" className="size-3 shrink-0" />
+							Cloud sessions run on a secure sandbox, work on a branch, and keep
+							going even when you close the app.
+						</p>
+					) : null}
+				</>
+			}
+		/>
 	);
 }

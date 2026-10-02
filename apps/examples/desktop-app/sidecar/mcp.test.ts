@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { handleCommand } from "./commands";
+import { createSidecarContext } from "./context";
 import {
 	buildMcpServersResponse,
 	shouldProbeMcpServerAfterUpsert,
@@ -10,19 +11,7 @@ import {
 import type { JsonRecord, SidecarContext } from "./types";
 
 function createContext(workspaceRoot: string): SidecarContext {
-	return {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		wsClients: new Set(),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot,
-		unsubscribeSessionEvents: null,
-		hubBuildMismatch: null,
-	};
+	return createSidecarContext(workspaceRoot);
 }
 
 describe("desktop MCP settings", () => {
@@ -80,6 +69,51 @@ describe("desktop MCP settings", () => {
 				transportIdentityUnchanged: false,
 			}),
 		).toBe(true);
+	});
+
+	it("resolves the settings file through the shared resolver (honors CLINE_DATA_DIR)", async () => {
+		// Regression test for cline/cline#14152: the sidecar used to carry its
+		// own homedir-based resolver next to the shared one, so commands could
+		// read and write different files once CLINE_DIR/CLINE_DATA_DIR (or a
+		// HOME override) came into play.
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-datadir-"));
+		const previousDataDir = process.env.CLINE_DATA_DIR;
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_DATA_DIR = tempRoot;
+		delete process.env.CLINE_MCP_SETTINGS_PATH;
+		try {
+			const expectedPath = join(
+				tempRoot,
+				"settings",
+				"cline_mcp_settings.json",
+			);
+			const ensuredPath = (await handleCommand(
+				createContext(tempRoot),
+				"ensure_mcp_settings_file",
+				{},
+			)) as string;
+			expect(ensuredPath).toBe(expectedPath);
+			expect(JSON.parse(await readFile(expectedPath, "utf8"))).toEqual({
+				mcpServers: {},
+			});
+
+			const response = (await handleCommand(
+				createContext(tempRoot),
+				"list_mcp_servers",
+				{},
+			)) as JsonRecord;
+			expect(response.settingsPath).toBe(expectedPath);
+		} finally {
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR;
+			} else {
+				process.env.CLINE_DATA_DIR = previousDataDir;
+			}
+			if (previousSettingsPath !== undefined) {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("keeps an unchanged enabled remote server enabled when saving metadata", async () => {

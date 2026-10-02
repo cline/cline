@@ -18,6 +18,7 @@ import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
@@ -35,6 +36,7 @@ import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "../../services/session-data";
+import { readImportedFromMetadata } from "../../services/session-import/service";
 import {
 	emitMentionTelemetry,
 	emitSessionCreationTelemetry,
@@ -62,7 +64,10 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
-import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import {
+	readSessionHistoryOriginMetadata,
+	withSessionHistoryOriginMetadata,
+} from "../../session/history-origin";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -122,6 +127,7 @@ import {
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
 import type {
+	ListSessionsOptions,
 	PendingPromptsServiceApi,
 	ResolvedStartSessionInput,
 	RestoreSessionInput,
@@ -307,7 +313,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultLogger = options.logger;
-		this.defaultTelemetry?.setDistinctId(distinctId);
+		// A caller-owned telemetry service may already be identified to an
+		// authenticated account (the long-lived Hub daemon is one example).
+		// Only replace that identity when the caller explicitly supplied the
+		// runtime distinct id. ClineCore always does so through host.ts.
+		if (options.distinctId !== undefined) {
+			this.defaultTelemetry?.setDistinctId(distinctId);
+		}
 		this.defaultFetch = options.fetch;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
@@ -317,6 +329,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
+			steerFirst: async (input) =>
+				this.pendingPromptsController.steerFirst(input.sessionId),
 			list: async (input) =>
 				this.pendingPromptsController.list(input.sessionId),
 			update: async (input) => this.pendingPromptsController.update(input),
@@ -547,10 +561,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method: string, ...args: unknown[]) =>
 				this.invokeOptional(method, ...args),
 		};
+		// A resumed session keeps the provenance it was initiated with
+		// (automation trigger, import source): the start input's metadata
+		// always carries a default "user" origin, which would otherwise
+		// overwrite the stored one on the next metadata write. An explicit
+		// mode on the start input replaces the stored origin entirely.
+		const resumedOrigin = readSessionHistoryOriginMetadata(
+			resumedArtifacts?.manifest.metadata,
+		);
+		const sessionOrigin = readSessionHistoryOriginMetadata(
+			withSessionHistoryOriginMetadata(startInput.sessionMetadata, {
+				mode: startInput.mode ?? resumedOrigin?.mode,
+				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
+			}),
+		);
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
+			sessionOrigin,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
@@ -607,7 +636,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				bootstrap.gitState,
 			),
 			{
-				mode: startInput.mode,
+				mode: sessionOrigin?.mode,
+				trigger: sessionOrigin?.trigger,
 				version: bootstrap.config.extensionContext?.client?.version,
 			},
 		);
@@ -648,9 +678,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const extensions = runtime.extensions ?? bootstrap.extensions;
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
-		const compact = createContextCompactionPrepareTurn(configWithProvider);
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
+		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
+		// Resuming an imported session summarizes the foreign transcript before
+		// the model sees it. The summary persists to the compaction sidecar and
+		// the policy stands down once that sidecar projects, so it applies once
+		// per session and again only if the sidecar has gone stale.
+		const importedFrom = isReadOnlyResumeStart
+			? readImportedFromMetadata(manifest.metadata)
+			: undefined;
+		const compact = importedFrom
+			? createImportedHistoryCompactionPrepareTurn({
+					config: configWithProvider,
+					importedFrom: importedFrom.tool,
+					next: autoCompact,
+				})
+			: autoCompact;
 		// A compaction sidecar must keep projecting into the working context even
 		// when auto-compaction is disabled (`compact` undefined): manual /compact
 		// persists a sidecar and promises the next turn will use it. The
@@ -1009,6 +1053,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<RestoreSessionResult> {
 		return this.sessionVersioning.restoreCheckpoint({
 			...input,
+			telemetry: this.defaultTelemetry,
 			getSession: (sessionId) => this.getSession(sessionId),
 			readMessages: (sessionId) => this.readSessionMessages(sessionId),
 			buildStartInput: (context, startInput) => {
@@ -1231,8 +1276,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
-	async listSessions(limit = 200): Promise<SessionRecord[]> {
-		const rows = await this.listRows(limit);
+	async listSessions(
+		limit = 200,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const rows = await this.listRows(limit, options);
 		const persisted = rows.map(toSessionRecord);
 		const seen = new Set(persisted.map((row) => row.sessionId));
 		for (const active of this.sessions.values()) {
@@ -1267,16 +1315,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
-		return { updated: result?.updated === true };
+		const result = await this.invokeOptionalValue<{
+			updated: boolean;
+			metadata?: SessionManifest["metadata"] | null;
+		}>("updateSession", {
+			sessionId,
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			title: updates.title,
+		});
+		const updated = result?.updated === true;
+		if (updated && result.metadata !== undefined) {
+			const active = this.sessions.get(sessionId.trim());
+			if (active) {
+				active.sessionMetadata = result.metadata ?? undefined;
+				if (active.artifacts)
+					active.artifacts.manifest.metadata = active.sessionMetadata;
+			}
+		}
+		return { updated };
 	}
 
 	async updateSessionCompactionState(
@@ -1684,6 +1741,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<AgentResult> {
+		// An abort that arrived between turns targeted a run that had already
+		// ended; only aborts issued from here on belong to this turn.
+		session.aborting = false;
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;
@@ -1884,9 +1944,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		try {
-			const runFn = shouldContinue
-				? () => session.agent.continue(prompt, userImages, userFiles)
-				: () => session.agent.run(prompt, userImages, userFiles);
+			const runFn = () => {
+				const run = shouldContinue
+					? session.agent.continue(prompt, userImages, userFiles)
+					: session.agent.run(prompt, userImages, userFiles);
+				// The agent drops abort() while it has no run in flight, so a Stop
+				// that landed during this turn's preparation (persistence, git
+				// metadata, credential sync) never reached it and the turn would
+				// run to completion behind a UI that already shows it stopped.
+				// Re-issue the abort now that the run exists.
+				if (session.aborting) {
+					session.agent.abort(new Error("Run aborted before it started"));
+				}
+				return run;
+			};
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,
@@ -2000,7 +2071,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "submit_and_exit",
@@ -2048,7 +2119,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		captureTaskCompleted(session.config.telemetry, {
 			ulid: session.sessionId,
 			provider: session.config.providerId,
-			modelId: session.config.modelId,
+			model: session.config.modelId,
 			mode: session.config.mode,
 			durationMs: Date.now() - Date.parse(session.startedAt),
 			source: "shutdown",
@@ -2116,6 +2187,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId: session.sessionId,
 			source: session.source,
 			pid: process.pid,
+			// Seeded sessions (forks, checkpoint restores) materialize at start
+			// while idle; the service otherwise defaults the row to "running",
+			// and a later restore that reuses the id resumes from that stale
+			// manifest status and reports a turn that never existed.
+			status: session.status,
 			interactive: session.interactive,
 			provider: session.config.providerId,
 			model: session.config.modelId,
@@ -2638,10 +2714,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.events.emit(event);
 	}
 
-	private async listRows(limit: number): Promise<SessionRow[]> {
+	private async listRows(
+		limit: number,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRow[]> {
 		return this.invoke<SessionRow[]>(
 			"listSessions",
 			Math.min(Math.max(1, Math.floor(limit)), MAX_SCAN_LIMIT),
+			options,
 		);
 	}
 

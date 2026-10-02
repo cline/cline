@@ -83,12 +83,18 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
+		rootOnly?: boolean;
 	}): Promise<SessionRow[]> {
 		const whereClauses: string[] = [];
 		const params: unknown[] = [];
 		if (options.parentSessionId) {
 			whereClauses.push("parent_session_id = ?");
 			params.push(options.parentSessionId);
+		}
+		if (options.rootOnly) {
+			whereClauses.push(
+				"is_subagent = 0 AND (parent_session_id IS NULL OR parent_session_id = '')",
+			);
 		}
 		if (options.status) {
 			whereClauses.push("status = ?");

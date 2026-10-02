@@ -1,4 +1,8 @@
-import type { AutomationEventEnvelope, BasicLogger } from "@cline/shared";
+import type {
+	AutomationEventEnvelope,
+	BasicLogger,
+	ITelemetryService,
+} from "@cline/shared";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
 import {
 	CronEventIngress,
@@ -41,6 +45,7 @@ export interface CronServiceOptions {
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	dbPath?: string;
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 	pollIntervalMs?: number;
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
@@ -76,6 +81,7 @@ export class CronService {
 			workspaceRoot: options.workspaceRoot,
 			specs,
 			logger: options.logger,
+			telemetry: options.telemetry,
 			pollIntervalMs: options.pollIntervalMs,
 			claimLeaseSeconds: options.claimLeaseSeconds,
 			globalMaxConcurrency: options.globalMaxConcurrency,

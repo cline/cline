@@ -1,15 +1,14 @@
 import { Logger } from "@/shared/services/Logger"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
+import { readCurrentMessages, type SdkInitialMessages, type SdkSessionHost } from "./session-host"
 
 export class SdkSessionHistoryLoader {
 	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<SdkInitialMessages | undefined> {
 		try {
-			// Prefer the live in-memory conversation: the persisted transcript
-			// only catches up at turn boundaries, so a rebuild right after
-			// aborting a turn (e.g. a plan/act mode switch mid-approval) would
-			// otherwise read an empty file and drop the task context.
-			const sdkMessages = await (sessionHost.readLiveMessages?.(taskId) ?? sessionHost.readMessages(taskId))
+			// A rebuild right after aborting a turn (e.g. a plan/act mode switch
+			// mid-approval) would read an empty persisted transcript and drop
+			// the task context, so read the current conversation.
+			const sdkMessages = await readCurrentMessages(sessionHost, taskId)
 			if (sdkMessages.length > 0) {
 				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(sdkMessages)
 				if (sanitizedMessages !== sdkMessages) {

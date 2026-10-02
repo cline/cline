@@ -2,6 +2,10 @@ import {
 	type AgentEvent,
 	type AgentHooks,
 	type CheckpointEntry,
+	type CoreSettingsListInput,
+	type CoreSettingsMutationResult,
+	type CoreSettingsSnapshot,
+	type CoreSettingsToggleInput,
 	createSessionCompactionState,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
@@ -297,6 +301,19 @@ export function createInteractiveSessionRuntime(input: {
 			throw error;
 		});
 		return await startupPromise;
+	};
+
+	const listCoreSettings = async (
+		settingsInput: CoreSettingsListInput,
+	): Promise<CoreSettingsSnapshot> => {
+		const manager = await ensureSessionManager();
+		return await manager.settings.list(settingsInput);
+	};
+	const toggleCoreSettings = async (
+		settingsInput: CoreSettingsToggleInput,
+	): Promise<CoreSettingsMutationResult> => {
+		const manager = await ensureSessionManager();
+		return await manager.settings.toggle(settingsInput);
 	};
 
 	const readCurrentMessages = async (): Promise<CurrentMessagesRead> => {
@@ -883,6 +900,8 @@ export function createInteractiveSessionRuntime(input: {
 
 	return {
 		ensureReady,
+		listCoreSettings,
+		toggleCoreSettings,
 		sendCurrentTurn,
 		updatePendingPrompt,
 		getAccumulatedUsage,

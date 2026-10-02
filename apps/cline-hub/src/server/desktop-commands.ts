@@ -109,7 +109,9 @@ export async function handleDesktopCommand(
 		const provider = String(args?.provider ?? "").trim();
 		return await getLocalProviderModels(
 			provider,
-			providerSettingsManager.getProviderConfig(provider),
+			providerSettingsManager.getProviderConfig(provider, {
+				includeKnownModels: false,
+			}),
 		);
 	}
 	if (command === "save_provider_settings") {

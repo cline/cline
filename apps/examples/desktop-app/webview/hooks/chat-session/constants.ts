@@ -1,8 +1,15 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
+import {
+	type ExecutionTarget,
+	readExecutionTargetFromWindow,
+	readModelSelectionStorageFromWindow,
+} from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
-import { readWorkspaceSelectionFromWindow } from "@/lib/workspace-paths";
+import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+	readWorkspaceSelectionFromWindow,
+} from "@/lib/workspace-paths";
 
 export const CHAT_TRANSPORT_UNAVAILABLE_MESSAGE =
 	"Chat connection is unavailable. Reopen the app window to restore realtime chat.";
@@ -15,8 +22,11 @@ export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-co
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
+	executionTarget: "local",
+	repoUrl: undefined,
 	workspaceRoot: "",
 	cwd: "",
+	environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	provider: "cline",
 	model: CLINE_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY || "",
@@ -31,9 +41,12 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	missionTimeIntervalMs: undefined,
 };
 
-export function getInitialChatConfig(): ChatSessionConfig {
+export function getInitialChatConfig(
+	environmentId: string,
+	options?: { executionTarget?: ExecutionTarget },
+): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
-	const workspaceSelection = readWorkspaceSelectionFromWindow();
+	const workspaceSelection = readWorkspaceSelectionFromWindow(environmentId);
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
 	const rememberedModelForProvider = rememberedProvider
 		? (selection.lastModelByProvider[rememberedProvider] ??
@@ -49,11 +62,33 @@ export function getInitialChatConfig(): ChatSessionConfig {
 			: undefined) ||
 		DEFAULT_CHAT_CONFIG.model;
 
-	return {
+	const local: ChatSessionConfig = {
 		...DEFAULT_CHAT_CONFIG,
+		environmentId,
 		provider,
 		model,
 		workspaceRoot: workspaceSelection.lastWorkspace,
 		cwd: workspaceSelection.lastWorkspace,
+	};
+	// Cloud preferences apply only to the local environment.
+	const executionTarget =
+		options?.executionTarget ??
+		(environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? readExecutionTargetFromWindow()
+			: "local");
+	if (executionTarget !== "cloud") {
+		return local;
+	}
+	return {
+		...local,
+		executionTarget: "cloud",
+		provider: DEFAULT_CHAT_CONFIG.provider,
+		model:
+			readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
+			(provider === DEFAULT_CHAT_CONFIG.provider
+				? model
+				: DEFAULT_CHAT_CONFIG.model),
+		workspaceRoot: "",
+		cwd: "",
 	};
 }

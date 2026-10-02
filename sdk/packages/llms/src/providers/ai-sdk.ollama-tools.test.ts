@@ -125,7 +125,7 @@ function metadataFetch(
 	) => OllamaCapabilities | Promise<OllamaCapabilities>,
 ): typeof fetch {
 	return vi.fn(async (input, init) => {
-		expect(String(input)).toBe("http://localhost:11434/api/show");
+		expect(String(input)).toBe("http://127.0.0.1:11434/api/show");
 		const { model } = JSON.parse(String(init?.body)) as { model: string };
 		const capabilities = await resolveCapabilities(model);
 		return Response.json(capabilities ? { capabilities } : {});

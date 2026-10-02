@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
+import { claudeCodeProjectsDir } from "./paths";
+
 import {
 	type ConvertedImportedSession,
 	type ImportableSessionSummary,
@@ -216,7 +217,7 @@ function reconstructThread(lines: ClaudeCodeLine[]): ClaudeCodeLine[] {
 }
 
 export interface ClaudeCodeAdapterOptions {
-	/** Defaults to ~/.claude/projects */
+	/** Defaults to $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects */
 	projectsDir?: string;
 }
 
@@ -225,8 +226,7 @@ export class ClaudeCodeImportAdapter implements SessionImportAdapter {
 	private readonly projectsDir: string;
 
 	constructor(options: ClaudeCodeAdapterOptions = {}) {
-		this.projectsDir =
-			options.projectsDir ?? join(homedir(), ".claude", "projects");
+		this.projectsDir = options.projectsDir ?? claudeCodeProjectsDir();
 	}
 
 	isInstalled(): boolean {
