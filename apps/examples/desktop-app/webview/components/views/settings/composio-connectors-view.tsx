@@ -81,7 +81,7 @@ export function ConnectorLogo({
 	className?: string;
 }) {
 	const [failed, setFailed] = useState(false);
-	if (logo && !failed) {
+	if (!failed) {
 		return (
 			// biome-ignore lint/performance/noImgElement: Composio logos live on arbitrary remote hosts Next's optimizer is not configured for.
 			<img
@@ -90,12 +90,12 @@ export function ConnectorLogo({
 				// visible on dark tiles.
 				className={`${className} rounded-sm bg-white object-contain p-px`}
 				onError={() => setFailed(true)}
-				src={logo}
+				src={logo || composioLogoUrl(slug)}
 			/>
 		);
 	}
-	// Themed fallbacks for the recommended toolkits when the catalog (and its
-	// official logos) has not loaded yet.
+	// Themed fallbacks for the recommended toolkits when the logo can't load
+	// (offline, for one).
 	const LocalIcon = FALLBACK_ICONS[slug];
 	if (LocalIcon) {
 		return <LocalIcon className={className} />;
@@ -861,7 +861,7 @@ function RecipeCard({
 					const logo = (
 						<ConnectorLogo
 							className="size-3.5"
-							logo={summary?.logo ?? composioLogoUrl(connector.slug)}
+							logo={summary?.logo}
 							name={connector.name}
 							slug={connector.slug}
 						/>

@@ -1,4 +1,5 @@
 import { BadgeCheck, Check, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** Presentation for one marketplace primitive type (skill, MCP, ...). */
@@ -58,6 +59,7 @@ export function MarketplaceListRow({
 	name,
 	description,
 	meta,
+	icon,
 	showType = false,
 	verified = false,
 	installed,
@@ -67,6 +69,8 @@ export function MarketplaceListRow({
 	name: string;
 	description?: string;
 	meta: MarketplaceTypeMeta;
+	/** Replaces the type glyph, e.g. with a connector's own logo. */
+	icon?: ReactNode;
 	/** Show the type pill (useful when rows of mixed types sit together). */
 	showType?: boolean;
 	verified?: boolean;
@@ -83,7 +87,7 @@ export function MarketplaceListRow({
 			onClick={onSelect}
 			type="button"
 		>
-			<MarketplaceTypeGlyph className="size-7" meta={meta} />
+			{icon ?? <MarketplaceTypeGlyph className="size-7" meta={meta} />}
 			<span className="min-w-0 flex-1">
 				<span className="flex min-w-0 items-center gap-1.5">
 					<span className="truncate text-sm font-medium text-foreground">

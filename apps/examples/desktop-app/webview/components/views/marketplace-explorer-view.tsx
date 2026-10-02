@@ -40,7 +40,10 @@ import {
 	type MarketplaceTypeMeta,
 	MarketplaceTypePill,
 } from "./marketplace-list-row";
-import { ComposioConnectorsView } from "./settings/composio-connectors-view";
+import {
+	ComposioConnectorsView,
+	ConnectorLogo,
+} from "./settings/composio-connectors-view";
 
 /**
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
@@ -876,6 +879,16 @@ export function MarketplaceExplorerView({
 										<MarketplaceListRow
 											name={entry.name}
 											description={entry.description}
+											icon={
+												<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary">
+													<ConnectorLogo
+														className="size-4"
+														logo={entry.logo}
+														name={entry.name}
+														slug={entry.slug}
+													/>
+												</span>
+											}
 											meta={TYPE_META.connector}
 											showType={showTypePills}
 											installed={status === "connected"}
