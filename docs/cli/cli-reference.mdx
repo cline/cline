@@ -48,20 +48,24 @@ Options:
   -h, --help                   display help for command
 
 Commands:
-  auth [options] [provider]    Authenticate a provider and configure what model is used
-  config [options]             Show current configuration
-  connect [options] [adapter]  Connect to an editor or IDE adapter
-  mcp                          Manage MCP servers
-  dev                          Developer tools and utilities
-  doctor                       Diagnose and fix configuration issues
-  history|h [options]          List session history or manage saved sessions
-  hook                         Handle a hook payload from stdin
-  plugin                       Manage Cline Plugins
-  schedule                     Manage scheduled tasks
-  hub                          Manage the local hub daemon
-  update [options]             Check for updates and install if available
-  version                      Show Cline CLI version number
-  kanban                       Launch the kanban app and exit
+  auth [options] [provider]          Authenticate a provider and configure what model is used
+  config [options]                   Show current configuration
+  connect [options] [adapter]        Connect to an editor or IDE adapter
+  mcp                                Manage MCP servers
+  dev                                Developer tools and utilities
+  doctor                             Diagnose and fix configuration issues
+  history|h [options]                List session history or manage saved sessions
+  hook                               Handle a hook payload from stdin
+  plugin                             Manage Cline Plugins
+  install|i [options] <source>       Install a Cline Plugin from an official keyword, npm, git, URL, or a local path
+  uninstall|remove [options] <name>  Uninstall a Cline Plugin by name or path
+  skill [args...]                    Manage Cline Skills via the open skills CLI (npx skills)
+  schedule                           Manage scheduled tasks
+  hub                                Manage the local hub daemon
+  dashboard [options]                Start the Cline Hub dashboard and open it in a browser
+  update [options]                   Check for updates and install if available
+  version                            Show Cline CLI version number
+  kanban                             Launch the kanban app and exit
 ```
 
 ## Global Options
@@ -192,6 +196,30 @@ Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescri
 cline plugin install https://github.com/cline/typescript-lsp-plugin.git
 ```
 
+### `install|i [options] <source>`
+
+Install a Cline Plugin from an official keyword, npm, git, URL, or a local path.
+
+```bash
+cline install <source>
+```
+
+### `uninstall|remove [options] <name>`
+
+Uninstall a Cline Plugin by name or path.
+
+```bash
+cline uninstall <name>
+```
+
+### `skill [args...]`
+
+Manage Cline Skills via the open skills CLI (`npx skills`).
+
+```bash
+cline skill
+```
+
 ### `schedule`
 
 Manage scheduled agents. See [Scheduling](/cli/scheduling).
@@ -206,6 +234,14 @@ Manage the local hub daemon.
 
 ```bash
 cline hub
+```
+
+### `dashboard [options]`
+
+Start the Cline Hub dashboard and open it in a browser.
+
+```bash
+cline dashboard
 ```
 
 ### `update [options]`
