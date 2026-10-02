@@ -45,53 +45,27 @@ export function WhatsNewDialog({
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogContent
 				aria-describedby={undefined}
-				className="gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[560px] [&_[data-slot=dialog-close]]:text-white"
+				className="gap-0 overflow-hidden rounded-2xl p-0 outline-none sm:max-w-[560px] [&_[data-slot=dialog-close]]:text-white"
+				// Focus the dialog itself so the first control doesn't open looking selected.
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					(event.currentTarget as HTMLElement).focus();
+				}}
 			>
 				<div
 					className="flex min-h-42 flex-col justify-end px-6 pt-10 pb-5.5"
 					style={{ background: HERO_BACKGROUND }}
 				>
-					{spotlight ? (
-						<div className="mb-6 flex gap-2.5">
-							{SPOTLIGHT_CONNECTORS.map((connector, index) => (
-								<span
-									className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-									key={connector.slug}
-									style={{
-										animationDelay: `${index * 60}ms`,
-										animationFillMode: "both",
-									}}
-								>
-									<ConnectorLogo
-										className="size-10 rounded-xl p-2 shadow-lg shadow-black/25"
-										name={connector.name}
-										slug={connector.slug}
-									/>
-								</span>
-							))}
-						</div>
-					) : null}
-					<p className="flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[oklch(0.88_0.09_315)]">
+					<p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[oklch(0.88_0.09_315)]">
 						What's new in Cline
-						{spotlight ? (
-							<span className="rounded-full border border-white/25 px-1.5 py-px text-[10px] tracking-[0.06em] text-white/85">
-								Beta
-							</span>
-						) : null}
 					</p>
 					<DialogTitle className="mt-1.5 text-2xl font-semibold tracking-tight text-white">
 						{release.title}
 					</DialogTitle>
-					{spotlight ? (
-						<p className="mt-2 text-sm leading-relaxed text-white/75">
-							Gmail, Slack, Calendar, Linear, Notion, and hundreds more, in one
-							click. Cline pulls context from them and acts on your behalf.
-						</p>
-					) : null}
 				</div>
 				<div className="px-6 pt-5 pb-5">
 					{spotlight ? (
-						<ConnectorsTryIt />
+						<ConnectorsSpotlight onOpenConnectors={onOpenConnectors} />
 					) : (
 						<ul className="grid grid-cols-2 gap-x-6 gap-y-5">
 							{release.highlights.map((highlight) => (
@@ -139,35 +113,73 @@ export function WhatsNewDialog({
 	);
 }
 
-function ConnectorsTryIt() {
+function ConnectorsSpotlight({
+	onOpenConnectors,
+}: {
+	onOpenConnectors: () => void;
+}) {
 	const recipe = COMPOSIO_RECIPES.find(
 		(candidate) => candidate.id === "organize-your-day",
 	);
-	if (!recipe) return null;
 	return (
-		<div>
-			<p className="text-xs font-medium text-muted-foreground">Try asking</p>
-			<div className="mt-2 rounded-xl border bg-muted/30 p-4">
-				<p className="text-sm font-semibold text-foreground">{recipe.title}</p>
-				<p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-					&ldquo;{recipe.prompt}&rdquo;
-				</p>
-				<div className="mt-3 flex flex-wrap gap-1.5">
-					{recipe.connectors.map((connector) => (
-						<span
-							className="inline-flex h-6 items-center gap-1.5 rounded-md border bg-background px-2 text-xs text-foreground"
-							key={connector.slug}
-						>
-							<ConnectorLogo
-								className="size-3.5"
-								name={connector.name}
-								slug={connector.slug}
-							/>
-							{connector.name}
-						</span>
-					))}
-				</div>
+		<div className="grid gap-4">
+			<div className="flex gap-2">
+				{SPOTLIGHT_CONNECTORS.map((connector, index) => (
+					<span
+						className="animate-in fade-in slide-in-from-bottom-2 duration-500"
+						key={connector.slug}
+						style={{
+							animationDelay: `${index * 60}ms`,
+							animationFillMode: "both",
+						}}
+					>
+						<ConnectorLogo
+							className="size-9 rounded-lg border p-1.5 shadow-xs"
+							name={connector.name}
+							slug={connector.slug}
+						/>
+					</span>
+				))}
 			</div>
+			<p className="text-sm leading-relaxed text-muted-foreground">
+				Gmail, Slack, Calendar, Linear, Notion, and hundreds more, in one click.
+				Cline pulls context from them and acts on your behalf.
+			</p>
+			{recipe ? (
+				<button
+					className="group grid cursor-pointer gap-1 rounded-xl border bg-muted/30 p-4 text-left transition-colors hover:border-foreground/20 hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+					onClick={onOpenConnectors}
+					type="button"
+				>
+					<span className="flex items-center justify-between">
+						<span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+							Example
+						</span>
+						<ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+					</span>
+					<span className="text-sm font-semibold text-foreground">
+						{recipe.title}
+					</span>
+					<span className="text-sm leading-relaxed text-muted-foreground">
+						&ldquo;{recipe.prompt}&rdquo;
+					</span>
+					<span className="mt-2 flex flex-wrap gap-1.5">
+						{recipe.connectors.map((connector) => (
+							<span
+								className="inline-flex h-6 items-center gap-1.5 rounded-md border bg-background px-2 text-xs text-foreground"
+								key={connector.slug}
+							>
+								<ConnectorLogo
+									className="size-3.5"
+									name={connector.name}
+									slug={connector.slug}
+								/>
+								{connector.name}
+							</span>
+						))}
+					</span>
+				</button>
+			) : null}
 		</div>
 	);
 }
