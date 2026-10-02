@@ -109,6 +109,10 @@ direct exporter, and `CLINE_LANGFUSE_TAGS` (comma-separated) plus
 `CLINE_LANGFUSE_METADATA` (JSON object or `key=value,...`) add trace-level tags
 and metadata to every trace the process emits, on both the direct and relay paths.
 
+Scope on every path, Cline providers included: streamed language requests only.
+Dedicated image-generation requests use the AI SDK's `generateImage`, which has
+no telemetry option and no Langfuse integration hook, so they emit no trace.
+
 ## Cross-repository fixture and staging acceptance
 
 The real-stream integration test includes synthetic generation, step and tool

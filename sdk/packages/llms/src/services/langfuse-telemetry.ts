@@ -189,6 +189,11 @@ const TELEMETRY_DISABLED: AiSdkTelemetryDecision = { isEnabled: false };
  * `CLINE_LANGFUSE_ALL_PROVIDERS` and supplies direct `LANGFUSE_*` credentials.
  * They never ride the host relay, so BYOK prompts cannot reach a collector the
  * operator did not configure themselves.
+ *
+ * Scope, for every provider: streamed language requests only. Dedicated image
+ * generation goes through the AI SDK's `generateImage`, which takes no
+ * telemetry option and has no Langfuse integration hook, so it returns before
+ * this decision runs and emits no trace.
  */
 export async function resolveAiSdkTelemetry(
 	providerId: string,
