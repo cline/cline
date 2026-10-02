@@ -153,20 +153,21 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 	return (
 		<>
 			<div
-				className={cn("mb-2.5 transition-all duration-300 ease-in-out", {
-					"opacity-100": isExpanded,
-					"opacity-70 hover:opacity-100": !isExpanded,
-				})}
+				className="mb-2.5"
 				onClick={() => !isExpanded && ruleType !== "hook" && setIsExpanded(true)}
 				ref={(node) => {
 					componentRef.current = node
 					setDropdownContainer(node)
 				}}>
+				{/* The dimming styles live here rather than on the outer div: the
+				    outer div is the portal container for the hook-type dropdown,
+				    and opacity there would make the dropdown menu translucent. */}
 				<div
 					className={cn(
 						"flex items-center px-2 py-4 rounded bg-input-background transition-all duration-300 ease-in-out h-5",
 						{
-							"shadow-sm": isExpanded,
+							"shadow-sm opacity-100": isExpanded,
+							"opacity-70 hover:opacity-100": !isExpanded,
 						},
 					)}>
 					{ruleType === "hook" ? (
