@@ -1,5 +1,10 @@
 # Cline Desktop Changelog
 
+## 0.0.43
+
+- Existing users get a one-time **What's new** dialog introducing Connectors, with connector logos, a clickable example prompt, and an **Open Connectors** button. You can replay it from **Settings → About → Show what's new**
+- The **What's new** dialog now scrolls when the window is too short to fit it
+
 ## 0.0.42
 
 - New `/compact` slash command. It summarizes the conversation so far to free up context. The summary uses your session's provider settings and is not sent to the model as a prompt
