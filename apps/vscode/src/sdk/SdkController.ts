@@ -367,6 +367,7 @@ export class Controller {
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
+			beforeModelRequest: () => this.providerChanges.applyPendingConnectionUpdateBeforeModelRequest(),
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
 			getCwd: () => this.getWorkspaceRoot(),
@@ -412,6 +413,11 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
+			onDidEndActiveSession: () => this.handleActiveSessionRemoved(),
+			onActiveSessionReplacementStarted: (activeSession) =>
+				this.providerChanges.handleActiveSessionReplacementStarted(activeSession),
+			onActiveSessionReplacementFinished: (activeSession) =>
+				this.providerChanges.handleActiveSessionReplacementFinished(activeSession),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
@@ -578,7 +584,10 @@ export class Controller {
 			messages: this.messages,
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
+			waitForPendingRebuilds: () => this.flushPendingProviderChangesAndWaitForRebuilds(),
+			applyPendingProviderConnection: () => this.providerChanges.applyPendingConnectionUpdateBeforeModelRequest(),
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
+			onFollowUpStarting: () => this.ensureFollowUpStartingState(),
 			getTask: () => this.task,
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
@@ -729,11 +738,30 @@ export class Controller {
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
 		this.scheduleProviderConfigStatePost()
 
-		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
+		if (event.kind === "fields") {
+			this.providerChanges.handleProviderConfigFieldsChanged(event.providerId)
+		} else if (this.isSelectionForActiveModeProvider(event)) {
 			this.sessions
 				?.updateActiveSessionModel(event.selection.modelId)
 				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
 		}
+	}
+
+	private async flushPendingProviderChangesAndWaitForRebuilds(): Promise<void> {
+		this.providerChanges.flushPendingProviderFieldsRebuild()
+		await this.sessionRebuilds.waitUntilSettled()
+	}
+
+	private ensureFollowUpStartingState(): void {
+		if (this.turnStateTracker.currentPhase === "streaming") {
+			return
+		}
+
+		this.turnStateTracker.set("streaming")
+		this.messageTranslatorState.clearTurnOutcome()
+		this.postStateToWebview().catch((error) => {
+			Logger.error("[SdkController] Failed to post state after delayed follow-up phase change:", error)
+		})
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
@@ -750,6 +778,10 @@ export class Controller {
 
 	private handleSessionBecameIdle(): void {
 		this.sessionRebuilds?.sessionBecameIdle()
+	}
+
+	private handleActiveSessionRemoved(): void {
+		this.sessionRebuilds?.activeSessionRemoved()
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {

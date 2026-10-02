@@ -35,6 +35,7 @@ interface ScheduledRebuild {
 export class SdkSessionRebuildScheduler {
 	private readonly pending = new Map<SessionRebuildReason, ScheduledRebuild>()
 	private drainInFlight: Promise<void> | undefined
+	private readonly stateWaiters = new Set<() => void>()
 	private readonly latestGeneration = new Map<SessionRebuildReason, number>()
 
 	constructor(private readonly options: SdkSessionRebuildSchedulerOptions) {}
@@ -49,6 +50,12 @@ export class SdkSessionRebuildScheduler {
 		this.latestGeneration.set(reason, generation)
 		this.pending.set(reason, { run, generation })
 		this.drainIfIdle()
+	}
+
+	cancel(reason: SessionRebuildReason): void {
+		if (this.pending.delete(reason)) {
+			this.notifyStateChanged()
+		}
 	}
 
 	async runExclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -68,6 +75,7 @@ export class SdkSessionRebuildScheduler {
 				this.drainInFlight = undefined
 			}
 			this.drainIfIdle()
+			this.notifyStateChanged()
 		}
 	}
 
@@ -86,6 +94,49 @@ export class SdkSessionRebuildScheduler {
 
 	sessionBecameIdle(): void {
 		this.drainIfIdle()
+		this.notifyStateChanged()
+	}
+
+	/** Wakes settlement barriers when the lifecycle removes the active session. */
+	activeSessionRemoved(): void {
+		this.notifyStateChanged()
+	}
+
+	async waitUntilSettled(): Promise<void> {
+		while (true) {
+			if (this.drainInFlight) {
+				await this.drainInFlight
+				continue
+			}
+			if (this.pending.size === 0) {
+				return
+			}
+
+			const activeSession = this.options.sessions.getActiveSession()
+			if (!activeSession) {
+				// There is no existing session to rebuild. A future session will
+				// start from current configuration, so discard callbacks bound to
+				// the vanished session instead of running them against the future one.
+				this.pending.clear()
+				this.notifyStateChanged()
+				return
+			}
+			if (isIdle(activeSession)) {
+				this.drainIfIdle()
+				continue
+			}
+
+			// Registration is synchronous with the state checks above, so an idle
+			// or cancel notification cannot be lost between checking and waiting.
+			await new Promise<void>((resolve) => this.stateWaiters.add(resolve))
+		}
+	}
+
+	private notifyStateChanged(): void {
+		for (const resolve of this.stateWaiters) {
+			resolve()
+		}
+		this.stateWaiters.clear()
 	}
 
 	private drainIfIdle(): void {
@@ -122,6 +173,7 @@ export class SdkSessionRebuildScheduler {
 		this.drainInFlight = drain().finally(() => {
 			this.drainInFlight = undefined
 			this.drainIfIdle()
+			this.notifyStateChanged()
 		})
 	}
 }
