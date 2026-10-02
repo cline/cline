@@ -1891,7 +1891,7 @@ describe("default editor tool", () => {
 			"required for edits to existing files",
 		);
 		expect(schema.properties?.old_text?.description).toContain(
-			"unique exact substring copied from the current file contents",
+			"small, exact, unique substring from the current file contents",
 		);
 		expect(editorTool.description).toContain(
 			"for an existing file, `old_text` is required",
