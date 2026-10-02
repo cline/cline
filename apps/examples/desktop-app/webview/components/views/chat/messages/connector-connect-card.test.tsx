@@ -80,9 +80,16 @@ describe("ConnectorConnectCards", () => {
 
 		expect(container.textContent).toContain("Gmail");
 		expect(container.textContent).toContain("Read, search, draft");
-		// Only the cheap local read before the user acts.
-		expect(fetchComposioStatus).toHaveBeenCalledTimes(1);
-		expect(fetchComposioStatus).toHaveBeenCalledWith(undefined);
+		// A local read, then one reconciliation with Composio; no polling
+		// before the user acts.
+		expect(fetchComposioStatus.mock.calls).toEqual([
+			[undefined],
+			[{ refresh: true }],
+		]);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(12_000);
+		});
+		expect(fetchComposioStatus).toHaveBeenCalledTimes(2);
 
 		await act(async () => {
 			connectButton()?.click();
@@ -94,6 +101,7 @@ describe("ConnectorConnectCards", () => {
 		await act(async () => {
 			await vi.advanceTimersByTimeAsync(4_000);
 		});
+		expect(fetchComposioStatus).toHaveBeenCalledTimes(3);
 		expect(fetchComposioStatus).toHaveBeenLastCalledWith({ refresh: true });
 		expect(container.textContent).toContain("Connected");
 		expect(connectButton()).toBeUndefined();
@@ -106,13 +114,16 @@ describe("ConnectorConnectCards", () => {
 		expect(fetchComposioStatus.mock.calls.length).toBe(calls);
 	});
 
-	it("shows an already connected toolkit as connected without polling", async () => {
-		fetchComposioStatus.mockResolvedValue(status("connected"));
+	it("shows a toolkit connected elsewhere as connected after reconciling", async () => {
+		// Local state has not seen the connection yet; the refresh imports it.
+		fetchComposioStatus.mockImplementation(async (options) =>
+			status(options?.refresh ? "connected" : "not_connected"),
+		);
 		await render();
 
 		expect(container.textContent).toContain("Connected");
 		expect(connectButton()).toBeUndefined();
-		expect(fetchComposioStatus).toHaveBeenCalledTimes(1);
+		expect(fetchComposioStatus).toHaveBeenCalledTimes(2);
 	});
 
 	it("names toolkits the status does not know about", async () => {

@@ -31,9 +31,11 @@ function connectorDisplayName(slug: string): string {
 }
 
 /**
- * Follows one toolkit's connection state: a local read on mount (so a card
- * in an older session shows what is already connected), then remote
- * reconciliation while the user is finishing the browser flow.
+ * Follows one toolkit's connection state: on mount a local read (instant)
+ * followed by one reconciliation with Composio (a toolkit connected on
+ * another device, or from a link in another session, is only known
+ * remotely), then repeated reconciliation while the user is finishing the
+ * browser flow.
  */
 function useConnectorSummary(toolkit: string, waiting: boolean) {
 	const [summary, setSummary] = useState<ComposioIntegrationSummary>();
@@ -51,9 +53,13 @@ function useConnectorSummary(toolkit: string, waiting: boolean) {
 	);
 	useEffect(() => {
 		let cancelled = false;
-		load(false).then((next) => {
+		const apply = (next: ComposioIntegrationSummary | undefined) => {
 			if (!cancelled && next) setSummary(next);
-		}, noop);
+		};
+		load(false)
+			.then(apply, noop)
+			.then(() => (cancelled ? undefined : load(true)))
+			.then(apply, noop);
 		return () => {
 			cancelled = true;
 		};
@@ -96,7 +102,11 @@ const ConnectorConnectCard = memo(function ConnectorConnectCard({
 	const [waiting, setWaiting] = useState(false);
 	const summary = useConnectorSummary(link.toolkit, waiting);
 	const connected = summary?.status === "connected";
-	const name = summary?.name ?? connectorDisplayName(link.toolkit);
+	// The status falls back to the bare slug when the catalog has not loaded.
+	const name =
+		summary?.name && summary.name !== link.toolkit
+			? summary.name
+			: connectorDisplayName(link.toolkit);
 	const description =
 		summary?.description || findRecommendedToolkit(link.toolkit)?.description;
 
@@ -118,22 +128,16 @@ const ConnectorConnectCard = memo(function ConnectorConnectCard({
 					{name}
 				</div>
 				<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-					{connected ? (
-						<span className="truncate">
-							Connected · tools are available in new sessions
-						</span>
-					) : waiting ? (
-						<>
-							<Loader2 className="size-3 shrink-0 animate-spin" />
-							<span className="truncate">
-								Finish connecting {name} in your browser…
-							</span>
-						</>
-					) : (
-						<span className="line-clamp-2">
-							{description ?? `Connect your ${name} account to Cline.`}
-						</span>
-					)}
+					{waiting && !connected ? (
+						<Loader2 className="size-3 shrink-0 animate-spin" />
+					) : null}
+					<span className="line-clamp-2">
+						{connected
+							? "Connected · tools are available in new sessions"
+							: waiting
+								? `Finish connecting ${name} in your browser…`
+								: (description ?? `Connect your ${name} account to Cline.`)}
+					</span>
 				</div>
 			</div>
 			{connected ? (
