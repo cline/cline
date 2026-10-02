@@ -45,7 +45,7 @@ export function WhatsNewDialog({
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogContent
 				aria-describedby={undefined}
-				className="gap-0 overflow-hidden rounded-2xl p-0 outline-none sm:max-w-[560px] [&_[data-slot=dialog-close]]:text-white"
+				className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto rounded-2xl p-0 outline-none sm:max-w-[560px] [&_[data-slot=dialog-close]]:text-white"
 				// Focus the dialog itself so the first control doesn't open looking selected.
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
