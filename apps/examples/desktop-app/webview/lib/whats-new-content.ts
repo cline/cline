@@ -1,8 +1,12 @@
 import {
+	Cloud,
 	GitBranchPlus,
 	GitPullRequest,
 	type LucideIcon,
 	Network,
+	PlugZap,
+	Send,
+	Sparkles,
 	Users,
 } from "lucide-react";
 
@@ -42,6 +46,36 @@ export type WhatsNewRelease = {
 };
 
 export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
+	{
+		id: "2026-10-connectors",
+		title: "Connect Cline to your apps",
+		highlights: [
+			{
+				title: "Connectors (beta)",
+				description:
+					"Connect Gmail, Slack, Calendar, Linear, Sentry, Notion and more in one click.",
+				icon: PlugZap,
+			},
+			{
+				title: "Act on your behalf",
+				description:
+					"Get a brief on what you missed, then approve the replies Cline drafts.",
+				icon: Send,
+			},
+			{
+				title: "Suggested combos",
+				description:
+					"Ready-made connector sets, like organizing your day, each with a prompt to try.",
+				icon: Sparkles,
+			},
+			{
+				title: "More cloud models",
+				description:
+					"Cloud sessions now run ClinePass and free models, same as Cline on the web.",
+				icon: Cloud,
+			},
+		],
+	},
 	{
 		id: "2026-09-remote-and-parallel",
 		title: "Work anywhere, in parallel",
