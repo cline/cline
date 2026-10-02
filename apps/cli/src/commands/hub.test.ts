@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
 	mockClearHubDiscovery,
 	mockEnsureDetachedHubServer,
+	mockEnsureLoginShellPath,
 	mockLocalHubHasNoActiveSessions,
 	mockProbeHubServer,
 	mockReadHubDiscovery,
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => ({
 	mockClearHubDiscovery: vi.fn(),
 	mockEnsureDetachedHubServer: vi.fn(),
+	mockEnsureLoginShellPath: vi.fn(async () => undefined),
 	mockLocalHubHasNoActiveSessions: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockReadHubDiscovery: vi.fn(),
@@ -31,6 +33,7 @@ const {
 vi.mock("@cline/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
+	ensureLoginShellPath: mockEnsureLoginShellPath,
 	localHubHasNoActiveSessions: mockLocalHubHasNoActiveSessions,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
@@ -273,5 +276,81 @@ describe("createHubCommand", () => {
 			discoveryPath: "/tmp/cline-data/locks/hub/owners/hub-owner.json",
 		});
 		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
+	});
+
+	it("prints the hub URL by default from ensure", async () => {
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["ensure"], { from: "user" });
+
+		expect(exitCode()).toBe(0);
+		expect(output).toEqual(["ws://127.0.0.1:25463/hub"]);
+		expect(mockEnsureLoginShellPath).not.toHaveBeenCalled();
+	});
+
+	it("starts a dedicated hub for programmatic clients with ensure --json", async () => {
+		const originalDiscoveryPath = process.env.CLINE_HUB_DISCOVERY_PATH;
+		mockEnsureDetachedHubServer.mockImplementation(async () => {
+			expect(process.env.CLINE_HUB_DISCOVERY_PATH).toBe(
+				"/home/dev/.cline/data/remote/owner.json",
+			);
+			return { url: "ws://127.0.0.1:41000/hub", authToken: "remote-token" };
+		});
+
+		try {
+			const { cmd, output, errors, exitCode } = createCommand();
+			await cmd.parseAsync(
+				[
+					"ensure",
+					"--cwd",
+					"/home/dev",
+					"--discovery-path",
+					"/home/dev/.cline/data/remote/owner.json",
+					"--host",
+					"127.0.0.1",
+					"--port",
+					"0",
+					"--pathname",
+					"/hub",
+					"--json",
+					"--allow-port-fallback",
+					"--no-connectors",
+					"--login-shell-path",
+				],
+				{ from: "user" },
+			);
+
+			expect(errors).toEqual([]);
+			expect(exitCode()).toBe(0);
+			expect(mockEnsureDetachedHubServer).toHaveBeenCalledWith("/home/dev", {
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				allowPortFallback: true,
+				manageConnectors: false,
+				beforeSpawn: expect.any(Function),
+			});
+			// PATH resolution is deferred until a new daemon is actually spawned.
+			expect(mockEnsureLoginShellPath).not.toHaveBeenCalled();
+			await mockEnsureDetachedHubServer.mock.calls[0]?.[1]?.beforeSpawn?.();
+			expect(mockEnsureLoginShellPath).toHaveBeenCalledTimes(1);
+			expect(JSON.parse(output[0] || "")).toEqual({
+				url: "ws://127.0.0.1:41000/hub",
+				authToken: "remote-token",
+				cwd: "/home/dev",
+				platform: process.platform,
+				arch: process.arch,
+			});
+		} finally {
+			if (originalDiscoveryPath === undefined) {
+				delete process.env.CLINE_HUB_DISCOVERY_PATH;
+			} else {
+				process.env.CLINE_HUB_DISCOVERY_PATH = originalDiscoveryPath;
+			}
+		}
 	});
 });
