@@ -43,6 +43,7 @@ let container: HTMLDivElement;
 beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
+	mocks.catalog.mockResolvedValue({ configured: true, toolkits: [] });
 	mocks.loadError = null;
 	mocks.integrations = [
 		{
@@ -178,7 +179,6 @@ describe("installed connectors", () => {
 				(item) => item.textContent,
 			),
 		).toEqual(toolNames);
-		expect(mocks.catalog).not.toHaveBeenCalled();
 	});
 
 	it("shows the installed tool count, not the stale catalog total", async () => {
@@ -238,7 +238,6 @@ describe("installed connectors", () => {
 		expect(installed?.textContent).toContain("Installed0");
 		expect(installed?.textContent).toContain("No connectors installed");
 		expect(installed?.textContent).not.toContain("Gmail");
-		expect(mocks.catalog).not.toHaveBeenCalled();
 		// Every recipe is suggested; chips install their connector.
 		expect(container.textContent).toContain("Suggested");
 		expect(container.textContent).toContain("Organize your day");
@@ -294,7 +293,34 @@ describe("installed connectors", () => {
 		expect(mocks.refresh).toHaveBeenCalledOnce();
 	});
 
-	it("lists installed connectors without fetching or showing recommendations", async () => {
+	it("browses the rest of the catalog with connector logos, skipping installed ones", async () => {
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [
+				{ slug: "gmail", name: "Gmail", description: "Email" },
+				{ slug: "github", name: "GitHub", description: "Code" },
+			],
+		});
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		const browse = container.querySelector('section[aria-label="Browse"]');
+		expect(browse?.textContent).toContain("GitHub");
+		expect(browse?.textContent).not.toContain("Gmail");
+		expect(browse?.querySelector("img")?.getAttribute("src")).toBe(
+			"https://logos.composio.dev/api/github",
+		);
+		await act(async () =>
+			(
+				[...(browse?.querySelectorAll("button") ?? [])].find(
+					(entry) => entry.textContent?.trim() === "Install",
+				) as HTMLElement
+			).click(),
+		);
+		expect(mocks.connect).toHaveBeenCalledWith("github");
+	});
+
+	it("lists installed connectors without showing recommendations", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -318,7 +344,6 @@ describe("installed connectors", () => {
 		expect(installed?.textContent).toContain("Gmail");
 		expect(installed?.textContent).not.toContain("GitHub");
 		expect(container.textContent).not.toContain("Recommended");
-		expect(mocks.catalog).not.toHaveBeenCalled();
 		await act(async () => button("Uninstall")?.click());
 		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");
 	});

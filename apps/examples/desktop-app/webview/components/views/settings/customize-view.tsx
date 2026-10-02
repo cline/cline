@@ -36,13 +36,13 @@ type CustomizeTab =
 	| "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
+	{ id: "integrations", label: "Connectors" },
 	{ id: "tools", label: "Tools" },
 	{ id: "plugins", label: "Plugins" },
 	{ id: "skills", label: "Skills" },
 	{ id: "rules", label: "Rules" },
 	{ id: "mcp", label: "MCP" },
 	{ id: "hooks", label: "Hooks" },
-	{ id: "integrations", label: "Connectors" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -68,7 +68,7 @@ export function CustomizeView({
 	onOpenMarketplace?: (filter?: "connector") => void;
 	onOpenModelProviders?: () => void;
 }) {
-	const [tab, setTab] = useState<CustomizeTab>("tools");
+	const [selectedTab, setTab] = useState<CustomizeTab>("integrations");
 	const [counts, setCounts] = useState<TabCounts>({});
 	// Connectors are an org-provisioned feature: the tab only exists when the
 	// account has Composio beta access.
@@ -78,6 +78,10 @@ export function CustomizeView({
 			getComposioAvailability,
 			() => null,
 		) === true;
+	const tab =
+		selectedTab === "integrations" && !connectorsAvailable
+			? "tools"
+			: selectedTab;
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -210,6 +214,7 @@ export function CustomizeView({
 				/>
 			) : tab === "integrations" ? (
 				<ComposioConnectorsView
+					appendOnScroll
 					onChanged={handleInventoryChanged}
 					variant="installed"
 				/>

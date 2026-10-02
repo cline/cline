@@ -81,27 +81,35 @@ export function ConnectorLogo({
 	className?: string;
 }) {
 	const [failed, setFailed] = useState(false);
-	if (logo && !failed) {
+	if (!failed) {
 		return (
 			// biome-ignore lint/performance/noImgElement: Composio logos live on arbitrary remote hosts Next's optimizer is not configured for.
 			<img
 				alt=""
 				// The white backing keeps dark brand marks (GitHub's, for one)
 				// visible on dark tiles.
-				className={`${className} rounded-sm bg-white object-contain p-px`}
+				className={cn(
+					"shrink-0 rounded-sm bg-white object-contain p-px",
+					className,
+				)}
 				onError={() => setFailed(true)}
-				src={logo}
+				src={logo || composioLogoUrl(slug)}
 			/>
 		);
 	}
-	// Themed fallbacks for the recommended toolkits when the catalog (and its
-	// official logos) has not loaded yet.
+	// Themed fallbacks for the recommended toolkits when the logo can't load
+	// (offline, for one).
 	const LocalIcon = FALLBACK_ICONS[slug];
 	if (LocalIcon) {
-		return <LocalIcon className={className} />;
+		return <LocalIcon className={cn("shrink-0", className)} />;
 	}
 	return (
-		<span className="text-xs font-semibold uppercase text-muted-foreground">
+		<span
+			className={cn(
+				"flex shrink-0 items-center justify-center rounded-sm bg-secondary text-xs font-semibold uppercase text-muted-foreground",
+				className,
+			)}
+		>
 			{name.slice(0, 1)}
 		</span>
 	);
@@ -250,7 +258,7 @@ export function ComposioConnectorsView({
 		let cancelled = false;
 		setCatalog(null);
 		setCatalogError(null);
-		if (!configured || variant === "installed") return;
+		if (!configured) return;
 		setCatalogLoading(true);
 		void fetchComposioToolkitCatalog()
 			.then((response) => {
@@ -268,25 +276,39 @@ export function ComposioConnectorsView({
 		return () => {
 			cancelled = true;
 		};
-	}, [configured, retry, variant]);
+	}, [configured, retry]);
 
 	useEffect(() => {
 		// listToolkits resolves only after every backend page has been fetched.
 		onCatalogCountChange?.(catalog?.length ?? null);
 	}, [catalog, onCatalogCountChange]);
 
-	const entries = useMemo<ComposioCatalogToolkit[]>(() => {
-		if (variant === "catalog") return catalog ?? [];
-		return (status?.integrations ?? [])
-			.filter((integration) => integration.status !== "not_connected")
-			.map((integration) => ({
-				slug: integration.toolkit,
-				name: integration.name,
-				description: integration.description,
-				logo: integration.logo,
-				recommended: integration.recommended,
-			}));
-	}, [variant, catalog, status]);
+	const installedEntries = useMemo<ComposioCatalogToolkit[]>(
+		() =>
+			(status?.integrations ?? [])
+				.filter((integration) => integration.status !== "not_connected")
+				.map((integration) => ({
+					slug: integration.toolkit,
+					name: integration.name,
+					description: integration.description,
+					logo: integration.logo,
+					recommended: integration.recommended,
+				})),
+		[status],
+	);
+	// Customize lists connected and pending connectors under Installed, so its
+	// Browse section only offers the rest.
+	const entries = useMemo<ComposioCatalogToolkit[]>(
+		() =>
+			variant === "catalog"
+				? (catalog ?? [])
+				: (catalog ?? []).filter(
+						(entry) =>
+							(statusBySlug.get(entry.slug)?.status ?? "not_connected") ===
+							"not_connected",
+					),
+		[variant, catalog, statusBySlug],
+	);
 
 	const trimmedQuery = query.trim().toLowerCase();
 	const [page, setPage] = useState({
@@ -303,13 +325,11 @@ export function ComposioConnectorsView({
 	}, [entries, trimmedQuery]);
 	const visibleCatalog = matchingCatalog.slice(
 		0,
-		variant === "installed"
-			? matchingCatalog.length
-			: appendOnScroll
-				? page.limit
-				: trimmedQuery
-					? CATALOG_SEARCH_RESULT_LIMIT
-					: CATALOG_PREVIEW_COUNT,
+		appendOnScroll
+			? page.limit
+			: trimmedQuery
+				? CATALOG_SEARCH_RESULT_LIMIT
+				: CATALOG_PREVIEW_COUNT,
 	);
 	const hasMore =
 		appendOnScroll && visibleCatalog.length < matchingCatalog.length;
@@ -342,12 +362,12 @@ export function ComposioConnectorsView({
 
 	const hiddenCount = trimmedQuery
 		? 0
-		: variant === "installed"
-			? 0
-			: Math.max(0, (catalog?.length ?? 0) - CATALOG_PREVIEW_COUNT);
+		: matchingCatalog.length - visibleCatalog.length;
 
 	const detailEntry = detailSlug
-		? (entries.find((entry) => entry.slug === detailSlug) ?? null)
+		? (catalog?.find((entry) => entry.slug === detailSlug) ??
+			installedEntries.find((entry) => entry.slug === detailSlug) ??
+			null)
 		: null;
 	const detailStatus = detailSlug ? statusBySlug.get(detailSlug) : undefined;
 
@@ -412,11 +432,106 @@ export function ComposioConnectorsView({
 		/>
 	);
 
+	const catalogList =
+		catalogLoading && !catalog ? (
+			<output
+				aria-label="Loading connector catalog"
+				className="flex items-center justify-center py-10"
+			>
+				<Loader2 className="size-5 animate-spin text-muted-foreground" />
+			</output>
+		) : catalogError ? (
+			<div className="flex flex-wrap items-center gap-3">
+				<p className="text-xs text-destructive" role="alert">
+					{catalogError}
+				</p>
+				<Button
+					onClick={() => setRetry((value) => value + 1)}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					Retry
+				</Button>
+			</div>
+		) : (
+			<>
+				{/* The host page owns scrolling. */}
+				<div className="min-w-0">
+					<div
+						className={
+							renderItem
+								? "grid gap-1"
+								: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-2"
+						}
+					>
+						{visibleCatalog.map((entry) => (
+							<div className="min-w-0" key={entry.slug}>
+								{renderItem ? (
+									renderItem({
+										entry,
+										status:
+											statusBySlug.get(entry.slug)?.status ?? "not_connected",
+										selected: detailSlug === entry.slug,
+										onOpenDetails: () => setDetailSlug(entry.slug),
+									})
+								) : (
+									<ConnectorRow
+										busy={busyToolkit === entry.slug}
+										entry={entry}
+										onCancel={() => void cancelConnect(entry.slug)}
+										onConnect={() => void connect(entry.slug)}
+										onDisconnect={() => void disconnect(entry.slug)}
+										onOpenDetails={() => setDetailSlug(entry.slug)}
+										status={
+											statusBySlug.get(entry.slug)?.status ?? "not_connected"
+										}
+									/>
+								)}
+								{actionError?.toolkit === entry.slug ? (
+									// Scoped to this connector's own card; no shared
+									// surface retains another connector's failure.
+									<p
+										className="mt-1 px-1 text-xs text-destructive"
+										role="alert"
+									>
+										{actionError.message}
+									</p>
+								) : null}
+							</div>
+						))}
+					</div>
+					{visibleCatalog.length === 0 ? (
+						<p className="py-4 text-sm text-muted-foreground">
+							{trimmedQuery
+								? `No connectors match "${query.trim()}".`
+								: "No connectors are available for your account yet."}
+						</p>
+					) : null}
+				</div>
+				{hasMore ? (
+					<div ref={loadMoreRef} className="h-px" aria-hidden="true" />
+				) : null}
+				{!appendOnScroll && hiddenCount > 0 ? (
+					<p className="text-xs text-muted-foreground">
+						Showing the {CATALOG_PREVIEW_COUNT} most-used connectors — search to
+						find {hiddenCount} more.
+					</p>
+				) : null}
+			</>
+		);
+
 	if (variant === "installed") {
 		// Mirrors the Skills / Plugins / MCP tabs: description + refresh,
 		// full-width search, and an Installed section with a count. Suggested
 		// recipes follow; each one drops out once all its connectors are
-		// connected, so the section empties itself over time.
+		// connected, so the section empties itself over time. Browse lists the
+		// rest of the catalog last.
+		const matchingInstalled = trimmedQuery
+			? installedEntries.filter((entry) =>
+					connectorMatchesQuery(entry, trimmedQuery),
+				)
+			: installedEntries;
 		const recipes = COMPOSIO_RECIPES.filter(
 			(recipe) =>
 				recipe.connectors.some(
@@ -477,12 +592,12 @@ export function ComposioConnectorsView({
 							Installed
 						</h2>
 						<span className="text-sm text-muted-foreground">
-							{entries.length}
+							{installedEntries.length}
 						</span>
 					</div>
-					{matchingCatalog.length > 0 ? (
+					{matchingInstalled.length > 0 ? (
 						<div className="grid min-w-0 gap-3">
-							{matchingCatalog.map((entry) => (
+							{matchingInstalled.map((entry) => (
 								<ConnectorCard
 									busy={busyToolkit === entry.slug}
 									entry={entry}
@@ -504,7 +619,7 @@ export function ComposioConnectorsView({
 						<div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
 							{trimmedQuery
 								? `No installed connectors match "${query.trim()}".`
-								: "No connectors installed. Start with a suggested setup below or browse the marketplace to add one."}
+								: "No connectors installed. Install a connector below or ask Cline about it in a task."}
 						</div>
 					)}
 				</section>
@@ -541,6 +656,25 @@ export function ComposioConnectorsView({
 					</section>
 				) : null}
 
+				<section aria-label="Browse" className="grid min-w-0 gap-3">
+					<div className="flex items-center justify-between gap-3">
+						<div className="grid gap-0.5">
+							<h2 className="text-base font-semibold text-foreground">
+								Browse
+							</h2>
+							<p className="text-xs text-muted-foreground">
+								Every connector available to your account.
+							</p>
+						</div>
+						{catalog ? (
+							<span className="text-sm text-muted-foreground">
+								{matchingCatalog.length}
+							</span>
+						) : null}
+					</div>
+					{catalogList}
+				</section>
+
 				{detailDialog}
 			</div>
 		);
@@ -570,93 +704,7 @@ export function ComposioConnectorsView({
 				</div>
 			) : null}
 
-			{variant === "catalog" && catalogLoading && !catalog ? (
-				<output
-					aria-label="Loading connector catalog"
-					className="flex items-center justify-center py-10"
-				>
-					<Loader2 className="size-5 animate-spin text-muted-foreground" />
-				</output>
-			) : variant === "catalog" && catalogError ? (
-				<div className="flex flex-wrap items-center gap-3">
-					<p className="text-xs text-destructive" role="alert">
-						{catalogError}
-					</p>
-					<Button
-						onClick={() => setRetry((value) => value + 1)}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						Retry
-					</Button>
-				</div>
-			) : (
-				<>
-					{/* The host page owns scrolling. */}
-					<div className="min-w-0">
-						<div
-							className={
-								renderItem
-									? "grid gap-1"
-									: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-2"
-							}
-						>
-							{visibleCatalog.map((entry) => (
-								<div className="min-w-0" key={entry.slug}>
-									{renderItem ? (
-										renderItem({
-											entry,
-											status:
-												statusBySlug.get(entry.slug)?.status ?? "not_connected",
-											selected: detailSlug === entry.slug,
-											onOpenDetails: () => setDetailSlug(entry.slug),
-										})
-									) : (
-										<ConnectorRow
-											busy={busyToolkit === entry.slug}
-											entry={entry}
-											onCancel={() => void cancelConnect(entry.slug)}
-											onConnect={() => void connect(entry.slug)}
-											onDisconnect={() => void disconnect(entry.slug)}
-											onOpenDetails={() => setDetailSlug(entry.slug)}
-											status={
-												statusBySlug.get(entry.slug)?.status ?? "not_connected"
-											}
-										/>
-									)}
-									{actionError?.toolkit === entry.slug ? (
-										// Scoped to this connector's own card; no shared
-										// surface retains another connector's failure.
-										<p
-											className="mt-1 px-1 text-xs text-destructive"
-											role="alert"
-										>
-											{actionError.message}
-										</p>
-									) : null}
-								</div>
-							))}
-						</div>
-						{visibleCatalog.length === 0 ? (
-							<p className="py-4 text-sm text-muted-foreground">
-								{trimmedQuery
-									? `No connectors match "${query.trim()}".`
-									: "No connectors are available for your account yet."}
-							</p>
-						) : null}
-					</div>
-					{hasMore ? (
-						<div ref={loadMoreRef} className="h-px" aria-hidden="true" />
-					) : null}
-					{!appendOnScroll && hiddenCount > 0 ? (
-						<p className="text-xs text-muted-foreground">
-							Showing the {CATALOG_PREVIEW_COUNT} most-used connectors — search
-							to find {hiddenCount} more.
-						</p>
-					) : null}
-				</>
-			)}
+			{catalogList}
 
 			{detailDialog}
 		</div>
@@ -689,13 +737,12 @@ function ConnectorRow({
 				onClick={onOpenDetails}
 				type="button"
 			>
-				<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
-					<ConnectorLogo
-						logo={entry.logo}
-						name={entry.name}
-						slug={entry.slug}
-					/>
-				</span>
+				<ConnectorLogo
+					className="size-8 rounded-lg"
+					logo={entry.logo}
+					name={entry.name}
+					slug={entry.slug}
+				/>
 				<span className="min-w-0">
 					<span className="block truncate text-sm font-medium text-foreground">
 						{entry.name}
@@ -861,7 +908,7 @@ function RecipeCard({
 					const logo = (
 						<ConnectorLogo
 							className="size-3.5"
-							logo={summary?.logo ?? composioLogoUrl(connector.slug)}
+							logo={summary?.logo}
 							name={connector.name}
 							slug={connector.slug}
 						/>
@@ -950,14 +997,12 @@ function ConnectorDetailDialog({
 					<>
 						<DialogHeader>
 							<div className="flex items-center gap-3">
-								<span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground">
-									<ConnectorLogo
-										className="size-6"
-										logo={entry.logo}
-										name={entry.name}
-										slug={entry.slug}
-									/>
-								</span>
+								<ConnectorLogo
+									className="size-10 rounded-xl"
+									logo={entry.logo}
+									name={entry.name}
+									slug={entry.slug}
+								/>
 								<div>
 									<DialogTitle>{entry.name}</DialogTitle>
 								</div>
