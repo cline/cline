@@ -6,8 +6,9 @@ import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/cha
 import { InputSection } from "./InputSection"
 
 const mockTurnState = vi.fn<() => TurnState | undefined>(() => undefined)
+const mockCloudState = vi.fn<() => Record<string, unknown>>(() => ({}))
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ turnState: mockTurnState() }),
+	useExtensionState: () => ({ turnState: mockTurnState(), ...mockCloudState() }),
 }))
 
 vi.mock("@/components/chat/ChatTextArea", () => ({
@@ -130,6 +131,64 @@ describe("InputSection", () => {
 
 		fireEvent.keyDown(composer, { key: "Enter" })
 		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
+	})
+
+	it.each([
+		["without a repository", { target: "cloud" }, true],
+		["with a repository", { target: "cloud", repoUrl: "https://github.com/cline/fixture" }, false],
+	])("on the home screen with Cloud selected %s, submit disabled=%s", (_label, cloudTaskTarget, disabled) => {
+		mockTurnState.mockReturnValue({ phase: "idle", seq: 1 })
+		mockCloudState.mockReturnValue({ cloudSessionsEnabled: true, cloudTaskTarget, clineMessages: [] })
+		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InputSection
+				chatState={makeChatState({ sendingDisabled: false })}
+				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const composer = screen.getByLabelText("composer")
+		fireEvent.keyDown(composer, { key: "Enter" })
+		if (disabled) {
+			expect(composer).toBeDisabled()
+			expect(handleSendMessage).not.toHaveBeenCalled()
+		} else {
+			expect(composer).not.toBeDisabled()
+			expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
+		}
+		mockCloudState.mockReturnValue({})
+	})
+
+	it("keeps submit disabled while a cloud sandbox is still provisioning", () => {
+		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
+		mockCloudState.mockReturnValue({
+			cloudSessionsEnabled: true,
+			currentCloudTask: { sessionId: "cloud-provisioning-1", status: "provisioning" },
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "test" }],
+		})
+		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InputSection
+				chatState={makeChatState({ sendingDisabled: true })}
+				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const composer = screen.getByLabelText("composer")
+		expect(composer).toBeDisabled()
+		fireEvent.keyDown(composer, { key: "Enter" })
+		expect(handleSendMessage).not.toHaveBeenCalled()
+		mockCloudState.mockReturnValue({})
 	})
 
 	it("allows submit after a failed request so the draft can start the next turn", () => {

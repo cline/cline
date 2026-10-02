@@ -316,6 +316,7 @@ export class AuthService {
 				`[SdkAuthService] fetchUserInfoFromApi: GET ${apiBaseUrl}/api/v1/users/me (tokenHash=${hashSecret(accessToken)})`,
 			)
 			const response = await axios.get(`${apiBaseUrl}/api/v1/users/me`, {
+				timeout: 10_000,
 				headers: {
 					Authorization: `Bearer ${bearerToken}`,
 					"Content-Type": "application/json",

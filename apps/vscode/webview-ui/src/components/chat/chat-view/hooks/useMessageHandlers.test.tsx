@@ -42,12 +42,15 @@ vi.mock("@shared/proto/cline/common", () => ({
 	StringRequest: { create: (x: unknown) => x },
 }))
 
-// useExtensionState supplies turnState (+ backgroundCommandRunning) to the hook.
+// useExtensionState supplies turnState (+ backgroundCommandRunning, cloud target) to the hook.
 let mockTurnState: TurnState | undefined
+let mockCloudTaskTarget: { target: "local" | "cloud"; repoUrl?: string; branch?: string } | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		backgroundCommandRunning: false,
 		turnState: mockTurnState,
+		cloudSessionsEnabled: true,
+		cloudTaskTarget: mockCloudTaskTarget,
 	}),
 }))
 
@@ -119,6 +122,33 @@ describe("useMessageHandlers — send routing", () => {
 		trackIntent.mockReset()
 		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
+		mockCloudTaskTarget = undefined
+	})
+
+	it("sends a cloud request when Cloud is selected even without a repository, never a local task", async () => {
+		mockCloudTaskTarget = { target: "cloud" }
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+		await act(async () => {
+			await result.current.handleSendMessage("hello", [], ["/local/file.ts"])
+		})
+
+		expect(newTask).toHaveBeenCalledTimes(1)
+		expect(newTask).toHaveBeenCalledWith(
+			expect.objectContaining({ text: "hello", executionTarget: "cloud", cloudRepoUrl: undefined, files: [] }),
+		)
+	})
+
+	it("sends a local request when Local is selected", async () => {
+		mockCloudTaskTarget = { target: "local", repoUrl: "https://github.com/cline/fixture" }
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+		await act(async () => {
+			await result.current.handleSendMessage("hello", [], ["/local/file.ts"])
+		})
+
+		expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ text: "hello", files: ["/local/file.ts"] }))
+		expect(newTask.mock.calls[0][0]).not.toHaveProperty("executionTarget")
 	})
 
 	it("routes /compact to the condense RPC instead of sending it as a message", async () => {
@@ -839,6 +869,37 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(clearTask).toHaveBeenCalledTimes(1)
 		expect(trackIntent).toHaveBeenCalledWith(expect.objectContaining({ action: "new_task_clicked", source: "navbar" }))
+	})
+
+	it("keeps a draft typed while a new task's RPC is still pending", async () => {
+		mockTurnState = { phase: "idle", seq: 1 }
+		let resolveNewTask: () => void = () => {}
+		newTask.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveNewTask = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState([])
+			return { chatState, handlers: useMessageHandlers([], chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("start a task"))
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("start a task", [], [])
+			await Promise.resolve()
+		})
+		expect(result.current.chatState.inputValue).toBe("")
+		// The composer disables submit while the task provisions, so the draft stays in the input.
+		act(() => result.current.chatState.setInputValue("follow up"))
+
+		await act(async () => {
+			resolveNewTask()
+			await sendPromise
+		})
+		expect(result.current.chatState.inputValue).toBe("follow up")
 	})
 
 	it("preserves edits made while a recovery response succeeds", async () => {

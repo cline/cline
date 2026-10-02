@@ -24,6 +24,7 @@ import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } fr
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
+import { CLOUD_SESSION_MODE, isCloudSessionId } from "@shared/cloud/cloud-sessions"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -42,6 +43,8 @@ import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalMan
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
+import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
+import { isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
@@ -72,6 +75,8 @@ import {
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
+import { type CloudTaskInput, SdkCloudSessionCoordinator } from "./sdk-cloud-session-coordinator"
+import { SdkCloudTaskTarget } from "./sdk-cloud-task-target"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
@@ -162,18 +167,29 @@ function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
 }
 
 /**
- * The prompt a "Sign in to Cline" error offers to retry, and the task that
- * shows the error.
+ * A task start that failed before it had a session, kept so the footer's
+ * Retry (or a prompt typed into the composer) can run it again: a local start
+ * refused with "Sign in to Cline", or a cloud start whose sandbox never came
+ * up. `task` is the task view that shows the error.
  */
-interface ClineAuthRetry {
+interface StartRetry {
 	task: TaskProxy
 	prompt: string
+	images?: string[]
+	/** Set for a cloud start; the retry runs on the same repository and branch. */
+	cloudTarget?: CloudTarget
 	/**
 	 * The error was shown on a task that already had a conversation, such as
 	 * a failed edit or checkpoint restore, rather than on a new task that
 	 * failed before its session was created.
 	 */
 	hasConversation: boolean
+}
+
+/** Where a cloud task runs; the composer submits it and a retry reuses it. */
+interface CloudTarget {
+	repoUrl: string
+	branch?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +216,9 @@ export class Controller {
 	private taskStart: SdkTaskStartCoordinator
 	private compaction: SdkCompactionCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
+	private cloud!: SdkCloudSessionCoordinator
+	readonly cloudSessions: CloudSessionsService
+	readonly cloudTaskTarget: SdkCloudTaskTarget
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
@@ -242,7 +261,7 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
-	private pendingClineAuthRetry?: ClineAuthRetry
+	private pendingStartRetry?: StartRetry
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
@@ -340,7 +359,7 @@ export class Controller {
 			// start a new session, so start metadata never goes stale the way
 			// a mid-task model-only switch does for models below.
 			() => this.getSessionProviderId() ?? this.getActiveProviderId(),
-			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+			() => this.getDisplayedTaskMode(),
 			() => this.lastKnownWorkspaceRoot,
 			// Model backing the active turn — lets error reshaping recognize
 			// retired cline-free/ models (the error payload itself never names one).
@@ -507,6 +526,13 @@ export class Controller {
 			// History rendering mints ids from the shared authority so regenerated history ids
 			// never overlap live-session ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
+			// Resolved lazily: the cloud coordinator is constructed after the task coordinators it depends on.
+			cloud: {
+				isCloudSessionId: (id) => this.cloud.isCloudSessionId(id),
+				list: () => this.cloud.listHistoryRecords(),
+				find: (id) => this.cloud.findHistoryRecord(id),
+				delete: (id) => this.cloud.deleteSession(id),
+			},
 		})
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
@@ -632,7 +658,7 @@ export class Controller {
 			buildStartSessionInput,
 			createHistoryItemFromSession,
 			clearTask: async () => {
-				this.pendingClineAuthRetry = undefined
+				this.pendingStartRetry = undefined
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -649,6 +675,55 @@ export class Controller {
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.cloudSessions = new CloudSessionsService({
+			getAuthToken: () => this.authService.getAuthToken(),
+			getActiveOrganizationId: () => this.authService.getActiveOrganizationId(),
+		})
+		this.cloudTaskTarget = new SdkCloudTaskTarget({
+			cloudSessions: this.cloudSessions,
+			stateManager: this.stateManager,
+			getAccountScope: () => {
+				const userId = this.authService.getInfo().user?.uid
+				return userId ? `${userId}:${this.authService.getActiveOrganizationId() ?? ""}` : undefined
+			},
+			getWorkspaceRoot: () => this.lastKnownWorkspaceRoot,
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.cloud = new SdkCloudSessionCoordinator({
+			cloudSessions: this.cloudSessions,
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			messages: this.messages,
+			getMinter: () => this.messageTranslatorState.getMinter(),
+			getTask: () => this.task,
+			setTask: (task) => {
+				this.task = task
+			},
+			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
+			onCancelTask: () => this.cancelTask(),
+			clearTask: async () => {
+				this.pendingStartRetry = undefined
+				await this.taskControl.clearTask()
+			},
+			onStartFailed: (task, input) => this.offerCloudStartRetry(task, input),
+			claimTaskViewGeneration: () => this.taskControl.claimTaskViewGeneration(),
+			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
+			getAuthToken: () => this.authService.getAuthToken(),
+			isSignedIn: () => !!this.authService.getInfo().user?.uid,
+			isEnabled: () => isCloudSessionsFeatureEnabled(),
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
+			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
+			postStateToWebview: () => this.postStateToWebview(),
+			invalidateHistoryCache: () => this.taskHistory.invalidateCache(),
+			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			telemetry: this.sdkTelemetry.telemetry,
+		})
+		// Every account change, whichever path requests it, tears down the
+		// previous account's cloud task and connections first and holds cloud
+		// reads until the change has settled.
+		this.accountService.onAccountChange((change) => this.cloud.reset(change))
 		this.compaction = new SdkCompactionCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -956,6 +1031,7 @@ export class Controller {
 		this.mcpHub?.clearToolListChangeCallback()
 		await this.diffEdits.discardAllPreviews("controller dispose")
 		await this.clearTask()
+		await this.cloud.dispose()
 		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()
 		this.mcpHub?.dispose?.()
@@ -1270,6 +1346,17 @@ export class Controller {
 		})
 	}
 
+	/** A cloud start failed before it had a session; the footer's Retry runs the same input again. */
+	private offerCloudStartRetry(task: TaskProxy, input: CloudTaskInput): void {
+		this.pendingStartRetry = {
+			task,
+			prompt: input.prompt,
+			images: input.images,
+			cloudTarget: { repoUrl: input.repoUrl, branch: input.branch },
+			hasConversation: false,
+		}
+	}
+
 	/**
 	 * Emit a proper auth error for the 'cline' provider when the user is not
 	 * logged in. The message sequence drives ErrorRow to render the
@@ -1290,7 +1377,7 @@ export class Controller {
 				() => this.cancelTask(),
 			)
 		}
-		this.pendingClineAuthRetry = task === undefined ? undefined : { task: this.task, prompt: task, hasConversation }
+		this.pendingStartRetry = task === undefined ? undefined : { task: this.task, prompt: task, hasConversation }
 
 		const clineError = new ClineError(
 			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
@@ -1412,13 +1499,41 @@ export class Controller {
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
+		cloudTarget?: CloudTarget,
 	): Promise<string | undefined> {
+		if (cloudTarget) {
+			// Register the cloud start before the first await so a Cancel that
+			// arrives while remote config is still loading finds it and stops it.
+			// The coordinator moves the turn phase to streaming only once the
+			// start is still current and its task view is installed.
+			const startCloudTask = this.cloud.beginCloudTask({
+				prompt: prompt ?? "",
+				images,
+				repoUrl: cloudTarget.repoUrl,
+				branch: cloudTarget.branch,
+			})
+			await this.waitForInitialRemoteConfig()
+			this.pendingStartRetry = undefined
+			return startCloudTask()
+		}
 		await this.waitForInitialRemoteConfig()
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
 		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
+	}
+
+	/**
+	 * Plan/act mode governing the displayed task. A cloud task always runs in
+	 * Act, so its completion rows render as Act output even while the user's
+	 * saved local mode is Plan.
+	 */
+	private getDisplayedTaskMode(): Mode {
+		if (this.task && isCloudSessionId(this.task.taskId)) {
+			return CLOUD_SESSION_MODE
+		}
+		return this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
@@ -1429,10 +1544,15 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
-		// Fence first: mark resumable before aborting so any straggler events from the aborted
-		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
-		// in S6; this sets the authoritative phase now.)
+		// Fence first: mark resumable and invalidate provisioning before any abort await,
+		// so straggler work cannot restore the cancelled turn's streaming state.
 		this.turnStateTracker.set("resumable")
+		if (this.cloud.cancelPendingStart()) {
+			// The sandbox never started and its record is being deleted, so there is
+			// nothing to resume: return to the home view instead of offering Resume Task.
+			await this.clearTask()
+			return
+		}
 		await this.taskControl.cancelTask()
 	}
 
@@ -1488,9 +1608,12 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		this.pendingClineAuthRetry = undefined
+		this.pendingStartRetry = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
+		// A cloud task still provisioning has no SDK session for taskControl to end;
+		// stop it here so it cannot re-install its view after the user left.
+		this.cloud.cancelPendingStart()
 		await this.taskControl.clearTask()
 		await this.postStateToWebview()
 	}
@@ -1509,23 +1632,56 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
-		// The sign-in retry answers only the next response to the task that
-		// showed the error; a task opened since then does not inherit it.
-		const retry = this.pendingClineAuthRetry
-		this.pendingClineAuthRetry = undefined
+		// A start retry answers only the next response to the task that showed
+		// the error; a task opened since then does not inherit it.
+		const retry = this.pendingStartRetry
+		this.pendingStartRetry = undefined
 		if (retry && retry.task === this.task) {
 			const askResponse = this.task.taskState.askResponse
 			if (askResponse === "yesButtonClicked") {
-				await this.initTask(retry.prompt, images, files)
+				await this.initTask(retry.prompt, images ?? retry.images, files, undefined, undefined, retry.cloudTarget)
 				return
 			}
 			// A task that failed before it had a session has nothing to
 			// continue, so a prompt typed in the composer starts it again. With
 			// attachments but no text, the original prompt is kept.
 			if (askResponse === "messageResponse" && !retry.hasConversation) {
-				await this.initTask(prompt?.trim() ? prompt : retry.prompt, images, files)
+				await this.initTask(
+					prompt?.trim() ? prompt : retry.prompt,
+					images,
+					files,
+					undefined,
+					undefined,
+					retry.cloudTarget,
+				)
 				return
 			}
+		}
+
+		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
+			// No sandbox to send to: still provisioning (only reachable through the
+			// extension API, the composer is disabled), or expired. Refusing the
+			// response is itself a turn outcome: the footer holds its Retry claim
+			// until the turn phase advances, so set the phase even though it does
+			// not change.
+			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
+			this.messages.appendAndEmit(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "error",
+						text: provisioning
+							? "The cloud sandbox is still starting. Send your message again once it is running."
+							: "This cloud session is no longer running. Start a new cloud task to continue.",
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
+			)
+			this.turnStateTracker.set("error")
+			await this.postStateToWebview()
+			return
 		}
 
 		const turnStateBefore = this.turnStateTracker.get()
@@ -1564,6 +1720,12 @@ export class Controller {
 		const currentTask = this.task
 		if (!currentTask) {
 			throw new Error("No active task to edit")
+		}
+		// The rebuilt conversation below is a local session on this machine's
+		// workspace. A cloud task's transcript lives in its sandbox, so rebuilding
+		// it here would silently move the task out of the cloud.
+		if (isCloudSessionId(currentTask.taskId)) {
+			throw new Error("Editing an earlier message is not available for cloud tasks yet.")
 		}
 
 		const clineMessages = currentTask.messageStateHandler.getClineMessages()
@@ -1957,7 +2119,9 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
-		const historyItem = await this.taskControl.showTaskWithId(taskId)
+		const historyItem = this.cloud.isCloudSessionId(taskId)
+			? await this.cloud.openCloudTask(taskId)
+			: await this.taskControl.showTaskWithId(taskId)
 		if (!historyItem) {
 			throw new Error(`Task not found in history: ${taskId}`)
 		}
@@ -1987,7 +2151,10 @@ export class Controller {
 		// (which can hold enterprise secrets) is actually deleted on sign-out.
 		const organizationId = this.authService.getActiveOrganizationId() ?? undefined
 		await this.taskControl.cancelClineTaskOnSignOut(isClineManagedProvider(sessionProviderId))
-		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
+		if (this.task && this.cloud.isCloudSessionId(this.task.taskId)) {
+			await this.clearTask()
+		}
+		await this.cloud.reset(() => this.authService.handleDeauth(LogoutReason.USER_INITIATED))
 		// Invalidate BEFORE clearing: a refresh that already fetched under the
 		// signed-in identity must not republish the policy (and re-create the
 		// secret-bearing caches) after the clear. The clear itself runs under the
@@ -2051,15 +2218,18 @@ export class Controller {
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
-		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy, cloudOnly } = request
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
-		const sessionHistory = await this.taskHistory.listHistory({
-			hydrate: false,
-			limit: limit + 1,
-			offset,
-		})
+		// Cloud tasks are a small minority of the merged list, so page them after
+		// filtering: a page cut from the merged list first can hold none of them
+		// while cloud tasks exist further down. Other filters keep the cheaper
+		// pre-filter pagination the local-only history has always used.
+		const paginateAfterFilter = !!cloudOnly
+		const sessionHistory = await this.taskHistory.listHistory(
+			paginateAfterFilter ? { hydrate: false } : { hydrate: false, limit: limit + 1, offset },
+		)
 
 		let filteredTasks = sessionHistory.filter((item) => {
 			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
@@ -2072,6 +2242,10 @@ export class Controller {
 			const isFavorited =
 				metadataBoolean(item.metadata, "isFavorited") ?? metadataBoolean(item.metadata, "is_favorited") ?? false
 			if (favoritesOnly && !isFavorited) {
+				return false
+			}
+
+			if (cloudOnly && metadataString(item.metadata, "executionTarget") !== "cloud") {
 				return false
 			}
 
@@ -2121,7 +2295,10 @@ export class Controller {
 			}
 		})
 
-		const hasMore = sessionHistory.length > limit
+		if (paginateAfterFilter) {
+			filteredTasks = filteredTasks.slice(offset)
+		}
+		const hasMore = paginateAfterFilter ? filteredTasks.length > limit : sessionHistory.length > limit
 		const tasks = filteredTasks.slice(0, limit).map((item) => {
 			const metadata = item.metadata
 			return {
@@ -2140,6 +2317,11 @@ export class Controller {
 				isLegacy:
 					metadataBoolean(metadata, "legacyTask") === true ||
 					metadataBoolean(metadata, "migratedFromLegacyTask") === true,
+				executionTarget: metadataString(metadata, "executionTarget") ?? "",
+				cloudStatus: metadataString(metadata, "cloudStatus") ?? "",
+				cloudRepoUrl: metadataString(metadata, "repoUrl") ?? "",
+				cloudBranch: metadataString(metadata, "branch") ?? "",
+				cloudUsageAvailable: metadataBoolean(metadata, "usageAvailable") ?? false,
 			}
 		})
 
@@ -2148,7 +2330,8 @@ export class Controller {
 				.getClineMessages()
 				.find((message) => message.type === "say" && message.say === "task" && message.text)
 			const matchesSearch = !searchQuery || taskMessage?.text?.toLowerCase().includes(searchQuery.toLowerCase())
-			if (taskMessage?.text && matchesSearch) {
+			const currentCloudTask = this.cloud.getCurrentTaskInfo()
+			if (taskMessage?.text && matchesSearch && (!cloudOnly || currentCloudTask)) {
 				tasks.unshift({
 					id: this.task.taskId,
 					task: formatDisplayUserInput(taskMessage.text),
@@ -2163,11 +2346,20 @@ export class Controller {
 					modelId: this.task.api?.getModel?.().id ?? "",
 					apiProvider: "",
 					isLegacy: false,
+					executionTarget: currentCloudTask ? "cloud" : "",
+					cloudStatus: currentCloudTask?.status ?? "",
+					cloudRepoUrl: currentCloudTask?.repoUrl ?? "",
+					cloudBranch: currentCloudTask?.branch ?? "",
+					cloudUsageAvailable: false,
 				})
 			}
 		}
 
 		return TaskHistoryArray.create({ tasks: tasks.slice(0, limit), hasMore })
+	}
+
+	resolveCloudSessionStatuses(sessionIds: Iterable<string>) {
+		return this.cloud.resolveStatuses(sessionIds)
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
@@ -2359,6 +2551,7 @@ export class Controller {
 					.getClineMessages()
 					.find((message) => message.type === "say" && message.say === "task" && message.text)
 				if (taskMessage?.text) {
+					const currentCloudTask = this.cloud.getCurrentTaskInfo()
 					mergedTaskHistoryById.set(snapshotTask.taskId, {
 						id: snapshotTask.taskId,
 						ts: taskMessage.ts || Date.now(),
@@ -2370,6 +2563,14 @@ export class Controller {
 						totalCost: 0,
 						modelId: snapshotTask.api?.getModel?.().id,
 						cwdOnTaskInitialization: await this.getWorkspaceRoot(),
+						...(currentCloudTask
+							? {
+									executionTarget: "cloud" as const,
+									cloudStatus: currentCloudTask.status,
+									cloudRepoUrl: currentCloudTask.repoUrl,
+									cloudBranch: currentCloudTask.branch,
+								}
+							: {}),
 					})
 				}
 			}
@@ -2416,6 +2617,10 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
+				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
+				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
+				currentCloudTask: this.cloud.getCurrentTaskInfo(),
+				cloudModelId: isCloudSessionsFeatureEnabled() ? this.cloud.getCloudModelId() : undefined,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

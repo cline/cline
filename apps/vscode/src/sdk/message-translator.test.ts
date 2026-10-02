@@ -1482,6 +1482,27 @@ describe("translateSessionEvent — agent_event error", () => {
 		const result = translateSessionEvent(event, state)
 		expect(result.turnComplete).toBe(true)
 		expect(state.wasErrorSeen()).toBe(true)
+		expect(result.messages.map((message) => message.ask ?? message.say)).toEqual(["api_req_started", "api_req_failed"])
+		expect(result.messages[1].text).toBe("stream failed before assistant output")
+	})
+
+	it("renders a failure carried only by done(reason:'error') once, as a credit error when it is one", () => {
+		const state = new MessageTranslatorState()
+		const done = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: { type: "done", reason: "error", text, iterations: 1 } as AgentEvent,
+			},
+		})
+
+		const first = translateSessionEvent(done("Not enough credits available"), state)
+		const failed = first.messages.filter((message) => message.ask === "api_req_failed")
+		expect(failed).toHaveLength(1)
+		expect(JSON.parse(failed[0].text ?? "{}")).toMatchObject({ code: "insufficient_credits" })
+
+		// An "error" event already rendered this turn's failure.
+		expect(translateSessionEvent(done("Not enough credits available"), state).messages).toEqual([])
 	})
 
 	it("does not record an error outcome for a successful done event", () => {
@@ -2530,6 +2551,24 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		expect(end.messages[0].text).toBe("Hello world!")
 		expect(end.messages[0].partial).toBe(false)
 		expect(end.messages[0].ts).toBe(streamingTs)
+	})
+
+	it("accumulates text chunks that carry no running total, as a cloud session sends them", () => {
+		const state = new MessageTranslatorState()
+		const chunk = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_start", contentType: "text", text } as AgentEvent },
+		})
+		const end = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_end", contentType: "text", text } as AgentEvent },
+		})
+
+		expect(translateSessionEvent(chunk("Hello "), state).messages[0].text).toBe("Hello ")
+		expect(translateSessionEvent(chunk("world"), state).messages[0].text).toBe("Hello world")
+		translateSessionEvent(end("Hello world"), state)
+		// The next text block starts from nothing.
+		expect(translateSessionEvent(chunk("Next"), state).messages[0].text).toBe("Next")
 	})
 
 	it("accumulates reasoning deltas into text for webview rendering", () => {

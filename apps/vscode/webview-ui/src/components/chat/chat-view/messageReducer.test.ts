@@ -233,5 +233,35 @@ describe("messageReducer — deterministic", () => {
 			expect(tsList(s)).toContain(1)
 			expect(tsList(s)).toContain(2)
 		})
+
+		it("the first snapshot at the new epoch drops the rows carried forward from the old one", () => {
+			// A new task's partials (task row, status row) can reach the webview before the
+			// state snapshot that replaces the transcript. Carrying the old rows forward keeps
+			// the view alive meanwhile, but once the snapshot for the new epoch arrives the
+			// old task must not stay interleaved above the new one.
+			let s = createReplicaState()
+			s = applyStateSnapshot(s, [msg(1, 1, 1, false, "old task"), msg(2, 2, 1, false, "old error")], 1, 5)
+			s = applyMessage(s, msg(10, 6, 2, false, "new task"))
+			s = applyMessage(s, msg(11, 7, 2, true, "start"))
+			s = applyMessage(s, msg(11, 9, 2, false, "starting"))
+			expect(texts(s)).toEqual(["old task", "old error", "new task", "starting"])
+
+			// The snapshot was built between the two copies of ts 11 and also carries a row
+			// (ts 12) whose partial-stream copy never arrived.
+			s = applyStateSnapshot(
+				s,
+				[msg(10, 6, 2, false, "new task"), msg(11, 7, 2, true, "start"), msg(12, 8, 2, false, "failed")],
+				2,
+				10,
+			)
+			expect(texts(s)).toEqual(["new task", "starting", "failed"])
+			expect(s.turnState).toBeUndefined()
+
+			// Later same-epoch snapshots merge as usual.
+			s = applyMessage(s, msg(13, 11, 2, false, "retry offered"))
+			s = applyStateSnapshot(s, [msg(10, 6, 2, false, "new task")], 2, 12, { phase: "error", seq: 12 })
+			expect(texts(s)).toEqual(["new task", "starting", "failed", "retry offered"])
+			expect(s.turnState).toEqual({ phase: "error", seq: 12 })
+		})
 	})
 })

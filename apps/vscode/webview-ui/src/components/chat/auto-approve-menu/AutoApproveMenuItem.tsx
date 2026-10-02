@@ -44,14 +44,19 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 			<CheckboxWrapper $disabled={disabled} className="w-full" onClick={onChange}>
 				<VSCodeCheckbox checked={checked} disabled={disabled}>
 					<div className="w-full flex text-sm items-center justify-start text-foreground gap-2">
-						{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
+						{showIcon && <span className={`codicon ${action.icon} icon`} />}
 						<span className="label">{action.label}</span>
 					</div>
 				</VSCodeCheckbox>
 			</CheckboxWrapper>
 			{action.subAction && (
 				<SubOptionAnimateIn inert={!checked ? "" : undefined} show={checked}>
-					<AutoApproveMenuItem action={action.subAction} isChecked={isChecked} onToggle={onToggle} />
+					<AutoApproveMenuItem
+						action={action.subAction}
+						disabled={disabled}
+						isChecked={isChecked}
+						onToggle={onToggle}
+					/>
 				</SubOptionAnimateIn>
 			)}
 		</div>
