@@ -107,6 +107,8 @@ export interface PersistedSessionUpdateInput {
 	agentId?: string | null;
 	conversationId?: string | null;
 	setRunning?: boolean;
+	/** Defaults to now. Set it when the change is not new session activity. */
+	updatedAt?: string;
 }
 
 export interface SessionPersistenceAdapter {
