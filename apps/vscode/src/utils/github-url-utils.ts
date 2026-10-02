@@ -21,6 +21,28 @@ import * as util from "util"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal, writeTextToClipboard } from "@/utils/env"
 
+const ALLOWED_EXTERNAL_URI_SCHEMES = new Set(["http", "https", "mailto"])
+
+function isAllowedExternalUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url)
+		const scheme = parsed.protocol.replace(/:$/, "").toLowerCase()
+		return ALLOWED_EXTERNAL_URI_SCHEMES.has(scheme)
+	} catch {
+		return false
+	}
+}
+
+function getUrlScheme(url: string): string {
+	try {
+		const parsed = new URL(url)
+		return parsed.protocol.replace(/:$/, "")
+	} catch {
+		const colon = url.indexOf(":")
+		return colon > 0 ? url.slice(0, colon) : ""
+	}
+}
+
 /**
  * Opens a URL using platform-specific commands to bypass VS Code's URI handling issues.
  *
@@ -43,6 +65,11 @@ import { openExternal, writeTextToClipboard } from "@/utils/env"
  * @returns A promise that resolves when an attempt to open the URL has completed
  */
 export async function openUrlInBrowser(url: string): Promise<void> {
+	// Centralized scheme validation — block non-allowlisted schemes before any OS shell execution
+	if (!isAllowedExternalUrl(url)) {
+		const scheme = getUrlScheme(url)
+		throw new Error(`Unsupported external URI scheme: ${scheme || "(missing)"}`)
+	}
 	// For debugging
 	Logger.log(`Opening URL: ${url}`)
 
