@@ -638,6 +638,113 @@ describe("collapseCompletedWork", () => {
 		expect(items.map((item) => item.type)).toEqual(["message", "tools"]);
 	});
 
+	function makeConnectorTool(id: string, createdAt: number): ChatMessage {
+		return makeMessage({
+			id,
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "composio_manage_connections",
+				input: { toolkits: ["gmail"] },
+				result: {
+					data: {
+						results: {
+							gmail: {
+								toolkit: "gmail",
+								status: "initiated",
+								redirect_url: "https://connect.composio.dev/link/abc",
+							},
+						},
+					},
+				},
+			}),
+			meta: { toolName: "composio_manage_connections" },
+			createdAt,
+		});
+	}
+
+	it("keeps a connector card out of the collapsed work and after the answer", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "check my gmail",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeConnectorTool("c1", 3_000),
+				makeMessage({
+					id: "a1",
+					content: "Connect Gmail, then let me know.",
+					createdAt: 4_000,
+				}),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"work",
+			"message",
+			"tools",
+		]);
+		const work = items[1];
+		expect(work.type === "work" ? work.toolCallCount : -1).toBe(1);
+		const card = items[3];
+		expect(card.type === "tools" ? card.messages.map((m) => m.id) : []).toEqual(
+			["c1"],
+		);
+	});
+
+	it("trails the live run's streaming answer with the connector card", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "check my gmail",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeConnectorTool("c1", 3_000),
+				makeMessage({ id: "a1", content: "Connect", createdAt: 4_000 }),
+			],
+			false,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"tools",
+			"message",
+			"tools",
+		]);
+		expect(
+			items[3].type === "tools" ? items[3].messages.map((m) => m.id) : [],
+		).toEqual(["c1"]);
+	});
+
+	it("shows a connector card that was the run's only tool call without a work summary", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "check my gmail",
+					createdAt: 1_000,
+				}),
+				makeConnectorTool("c1", 2_000),
+				makeMessage({ id: "a1", content: "Connect Gmail.", createdAt: 3_000 }),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"message",
+			"tools",
+		]);
+	});
+
 	it("measures duration from the first working row when no user message precedes it", () => {
 		const items = collapse(
 			[
