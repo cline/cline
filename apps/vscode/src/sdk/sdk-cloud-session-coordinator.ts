@@ -203,6 +203,8 @@ export class SdkCloudSessionCoordinator {
 	private startGeneration = 0
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
 	private pendingStart: AbortController | undefined
+	/** The sandbox the pending start created, once the control plane has named it. */
+	private pendingStartSessionId: string | undefined
 	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
 	private recommendedModelsWarmup: Promise<unknown> | undefined
 	private scopeTransition: Promise<void> | undefined
@@ -343,7 +345,8 @@ export class SdkCloudSessionCoordinator {
 		await this.refreshList()
 		if (this.scopeTransition) return []
 		const generation = this.scopeGeneration
-		const entries = [...this.entries.values()]
+		// The pending start's own task row already stands for its sandbox.
+		const entries = [...this.entries.values()].filter((entry) => entry.record.id !== this.pendingStartSessionId)
 		await this.refreshUsage(entries)
 		if (generation !== this.scopeGeneration) {
 			return this.listHistoryRecords()
@@ -819,6 +822,7 @@ export class SdkCloudSessionCoordinator {
 			} finally {
 				if (this.pendingStart === pendingStart) {
 					this.pendingStart = undefined
+					this.pendingStartSessionId = undefined
 					// The failure path posts state while the start is still pending;
 					// re-post so the composer no longer sees "provisioning".
 					this.options.postStateToWebview().catch(() => {})
@@ -838,6 +842,7 @@ export class SdkCloudSessionCoordinator {
 			return false
 		}
 		this.pendingStart = undefined
+		this.pendingStartSessionId = undefined
 		this.startGeneration++
 		pendingStart.abort(new Error("Cloud task cancelled while provisioning"))
 		return true
@@ -906,6 +911,7 @@ export class SdkCloudSessionCoordinator {
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
 					sessionId = id
+					if (startGeneration === this.startGeneration) this.pendingStartSessionId = id
 				},
 				cancelSignal,
 			)
@@ -1003,6 +1009,24 @@ export class SdkCloudSessionCoordinator {
 	// ---- Reopening a task from History ----
 
 	async openCloudTask(sessionId: string): Promise<HistoryItem | undefined> {
+		const displayedTaskId = this.options.getTask()?.taskId
+		const showingPendingStart =
+			!!this.pendingStart &&
+			!!displayedTaskId &&
+			(displayedTaskId.startsWith(CLOUD_PROVISIONING_ID_PREFIX) || displayedTaskId === this.pendingStartSessionId)
+		if (showingPendingStart && (sessionId === displayedTaskId || sessionId === this.pendingStartSessionId)) {
+			// Already showing this start; reopening it would supersede the start and delete its sandbox.
+			return {
+				id: sessionId,
+				ts: Date.now(),
+				task: "",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				executionTarget: "cloud",
+				cloudStatus: "provisioning",
+			}
+		}
 		const lookupWasSuperseded = this.options.claimTaskViewGeneration()
 		const generationBeforeTransition = this.scopeGeneration
 		await this.scopeTransition
