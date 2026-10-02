@@ -57,6 +57,10 @@ export function addRootOptions(cmd: Command): Command {
 				"Number of maximum consecutive mistakes (retries) before exiting (default: 6)",
 			)
 			.option(
+				"--max-iterations [value]",
+				"Maximum number of agent loop iterations before exiting (default: 100)",
+			)
+			.option(
 				"-t, --timeout <seconds>",
 				"Optional timeout in seconds (default: 0 for no timeout)",
 			)
@@ -211,6 +215,17 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 			result.retries = parsed;
 		} else if (raw) {
 			result.invalidRetries = raw;
+		}
+	}
+
+	// Max iterations (agent loop bound) validation
+	if (opts.maxIterations !== undefined) {
+		const raw = opts.maxIterations.trim();
+		const parsed = Number.parseInt(raw, 10);
+		if (raw && Number.isInteger(parsed) && parsed >= 1) {
+			result.maxIterations = parsed;
+		} else if (raw) {
+			result.invalidMaxIterations = raw;
 		}
 	}
 
