@@ -13,7 +13,7 @@ import { findRecommendedToolkit } from "@/lib/composio-types";
 import { openExternalUrl } from "@/lib/desktop-client";
 import type { ConnectorAuthToolkit } from "./connector-auth";
 
-const CONNECT_POLL_INTERVAL_MS = 3_000;
+const CONNECT_POLL_INTERVAL_MS = 10_000;
 /** Matches how long the sidecar's own connect flow waits for the browser. */
 const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -52,13 +52,14 @@ function ConnectorAuthRow({ toolkit }: { toolkit: ConnectorAuthToolkit }) {
 
 	// The link finishes in the external browser, which cannot report back.
 	// A refreshing status read imports the new connection (and its tools, for
-	// the next session), so poll it until the toolkit shows up as connected.
+	// the next session). It re-fetches every connected toolkit's schemas, so
+	// check when the user returns to the app and only slowly otherwise.
 	useEffect(() => {
 		if (state !== "waiting") return;
 		let cancelled = false;
 		let inFlight = false;
 		const deadline = Date.now() + CONNECT_WAIT_TIMEOUT_MS;
-		const interval = setInterval(() => {
+		const check = () => {
 			if (Date.now() > deadline) {
 				setState("idle");
 				return;
@@ -78,10 +79,13 @@ function ConnectorAuthRow({ toolkit }: { toolkit: ConnectorAuthToolkit }) {
 				.finally(() => {
 					inFlight = false;
 				});
-		}, CONNECT_POLL_INTERVAL_MS);
+		};
+		const interval = setInterval(check, CONNECT_POLL_INTERVAL_MS);
+		window.addEventListener("focus", check);
 		return () => {
 			cancelled = true;
 			clearInterval(interval);
+			window.removeEventListener("focus", check);
 		};
 	}, [slug, state]);
 
