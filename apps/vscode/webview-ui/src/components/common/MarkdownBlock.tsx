@@ -1,3 +1,4 @@
+import { rehypeBidi } from "@bidilens/markdown"
 import { StringRequest } from "@shared/proto/cline/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { SquareArrowOutUpRightIcon } from "lucide-react"
@@ -76,7 +77,7 @@ const MemoizedMarkdownBlock = memo(
 					},
 					img: (props) => <UnsafeImage {...props} />,
 				}}
-				rehypePlugins={[[rehypeHighlight as any, {} as Options]]}
+				rehypePlugins={[rehypeBidi, [rehypeHighlight as any, {} as Options]]}
 				remarkPlugins={[
 					[remarkGfm, { singleTilde: false }],
 					remarkPreventBoldFilenames,
