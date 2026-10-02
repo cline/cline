@@ -302,6 +302,7 @@ export function generateApiKeyDisplayName(fieldName) {
 		openAiNativeApiKey: "OpenAI Native API Key",
 		geminiApiKey: "Gemini API Key",
 		ollamaApiKey: "Ollama API Key",
+		lmStudioApiKey: "LM Studio API Key",
 		deepSeekApiKey: "DeepSeek API Key",
 		liteLlmApiKey: "LiteLLM API Key",
 		qwenApiKey: "Qwen API Key",
@@ -356,7 +357,7 @@ export function validateApiKeyMappings(providerIds, providerApiKeyMap) {
 	for (const providerId of providerIds) {
 		if (!providerApiKeyMap[providerId] || providerApiKeyMap[providerId].length === 0) {
 			// Some providers don't require API keys - they use alternative authentication:
-			const noKeyProviders = ["vscode-lm", "ollama", "lmstudio", "claude-code", "oca", "vertex", "qwen-code"]
+			const noKeyProviders = ["vscode-lm", "ollama", "claude-code", "oca", "vertex", "qwen-code"]
 
 			if (!noKeyProviders.includes(providerId)) {
 				unmappedProviders.push(providerId)
