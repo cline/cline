@@ -45,44 +45,13 @@ import {
  * tools off for new sessions; running sessions keep their frozen tool set,
  * but every execution rechecks the account identity and beta flag.
  *
- * Signed-in sessions also get the in-chat authentication meta tools (see
- * `composio-meta-tools.ts`), so the agent can hand the user a Connect Link
- * when a task needs an app that is not connected yet — even when nothing is
- * connected.
+ * Signed-in sessions also get Composio's meta tools (see
+ * `composio-meta-tools.ts`), so the agent can find tools across the project's
+ * toolkits, hand the user a Connect Link for an app that is not connected yet,
+ * and run what it found — even when nothing is connected.
  */
 
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
-
-/**
- * Composio's own meta-tool descriptions assume its full tool router (they
- * require COMPOSIO_SEARCH_TOOLS first), which this session does not expose,
- * so models conclude they cannot connect. Replace them with descriptions of
- * the flow these two tools support on their own.
- */
-const META_TOOL_DESCRIPTIONS: Record<string, string> = {
-	COMPOSIO_MANAGE_CONNECTIONS: [
-		"Connect the user's external apps. Use this whenever the user asks for something in an app (e.g. Gmail, Google Calendar, Slack, GitHub, Linear, Notion) that has no tools in this session — never tell the user you lack access without calling it first.",
-		"Pass lowercase toolkit slugs such as ['gmail'] or ['googlecalendar']. For an app that is not connected it returns an authentication link (redirect_url); for one that is, it returns the connection details.",
-		"Show the link to the user as a Markdown link in your final response and ask them to reply once they have connected, then call composio_wait_for_connections to confirm. The app's tools are available in a new session after it is connected; tell the user to start one.",
-	].join("\n\n"),
-	COMPOSIO_WAIT_FOR_CONNECTIONS:
-		"Wait until the user finishes connecting apps from a composio_manage_connections link. Call it after the user says they have connected. Pass the same toolkit slugs; mode 'any' (default) or 'all'. Returns each toolkit's final state (ACTIVE or FAILED).",
-};
-
-/** The proxy supplies the session id, so drop the provider's session_id input. */
-function metaToolInputSchema(
-	schema: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-	if (!schema) return { type: "object", properties: {} };
-	const properties = {
-		...(schema.properties as Record<string, unknown> | undefined),
-	};
-	delete properties.session_id;
-	const required = Array.isArray(schema.required)
-		? schema.required.filter((key) => key !== "session_id")
-		: schema.required;
-	return { ...schema, properties, ...(required ? { required } : {}) };
-}
 
 type StoredComposioTool = {
 	slug: string;
@@ -331,6 +300,9 @@ export async function createComposioToolsExtension(options?: {
 					}
 				}
 			}
+			// The server allowlists which meta tools a session exposes; their
+			// descriptions and schemas are Composio's, which reference each other.
+			const metaSessionId = metaSession?.sessionId ?? "";
 			for (const tool of metaSession?.tools ?? []) {
 				const toolName = tool.slug.toLowerCase().replace(/[^a-z0-9_]/g, "_");
 				if (registered.has(toolName)) {
@@ -341,18 +313,22 @@ export async function createComposioToolsExtension(options?: {
 					api.registerTool(
 						createTool({
 							name: toolName,
-							description:
-								META_TOOL_DESCRIPTIONS[tool.slug] ??
-								(tool.description || tool.name || tool.slug),
-							inputSchema: metaToolInputSchema(tool.input_parameters) as never,
+							resultPolicy: "cache-oversized",
+							description: tool.description || tool.name || tool.slug,
+							inputSchema: (tool.input_parameters ?? {
+								type: "object",
+								properties: {},
+							}) as never,
 							timeoutMs: COMPOSIO_TOOL_TIMEOUT_MS,
+							// Multi-execute runs app tools with side effects; never
+							// auto-retry any meta tool.
 							retryable: false,
 							execute: async (input: unknown) => {
 								const authorized = await authorizeExecution(accountId);
 								if ("error" in authorized) return authorized.error;
 								return executeComposioMetaTool(
 									authorized.auth,
-									metaSession?.sessionId ?? "",
+									metaSessionId,
 									tool.slug,
 									input,
 								);

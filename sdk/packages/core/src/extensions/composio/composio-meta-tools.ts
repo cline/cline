@@ -3,9 +3,11 @@
  *
  * The Cline API creates a per-user Composio tool-router session scoped to the
  * project's enabled auth configs (`POST /api/v1/connectors/meta-tools/sessions`)
- * and returns the schemas of its connection-management meta tools:
- * COMPOSIO_MANAGE_CONNECTIONS returns a hosted Connect Link the agent surfaces
- * in chat, and COMPOSIO_WAIT_FOR_CONNECTIONS blocks until the user finishes.
+ * and returns the schemas of its allowlisted meta tools: COMPOSIO_SEARCH_TOOLS
+ * finds tools across those toolkits, COMPOSIO_MANAGE_CONNECTIONS returns a
+ * hosted Connect Link the agent surfaces in chat, COMPOSIO_WAIT_FOR_CONNECTIONS
+ * blocks until the user finishes, and COMPOSIO_MULTI_EXECUTE_TOOL runs the
+ * tools search found — no new session needed after connecting.
  * Credentials never pass through Cline or the model — only the link does.
  * Executions go back through the proxy with the session id
  * (`POST /api/v1/connectors/meta-tools/{slug}/execute`), which checks that the
