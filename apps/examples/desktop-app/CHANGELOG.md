@@ -1,5 +1,12 @@
 # Cline Desktop Changelog
 
+## 0.0.42
+
+- New `/compact` slash command. It summarizes the conversation so far to free up context. The summary uses your session's provider settings and is not sent to the model as a prompt
+- **Connectors** is now the first and default tab in **Customize**. A new **Browse** section lists the full connector catalog in two columns with search, so you no longer need the Marketplace to find a connector. Installed and Browse each have their own search box
+- Connectors now show their brand logo, both in Customize and in Marketplace rows
+- If connectors aren't available to you, the Connectors tab now says why: a sign-in card when you're signed out, or a rollout notice with **Check again** when your account doesn't have beta access yet
+
 ## 0.0.41
 
 - Cloud sessions can now use the same models as Cline on the web. The model picker lists **Cline Usage-Billing**, **ClinePass**, and **ClineFree** models (organization accounts don't get ClinePass), instead of only Cline. A new Cloud session waits until a model is ready before sending, and you can retry if the model list fails to load
