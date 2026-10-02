@@ -9,7 +9,6 @@ import {
 } from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
-import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	emptyStoredProviderSettings,
@@ -29,6 +28,12 @@ import {
 	ensureCustomProvidersLoadedSync,
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
+import {
+	carryLastUsedProvider,
+	normalizeLastUsedProvider,
+	resolveEffectiveLastUsedProviderId,
+	resolveStoredProviderSettings,
+} from "./provider-settings-last-used";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {
@@ -184,7 +189,9 @@ export class ProviderSettingsManager {
 	}
 
 	write(state: StoredProviderSettings): void {
-		const normalized = StoredProviderSettingsSchema.parse(state);
+		const normalized = StoredProviderSettingsSchema.parse(
+			normalizeLastUsedProvider(state),
+		);
 		const dir = dirname(this.filePath);
 		if (!existsSync(dir)) {
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -236,10 +243,10 @@ export class ProviderSettingsManager {
 					tokenSource,
 				},
 			},
-			lastUsedProvider: shouldSetLastUsed
-				? providerId
-				: previous.lastUsedProvider,
 		};
+		next.lastUsedProvider = shouldSetLastUsed
+			? providerId
+			: carryLastUsedProvider(previous, next);
 		this.write(next);
 		const prevClineAuth = previous.providers["cline"]?.settings?.auth;
 		const nextClineAuth =
@@ -258,25 +265,7 @@ export class ProviderSettingsManager {
 		state: StoredProviderSettings,
 		providerId: string,
 	): ProviderSettings | undefined {
-		const directSettings = state.providers[providerId]?.settings;
-		const authHandler = getProviderAuthHandler(providerId);
-		const storageProviderId = authHandler?.storageProviderId;
-		if (!storageProviderId || storageProviderId === providerId) {
-			return directSettings;
-		}
-
-		const authSettings = state.providers[storageProviderId]?.settings;
-		if (!authSettings) {
-			return directSettings;
-		}
-
-		return ProviderSettingsSchema.parse({
-			...(authSettings.auth ? { auth: authSettings.auth } : {}),
-			...(authSettings.apiKey ? { apiKey: authSettings.apiKey } : {}),
-			...(authSettings.baseUrl ? { baseUrl: authSettings.baseUrl } : {}),
-			...(directSettings ?? {}),
-			provider: providerId,
-		});
+		return resolveStoredProviderSettings(state, providerId);
 	}
 
 	getProviderSettings(providerId: string): ProviderSettings | undefined {
@@ -305,7 +294,15 @@ export class ProviderSettingsManager {
 		state: StoredProviderSettings,
 		options: ResolveLastUsedProviderSettingsOptions,
 	): string | undefined {
-		const providerId = state.lastUsedProvider;
+		// read() returns the pointer as stored, so the migration and the
+		// last-used bookkeeping see what is on disk; the repair happens here,
+		// where the pointer is interpreted, and in write().
+		const providerId = resolveEffectiveLastUsedProviderId(state);
+		if (providerId !== state.lastUsedProvider) {
+			sdkDebug(
+				`providers.lastUsed stored=${state.lastUsedProvider ?? "none"} has no usable settings; using ${providerId ?? "none"}`,
+			);
+		}
 		if (
 			providerId === CLINE_PASS_PROVIDER_ID &&
 			options.isClinePassEnabled === false

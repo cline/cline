@@ -783,4 +783,256 @@ describe("ProviderSettingsManager", () => {
 			});
 		});
 	});
+	describe("a last-used provider that no longer resolves", () => {
+		const at = (iso: string) => ({
+			updatedAt: iso,
+			tokenSource: "manual" as const,
+		});
+
+		function setup(state: unknown): {
+			filePath: string;
+			manager: ProviderSettingsManager;
+		} {
+			const tempDir = mkdtempSync(
+				path.join(os.tmpdir(), "core-provider-settings-"),
+			);
+			tempDirs.push(tempDir);
+			const filePath = path.join(tempDir, "provider-settings.json");
+			writeFileSync(filePath, JSON.stringify(state, null, 2));
+			return { filePath, manager: new ProviderSettingsManager({ filePath }) };
+		}
+
+		const openAiCompatible = {
+			settings: {
+				provider: "openai-compatible",
+				baseUrl: "http://127.0.0.1:8080/v1",
+				model: "qwen3-coder",
+			},
+			...at("2026-09-01T00:00:00.000Z"),
+		};
+
+		it("falls back to the configured provider instead of reporting none", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: { "openai-compatible": openAiCompatible },
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "openai-compatible",
+				baseUrl: "http://127.0.0.1:8080/v1",
+			});
+			expect(manager.getLastUsedProviderConfig()?.providerId).toBe(
+				"openai-compatible",
+			);
+			// read() reports the pointer as stored; the repair happens where the
+			// pointer is interpreted and on the next write.
+			expect(manager.read().lastUsedProvider).toBe("cline");
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"cline",
+			);
+		});
+
+		it("prefers the most recently saved provider when several are configured", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					anthropic: {
+						settings: { provider: "anthropic", apiKey: "older" },
+						...at("2026-08-01T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+					gemini: {
+						settings: { provider: "gemini", apiKey: "oldest" },
+						...at("2026-07-01T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe(
+				"openai-compatible",
+			);
+		});
+
+		it("reports no provider when nothing is configured", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+			expect(manager.read().lastUsedProvider).toBe("cline");
+		});
+
+		it("keeps a selection whose credentials live under another provider's entry", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline-pass",
+				modes: {},
+				providers: {
+					cline: {
+						settings: {
+							provider: "cline",
+							auth: { accessToken: "workos:shared-token" },
+						},
+						...at("2026-09-01T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "cline-pass",
+				auth: { accessToken: "workos:shared-token" },
+			});
+		});
+
+		it("keeps a signed-out selection whose entry still exists", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					cline: {
+						settings: { provider: "cline" },
+						...at("2026-08-01T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toEqual({
+				provider: "cline",
+			});
+		});
+
+		it("does not pick a phantom entry over a configured provider, before or after an unrelated write", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					"openai-compatible": openAiCompatible,
+					// A phantom from an earlier migration: newer, but no credentials.
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						...at("2026-09-10T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe(
+				"openai-compatible",
+			);
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			// The unrelated save neither promotes the phantom nor itself.
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"openai-compatible",
+			);
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe(
+				"openai-compatible",
+			);
+		});
+
+		it("reports no provider when the only entries are unusable", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						...at("2026-09-10T00:00:00.000Z"),
+					},
+					// A keyless local provider still needs a base URL and a model.
+					"openai-compatible": {
+						settings: { provider: "openai-compatible", model: "qwen3-coder" },
+						...at("2026-09-01T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+		});
+
+		it("lets a keyless local endpoint stand in when it has a base URL and a model", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					sapaicore: {
+						settings: { provider: "sapaicore" },
+						...at("2026-09-10T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "openai-compatible",
+				baseUrl: "http://127.0.0.1:8080/v1",
+			});
+		});
+
+		for (const dangling of ["cline", "cline-pass"]) {
+			it(`keeps a dangling ${dangling} selection when signing in creates the entry it points at`, () => {
+				const { filePath, manager } = setup({
+					version: 1,
+					lastUsedProvider: dangling,
+					modes: {},
+					providers: {
+						anthropic: {
+							settings: { provider: "anthropic", apiKey: "existing-key" },
+							...at("2026-09-01T00:00:00.000Z"),
+						},
+					},
+				});
+
+				// What the extension's sign-in does when the stored pointer is
+				// already Cline-backed: save the credentials without claiming
+				// the last-used slot.
+				manager.saveProviderSettings(
+					{ provider: "cline", auth: { accessToken: "workos:new-token" } },
+					{ tokenSource: "oauth", setLastUsed: false },
+				);
+
+				expect(
+					JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider,
+				).toBe(dangling);
+				expect(manager.getLastUsedProviderSettings()).toMatchObject({
+					provider: dangling,
+					auth: { accessToken: "workos:new-token" },
+				});
+			});
+		}
+
+		it("persists the repaired selection on the next write", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: { "openai-compatible": openAiCompatible },
+			});
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"openai-compatible",
+			);
+		});
+	});
 });
