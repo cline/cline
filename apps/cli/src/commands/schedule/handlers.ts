@@ -222,11 +222,15 @@ export function registerScheduleCommands(
 
 	const listCmd = schedule
 		.command("list")
-		.description("List schedules")
+		.description("List schedules across all workspaces")
 		.option("--disabled", "Show only disabled schedules")
 		.option("--enabled", "Show only enabled schedules")
 		.option("--limit <n>", "Maximum number of results", "100")
-		.option("--tags <list>", "Filter by comma-separated tags");
+		.option("--tags <list>", "Filter by comma-separated tags")
+		.option(
+			"--workspace <path>",
+			"Only show schedules for this workspace root",
+		);
 	addSharedOptions(listCmd);
 	listCmd.action(
 		action(async () => {
@@ -243,10 +247,18 @@ export function registerScheduleCommands(
 			const client = ensured.client;
 			try {
 				const enabled = opts.enabled ? true : opts.disabled ? false : undefined;
+				// The hub filters by workspace before applying the limit, and
+				// matches canonical path forms, so the filter cannot be starved
+				// by other workspaces' schedules or miss symlink aliases.
+				const workspaceRoot =
+					typeof opts.workspace === "string" && opts.workspace.trim()
+						? opts.workspace.trim()
+						: undefined;
 				const schedules = await client.listSchedules({
 					limit: toPositiveInt(opts.limit, 100),
 					enabled,
 					tags: parseList(opts.tags),
+					...(workspaceRoot ? { workspaceRoot } : {}),
 				});
 				if (!opts.json && Array.isArray(schedules) && schedules.length === 0) {
 					io.writeln("No schedules found.");

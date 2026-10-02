@@ -55,7 +55,15 @@ export class HubScheduleClient {
 		payload?: Record<string, unknown>,
 	): Promise<Record<string, unknown>> {
 		const client = await this.connectedHub();
-		const reply = await client.command(command as never, payload);
+		// Agent-created schedules live under each chat's own workspace folder,
+		// not necessarily the directory this CLI ran from. Like the desktop
+		// Schedules page, manage every schedule on this machine; the hub only
+		// honors this for token-authenticated connections and keeps
+		// workspace-bound clients scoped.
+		const reply = await client.command(command as never, {
+			allWorkspaces: true,
+			...payload,
+		});
 		return (reply.payload ?? {}) as Record<string, unknown>;
 	}
 
@@ -135,7 +143,10 @@ export class LocalScheduleClient {
 				version: "v1",
 				clientId: "cline-schedule-local",
 				command: command as never,
-				payload,
+				// Match the hub-connected client: manage schedules across all
+				// workspaces, since agent-created schedules live under each
+				// chat's own workspace folder rather than this CLI's cwd.
+				payload: { allWorkspaces: true, ...payload },
 			},
 			{
 				clientId: "cline-schedule-local",
@@ -143,6 +154,10 @@ export class LocalScheduleClient {
 					workspaceRoot: this.workspaceRoot,
 					cwd: this.workspaceRoot,
 				},
+				// This client opens the local schedule store directly in the
+				// user's own process, so the workspace scope is a UX default
+				// here, not a security boundary.
+				crossWorkspace: true,
 			},
 		);
 		if (!reply.ok) {
