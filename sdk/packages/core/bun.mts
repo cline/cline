@@ -58,14 +58,6 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		outdir: "./dist/cloud",
 		...buildConfig,
 	},
-	{
-		entrypoints: [
-			"./src/remote/remote-helper.ts",
-			"./src/remote/remote-helper-entry.ts",
-		],
-		outdir: "./dist/remote",
-		...buildConfig,
-	},
 	// Build main exports separately to avoid Bun bundler output path conflicts
 	{
 		entrypoints: ["./src/index.ts"],
