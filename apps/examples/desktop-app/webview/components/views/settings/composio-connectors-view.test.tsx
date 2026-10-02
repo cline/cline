@@ -44,6 +44,7 @@ beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
 	mocks.loadError = null;
+	mocks.catalog.mockResolvedValue({ configured: true, toolkits: [] });
 	mocks.integrations = [
 		{
 			toolkit: "gmail",
@@ -178,7 +179,6 @@ describe("installed connectors", () => {
 				(item) => item.textContent,
 			),
 		).toEqual(toolNames);
-		expect(mocks.catalog).not.toHaveBeenCalled();
 	});
 
 	it("shows the installed tool count, not the stale catalog total", async () => {
@@ -238,7 +238,6 @@ describe("installed connectors", () => {
 		expect(installed?.textContent).toContain("Installed0");
 		expect(installed?.textContent).toContain("No connectors installed");
 		expect(installed?.textContent).not.toContain("Gmail");
-		expect(mocks.catalog).not.toHaveBeenCalled();
 		// Every recipe is suggested; chips install their connector.
 		expect(container.textContent).toContain("Suggested");
 		expect(container.textContent).toContain("Organize your day");
@@ -294,7 +293,7 @@ describe("installed connectors", () => {
 		expect(mocks.refresh).toHaveBeenCalledOnce();
 	});
 
-	it("lists installed connectors without fetching or showing recommendations", async () => {
+	it("lists installed connectors without showing recommendations", async () => {
 		mocks.integrations = [
 			{
 				toolkit: "gmail",
@@ -318,8 +317,61 @@ describe("installed connectors", () => {
 		expect(installed?.textContent).toContain("Gmail");
 		expect(installed?.textContent).not.toContain("GitHub");
 		expect(container.textContent).not.toContain("Recommended");
-		expect(mocks.catalog).not.toHaveBeenCalled();
 		await act(async () => button("Uninstall")?.click());
 		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");
+	});
+
+	it("browses the catalog below the suggestions, skipping installed connectors", async () => {
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [
+				{ slug: "gmail", name: "Gmail", description: "Email" },
+				{ slug: "github", name: "GitHub", description: "Code" },
+				{ slug: "notion", name: "Notion", description: "Docs" },
+			],
+		});
+		await act(async () =>
+			root.render(<ComposioConnectorsView appendOnScroll variant="installed" />),
+		);
+		const [installed, , browse] = container.querySelectorAll("section");
+		expect(installed?.textContent).toContain("Gmail");
+		expect(browse?.textContent).toContain("Browse2");
+		expect(browse?.textContent).toContain("GitHub");
+		expect(browse?.textContent).toContain("Notion");
+		expect(browse?.textContent).not.toContain("Gmail");
+		expect(
+			browse?.querySelector('img[src="https://logos.composio.dev/api/notion"]'),
+		).not.toBeNull();
+		await act(async () => button("Install")?.click());
+		expect(mocks.connect).toHaveBeenCalledWith("github");
+		// The page search narrows Browse too.
+		const input = container.querySelector(
+			'input[aria-label="Search connectors"]',
+		) as HTMLInputElement;
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set?.call(input, "notion");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(container.textContent).toContain("Notion");
+		expect(container.textContent).not.toContain("GitHub");
+	});
+
+	it("shows catalog errors and retries in the Browse section", async () => {
+		mocks.catalog
+			.mockRejectedValueOnce(new Error("Service unavailable"))
+			.mockResolvedValueOnce({
+				configured: true,
+				toolkits: [{ slug: "notion", name: "Notion" }],
+			});
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).toContain("Service unavailable");
+		await act(async () => button("Retry")?.click());
+		expect(container.textContent).toContain("Notion");
+		expect(container.textContent).not.toContain("Service unavailable");
 	});
 });
