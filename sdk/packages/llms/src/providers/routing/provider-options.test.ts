@@ -2253,13 +2253,17 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 	it.each([
 		"openai",
 		"openai-native",
-	])("emits truncation for native OpenAI provider %s", (providerId) => {
+	])("emits truncation and stateless reasoning replay for native OpenAI provider %s", (providerId) => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({ providerId, modelId: "gpt-5.4" }),
 			makeContext({ providerId, modelId: "gpt-5.4" }),
 		);
 
 		expect(result.openai).toHaveProperty("truncation", "auto");
+		expect(result.openai).toHaveProperty("store", false);
+		expect(result.openai).toHaveProperty("include", [
+			"reasoning.encrypted_content",
+		]);
 	});
 
 	it("keeps portable OpenAI reasoning out of provider options", () => {

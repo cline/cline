@@ -752,20 +752,33 @@ function toAiSdkMessages(
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const signature = metadata?.signature;
 				const redactedData = metadata?.redactedData;
+				const itemId = metadata?.itemId ?? metadata?.callId;
+				const reasoningEncryptedContent = metadata?.reasoningEncryptedContent;
+				const providerOptions: Record<string, Record<string, unknown>> = {};
+				if (typeof signature === "string" || typeof redactedData === "string") {
+					providerOptions.anthropic = {
+						...(typeof signature === "string" ? { signature } : {}),
+						...(typeof redactedData === "string" ? { redactedData } : {}),
+					};
+				}
+				// OpenAI Responses replays a reasoning item only with the item id
+				// and, for stateless requests, its encrypted content.
+				if (
+					typeof itemId === "string" ||
+					typeof reasoningEncryptedContent === "string"
+				) {
+					providerOptions.openai = {
+						...(typeof itemId === "string" ? { itemId } : {}),
+						...(typeof reasoningEncryptedContent === "string"
+							? { reasoningEncryptedContent }
+							: {}),
+					};
+				}
 				content.push({
 					type: "reasoning",
 					text: sanitizeSurrogates(part.text),
-					...(typeof signature === "string" || typeof redactedData === "string"
-						? {
-								providerOptions: {
-									anthropic: {
-										...(typeof signature === "string" ? { signature } : {}),
-										...(typeof redactedData === "string"
-											? { redactedData }
-											: {}),
-									},
-								},
-							}
+					...(Object.keys(providerOptions).length > 0
+						? { providerOptions }
 						: {}),
 				});
 				continue;
@@ -1399,6 +1412,42 @@ function suppressDanglingStreamPromises(
 	}
 }
 
+function extractReasoningMetadata(
+	part: AiSdkStreamPart,
+): Record<string, unknown> | undefined {
+	const google = extractGoogleThoughtMetadata(part);
+	const openai = extractOpenAIReasoningMetadata(part);
+	if (!google && !openai) {
+		return undefined;
+	}
+	return { ...google, ...openai };
+}
+
+function extractOpenAIReasoningMetadata(
+	part: AiSdkStreamPart,
+): Record<string, unknown> | undefined {
+	const providerMetadata =
+		part.providerMetadata && typeof part.providerMetadata === "object"
+			? (part.providerMetadata as Record<string, unknown>)
+			: undefined;
+	const openaiMetadata =
+		providerMetadata?.openai && typeof providerMetadata.openai === "object"
+			? (providerMetadata.openai as Record<string, unknown>)
+			: undefined;
+	if (!openaiMetadata) {
+		return undefined;
+	}
+	const metadata: Record<string, unknown> = {};
+	if (typeof openaiMetadata.itemId === "string") {
+		metadata.itemId = openaiMetadata.itemId;
+	}
+	if (typeof openaiMetadata.reasoningEncryptedContent === "string") {
+		metadata.reasoningEncryptedContent =
+			openaiMetadata.reasoningEncryptedContent;
+	}
+	return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
 function extractGoogleThoughtMetadata(
 	part: AiSdkStreamPart,
 ): Record<string, unknown> | undefined {
@@ -1546,8 +1595,19 @@ async function* emitAiSdkEvents(
 						yield {
 							type: "reasoning-delta",
 							text,
-							metadata: extractGoogleThoughtMetadata(part),
+							metadata: extractReasoningMetadata(part),
 						};
+					}
+					continue;
+				}
+
+				if (part.type === "reasoning-start" || part.type === "reasoning-end") {
+					// OpenAI Responses attaches the encrypted reasoning content to the
+					// end of the item, not to its text deltas. Carry it on an empty
+					// delta so the part keeps what the next request must replay.
+					const metadata = extractOpenAIReasoningMetadata(part);
+					if (typeof metadata?.reasoningEncryptedContent === "string") {
+						yield { type: "reasoning-delta", text: "", metadata };
 					}
 					continue;
 				}
