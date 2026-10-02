@@ -121,13 +121,21 @@ export class SdkMessageCoordinator {
 			if (updated.type === "say" && updated.say === "api_req_started") {
 				try {
 					const info: ClineApiReqInfo = JSON.parse(updated.text || "{}")
+					// The webview only renders token/cost metadata. Classic/legacy Cline
+					// persisted the FULL request body in `request` (40KB+ once environment
+					// details, file contents and history are included), and replaying it on
+					// conversation load crashes the webview React render. Strip it so only
+					// metadata survives.
+					if (info.request !== undefined) {
+						delete info.request
+					}
 					if (info.cost === undefined && info.cancelReason === undefined) {
 						const isLast = !messages.slice(index + 1).some((m) => m.type === "say" && m.say === "api_req_started")
 						if (isLast) {
 							info.cancelReason = "user_cancelled"
-							updated.text = JSON.stringify(info)
 						}
 					}
+					updated.text = JSON.stringify(info)
 				} catch {
 					// Ignore parse errors from legacy or malformed messages.
 				}

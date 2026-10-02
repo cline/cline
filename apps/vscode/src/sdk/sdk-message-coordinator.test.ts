@@ -66,6 +66,59 @@ describe("SdkMessageCoordinator", () => {
 		expect(JSON.parse(finalized[2].text ?? "{}")).toEqual({ cancelReason: "user_cancelled" })
 	})
 
+	it("drops the full request body from api_req_started messages, keeping only metadata", () => {
+		const coordinator = new SdkMessageCoordinator({ getTask: () => undefined })
+		const hugeRequestBody = JSON.stringify({
+			system: "you are a helpful assistant",
+			messages: Array.from({ length: 3000 }, (_, i) => ({ role: "user", content: `message ${i} ${"x".repeat(20)}` })),
+		})
+		expect(hugeRequestBody.length).toBeGreaterThan(40_000)
+		const finalized = coordinator.finalizeMessagesForSave([
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ request: hugeRequestBody, tokensIn: 100, tokensOut: 50, cost: 0.1 }),
+				partial: false,
+			},
+		])
+
+		const info = JSON.parse(finalized[0].text ?? "{}") as { request?: string; tokensIn?: number; cost?: number }
+		expect(info.request).toBeUndefined()
+		expect(info.tokensIn).toBe(100)
+		expect(info.cost).toBe(0.1)
+		// The metadata-only text must be small; the 40KB+ body must not reach the webview.
+		expect((finalized[0].text ?? "").length).toBeLessThan(500)
+	})
+
+	it("drops the request body even when stamping a cancel reason on an unfinished api_req", () => {
+		const coordinator = new SdkMessageCoordinator({ getTask: () => undefined })
+		const finalized = coordinator.finalizeMessagesForSave([
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ request: "x".repeat(45_000) }),
+				partial: false,
+			},
+		])
+
+		const info = JSON.parse(finalized[0].text ?? "{}") as { request?: string; cancelReason?: string }
+		expect(info.request).toBeUndefined()
+		expect(info.cancelReason).toBe("user_cancelled")
+	})
+
+	it("finalizes partial ask messages so their streaming state is never rendered as pending", () => {
+		const coordinator = new SdkMessageCoordinator({ getTask: () => undefined })
+		const finalized = coordinator.finalizeMessagesForSave([
+			{ ts: 1, type: "ask", ask: "tool", text: "mid-stream tool call", partial: true },
+		])
+
+		expect(finalized[0].partial).toBeUndefined()
+		expect(finalized[0].type).toBe("ask")
+		expect(finalized[0].ask).toBe("tool")
+	})
+
 	it("stamps seq and epoch from the shared minter on append", () => {
 		const minter = new MessageIdMinter()
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
