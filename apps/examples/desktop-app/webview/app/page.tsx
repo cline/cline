@@ -1069,6 +1069,11 @@ export default function Home() {
 						setWhatsNew(null);
 						handleSettingsSectionChange("About");
 					}}
+					onOpenConnectors={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("Customize");
+					}}
 					open={!showOnboarding}
 					release={whatsNew}
 				/>
