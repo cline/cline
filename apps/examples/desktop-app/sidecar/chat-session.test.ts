@@ -1733,6 +1733,91 @@ describe("first-send connection updates", () => {
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
 		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
+
+	describe("hub loss recovery", () => {
+		const missing = (sessionId: string) =>
+			Object.assign(new Error(`session not found: ${sessionId}`), {
+				code: "command_failed",
+			});
+		const transportLost = () =>
+			Object.assign(new Error("Hub connection closed"), {
+				name: "HubTransportError",
+			});
+
+		it("rebuilds a session the restarted hub lost and ends the turn interrupted", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			})) as { result?: { finishReason?: string; hubInterrupted?: boolean } };
+
+			expect(start).toHaveBeenCalledTimes(1);
+			expect(start.mock.calls[0]?.[0]).toMatchObject({ config: { sessionId } });
+			expect(response.result).toMatchObject({
+				finishReason: "aborted",
+				hubInterrupted: true,
+			});
+		});
+
+		it("leaves a session the hub still holds alone and reports the failure", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			send.mockRejectedValueOnce(transportLost());
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			})) as { result?: { finishReason?: string } };
+
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(response.result?.finishReason).toBe("error");
+		});
+
+		it("does not revive a session the user stops during the reconnect window", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(transportLost());
+			updateSessionConnection.mockRejectedValue(transportLost());
+
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			}) as Promise<{ result?: { finishReason?: string } }>;
+			await vi.waitFor(() =>
+				expect(updateSessionConnection).toHaveBeenCalled(),
+			);
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+
+			expect((await pending).result?.finishReason).toBe("error");
+			expect(start).not.toHaveBeenCalled();
+		});
+
+		it("re-queues a queued prompt once the session is rebuilt", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+				delivery: "queue",
+			})) as { queued?: boolean };
+
+			expect(start).toHaveBeenCalledTimes(1);
+			expect(send).toHaveBeenCalledTimes(2);
+			expect(send.mock.calls[1]?.[0]).toMatchObject({ delivery: "queue" });
+			expect(response.queued).toBe(true);
+		});
+	});
 });
 
 describe("workspace metadata prewarming", () => {
