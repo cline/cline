@@ -145,6 +145,17 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      # rcodesign re-signs the cross-compiled darwin binaries with a valid
+      # ad-hoc signature (the publish runner has no codesign).
+      - name: Install rcodesign for macOS binaries
+        run: |
+          curl -fsSL -o /tmp/apple-codesign.tar.gz \
+            https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  /tmp/apple-codesign.tar.gz" | sha256sum -c -
+          tar xzf /tmp/apple-codesign.tar.gz -C /tmp
+          echo "/tmp/apple-codesign-0.29.0-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+          /tmp/apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign --version
+
       - name: Build platform binaries
         run: bun script/build.ts --install-native-variants --skip-sdk-build
         working-directory: apps/cli
@@ -414,6 +425,18 @@ jobs:
             fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
           '
           cat apps/cli/package.json | grep '"version"'
+
+      # rcodesign re-signs the cross-compiled darwin binaries with a valid
+      # ad-hoc signature (the publish runner has no codesign).
+      - name: Install rcodesign for macOS binaries
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          curl -fsSL -o /tmp/apple-codesign.tar.gz \
+            https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz
+          echo "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002  /tmp/apple-codesign.tar.gz" | sha256sum -c -
+          tar xzf /tmp/apple-codesign.tar.gz -C /tmp
+          echo "/tmp/apple-codesign-0.29.0-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+          /tmp/apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign --version
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
