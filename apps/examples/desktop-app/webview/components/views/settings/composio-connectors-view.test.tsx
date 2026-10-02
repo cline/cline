@@ -84,6 +84,16 @@ function button(text: string) {
 async function render() {
 	await act(async () => root.render(<ComposioConnectorsView />));
 }
+async function type(selector: string, value: string) {
+	const input = container.querySelector(selector) as HTMLInputElement;
+	await act(async () => {
+		Object.getOwnPropertyDescriptor(
+			HTMLInputElement.prototype,
+			"value",
+		)?.set?.call(input, value);
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+	});
+}
 
 describe("Customize connector catalog", () => {
 	it("shows the grid, installs apps, and manages an existing connection in its dialog", async () => {
@@ -125,16 +135,7 @@ describe("Customize connector catalog", () => {
 		await render();
 		expect(container.textContent).toContain("search to find 1 more");
 		expect(container.textContent).not.toContain("App 24");
-		const input = container.querySelector(
-			'input[aria-label="Search connectors"]',
-		) as HTMLInputElement;
-		await act(async () => {
-			Object.getOwnPropertyDescriptor(
-				HTMLInputElement.prototype,
-				"value",
-			)?.set?.call(input, "App 24");
-			input.dispatchEvent(new Event("input", { bubbles: true }));
-		});
+		await type('input[aria-label="Search connectors"]', "App 24");
 		expect(container.textContent).toContain("App 24");
 		expect(container.textContent).not.toContain("App 23");
 	});
@@ -358,26 +359,74 @@ describe("installed connectors", () => {
 		).not.toBeNull();
 		await act(async () => button("Install")?.click());
 		expect(mocks.connect).toHaveBeenCalledWith("github");
-		// The page search narrows Browse too.
-		const input = container.querySelector(
-			'input[aria-label="Search connectors"]',
-		) as HTMLInputElement;
-		await act(async () => {
-			Object.getOwnPropertyDescriptor(
-				HTMLInputElement.prototype,
-				"value",
-			)?.set?.call(input, "notion");
-			input.dispatchEvent(new Event("input", { bubbles: true }));
-		});
-		expect(container.textContent).toContain("Notion");
-		expect(container.textContent).not.toContain("GitHub");
+		// Each list has its own search: Browse's narrows only the catalog.
+		await type('input[aria-label="Search all connectors"]', "notion");
+		expect(browse?.textContent).toContain("Notion");
+		expect(browse?.textContent).not.toContain("GitHub");
+		expect(installed?.textContent).toContain("Gmail");
+		await type('input[aria-label="Search installed connectors"]', "zzz");
+		expect(installed?.textContent).toContain(
+			'No installed connectors match "zzz"',
+		);
+		expect(browse?.textContent).toContain("Notion");
+	});
+
+	it("hides the installed search when nothing is installed", async () => {
+		mocks.integrations = [];
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(
+			container.querySelector(
+				'input[aria-label="Search installed connectors"]',
+			),
+		).toBeNull();
+		expect(
+			container.querySelector('input[aria-label="Search all connectors"]'),
+		).not.toBeNull();
+	});
+
+	it("waits for the account lookup before offering sign-in", async () => {
+		mocks.configured = false;
+		let resolveMe: (value: unknown) => void = () => {};
+		mocks.invoke.mockImplementation(
+			(command: string) =>
+				new Promise((resolve) => {
+					if (command === "cline_account") resolveMe = resolve;
+					else resolve({});
+				}),
+		);
+		await act(async () =>
+			root.render(
+				<AccountProvider>
+					<ComposioConnectorsView variant="installed" />
+				</AccountProvider>,
+			),
+		);
+		expect(
+			container.querySelector('[aria-label="Loading account"]'),
+		).not.toBeNull();
+		expect(button("Sign in")).toBeUndefined();
+		await act(async () =>
+			resolveMe({ email: "dev@cline.bot", displayName: "Dev" }),
+		);
+		expect(container.textContent).toContain(
+			"Connectors aren't enabled for your account yet",
+		);
 	});
 
 	it("offers Cline sign-in when connectors are unavailable and the user is signed out", async () => {
 		mocks.configured = false;
-		mocks.invoke.mockResolvedValue({});
+		mocks.invoke.mockResolvedValue({
+			signedIn: false,
+			code: "ACCOUNT_NOT_AUTHENTICATED",
+		});
 		await act(async () =>
-			root.render(<ComposioConnectorsView variant="installed" />),
+			root.render(
+				<AccountProvider>
+					<ComposioConnectorsView variant="installed" />
+				</AccountProvider>,
+			),
 		);
 		expect(container.textContent).toContain(
 			"Sign in to Cline to use connectors",

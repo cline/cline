@@ -266,7 +266,11 @@ export function ComposioConnectorsView({
 	const [catalog, setCatalog] = useState<ComposioCatalogToolkit[] | null>(null);
 	const [catalogError, setCatalogError] = useState<string | null>(null);
 	const [catalogLoading, setCatalogLoading] = useState(false);
-	const [localQuery, setQuery] = useState("");
+	// Customize keeps two fields so each one visibly owns one list: the top
+	// field filters Installed, the Browse field filters the catalog (`query`,
+	// which the Marketplace drives from its host search instead).
+	const [installedQuery, setInstalledQuery] = useState("");
+	const [localQuery, setLocalQuery] = useState("");
 	const query = searchQuery ?? localQuery;
 	const [retry, setRetry] = useState(0);
 	const [detailSlug, setDetailSlug] = useState<ComposioToolkitSlug | null>(
@@ -334,13 +338,14 @@ export function ComposioConnectorsView({
 	if (page.query !== trimmedQuery) {
 		setPage({ query: trimmedQuery, limit: CATALOG_PREVIEW_COUNT });
 	}
+	const trimmedInstalledQuery = installedQuery.trim().toLowerCase();
 	const matchingInstalled = useMemo(() => {
-		return trimmedQuery
+		return trimmedInstalledQuery
 			? installedEntries.filter((entry) =>
-					connectorMatchesQuery(entry, trimmedQuery),
+					connectorMatchesQuery(entry, trimmedInstalledQuery),
 				)
 			: installedEntries;
-	}, [installedEntries, trimmedQuery]);
+	}, [installedEntries, trimmedInstalledQuery]);
 	const matchingCatalog = useMemo(() => {
 		return trimmedQuery
 			? entries.filter((entry) => connectorMatchesQuery(entry, trimmedQuery))
@@ -557,21 +562,10 @@ export function ComposioConnectorsView({
 		// recipes follow; each one drops out once all its connectors are
 		// connected, so the section empties itself over time. Browse lists the
 		// rest of the catalog so nobody has to leave for the Marketplace.
-		const recipes = COMPOSIO_RECIPES.filter(
-			(recipe) =>
-				recipe.connectors.some(
-					(connector) =>
-						statusBySlug.get(connector.slug)?.status !== "connected",
-				) &&
-				(!trimmedQuery ||
-					[
-						recipe.title,
-						recipe.description,
-						...recipe.connectors.map((connector) => connector.name),
-					]
-						.join(" ")
-						.toLowerCase()
-						.includes(trimmedQuery)),
+		const recipes = COMPOSIO_RECIPES.filter((recipe) =>
+			recipe.connectors.some(
+				(connector) => statusBySlug.get(connector.slug)?.status !== "connected",
+			),
 		);
 		return (
 			<div className="grid gap-6 select-text">
@@ -599,16 +593,18 @@ export function ComposioConnectorsView({
 							Failed to refresh connectors: {loadError}
 						</p>
 					) : null}
-					<div className="relative">
-						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							aria-label="Search connectors"
-							className="h-10 pl-8"
-							onChange={(event) => setQuery(event.target.value)}
-							placeholder="Search connectors"
-							value={query}
-						/>
-					</div>
+					{installedEntries.length > 0 ? (
+						<div className="relative">
+							<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+							<Input
+								aria-label="Search installed connectors"
+								className="h-10 pl-8"
+								onChange={(event) => setInstalledQuery(event.target.value)}
+								placeholder="Search installed connectors"
+								value={installedQuery}
+							/>
+						</div>
+					) : null}
 				</div>
 
 				<section className="grid min-w-0 gap-3">
@@ -642,8 +638,8 @@ export function ComposioConnectorsView({
 						</div>
 					) : (
 						<div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
-							{trimmedQuery
-								? `No installed connectors match "${query.trim()}".`
+							{trimmedInstalledQuery
+								? `No installed connectors match "${installedQuery.trim()}".`
 								: "No connectors installed. Install a connector below or ask Cline about it in a task."}
 						</div>
 					)}
@@ -690,6 +686,18 @@ export function ComposioConnectorsView({
 							</span>
 						) : null}
 					</div>
+					{catalog ? (
+						<div className="relative">
+							<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+							<Input
+								aria-label="Search all connectors"
+								className="h-10 pl-8"
+								onChange={(event) => setLocalQuery(event.target.value)}
+								placeholder="Search all connectors"
+								value={localQuery}
+							/>
+						</div>
+					) : null}
 					{catalogList}
 				</section>
 
@@ -712,7 +720,7 @@ export function ComposioConnectorsView({
 							<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 							<Input
 								className="h-8 w-64 pl-8"
-								onChange={(event) => setQuery(event.target.value)}
+								onChange={(event) => setLocalQuery(event.target.value)}
 								aria-label="Search connectors"
 								placeholder="Search connectors"
 								value={query}
@@ -749,7 +757,7 @@ function ConnectorsUnavailable({
 	onRefresh: () => Promise<void>;
 	refreshing: boolean;
 }) {
-	const { user, refreshAccount } = useAccount();
+	const { user, accountReady, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const deviceUserCode = useOAuthUserCode(signingIn);
@@ -775,6 +783,18 @@ function ConnectorsUnavailable({
 	};
 
 	const signedIn = user !== null;
+	// A cached identity renders immediately; otherwise wait for the lookup
+	// rather than telling a signed-in user to sign in.
+	if (!signedIn && !accountReady) {
+		return (
+			<output
+				aria-label="Loading account"
+				className="flex items-center justify-center py-16"
+			>
+				<Loader2 className="size-6 animate-spin text-muted-foreground" />
+			</output>
+		);
+	}
 	return (
 		<div className="rounded-lg border bg-card p-6 select-text">
 			<div className="mx-auto flex max-w-xl flex-col items-center gap-5 py-6 text-center">
