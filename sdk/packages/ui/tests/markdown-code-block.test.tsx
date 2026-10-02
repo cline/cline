@@ -71,6 +71,18 @@ async function renderFence(content: string): Promise<HTMLElement> {
  * has no newline characters to preserve).
  */
 describe("fenced code block line separation", () => {
+	test("does not clip the copy action", async () => {
+		const code = await renderFence("```typescript\nconst ready = true;\n```");
+		const block = code.closest<HTMLElement>('[data-streamdown="code-block"]');
+		const actions = block?.querySelector<HTMLElement>(
+			'[data-streamdown="code-block-actions"]',
+		)?.parentElement;
+
+		expect(block).not.toBeNull();
+		expect(actions).not.toBeNull();
+		expect(getComputedStyle(block as HTMLElement).overflow).toBe("visible");
+	});
+
 	test("stacks highlighted lines as blocks once Shiki tokens apply", async () => {
 		const code = await renderFence(
 			"```typescript\nconst a = 1;\nconst b = 2;\nconst c = 3;\n```",

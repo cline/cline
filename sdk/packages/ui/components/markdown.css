@@ -114,29 +114,80 @@
 	font-size: 0.8125rem;
 }
 
-/*
- * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
- * holding a language header row plus an inner bordered body. Collapse it to a
- * single quiet block: no outer chrome, no language label, and the copy button
- * only appears while hovering the block.
- */
+/* Collapse Streamdown's double box into one card with a restrained language
+ * header and a copy action that stays reachable while tall blocks scroll. */
 :is(.markdown, .cline-markdown) [data-streamdown="code-block"] {
+	position: relative;
+	overflow: visible;
 	padding: 0;
 	gap: 0;
-	border: none;
-	background: transparent;
+	border: 1px solid var(--border);
+	background: var(--card);
 }
 
 :is(.markdown, .cline-markdown) [data-streamdown="code-block-header"] {
+	display: flex;
+	min-height: 2.5rem;
+	align-items: center;
+	padding: 0.625rem 1rem 0.375rem;
+	border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+	background: var(--card);
+	color: var(--muted-foreground);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block-header"]:has(> span:empty) {
 	display: none;
 }
 
+:is(.markdown, .cline-markdown) [data-streamdown="code-block-header"] > span {
+	margin-inline-start: 0;
+	font-family: inherit;
+}
+
 :is(.markdown, .cline-markdown) [data-streamdown="code-block-body"] {
-	border-radius: 0.5rem;
+	overflow-x: auto;
+	overflow-y: hidden;
+	border: none;
+	border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
 	background: var(--card);
-	padding: 0.625rem 0.75rem;
+	padding: 0.75rem 1rem;
 	font-size: 0.8125rem;
 	line-height: 1.6;
+	scrollbar-color: transparent transparent;
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block"]:has(
+		> [data-streamdown="code-block-header"] > span:empty
+	)
+	[data-streamdown="code-block-body"] {
+	border-radius: calc(var(--radius-lg) - 1px);
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+	background: transparent;
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block"]:is(:hover, :focus-within)
+	[data-streamdown="code-block-body"] {
+	scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block"]:is(:hover, :focus-within)
+	[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block"]
+	[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover);
 }
 
 /* The body's <pre> paints the Shiki theme background, which never quite
@@ -160,17 +211,26 @@
 	display: block;
 }
 
-/* The actions overlay's -mt-10 was sized to cover the (now hidden) header
- * row; re-anchor it over the top-right of the code body and reveal on
- * hover/focus so it stops competing with the code. Stickiness is kept so the
- * copy button stays reachable inside long blocks. */
+/* Preserve Streamdown's sticky positioning so the copy action remains visible
+ * while a tall block scrolls. Its negative margin places it in the header. */
 :is(.markdown, .cline-markdown)
 	[data-streamdown="code-block"]
 	> div:has(> [data-streamdown="code-block-actions"]) {
-	margin-block: 0 -2rem;
-	padding: 0.375rem 0.375rem 0 0;
+	position: sticky;
+	inset-block-start: 0.5rem;
+	z-index: 1;
+	margin-block: -2.5rem 0.5rem;
+	padding: 0.25rem 0.375rem 0 0;
 	opacity: 0;
-	transition: opacity 120ms ease;
+}
+
+/* With no language header, overlay the action only while it is revealed. */
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block"]:has(
+		> [data-streamdown="code-block-header"] > span:empty
+	)
+	> div:has(> [data-streamdown="code-block-actions"]) {
+	margin-block: 0 -2rem;
 }
 
 /* While hidden the pill must not intercept clicks or text selection on the
@@ -178,6 +238,27 @@
  * unaffected by pointer-events, so tabbing still reveals it. */
 :is(.markdown, .cline-markdown) [data-streamdown="code-block-actions"] {
 	pointer-events: none;
+	border: 0;
+	background: transparent;
+	backdrop-filter: none;
+}
+
+:is(.markdown, .cline-markdown) [data-streamdown="code-block-copy-button"] {
+	display: inline-flex;
+	width: 2rem;
+	height: 2rem;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: var(--foreground);
+	transition: none;
+}
+
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block-copy-button"]:hover {
+	background: color-mix(in srgb, var(--secondary), var(--foreground) 8%);
 }
 
 :is(.markdown, .cline-markdown)
@@ -200,14 +281,42 @@
 }
 
 @media (hover: none) {
+	/* A permanently visible touch action gets its own row, so horizontally
+	 * scrolling code never passes beneath the copy button. */
+	:is(.markdown, .cline-markdown)
+		[data-streamdown="code-block-header"]:has(> span:empty) {
+		display: flex;
+	}
+
 	:is(.markdown, .cline-markdown)
 		[data-streamdown="code-block"]
 		> div:has(> [data-streamdown="code-block-actions"]) {
+		margin-block: -2.5rem 0.5rem;
 		opacity: 1;
+	}
+
+	:is(.markdown, .cline-markdown) [data-streamdown="code-block-body"] {
+		scrollbar-color: var(--scrollbar-thumb) transparent;
+	}
+
+	:is(.markdown, .cline-markdown)
+		[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+		background: var(--scrollbar-thumb);
 	}
 
 	:is(.markdown, .cline-markdown) [data-streamdown="code-block-actions"] {
 		pointer-events: auto;
+	}
+}
+
+@media (forced-colors: active) {
+	:is(.markdown, .cline-markdown) [data-streamdown="code-block-body"] {
+		scrollbar-color: auto;
+	}
+
+	:is(.markdown, .cline-markdown)
+		[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+		background: ButtonText;
 	}
 }
 
