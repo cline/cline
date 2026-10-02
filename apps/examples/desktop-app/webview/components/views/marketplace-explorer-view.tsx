@@ -880,13 +880,12 @@ export function MarketplaceExplorerView({
 											name={entry.name}
 											description={entry.description}
 											glyph={
-												<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground">
-													<ConnectorLogo
-														logo={entry.logo}
-														name={entry.name}
-														slug={entry.slug}
-													/>
-												</span>
+												<ConnectorLogo
+													className="size-7 rounded-md"
+													logo={entry.logo}
+													name={entry.name}
+													slug={entry.slug}
+												/>
 											}
 											meta={TYPE_META.connector}
 											showType={showTypePills}

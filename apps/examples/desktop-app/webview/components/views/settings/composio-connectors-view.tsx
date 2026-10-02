@@ -69,11 +69,13 @@ const FALLBACK_ICONS: Record<
 	github: (props) => <GitHubIcon {...props} />,
 };
 
+/** The connector's brand mark, filling `className` (size and radius) edge to
+ * edge so it doubles as the tile wherever one is needed. */
 export function ConnectorLogo({
 	slug,
 	name,
 	logo,
-	className = "size-5",
+	className,
 }: {
 	slug: string;
 	name: string;
@@ -91,7 +93,10 @@ export function ConnectorLogo({
 				alt=""
 				// The white backing keeps dark brand marks (GitHub's, for one)
 				// visible on dark tiles.
-				className={`${className} rounded-sm bg-white object-contain p-px`}
+				className={cn(
+					"size-5 shrink-0 rounded-sm bg-white object-contain",
+					className,
+				)}
 				onError={() => setFailed(true)}
 				src={src}
 			/>
@@ -100,12 +105,20 @@ export function ConnectorLogo({
 	// Themed fallbacks for the recommended toolkits when the logo host is
 	// unreachable.
 	const LocalIcon = FALLBACK_ICONS[slug];
-	if (LocalIcon) {
-		return <LocalIcon className={className} />;
-	}
 	return (
-		<span className="text-xs font-semibold uppercase text-muted-foreground">
-			{name.slice(0, 1)}
+		<span
+			className={cn(
+				"flex size-5 shrink-0 items-center justify-center rounded-sm bg-secondary text-foreground",
+				className,
+			)}
+		>
+			{LocalIcon ? (
+				<LocalIcon className="size-[60%]" />
+			) : (
+				<span className="text-xs font-semibold uppercase leading-none text-muted-foreground">
+					{name.slice(0, 1)}
+				</span>
+			)}
 		</span>
 	);
 }
@@ -726,13 +739,12 @@ function ConnectorRow({
 				onClick={onOpenDetails}
 				type="button"
 			>
-				<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
-					<ConnectorLogo
-						logo={entry.logo}
-						name={entry.name}
-						slug={entry.slug}
-					/>
-				</span>
+				<ConnectorLogo
+					className="size-8 rounded-lg"
+					logo={entry.logo}
+					name={entry.name}
+					slug={entry.slug}
+				/>
 				<span className="min-w-0">
 					<span className="block truncate text-sm font-medium text-foreground">
 						{entry.name}
@@ -987,14 +999,12 @@ function ConnectorDetailDialog({
 					<>
 						<DialogHeader>
 							<div className="flex items-center gap-3">
-								<span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground">
-									<ConnectorLogo
-										className="size-6"
-										logo={entry.logo}
-										name={entry.name}
-										slug={entry.slug}
-									/>
-								</span>
+								<ConnectorLogo
+									className="size-10 rounded-xl"
+									logo={entry.logo}
+									name={entry.name}
+									slug={entry.slug}
+								/>
 								<div>
 									<DialogTitle>{entry.name}</DialogTitle>
 								</div>
