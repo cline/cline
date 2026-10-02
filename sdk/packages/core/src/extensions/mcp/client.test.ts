@@ -103,7 +103,7 @@ process.stdin.on("data", (chunk) => {
 			? { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "framed", version: "0.0.0" } }
 			: message.method === "tools/list"
 				? { tools: [] }
-				: { content: [] };
+				: { content: [{ type: "text", text: "héllo 世界 🚀" }] };
 		setTimeout(() => write({ jsonrpc: "2.0", id: message.id, result }), message.method === "initialize" ? initializeDelayMs : 0);
 	}
 });
@@ -380,6 +380,28 @@ describe("mcp client request timeout", () => {
 			expect(await client.listTools()).toEqual([]);
 			expect(Date.now() - startedAt).toBeGreaterThanOrEqual(4_500);
 			expect(Date.now() - startedAt).toBeLessThan(7_000);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("reads Content-Length framed bodies containing multibyte characters", async () => {
+		const command =
+			process.platform === "win32" ? `"${process.execPath}"` : process.execPath;
+		const client = await createDefaultMcpServerClientFactory()({
+			name: "framed-server",
+			transport: {
+				type: "stdio",
+				command,
+				args: [join(tempRoot, "framed-server.js")],
+			},
+			timeoutSeconds: 1,
+		});
+		try {
+			await client.connect();
+			expect(await client.callTool({ name: "anything" })).toEqual({
+				content: [{ type: "text", text: "héllo 世界 🚀" }],
+			});
 		} finally {
 			await client.disconnect();
 		}
