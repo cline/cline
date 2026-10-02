@@ -144,6 +144,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 			task = undefined
 			viewGeneration++
 		},
+		onStartFailed: vi.fn(),
 		claimTaskViewGeneration: () => {
 			const claim = ++viewGeneration
 			return () => claim !== viewGeneration
@@ -161,8 +162,8 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 			await wait("prompt")
 			return prompt
 		},
-	} as unknown as SdkCloudSessionCoordinatorOptions
-	const coordinator = new SdkCloudSessionCoordinator(options)
+	} satisfies { [Key in keyof SdkCloudSessionCoordinatorOptions]: unknown }
+	const coordinator = new SdkCloudSessionCoordinator(options as unknown as SdkCloudSessionCoordinatorOptions)
 	const changeScope = vi.fn(async () => {
 		scope = successor
 	})
@@ -429,6 +430,8 @@ describe("originating-account cloud cleanup", () => {
 		await f.entered.promise
 		f.barrier.reject(new Error("cannot resolve prompt"))
 		expect(await starting).toBeUndefined()
+		expect(f.options.onStartFailed).toHaveBeenCalledOnce()
+		expect(f.options.onStartFailed).toHaveBeenCalledWith(expect.objectContaining({ taskId: f.record.id }), startInput)
 		expect(f.options.setTurnPhase).toHaveBeenLastCalledWith("error")
 		expect(f.requests.filter((request) => request.method === "DELETE")).toHaveLength(1)
 		expect(f.lifecycle.getActiveSession()).toBeUndefined()
