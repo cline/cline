@@ -76,6 +76,33 @@ describe("WebviewGrpcBridge", () => {
 
 			expect(sendPartialMessageEvent).toHaveBeenCalledTimes(2)
 		})
+
+		it("should preserve message order when a send is slow", async () => {
+			const { sendPartialMessageEvent } = await import("@core/controller/ui/subscribeToPartialMessage")
+			const sent: string[] = []
+			let releaseFirst: (() => void) | undefined
+			;(sendPartialMessageEvent as any).mockImplementationOnce(async (message: { text: string }) => {
+				sent.push(message.text)
+				await new Promise<void>((resolve) => {
+					releaseFirst = resolve
+				})
+			})
+			;(sendPartialMessageEvent as any).mockImplementationOnce(async (message: { text: string }) => {
+				sent.push(message.text)
+			})
+
+			const listener = bridge.createListener()
+			const event = { type: "status", payload: { sessionId: "s1", status: "running" } }
+			// biome-ignore lint/suspicious/noExplicitAny: test-only event type
+			listener([{ ts: 1, type: "say" as const, say: "tool" as const, text: "started", partial: true }], event as any)
+			listener([{ ts: 1, type: "say" as const, say: "tool" as const, text: "finished", partial: false }], event as any)
+
+			await Promise.resolve()
+			expect(sent).toEqual(["started"])
+			releaseFirst?.()
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(sent).toEqual(["started", "finished"])
+		})
 	})
 
 	describe("pushStateUpdateFromController", () => {
