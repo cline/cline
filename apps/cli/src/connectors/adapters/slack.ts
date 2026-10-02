@@ -333,14 +333,42 @@ function patchSlackMessageEventHandling(slack: SlackAdapter): void {
 		original(normalizeSlackMessageEventChannelType(event), options);
 }
 
-function isSlackInvalidThreadTsError(error: unknown): boolean {
+/**
+ * Matches a Slack API error code against a thrown error by data shape rather
+ * than by call site: `@slack/web-api` attaches the code to `data.error` on its
+ * `slack_webapi_platform_error`, the Slack chat adapter attaches it to
+ * `response.error`, and both layers also render it into the error message.
+ */
+function isSlackApiError(error: unknown, code: string): boolean {
+	const record = asRecord(error);
+	const structuredCode =
+		readString(asRecord(record?.data)?.error) ??
+		readString(asRecord(record?.response)?.error);
+	if (structuredCode === code) {
+		return true;
+	}
 	const message =
 		error instanceof Error
 			? error.message
 			: typeof error === "string"
 				? error
-				: "";
-	return /\binvalid_thread_ts\b/i.test(message);
+				: readString(record?.message);
+	return message ? new RegExp(`\\b${code}\\b`, "i").test(message) : false;
+}
+
+function isSlackInvalidThreadTsError(error: unknown): boolean {
+	return isSlackApiError(error, "invalid_thread_ts");
+}
+
+/**
+ * Slack answers `message_not_found` when chat.update, chat.delete or
+ * reactions.* target a message ts that no longer exists. That is a benign race
+ * rather than a bridge failure: a turn can be cancelled while its in-progress
+ * status message is still being updated or cleaned up, which leaves the update
+ * pointing at a message Slack has already dropped.
+ */
+function isSlackMessageNotFoundError(error: unknown): boolean {
+	return isSlackApiError(error, "message_not_found");
 }
 
 function clearSlackBinding(
@@ -358,6 +386,37 @@ function clearSlackBinding(
 	delete bindings[key];
 	writeBindings(bindingsPath, bindings);
 	return true;
+}
+
+/**
+ * Reports a failed Slack turn back to the user, except when the failure is only
+ * a stale in-progress status message. Cancelling a turn (`/abort`) while the
+ * connector is updating its "Executing <tool>..." message makes Slack answer
+ * `message_not_found`, and surfacing that as a bridge error blames the bridge
+ * for a benign race. Every other failure is still posted into the thread.
+ */
+async function reportSlackTurnFailure(input: {
+	error: unknown;
+	thread: Pick<Thread<SlackThreadState>, "id" | "channelId">;
+	logger: CliLoggerAdapter;
+	post: (message: string) => Promise<unknown>;
+}): Promise<void> {
+	const message =
+		input.error instanceof Error ? input.error.message : String(input.error);
+	if (isSlackMessageNotFoundError(input.error)) {
+		input.logger.core.log(
+			"Ignored stale Slack status message during turn (message_not_found)",
+			{
+				severity: "warn",
+				transport: "slack",
+				threadId: input.thread.id,
+				channelId: input.thread.channelId,
+				error: input.error,
+			},
+		);
+		return;
+	}
+	await input.post(`Slack bridge error: ${message}`);
 }
 
 async function persistSlackThreadContext(input: {
@@ -1035,12 +1094,16 @@ class SlackConnector extends ConnectorBase<
 							}),
 					});
 				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : String(error);
-					await withSlackTeamBotToken({
-						slack,
-						teamId: currentState.teamId,
-						work: () => thread.post(`Slack bridge error: ${message}`),
+					await reportSlackTurnFailure({
+						error,
+						thread,
+						logger: loggerAdapter,
+						post: (message) =>
+							withSlackTeamBotToken({
+								slack,
+								teamId: currentState.teamId,
+								work: () => thread.post(message),
+							}),
 					});
 				}
 			};
@@ -1322,6 +1385,8 @@ export const __test__ = {
 	stripSlackBotMention,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
+	isSlackMessageNotFoundError,
+	reportSlackTurnFailure,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<SlackThreadState>,
 		thread: Pick<Thread<SlackThreadState>, "id" | "channelId" | "isDM"> & {
