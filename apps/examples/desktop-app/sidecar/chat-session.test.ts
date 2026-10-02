@@ -33,6 +33,21 @@ import {
 } from "./context";
 import type { SidecarContext } from "./types";
 
+const { createContextCompactionPrepareTurnMock } = vi.hoisted(() => ({
+	createContextCompactionPrepareTurnMock: vi.fn(),
+}));
+
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
+	createContextCompactionPrepareTurnMock.mockImplementation(
+		actual.createContextCompactionPrepareTurn,
+	);
+	return {
+		...actual,
+		createContextCompactionPrepareTurn: createContextCompactionPrepareTurnMock,
+	};
+});
+
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
 		expect(
@@ -2033,16 +2048,23 @@ describe("/compact", () => {
 	function createCompactContext(options: {
 		busy?: boolean;
 		messages?: unknown[];
+		config?: Record<string, unknown>;
 	}) {
 		const sessionId = "compact-session";
 		const wsSend = vi.fn();
 		const send = vi.fn();
+		const updateSessionCompactionState = vi.fn(async () => ({
+			updated: true,
+		}));
 		const ctx = {
 			liveSessions: new Map([
 				[
 					sessionId,
 					{
-						config: { provider: "cline", model: "test-model" },
+						config: options.config ?? {
+							provider: "cline",
+							model: "test-model",
+						},
 						messages: [],
 						promptsInQueue: [],
 						busy: options.busy ?? false,
@@ -2059,6 +2081,7 @@ describe("/compact", () => {
 					send,
 					get: vi.fn(async () => ({ status: "idle" })),
 					readMessages: vi.fn(async () => options.messages ?? []),
+					updateSessionCompactionState,
 					pendingPrompts: { list: vi.fn(async () => []) },
 				},
 				{ sessionIds: [sessionId] },
@@ -2074,8 +2097,68 @@ describe("/compact", () => {
 				)
 				.find((message) => message.event.name === "chat_command_output")?.event
 				.payload;
-		return { ctx, send, sessionId, readCommandOutput };
+		return {
+			ctx,
+			send,
+			sessionId,
+			readCommandOutput,
+			updateSessionCompactionState,
+		};
 	}
+
+	it("compacts with the session's connection settings and saves the result", async () => {
+		const summary = { role: "user", content: "Context summary" };
+		const compact = vi.fn(async () => ({ messages: [summary] }));
+		createContextCompactionPrepareTurnMock.mockReturnValueOnce(compact);
+		const {
+			ctx,
+			send,
+			sessionId,
+			readCommandOutput,
+			updateSessionCompactionState,
+		} = createCompactContext({
+			config: {
+				provider: "compact-test-provider",
+				model: "test-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "X-Team": "desktop" },
+			},
+			messages: [
+				{ role: "user", content: "first prompt" },
+				{ role: "assistant", content: "first response" },
+			],
+		});
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(createContextCompactionPrepareTurnMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerId: "compact-test-provider",
+				modelId: "test-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "X-Team": "desktop" },
+				compaction: { enabled: true },
+			}),
+			{ mode: "manual" },
+		);
+		expect(updateSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				source_message_count: 2,
+				messages: [summary],
+			}),
+		);
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			text: "Compacted context from 2 to 1 messages.",
+		});
+	});
 
 	it("refuses to compact while a turn is running without reaching the model", async () => {
 		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({

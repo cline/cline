@@ -13,7 +13,6 @@ import {
 	getCoreBuiltinToolCatalog,
 	isSessionNotFoundError,
 	isSkillsToolAvailable,
-	type ProviderConfig,
 	ProviderSettingsManager,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
@@ -161,16 +160,22 @@ async function compactSession(
 	if (conversationMessages.length === 0) {
 		return "No messages to compact.";
 	}
-	const resolved = await withRemoteProviderCredentials(config);
-	const providerId = String(
-		resolved.provider ?? resolved.providerId ?? "",
-	).trim();
-	const modelId = String(resolved.model ?? resolved.modelId ?? "").trim();
+	const {
+		providerId = "",
+		modelId = "",
+		apiKey,
+		baseUrl,
+		headers,
+		providerConfig,
+	} = buildSessionConnectionUpdate(await withRemoteProviderCredentials(config));
 	const compact = createContextCompactionPrepareTurn(
 		{
 			providerId,
 			modelId,
-			providerConfig: resolved.providerConfig as ProviderConfig | undefined,
+			apiKey,
+			baseUrl,
+			headers,
+			providerConfig,
 			compaction: { enabled: true },
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
