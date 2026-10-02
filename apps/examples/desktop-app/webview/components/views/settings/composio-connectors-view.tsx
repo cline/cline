@@ -619,7 +619,7 @@ export function ComposioConnectorsView({
 						<div className="rounded-lg border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">
 							{trimmedQuery
 								? `No installed connectors match "${query.trim()}".`
-								: "No connectors installed. Start with a suggested setup or browse all connectors below."}
+								: "No connectors installed. Install a connector below or ask Cline about it in a task."}
 						</div>
 					)}
 				</section>
