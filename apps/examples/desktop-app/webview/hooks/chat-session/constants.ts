@@ -1,6 +1,10 @@
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
+import {
+	type ExecutionTarget,
+	readExecutionTargetFromWindow,
+	readModelSelectionStorageFromWindow,
+} from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
@@ -37,7 +41,10 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	missionTimeIntervalMs: undefined,
 };
 
-export function getInitialChatConfig(environmentId: string): ChatSessionConfig {
+export function getInitialChatConfig(
+	environmentId: string,
+	options?: { executionTarget?: ExecutionTarget },
+): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
 	const workspaceSelection = readWorkspaceSelectionFromWindow(environmentId);
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
@@ -55,12 +62,33 @@ export function getInitialChatConfig(environmentId: string): ChatSessionConfig {
 			: undefined) ||
 		DEFAULT_CHAT_CONFIG.model;
 
-	return {
+	const local: ChatSessionConfig = {
 		...DEFAULT_CHAT_CONFIG,
 		environmentId,
 		provider,
 		model,
 		workspaceRoot: workspaceSelection.lastWorkspace,
 		cwd: workspaceSelection.lastWorkspace,
+	};
+	// Cloud preferences apply only to the local environment.
+	const executionTarget =
+		options?.executionTarget ??
+		(environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? readExecutionTargetFromWindow()
+			: "local");
+	if (executionTarget !== "cloud") {
+		return local;
+	}
+	return {
+		...local,
+		executionTarget: "cloud",
+		provider: DEFAULT_CHAT_CONFIG.provider,
+		model:
+			readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
+			(provider === DEFAULT_CHAT_CONFIG.provider
+				? model
+				: DEFAULT_CHAT_CONFIG.model),
+		workspaceRoot: "",
+		cwd: "",
 	};
 }

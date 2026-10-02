@@ -237,6 +237,7 @@ export async function createComposioToolsExtension(options?: {
 						api.registerTool(
 							createTool({
 								name: toolName,
+								resultPolicy: "cache-oversized",
 								description: `${tool.description || tool.name || tool.slug} (${toolkitSlug} account connected via Composio)`,
 								inputSchema: (tool.input_parameters ?? {
 									type: "object",

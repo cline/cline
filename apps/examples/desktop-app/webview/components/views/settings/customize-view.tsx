@@ -1,13 +1,10 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	fetchComposioStatus,
-	getComposioAvailability,
-	subscribeComposioAvailability,
-} from "@/lib/composio";
+import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -35,13 +32,13 @@ type CustomizeTab =
 	| "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
+	{ id: "integrations", label: "Connectors" },
 	{ id: "tools", label: "Tools" },
 	{ id: "plugins", label: "Plugins" },
 	{ id: "skills", label: "Skills" },
 	{ id: "rules", label: "Rules" },
 	{ id: "mcp", label: "MCP" },
 	{ id: "hooks", label: "Hooks" },
-	{ id: "integrations", label: "Connectors" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -61,20 +58,16 @@ function asCount(value: unknown): number {
 }
 
 export function CustomizeView({
+	onOpenModelProviders,
 	onOpenMarketplace,
 }: {
-	onOpenMarketplace?: () => void;
+	onOpenMarketplace?: (filter?: "connector") => void;
+	onOpenModelProviders?: () => void;
 }) {
-	const [tab, setTab] = useState<CustomizeTab>("tools");
+	// Connectors is always the first tab; when the account cannot use them
+	// the tab itself explains why and offers sign-in.
+	const [tab, setTab] = useState<CustomizeTab>("integrations");
 	const [counts, setCounts] = useState<TabCounts>({});
-	// Connectors are an org-provisioned feature: the tab only exists when the
-	// account has Composio beta access.
-	const connectorsAvailable =
-		useSyncExternalStore(
-			subscribeComposioAvailability,
-			getComposioAvailability,
-			() => null,
-		) === true;
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -83,7 +76,7 @@ export function CustomizeView({
 				.catch(() => null),
 			fetchComposioStatus().catch(() => null),
 		]);
-		const connectedIntegrations = composioStatus
+		const connectedIntegrations = composioStatus?.configured
 			? composioStatus.integrations.filter(
 					(integration) => integration.status === "connected",
 				).length
@@ -134,7 +127,7 @@ export function CustomizeView({
 				actions={
 					onOpenMarketplace ? (
 						<Button
-							onClick={onOpenMarketplace}
+							onClick={() => onOpenMarketplace()}
 							size="sm"
 							type="button"
 							variant="outline"
@@ -149,10 +142,7 @@ export function CustomizeView({
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{CUSTOMIZE_TABS.filter(
-					(customizeTab) =>
-						customizeTab.id !== "integrations" || connectorsAvailable,
-				).map((customizeTab) => {
+				{CUSTOMIZE_TABS.map((customizeTab) => {
 					const count = counts[customizeTab.id];
 					const active = tab === customizeTab.id;
 					return (
@@ -170,6 +160,7 @@ export function CustomizeView({
 							variant="ghost"
 						>
 							{customizeTab.label}
+							{customizeTab.id === "integrations" ? <Badge>Beta</Badge> : null}
 							{typeof count === "number" ? (
 								<span
 									className={cn(
@@ -206,8 +197,8 @@ export function CustomizeView({
 				/>
 			) : tab === "integrations" ? (
 				<ComposioConnectorsView
+					appendOnScroll
 					onChanged={handleInventoryChanged}
-					onOpenMarketplace={onOpenMarketplace}
 					variant="installed"
 				/>
 			) : tab === "plugins" ? (
@@ -235,6 +226,7 @@ export function CustomizeView({
 					chrome="embedded"
 					onInventoryChanged={handleInventoryChanged}
 					section="Tools"
+					onOpenModelProviders={onOpenModelProviders}
 				/>
 			)}
 		</PageFrame>

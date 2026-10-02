@@ -2,9 +2,10 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { IntentEvent } from "@shared/proto/cline/ui"
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { buttonsForPhase, getTurnStateMessage } from "../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
 
 function formatDraftText(text: string, activeQuote: string | null): string {
@@ -12,6 +13,16 @@ function formatDraftText(text: string, activeQuote: string | null): string {
 		return text
 	}
 	return `[context] \n>  ${activeQuote} \n[/context] \n\n ${text}`
+}
+
+// `/compact` and its aliases `/smol` and `/newtask` run a real SDK manual
+// compaction via the condense RPC. Sending the literal text to the model would
+// make it improvise a fake summary instead of compacting the context window
+// (CLINE-2503). `/newtask` aliases compaction because condensing achieves its
+// goal (continue working with a fresh, summarized context) without the legacy
+// new_task tool.
+function isCompactionCommand(text: string): boolean {
+	return text === "/compact" || text === "/smol" || text === "/newtask"
 }
 
 /**
@@ -37,39 +48,82 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	} = chatState
 	const cancelInFlightRef = useRef(false)
 	const pendingResponseIdRef = useRef(0)
+	// The first recovery action for an authoritative turn sequence owns that
+	// sequence until the backend advances it. A ref makes competing click
+	// handlers observe the claim before React can render the mirrored UI state.
+	const recoveryClaimRef = useRef<number | undefined>(undefined)
+	const [claimedRecoverySeq, setClaimedRecoverySeq] = useState<number | undefined>(undefined)
+	// Recovery is available exactly when the footer offers Retry, so the composer,
+	// the footer buttons and the embedded retry controls share one decision. Most
+	// provider failures reach the error phase without an anchor message, so the
+	// anchor only refines the button set (mistake_limit_reached shows Proceed).
+	const recoverySeq =
+		turnState?.phase === "error" &&
+		buttonsForPhase(turnState, getTurnStateMessage(messages, turnState)).primaryAction === "retry"
+			? turnState.seq
+			: undefined
+	const errorRecoveryAvailable = recoverySeq !== undefined
+	const recoveryActionInFlight = recoverySeq !== undefined && claimedRecoverySeq === recoverySeq
+	const claimErrorRecovery = useCallback(() => {
+		if (recoverySeq === undefined) {
+			return true
+		}
+		if (recoveryClaimRef.current === recoverySeq) {
+			return false
+		}
+		recoveryClaimRef.current = recoverySeq
+		setClaimedRecoverySeq(recoverySeq)
+		return true
+	}, [recoverySeq])
+	const releaseErrorRecoveryClaim = useCallback(() => {
+		if (recoverySeq !== undefined && recoveryClaimRef.current === recoverySeq) {
+			recoveryClaimRef.current = undefined
+			setClaimedRecoverySeq(undefined)
+		}
+	}, [recoverySeq])
+
+	// Manual compaction does not take part in the recovery claim, so it is
+	// unavailable while Retry / Start New Task are offered. The header button
+	// and the typed /compact command both go through this gate.
+	const compactTask = useCallback(async () => {
+		if (errorRecoveryAvailable) {
+			return false
+		}
+		await SlashServiceClient.condense(StringRequest.create({ value: "compact" }))
+		return true
+	}, [errorRecoveryAvailable])
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
-			let messageToSend = text.trim()
-			const hasContent = messageToSend || images.length > 0 || files.length > 0
+			const recoveryDraft = recoverySeq === undefined ? undefined : chatState.getDraftSnapshot()
+			const submittedText = recoveryDraft?.text ?? text
+			const submittedImages = recoveryDraft?.images ?? images
+			const submittedFiles = recoveryDraft?.files ?? files
+			const submittedQuote = recoveryDraft?.activeQuote ?? activeQuote
+			let messageToSend = submittedText.trim()
+			const hasContent = messageToSend || submittedImages.length > 0 || submittedFiles.length > 0
 
 			// Prepend the active quote if it exists
-			if (activeQuote && hasContent) {
-				messageToSend = formatDraftText(messageToSend, activeQuote)
+			if (submittedQuote && hasContent) {
+				messageToSend = formatDraftText(messageToSend, submittedQuote)
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
-			// `/compact` (and its aliases `/smol` and `/newtask`) must run a real
-			// SDK manual compaction via the condense RPC — sending the literal
-			// text to the model would make it improvise a fake summary instead of
-			// compacting the context window (CLINE-2503). `/newtask` aliases
-			// compaction because condensing achieves its goal (continue working
-			// with a fresh, summarized context) without the legacy new_task tool.
 			// With no active task there is nothing to compact, so fall through to
 			// normal new-task handling.
-			if (
-				messages.length > 0 &&
-				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
-			) {
+			if (messages.length > 0 && isCompactionCommand(messageToSend)) {
+				// While Retry / Start New Task are offered the command is neither
+				// compacted nor sent to the model as text; the draft stays put.
+				if (errorRecoveryAvailable) {
+					return
+				}
 				// Clear the input before awaiting the RPC — condense resolves only
 				// after compaction finishes, and the typed command lingering in the
 				// field the whole time reads as if the send didn't register.
 				setInputValue("")
 				setActiveQuote(null)
-				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
-					console.error("Failed to compact task:", err),
-				)
+				await compactTask().catch((err) => console.error("Failed to compact task:", err))
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
@@ -85,8 +139,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							action: "prompt_submitted",
 							source: "chat_submit",
 							hasText: messageToSend.length > 0,
-							hasImages: images.length > 0,
-							hasFiles: files.length > 0,
+							hasImages: submittedImages.length > 0,
+							hasFiles: submittedFiles.length > 0,
 							hasActiveTask,
 							textLength: messageToSend.length,
 						}),
@@ -166,6 +220,45 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						restorePendingMessageState()
 						throw error
 					}
+				}
+				const sendErrorRecoveryResponse = async () => {
+					if (!recoveryDraft || !claimErrorRecovery()) {
+						return false
+					}
+					const request = AskResponseRequest.create({
+						responseType: "messageResponse",
+						text: messageToSend,
+						images: submittedImages,
+						files: submittedFiles,
+					})
+					trackPromptSubmitted(true)
+					const { id, optimisticMessage } = beginPendingResponse({
+						ts: Date.now(),
+						type: "say",
+						say: "user_feedback",
+						text: request.text ?? "",
+						images: request.images,
+						files: request.files,
+						partial: false,
+					})
+					try {
+						await TaskServiceClient.askResponse(request)
+						chatState.consumeDraftSnapshot(recoveryDraft)
+						return true
+					} catch (error) {
+						rollbackPendingResponse(id, optimisticMessage)
+						releaseErrorRecoveryClaim()
+						throw error
+					}
+				}
+
+				if (recoveryDraft) {
+					if (await sendErrorRecoveryResponse()) {
+						if ("disableAutoScrollRef" in chatState) {
+							;(chatState as any).disableAutoScrollRef.current = false
+						}
+					}
+					return
 				}
 
 				if (messages.length === 0) {
@@ -314,6 +407,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			clineAsk,
 			turnState,
 			activeQuote,
+			recoverySeq,
+			errorRecoveryAvailable,
+			compactTask,
+			claimErrorRecovery,
+			releaseErrorRecoveryClaim,
 			setInputValue,
 			setActiveQuote,
 			sendingDisabled,
@@ -328,49 +426,74 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		],
 	)
 
-	const clearTask = useCallback(async () => {
-		UiServiceClient.trackIntent(
-			IntentEvent.create({
-				action: "new_task_clicked",
-				source: "chat_new_task",
-				hasActiveTask: messages.length > 0,
-			}),
-		).catch((error) => console.error("Failed to track new task click:", error))
-		// Drop any unconfirmed optimistic message: if it lingered past an explicit
-		// New Task, withPendingUserMessage would re-inject the old task (and its
-		// attachments) into the freshly cleared transcript, leaving the chat stuck
-		// on the previous task (#12924).
-		setPendingUserMessage(undefined)
-		setPendingResponse(undefined)
-		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [messages.length, setPendingUserMessage, setPendingResponse])
+	const clearTask = useCallback(
+		async (source: "chat_new_task" | "navbar") => {
+			UiServiceClient.trackIntent(
+				IntentEvent.create({
+					action: "new_task_clicked",
+					source,
+					hasActiveTask: messages.length > 0,
+				}),
+			).catch((error) => console.error("Failed to track new task click:", error))
+			// Drop any unconfirmed optimistic message: if it lingered past an explicit
+			// New Task, withPendingUserMessage would re-inject the old task (and its
+			// attachments) into the freshly cleared transcript, leaving the chat stuck
+			// on the previous task (#12924).
+			setPendingUserMessage(undefined)
+			setPendingResponse(undefined)
+			await TaskServiceClient.clearTask(EmptyRequest.create({}))
+		},
+		[messages.length, setPendingUserMessage, setPendingResponse],
+	)
 
 	// Start a new task
-	const startNewTask = useCallback(async () => {
-		// Quotes refer to rows in the task being closed. Keep independent draft
-		// text and attachments, but do not carry stale task context forward.
-		setActiveQuote(null)
-		await clearTask()
-	}, [clearTask, setActiveQuote])
+	const startNewTask = useCallback(
+		async (source: "chat_new_task" | "navbar" = "chat_new_task") => {
+			if (!claimErrorRecovery()) {
+				return false
+			}
+			// Quotes refer to rows in the task being closed. Keep independent draft
+			// text and attachments, but do not carry stale task context forward.
+			setActiveQuote(null)
+			try {
+				await clearTask(source)
+			} catch (error) {
+				releaseErrorRecoveryClaim()
+				throw error
+			}
+			return true
+		},
+		[claimErrorRecovery, clearTask, releaseErrorRecoveryClaim, setActiveQuote],
+	)
 
 	// Execute button action based on type
 	const executeButtonAction = useCallback(
 		async (invocation: ButtonActionInvocation) => {
 			switch (invocation.type) {
-				case "retry":
+				case "retry": {
+					if (!claimErrorRecovery()) {
+						return false
+					}
 					// For API retry (api_req_failed), always send simple approval without content
-					await TaskServiceClient.askResponse(
-						AskResponseRequest.create({
-							responseType: "yesButtonClicked",
-						}),
-					)
+					try {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
+					} catch (error) {
+						releaseErrorRecoveryClaim()
+						throw error
+					}
 					break
+				}
 				case "approve":
 				case "reject":
 				case "proceed": {
 					const { draft } = invocation
-					const text = formatDraftText(draft.text.trim(), draft.activeQuote)
-					const hasContent = text || draft.images.length > 0 || draft.files.length > 0
+					const trimmedText = draft.text.trim()
+					const hasContent = trimmedText.length > 0 || draft.images.length > 0 || draft.files.length > 0
+					const text = hasContent ? formatDraftText(trimmedText, draft.activeQuote) : undefined
 					const responseType = invocation.type === "reject" ? "noButtonClicked" : "yesButtonClicked"
 					await TaskServiceClient.askResponse(
 						AskResponseRequest.create(
@@ -391,10 +514,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "new_task":
-					// Reset context from the old task before the first await. A quote
-					// selected while New Task is in flight belongs to the new draft.
-					setActiveQuote(null)
 					if (clineAsk === "new_task") {
+						// Reset context from the old task before the first await. A quote
+						// selected while New Task is in flight belongs to the new draft.
+						setActiveQuote(null)
 						await TaskServiceClient.newTask(
 							NewTaskRequest.create({
 								text: lastMessage?.text,
@@ -403,13 +526,15 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							}),
 						)
 					} else {
-						await clearTask()
+						if (!(await startNewTask())) {
+							return false
+						}
 					}
 					break
 
 				case "cancel": {
 					if (cancelInFlightRef.current) {
-						return
+						return false
 					}
 					cancelInFlightRef.current = true
 					setSendingDisabled(true)
@@ -449,18 +574,22 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if ("disableAutoScrollRef" in chatState) {
 				;(chatState as any).disableAutoScrollRef.current = false
 			}
+			return true
 		},
 		[
 			clineAsk,
 			lastMessage,
-			clearTask,
+			startNewTask,
 			chatState,
 			backgroundCommandRunning,
+			claimErrorRecovery,
+			releaseErrorRecoveryClaim,
 			setActiveQuote,
 			setSendingDisabled,
 			setEnableButtons,
 		],
 	)
+	const retryFailedRequest = useCallback(() => executeButtonAction({ type: "retry" }), [executeButtonAction])
 
 	// Handle task close button click
 	const handleTaskCloseButtonClick = useCallback(() => {
@@ -468,9 +597,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	}, [startNewTask])
 
 	return {
+		errorRecoveryAvailable,
+		recoveryActionInFlight,
+		compactTask,
 		handleSendMessage,
 		executeButtonAction,
 		handleTaskCloseButtonClick,
+		retryFailedRequest,
 		startNewTask,
 	}
 }
