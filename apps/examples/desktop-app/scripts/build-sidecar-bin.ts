@@ -80,29 +80,6 @@ const buildSidecar = async (
 	return outfile;
 };
 
-// Each compiled helper embeds a full Bun runtime (~100 MB) around ~14 MB of
-// our code, and both helpers ship inside every desktop bundle. UPX packs the
-// ELF in place to about a quarter of its size and it self-extracts in memory on
-// launch (measured: ~1.6 s extra startup, ~55 MB extra RSS on the Hub daemon),
-// so nothing downstream changes: the installer, the SSH upload, and the remote
-// run all see one ordinary executable. `strip` is not an option here; it
-// discards Bun's appended module payload. Requires upx on PATH; the publish
-// workflow installs it on every runner.
-const compressRemoteHelper = async (outfile: string): Promise<void> => {
-	if (!Bun.which("upx")) {
-		if (process.env.CI) {
-			throw new Error(
-				`upx is required to compress ${outfile} but was not found on PATH`,
-			);
-		}
-		console.warn(
-			`upx not found on PATH; leaving ${outfile} uncompressed (only the packaged size is affected)`,
-		);
-		return;
-	}
-	await $`upx --best --lzma -q ${outfile}`;
-};
-
 // SSH environments run the same Hub build as the desktop in a dedicated
 // bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
 // command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
@@ -116,18 +93,22 @@ const compressRemoteHelper = async (outfile: string): Promise<void> => {
 // Bun skips the download when `$BUN_INSTALL_CACHE_DIR/bun-<target>-v<version>`
 // already exists, so seed those two files from the @oven/bun-<target> npm
 // packages first; desktop-publish.yml does exactly that in its Windows job.
+//
+// Do not post-process the helpers with UPX or `strip`. Since Bun 1.4, a
+// compiled binary reads parts of its bundled source back from its own file at
+// runtime, so a UPX-packed helper dies with "SyntaxError: Invalid character:
+// '\0'" (#14683), and `strip` discards the appended module payload outright.
 const buildRemoteHelpers = async (): Promise<void> => {
 	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",
 		"aarch64-unknown-linux-gnu",
 	]) {
-		const outfile = await buildSidecar(
+		await buildSidecar(
 			targetTriple,
 			`./src-tauri/bin/remote-helpers/cline-remote-helper-${targetTriple}`,
 			"../../../sdk/packages/core/dist/remote/remote-helper-entry.js",
 			true,
 		);
-		await compressRemoteHelper(outfile);
 	}
 };
 
