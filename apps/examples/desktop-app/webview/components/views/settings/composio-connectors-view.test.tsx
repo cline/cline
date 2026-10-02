@@ -331,7 +331,9 @@ describe("installed connectors", () => {
 			],
 		});
 		await act(async () =>
-			root.render(<ComposioConnectorsView appendOnScroll variant="installed" />),
+			root.render(
+				<ComposioConnectorsView appendOnScroll variant="installed" />,
+			),
 		);
 		const [installed, , browse] = container.querySelectorAll("section");
 		expect(installed?.textContent).toContain("Gmail");

@@ -492,7 +492,10 @@ export function ComposioConnectorsView({
 								{actionError?.toolkit === entry.slug ? (
 									// Scoped to this connector's own card; no shared
 									// surface retains another connector's failure.
-									<p className="mt-1 px-1 text-xs text-destructive" role="alert">
+									<p
+										className="mt-1 px-1 text-xs text-destructive"
+										role="alert"
+									>
 										{actionError.message}
 									</p>
 								) : null}
@@ -512,8 +515,8 @@ export function ComposioConnectorsView({
 				) : null}
 				{!appendOnScroll && hiddenCount > 0 ? (
 					<p className="text-xs text-muted-foreground">
-						Showing the {CATALOG_PREVIEW_COUNT} most-used connectors — search
-						to find {hiddenCount} more.
+						Showing the {CATALOG_PREVIEW_COUNT} most-used connectors — search to
+						find {hiddenCount} more.
 					</p>
 				) : null}
 			</>
