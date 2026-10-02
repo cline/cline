@@ -1778,6 +1778,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			},
 		});
 
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
 		expect(result?.messages).toBeDefined();
 		expect(result?.messages[0]?.metadata?.kind).not.toBe("compaction_summary");
 		expect(log).toHaveBeenCalledWith(
@@ -1786,6 +1787,81 @@ describe("createContextCompactionPrepareTurn", () => {
 				severity: "warn",
 				errorMessage: providerError.message,
 			}),
+		);
+	});
+
+	it("retries the summary without disabling reasoning when the endpoint requires it", async () => {
+		// Repro for #14551: the summarizer forces `thinking: false`, which some
+		// endpoints reject because reasoning is mandatory for them.
+		createHandlerMock
+			.mockReturnValueOnce({
+				createMessage: vi.fn(() => {
+					throw new Error(
+						"Reasoning is mandatory for this endpoint and cannot be disabled.",
+					);
+				}),
+			})
+			.mockReturnValueOnce({
+				createMessage: vi.fn(() =>
+					streamChunks([
+						{
+							type: "text",
+							id: "summary-retry",
+							text: "## Goal\nKeep going\n\n## Next\nContinue",
+						},
+						{ type: "done", id: "summary-retry", success: true },
+					]),
+				),
+			});
+		const log = vi.fn();
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: `Old answer ${"x".repeat(500)}` },
+			{ role: "user", content: "Older follow-up" },
+			{ role: "assistant", content: "Older response" },
+			{ role: "user", content: "Latest request" },
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "cline",
+			modelId: "reasoning-only-model",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "reasoning-only-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: { debug: vi.fn(), log },
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "reasoning-only-model",
+				provider: "cline",
+				info: { id: "reasoning-only-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledTimes(2);
+		expect(createHandlerMock.mock.calls[0]?.[0]).toMatchObject({
+			thinking: false,
+		});
+		expect(createHandlerMock.mock.calls[1]?.[0]).not.toHaveProperty("thinking");
+		expect(result?.messages[0]?.metadata?.kind).toBe("compaction_summary");
+		expect(log).not.toHaveBeenCalledWith(
+			"Agentic compaction failed; falling back to basic compaction",
+			expect.anything(),
 		);
 	});
 
