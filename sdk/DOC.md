@@ -343,3 +343,21 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+## Status Hub
+
+Hub-hosted sessions receive a `report_status` tool for meaningful work starts,
+milestones, blockers, and completion. Reports are attributed to the executing
+session and agent. Each session reuses its own subject; other sessions can use
+the same subject independently. Session end cancels unfinished reports rather
+than leaving them running indefinitely. Completed reports remain in history.
+
+Authenticated Hub clients read `status.board`, `status.query`, and
+`status.summary`, and subscribe to `status.updated`. Board and query return
+`StatusPage` (`updates`, `hasMore`, `nextCursor`, and optional filtered `total`
+and `tagFacets`). Pass `nextCursor` back as `cursor` for the next page. Queries
+accept the browser-safe `StatusQuery` contract exported by `@cline/shared`
+and `@cline/shared/browser`. Board forces current reports and attention order;
+query defaults to all history in reverse sequence order. Summary counts the
+whole current store, independently of filters and page size. There is no public
+publish command; model inputs cannot supply session, agent, or workspace identity.

@@ -7,6 +7,7 @@ import {
 } from "@cline/ui";
 
 import {
+	Activity,
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
@@ -98,6 +99,7 @@ import {
 	isBetaVersion,
 	productNameForVersion,
 } from "@/lib/app-channel";
+import type { DesktopAppView } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -120,7 +122,7 @@ import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type Thread = SessionThread;
-type AppView = "chat" | "sessions" | "settings";
+type AppView = DesktopAppView;
 
 const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
@@ -419,6 +421,10 @@ export function AgentSidebar({
 		onHome();
 		closeMobileSidebar();
 	}, [closeMobileSidebar, onHome]);
+	const openStatusHub = useCallback(() => {
+		setView("status-hub");
+		closeMobileSidebar();
+	}, [closeMobileSidebar, setView]);
 	const openSessions = useCallback(() => {
 		setView("sessions");
 		closeMobileSidebar();
@@ -989,12 +995,38 @@ export function AgentSidebar({
 									</Button>
 								))
 							: null}
+						<Button
+							aria-current={view === "status-hub" ? "page" : undefined}
+							aria-label="Status Hub"
+							className={cn(
+								view === "status-hub" &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={openStatusHub}
+							title="Current work and status history"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Activity className="size-4 shrink-0" />
+							<span className="truncate">Status Hub</span>
+						</Button>
 					</nav>
 				) : null}
 
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
 						<AppUpdateIndicator className="mx-auto size-9" />
+						<Button
+							aria-label="Status Hub"
+							title="Status Hub"
+							type="button"
+							variant="sidebarItem"
+							className="size-9 justify-center px-0"
+							onClick={openStatusHub}
+							aria-current={view === "status-hub" ? "page" : undefined}
+						>
+							<Activity className="size-4" />
+						</Button>
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}

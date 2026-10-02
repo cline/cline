@@ -17,6 +17,8 @@ import type { HubEventLogOptions } from "./hub-event-log";
 import type { HubRunQueueOptions } from "./hub-run-queue";
 
 export interface HubWebSocketServerOptions {
+	/** Dedicated Status Hub history database; defaults to the user data directory. */
+	statusDbPath?: string;
 	/** Hub-owned full-text session history index configuration. */
 	sessionSearchOptions?: SessionHistorySearchOptions;
 	/** Workspace authority assigned by the Hub to authenticated clients. */
