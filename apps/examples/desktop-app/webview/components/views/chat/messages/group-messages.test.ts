@@ -618,6 +618,55 @@ describe("collapseCompletedWork", () => {
 		]);
 	});
 
+	it("keeps a connector Connect Link prompt out of the work summary", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "check my email",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 2_000),
+				makeMessage({
+					id: "connect",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "composio_manage_connections",
+						input: { toolkits: ["gmail"] },
+						result: {
+							data: {
+								results: {
+									gmail: {
+										status: "initiated",
+										redirect_url: "https://connect.composio.dev/link/lk_1",
+									},
+								},
+							},
+						},
+					}),
+					createdAt: 3_000,
+				}),
+				makeMessage({
+					id: "a1",
+					content: "Connect Gmail, then reply.",
+					createdAt: 4_000,
+				}),
+			],
+			true,
+		);
+
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"tools",
+			"tools",
+			"message",
+		]);
+		const prompt = items[2];
+		if (prompt?.type !== "tools") throw new Error("expected tools item");
+		expect(prompt.messages.map((message) => message.id)).toEqual(["connect"]);
+	});
+
 	it("does not treat other trailing tool calls as the run's answer", () => {
 		// A finished tail ending on an ordinary tool call still reads as an
 		// interrupted run: rows stay visible, nothing collapses.

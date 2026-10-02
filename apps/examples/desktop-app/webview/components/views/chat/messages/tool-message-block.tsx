@@ -22,6 +22,8 @@ import {
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
+import { parseConnectorAuthPrompt } from "./connector-auth";
+import { ConnectorAuthCard } from "./connector-auth-card";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { MessageImageCarousel } from "./image-carousel";
 import { getToolNameIcon } from "./tool-icons";
@@ -357,15 +359,20 @@ export const ToolMessageBlock = memo(
 		if (messages.length === 0) return null;
 		return (
 			<div className="flex flex-col gap-1">
-				{messages.map((message) => (
-					<ToolCallRow
-						isRunActive={isRunActive}
-						key={message.id}
-						message={message}
-						onExpandImage={onExpandImage}
-						onProceedWhileRunning={onProceedWhileRunning}
-					/>
-				))}
+				{messages.map((message) => {
+					const connectorToolkits = parseConnectorAuthPrompt(message);
+					return connectorToolkits ? (
+						<ConnectorAuthCard key={message.id} toolkits={connectorToolkits} />
+					) : (
+						<ToolCallRow
+							isRunActive={isRunActive}
+							key={message.id}
+							message={message}
+							onExpandImage={onExpandImage}
+							onProceedWhileRunning={onProceedWhileRunning}
+						/>
+					);
+				})}
 			</div>
 		);
 	},

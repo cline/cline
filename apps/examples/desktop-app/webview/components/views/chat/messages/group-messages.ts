@@ -1,5 +1,6 @@
 import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { parseConnectorAuthPrompt } from "./connector-auth";
 import { parseToolPayload } from "./tool-summaries";
 
 export type ChatRenderItem =
@@ -138,7 +139,7 @@ export type CollapseWorkOptions = {
  * with attachments is a deliverable and acts as a span boundary instead.
  */
 function isCollapsibleWorkItem(item: ChatRenderItem): boolean {
-	if (item.type === "tools") return true;
+	if (item.type === "tools") return !isConnectorAuthItem(item);
 	if (item.type !== "message") return false;
 	if (isSystemSteeringMessage(item.message)) return true;
 	return (
@@ -185,6 +186,18 @@ function isSubmitAndExitMessage(message: ChatMessage): boolean {
 	const toolName =
 		message.meta?.toolName || parseToolPayload(message.content)?.toolName;
 	return toolName?.toLowerCase() === "submit_and_exit";
+}
+
+/**
+ * A Connect Link prompt waits on the user, so like an answer it must stay
+ * visible: it gets its own tools item, which never folds into a work summary.
+ */
+function isConnectorAuthItem(item: ChatRenderItem | undefined): boolean {
+	return (
+		item?.type === "tools" &&
+		item.messages.length === 1 &&
+		parseConnectorAuthPrompt(item.messages[0]) !== null
+	);
 }
 
 function firstMessageId(item: ChatRenderItem): string | undefined {
@@ -393,7 +406,11 @@ export function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
 		flushPendingReasoning();
 		const previous = items.at(-1);
 		if (message.role === "tool") {
-			if (previous?.type === "tools") {
+			if (
+				previous?.type === "tools" &&
+				!isConnectorAuthItem(previous) &&
+				parseConnectorAuthPrompt(message) === null
+			) {
 				previous.messages.push(message);
 			} else {
 				items.push({ type: "tools", messages: [message] });
