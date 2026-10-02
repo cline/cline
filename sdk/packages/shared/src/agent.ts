@@ -203,6 +203,12 @@ export interface AgentToolContext {
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/**
+	 * Model-only context appended after successful tool results and after-tool
+	 * hooks. Hidden from client transcripts via displayRole: "system".
+	 * Omitted for errors, skipped calls, and hooks that stop the run.
+	 */
+	successContext?: string;
 	/** Override the runtime execution mode. Adjacent parallel calls may overlap; sequential calls form ordering boundaries. */
 	executionMode?: "sequential" | "parallel";
 	timeoutMs?: number;

@@ -399,7 +399,10 @@ function sanitizeHookAttribute(value: string): string {
  */
 type HookContextOrigin =
 	| { source: "RunStart" }
-	| { source: "PreToolUse" | "PostToolUse"; toolCall: AgentToolCallPart };
+	| {
+			source: "PreToolUse" | "PostToolUse" | "ToolSuccess";
+			toolCall: AgentToolCallPart;
+	  };
 
 function formatHookContextBlock(
 	origin: HookContextOrigin,
@@ -2565,6 +2568,19 @@ export class AgentRuntime {
 					result = after.result;
 				}
 			}
+		}
+
+		if (
+			!prepared.skipReason &&
+			!result.isError &&
+			prepared.tool?.successContext?.trim()
+		) {
+			this.pendingHookContexts.push(
+				formatHookContextBlock(
+					{ source: "ToolSuccess", toolCall: prepared.toolCall },
+					prepared.tool.successContext,
+				),
+			);
 		}
 
 		const message = createMessage("tool", [
