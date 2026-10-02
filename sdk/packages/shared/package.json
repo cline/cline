@@ -53,7 +53,8 @@
 		"build": "BUILD_MODE=package bun bun.mts",
 		"typecheck": "bun tsc --noEmit",
 		"test": "bun run test:unit",
-		"test:unit": "vitest run --config vitest.config.ts"
+		"test:unit": "vitest run --config vitest.config.ts",
+		"protocol:baseline": "bun scripts/hub-protocol-baseline.ts --write"
 	},
 	"engines": {
 		"node": ">=22"
