@@ -12,6 +12,7 @@ import {
 	parseModelSelectionStorage,
 	REASONING_SELECTION_STORAGE_KEY,
 } from "@/lib/model-selection";
+import { PromptDraftStore } from "@/lib/prompt-draft-store";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
@@ -259,12 +260,14 @@ function DraftComposer({
 	threadId,
 	sendPrompt,
 }: {
-	drafts: Map<string, string>;
+	drafts: PromptDraftStore;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
 }) {
-	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
-		usePromptDraft(drafts, threadId);
+	const { promptDraft, handlePromptInputChange, beginSend } = usePromptDraft(
+		drafts,
+		threadId,
+	);
 	return (
 		<WorkspaceProvider value={workspaceValue}>
 			<ChatInputBar
@@ -288,8 +291,13 @@ function DraftComposer({
 				onRemoveAttachment={vi.fn()}
 				onRemovePromptInQueue={vi.fn()}
 				onSend={async (prompt) => {
-					const restorePrompt = clearPromptForSend();
-					if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
+					const attempt = beginSend(prompt, []);
+					let accepted = true;
+					try {
+						accepted = sendPrompt ? await sendPrompt(prompt) : true;
+					} finally {
+						attempt.settle(accepted);
+					}
 				}}
 				onSteerPromptInQueue={vi.fn()}
 				onSwitchGitBranch={vi.fn(async () => true)}
@@ -307,7 +315,8 @@ function DraftComposer({
 
 describe("ChatInputBar draft navigation", () => {
 	it("restores a failed send after the real composer acknowledges the external clear", async () => {
-		const drafts = new Map([["A", "Try again"]]);
+		const drafts = new PromptDraftStore();
+		drafts.edit("A", "Try again");
 		const response = deferred<boolean>();
 		await act(async () => {
 			root.render(
@@ -326,11 +335,11 @@ describe("ChatInputBar draft navigation", () => {
 		expect(container.querySelector("textarea")?.value).toBe("");
 		await act(async () => response.resolve(false));
 		expect(container.querySelector("textarea")?.value).toBe("Try again");
-		expect(drafts.get("A")).toBe("Try again");
+		expect(drafts.getDraft("A")).toBe("Try again");
 	});
 
 	it("restores typed text on return and does not restore it after sending", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftStore();
 		const showThread = async (threadId: string) => {
 			await act(async () => {
 				root.render(

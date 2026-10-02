@@ -102,6 +102,7 @@ import {
 	markOnboardingCompleted,
 	ONBOARDING_RESET_EVENT,
 } from "@/lib/onboarding";
+import { PromptDraftStore } from "@/lib/prompt-draft-store";
 import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
@@ -298,7 +299,7 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
-	const { current: promptDrafts } = useRef(new Map<string, string>());
+	const { current: promptDrafts } = useRef(new PromptDraftStore());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -344,10 +345,7 @@ export default function Home() {
 	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
 	useEffect(() => {
-		const threadIds = new Set(threads.map((thread) => thread.id));
-		for (const threadId of promptDrafts.keys()) {
-			if (!threadIds.has(threadId)) promptDrafts.delete(threadId);
-		}
+		promptDrafts.prune(new Set(threads.map((thread) => thread.id)));
 	}, [promptDrafts, threads]);
 	const { activeThreadId, settingsSection, view } = navigation.current;
 	const activeEnvironmentId =
@@ -1130,7 +1128,7 @@ function ChatThreadPane({
 	onThreadStarted,
 }: {
 	threadId: string;
-	promptDrafts: Map<string, string>;
+	promptDrafts: PromptDraftStore;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
@@ -1205,12 +1203,8 @@ function ChatThreadPane({
 			onThreadStarted?.(threadId, sessionId);
 		}
 	}, [onThreadStarted, sessionId, threadId]);
-	const {
-		clearPromptForSend,
-		promptDraft,
-		setPromptInput,
-		handlePromptInputChange,
-	} = usePromptDraft(promptDrafts, threadId);
+	const { beginSend, promptDraft, setPromptInput, handlePromptInputChange } =
+		usePromptDraft(promptDrafts, threadId);
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
@@ -1915,6 +1909,13 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
+	// Attachments from a failed send return here, immediately when this pane is
+	// mounted or on remount if the send failed while the user was elsewhere.
+	useEffect(
+		() => promptDrafts.subscribeAttachments(threadId, handleAttachFiles),
+		[handleAttachFiles, promptDrafts, threadId],
+	);
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
@@ -1928,23 +1929,25 @@ function ChatThreadPane({
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			const restorePrompt = clearPromptForSend();
 			const toSend = [...pendingAttachments];
+			const attempt = beginSend(trimmed, toSend);
 			setPendingAttachments([]);
-			const promptTaken = await sendPrompt(trimmed, toSend, {
-				inNewWorktree: workIn === "worktree" && isNewThread,
-			});
-			// The prompt never reached the runtime (e.g. the provider connection
-			// failed): hand it back so the user can fix the provider and resend
-			// without retyping, but only if this pane still owns the unchanged draft.
-			if (!promptTaken && restorePrompt(trimmed)) {
-				handleAttachFiles(toSend);
+			// The prompt never reaching the runtime (e.g. the provider connection
+			// failed) hands the text and attachments back through the app-owned draft
+			// store, even if this pane has unmounted. The store declines when the
+			// user has since edited, replaced, re-sent, or deleted the thread.
+			let promptTaken = false;
+			try {
+				promptTaken = await sendPrompt(trimmed, toSend, {
+					inNewWorktree: workIn === "worktree" && isNewThread,
+				});
+			} finally {
+				attempt.settle(promptTaken);
 			}
 		},
 		[
-			clearPromptForSend,
+			beginSend,
 			config.repoUrl,
-			handleAttachFiles,
 			isCloudSession,
 			isNewThread,
 			onThreadStarted,
