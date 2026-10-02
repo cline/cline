@@ -64,6 +64,21 @@ const PUBLISH_RETRY_DELAY_MS = 1000
  */
 export class StreamableHttpReconnectHandler {
 	private attempts = 0
+	/**
+	 * True while this handler owns an active reconnect attempt (from the
+	 * moment handleError starts backing off/retrying until it settles).
+	 * Used to guard against re-entrant onerror events firing mid-reconnect.
+	 *
+	 * This is tracked separately from connection.server.status: a brand-new
+	 * connection also starts with status "connecting" *before* its first
+	 * client.connect() resolves, so relying on that field alone can't tell
+	 * "already retrying" apart from "never connected yet". If the very first
+	 * connection attempt's transport fires onerror while still in that
+	 * pre-connect "connecting" state, checking status here would swallow the
+	 * error silently — no retry loop starts, nothing is ever shown to the
+	 * user, and the server is left stuck showing "Restarting..." forever.
+	 */
+	private isHandling = false
 	private readonly serverName: string
 	private readonly config: ReconnectConfig
 	private readonly callbacks: ReconnectCallbacks
@@ -116,11 +131,24 @@ export class StreamableHttpReconnectHandler {
 			return
 		}
 
-		// Don't retry if intentionally disabled or already mid-reconnect
-		if (connection.server.disabled || connection.server.status === "connecting") {
+		// Don't retry if intentionally disabled or already mid-reconnect.
+		// isHandling (not connection.server.status) is the source of truth for
+		// "already retrying" — see the field's doc comment for why.
+		if (connection.server.disabled || this.isHandling) {
 			return
 		}
+		this.isHandling = true
+		try {
+			await this.doHandleError(connection, error)
+		} finally {
+			this.isHandling = false
+		}
+	}
 
+	private async doHandleError(
+		connection: NonNullable<ReturnType<ReconnectCallbacks["findConnection"]>>,
+		error: unknown,
+	): Promise<void> {
 		if (this.attempts >= this.config.maxAttempts) {
 			// Max retries exhausted
 			Logger.error(
