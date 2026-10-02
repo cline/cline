@@ -592,11 +592,14 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			}
 			absorbPending()
 			hasTools = true
-			toolGroup.push(message)
 			// If the streaming has stopped and the last message is still an ask,
-			// this means the tool requires user approval - show the old tool block UI.
+			// this means the tool requires user approval - show the old tool block UI
+			// as a standalone row instead of also absorbing it into the compact group
+			// (absorbing here would render the tool twice).
 			if (message.type === "ask" && !message.partial && isLast) {
 				pendingTools.push(message)
+			} else {
+				toolGroup.push(message)
 			}
 			continue
 		}
