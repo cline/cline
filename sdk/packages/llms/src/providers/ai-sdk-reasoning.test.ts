@@ -75,4 +75,16 @@ describe("resolvePortableReasoning", () => {
 			buildAiSdkStreamConfig(ollamaRequest, undefined as never),
 		).toHaveProperty("reasoning", "high");
 	});
+
+	it("uses Cerebras top-level reasoning to disable reasoning", () => {
+		const cerebrasRequest = {
+			...request({ enabled: false }),
+			providerId: "cerebras",
+			modelId: "gemma-4-31b",
+		};
+		expect(resolvePortableReasoning(cerebrasRequest)).toBe("none");
+		expect(
+			buildAiSdkStreamConfig(cerebrasRequest, undefined as never),
+		).toHaveProperty("reasoning", "none");
+	});
 });
