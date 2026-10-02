@@ -88,7 +88,10 @@ export function ConnectorLogo({
 				alt=""
 				// The white backing keeps dark brand marks (GitHub's, for one)
 				// visible on dark tiles.
-				className={`${className} rounded-sm bg-white object-contain p-px`}
+				className={cn(
+					"shrink-0 rounded-sm bg-white object-contain p-px",
+					className,
+				)}
 				onError={() => setFailed(true)}
 				src={logo || composioLogoUrl(slug)}
 			/>
@@ -98,10 +101,15 @@ export function ConnectorLogo({
 	// (offline, for one).
 	const LocalIcon = FALLBACK_ICONS[slug];
 	if (LocalIcon) {
-		return <LocalIcon className={className} />;
+		return <LocalIcon className={cn("shrink-0", className)} />;
 	}
 	return (
-		<span className="text-xs font-semibold uppercase text-muted-foreground">
+		<span
+			className={cn(
+				"flex shrink-0 items-center justify-center rounded-sm bg-secondary text-xs font-semibold uppercase text-muted-foreground",
+				className,
+			)}
+		>
 			{name.slice(0, 1)}
 		</span>
 	);
@@ -729,13 +737,12 @@ function ConnectorRow({
 				onClick={onOpenDetails}
 				type="button"
 			>
-				<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-foreground">
-					<ConnectorLogo
-						logo={entry.logo}
-						name={entry.name}
-						slug={entry.slug}
-					/>
-				</span>
+				<ConnectorLogo
+					className="size-8 rounded-lg"
+					logo={entry.logo}
+					name={entry.name}
+					slug={entry.slug}
+				/>
 				<span className="min-w-0">
 					<span className="block truncate text-sm font-medium text-foreground">
 						{entry.name}
@@ -990,14 +997,12 @@ function ConnectorDetailDialog({
 					<>
 						<DialogHeader>
 							<div className="flex items-center gap-3">
-								<span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground">
-									<ConnectorLogo
-										className="size-6"
-										logo={entry.logo}
-										name={entry.name}
-										slug={entry.slug}
-									/>
-								</span>
+								<ConnectorLogo
+									className="size-10 rounded-xl"
+									logo={entry.logo}
+									name={entry.name}
+									slug={entry.slug}
+								/>
 								<div>
 									<DialogTitle>{entry.name}</DialogTitle>
 								</div>
