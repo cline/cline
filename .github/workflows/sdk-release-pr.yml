@@ -1,0 +1,81 @@
+name: sdk-release-pr
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable SDK version (leave empty for the next patch)"
+        required: false
+        type: string
+      release_notes:
+        description: "Release notes (leave empty to draft from SDK commits since the current release tag)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sdk-release-pr
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Prepare SDK versions and changelog
+        id: release
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: bun .github/scripts/sdk-release.mjs prepare
+
+      - name: Update workspace lockfile
+        run: bun install --lockfile-only --ignore-scripts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update SDK release PR
+        id: pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          # An optional PAT lets PR checks run without bot-event restrictions.
+          token: ${{ secrets.SDK_RELEASE_TOKEN || github.token }}
+          branch: bee/sdk-release
+          base: main
+          delete-branch: true
+          title: "chore(sdk): release v${{ steps.release.outputs.version }}"
+          commit-message: "chore(sdk): release v${{ steps.release.outputs.version }}"
+          add-paths: |
+            sdk/packages/shared/package.json
+            sdk/packages/llms/package.json
+            sdk/packages/agents/package.json
+            sdk/packages/core/package.json
+            sdk/packages/sdk/package.json
+            sdk/CHANGELOG.md
+            bun.lock
+          body: |
+            Prepares all five SDK packages at **${{ steps.release.outputs.version }}**,
+            updates the workspace lockfile, and drafts the SDK changelog.
+
+            Review the release notes before merging. Merging this PR into `main`
+            runs SDK checks and publishes the merged version to npm with the `latest`
+            tag through `sdk-publish.yml`, then creates SDK tags and a GitHub release.
+
+      - name: Summary
+        env:
+          PR_URL: ${{ steps.pr.outputs.pull-request-url }}
+        run: echo "SDK release PR — ${PR_URL}" >> "$GITHUB_STEP_SUMMARY"

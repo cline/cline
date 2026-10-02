@@ -8,12 +8,18 @@ on:
             - "sdk/**"
             - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
+            - ".github/workflows/sdk-publish.yml"
+            - ".github/workflows/sdk-release-pr.yml"
+            - ".github/scripts/sdk-release*"
     workflow_dispatch:
     pull_request:
         paths:
             - "sdk/**"
             - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
+            - ".github/workflows/sdk-publish.yml"
+            - ".github/workflows/sdk-release-pr.yml"
+            - ".github/scripts/sdk-release*"
     workflow_call:
 
 permissions:
@@ -40,6 +46,9 @@ jobs:
               run: bun install
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Test SDK release automation
+              run: bun test ./.github/scripts/sdk-release.test.js
 
             - name: Typecheck
               run: |

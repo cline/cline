@@ -78,6 +78,36 @@ If you touch hub/bootstrap/session flows, prefer both unit coverage and an end-t
 
 ### SDK Release
 
+For normal stable releases, run **sdk-release-pr** from GitHub Actions on `main`:
+
+```sh
+gh workflow run sdk-release-pr.yml --ref main
+# Optional exact stable version and reviewed release notes:
+gh workflow run sdk-release-pr.yml --ref main -f version=0.1.0 -f release_notes='- Describe the SDK changes here.'
+```
+
+The workflow creates or updates one PR on `bee/sdk-release`. It bumps all five
+published SDK packages (default: next patch), refreshes `bun.lock`, and adds a
+release entry to `sdk/CHANGELOG.md`. Without explicit notes, it drafts notes from
+SDK commit subjects since `sdk/sdk/v<current-version>`; that tag must exist.
+Review and edit the notes in the PR before merging.
+
+When a stable SDK version bump lands on `main`, `sdk-publish.yml` validates that
+all five versions match and the first changelog entry matches, runs SDK checks,
+and publishes that exact commit to npm with the `latest` dist-tag. It then creates
+the per-package SDK tags and GitHub release. Manifest edits without a version
+bump do not publish. Scheduled and manually dispatched nightlies remain separate.
+
+Enable **Allow GitHub Actions to create and approve pull requests** in the
+repository's Actions workflow permissions. The PR workflow uses `GITHUB_TOKEN`
+by default. To allow normal PR checks to trigger without GitHub's bot-event
+restrictions, configure `SDK_RELEASE_TOKEN` with a PAT granting contents and
+pull-request write access. Merge the release PR as a
+maintainer; merges performed with `GITHUB_TOKEN` do not trigger the push workflow.
+If post-merge checks fail, fix or rerun the failed workflow before publishing.
+
+For a local release instead:
+
 The `bun release sdk` script automates the SDK publish flow: versioning, lockfile regeneration, verification, and publishing.
 
 ```sh
@@ -185,7 +215,10 @@ bun pm ls @cline/core @cline/agents @cline/llms
 
 ### CI
 
-The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
+The CI publish workflow (`.github/workflows/sdk-publish.yml`) publishes in dependency
+order: shared → llms → agents → core → sdk. Stable version bumps on `main` publish
+the committed version after validation and tests; manual dispatch supports
+`nightly` and `latest`, and a daily cron publishes timestamped nightlies.
 
 ### Root Automation Scope
 
