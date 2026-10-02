@@ -36,7 +36,8 @@ export async function readTextFromClipboard(): Promise<string> {
 /**
  * Opens an external URL in the default browser.
  * Uses the host bridge RPC first (VS Code's openExternal which handles remote environments).
- * Falls back to the `open` npm package if the host doesn't implement the RPC (e.g., JetBrains).
+ * Falls back to the `open` npm package if the host bridge call fails. Every shipped host,
+ * including the JetBrains plugin (EnvService.openExternal -> BrowserUtil.browse), implements the RPC.
  *
  * When CLINE_CAPTURE_BROWSER is set (debug harness mode), the URL is captured
  * to a file and/or posted to the debug harness instead of opening a real browser.
@@ -56,7 +57,7 @@ export async function openExternal(url: string): Promise<void> {
 	try {
 		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
 	} catch (error) {
-		// Fallback for hosts that don't implement openExternal (e.g., JetBrains plugin)
+		// Fallback for a host whose openExternal RPC is unavailable or fails (no shipped host lacks it today)
 		Logger.warn(`Host openExternal RPC failed, falling back to 'open' package: ${error}`)
 		try {
 			const open = (await import("open")).default

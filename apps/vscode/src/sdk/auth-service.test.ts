@@ -276,6 +276,23 @@ describe("AuthService", () => {
 			expect(info.user?.displayName).toBe("Test User")
 		})
 
+		it("forwards dataPrivacyPath from /users/me so the webview can link to the web privacy settings", () => {
+			const base = createTestAuthInfo()
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				userInfo: { ...base.userInfo, dataPrivacyPath: "/dashboard/account?tab=privacy" },
+			})
+			testAccess(authService)._authenticated = true
+
+			expect(authService.getInfo().user?.dataPrivacyPath).toBe("/dashboard/account?tab=privacy")
+		})
+
+		it("leaves dataPrivacyPath unset when the API did not advertise one", () => {
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo()
+			testAccess(authService)._authenticated = true
+
+			expect(authService.getInfo().user?.dataPrivacyPath).toBeUndefined()
+		})
+
 		it("returns unauthenticated state when _authenticated is false even with auth info", () => {
 			const authInfo = createTestAuthInfo()
 			testAccess(authService)._clineAuthInfo = authInfo
