@@ -494,11 +494,7 @@ export function ComposioConnectorsView({
 				{/* The host page owns scrolling. */}
 				<div className="min-w-0">
 					<div
-						className={
-							renderItem
-								? "grid gap-1"
-								: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-2"
-						}
+						className={renderItem ? "grid gap-1" : "grid gap-2 md:grid-cols-2"}
 					>
 						{visibleCatalog.map((entry) => (
 							<div className="min-w-0" key={entry.slug}>
@@ -557,8 +553,8 @@ export function ComposioConnectorsView({
 		);
 
 	if (variant === "installed") {
-		// Mirrors the Skills / Plugins / MCP tabs: description + refresh,
-		// full-width search, and an Installed section with a count. Suggested
+		// Mirrors the Skills / Plugins / MCP tabs: description + refresh, then
+		// an Installed section with a count and its own search. Suggested
 		// recipes follow; each one drops out once all its connectors are
 		// connected, so the section empties itself over time. Browse lists the
 		// rest of the catalog so nobody has to leave for the Marketplace.
@@ -593,6 +589,17 @@ export function ComposioConnectorsView({
 							Failed to refresh connectors: {loadError}
 						</p>
 					) : null}
+				</div>
+
+				<section className="grid min-w-0 gap-3">
+					<div className="flex items-center justify-between gap-3">
+						<h2 className="text-base font-semibold text-foreground">
+							Installed
+						</h2>
+						<span className="text-sm text-muted-foreground">
+							{installedEntries.length}
+						</span>
+					</div>
 					{installedEntries.length > 0 ? (
 						<div className="relative">
 							<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -605,17 +612,6 @@ export function ComposioConnectorsView({
 							/>
 						</div>
 					) : null}
-				</div>
-
-				<section className="grid min-w-0 gap-3">
-					<div className="flex items-center justify-between gap-3">
-						<h2 className="text-base font-semibold text-foreground">
-							Installed
-						</h2>
-						<span className="text-sm text-muted-foreground">
-							{installedEntries.length}
-						</span>
-					</div>
 					{matchingInstalled.length > 0 ? (
 						<div className="grid min-w-0 gap-3">
 							{matchingInstalled.map((entry) => (
