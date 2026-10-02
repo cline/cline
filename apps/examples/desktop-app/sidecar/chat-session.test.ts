@@ -2029,6 +2029,93 @@ Follow the desktop send workflow instructions.`,
 	});
 });
 
+describe("/compact", () => {
+	function createCompactContext(options: {
+		busy?: boolean;
+		messages?: unknown[];
+	}) {
+		const sessionId = "compact-session";
+		const wsSend = vi.fn();
+		const send = vi.fn();
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: { provider: "cline", model: "test-model" },
+						messages: [],
+						promptsInQueue: [],
+						busy: options.busy ?? false,
+						startedAt: Date.now(),
+						status: options.busy ? "running" : "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set([{ send: wsSend }]),
+			...localRuntimeContext(
+				{
+					send,
+					get: vi.fn(async () => ({ status: "idle" })),
+					readMessages: vi.fn(async () => options.messages ?? []),
+					pendingPrompts: { list: vi.fn(async () => []) },
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+		const readCommandOutput = () =>
+			wsSend.mock.calls
+				.map(
+					([encoded]) =>
+						JSON.parse(String(encoded)) as {
+							event: { name: string; payload: Record<string, unknown> };
+						},
+				)
+				.find((message) => message.event.name === "chat_command_output")?.event
+				.payload;
+		return { ctx, send, sessionId, readCommandOutput };
+	}
+
+	it("refuses to compact while a turn is running without reaching the model", async () => {
+		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
+			busy: true,
+		});
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(result).toEqual({ sessionId, ok: true, commandHandled: true });
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			sessionId,
+			command: "compact",
+			text: expect.stringContaining("Cannot compact while a response"),
+		});
+	});
+
+	it("reports an empty session instead of sending the prompt", async () => {
+		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
+			messages: [],
+		});
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(result).toEqual({ sessionId, ok: true, commandHandled: true });
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			text: "No messages to compact.",
+		});
+	});
+});
+
 describe("mistake-limit prompt", () => {
 	function createPromptContext() {
 		const send = vi.fn();
