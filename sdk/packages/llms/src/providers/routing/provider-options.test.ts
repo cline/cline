@@ -14,6 +14,71 @@ import {
 	type ProviderOptionsPatch,
 } from "./provider-options";
 
+describe("Codex Fast service tier", () => {
+	it.each([
+		undefined,
+		{ enabled: false },
+		{ enabled: true, effort: "high" },
+	] as const)("is independent of reasoning %j", (reasoning) => {
+		const request = makeRequest({
+			providerId: "openai-codex",
+			modelId: "astra",
+			reasoning,
+		});
+		const context = makeContext({
+			providerId: request.providerId,
+			modelId: request.modelId,
+		});
+		const off = composeAiSdkProviderOptions(request, context);
+		const on = composeAiSdkProviderOptions(
+			{ ...request, serviceTier: "priority" },
+			context,
+		);
+		for (const bucket of ["openai", "openai-codex", "openaiCodex"]) {
+			expect(on[bucket]).toEqual({
+				...(off[bucket] as object),
+				serviceTier: "priority",
+			});
+			expect(off[bucket]).not.toHaveProperty("serviceTier");
+		}
+	});
+
+	it.each([
+		"openai",
+		"openai-native",
+		"openrouter",
+		"anthropic",
+		"openai-compatible",
+		"openai-codex-cli",
+	])("does not leak priority to %s", (providerId) => {
+		const request = makeRequest({
+			providerId,
+			modelId: "gpt-5.4",
+			serviceTier: "priority",
+		});
+		const result = composeAiSdkProviderOptions(
+			request,
+			makeContext({ providerId }),
+		);
+		for (const options of Object.values(result))
+			expect(options).not.toHaveProperty("serviceTier");
+	});
+
+	it("omits invalid untyped values", () => {
+		const request = makeRequest({
+			providerId: "openai-codex",
+			modelId: "astra",
+			serviceTier: "auto" as "priority",
+		});
+		const result = composeAiSdkProviderOptions(
+			request,
+			makeContext({ providerId: request.providerId }),
+		);
+		for (const options of Object.values(result))
+			expect(options).not.toHaveProperty("serviceTier");
+	});
+});
+
 type RequestOverrides = Partial<GatewayStreamRequest> & {
 	providerId: string;
 	modelId: string;
@@ -119,6 +184,7 @@ function makeRequest(overrides: RequestOverrides): GatewayStreamRequest {
 		temperature: overrides.temperature,
 		maxTokens: overrides.maxTokens,
 		reasoning: overrides.reasoning,
+		serviceTier: overrides.serviceTier,
 		signal: overrides.signal,
 		tools: overrides.tools,
 	};

@@ -120,6 +120,8 @@ export interface ModelConfig {
  * Token limits configuration
  */
 export interface TokenConfig {
+	/** Fast service tier for openai-codex only; unset uses backend defaults. */
+	serviceTier?: "priority";
 	/** Maximum input tokens (overrides model default) */
 	maxInputTokens?: number;
 	/** Maximum output tokens (overrides model default) */
