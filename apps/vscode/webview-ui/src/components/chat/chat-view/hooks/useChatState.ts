@@ -51,12 +51,18 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 	const getDraftSnapshot = useCallback((): DraftSnapshot => draftRef.current, [])
 	const consumeDraftSnapshot = useCallback(
-		(submitted: DraftSnapshot) => {
-			// A submission takes effect at acknowledgement. Clear the whole draft
-			// only if no draft mutation crossed that await boundary.
-			updateDraft((current) =>
-				current.revision === submitted.revision ? { ...EMPTY_DRAFT, revision: current.revision + 1 } : current,
-			)
+		(submitted: DraftSnapshot, options: { preserveImages?: boolean } = {}) => {
+			// A submission takes effect at acknowledgement. Consume it only if no
+			// draft mutation crossed that await boundary.
+			updateDraft((current) => {
+				if (current.revision !== submitted.revision) {
+					return current
+				}
+
+				return options.preserveImages
+					? { ...EMPTY_DRAFT, revision: current.revision + 1, images: current.images }
+					: { ...EMPTY_DRAFT, revision: current.revision + 1 }
+			})
 		},
 		[updateDraft],
 	)

@@ -48,7 +48,7 @@ export interface ChatState {
 	selectedFiles: string[]
 	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
 	getDraftSnapshot: () => DraftSnapshot
-	consumeDraftSnapshot: (draft: DraftSnapshot) => void
+	consumeDraftSnapshot: (draft: DraftSnapshot, options?: { preserveImages?: boolean }) => void
 	sendingDisabled: boolean
 	setSendingDisabled: React.Dispatch<React.SetStateAction<boolean>>
 	enableButtons: boolean
