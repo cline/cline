@@ -115,6 +115,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 					enableTools: request.enableTools !== false,
 					enableSpawnAgent: request.enableSpawn !== false,
 					enableAgentTeams: request.enableTeams !== false,
+					enableSubmitAndExit: request.enableSubmitAndExit,
 					disableMcpSettingsTools: request.disableMcpSettingsTools,
 					agentPluginPaths: request.agentPluginPaths,
 					missionLogIntervalSteps: request.missionStepInterval,

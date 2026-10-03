@@ -68,16 +68,6 @@ type ConnectorTurnCoordination =
 			turnKey?: string;
 	  };
 
-type EmptyRuntimeReplyResolver = () => Promise<string | undefined>;
-
-type EmptyRuntimeReplyResolverFactory = (input: {
-	client: HubSessionClient;
-	sessionId: string;
-}) =>
-	| Promise<EmptyRuntimeReplyResolver | undefined>
-	| EmptyRuntimeReplyResolver
-	| undefined;
-
 function connectorTextPayload(
 	transport: string,
 	text: string,
@@ -92,14 +82,6 @@ async function postConnectorText<TState extends ConnectorThreadState>(
 	text: string,
 ): Promise<SentMessage> {
 	return await thread.post(connectorTextPayload(transport, text));
-}
-
-async function editConnectorText(
-	message: SentMessage,
-	transport: string,
-	text: string,
-): Promise<SentMessage> {
-	return await message.edit(connectorTextPayload(transport, text));
 }
 
 function buildAttachments(input: {
@@ -125,10 +107,8 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	transport: string,
 	stream: AsyncIterable<string>,
 	postFinalReply?: (text: string) => Promise<void>,
-	resolveFallbackText?: () => Promise<string | undefined>,
-	hasNonTextReply?: () => boolean,
 ): Promise<void> {
-	if (transport !== "telegram" && !postFinalReply && !resolveFallbackText) {
+	if (transport !== "telegram" && !postFinalReply) {
 		await thread.post(stream);
 		return;
 	}
@@ -137,17 +117,11 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	for await (const chunk of stream) {
 		text += chunk;
 	}
-	if (!text.trim() && hasNonTextReply?.()) {
-		return;
-	}
 	if (!text.trim()) {
-		text = (await resolveFallbackText?.())?.trim() || "";
+		return;
 	}
 	if (isConnectorIdleReply(text)) {
 		return;
-	}
-	if (resolveFallbackText && !text.trim()) {
-		throw new Error("Runtime completed without assistant reply text.");
 	}
 	if (postFinalReply) {
 		await postFinalReply(text);
@@ -380,7 +354,6 @@ type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 		thread: Thread<TState>;
 		text: string;
 	}) => Promise<void>;
-	createEmptyRuntimeReplyResolver?: EmptyRuntimeReplyResolverFactory;
 	onReplyCompleted?: (result: {
 		sessionId: string;
 		threadId: string;
@@ -1215,10 +1188,6 @@ async function runConnectorRuntimeTurn<
 	turnKey: string;
 }): Promise<void> {
 	const { input, sessionId, request, currentState, turnKey } = params;
-	const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
-		client: input.client,
-		sessionId,
-	});
 	const generatedMedia: GeneratedMedia[] = [];
 
 	const activeTurn: ActiveConnectorTurn = {
@@ -1228,7 +1197,6 @@ async function runConnectorRuntimeTurn<
 	};
 	input.activeTurns?.set(turnKey, activeTurn);
 	await input.thread.startTyping();
-	let toolStatusMessage: SentMessage | undefined;
 	const postFinalReply = input.postFinalReply
 		? async (text: string) => {
 				await input.postFinalReply?.({ thread: input.thread, text });
@@ -1246,21 +1214,6 @@ async function runConnectorRuntimeTurn<
 				logger: input.logger,
 				transport: input.transport,
 				conversationId: input.thread.id,
-				onToolStatus: async (message) => {
-					if (toolStatusMessage) {
-						toolStatusMessage = await editConnectorText(
-							toolStatusMessage,
-							input.transport,
-							message,
-						);
-						return;
-					}
-					toolStatusMessage = await postConnectorText(
-						input.thread,
-						input.transport,
-						message,
-					);
-				},
 				onApprovalRequested: async (approval) => {
 					input.pendingApprovals.set(input.thread.id, approval);
 					await postConnectorText(
@@ -1290,17 +1243,12 @@ async function runConnectorRuntimeTurn<
 				},
 			}),
 			postFinalReply,
-			resolveFallbackText,
-			() => generatedMedia.length > 0,
 		);
 		await postConnectorGeneratedMedia(input.thread, generatedMedia);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
 		if (input.activeTurns?.get(turnKey) === activeTurn) {
 			input.activeTurns.delete(turnKey);
-		}
-		if (toolStatusMessage) {
-			await toolStatusMessage.delete().catch(() => undefined);
 		}
 	}
 }

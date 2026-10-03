@@ -8,6 +8,7 @@ export type ConnectorThreadState = {
 	cwd?: string;
 	workspaceRoot?: string;
 	systemPrompt?: string;
+	completionToolEnabled?: boolean;
 	participantKey?: string;
 	participantLabel?: string;
 	welcomeSentAt?: string;
@@ -445,6 +446,10 @@ export function mergeThreadState<TState extends ConnectorThreadState>(
 			threadState?.systemPrompt ||
 			bindingState?.systemPrompt ||
 			base.systemPrompt,
+		completionToolEnabled:
+			threadState?.completionToolEnabled ??
+			bindingState?.completionToolEnabled ??
+		base.completionToolEnabled,
 		participantKey:
 			threadState?.participantKey ||
 			bindingState?.participantKey ||
