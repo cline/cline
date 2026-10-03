@@ -51,6 +51,11 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	allowPortFallback?: boolean;
 	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
 	manageConnectors?: boolean;
+	/**
+	 * Runs only when a new daemon is about to be spawned (never when a running
+	 * Hub is reused), e.g. to prepare the environment the daemon inherits.
+	 */
+	beforeSpawn?: () => Promise<void>;
 }
 
 /**
@@ -82,6 +87,10 @@ export const __test__ = {
 		retireAttemptsByUrl.clear();
 	},
 	resolveDaemonEntryArgs,
+	resolveLaunchCommand: (
+		workspaceRoot: string,
+		endpoint: DetachedHubOptions = {},
+	) => resolveLaunchCommand(workspaceRoot, endpoint),
 };
 
 /**
@@ -398,6 +407,28 @@ function resolveDaemonEntryArgs(
 	];
 }
 
+/**
+ * An executable that hosts the detached Hub daemon in place of the current
+ * process. Clients that are not themselves a Hub-capable binary (for example
+ * the desktop backend, a script running on the bundled CLI's runtime) point
+ * this at the Cline CLI so every Hub they start is a CLI-managed Hub.
+ */
+export interface HubDaemonLauncher {
+	command: string;
+	/** Arguments before the daemon's `--cwd`/endpoint arguments. Defaults to the daemon marker flag. */
+	args?: string[];
+}
+
+let configuredHubDaemonLauncher: HubDaemonLauncher | undefined;
+
+/** Route detached Hub spawns through `launcher`; pass `undefined` to restore the default. */
+export function setHubDaemonLauncher(launcher?: HubDaemonLauncher): void {
+	const command = launcher?.command.trim();
+	configuredHubDaemonLauncher = command
+		? { command, args: launcher?.args ? [...launcher.args] : undefined }
+		: undefined;
+}
+
 function resolveLaunchCommand(
 	workspaceRoot: string,
 	endpoint: DetachedHubOptions,
@@ -407,15 +438,24 @@ function resolveLaunchCommand(
 	cwd: string;
 	env: NodeJS.ProcessEnv;
 } {
-	const daemonEntryPath = resolveDaemonEntryPath();
-	const execPath = process.execPath?.trim();
-	if (!execPath) {
-		throw new Error("unable to resolve runtime executable for hub daemon");
+	let launcher: string;
+	let entryArgs: string[];
+	if (configuredHubDaemonLauncher) {
+		launcher = configuredHubDaemonLauncher.command;
+		entryArgs = configuredHubDaemonLauncher.args ?? [
+			COMPILED_BUN_HUB_DAEMON_ARG,
+		];
+	} else {
+		const execPath = process.execPath?.trim();
+		if (!execPath) {
+			throw new Error("unable to resolve runtime executable for hub daemon");
+		}
+		const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
+		launcher = execPath;
+		entryArgs = resolveDaemonEntryArgs(resolveDaemonEntryPath(), isBunRuntime);
 	}
-	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
-	const entryArgs = resolveDaemonEntryArgs(daemonEntryPath, isBunRuntime);
 	return {
-		launcher: execPath,
+		launcher,
 		args: [
 			...entryArgs,
 			"--cwd",
@@ -687,6 +727,7 @@ async function ensureDetachedHubServerLocked(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
+	await endpointOverrides.beforeSpawn?.();
 	await spawnDetachedHubServerWithRetry(workspaceRoot, {
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,

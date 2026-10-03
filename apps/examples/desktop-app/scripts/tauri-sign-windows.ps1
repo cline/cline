@@ -2,7 +2,7 @@
 #
 # Invoked by the Tauri bundler through `bundle > windows > signCommand` (the
 # desktop-publish workflow generates a config overlay pointing here), once per
-# binary it stages: the main app exe, the code-sidecar external binary, the
+# binary it stages: the main app exe, the bundled cline-cli external binary, the
 # NSIS uninstaller, and the NSIS installer itself.
 #
 # Requirements (all provided by the desktop-publish Windows job):

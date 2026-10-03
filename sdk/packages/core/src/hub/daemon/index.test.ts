@@ -227,10 +227,15 @@ describe("ensureDetachedHubServer", () => {
 			authToken: "new-token",
 		});
 
+		const beforeSpawn = vi.fn(async () => {
+			expect(spawn).not.toHaveBeenCalled();
+		});
 		const { ensureDetachedHubServer } = await import(".");
 		const result = await ensureDetachedHubServer("/workspace", {
 			manageConnectors,
+			beforeSpawn,
 		});
+		expect(beforeSpawn).toHaveBeenCalledOnce();
 		const spawnCalls = (spawn as unknown as { mock: { calls: unknown[][] } })
 			.mock.calls;
 		const spawnArgs = spawnCalls[0]?.[1] as string[] | undefined;
@@ -712,13 +717,17 @@ describe("ensureDetachedHubServer", () => {
 			});
 		verifyHubConnection.mockResolvedValue(true);
 
+		const beforeSpawn = vi.fn(async () => undefined);
 		const { ensureDetachedHubServer } = await import(".");
-		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+		await expect(
+			ensureDetachedHubServer("/workspace", { beforeSpawn }),
+		).resolves.toEqual({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "known-token",
 		});
 		expect(writeHubDiscovery).toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
+		expect(beforeSpawn).not.toHaveBeenCalled();
 	});
 
 	it("uses matching discovery pid and token when retiring an incompatible expected-url hub", async () => {
@@ -1289,5 +1298,40 @@ describe("resolveDaemonEntryArgs", () => {
 		expect(
 			__test__.resolveDaemonEntryArgs("/repo/dist/hub/daemon/entry.js", false),
 		).toEqual(["/repo/dist/hub/daemon/entry.js"]);
+	});
+});
+
+describe("setHubDaemonLauncher", () => {
+	afterEach(async () => {
+		const { setHubDaemonLauncher } = await import(".");
+		setHubDaemonLauncher(undefined);
+	});
+
+	it("launches the daemon through the configured CLI binary", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		setHubDaemonLauncher({ command: "/Applications/Cline.app/cline-cli" });
+		const command = __test__.resolveLaunchCommand("/work", {
+			port: 0,
+			manageConnectors: false,
+		});
+		expect(command.launcher).toBe("/Applications/Cline.app/cline-cli");
+		expect(command.args).toEqual([
+			"--cline-hub-daemon",
+			"--cwd",
+			"/work",
+			"--port",
+			"0",
+			"--no-connectors",
+		]);
+		expect(command.env.CLINE_RUN_AS_HUB_DAEMON).toBe("1");
+	});
+
+	it("restores the current runtime when cleared", async () => {
+		const { __test__, setHubDaemonLauncher } = await import(".");
+		setHubDaemonLauncher({ command: "/opt/cline-cli", args: ["--x"] });
+		setHubDaemonLauncher(undefined);
+		expect(__test__.resolveLaunchCommand("/work").launcher).toBe(
+			process.execPath,
+		);
 	});
 });

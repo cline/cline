@@ -5,11 +5,15 @@ import {
 	readdirSync,
 	readSync,
 } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	type RemoteHelperTarget,
 	remoteHelperBinaryFilename,
 } from "@cline/core";
+import { resolveDesktopCliPath } from "./cli-runtime";
+
+/** Base name of the Cline CLI binary the desktop app bundles (Tauri externalBin). */
+export const DESKTOP_CLI_BINARY_NAME = "cline-cli";
 
 // Tauri's Linux bundles (deb, rpm, AppImage) install binaries under `usr/bin`
 // and resources under `usr/lib/<productName>`. The product name differs per
@@ -36,8 +40,8 @@ const MACHO_CPU_TYPE: Record<RemoteHelperTarget["arch"], number> = {
 };
 
 // Published desktop builds are universal, but `package:desktop:mac` and local
-// `tauri build` produce a thin host-arch sidecar that cannot run on a Mac of
-// the other architecture. A fat binary starts with a big-endian magic; a thin
+// `tauri build` produce a thin host-arch CLI that cannot run on a Mac of the
+// other architecture. A fat binary starts with a big-endian magic; a thin
 // 64-bit Mach-O starts with its little-endian magic followed by the cputype.
 function machoRunsOn(path: string, arch: RemoteHelperTarget["arch"]): boolean {
 	const header = Buffer.alloc(8);
@@ -58,25 +62,23 @@ function machoRunsOn(path: string, arch: RemoteHelperTarget["arch"]): boolean {
 	);
 }
 
-// macOS bundles carry no dedicated darwin helper: Tauri signs only externalBin
-// and the main binary, so a Mach-O under Contents/Resources would ship
-// unsigned and fail notarization. The sidecar already runs the shared helper
-// entrypoint (see index.ts) and is the signed, notarized, universal Mach-O in
-// the bundle, so it serves both x64 and arm64 Mac remotes from a Mac. Under
-// `tauri dev` the sidecar runs as a script, so use the compiled sidecar that
-// beforeDevCommand builds for the matching architecture instead.
-function macSidecarCandidates(
+// macOS bundles carry no separate darwin copies of the CLI: Tauri signs only
+// externalBin and the main binary, so a Mach-O under Contents/Resources would
+// ship unsigned and fail notarization. The bundled CLI is the signed,
+// notarized, universal Mach-O in the bundle, so it serves both x64 and arm64
+// Mac remotes from a Mac. Under `tauri dev` the backend may run on a system
+// Bun, so fall back to the CLI that beforeDevCommand compiles.
+function macCliCandidates(
 	target: RemoteHelperTarget,
-	execPath: string,
+	desktopCliPath: string | undefined,
 	cwd: string,
 ): string[] {
-	const compiledSidecar = `code-sidecar-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
+	const compiledCli = `${DESKTOP_CLI_BINARY_NAME}-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
 	return [
-		...(basename(execPath).startsWith("code-sidecar") &&
-		machoRunsOn(execPath, target.arch)
-			? [execPath]
+		...(desktopCliPath && machoRunsOn(desktopCliPath, target.arch)
+			? [desktopCliPath]
 			: []),
-		join(cwd, "src-tauri", "bin", compiledSidecar),
+		join(cwd, "src-tauri", "bin", compiledCli),
 		join(
 			cwd,
 			"apps",
@@ -84,7 +86,7 @@ function macSidecarCandidates(
 			"desktop-app",
 			"src-tauri",
 			"bin",
-			compiledSidecar,
+			compiledCli,
 		),
 	];
 }
@@ -111,7 +113,7 @@ export function resolveDesktopRemoteHelper(
 			? [join(env.CLINE_REMOTE_HELPER_DIRECTORY, filename)]
 			: []),
 		...(target.platform === "darwin" && platform === "darwin"
-			? macSidecarCandidates(target, execPath, cwd)
+			? macCliCandidates(target, resolveDesktopCliPath(env), cwd)
 			: []),
 		join(executableDirectory, "remote-helpers", filename),
 		join(executableDirectory, bundledPath),

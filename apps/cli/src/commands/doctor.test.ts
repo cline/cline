@@ -382,7 +382,16 @@ describe("runDoctorCommand", () => {
 		});
 	});
 
-	it("doctor --fix kills stale code sidecar processes", async () => {
+	it.each([
+		[
+			"/src-tauri/bin/code-sidecar",
+			"60123 /Users/example/dev/apps/examples/desktop-app/src-tauri/bin/code-sidecar\n",
+		],
+		[
+			"/bin/desktop-backend/index.js",
+			"60123 /Applications/Cline.app/Contents/MacOS/cline-cli run --no-env-file /Applications/Cline.app/Contents/Resources/bin/desktop-backend/index.js\n",
+		],
+	])("doctor --fix kills stale desktop backend processes matching %s", async (pattern, pgrepOutput) => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue(undefined);
 		mockProbeHubServer.mockResolvedValue(undefined);
@@ -392,13 +401,9 @@ describe("runDoctorCommand", () => {
 				Array.isArray(args) &&
 				args[0] === "-fal" &&
 				args[1] === "--" &&
-				args[2] === "/src-tauri/bin/code-sidecar"
+				args[2] === pattern
 			) {
-				return {
-					status: 0,
-					stdout:
-						"60123 /Users/example/dev/apps/examples/desktop-app/src-tauri/bin/code-sidecar\n",
-				};
+				return { status: 0, stdout: pgrepOutput };
 			}
 			return { status: 1, stdout: "" };
 		});

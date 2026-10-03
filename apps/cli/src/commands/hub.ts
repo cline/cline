@@ -1,6 +1,7 @@
 import {
 	clearHubDiscovery,
 	ensureDetachedHubServer,
+	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
 	probeHubServer,
 	readHubDiscovery,
@@ -17,6 +18,15 @@ interface HubCommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 }
+
+interface HubEnsureCommandOptions {
+	json?: boolean;
+	allowPortFallback?: boolean;
+	connectors?: boolean;
+	loginShellPath?: boolean;
+}
+
+const HUB_DISCOVERY_PATH_ENV = "CLINE_HUB_DISCOVERY_PATH";
 
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
@@ -88,47 +98,86 @@ export function createHubCommand(
 	const hub = new Command("hub")
 		.description("Manage the local hub daemon")
 		.exitOverride()
+		.hook("preAction", () => {
+			// Every subcommand resolves its owner record from this env var, so a
+			// dedicated record (SSH remote hubs) is honored by ensure, status,
+			// and stop alike, and by the daemon the ensure spawns.
+			const discoveryPath = hub
+				.opts<{ discoveryPath?: string }>()
+				.discoveryPath?.trim();
+			if (discoveryPath) {
+				process.env[HUB_DISCOVERY_PATH_ENV] = discoveryPath;
+			}
+		})
 		.hook("postAction", () => {
 			setExitCode(actionExitCode);
 		})
 		.option("--cwd <path>", "Workspace root", process.cwd())
 		.option("--host <host>", "Hub host")
 		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
-		.option("--pathname <path>", "Hub websocket path");
+		.option("--pathname <path>", "Hub websocket path")
+		.option(
+			"--discovery-path <path>",
+			"Use a dedicated hub discovery record instead of the default one",
+		);
 
-	hub.command("ensure").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
-			const { url } = await ensureDetachedHubServer(opts.cwd, {
-				host: opts.host,
-				port: opts.port,
-				pathname: opts.pathname,
-			});
-			io.writeln(url);
-		}),
-	);
-
-	hub.command("start").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
-			const { url } = await ensureDetachedHubServer(opts.cwd, {
-				host: opts.host,
-				port: opts.port,
-				pathname: opts.pathname,
-			});
-			io.writeln(url);
-		}),
-	);
+	const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
+		const opts = hub.opts<{
+			cwd: string;
+			host?: string;
+			port?: number;
+			pathname?: string;
+		}>();
+		const result = await ensureDetachedHubServer(opts.cwd, {
+			host: opts.host,
+			port: opts.port,
+			pathname: opts.pathname,
+			...(cmdOptions.allowPortFallback ? { allowPortFallback: true } : {}),
+			...(cmdOptions.connectors === false ? { manageConnectors: false } : {}),
+			// Launchers without a login shell (GUI apps, non-interactive SSH)
+			// would otherwise hand the daemon a minimal PATH, so agent tools
+			// installed from shell profiles could not be found.
+			...(cmdOptions.loginShellPath
+				? {
+						beforeSpawn: async () => {
+							await ensureLoginShellPath();
+						},
+					}
+				: {}),
+		});
+		if (cmdOptions.json) {
+			io.writeln(
+				JSON.stringify({
+					url: result.url,
+					authToken: result.authToken,
+					cwd: opts.cwd,
+					platform: process.platform,
+					arch: process.arch,
+				}),
+			);
+			return;
+		}
+		io.writeln(result.url);
+	});
+	for (const name of ["ensure", "start"]) {
+		hub
+			.command(name)
+			.description("Start the hub daemon unless a compatible one is running")
+			.option(
+				"--json",
+				"Print the hub URL and auth token as JSON for programmatic clients",
+			)
+			.option(
+				"--allow-port-fallback",
+				"Use an OS-assigned port when the requested one is unavailable",
+			)
+			.option("--no-connectors", "Do not supervise account-wide connectors")
+			.option(
+				"--login-shell-path",
+				"Resolve PATH from the user's login shell before starting the hub",
+			)
+			.action(ensureAction);
+	}
 
 	hub.command("status").action(
 		action(async () => {
