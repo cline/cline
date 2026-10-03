@@ -197,17 +197,17 @@ export function buildClineSystemPrompt(
 		.filter(Boolean)
 		.join("\n\n");
 
+	// Replacer functions keep `$&`, `$'`, `$$`, etc. in user-supplied values
+	// (rules, paths, metadata) literal instead of expanding them as patterns.
+	const metadataSection = isCline
+		? buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)
+		: "";
 	return basePrompt
-		.replace("{{PLATFORM_NAME}}", platform)
-		.replace("{{CWD}}", workspaceRoot)
-		.replace("{{CURRENT_DATE}}", new Date().toLocaleDateString())
-		.replace("{{IDE_NAME}}", ide)
-		.replace(
-			"{{CLINE_METADATA}}",
-			isCline
-				? buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)
-				: "",
-		)
-		.replace("{{CLINE_RULES}}", effectiveRules)
+		.replace("{{PLATFORM_NAME}}", () => platform)
+		.replace("{{CWD}}", () => workspaceRoot)
+		.replace("{{CURRENT_DATE}}", () => new Date().toLocaleDateString())
+		.replace("{{IDE_NAME}}", () => ide)
+		.replace("{{CLINE_METADATA}}", () => metadataSection)
+		.replace("{{CLINE_RULES}}", () => effectiveRules)
 		.trim();
 }
