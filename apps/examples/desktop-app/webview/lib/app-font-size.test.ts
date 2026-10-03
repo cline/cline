@@ -6,6 +6,7 @@ import {
 	APP_FONT_SIZE_BOOTSTRAP_SCRIPT,
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
+	appZoomActionForKey,
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
 	readStoredAppFontSize,
@@ -72,6 +73,20 @@ describe("app font size", () => {
 		onChange.mockClear();
 		applyAppZoomAction("zoom-out");
 		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("maps the zoom shortcut keys, including their shifted variants", () => {
+		expect(appZoomActionForKey("=")).toBe("zoom-in");
+		expect(appZoomActionForKey("+")).toBe("zoom-in");
+		expect(appZoomActionForKey("-")).toBe("zoom-out");
+		expect(appZoomActionForKey("_")).toBe("zoom-out");
+		expect(appZoomActionForKey("0")).toBe("zoom-reset");
+	});
+
+	it("leaves other keys, including the app's own shortcuts, unmapped", () => {
+		for (const key of ["n", "N", "p", ",", "1", "Enter", "ArrowUp", ""]) {
+			expect(appZoomActionForKey(key)).toBeNull();
+		}
 	});
 
 	it("restores the saved size before the first paint", () => {
