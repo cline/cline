@@ -1133,11 +1133,11 @@ export async function runCli(): Promise<void> {
 				`${c.dim}[provider-settings] failed to persist selection (${message})${c.reset}`,
 			);
 		}
-		// Check for piped input (skip when stdin is not a real pipe/file, e.g. headless CI).
+		// Check for piped input (skip when stdin is not a real pipe/file, e.g. headless CI, or when a prompt arg was already provided).
 		// Guard `isTTY` first so we never block on fd 0 when stdin is a terminal (and avoid
 		// redundant fstat work). `stdinHasPipedInput` also checks `isTTY`, but callers may hit
 		// inconsistent state in tests or embedded hosts.
-		if (!process.stdin.isTTY && stdinHasPipedInput() && !args.interactive) {
+		if (!process.stdin.isTTY && stdinHasPipedInput() && !args.interactive && !args.prompt?.trim()) { loggerAdapter.core.log("Reading piped stdin input...", {});
 			const chunks: Buffer[] = [];
 			for await (const chunk of process.stdin) {
 				chunks.push(chunk as Buffer);
