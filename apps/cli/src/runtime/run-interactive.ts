@@ -788,7 +788,19 @@ export async function runInteractive(
 				sessionRuntime.abortAll();
 				return;
 			}
-			await applyModeChange(mode);
+			try {
+				await applyModeChange(mode);
+			} catch (error) {
+				// The switch did not happen; the saved preference must not say it
+				// did. Read the mode back from the config the runtime has already
+				// rolled back rather than a value captured before the switch: with
+				// two quick toggles the second one captures the first's in-flight
+				// mode, which was never the user's.
+				if (isInteractiveMode(config.mode)) {
+					setPlanActModeGlobally(config.mode);
+				}
+				throw error;
+			}
 		},
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
