@@ -1547,7 +1547,7 @@ export class Controller {
 		// Fence first: mark resumable and invalidate provisioning before any abort await,
 		// so straggler work cannot restore the cancelled turn's streaming state.
 		this.turnStateTracker.set("resumable")
-		if (this.cloud.cancelPendingStart()) {
+		if (this.cloud.cancelPendingStartFor(this.task)) {
 			// The sandbox never started and its record is being deleted, so there is
 			// nothing to resume: return to the home view instead of offering Resume Task.
 			await this.clearTask()
