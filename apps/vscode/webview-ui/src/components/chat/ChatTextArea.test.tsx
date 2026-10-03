@@ -89,14 +89,34 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		mocks.navigateToSettingsModelPicker.mockReset()
 	})
 
-	it("still takes the image attach path on paste for a text-only model, without a refusal message", () => {
+	it("blocks image attach on paste and shows an error overlay when the model is text-only", () => {
 		mocks.supportsImages = false
-		const { textarea } = renderTextArea()
+		const { textarea, setSelectedImages } = renderTextArea()
 
-		const notCanceled = pasteImage(textarea)
+		pasteImage(textarea)
 
-		expect(notCanceled).toBe(false) // preventDefault: the paste was handled as an image, not as text
-		expect(screen.queryByText(/ignored/)).not.toBeInTheDocument()
+		// Image must not be attached
+		expect(setSelectedImages).not.toHaveBeenCalled()
+		// Inline error overlay should appear
+		expect(screen.getByText("This model doesn't support images")).toBeInTheDocument()
+	})
+
+	it("blocks image attach on drop and shows an error overlay when the model is text-only", () => {
+		mocks.supportsImages = false
+		const { textarea, setSelectedImages } = renderTextArea()
+
+		const file = new File(["png"], "screenshot.png", { type: "image/png" })
+		fireEvent.drop(textarea, {
+			dataTransfer: {
+				files: [file],
+				items: [{ kind: "file", type: "image/png", getAsFile: () => file }],
+				getData: () => "",
+				types: ["Files"],
+			},
+		})
+
+		// Image must not be attached
+		expect(setSelectedImages).not.toHaveBeenCalled()
 	})
 
 	it("badges attached images and offers a model switch when the model is text-only", () => {
