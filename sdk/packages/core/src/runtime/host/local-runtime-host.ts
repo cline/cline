@@ -612,6 +612,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					bootstrap.config,
 					sessionId,
 					sessionToolExecutors,
+					bootstrap.toolPolicies,
 				),
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(

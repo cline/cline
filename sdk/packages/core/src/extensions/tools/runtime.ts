@@ -1,4 +1,5 @@
 import { supportsModelTool } from "@cline/llms";
+import type { ToolPolicy } from "@cline/shared";
 import type { CoreAgentMode } from "../../types/config";
 import {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
@@ -197,6 +198,29 @@ export function isCoreBuiltinToolAvailable(
 			candidate.headlessToolNames.includes(toolName),
 	);
 	return !entry?.unavailableClientTypes?.includes(clientType);
+}
+
+/**
+ * A per-tool policy overrides the `"*"` policy, so `{"*": {enabled: false},
+ * read_files: {enabled: true}}` is an allowlist and `{run_commands: {enabled:
+ * false}}` is a denylist.
+ */
+export function isToolEnabledByPolicies(
+	toolName: string,
+	toolPolicies: Record<string, ToolPolicy> | undefined,
+): boolean {
+	return (
+		{ ...toolPolicies?.["*"], ...toolPolicies?.[toolName] }.enabled !== false
+	);
+}
+
+export function filterToolsByPolicies<T extends { name: string }>(
+	tools: readonly T[],
+	toolPolicies: Record<string, ToolPolicy> | undefined,
+): T[] {
+	return tools.filter((tool) =>
+		isToolEnabledByPolicies(tool.name, toolPolicies),
+	);
 }
 
 function isEntryEnabledByDefault(

@@ -1,10 +1,11 @@
-import type { AgentEvent, AgentTool } from "@cline/shared";
+import type { AgentEvent, AgentTool, ToolPolicy } from "@cline/shared";
 import {
 	createBuiltinTools,
 	resolveToolPresetName,
 	type ToolExecutors,
 	ToolPresets,
 } from "../../../extensions/tools";
+import { filterToolsByPolicies } from "../../../extensions/tools/runtime";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
@@ -123,6 +124,7 @@ export function createSessionSpawnTool(
 	config: CoreSessionConfig,
 	rootSessionId: string,
 	toolExecutors?: Partial<ToolExecutors>,
+	toolPolicies?: Record<string, ToolPolicy>,
 ): AgentTool {
 	const lifecycle = createSessionSubAgentLifecycleCallbacks(
 		deps,
@@ -140,10 +142,16 @@ export function createSessionSpawnTool(
 			: [];
 		if (config.enableSpawnAgent) {
 			tools.push(
-				createSessionSpawnTool(deps, config, rootSessionId, toolExecutors),
+				createSessionSpawnTool(
+					deps,
+					config,
+					rootSessionId,
+					toolExecutors,
+					toolPolicies,
+				),
 			);
 		}
-		return filterDisabledTools(tools);
+		return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
 	};
 
 	return createSpawnAgentTool({
