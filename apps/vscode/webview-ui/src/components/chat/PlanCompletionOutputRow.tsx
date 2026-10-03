@@ -18,8 +18,8 @@ const PlanCompletionOutputRow = memo(({ text }: PlanCompletionOutputProps) => {
 	return (
 		<div className="rounded-sm border border-warning/20 overflow-visible bg-warning/10">
 			<div className="flex items-center justify-between gap-2 pl-2 pr-1 pt-1 -mb-1.5">
-				<span className="text-xs font-medium uppercase tracking-wider text-warning/70">Plan</span>
-				<CopyButton ariaLabel="Copy plan response" className="text-warning/70" textToCopy={text} />
+				<span className="text-xs font-medium uppercase tracking-wider text-warning-foreground">Plan</span>
+				<CopyButton ariaLabel="Copy plan response" className="text-warning-foreground" textToCopy={text} />
 			</div>
 			<div className="plan-completion-content p-2 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0">
 				<div className="wrap-anywhere [&_hr]:opacity-20">
