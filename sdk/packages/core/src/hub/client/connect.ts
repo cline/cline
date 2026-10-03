@@ -144,8 +144,21 @@ export async function connectToHub(url: string): Promise<HubConnection> {
 				});
 			});
 
+			let closeError: Error | undefined;
 			ws.addEventListener("message", (event) => {
-				const frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				let frame: HubTransportFrame;
+				try {
+					frame = JSON.parse(String(event.data)) as HubTransportFrame;
+				} catch (error) {
+					// Unparseable frame: fail the connection rather than the process
+					// (an exception here is uncaught). Pending sends reject on close
+					// with the parse failure as the cause.
+					closeError = new Error(
+						`Hub sent a frame this client could not parse: ${error instanceof Error ? error.message : String(error)}`,
+					);
+					ws.close();
+					return;
+				}
 				if (frame.kind === "reply" && frame.envelope.requestId) {
 					const entry = pending.get(frame.envelope.requestId);
 					if (entry) {
@@ -157,7 +170,7 @@ export async function connectToHub(url: string): Promise<HubConnection> {
 
 			ws.addEventListener("close", () => {
 				for (const entry of pending.values()) {
-					entry.reject(new Error("Hub connection closed"));
+					entry.reject(closeError ?? new Error("Hub connection closed"));
 				}
 				pending.clear();
 			});
