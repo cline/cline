@@ -79,6 +79,12 @@ export type LiveSession = {
 	lastQueuedPromptStartId?: string;
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
+	/**
+	 * The webview left this session while its run was in progress. The Hub
+	 * keeps running it; the sidecar releases its entry once the run settles
+	 * with nothing left queued. Re-attaching clears it.
+	 */
+	abandoned?: boolean;
 };
 
 export type SessionRuntimeBinding = {
