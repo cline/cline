@@ -369,6 +369,8 @@ Or set `CLINE_FORCE_ONBOARDING=1` to force the onboarding view regardless of exi
 
 ### Manually testing the TUI (agents / headless environments)
 
+#### tuistory
+
 [tuistory](https://github.com/remorses/tuistory) is installed as a devDependency. It wraps the TUI in a named background PTY session that can be scripted from a plain shell — no real terminal or display needed. This is the preferred way for AI agents (or anyone in a headless environment) to poke at the interactive TUI:
 
 ```bash
@@ -394,6 +396,40 @@ bunx tuistory -s cline close
 ```
 
 The same engine powers the `test:e2e:tuistory` vitest suite (`src/cli.tuistory.e2e.test.ts`), which uses the programmatic `launchTerminal()` API for assertions against the emulated screen.
+
+#### tui-test
+
+[tui-test](https://github.com/microsoft/tui-test) also provides persistent headless terminal sessions, with text/style assertions, keyboard and mouse input, screenshots, and recordings. Install the [standalone CLI](https://github.com/microsoft/tui-test#installation) separately; the `@microsoft/tui-test` devDependency supplies the JavaScript API, not the CLI. See the [repository skill](../../.cline/skills/tui-test/SKILL.md) for API references and recipes.
+
+```bash
+cd apps/cli
+tui-test agent-context    # exact command and option names
+
+# Launch with isolated config (build the SDK packages first)
+DATA_DIR=$(mktemp -d) && HOME_DIR=$(mktemp -d)
+tui-test --session cline run --cols 120 --rows 36 \
+  --env HOME="$HOME_DIR" --env CLINE_DATA_DIR="$DATA_DIR" \
+  --env CLINE_DISABLE_CLINE_PASS_NOTICE=1 --env CLINE_TELEMETRY_DISABLED=1 \
+  bun src/index.ts --provider anthropic -m claude-sonnet-4-6 -k test-key
+
+# Wait for visible state rather than sleeping
+tui-test --session cline expect text "What can I do for you?" --timeout 30000
+tui-test --session cline type "/settings"
+tui-test --session cline wait idle --timeout 5000
+tui-test --session cline key press Enter
+tui-test --session cline expect text "Settings (Esc to close)" --timeout 5000
+tui-test --session cline text
+tui-test --session cline screenshot cline-settings.png
+
+# A human can watch/drive the same session; Ctrl+] detaches
+tui-test --session cline monitor --interactive
+
+# Close only the session you started
+tui-test --session cline close
+rm -r "$DATA_DIR" "$HOME_DIR"
+```
+
+The dummy `test-key` is enough to inspect the chat UI and settings; actual agent turns need a valid provider credential or VCR playback. Use unique session names for parallel runs. For automated tests, `bun run test:e2e:cli:tui` runs the `src/tests/**/*.test.ts` suite through the JavaScript API without the standalone CLI.
 
 ### Adding a new TUI component
 
