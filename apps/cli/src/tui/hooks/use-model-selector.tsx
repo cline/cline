@@ -29,6 +29,7 @@ import {
 	ProviderPickerContent,
 	UseExistingOrReconfigureContent,
 } from "../components/dialogs/provider-picker";
+import { findFeaturedModelOption } from "../components/model-selector/cline-model-entries";
 import { buildFeaturedModelEntries } from "../components/model-selector/cline-model-picker";
 import {
 	BROWSE_ALL_ACTION,
@@ -525,8 +526,9 @@ export function useModelSelector(opts: {
 					}
 
 					config.modelId = clineResult;
-					const selectedModel = modelOptions.find(
-						(m: ModelOption) => m.key === clineResult,
+					const selectedModel = findFeaturedModelOption(
+						modelOptions,
+						clineResult,
 					);
 					if (selectedModel?.supportsReasoning) {
 						const currentLevel: ThinkingLevel = config.reasoningEffort
