@@ -11,7 +11,7 @@ import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionHost } from "./session-host"
-import { createTaskProxy } from "./task-proxy"
+import { createTaskProxy, type TaskProxy } from "./task-proxy"
 
 vi.mock("@/hosts/host-provider", () => ({ HostProvider: { window: { showMessage: vi.fn(async () => ({})) } } }))
 
@@ -142,6 +142,30 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			host,
 			expect.any(Function),
 		)
+		await coordinator.dispose()
+	})
+
+	it("leaves a provisioning start alone when Cancel is for another task, and cancels it from its own view", async () => {
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		const named = deferred<void>()
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning, signal) => {
+			onProvisioning?.(record.id)
+			named.resolve()
+			await new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(signal.reason)))
+			return record
+		})
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await named.promise
+		const startView = options.getTask() as TaskProxy
+		const otherTask = createTaskProxy("ses-other", vi.fn(), vi.fn())
+
+		expect(coordinator.cancelPendingStartFor(otherTask)).toBe(false)
+		expect(coordinator.getCurrentTaskInfo()?.status).toBe("provisioning")
+		expect(coordinator.cancelPendingStartFor(startView)).toBe(true)
+
+		expect(await start).toBe(record.id)
+		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
 		await coordinator.dispose()
 	})
 
