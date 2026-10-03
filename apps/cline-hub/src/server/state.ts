@@ -21,6 +21,8 @@ export class HubContext {
 	readonly peers = new Set<BrowserPeer>();
 	readonly clients = new Map<string, TrackedClient>();
 	readonly sessions = new Map<string, TrackedSession>();
+	// Retain the last restore so concurrent, delayed errors reuse it.
+	readonly sessionResumes = new Map<string, Promise<void>>();
 	readonly pendingToolApprovals = new Map<string, PendingToolApproval>();
 	readonly events: WebviewHubEvent[] = [];
 
