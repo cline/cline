@@ -218,7 +218,10 @@ const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const LOCAL_HUB_AUTH_TOKENS = new Map<string, string>();
 const RECOVERABLE_LOCAL_HUB_URLS = new Set<string>();
-const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 3_000;
+// Generous on purpose: the replacement path treats a timeout as "busy" and
+// leaves the Hub running, so a slow answer must be rare enough not to strand
+// users on an old Hub, while a Hub mid-turn still gets time to answer.
+const HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS = 10_000;
 const HUB_RECOVERY_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RECOVERY_RETIRE_POLL_MS = 100;
 const DEFAULT_HUB_CLOSED_MESSAGE = "Hub connection closed";
@@ -1224,11 +1227,10 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 
 /**
  * Ask a hub how much live work it is serving. Throws when the hub cannot
- * answer (unreachable, auth rejected, or too old to serve `session.list`),
- * because the safe default points in opposite directions per caller: a
- * replacement path treats an unanswerable hub as idle and retires it, while
- * a recovery path treats it as busy and leaves it alone. Callers pick their
- * own fallback instead of inheriting a hidden one.
+ * answer (unreachable, auth rejected, timed out, or `session.list` failed)
+ * so each caller picks its own fallback instead of inheriting a hidden one;
+ * today both the replacement and recovery paths treat a hub they cannot
+ * positively observe idle as busy and leave it alone.
  */
 export async function queryHubSessionActivity(
 	url: string,
