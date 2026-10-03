@@ -69,7 +69,7 @@ describe("v2 frame tables", () => {
 		expect(withChild.violations[0]?.code).toBe(
 			TURN_CLOSE_WITH_OPEN_CHILDREN,
 		);
-		expect(withChild.openBlocks).toEqual(["b1"]);
+		expect(withChild.openBlocks).toEqual(["root/turn-1/b1"]);
 
 		const orphanClose = validateFrameStream([
 			openTurn(),
