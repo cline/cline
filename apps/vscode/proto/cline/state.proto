@@ -106,6 +106,7 @@ message Secrets {
   optional string cline_api_key = 44;
   optional string openai_codex_oauth_credentials = 48;
   optional string wandb_api_key = 50;
+  optional string yolo_auto_api_key = 51;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -286,6 +287,7 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional string open_telemetry_traces_exporter = 187;
 }
 
 message State {
