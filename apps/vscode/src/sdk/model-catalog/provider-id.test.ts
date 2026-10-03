@@ -74,6 +74,7 @@ describe("isKnownProviderId", () => {
 		expect(isKnownProviderId(parseProviderId("xiaomi"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("tencent-tokenhub"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("chutes"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("openllm"))).toBe(true)
 	})
 
 	it("returns false for a custom provider id", () => {

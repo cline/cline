@@ -91,6 +91,7 @@
 											"provider-config/minimax",
 											"provider-config/openai",
 											"provider-config/openai-compatible",
+											"provider-config/openllm",
 											"provider-config/openrouter",
 											"provider-config/poolside",
 											"provider-config/zai",

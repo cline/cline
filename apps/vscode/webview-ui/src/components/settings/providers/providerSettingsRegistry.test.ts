@@ -126,6 +126,19 @@ describe("providerSettingsRegistry", () => {
 		})
 	})
 
+	it("uses the generic settings form for OpenLLM with custom ids and an editable base URL", () => {
+		const expected = {
+			allowsCustomIds: true,
+			baseUrlField: { label: "Base URL", placeholder: "Default: http://127.0.0.1:8787/v1" },
+			providerId: "openllm",
+			providerName: "OpenLLM",
+			signupUrl: "https://www.openllm.sh/sign-in",
+		}
+		expect(hasCustomProviderSettings("openllm")).toBe(false)
+		expect(getGenericProviderSettings("openllm", listing({ id: "openllm", name: "OpenLLM" }))).toEqual(expected)
+		expect(getFallbackGenericProviderSettings("openllm")).toEqual(expected)
+	})
+
 	it("allows future simple SDK providers to use the generic fallback", () => {
 		const futureProvider = listing({
 			allowsCustomModelIds: true,
