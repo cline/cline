@@ -112,16 +112,18 @@ export class AcpAgent implements Agent {
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
 	private readonly defaultAutoApproveTools: boolean;
+	private readonly hooksDir?: string;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
 	constructor(
 		conn: AgentSideConnection,
-		options?: { autoApproveTools?: boolean },
+		options?: { autoApproveTools?: boolean; hooksDir?: string },
 	) {
 		this.conn = conn;
 		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
+		this.hooksDir = options?.hooksDir;
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -787,6 +789,7 @@ export class AcpAgent implements Agent {
 			enableSpawnAgent: true,
 			enableAgentTeams: false,
 			enableTools: true,
+			hooksDir: this.hooksDir,
 			cwd,
 			workspaceRoot,
 			extensionContext: {

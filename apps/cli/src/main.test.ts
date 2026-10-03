@@ -1,6 +1,6 @@
 import { fstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	CliMigrationNotice,
@@ -1017,6 +1017,35 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 		);
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		undefined,
+		"/tmp/flag-hooks",
+	])("captures hooks directory for the session (flag: %s)", async (flag) => {
+		const original = process.env.CLINE_HOOKS_DIR;
+		process.env.CLINE_HOOKS_DIR = "/tmp/env-hooks";
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			...(flag ? ["--hooks-dir", flag] : []),
+		];
+		try {
+			const { runCli } = await import("./main");
+			await runCli();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					hooksDir: resolve(flag ?? "/tmp/env-hooks"),
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+			expect(process.env.CLINE_HOOKS_DIR).toBe("/tmp/env-hooks");
+		} finally {
+			if (original === undefined) delete process.env.CLINE_HOOKS_DIR;
+			else process.env.CLINE_HOOKS_DIR = original;
+		}
 	});
 
 	it("applies --auto-approve as a runtime policy without changing the config default", async () => {

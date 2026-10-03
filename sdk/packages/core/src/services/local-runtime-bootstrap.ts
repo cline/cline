@@ -425,6 +425,7 @@ export async function prepareLocalRuntimeBootstrap(
 		? createHookConfigFileExtension({
 				cwd: input.config.cwd,
 				workspacePath,
+				hooksDir: input.config.hooksDir,
 				rootSessionId: sessionId,
 				logger: localConfig?.logger,
 				workspaceInfo,
