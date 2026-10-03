@@ -150,6 +150,215 @@ function rejectStartingUpgradeSocket(socket: NodeUpgradeSocketLike): void {
 	}
 }
 
+/**
+ * Runtime-neutral view of an inbound HTTP request. The hub route table is
+ * shared by both listeners: `node:http` (Node, and any runtime without a native
+ * `Bun.serve`) and Bun's native server, whose `fetch` handler speaks the
+ * Web-standard `Request`/`Response` pair.
+ */
+type HubHttpRequest = {
+	url: string | undefined;
+	method: string | undefined;
+	headers: Record<string, string | string[] | undefined>;
+};
+
+type HubHttpResponse = {
+	statusCode: number;
+	setHeader(name: string, value: string): void;
+	end(body?: string, callback?: () => void): void;
+};
+
+export type HubWebSocketRuntime = "node" | "bun";
+
+/**
+ * Bun's `ws` compatibility layer accepts `handleUpgrade` but keeps its own
+ * fixed inbound frame cap (measured ~16 MiB on Bun 1.4.2), so
+ * `new WebSocketServer({ maxPayload })` is silently ineffective there: a
+ * session replay larger than that cap is dropped with close code 1006 and the
+ * client only ever reports "Hub connection closed (code=1006)". Only
+ * `Bun.serve({ websocket: { maxPayloadLength } })` honors a raised cap, so the
+ * hub endpoint is served natively on Bun and falls back to `ws` elsewhere.
+ * `CLINE_HUB_WEBSOCKET_RUNTIME=node|bun` overrides the choice.
+ */
+export function resolveHubWebSocketRuntime(): HubWebSocketRuntime {
+	const configured = process.env.CLINE_HUB_WEBSOCKET_RUNTIME?.trim().toLowerCase();
+	if (configured === "node" || configured === "bun") {
+		return configured;
+	}
+	return typeof (globalThis as { Bun?: unknown }).Bun !== "undefined"
+		? "bun"
+		: "node";
+}
+
+/** How long `/shutdown` waits before starting teardown in the Bun listener. */
+const BUN_RESPONSE_FLUSH_GRACE_MS = 250;
+
+
+type BunServerWebSocket = {
+	data: BunHubSocketState;
+	send(data: string): void;
+	ping(): void;
+	terminate(): void;
+};
+
+type BunServeServer = {
+	port: number;
+	hostname: string;
+	stop(closeActiveConnections?: boolean): void | Promise<void>;
+	upgrade(request: Request, options: { data: BunHubSocketState }): boolean;
+};
+
+type BunServeOptions = {
+	hostname?: string;
+	port?: number;
+	fetch(
+		request: Request,
+		server: BunServeServer,
+	): undefined | Response | Promise<undefined | Response>;
+	websocket: {
+		maxPayloadLength?: number;
+		open?(socket: BunServerWebSocket): void;
+		message?(
+			socket: BunServerWebSocket,
+			data: string | Uint8Array | ArrayBuffer,
+		): void;
+		close?(socket: BunServerWebSocket, code: number, reason: string): void;
+		pong?(socket: BunServerWebSocket): void;
+	};
+};
+
+type BunRuntime = { serve(options: BunServeOptions): BunServeServer };
+
+function resolveBunRuntime(): BunRuntime | undefined {
+	// `Reflect.get` keeps this working under both the core and the desktop-app
+	// tsconfig: a direct `globalThis as {...}` cast is rejected where the
+	// runtime global is not declared.
+	const candidate: unknown = Reflect.get(globalThis, "Bun");
+	if (
+		typeof candidate === "object" &&
+		candidate !== null &&
+		typeof (candidate as { serve?: unknown }).serve === "function"
+	) {
+		return candidate as BunRuntime;
+	}
+	return undefined;
+}
+
+type BunSocketListeners = {
+	message: Set<(data: unknown) => void>;
+	close: Set<() => void>;
+	pong: Set<() => void>;
+	onceClose: Set<() => void>;
+};
+
+/** Per-connection state Bun hands back through `ServerWebSocket.data`. */
+type BunHubSocketState = {
+	isAlive?: boolean;
+	heartbeatTerminated?: boolean;
+	allowRegisteredWorkspace: boolean;
+	facade?: TrackedNodeWebSocket;
+	detach?: () => void;
+	listeners: BunSocketListeners;
+};
+
+function createBunSocketListeners(): BunSocketListeners {
+	return {
+		message: new Set(),
+		close: new Set(),
+		pong: new Set(),
+		onceClose: new Set(),
+	};
+}
+
+
+/**
+ * Delivers one Bun socket event to the listeners the hub installed on the
+ * facade. A throwing listener must not stop the remaining listeners or leak
+ * through Bun's event loop.
+ */
+function dispatchBunSocketEvent(
+	state: BunHubSocketState,
+	event: "message" | "close" | "pong",
+	data?: unknown,
+): void {
+	if (event === "close") {
+		for (const listener of state.listeners.close) {
+			try {
+				listener();
+			} catch {
+				// A listener that throws on close cannot change the close.
+			}
+		}
+		for (const listener of state.listeners.onceClose) {
+			try {
+				listener();
+			} catch {
+				// A one-shot listener that throws is still consumed.
+			}
+		}
+		state.listeners.onceClose.clear();
+		return;
+	}
+	const listeners =
+		event === "message" ? state.listeners.message : state.listeners.pong;
+	for (const listener of listeners) {
+		try {
+			if (event === "message") {
+				(listener as (value: unknown) => void)(data);
+			} else {
+				(listener as () => void)();
+			}
+		} catch {
+			// A listener failure is reported by its own call site.
+		}
+	}
+}
+
+/**
+ * Adapts Bun's `ServerWebSocket` to the `ws` shape the hub's transport adapter
+ * and heartbeat sweep already understand, so both runtimes share one
+ * connection lifecycle implementation.
+ */
+function createBunSocketFacade(
+	state: BunHubSocketState,
+	socket: BunServerWebSocket,
+): TrackedNodeWebSocket {
+	const facade = {
+		send(data: string): void {
+			socket.send(data);
+		},
+		on(
+			event: "message" | "close" | "pong",
+			listener: (...args: never[]) => void,
+		): void {
+			if (event === "message") {
+				state.listeners.message.add(listener as (value: unknown) => void);
+				return;
+			}
+			if (event === "pong") {
+				state.listeners.pong.add(listener as () => void);
+				return;
+			}
+			state.listeners.close.add(listener as () => void);
+		},
+		once(event: "close", listener: (...args: never[]) => void): void {
+			state.listeners.onceClose.add(listener as () => void);
+		},
+		ping(): void {
+			socket.ping();
+		},
+		terminate(): void {
+			try {
+				socket.terminate();
+			} catch {
+				// The socket is already gone; cleanup below is sufficient.
+			}
+		},
+	} as unknown as TrackedNodeWebSocket;
+	state.facade = facade;
+	return facade;
+}
+
 function isValidHubAuthToken(
 	candidate: string | null,
 	expected: string,
@@ -163,6 +372,85 @@ function isValidHubAuthToken(
 		candidateBuffer.length === expectedBuffer.length &&
 		timingSafeEqual(candidateBuffer, expectedBuffer)
 	);
+}
+
+function toHubHttpRequest(request: http.IncomingMessage): HubHttpRequest {
+	return {
+		url: request.url,
+		method: request.method,
+		headers: request.headers,
+	};
+}
+
+function toHubHttpResponse(response: http.ServerResponse): HubHttpResponse {
+	let statusCode = response.statusCode;
+	return {
+		get statusCode(): number {
+			return statusCode;
+		},
+		set statusCode(value: number) {
+			statusCode = value;
+		},
+		setHeader(name: string, value: string): void {
+			response.setHeader(name, value);
+		},
+		end(body?: string, callback?: () => void): void {
+			response.statusCode = statusCode;
+			if (callback) {
+				response.end(body, callback);
+				return;
+			}
+			response.end(body);
+		},
+	};
+}
+
+function fetchHeadersToRecord(
+	headers: Headers,
+): Record<string, string | string[] | undefined> {
+	const record: Record<string, string | string[] | undefined> = {};
+	for (const [name, value] of headers) {
+		record[name] = value;
+	}
+	return record;
+}
+
+/**
+ * Buffers a hub route's reply into a Web `Response`. `/drain` answers from a
+ * promise, so the fetch handler awaits `whenSettled`; `/shutdown` hands its
+ * teardown callback to `end`, which then runs once the response has had a
+ * chance to flush — the caller has already been answered with 202 by then.
+ */
+function createBunHubHttpResponse(): HubHttpResponse & {
+	whenSettled(): Promise<Response>;
+} {
+	const headers = new Headers();
+	let statusCode = 200;
+	let settle: (response: Response) => void = () => undefined;
+	const settled = new Promise<Response>((resolve) => {
+		settle = resolve;
+	});
+	return {
+		get statusCode(): number {
+			return statusCode;
+		},
+		set statusCode(value: number) {
+			statusCode = value;
+		},
+		setHeader(name: string, value: string): void {
+			headers.set(name, value);
+		},
+		end(body?: string, callback?: () => void): void {
+			settle(new Response(body ?? null, { status: statusCode, headers }));
+			if (callback) {
+				const timer = setTimeout(callback, BUN_RESPONSE_FLUSH_GRACE_MS);
+				timer.unref?.();
+			}
+		},
+		whenSettled(): Promise<Response> {
+			return settled;
+		},
+	};
 }
 
 function formatHubStartupError(
@@ -424,6 +712,12 @@ export async function startHubWebSocketServer(
 		}
 
 		const webSocketClosed = new Promise<void>((resolve, reject) => {
+			if (!wss) {
+				// Bun's native listener owns its sockets: stopping the listener
+				// below retires them, so this phase only has to settle.
+				resolve();
+				return;
+			}
 			wss.close((error?: Error) => {
 				if (error) {
 					reject(error);
@@ -433,7 +727,16 @@ export async function startHubWebSocketServer(
 			});
 		});
 		const listenerClosed = new Promise<void>((resolve, reject) => {
-			server.close((error) => {
+			if (!nodeServer) {
+				const stopping: void | Promise<void> = bunServer?.stop(true);
+				Promise.resolve(stopping).then(
+					() => resolve(),
+					(error: unknown) =>
+						reject(error instanceof Error ? error : new Error(String(error))),
+				);
+				return;
+			}
+			nodeServer.close((error) => {
 				if (error) {
 					reject(error);
 					return;
@@ -489,7 +792,13 @@ export async function startHubWebSocketServer(
 	};
 	const closeServer = (): Promise<void> => beginClose().closed;
 
-	const server = http.createServer((req, res) => {
+	// One route table, two listeners: `node:http` adapts `req`/`res` directly
+	// while Bun's native server adapts a `Request`/`Response` pair (see
+	// resolveHubWebSocketRuntime).
+	const handleHubHttpRequest = (
+		req: HubHttpRequest,
+		res: HubHttpResponse,
+	): void => {
 		if (!published) {
 			res.statusCode = 503;
 			res.end("Starting");
@@ -644,15 +953,39 @@ export async function startHubWebSocketServer(
 		}
 		res.statusCode = 404;
 		res.end("Not found");
-	});
-	const wss = new WebSocketServer({
-		noServer: true,
-		// ws caps each message at 100 MiB by default, which can kill a socket
-		// carrying a large session replay before local-history handlers see it.
-		// Session history is blob-referenced (session-blob-store.ts), but the
-		// local loopback link keeps generous headroom anyway.
-		maxPayload: maxHubWebSocketPayloadBytes(),
-	});
+	};
+
+	// `ws` caps each message at 100 MiB by default, which can kill a socket
+	// carrying a large session replay before local-history handlers see it.
+	// Bun ignores that option in its `ws` compatibility layer (keeping its own
+	// ~16 MiB cap), so Bun is served natively instead — see
+	// resolveHubWebSocketRuntime.
+	const bunRuntime = resolveBunRuntime();
+	const configuredRuntime = resolveHubWebSocketRuntime();
+	if (configuredRuntime === "bun" && !bunRuntime) {
+		logHubMessage("warn", "websocket.runtime_unavailable", {
+			runtime: configuredRuntime,
+		});
+	}
+	const runtime: HubWebSocketRuntime =
+		configuredRuntime === "bun" && bunRuntime ? "bun" : "node";
+	const wss =
+		runtime === "node"
+			? new WebSocketServer({
+					noServer: true,
+					maxPayload: maxHubWebSocketPayloadBytes(),
+				})
+			: undefined;
+	const nodeServer =
+		runtime === "node"
+			? http.createServer((request, response) => {
+					handleHubHttpRequest(
+						toHubHttpRequest(request),
+						toHubHttpResponse(response),
+					);
+				})
+			: undefined;
+	let bunServer: BunServeServer | undefined;
 
 function maxHubWebSocketPayloadBytes(): number {
 	const parsed = Number(process.env.CLINE_HUB_MAX_WEBSOCKET_PAYLOAD_BYTES);
@@ -687,7 +1020,13 @@ function maxHubWebSocketPayloadBytes(): number {
 		}
 	}, HUB_SOCKET_HEARTBEAT_INTERVAL_MS);
 
-	server.on("upgrade", (request, socket, head) => {
+	nodeServer?.on("upgrade", (request, socket, head) => {
+		// The node listener and `ws` are created together; this guard exists so
+		// the upgrade path can never run without a server to hand the socket to.
+		if (!wss) {
+			socket.destroy();
+			return;
+		}
 		if (!published) {
 			rejectStartingUpgradeSocket(socket);
 			return;
@@ -747,9 +1086,109 @@ function maxHubWebSocketPayloadBytes(): number {
 		}
 	});
 
-	try {
-		await new Promise<void>((resolve, reject) => {
-			server.once("error", (error) => {
+	/**
+	 * Bun's native endpoint. The control routes share `handleHubHttpRequest`
+	 * through the fetch adapter, and `websocket.maxPayloadLength` is what
+	 * actually raises the inbound frame cap on Bun — a `ws` server option
+	 * cannot (see resolveHubWebSocketRuntime).
+	 */
+	const createBunHubServer = (bun: BunRuntime): BunServeServer =>
+		bun.serve({
+			hostname: host,
+			port: requestedPort,
+			fetch: async (request, server) => {
+				const requestUrl = new URL(request.url);
+				if (requestUrl.pathname !== pathname) {
+					const response = createBunHubHttpResponse();
+					handleHubHttpRequest(
+						{
+							url: `${requestUrl.pathname}${requestUrl.search}`,
+							method: request.method,
+							headers: fetchHeadersToRecord(request.headers),
+						},
+						response,
+					);
+					return await response.whenSettled();
+				}
+				if (!published) {
+					return new Response("Starting", { status: 503 });
+				}
+				const isTokenAuthorized = isValidHubAuthToken(
+					readWebSocketAuthToken(
+						request.headers.get("sec-websocket-protocol") ?? undefined,
+					),
+					authToken,
+				);
+				const isAuthorized =
+					isTokenAuthorized ||
+					(isLocalHubHostName(host) &&
+						isLocalHubOrigin(request.headers.get("origin") ?? undefined));
+				if (!isAuthorized) {
+					return new Response("Unauthorized", { status: 401 });
+				}
+				const upgraded = server.upgrade(request, {
+					data: {
+						isAlive: true,
+						allowRegisteredWorkspace: isTokenAuthorized,
+						listeners: createBunSocketListeners(),
+					},
+				});
+				if (upgraded) {
+					return undefined;
+				}
+				return new Response("Bad Request", { status: 400 });
+			},
+			websocket: {
+				maxPayloadLength: maxHubWebSocketPayloadBytes(),
+				open: (socket) => {
+					const state = socket.data;
+					const facade = createBunSocketFacade(state, socket);
+					state.isAlive = true;
+					facade.on("pong", () => {
+						state.isAlive = true;
+					});
+					sockets.add(facade);
+					const detach = adapter.attach(wrapWsSocket(facade), {
+						allowRegisteredWorkspace: state.allowRegisteredWorkspace,
+					});
+					cleanup.add(detach);
+					state.detach = detach;
+				},
+				message: (socket, data) => {
+					dispatchBunSocketEvent(socket.data, "message", data);
+				},
+				pong: (socket) => {
+					socket.data.isAlive = true;
+					dispatchBunSocketEvent(socket.data, "pong");
+				},
+				close: (socket, code, reason) => {
+					const state = socket.data;
+					// Clients only see "Hub connection closed (code=1006)"; this is
+					// the one place that knows why the socket went away.
+					logHubMessage("info", "socket.closed", {
+						code,
+						reason:
+							typeof reason === "string"
+								? reason.slice(0, 200) || undefined
+								: undefined,
+						heartbeatTerminated: state.heartbeatTerminated ?? false,
+						serverClosing: closeHandle !== undefined,
+					});
+					dispatchBunSocketEvent(state, "close");
+					if (state.facade) {
+						sockets.delete(state.facade);
+					}
+					if (state.detach) {
+						cleanup.delete(state.detach);
+						state.detach();
+					}
+				},
+			},
+		});
+
+	const listenNodeServer = (): Promise<void> =>
+		new Promise<void>((resolve, reject) => {
+			nodeServer?.once("error", (error) => {
 				reject(
 					formatHubStartupError(error, {
 						host,
@@ -758,8 +1197,8 @@ function maxHubWebSocketPayloadBytes(): number {
 					}),
 				);
 			});
-			server.listen(requestedPort, host, () => {
-				const address = server.address();
+			nodeServer?.listen(requestedPort, host, () => {
+				const address = nodeServer?.address();
 				if (!address || typeof address === "string") {
 					reject(
 						formatHubStartupError(new Error("Failed to resolve hub port"), {
@@ -775,6 +1214,17 @@ function maxHubWebSocketPayloadBytes(): number {
 				resolve();
 			});
 		});
+
+	try {
+		if (runtime === "bun" && bunRuntime) {
+			// Bind failures (EADDRINUSE and friends) surface as thrown errors
+			// here and are formatted exactly like the listener's error event.
+			bunServer = createBunHubServer(bunRuntime);
+			port = bunServer.port;
+			url = createHubServerUrl(host, port, pathname);
+		} else {
+			await listenNodeServer();
+		}
 	} catch (error) {
 		if (heartbeatTimer) {
 			clearInterval(heartbeatTimer);
@@ -824,8 +1274,9 @@ function maxHubWebSocketPayloadBytes(): number {
 		);
 		if (!rollbackSettled) {
 			try {
-				server.closeAllConnections();
-				server.unref();
+				nodeServer?.closeAllConnections?.();
+				nodeServer?.unref?.();
+				void Promise.resolve(bunServer?.stop(true)).catch(() => undefined);
 			} catch {
 				// The original publication error remains authoritative. The owning
 				// daemon will take its fatal process-exit path after this rejects.

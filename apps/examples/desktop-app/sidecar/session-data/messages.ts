@@ -17,8 +17,8 @@ import {
 	sharedSessionMessagesWritePath,
 } from "../paths";
 import type { JsonRecord, SidecarContext } from "../types";
-import { SIDECAR_HOST, SIDECAR_PORT } from "../types";
 import { readChildSessionMessages } from "./agents";
+import { readSessionBlobBase64 } from "./blobs";
 import {
 	parseF64Value,
 	parseU64Value,
@@ -158,11 +158,20 @@ function sessionBlobId(record: JsonRecord): string | undefined {
 }
 
 /**
- * History image blobs are stored on disk beside the session data; browsers
- * fetch one on demand instead of every message list carrying its bytes.
+ * Reads a referenced blob back into the `{ mediaType, data }` image shape the
+ * desktop UI renders, or undefined when the reference cannot be materialized.
  */
-function buildSessionBlobUrl(sessionId: string, blobId: string): string {
-	return `http://${SIDECAR_HOST}:${SIDECAR_PORT}/blob/${encodeURIComponent(sessionId)}/${blobId}`;
+function extractImageRefBlock(
+	sessionId: string,
+	record: JsonRecord,
+): { mediaType: string; data: string } | undefined {
+	const mediaType = trimNonEmptyString(record.mediaType);
+	const blobId = sessionBlobId(record);
+	if (!mediaType || !blobId || !IMAGE_URL_MEDIA_TYPES.has(mediaType)) {
+		return undefined;
+	}
+	const base64 = readSessionBlobBase64(sessionId, blobId, mediaType);
+	return base64 ? { mediaType, data: base64 } : undefined;
 }
 
 function extractImageBlock(
@@ -674,20 +683,12 @@ export function readSessionMessagesSync(
 				continue;
 			}
 			if (blockType === "image" || blockType === "image_ref") {
-				let extracted: { mediaType: string; data: string } | undefined;
-				if (blockType === "image") {
-					extracted = extractImageBlock(record);
-				} else {
-					const mediaType = trimNonEmptyString(record.mediaType);
-					const blobId = sessionBlobId(record);
-					extracted =
-						mediaType && blobId && IMAGE_URL_MEDIA_TYPES.has(mediaType)
-							? {
-									mediaType,
-									data: buildSessionBlobUrl(sessionId, blobId),
-								}
-							: undefined;
-				}
+				const extracted =
+					blockType === "image"
+						? extractImageBlock(record)
+						: // Refs persist as links; the UI projection materializes the
+							// bytes because the bundled frontend renders base64 data URLs.
+							extractImageRefBlock(sessionId, record);
 				if (extracted) {
 					images.push({
 						id: `${messageIdBase}_image_${blockIdx}`,
