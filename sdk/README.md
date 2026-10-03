@@ -80,7 +80,7 @@ async function handleMessage(threadId: string, message: string) {
 }
 ```
 
-Explore full working examples in [`examples/`](examples) and app examples in [`apps/examples/`](apps/examples):
+Explore full working examples in [`examples/`](examples) and app examples in [`apps/examples/`](../apps/examples):
 
 | Example | Description |
 |---------|-------------|
@@ -88,8 +88,8 @@ Explore full working examples in [`examples/`](examples) and app examples in [`a
 | [Subagent Orchestration](examples/plugins/agents-squad) | Spawn and manage background agents with presets, skills, and cross-agent handoffs |
 | [Hooks](examples/hooks) | File-based and runtime hooks for logging, review gates, context injection, and lifecycle automation |
 | [Cron Automations](examples/cron) | Recurring and event-driven automation specs for scheduled quality checks and PR workflows |
-| [Desktop App](apps/examples/desktop-app) | Tauri desktop shell with a Bun sidecar backend and Next.js UI |
-| [VS Code Extension App](apps/examples/vscode) | VS Code extension example that runs Cline sessions over the RPC runtime |
+| [Desktop App](../apps/examples/desktop-app) | Tauri desktop shell with a Bun sidecar backend and Next.js UI |
+| [VS Code Extension App](../apps/examples/vscode) | VS Code extension example that runs Cline sessions over the RPC runtime |
 
 ## Custom Tools
 
@@ -305,4 +305,4 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 
 ## License
 
-[Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2026 Cline Bot Inc.](../LICENSE)
