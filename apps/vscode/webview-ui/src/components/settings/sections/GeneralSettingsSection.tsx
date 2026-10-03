@@ -1,6 +1,7 @@
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import DirectionSetting from "../DirectionSetting"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -17,6 +18,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 			{renderSectionHeader("general")}
 			<Section>
 				<PreferredLanguageSetting />
+				<DirectionSetting />
 
 				<div className="mb-[5px]">
 					<Tooltip>

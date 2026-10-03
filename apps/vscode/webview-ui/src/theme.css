@@ -73,7 +73,7 @@
 	--color-success: var(--vscode-charts-green);
 	--color-warning: var(--vscode-charts-yellow);
 	--font-base:
-		var(--vscode-font-family), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
+		var(--vscode-font-family), "Vazirmatn Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
 		"Open Sans", "Helvetica Neue", sans-serif;
 	--font-mono:
 		var(--vscode-editor-font-family), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
@@ -341,6 +341,20 @@
 		th {
 			@apply bg-code/20 font-semibold;
 		}
+
+		/*
+ * Right-to-left typography. Unlayered on purpose: it has to beat the layered
+ * `:root` that Tailwind emits for the `--font-base` theme variable above.
+ * Persian/Arabic runs then come from Vazirmatn while Latin keeps the editor
+ * font. The shared @cline/ui layer does the same for `--font-sans`.
+ */
+		[dir="rtl"] {
+			--font-base:
+				"Vazirmatn Variable", var(--vscode-font-family), system-ui, -apple-system,
+				BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
+				"Helvetica Neue", sans-serif;
+		}
+
 		tr:nth-child(even) {
 			@apply bg-list-hover;
 		}
