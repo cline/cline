@@ -52,7 +52,8 @@ export type GatewayPromptCacheFormat =
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
 	| "glm-thinking"
-	| "minimax-thinking";
+	| "minimax-thinking"
+	| "mimo-reasoning-effort";
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {
