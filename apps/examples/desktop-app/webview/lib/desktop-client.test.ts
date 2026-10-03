@@ -608,3 +608,36 @@ describe("writeDesktopDebugLog", () => {
 		expect(debugSpy).not.toHaveBeenCalled();
 	});
 });
+
+describe("hub readiness errors", () => {
+	it("preserves structured readiness while allowing local commands on the same transport", async () => {
+		const { desktopClient, DesktopCommandError } = await import(
+			"./desktop-client"
+		);
+		const request = desktopClient.invoke("create_session");
+		const result = request.catch((error) => error);
+		const socket = await connectLatestSocket();
+		socket.onmessage?.({
+			data: JSON.stringify({
+				type: "response",
+				id: socket.lastRequest().id,
+				ok: false,
+				error: "Session service is starting",
+				errorCode: "SESSION_SERVICE_NOT_READY",
+				readiness: { state: "starting", attempt: 1 },
+			}),
+		});
+		const error = await result;
+		expect(error).toBeInstanceOf(DesktopCommandError);
+		expect(error).toMatchObject({
+			errorCode: "SESSION_SERVICE_NOT_READY",
+			readiness: { state: "starting", attempt: 1 },
+		});
+		const settings = desktopClient.invoke("list_providers");
+		await vi.waitFor(() =>
+			expect(socket.lastRequest().command).toBe("list_providers"),
+		);
+		socket.respond([]);
+		await expect(settings).resolves.toEqual([]);
+	});
+});

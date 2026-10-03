@@ -797,9 +797,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 		const owner = resolveSharedHubOwnerContext();
 
 		if (this.hubUrl) {
-			const healthy = await probeHubServer(this.hubUrl, {
+			const probe = await probeHubServer(this.hubUrl, {
 				authToken: this.hubAuthToken,
 			});
+			const healthy = probe.status === "healthy" ? probe.hub : undefined;
 			if (healthy?.url) {
 				return {
 					url: rememberRecoverableLocalHubUrl(healthy.url, this.hubAuthToken),
@@ -831,9 +832,10 @@ class CoreChatWebviewController implements vscode.Disposable {
 	): Promise<HubResolution | undefined> {
 		const discovery = await readHubDiscovery(discoveryPath);
 		if (!discovery?.url) return undefined;
-		const healthy = await probeHubServer(discovery.url, {
+		const probe = await probeHubServer(discovery.url, {
 			authToken: discovery.authToken,
 		});
+		const healthy = probe.status === "healthy" ? probe.hub : undefined;
 		return healthy?.url
 			? {
 					url: rememberRecoverableLocalHubUrl(healthy.url, discovery.authToken),

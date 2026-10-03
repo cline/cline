@@ -116,7 +116,8 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (!record?.url) {
 		return undefined;
 	}
-	const healthy = await probeHubServer(record.url).catch(() => undefined);
+	const probe = await probeHubServer(record.url);
+	const healthy = probe.status === "healthy" ? probe.hub : undefined;
 	if (!healthy?.url) {
 		return undefined;
 	}

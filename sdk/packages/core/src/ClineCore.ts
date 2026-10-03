@@ -210,6 +210,10 @@ export class ClineCore {
 		const capabilities = normalizeRuntimeCapabilities(options.capabilities);
 		const normalizedOptions = { ...options, capabilities, distinctId };
 		const host = await createRuntimeHost(normalizedOptions);
+		if (options.signal?.aborted) {
+			await host.dispose();
+			options.signal.throwIfAborted();
+		}
 		const automationOptions = normalizeAutomationOptions(options.automation);
 		const featureFlags =
 			options.featureFlags ||

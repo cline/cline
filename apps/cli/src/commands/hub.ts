@@ -134,15 +134,17 @@ export function createHubCommand(
 		action(async () => {
 			const owner = resolveCliHubOwnerContext();
 			const discovery = await readHubDiscovery(owner.discoveryPath);
-			const health = discovery?.url
+			const probe = discovery?.url
 				? await probeHubServer(discovery.url, {
 						authToken: discovery.authToken,
 					})
 				: undefined;
+			const health = probe?.status === "healthy" ? probe.hub : undefined;
 			const uptime = formatHubUptimeFromStartedAt(health?.startedAt);
 			io.writeln(
 				JSON.stringify({
 					running: !!health?.url,
+					probeStatus: probe?.status,
 					url: health?.url,
 					pid: health?.pid,
 					startedAt: health?.startedAt,

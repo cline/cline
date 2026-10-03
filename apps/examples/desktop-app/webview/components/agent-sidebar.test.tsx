@@ -19,7 +19,9 @@ import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
 const desktopMocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
-	subscribe: vi.fn(() => () => undefined),
+	subscribe: vi.fn(
+		(_event: string, _handler: (payload: unknown) => void) => () => undefined,
+	),
 	subscribeTransportState: vi.fn(() => () => undefined),
 }));
 const { invoke } = desktopMocks;
@@ -1105,6 +1107,9 @@ describe("AgentSidebar session organization", () => {
 		const logoButton = container.querySelector('[aria-label="Cline home"]');
 		expect(logoButton).not.toBeNull();
 		expect(document.body.textContent).not.toContain("Version 1.2.3");
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
 
 		await hover(logoButton as Element);
 
@@ -1152,6 +1157,13 @@ describe("AgentSidebar session organization", () => {
 
 		const logoButton = container.querySelector('[aria-label="Cline home"]');
 		expect(logoButton).not.toBeNull();
+		const indicator = logoButton?.querySelector(
+			'[aria-label="Cline Hub connection error"]',
+		);
+		expect(indicator).not.toBeNull();
+		expect(
+			indicator?.querySelector(".motion-safe\\:animate-ping"),
+		).not.toBeNull();
 		await hover(logoButton as Element);
 
 		await vi.waitFor(() => {
@@ -1160,6 +1172,104 @@ describe("AgentSidebar session organization", () => {
 				"Hub connection closed (code=1006)",
 			);
 		});
+		invoke.mockResolvedValue({
+			appVersion: "1.2.3",
+			hub: {
+				status: "connected",
+				error: null,
+				url: "ws://127.0.0.1:25463/hub",
+			},
+		});
+		const readinessSubscription = desktopMocks.subscribe.mock.calls.find(
+			([event]) => event === "backend_readiness",
+		);
+		expect(readinessSubscription).toBeDefined();
+		await act(async () => {
+			readinessSubscription?.[1]({ state: "ready" });
+		});
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+	});
+
+	it("treats startup as loading and ignores stale requests after recovery", async () => {
+		invoke.mockResolvedValue({ hub: { status: "starting", error: null } });
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		const listener = desktopMocks.subscribe.mock.calls.find(
+			([event]) => event === "backend_readiness",
+		)?.[1];
+		let resolve!: (value: unknown) => void;
+		invoke.mockImplementation(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		await act(async () => listener?.({ state: "starting" }));
+		const staleResponse = resolve;
+		invoke.mockResolvedValue({
+			environmentId: "local",
+			hub: { status: "connected" },
+		});
+		await act(async () => listener?.({ state: "ready" }));
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		await act(async () =>
+			staleResponse({
+				hub: { status: "disconnected", error: "stale failure" },
+			}),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+
+		// A local failure must not replace the active SSH hub's connected state.
+		invoke.mockImplementation(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		await act(async () => listener?.({ state: "starting" }));
+		const pendingRemoteResponse = resolve;
+		await act(async () =>
+			listener?.({ state: "failed", message: "local hub offline" }),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		await act(async () =>
+			pendingRemoteResponse({
+				environmentId: "ssh:remote",
+				hub: { status: "connected" },
+			}),
+		);
+		await act(async () =>
+			resolve({ environmentId: "ssh:remote", hub: { status: "connected" } }),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
 	});
 
 	it("hosts back and forward navigation in the draggable sidebar title bar", async () => {

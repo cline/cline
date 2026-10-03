@@ -310,7 +310,10 @@ describe("hub discovery", () => {
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = fetchMock as typeof fetch;
 		try {
-			const record = await probeHubServer("ws://127.0.0.1:25463/hub");
+			const probe = await probeHubServer("ws://127.0.0.1:25463/hub");
+			expect(probe.status).toBe("healthy");
+			if (probe.status !== "healthy") throw new Error("Expected healthy probe");
+			const record = probe.hub;
 
 			expect(record).toMatchObject({
 				protocolVersion: "v1",
@@ -376,4 +379,47 @@ describe("hub discovery", () => {
 			}
 		}
 	});
+});
+
+it.each([
+	[
+		"Hub publication in progress",
+		() => Promise.resolve(new Response("Starting", { status: 503 })),
+		"starting",
+	],
+	[
+		"unrecognized service unavailable",
+		() => Promise.resolve(new Response("Unavailable", { status: 503 })),
+		"invalid-response",
+	],
+	[
+		"HTTP failure",
+		() => Promise.resolve(new Response("unauthorized", { status: 401 })),
+		"invalid-response",
+	],
+	[
+		"malformed JSON",
+		() => Promise.resolve(new Response("not JSON")),
+		"invalid-response",
+	],
+	[
+		"non-Hub response",
+		() => Promise.resolve(Response.json({ ok: true })),
+		"invalid-response",
+	],
+	[
+		"connection failure",
+		() => Promise.reject(new TypeError("fetch failed")),
+		"unreachable",
+	],
+] as const)("reports %s as an explicit probe outcome", async (_label, fetchResponse, status) => {
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = fetchResponse as typeof fetch;
+	try {
+		await expect(probeHubServer("ws://127.0.0.1:25463/hub")).resolves.toEqual({
+			status,
+		});
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
 });

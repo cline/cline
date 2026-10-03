@@ -65,6 +65,23 @@ describe("runtime host resolution", () => {
 		vi.resetModules();
 	});
 
+	it("cancels a stalled hub bootstrap without creating a runtime", async () => {
+		ensureCompatibleLocalHubUrlMock.mockReturnValue(new Promise(() => {}));
+		const { createRuntimeHost } = await import("./host");
+		const controller = new AbortController();
+		const pending = createRuntimeHost({
+			backendMode: "hub",
+			signal: controller.signal,
+		});
+		const failure = new Error("desktop shutdown");
+		controller.abort(failure);
+		await expect(pending).rejects.toBe(failure);
+		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith(
+			expect.objectContaining({ signal: controller.signal }),
+		);
+		expect(hubConnectMock).not.toHaveBeenCalled();
+	});
+
 	it("falls back to file session storage when sqlite initialization fails", async () => {
 		sqliteInitMock.mockImplementation(() => {
 			throw new Error("sqlite unavailable");

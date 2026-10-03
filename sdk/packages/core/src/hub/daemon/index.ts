@@ -43,6 +43,10 @@ import {
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
 import {
+	HubStartupProbeTimeoutError,
+	probeHubForStartup,
+} from "../discovery/probe-startup";
+import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
@@ -190,25 +194,16 @@ function withMatchingDiscoveryRetirementMetadata(
 	};
 }
 
-async function safeProbeHubServer(
-	url: string,
-	authToken?: string,
-): Promise<HubServerProbeRecord | undefined> {
-	try {
-		return await probeHubServer(url, { authToken });
-	} catch {
-		return undefined;
-	}
-}
-
 async function waitForHubToRetire(
 	url: string,
 	timeoutMs: number,
 ): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const healthy = await safeProbeHubServer(url);
-		if (!healthy?.url) {
+		const probe = await probeHubServer(url, {
+			timeoutMs: Math.min(3_000, Math.max(1, deadline - Date.now())),
+		});
+		if (probe.status === "unreachable") {
 			return true;
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_RETIRE_POLL_MS));
@@ -510,7 +505,9 @@ async function ensureDetachedHubServerLocked(
 	owner: HubOwnerContext,
 	workspaceRoot: string,
 	endpointOverrides: DetachedHubOptions = {},
+	signal?: AbortSignal,
 ): Promise<DetachedHubResolution> {
+	signal?.throwIfAborted();
 	const hasExplicitEndpoint =
 		endpointOverrides.host !== undefined ||
 		endpointOverrides.port !== undefined ||
@@ -546,10 +543,10 @@ async function ensureDetachedHubServerLocked(
 			retiredUnusableDiscovery = true;
 			await retireDiscoveredHub(discovered, owner.discoveryPath);
 		} else {
-			const healthy = await safeProbeHubServer(
-				discovered.url,
-				discoveredAuthToken,
-			);
+			const healthy = await probeHubForStartup(discovered.url, {
+				authToken: discoveredAuthToken,
+				signal,
+			});
 			if (
 				healthy?.url &&
 				isReusableHubRecord(healthy) &&
@@ -586,7 +583,7 @@ async function ensureDetachedHubServerLocked(
 			}
 		}
 	}
-	const expected = await safeProbeHubServer(expectedUrl);
+	const expected = await probeHubForStartup(expectedUrl, { signal });
 	if (expected?.url) {
 		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 			expected,
@@ -687,64 +684,75 @@ async function ensureDetachedHubServerLocked(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
+	signal?.throwIfAborted();
 	await spawnDetachedHubServerWithRetry(workspaceRoot, {
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,
 	});
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
+	// Once spawned, keep the shared startup lock until discovery is published.
+	// Cancelling a waiter must not let another waiter launch a duplicate daemon.
 	while (Date.now() < deadline) {
-		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
-		if (nextDiscovery?.url && nextDiscovery.authToken) {
-			const healthy = await safeProbeHubServer(
-				nextDiscovery.url,
-				nextDiscovery.authToken,
-			);
-			if (
-				healthy?.url &&
-				isReusableHubRecord(healthy) &&
-				(await verifyHubConnection(healthy.url, {
+		try {
+			const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
+			if (nextDiscovery?.url && nextDiscovery.authToken) {
+				const healthy = await probeHubForStartup(nextDiscovery.url, {
 					authToken: nextDiscovery.authToken,
-				}))
-			) {
-				discardSupersededHubDiscovery(owner.discoveryPath);
-				return rememberIfManaged({
-					url: healthy.url,
-					authToken: nextDiscovery.authToken,
+					deadline,
 				});
+				if (
+					healthy?.url &&
+					isReusableHubRecord(healthy) &&
+					(await verifyHubConnection(healthy.url, {
+						authToken: nextDiscovery.authToken,
+					}))
+				) {
+					discardSupersededHubDiscovery(owner.discoveryPath);
+					return rememberIfManaged({
+						url: healthy.url,
+						authToken: nextDiscovery.authToken,
+					});
+				}
 			}
-		}
-		const nextExpected = await safeProbeHubServer(expectedUrl);
-		if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
-			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
-				nextExpected,
-				nextDiscovery ?? superseded,
-				expectedUrl,
-			);
-			const nextOutcome = await retireIncompatibleHub(
-				expectedForRetirement,
-				owner.discoveryPath,
-			);
-			if (
-				nextOutcome === "deferred_busy" &&
-				nextDiscovery?.authToken &&
-				(await verifyHubConnection(nextExpected.url, {
-					authToken: nextDiscovery.authToken,
-				}))
-			) {
-				return rememberIfManaged({
-					url: nextExpected.url,
-					authToken: nextDiscovery.authToken,
-				});
-			}
-			if (
-				nextOutcome === "failed" &&
-				endpointOverrides.allowPortFallback !== true &&
-				endpoint.port !== 0
-			) {
-				throw new Error(
-					`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+			const nextExpected = await probeHubForStartup(expectedUrl, {
+				deadline,
+			});
+			if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
+				const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+					nextExpected,
+					nextDiscovery ?? superseded,
+					expectedUrl,
 				);
+				const nextOutcome = await retireIncompatibleHub(
+					expectedForRetirement,
+					owner.discoveryPath,
+				);
+				if (
+					nextOutcome === "deferred_busy" &&
+					nextDiscovery?.authToken &&
+					(await verifyHubConnection(nextExpected.url, {
+						authToken: nextDiscovery.authToken,
+					}))
+				) {
+					return rememberIfManaged({
+						url: nextExpected.url,
+						authToken: nextDiscovery.authToken,
+					});
+				}
+				if (
+					nextOutcome === "failed" &&
+					endpointOverrides.allowPortFallback !== true &&
+					endpoint.port !== 0
+				) {
+					throw new Error(
+						`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+					);
+				}
 			}
+		} catch (error) {
+			// A newly spawned daemon can be listening before its health handler is ready.
+			// Keep ownership through the startup budget so another client cannot spawn.
+			if (!(error instanceof HubStartupProbeTimeoutError)) throw error;
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
@@ -756,10 +764,20 @@ async function ensureDetachedHubServerLocked(
 export async function ensureDetachedHubServer(
 	workspaceRoot: string,
 	endpointOverrides: DetachedHubOptions = {},
+	signal?: AbortSignal,
 ): Promise<DetachedHubResolution> {
+	signal?.throwIfAborted();
 	const owner = resolveDefaultHubOwnerContext();
-	return await withHubStartupLock(owner.discoveryPath, async () =>
-		ensureDetachedHubServerLocked(owner, workspaceRoot, endpointOverrides),
+	return await withHubStartupLock(
+		owner.discoveryPath,
+		async () =>
+			ensureDetachedHubServerLocked(
+				owner,
+				workspaceRoot,
+				endpointOverrides,
+				signal,
+			),
+		signal,
 	);
 }
 
@@ -847,7 +865,9 @@ export async function upgradeManagedHub(
 	const workspaceRoot = options.workspaceRoot ?? process.cwd();
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	const live = discovered?.url
-		? await safeProbeHubServer(discovered.url, discovered.authToken)
+		? await probeHubForStartup(discovered.url, {
+				authToken: discovered.authToken,
+			})
 		: undefined;
 	if (!live?.url) {
 		const ensured = await ensureDetachedHubServer(workspaceRoot);

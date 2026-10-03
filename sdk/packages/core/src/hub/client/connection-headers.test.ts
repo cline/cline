@@ -81,6 +81,53 @@ afterEach(async () => {
 });
 
 describe("NodeHubClient connection headers", () => {
+	it("aborts registration and closes its socket", async () => {
+		let received!: () => void;
+		const registration = new Promise<void>((resolve) => {
+			received = resolve;
+		});
+		const { server, url } = await startHubServer({
+			onCommand: () => received(),
+		});
+		const client = new NodeHubClient({ url });
+		const controller = new AbortController();
+		const connecting = client.connect(controller.signal);
+		await registration;
+		const closed = Promise.all(
+			[...server.clients].map(
+				(socket) =>
+					new Promise<void>((resolve) => socket.once("close", () => resolve())),
+			),
+		);
+		const failure = new Error("startup cancelled");
+		controller.abort(failure);
+		await expect(connecting).rejects.toBe(failure);
+		await closed;
+		expect(server.clients.size).toBe(0);
+		await client.dispose();
+	});
+
+	it("does not open a socket after cancelled header resolution", async () => {
+		let release!: (headers: Record<string, string>) => void;
+		const headers = new Promise<Record<string, string>>((resolve) => {
+			release = resolve;
+		});
+		const connected = vi.fn();
+		const { url } = await startHubServer({ onConnection: connected });
+		const client = new NodeHubClient({
+			url,
+			resolveConnectionHeaders: () => headers,
+		});
+		const controller = new AbortController();
+		const connecting = client.connect(controller.signal);
+		controller.abort(new Error("cancelled"));
+		await expect(connecting).rejects.toThrow("cancelled");
+		release({});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(connected).not.toHaveBeenCalled();
+		await client.dispose();
+	});
+
 	it("keeps concurrent connects pending until registration finishes", async () => {
 		let acknowledgeRegistration: (() => void) | undefined;
 		let registrationReceived: (() => void) | undefined;

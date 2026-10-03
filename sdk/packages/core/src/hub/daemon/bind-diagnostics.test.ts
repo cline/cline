@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const { mockProbeHubServer, mockSpawnSync } = vi.hoisted(() => ({
 	mockProbeHubServer: vi.fn(
-		async (_url: string, _options?: unknown) => undefined as unknown,
+		async (_url: string, _options?: unknown) =>
+			({ status: "unreachable" }) as unknown,
 	),
 	mockSpawnSync: vi.fn(),
 }));
@@ -36,13 +37,16 @@ describe("describeAddressInUse", () => {
 					: "p4242\nc/Users/alice/cline\n",
 		});
 		mockProbeHubServer.mockResolvedValueOnce({
-			protocolVersion: "1",
-			host: "127.0.0.1",
-			port: 25463,
-			url: "ws://127.0.0.1:25463/hub",
-			buildId: "old-build",
-			coreVersion: "3.0.1",
-			pid: 4242,
+			status: "healthy",
+			hub: {
+				protocolVersion: "1",
+				host: "127.0.0.1",
+				port: 25463,
+				url: "ws://127.0.0.1:25463/hub",
+				buildId: "old-build",
+				coreVersion: "3.0.1",
+				pid: 4242,
+			},
 		});
 		const error = Object.assign(new Error("listen EADDRINUSE"), {
 			code: "EADDRINUSE",
@@ -63,19 +67,19 @@ describe("describeAddressInUse", () => {
 		expect(context.port_owners).not.toContain("alice");
 		expect(mockProbeHubServer).toHaveBeenCalledWith(
 			"ws://127.0.0.1:25463/hub",
-			{ signal: expect.any(AbortSignal) },
+			{ timeoutMs: 2_000 },
 		);
 	});
 
 	it("degrades when the lookup tool is missing and nothing answers the probe", async () => {
 		mockSpawnSync.mockReturnValue({ error: new Error("ENOENT"), status: null });
-		mockProbeHubServer.mockResolvedValueOnce(undefined);
+		mockProbeHubServer.mockResolvedValueOnce({ status: "unreachable" });
 
 		const context = await describeAddressInUse(new Error("busy"), endpoint);
 
 		expect(context).toMatchObject({
 			port_owners: "unavailable",
-			occupant_is_hub: false,
+			occupant_is_hub: "unknown",
 		});
 		expect(context).not.toHaveProperty("occupant_hub_build_id");
 	});
@@ -94,5 +98,32 @@ describe("describeAddressInUse", () => {
 		expect(
 			(await describeAddressInUse(new Error("busy"), endpoint)).port_owners,
 		).toBe("");
+	});
+});
+
+it.each([
+	"timeout",
+	"invalid-response",
+])("keeps diagnostic context when the occupant probe reports %s", async (status) => {
+	mockSpawnSync.mockReturnValue({ error: new Error("ENOENT"), status: null });
+	mockProbeHubServer.mockResolvedValueOnce({ status });
+	await expect(
+		describeAddressInUse(new Error("EADDRINUSE"), endpoint),
+	).resolves.toMatchObject({
+		bind_port: 25463,
+		occupant_is_hub: "unknown",
+		occupant_probe_status: status,
+	});
+});
+
+it("does not let a diagnostic probe exception replace the bind failure", async () => {
+	mockSpawnSync.mockReturnValue({ error: new Error("ENOENT"), status: null });
+	mockProbeHubServer.mockRejectedValueOnce(new Error("probe cancelled"));
+	await expect(
+		describeAddressInUse(new Error("EADDRINUSE"), endpoint),
+	).resolves.toMatchObject({
+		bind_port: 25463,
+		occupant_is_hub: "unknown",
+		occupant_probe_status: "unavailable",
 	});
 });
