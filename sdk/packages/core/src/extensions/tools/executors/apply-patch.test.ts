@@ -258,6 +258,89 @@ describe("createApplyPatchExecutor", () => {
 		);
 	});
 
+	// Models (and editors that strip trailing whitespace) often emit a blank
+	// context line as an empty string instead of a single space.
+	it("treats an empty line inside a hunk as a blank context line", async () => {
+		const filePath = path.join(tempDir, "funcs.ts");
+		await fs.writeFile(
+			filePath,
+			[
+				"function a() {",
+				"\treturn 1;",
+				"}",
+				"",
+				"function b() {",
+				"\treturn 2;",
+				"}",
+			].join("\n"),
+			"utf-8",
+		);
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Begin Patch",
+					"*** Update File: funcs.ts",
+					"@@",
+					" function a() {",
+					" \treturn 1;",
+					" }",
+					"",
+					" function b() {",
+					"-\treturn 2;",
+					"+\treturn 3;",
+					" }",
+					"*** End Patch",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			[
+				"function a() {",
+				"\treturn 1;",
+				"}",
+				"",
+				"function b() {",
+				"\treturn 3;",
+				"}",
+			].join("\n"),
+		);
+	});
+
+	it("applies a hunk whose first context line is empty", async () => {
+		const filePath = path.join(tempDir, "leading.ts");
+		await fs.writeFile(
+			filePath,
+			["", "import x from 'y';", "const a = 1;"].join("\n"),
+			"utf-8",
+		);
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Begin Patch",
+					"*** Update File: leading.ts",
+					"",
+					" import x from 'y';",
+					"-const a = 1;",
+					"+const a = 2;",
+					"*** End Patch",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			["", "import x from 'y';", "const a = 2;"].join("\n"),
+		);
+	});
+
 	it("rejects incomplete patch sentinels", async () => {
 		const execute = createApplyPatchExecutor();
 
