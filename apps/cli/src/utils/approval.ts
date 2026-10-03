@@ -9,6 +9,9 @@ import { c, getActiveCliSession, write } from "./output";
 
 const SHOW_TERMINAL_CURSOR = "\x1b[?25h";
 
+export const NO_OPERATOR_ANSWER =
+	"[No user available to answer: stdin or stdout is not a terminal. Continue with a stated assumption or stop.]";
+
 // =============================================================================
 // Desktop tool approval
 // =============================================================================
@@ -122,7 +125,11 @@ export async function askQuestionInTerminal(
 	options: string[],
 ): Promise<string> {
 	if (!process.stdin.isTTY || !process.stdout.isTTY) {
-		return options[0] ?? "";
+		// Nobody can answer, so say so instead of silently picking options[0].
+		process.stderr.write(
+			"[follow-up] no terminal to ask on; question was not answered\n",
+		);
+		return NO_OPERATOR_ANSWER;
 	}
 
 	return new Promise<string>((resolve) => {
