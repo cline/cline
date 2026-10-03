@@ -286,6 +286,8 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional bool plan_mode_aws_bedrock_use_prompt_cache = 187;
+  optional bool act_mode_aws_bedrock_use_prompt_cache = 188;
 }
 
 message State {

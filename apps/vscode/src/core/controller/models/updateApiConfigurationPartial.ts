@@ -1,3 +1,4 @@
+import type { ApiConfiguration } from "@shared/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -6,6 +7,17 @@ import type { Controller } from "../index"
 import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
+
+export function pickMaskedApiConfigurationUpdates(
+	configuration: ApiConfiguration,
+	updateMask: string[],
+): Partial<ApiConfiguration> {
+	const updates: Partial<ApiConfiguration> = {}
+	for (const field of updateMask) {
+		;(updates as Record<string, unknown>)[field] = (configuration as Record<string, unknown>)[field]
+	}
+	return updates
+}
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -32,26 +44,23 @@ export async function updateApiConfigurationPartial(
 			throw new Error("api_configuration is required")
 		}
 
-		// Get current config and convert new values from proto format
+		// Persist only fields explicitly named by the mask. Re-saving a reconstructed
+		// full configuration can copy stale Plan/Act values over independent settings.
 		const currentConfig = controller.stateManager.getApiConfiguration()
 		const newConfigValues = convertProtoToApiConfiguration(request.apiConfiguration)
-
-		// Apply only the fields specified in the mask
-		const updatedConfig = { ...currentConfig }
-		for (const field of request.updateMask) {
-			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
-		}
-		const normalizedConfig = normalizeProviderSwitchModel(controller.getProviderConfigStore(), currentConfig, updatedConfig)
+		const partialUpdates = pickMaskedApiConfigurationUpdates(newConfigValues, request.updateMask)
+		const normalizedUpdates = normalizeProviderSwitchModel(controller.getProviderConfigStore(), currentConfig, partialUpdates)
 
 		// Update storage and task API model shim
-		controller.stateManager.setApiConfiguration(normalizedConfig)
-		clearOrganizationForClinePassProviderSelection(controller, normalizedConfig)
+		controller.stateManager.setApiConfiguration(normalizedUpdates)
+		const updatedConfig = controller.stateManager.getApiConfiguration()
+		clearOrganizationForClinePassProviderSelection(controller, updatedConfig)
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			const modelId = resolveActiveModelIdFromApiConfiguration(normalizedConfig, currentMode)
+			const modelId = resolveActiveModelIdFromApiConfiguration(updatedConfig, currentMode)
 			controller.task.api = createTaskApiModelShim(modelId)
 		}
-		controller.handleApiConfigurationChanged(currentConfig, normalizedConfig)
+		controller.handleApiConfigurationChanged(currentConfig, updatedConfig)
 
 		// Notify webview
 		await controller.postStateToWebview()
