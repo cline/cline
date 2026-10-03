@@ -1,5 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { normalizeJsonLikeStringsForSchema, parseJsonStream } from "./json";
+import {
+	normalizeJsonLikeStringsForSchema,
+	parseJsonStream,
+	safeJsonStringify,
+} from "./json";
+
+describe("safeJsonStringify", () => {
+	it("preserves shared objects in sibling properties and array entries", () => {
+		const shared = { message: "upstream failure" };
+		const value = { first: shared, second: shared, items: [shared, shared] };
+
+		expect(safeJsonStringify(value)).toBe(JSON.stringify(value));
+	});
+
+	it("preserves shared descendants across separate branches", () => {
+		const shared = { code: 429 };
+		const value = { first: { details: shared }, second: { details: shared } };
+
+		expect(safeJsonStringify(value)).toBe(JSON.stringify(value));
+	});
+
+	it("replaces ancestor cycles while preserving other shared references", () => {
+		const shared: { code: number; self?: unknown } = { code: 429 };
+		shared.self = shared;
+
+		expect(
+			JSON.parse(safeJsonStringify({ first: shared, second: shared })),
+		).toEqual({
+			first: { code: 429, self: "[Circular]" },
+			second: { code: 429, self: "[Circular]" },
+		});
+	});
+
+	it("handles an indirect cycle back to the root", () => {
+		const root: { child?: unknown } = {};
+		root.child = { parent: root };
+
+		expect(JSON.parse(safeJsonStringify(root))).toEqual({
+			child: { parent: "[Circular]" },
+		});
+	});
+
+	it("keeps bigint conversion and undefined fallback", () => {
+		expect(safeJsonStringify({ count: 123n })).toBe('{"count":"123"}');
+		expect(safeJsonStringify(undefined)).toBe("null");
+	});
+});
 
 describe("parseJsonStream", () => {
 	it("repairs a bare object value into a JSON string", () => {
