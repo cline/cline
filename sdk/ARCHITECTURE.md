@@ -576,6 +576,13 @@ Design implication:
 
 - additive runtime behavior should usually enter through these extension points instead of bespoke special-case host code.
 
+CLI `--hooks-dir` (or `CLINE_HOOKS_DIR`) is captured as the session's
+`hooksDir`, with the flag taking precedence. The CLI resolves the path before
+sending it in `session.create` / restart configuration. The execution host
+passes that directory to file-hook discovery alongside global and workspace
+hooks. It never changes the shared daemon's environment, so concurrently
+running sessions may use different additional directories.
+
 ### 9. Context Compaction
 
 Context compaction is owned by `core`.

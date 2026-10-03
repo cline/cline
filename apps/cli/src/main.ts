@@ -1,6 +1,6 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
@@ -795,9 +795,9 @@ export async function runCli(): Promise<void> {
 			`${c.dim}[warn] ignoring invalid --retries value "${args.invalidRetries}" (expected integer >= 1)${c.reset}`,
 		);
 	}
-	if (args.hooksDir?.trim()) {
-		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
-	}
+	const additionalHooksDir =
+		args.hooksDir?.trim() || process.env.CLINE_HOOKS_DIR?.trim();
+	const hooksDir = additionalHooksDir ? resolve(additionalHooksDir) : undefined;
 	if (args.prompt && !args.interactive) {
 		if (program.args.length > 1 || !promptArgLooksQuoted(program.args[0])) {
 			writePromptArgError(program.args);
@@ -822,7 +822,10 @@ export async function runCli(): Promise<void> {
 		// Only an explicit `--auto-approve true` (or `--yolo`) enables
 		// auto-approval in ACP mode; We do not respect the default to
 		// avoid accidental auto-approval in ACP mode.
-		await runAcpMode({ autoApproveTools: args.autoApproveOverride === true });
+		await runAcpMode({
+			autoApproveTools: args.autoApproveOverride === true,
+			hooksDir,
+		});
 		return;
 	}
 
@@ -1089,6 +1092,7 @@ export async function runCli(): Promise<void> {
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,
+			hooksDir,
 			cwd,
 			workspaceRoot,
 			extensionContext: {

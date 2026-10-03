@@ -486,6 +486,7 @@ export function resolveAgentConfigSearchPaths(
 
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
+	additionalDirectory?: string,
 ): string[] {
 	const hooks = [
 		resolveDocumentsExtensionPath("Hooks"),
@@ -496,6 +497,9 @@ export function resolveHooksConfigSearchPaths(
 			join(workspacePath, DEPRECATED_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
 			join(workspacePath, CLINE_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
 		);
+	}
+	if (additionalDirectory?.trim()) {
+		hooks.push(additionalDirectory.trim());
 	}
 	return dedupePaths(hooks);
 }

@@ -202,6 +202,18 @@ describe("storage path resolution", () => {
 		);
 	});
 
+	it("adds session hook paths without replacing defaults or duplicating them", () => {
+		const workspace = "/tmp/session-workspace";
+		const defaults = resolveHooksConfigSearchPaths(workspace);
+		expect(
+			resolveHooksConfigSearchPaths(workspace, "/tmp/session-hooks"),
+		).toEqual([...defaults, "/tmp/session-hooks"]);
+		expect(resolveHooksConfigSearchPaths(workspace, defaults[0])).toEqual(
+			defaults,
+		);
+		expect(resolveHooksConfigSearchPaths(workspace, "  ")).toEqual(defaults);
+	});
+
 	it("resolves global hooks from ~/.cline", () => {
 		snapshot = captureEnv();
 		process.env.CLINE_DIR = "/tmp/home/.cline";
