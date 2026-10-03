@@ -475,6 +475,7 @@ dependencies = [
 name = "cline-app"
 version = "0.1.0"
 dependencies = [
+ "core-foundation",
  "notify-rust",
  "objc2",
  "objc2-app-kit",
@@ -488,6 +489,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
+ "windows-sys",
 ]
 
 [[package]]

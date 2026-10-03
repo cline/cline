@@ -29,6 +29,7 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { emitKeepAwakeChanged } from "@/lib/desktop-tray";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
@@ -714,6 +715,11 @@ function GeneralSettingsContent({
 	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
 		null,
 	);
+	// Defaults on: the setting exists to stop idle sleep from freezing a run.
+	const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(true);
+	const [keepAwakeLoading, setKeepAwakeLoading] = useState(true);
+	const [keepAwakeSaving, setKeepAwakeSaving] = useState(false);
+	const [keepAwakeError, setKeepAwakeError] = useState<string | null>(null);
 	// The environment override can differ from the stored opt-in.
 	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
 		boolean | null
@@ -745,6 +751,8 @@ function GeneralSettingsContent({
 		setAutoUpdateError(null);
 		setCloudSessionsLoading(true);
 		setCloudSessionsError(null);
+		setKeepAwakeLoading(true);
+		setKeepAwakeError(null);
 		await Promise.all([
 			(async () => {
 				try {
@@ -767,16 +775,21 @@ function GeneralSettingsContent({
 				try {
 					const desktopSettings = await desktopClient.invoke<{
 						cloudSessionsEnabled: boolean;
+						keepAwakeEnabled?: boolean;
 					}>("get_desktop_settings");
 					setCloudSessionsEnabled(
 						Boolean(desktopSettings.cloudSessionsEnabled),
 					);
+					// Only an explicit `false` disables it, matching the sidecar.
+					setKeepAwakeEnabled(desktopSettings.keepAwakeEnabled !== false);
 				} catch (error) {
-					setCloudSessionsError(
-						error instanceof Error ? error.message : String(error),
-					);
+					const message =
+						error instanceof Error ? error.message : String(error);
+					setCloudSessionsError(message);
+					setKeepAwakeError(message);
 				} finally {
 					setCloudSessionsLoading(false);
+					setKeepAwakeLoading(false);
 				}
 			})(),
 			refreshCloudSessionsEffective(),
@@ -847,6 +860,49 @@ function GeneralSettingsContent({
 			setCloudSessionsError(message);
 		} finally {
 			setCloudSessionsSaving(false);
+		}
+	};
+
+	const updateKeepAwakeEnabled = async (nextValue: boolean) => {
+		const previousValue = keepAwakeEnabled;
+		setKeepAwakeEnabled(nextValue);
+		setKeepAwakeSaving(true);
+		setKeepAwakeError(null);
+		try {
+			const settings = await desktopClient.invoke<{
+				keepAwakeEnabled?: boolean;
+			}>("set_keep_awake_enabled", { keep_awake_enabled: nextValue });
+			const saved = settings.keepAwakeEnabled !== false;
+			setKeepAwakeEnabled(saved);
+			// Let the native shell drop its assertion now rather than at the
+			// next session-count poll.
+			await emitKeepAwakeChanged(saved);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setKeepAwakeEnabled(previousValue);
+			setKeepAwakeError(message);
+		} finally {
+			setKeepAwakeSaving(false);
+		}
+	};
+
+	const updateWebSearchEnabled = async (nextValue: boolean) => {
+		const previousValue = webSearchEnabled;
+		setWebSearchEnabled(nextValue);
+		setWebSearchSaving(true);
+		setWebSearchError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_web_search_enabled",
+				{ web_search_enabled: nextValue },
+			);
+			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setWebSearchEnabled(previousValue);
+			setWebSearchError(message);
+		} finally {
+			setWebSearchSaving(false);
 		}
 	};
 
@@ -1058,6 +1114,29 @@ function GeneralSettingsContent({
 						checked={autoUpdateEnabled}
 						disabled={autoUpdateLoading || autoUpdateSaving}
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
+					/>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Keep computer awake while running
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Hold a system power assertion during a task so a long run is not
+							interrupted when the machine would otherwise idle-sleep. The
+							display can still turn off.
+						</p>
+						{keepAwakeError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update keep-awake setting: {keepAwakeError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Keep computer awake while running"
+						checked={keepAwakeEnabled}
+						disabled={keepAwakeLoading || keepAwakeSaving}
+						onCheckedChange={(checked) => void updateKeepAwakeEnabled(checked)}
 					/>
 				</div>
 				{cloudSessionsAvailable ? (
