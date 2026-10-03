@@ -145,6 +145,43 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
+	it("keeps a provisioning start running when its own sandbox is opened from History", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let viewGeneration = 0
+		const { coordinator, cloudSessions } = makeCoordinator({
+			claimTaskViewGeneration: () => {
+				const claimed = ++viewGeneration
+				return () => claimed !== viewGeneration
+			},
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		const provisioned = deferred<void>()
+		const named = deferred<void>()
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			named.resolve()
+			await provisioned.promise
+			return record
+		})
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "provisioning" }])
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await named.promise
+		expect(await coordinator.listHistoryRecords()).toEqual([])
+		const provisionalId = coordinator.getCurrentTaskInfo()!.sessionId
+		expect(await coordinator.openCloudTask(provisionalId)).toMatchObject({ id: provisionalId })
+		expect(await coordinator.openCloudTask(record.id)).toMatchObject({ id: record.id })
+		provisioned.resolve()
+
+		expect(await start).toBe(record.id)
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
+	})
+
 	it("starts the sandbox on the model the composer showed, even when a fresher recommendation lands first", async () => {
 		resetClineRecommendedModelsCacheForTests()
 		vi.spyOn(ClineEnv, "config").mockReturnValue({ apiBaseUrl: "https://api.cline-test.bot" } as ReturnType<
