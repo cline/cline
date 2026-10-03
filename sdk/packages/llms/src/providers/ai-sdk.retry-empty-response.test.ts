@@ -315,7 +315,7 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 							if (sentReasoning) {
 								// Let the reasoning chunk drain through the SSE
 								// pipeline first; an immediate error discards it.
-								await new Promise((resolve) => setTimeout(resolve, 10));
+								await new Promise((resolve) => setTimeout(resolve, 50));
 								controller.error(socketClosed);
 								return;
 							}
