@@ -5,7 +5,7 @@ import {
 	readdirSync,
 	readSync,
 } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	type RemoteHelperTarget,
 	remoteHelperBinaryFilename,
@@ -58,25 +58,22 @@ function machoRunsOn(path: string, arch: RemoteHelperTarget["arch"]): boolean {
 	);
 }
 
-// macOS bundles carry no dedicated darwin helper: Tauri signs only externalBin
-// and the main binary, so a Mach-O under Contents/Resources would ship
-// unsigned and fail notarization. The sidecar already runs the shared helper
-// entrypoint (see index.ts) and is the signed, notarized, universal Mach-O in
-// the bundle, so it serves both x64 and arm64 Mac remotes from a Mac. Under
-// `tauri dev` the sidecar runs as a script, so use the compiled sidecar that
-// beforeDevCommand builds for the matching architecture instead.
-function macSidecarCandidates(
+// macOS bundles carry no dedicated darwin CLI under Contents/Resources: Tauri
+// signs only externalBin and the main binary, so a Mach-O there would ship
+// unsigned and fail notarization. The CLI shipped as an externalBin sidecar is
+// the signed, notarized, universal Mach-O in the bundle, so it serves both x64
+// and arm64 Mac remotes from a Mac. Under `tauri dev` it is built per
+// architecture by beforeDevCommand, so fall back to those.
+function macCliCandidates(
 	target: RemoteHelperTarget,
 	execPath: string,
 	cwd: string,
 ): string[] {
-	const compiledSidecar = `code-sidecar-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
+	const bundledCli = join(dirname(execPath), "cline");
+	const compiledCli = `cline-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
 	return [
-		...(basename(execPath).startsWith("code-sidecar") &&
-		machoRunsOn(execPath, target.arch)
-			? [execPath]
-			: []),
-		join(cwd, "src-tauri", "bin", compiledSidecar),
+		...(machoRunsOn(bundledCli, target.arch) ? [bundledCli] : []),
+		join(cwd, "src-tauri", "bin", compiledCli),
 		join(
 			cwd,
 			"apps",
@@ -84,7 +81,7 @@ function macSidecarCandidates(
 			"desktop-app",
 			"src-tauri",
 			"bin",
-			compiledSidecar,
+			compiledCli,
 		),
 	];
 }
@@ -105,15 +102,15 @@ export function resolveDesktopRemoteHelper(
 	const executableDirectory = dirname(execPath);
 	const cwd = options.cwd ?? process.cwd();
 	const platform = options.platform ?? process.platform;
-	const bundledPath = join("bin", "remote-helpers", filename);
+	const bundledPath = join("bin", "remote-clis", filename);
 	return [
 		...(env.CLINE_REMOTE_HELPER_DIRECTORY
 			? [join(env.CLINE_REMOTE_HELPER_DIRECTORY, filename)]
 			: []),
 		...(target.platform === "darwin" && platform === "darwin"
-			? macSidecarCandidates(target, execPath, cwd)
+			? macCliCandidates(target, execPath, cwd)
 			: []),
-		join(executableDirectory, "remote-helpers", filename),
+		join(executableDirectory, "remote-clis", filename),
 		join(executableDirectory, bundledPath),
 		join(executableDirectory, "..", "Resources", bundledPath),
 		...linuxResourceCandidates(executableDirectory, bundledPath),

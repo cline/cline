@@ -37,9 +37,20 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 	return undefined;
 };
 
+// The desktop app ships the Cline CLI and starts the Hub with it rather than
+// hosting a Hub daemon personality itself. Built from the CLI source so the
+// bundled binary carries the same SDK build id as this app — a daemon with a
+// different build id would be treated as a foreign Hub.
+const CLI_ENTRYPOINT = "../../cli/src/index.ts";
+
 const sidecarOutfile = (targetTriple: string): string => {
 	const extension = targetTriple.includes("windows") ? ".exe" : "";
 	return `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
+};
+
+const cliOutfile = (targetTriple: string): string => {
+	const extension = targetTriple.includes("windows") ? ".exe" : "";
+	return `./src-tauri/bin/cline-${targetTriple}${extension}`;
 };
 
 const buildSidecar = async (
@@ -103,28 +114,31 @@ const compressRemoteHelper = async (outfile: string): Promise<void> => {
 	await $`upx --best --lzma -q ${outfile}`;
 };
 
-// SSH environments run the same Hub build as the desktop in a dedicated
-// bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
-// command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
-// macOS helpers are deliberately not bundled: they are Mach-O files under
-// Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
-// in the bundle fails notarization. Mac remotes are served from a macOS
-// desktop by its own signed sidecar instead (sidecar/remote-helper.ts).
+/** The CLI shipped next to the app, which hosts the local Hub daemon. */
+const buildCli = (targetTriple: string): Promise<string> =>
+	buildSidecar(targetTriple, cliOutfile(targetTriple), CLI_ENTRYPOINT, true);
+
+// SSH environments run the Hub from the same Cline CLI the desktop bundles,
+// started with `cline hub ensure`. Linux x64 and arm64 cover common SSH hosts.
+// macOS CLIs are deliberately not bundled here: they would be Mach-O files
+// under Contents/Resources, which Tauri does not codesign, and any unsigned
+// Mach-O in the bundle fails notarization. Mac remotes are served from a macOS
+// desktop by the signed CLI it already ships (sidecar/remote-helper.ts).
 //
 // On a Windows host, Bun fails to extract the downloaded Linux runtime these
 // cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").
 // Bun skips the download when `$BUN_INSTALL_CACHE_DIR/bun-<target>-v<version>`
 // already exists, so seed those two files from the @oven/bun-<target> npm
 // packages first; desktop-publish.yml does exactly that in its Windows job.
-const buildRemoteHelpers = async (): Promise<void> => {
+const buildRemoteClis = async (): Promise<void> => {
 	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",
 		"aarch64-unknown-linux-gnu",
 	]) {
 		const outfile = await buildSidecar(
 			targetTriple,
-			`./src-tauri/bin/remote-helpers/cline-remote-helper-${targetTriple}`,
-			"../../../sdk/packages/core/dist/remote/remote-helper-entry.js",
+			`./src-tauri/bin/remote-clis/cline-${targetTriple}`,
+			CLI_ENTRYPOINT,
 			true,
 		);
 		await compressRemoteHelper(outfile);
@@ -135,27 +149,32 @@ const buildRemoteHelpers = async (): Promise<void> => {
 // but expects sidecars (externalBin) to already be fat binaries named
 // `<name>-universal-apple-darwin`, so build both slices and merge them here.
 const buildUniversalMacSidecar = async (): Promise<void> => {
-	const arm64 = await buildSidecar("aarch64-apple-darwin");
-	const x64 = await buildSidecar("x86_64-apple-darwin");
-	const outfile = sidecarOutfile("universal-apple-darwin");
-	await $`lipo -create -output ${outfile} ${arm64} ${x64}`;
-	await $`chmod +x ${outfile}`;
-	await $`lipo -info ${outfile}`;
+	for (const [outfile, build] of [
+		[sidecarOutfile("universal-apple-darwin"), buildSidecar],
+		[cliOutfile("universal-apple-darwin"), buildCli],
+	] as const) {
+		const arm64 = await build("aarch64-apple-darwin");
+		const x64 = await build("x86_64-apple-darwin");
+		await $`lipo -create -output ${outfile} ${arm64} ${x64}`;
+		await $`chmod +x ${outfile}`;
+		await $`lipo -info ${outfile}`;
+	}
 };
 
 const main = async () => {
-	// All compiled helpers and the sidecar depend on fresh SDK package exports.
+	// All compiled binaries depend on fresh SDK package exports.
 	await $`bun run build:sdk`.cwd(
 		fileURLToPath(new URL("../../../../", import.meta.url)),
 	);
 	const targetTriple = await resolveTargetTriple();
-	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-helpers`;
+	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-clis`;
 	if (targetTriple === "universal-apple-darwin") {
 		await buildUniversalMacSidecar();
 	} else {
 		await buildSidecar(targetTriple);
+		await buildCli(targetTriple);
 	}
-	await buildRemoteHelpers();
+	await buildRemoteClis();
 };
 
 main().catch((error: unknown) => {

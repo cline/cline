@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
 	mockClearHubDiscovery,
 	mockEnsureDetachedHubServer,
+	mockEnsureLoginShellPath,
 	mockLocalHubHasNoActiveSessions,
 	mockProbeHubServer,
 	mockReadHubDiscovery,
@@ -13,6 +14,11 @@ const {
 } = vi.hoisted(() => ({
 	mockClearHubDiscovery: vi.fn(),
 	mockEnsureDetachedHubServer: vi.fn(),
+	mockEnsureLoginShellPath: vi.fn(async () => ({
+		status: "applied" as const,
+		pathEntries: 7,
+		shell: "/bin/zsh",
+	})),
 	mockLocalHubHasNoActiveSessions: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockReadHubDiscovery: vi.fn(),
@@ -31,6 +37,7 @@ const {
 vi.mock("@cline/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
+	ensureLoginShellPath: mockEnsureLoginShellPath,
 	localHubHasNoActiveSessions: mockLocalHubHasNoActiveSessions,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
@@ -125,6 +132,102 @@ describe("createHubCommand", () => {
 			exitCode: () => exitCode,
 		};
 	}
+
+	it("prints only the hub URL by default", async () => {
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["ensure"], { from: "user" });
+
+		expect(exitCode()).toBe(0);
+		expect(output[0]).toBe("ws://127.0.0.1:25463/hub");
+	});
+
+	it("prints a full connection record with ensure --json", async () => {
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:38211/hub",
+			authToken: "token",
+		});
+
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["ensure", "--json"], { from: "user" });
+
+		expect(exitCode()).toBe(0);
+		// Port and pathname are split out so a caller that tunnels to the hub
+		// does not have to re-parse the URL.
+		expect(JSON.parse(output[0] || "")).toEqual({
+			url: "ws://127.0.0.1:38211/hub",
+			authToken: "token",
+			port: 38211,
+			pathname: "/hub",
+		});
+	});
+
+	it("isolates an ensured hub behind its own discovery record", async () => {
+		const originalDiscoveryPath = process.env.CLINE_HUB_DISCOVERY_PATH;
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:38211/hub",
+			authToken: "token",
+		});
+
+		try {
+			const { cmd, exitCode } = createCommand();
+			await cmd.parseAsync(
+				[
+					"ensure",
+					"--json",
+					"--discovery-path",
+					"/home/dev/.cline/data/remote/session.json",
+					"--allow-port-fallback",
+					"--no-connectors",
+				],
+				{ from: "user" },
+			);
+
+			expect(exitCode()).toBe(0);
+			expect(process.env.CLINE_HUB_DISCOVERY_PATH).toBe(
+				"/home/dev/.cline/data/remote/session.json",
+			);
+			// A session-scoped hub must not adopt the account's connectors, and
+			// must be free to take another port rather than retire the hub
+			// already on the default one.
+			expect(mockEnsureDetachedHubServer).toHaveBeenCalledWith(
+				process.cwd(),
+				expect.objectContaining({
+					allowPortFallback: true,
+					manageConnectors: false,
+				}),
+			);
+		} finally {
+			if (originalDiscoveryPath === undefined) {
+				delete process.env.CLINE_HUB_DISCOVERY_PATH;
+			} else {
+				process.env.CLINE_HUB_DISCOVERY_PATH = originalDiscoveryPath;
+			}
+		}
+	});
+
+	it("resolves the login shell PATH before starting the hub only when asked", async () => {
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+
+		const plain = createCommand();
+		await plain.cmd.parseAsync(["ensure"], { from: "user" });
+		expect(mockEnsureLoginShellPath).not.toHaveBeenCalled();
+
+		// Over SSH the hub would otherwise inherit the minimal PATH of a
+		// non-interactive shell, and so would everything a session spawns.
+		const withPath = createCommand();
+		await withPath.cmd.parseAsync(["ensure", "--login-shell-path"], {
+			from: "user",
+		});
+		expect(mockEnsureLoginShellPath).toHaveBeenCalledOnce();
+	});
 
 	it("sends an un-drain request with drain --off", async () => {
 		mockReadHubDiscovery.mockResolvedValue({

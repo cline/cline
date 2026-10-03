@@ -8,7 +8,6 @@ import {
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
 import {
 	captureSdkError,
 	claimHubDaemonProcess,
@@ -25,6 +24,7 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import { configureHubLauncher } from "./hub-launcher";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
@@ -245,17 +245,14 @@ async function runEntrypoint(): Promise<void> {
 	disableCurrentDirectoryExecutableSearch();
 	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
-	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
-	// daemon import resolves to the dist build of @cline/core while this bundle
-	// resolves the source build, and a daemon from the other copy publishes a
-	// different build id, so the sidecar would retire its own Hub on launch.
-	if (claimHubDaemonProcess()) {
-		await import("@cline/core/hub/daemon-entry");
-		return;
-	}
-	if (await runRemoteHelperEntrypoint()) {
-		return;
-	}
+	// Before anything can start a Hub: this decides which binary hosts it.
+	configureHubLauncher();
+	// The Hub daemon runs from the bundled Cline CLI (see configureHubLauncher),
+	// so this process is only ever the desktop backend. The daemon sentinel is
+	// still consumed rather than read: the Hub hosts agent sessions, and every
+	// process they spawn inherits its environment, so an un-scrubbed sentinel
+	// would make each of those try to become a daemon.
+	claimHubDaemonProcess();
 	await main();
 }
 

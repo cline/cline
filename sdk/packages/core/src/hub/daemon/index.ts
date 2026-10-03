@@ -379,6 +379,29 @@ function resolveDaemonEntryPath(): string {
 }
 
 /**
+ * An external, self-contained executable that hosts this same Core build and
+ * boots as the Hub daemon when handed {@link COMPILED_BUN_HUB_DAEMON_ARG}.
+ *
+ * Embedders whose own process cannot host a daemon — or that would rather not
+ * keep a second copy of the runtime around just to spawn one — point this at
+ * the Cline CLI binary they ship. The daemon then runs from the CLI rather
+ * than from the embedder, which is what lets a client drop its own daemon
+ * personality entirely.
+ *
+ * The launcher must be cut from the same checkout as this Core build:
+ * {@link resolveHubBuildId} fingerprints the SDK sources, and a daemon that
+ * reports a different build id is treated as a foreign Hub by the
+ * reuse/retire ordering.
+ */
+const HUB_LAUNCHER_BINARY_ENV = "CLINE_HUB_LAUNCHER_BINARY";
+
+export function resolveHubLauncherBinary(
+	env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+	return env[HUB_LAUNCHER_BINARY_ENV]?.trim() || undefined;
+}
+
+/**
  * Compiled Bun binaries mount bundled modules on a virtual filesystem that a
  * child cannot be handed as a script argument, so the child boots its embedded
  * entrypoint and switches personality on the marker flag.
@@ -407,13 +430,19 @@ function resolveLaunchCommand(
 	cwd: string;
 	env: NodeJS.ProcessEnv;
 } {
+	// A configured launcher is a compiled binary that embeds this same Core
+	// build, so it needs no script argument — only the marker flag that makes
+	// it boot its embedded daemon entrypoint.
+	const launcherBinary = resolveHubLauncherBinary();
 	const daemonEntryPath = resolveDaemonEntryPath();
-	const execPath = process.execPath?.trim();
+	const execPath = launcherBinary ?? process.execPath?.trim();
 	if (!execPath) {
 		throw new Error("unable to resolve runtime executable for hub daemon");
 	}
 	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
-	const entryArgs = resolveDaemonEntryArgs(daemonEntryPath, isBunRuntime);
+	const entryArgs = launcherBinary
+		? [COMPILED_BUN_HUB_DAEMON_ARG]
+		: resolveDaemonEntryArgs(daemonEntryPath, isBunRuntime);
 	return {
 		launcher: execPath,
 		args: [
