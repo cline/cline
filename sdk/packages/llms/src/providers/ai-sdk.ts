@@ -647,10 +647,12 @@ async function withAiSdkLangfuseTraceContext<T>(
 	const sessionId =
 		typeof metadata.sessionId === "string" ? metadata.sessionId : undefined;
 
-	if (!enabled || (!distinctId && !sessionId && !tags?.length)) {
+	if (!enabled) {
 		return await callback();
 	}
 
+	// Operator env tags/metadata are merged inside the runtime, which also
+	// skips propagation when nothing at all is set.
 	const runtime = await import("../services/langfuse-telemetry");
 	return await runtime.withLangfuseTraceAttributes(
 		true,
@@ -1352,7 +1354,10 @@ export function normalizeUsage(
 		// count and part of "output". Cost above is computed from the
 		// pre-subtraction outputTokens, since reasoning tokens are still
 		// billed at the output rate.
-		outputTokens: Math.max(0, normalizedUsage.outputTokens - reasoningTokenCount),
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }

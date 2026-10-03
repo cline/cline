@@ -1,4 +1,3 @@
-import { providerOffersModelTool } from "@cline/llms/browser";
 import { Switch } from "@cline/ui";
 import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -38,11 +37,9 @@ import {
 	OAUTH_LOGIN_TIMEOUT_MS,
 } from "@/lib/provider-connection";
 import {
-	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
-	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -60,7 +57,10 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceExplorerView } from "../marketplace-explorer-view";
+import {
+	MarketplaceExplorerView,
+	type MarketplaceTypeFilter,
+} from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AboutContent } from "./about-view";
 import { AccountView } from "./account-view";
@@ -90,7 +90,6 @@ export {
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
-	tools?: Partial<Record<"web_search", { enabled: boolean }>>;
 };
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
@@ -116,6 +115,8 @@ export function SettingsView({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
+	const [marketplaceInitialFilter, setMarketplaceInitialFilter] =
+		useState<MarketplaceTypeFilter | null>(null);
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -623,10 +624,14 @@ export function SettingsView({
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
-				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
+				onOpenMarketplace={(filter) => {
+					setMarketplaceInitialFilter(filter ?? null);
+					onNavigateSection("Marketplace");
+				}}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceExplorerView />
+			<MarketplaceExplorerView initialTypeFilter={marketplaceInitialFilter} />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -638,12 +643,9 @@ export function SettingsView({
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "About" ? (
-			<AboutContent />
+			<AboutContent onOpenConnectors={() => onNavigateSection("Customize")} />
 		) : activeNav === "General" ? (
-			<GeneralSettingsContent
-				onExportDiagnostics={onExportDiagnostics}
-				onOpenModelProviders={() => onNavigateSection("Providers")}
-			/>
+			<GeneralSettingsContent onExportDiagnostics={onExportDiagnostics} />
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
@@ -675,9 +677,7 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 
 function GeneralSettingsContent({
 	onExportDiagnostics,
-	onOpenModelProviders,
 }: {
-	onOpenModelProviders: () => void;
 	onExportDiagnostics: () => void;
 }) {
 	const [theme, setTheme] = useState<HubTheme>(() => {
@@ -740,59 +740,15 @@ function GeneralSettingsContent({
 			setCloudSessionsAvailable(false);
 		}
 	}, []);
-	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
-	const [webSearchLoading, setWebSearchLoading] = useState(true);
-	const [webSearchSaving, setWebSearchSaving] = useState(false);
-	const [webSearchError, setWebSearchError] = useState<string | null>(null);
-	// Connected providers that offer native web search; null until the
-	// catalog loads. The toggle silently does nothing with other providers,
-	// so the row spells out whether it will actually take effect.
-	const [webSearchReadyProviders, setWebSearchReadyProviders] = useState<
-		string[] | null
-	>(null);
 
 	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
-
-	useEffect(() => {
-		let cancelled = false;
-		const loadWebSearchSupport = () => {
-			void fetchProviderCatalog()
-				.then((payload) => {
-					if (cancelled) return;
-					setWebSearchReadyProviders(
-						(payload.providers ?? [])
-							.filter(
-								(provider) =>
-									provider.enabled &&
-									providerOffersModelTool(provider.id, "web_search"),
-							)
-							.map((provider) => provider.name),
-					);
-				})
-				.catch(() => {
-					// Support status is best-effort; the toggle works without it.
-				});
-		};
-		loadWebSearchSupport();
-		// Provider saves invalidate the catalog cache when they complete, so
-		// refetching on invalidation keeps the status current even when the
-		// user navigates here while a save is still in flight.
-		const unsubscribe =
-			subscribeToProviderCatalogInvalidation(loadWebSearchSupport);
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
-	}, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
-		setWebSearchLoading(true);
-		setWebSearchError(null);
 		setCloudSessionsLoading(true);
 		setCloudSessionsError(null);
 		setKeepAwakeLoading(true);
@@ -805,17 +761,14 @@ function GeneralSettingsContent({
 					);
 					setTelemetryOptOut(settings.telemetryOptOut);
 					setAutoUpdateEnabled(settings.autoUpdateEnabled);
-					setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
 				} catch (error) {
 					const message =
 						error instanceof Error ? error.message : String(error);
 					setTelemetryError(message);
 					setAutoUpdateError(message);
-					setWebSearchError(message);
 				} finally {
 					setTelemetryLoading(false);
 					setAutoUpdateLoading(false);
-					setWebSearchLoading(false);
 				}
 			})(),
 			(async () => {
@@ -1139,50 +1092,6 @@ function GeneralSettingsContent({
 							</button>
 						))}
 					</div>
-				</div>
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
-							Web search
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Let the model search the web during a task. Only providers with
-							built-in web search honor this setting; other providers ignore it.
-							Applies to new sessions.
-						</p>
-						{webSearchReadyProviders ===
-						null ? null : webSearchReadyProviders.length > 0 ? (
-							<p className="text-xs text-muted-foreground">
-								Ready to use with {webSearchReadyProviders.join(", ")} on models
-								that support it — no extra setup needed.
-							</p>
-						) : (
-							<p className="text-xs text-amber-700 dark:text-amber-300">
-								None of your connected providers include built-in web search, so
-								this setting has no effect yet.{" "}
-								<button
-									className="underline underline-offset-2 hover:text-foreground"
-									onClick={onOpenModelProviders}
-									type="button"
-								>
-									Connect a provider
-								</button>{" "}
-								that supports it, such as Anthropic, OpenAI, Google Gemini, or
-								Cline.
-							</p>
-						)}
-						{webSearchError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update web search setting: {webSearchError}
-							</p>
-						) : null}
-					</div>
-					<Switch
-						aria-label="Web search"
-						checked={webSearchEnabled}
-						disabled={webSearchLoading || webSearchSaving}
-						onCheckedChange={(checked) => void updateWebSearchEnabled(checked)}
-					/>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
