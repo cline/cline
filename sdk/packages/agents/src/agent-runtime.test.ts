@@ -1448,6 +1448,45 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("retries when the failed attempt streamed only reasoning, keeping just the retry's reasoning", async () => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "reasoning-delta", text: "partial thought" },
+					{
+						type: "finish",
+						reason: "error",
+						error: "The socket connection was closed unexpectedly.",
+						errorRetryable: true,
+					},
+				],
+				() => [
+					{ type: "reasoning-delta", text: "full thought" },
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({ model });
+
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(2);
+			const assistant = result.messages.filter((m) => m.role === "assistant");
+			expect(assistant).toHaveLength(1);
+			expect(assistant[0]?.content).toEqual([
+				{ type: "reasoning", text: "full thought" },
+				{ type: "text", text: "recovered" },
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not retry when the failed attempt ran a provider-executed tool", async () => {
 		const model = new ScriptedModel([
 			() => [
