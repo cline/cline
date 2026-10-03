@@ -21,6 +21,7 @@ export interface ClineAuthContextType {
 	accountSwitch: { organizationId: string | undefined; slow: boolean } | null
 	accountSwitchError: string | null
 	switchOrganization: (organizationId?: string) => Promise<boolean>
+	dismissAccountSwitchError: () => void
 }
 
 export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
@@ -99,6 +100,8 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		[getUserOrganizations],
 	)
 
+	const dismissAccountSwitchError = useCallback(() => setAccountSwitchError(null), [])
+
 	const activeOrganization = useMemo(() => {
 		return userOrganizations?.find((org) => org.active) ?? null
 	}, [userOrganizations])
@@ -163,6 +166,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				accountSwitch,
 				accountSwitchError,
 				switchOrganization,
+				dismissAccountSwitchError,
 			}}>
 			{children}
 		</ClineAuthContext.Provider>

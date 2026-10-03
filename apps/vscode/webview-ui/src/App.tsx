@@ -1,4 +1,5 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import { XIcon } from "lucide-react"
 import { useCallback, useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
@@ -40,7 +41,8 @@ const AppContent = () => {
 		hideAnnouncement,
 	} = useExtensionState()
 
-	const { clineUser, organizations, activeOrganization, accountSwitch, accountSwitchError } = useClineAuth()
+	const { clineUser, organizations, activeOrganization, accountSwitch, accountSwitchError, dismissAccountSwitchError } =
+		useClineAuth()
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
@@ -76,15 +78,29 @@ const AppContent = () => {
 		return <OnboardingView />
 	}
 
+	const isOverlayViewOpen = showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees
+
 	return (
 		<div className="flex h-screen w-full flex-col">
-			{(accountSwitch || accountSwitchError) && !showAccount && (
-				<div className="z-50 bg-editor-background p-2 text-xs" role="status">
-					{accountSwitch
-						? accountSwitch.slow
-							? "Account switch is still pending. You can navigate while it finishes."
-							: "Switching account…"
-						: `Could not confirm account switch: ${accountSwitchError}`}
+			{/* Overlay views are fixed full-screen with their own header, so the banner would cover it. */}
+			{(accountSwitch || accountSwitchError) && !isOverlayViewOpen && (
+				<div className="flex items-start gap-2 bg-editor-background p-2 text-xs" role="status">
+					<span className="flex-1">
+						{accountSwitch
+							? accountSwitch.slow
+								? "Account switch is still pending. You can navigate while it finishes."
+								: "Switching account…"
+							: `Could not confirm account switch: ${accountSwitchError}`}
+					</span>
+					{!accountSwitch && (
+						<button
+							aria-label="Dismiss"
+							className="flex cursor-pointer border-0 bg-transparent p-0 text-description hover:text-foreground"
+							onClick={dismissAccountSwitchError}
+							type="button">
+							<XIcon className="size-3" />
+						</button>
+					)}
 				</div>
 			)}
 			{showSettings && <SettingsView navigationRequest={settingsNavigationRequest} onDone={hideSettings} />}
@@ -103,7 +119,7 @@ const AppContent = () => {
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees}
+				isHidden={isOverlayViewOpen}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>
