@@ -84,6 +84,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "cerebras",
 	},
 	{
+		modelsDevKey: "cheaperinference",
+		generatedProviderId: "cheaperinference",
+		runtimeProviderId: "cheaperinference",
+	},
+	{
 		modelsDevKey: "sambanova",
 		generatedProviderId: "sambanova",
 		runtimeProviderId: "sambanova",
