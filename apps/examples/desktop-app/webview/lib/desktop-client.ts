@@ -9,6 +9,7 @@ import type {
 	HubTaskCreateInput,
 	HubTaskUpdateInput,
 } from "@cline/shared";
+import { maxDesktopTransportPayloadBytes } from "./voice-input-limits";
 import type {
 	DesktopTransportEvent,
 	DesktopTransportMessage,
@@ -699,7 +700,20 @@ class DesktopClient {
 				timeoutId,
 			});
 			try {
-				socket.send(JSON.stringify(request));
+				const payload = JSON.stringify(request);
+				const maxPayloadBytes = maxDesktopTransportPayloadBytes();
+				if (payload.length > maxPayloadBytes) {
+					const error = new Error(
+						`Desktop command ${command} refuses to send ${(payload.length / 1048576).toFixed(1)} MB (local transport limit: ${Math.floor(maxPayloadBytes / 1048576)} MB). Large binary blobs are stored on disk beside the session and referenced by link; if you still see this, the session history is oversized — compact it or start a new chat.`,
+					);
+					this.reportError({
+						operation: "webview.command_oversized",
+						error,
+						command,
+					});
+					throw error;
+				}
+				socket.send(payload);
 			} catch (error) {
 				this.takePending(id);
 				this.reportError({
