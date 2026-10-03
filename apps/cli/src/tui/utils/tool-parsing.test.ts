@@ -97,3 +97,29 @@ describe("extractFullOutputText", () => {
 		expect(extractFullOutputText(raw)).toBe(JSON.stringify(raw, null, 2));
 	});
 });
+
+describe("extractFullOutputText terminal control characters", () => {
+	it("collapses carriage-return progress updates to the last state of the line", () => {
+		// git/npm/cargo rewrite progress with bare CRs. A terminal returns the
+		// cursor to column 0 and overwrites, so what remains visible is the text
+		// after the final CR — the earlier states must not reach the renderer.
+		const raw =
+			"Receiving objects: 78%\rReceiving objects: 79%\rReceiving objects: 100%\ndone";
+		expect(extractFullOutputText(raw)).toBe("Receiving objects: 100%\ndone");
+	});
+
+	it("drops escape sequences the terminal would execute instead of print", () => {
+		const raw =
+			"\u001b[31mred\u001b[0m, \u001b]0;window title\u0007bell, \u0008backspace";
+		expect(extractFullOutputText(raw)).toBe("red, bell, backspace");
+	});
+
+	it("keeps newlines and tabs so real layout survives", () => {
+		expect(extractFullOutputText("a\tb\nc\n\td")).toBe("a\tb\nc\n\td");
+	});
+
+	it("leaves ordinary text byte-identical", () => {
+		const raw = "plain text\n  indented\n";
+		expect(extractFullOutputText(raw)).toBe(raw);
+	});
+});
