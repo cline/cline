@@ -857,6 +857,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "ainetcafe",
+		name: "ainetcafe",
+		description: "Kimi K3 served at native MXFP4 precision from ainetcafe's own cluster",
+		family: "openai-compatible",
+		defaultModelId: "Kimi-K3",
+		apiKeyEnv: ["AINETCAFE_API_KEY"],
+		defaults: { baseUrl: "https://microquickjs.com/v1" },
+	},
+	{
 		id: "crusoe",
 		name: "Crusoe",
 		description: "Managed inference on renewable-powered GPU infrastructure",
