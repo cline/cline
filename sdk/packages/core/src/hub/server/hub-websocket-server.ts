@@ -645,7 +645,22 @@ export async function startHubWebSocketServer(
 		res.statusCode = 404;
 		res.end("Not found");
 	});
-	const wss = new WebSocketServer({ noServer: true });
+	const wss = new WebSocketServer({
+		noServer: true,
+		// ws caps each message at 100 MiB by default, which can kill a socket
+		// carrying a large session replay before local-history handlers see it.
+		// Session history is blob-referenced (session-blob-store.ts), but the
+		// local loopback link keeps generous headroom anyway.
+		maxPayload: maxHubWebSocketPayloadBytes(),
+	});
+
+function maxHubWebSocketPayloadBytes(): number {
+	const parsed = Number(process.env.CLINE_HUB_MAX_WEBSOCKET_PAYLOAD_BYTES);
+	if (Number.isFinite(parsed) && parsed > 0) {
+		return parsed;
+	}
+	return 512 * 1024 * 1024;
+}
 	heartbeatTimer = setInterval(() => {
 		for (const websocket of sockets) {
 			if (websocket.isAlive === false) {

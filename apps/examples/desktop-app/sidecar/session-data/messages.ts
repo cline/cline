@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { blobifyStoredMessageMedia } from "@cline/core/session-blob-store";
 import {
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
@@ -16,6 +17,7 @@ import {
 	sharedSessionMessagesWritePath,
 } from "../paths";
 import type { JsonRecord, SidecarContext } from "../types";
+import { SIDECAR_HOST, SIDECAR_PORT } from "../types";
 import { readChildSessionMessages } from "./agents";
 import {
 	parseF64Value,
@@ -136,6 +138,31 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 
 function trimNonEmptyString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/** Media types renderable as <img> sources by the desktop UI. */
+const IMAGE_URL_MEDIA_TYPES = new Set([
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+]);
+
+/** Content-addressed blob ids are bare sha-256 hex; anything else is rejected. */
+function sessionBlobId(record: JsonRecord): string | undefined {
+	const blobId = trimNonEmptyString(record.blobId);
+	if (!blobId || !/^[a-f0-9]{64}$/.test(blobId)) {
+		return undefined;
+	}
+	return blobId;
+}
+
+/**
+ * History image blobs are stored on disk beside the session data; browsers
+ * fetch one on demand instead of every message list carrying its bytes.
+ */
+function buildSessionBlobUrl(sessionId: string, blobId: string): string {
+	return `http://${SIDECAR_HOST}:${SIDECAR_PORT}/blob/${encodeURIComponent(sessionId)}/${blobId}`;
 }
 
 function extractImageBlock(
@@ -646,12 +673,25 @@ export function readSessionMessagesSync(
 				reasoningRedacted = true;
 				continue;
 			}
-			if (blockType === "image") {
-				const image = extractImageBlock(record);
-				if (image) {
+			if (blockType === "image" || blockType === "image_ref") {
+				let extracted: { mediaType: string; data: string } | undefined;
+				if (blockType === "image") {
+					extracted = extractImageBlock(record);
+				} else {
+					const mediaType = trimNonEmptyString(record.mediaType);
+					const blobId = sessionBlobId(record);
+					extracted =
+						mediaType && blobId && IMAGE_URL_MEDIA_TYPES.has(mediaType)
+							? {
+									mediaType,
+									data: buildSessionBlobUrl(sessionId, blobId),
+								}
+							: undefined;
+				}
+				if (extracted) {
 					images.push({
 						id: `${messageIdBase}_image_${blockIdx}`,
-						...image,
+						...extracted,
 					});
 				}
 				continue;
@@ -716,11 +756,17 @@ export function persistSessionMessages(
 ) {
 	const writePath = sharedSessionMessagesWritePath(sessionId);
 	mkdirSync(dirname(writePath), { recursive: true });
+	// Keep the sidecar's history mirror blob-referenced too: tool-result
+	// images are stored beside the session and the transport carries links.
+	const blobified = blobifyStoredMessageMedia(
+		persistedMessages,
+		dirname(writePath),
+	);
 	writeFileSync(
 		writePath,
 		JSON.stringify(
 			{
-				messages: persistedMessages,
+				messages: blobified.messages,
 				ts: nowMs(),
 			},
 			null,

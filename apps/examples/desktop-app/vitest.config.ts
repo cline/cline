@@ -5,6 +5,12 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": fileURLToPath(new URL("./webview", import.meta.url)),
+			"@cline/core/session-blob-store": fileURLToPath(
+				new URL(
+					"../../../sdk/packages/core/src/session/services/session-blob-store.ts",
+					import.meta.url,
+				),
+			),
 		},
 	},
 	test: {
