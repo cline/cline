@@ -731,6 +731,16 @@ export {
 } from "./services/providers/provider-config-fields";
 export { isProviderSettingsUsable } from "./services/providers/provider-readiness";
 export * from "./services/session-import";
+export type {
+	GitHubSkillInstallOptions,
+	GitHubSkillInstallResult,
+	GitHubSkillSource,
+} from "./services/skill-install";
+export {
+	installGitHubSkill,
+	parseGitHubSkillSource,
+	sanitizeSkillInstallName,
+} from "./services/skill-install";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
