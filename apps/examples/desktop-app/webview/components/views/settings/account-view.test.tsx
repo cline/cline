@@ -103,6 +103,7 @@ describe("AccountView signed-out state", () => {
 		expect(container.textContent).not.toContain(
 			"No Cline account auth token found",
 		);
+		expect(container.textContent).not.toContain("Sign Out");
 		// The auth state gates the rest of the overview: signed out means the
 		// balance/organization commands are never fired.
 		const accountCalls = invoke.mock.calls.filter(
@@ -189,5 +190,98 @@ describe("AccountView signed-out state", () => {
 			expect(container.textContent).toContain("Beatrix");
 		});
 		expect(container.textContent).not.toContain("Sign in to Cline");
+	});
+});
+
+describe("AccountView error recovery", () => {
+	const getButton = (label: string) => {
+		const button = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === label,
+		);
+		expect(button).toBeDefined();
+		return button as HTMLButtonElement;
+	};
+
+	it("allows signing out after an account-deleted error and prevents retry during sign-out", async () => {
+		let finishSignOut!: () => void;
+		invoke.mockRejectedValueOnce(new Error("user account has been deleted"));
+		invoke.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					finishSignOut = resolve;
+				}),
+		);
+
+		await act(async () => root.render(<AccountView />));
+		expect(container.textContent).toContain("user account has been deleted");
+		expect(container.textContent).not.toContain("Sign in to Cline");
+		expect(invoke).toHaveBeenCalledTimes(1);
+
+		await act(async () => getButton("Sign Out").click());
+		expect(invoke).toHaveBeenLastCalledWith("save_provider_settings", {
+			provider: "cline",
+			api_key: "",
+			settings: {
+				auth: { accessToken: "", refreshToken: "", accountId: "" },
+			},
+		});
+		expect(getButton("Signing Out").disabled).toBe(true);
+		expect(getButton("Retry").disabled).toBe(true);
+		await act(async () => getButton("Retry").click());
+		expect(invoke).toHaveBeenCalledTimes(2);
+
+		await act(async () => finishSignOut());
+		expect(container.textContent).toContain("Sign in to Cline");
+		expect(getButton("Sign in").disabled).toBe(false);
+		expect(container.textContent).not.toContain(
+			"user account has been deleted",
+		);
+		expect(container.textContent).not.toContain("Sign Out");
+	});
+
+	it("keeps sign-out available if clearing credentials fails", async () => {
+		invoke.mockRejectedValueOnce(new Error("user account has been deleted"));
+		invoke.mockRejectedValueOnce(new Error("Unable to save provider settings"));
+		invoke.mockResolvedValueOnce({});
+
+		await act(async () => root.render(<AccountView />));
+		await act(async () => getButton("Sign Out").click());
+		expect(container.textContent).toContain("Unable to save provider settings");
+		expect(container.textContent).not.toContain("Sign in to Cline");
+		expect(getButton("Sign Out").disabled).toBe(false);
+		expect(getButton("Retry").disabled).toBe(false);
+
+		await act(async () => getButton("Sign Out").click());
+		expect(container.textContent).toContain("Sign in to Cline");
+		expect(container.textContent).not.toContain(
+			"Unable to save provider settings",
+		);
+	});
+
+	it.each([
+		"Network unavailable",
+		"Unauthorized organization access",
+	])("keeps %s retryable without automatically clearing credentials", async (message) => {
+		invoke.mockRejectedValueOnce(new Error(message));
+		invoke.mockResolvedValueOnce({
+			id: "user-1",
+			email: "beatrix@cline.bot",
+			displayName: "Beatrix",
+			createdAt: "2024-01-01T00:00:00Z",
+			updatedAt: "2024-01-01T00:00:00Z",
+			organizations: [],
+		});
+		invoke.mockResolvedValueOnce({ balance: 5_000_000 });
+		invoke.mockResolvedValueOnce([]);
+
+		await act(async () => root.render(<AccountView />));
+		expect(container.textContent).toContain(message);
+		expect(container.textContent).not.toContain("Sign in to Cline");
+		await act(async () => getButton("Retry").click());
+		expect(container.textContent).toContain("Beatrix");
+		expect(container.textContent).not.toContain(message);
+		expect(
+			invoke.mock.calls.every(([command]) => command === "cline_account"),
+		).toBe(true);
 	});
 });
