@@ -237,6 +237,141 @@ describe("SdkTaskStartCoordinator", () => {
 	})
 })
 
+it("persists durable history before clear can erase a prompted task (#13781)", async () => {
+	const { coordinator, options, sdkHost, historyStore, durableHistoryIds } = makeCoordinator()
+
+	const sessionId = await coordinator.initTask("ship the fix")
+	expect(sessionId).toEqual(expect.any(String))
+	expect(sdkHost.ensureSessionPersisted).toHaveBeenCalledWith(sessionId, { prompt: "ship the fix" })
+	expect(sdkHost.ensureSessionPersisted.mock.invocationCallOrder[0]).toBeLessThan(
+		options.taskHistory.updateTaskHistoryItem.mock.invocationCallOrder[0],
+	)
+	expect(durableHistoryIds.has(sessionId!)).toBe(true)
+	expect(historyStore.get(sessionId!)?.task).toBe("ship the fix")
+
+	// Immediate New Task / clear before first model token: durable row remains exactly once.
+	await options.clearTask()
+	expect([...historyStore.keys()]).toEqual([sessionId])
+})
+
+it("keeps exactly one history entry after immediate close of a prompted task", async () => {
+	const { coordinator, options, historyStore, sdkHost } = makeCoordinator()
+	const sessionId = await coordinator.initTask("close me next")
+	expect(sdkHost.ensureSessionPersisted).toHaveBeenCalledOnce()
+	// Simulate Close Task disposing the active session without waiting for send.
+	await options.clearTask()
+	expect(historyStore.size).toBe(1)
+	expect(historyStore.get(sessionId!)?.id).toBe(sessionId)
+})
+
+it("still sends the first turn after early persistence (no normal-path regression)", async () => {
+	const { coordinator, options, sdkHost } = makeCoordinator()
+	const sessionId = await coordinator.initTask("normal path")
+	expect(sdkHost.ensureSessionPersisted).toHaveBeenCalledOnce()
+	expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+		sdkHost,
+		sessionId,
+		"resolved: normal path",
+		undefined,
+		undefined,
+	)
+})
+
+it("does not create duplicate durable + synthetic history rows", async () => {
+	const { coordinator, historyStore, sdkHost } = makeCoordinator()
+	const sessionId = await coordinator.initTask("once only")
+	// Second early-persist call would still be the same session id; store stays size 1.
+	await sdkHost.ensureSessionPersisted(sessionId!, { prompt: "once only" })
+	expect(historyStore.size).toBe(1)
+	expect([...historyStore.keys()]).toEqual([sessionId])
+})
+
+it("does not materialize durable history for a truly empty task/session", async () => {
+	const { coordinator, options, sdkHost, historyStore, durableHistoryIds } = makeCoordinator()
+	const sessionId = await coordinator.initTask("   ")
+	expect(sessionId).toEqual(expect.any(String))
+	expect(sdkHost.ensureSessionPersisted).not.toHaveBeenCalled()
+	expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	// update may be attempted, but without durable id it does not land in History.
+	expect(historyStore.size).toBe(0)
+	expect(durableHistoryIds.size).toBe(0)
+})
+
+it("does not fabricate successful history when startup fails", async () => {
+	const { coordinator, options, sdkHost, historyStore } = makeCoordinator()
+	options.sessions.startNewSession.mockRejectedValue(new Error("session start failed"))
+	const sessionId = await coordinator.initTask("do something")
+	expect(sessionId).toBeUndefined()
+	expect(sdkHost.ensureSessionPersisted).not.toHaveBeenCalled()
+	expect(options.taskHistory.updateTaskHistoryItem).not.toHaveBeenCalled()
+	expect(historyStore.size).toBe(0)
+})
+
+it("proves the durable row exists at the corrected lifecycle boundary before send", async () => {
+	const { coordinator, options, sdkHost, durableHistoryIds } = makeCoordinator()
+	const sessionId = await coordinator.initTask("boundary proof")
+	expect(durableHistoryIds.has(sessionId!)).toBe(true)
+	expect(sdkHost.ensureSessionPersisted.mock.invocationCallOrder[0]).toBeLessThan(
+		options.sessions.fireAndForgetSend.mock.invocationCallOrder[0],
+	)
+	expect(options.taskHistory.updateTaskHistoryItem.mock.invocationCallOrder[0]).toBeLessThan(
+		options.sessions.fireAndForgetSend.mock.invocationCallOrder[0],
+	)
+})
+
+it("persists attachment-only tasks without waiting for model output", async () => {
+	const { coordinator, sdkHost, historyStore } = makeCoordinator()
+	const sessionId = await coordinator.initTask("", ["shot.png"], undefined)
+	expect(sdkHost.ensureSessionPersisted).toHaveBeenCalledWith(sessionId, { prompt: "" })
+	expect(historyStore.size).toBe(1)
+})
+
+it("does not fabricate history or send when ensureSessionPersisted throws after start (#13781)", async () => {
+	const { coordinator, options, state, sdkHost, historyStore } = makeCoordinator()
+	const persistError = new Error("materialize failed")
+	sdkHost.ensureSessionPersisted.mockRejectedValue(persistError)
+
+	const sessionId = await coordinator.initTask("persist then explode")
+
+	expect(sessionId).toBeUndefined()
+	expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+	expect(sdkHost.ensureSessionPersisted).toHaveBeenCalledOnce()
+	expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	expect(options.taskHistory.updateTaskHistoryItem).not.toHaveBeenCalled()
+	expect(historyStore.size).toBe(0)
+	expect(options.captureProviderApiError).toHaveBeenCalledWith({
+		sessionId: expect.any(String),
+		error: persistError,
+		providerId: "anthropic",
+		modelId: "model",
+		errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
+		failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
+	})
+	expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+		[
+			expect.objectContaining({
+				type: "say",
+				say: "error",
+				text: expect.stringContaining("materialize failed"),
+			}),
+		],
+		expect.objectContaining({
+			type: "status",
+			payload: expect.objectContaining({ status: "error" }),
+		}),
+	)
+	// Early streaming post + post-error post (handleInitError path).
+	expect(options.postStateToWebview).toHaveBeenCalled()
+
+	// CURRENT BEHAVIOR (#13781 evidence): clearTask runs once at init start only.
+	// After startNewSession succeeded and ensureSessionPersisted threw, production
+	// catch does NOT call clearTask again — so createAndSetTask's resident task
+	// may remain on state. Document, do not "fix" with product cleanup here.
+	expect(options.clearTask).toHaveBeenCalledOnce()
+	expect(state.task).toBeDefined()
+	expect(state.task?.taskId).toEqual(expect.any(String))
+})
+
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const state: { task?: { taskId: string } } = {}
 	const config = input.config ?? {
@@ -256,9 +391,15 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
 		dispose: vi.fn().mockResolvedValue(undefined),
 	}
+	const durableHistoryIds = new Set<string>()
 	const sdkHost = {
 		send: vi.fn(),
+		ensureSessionPersisted: vi.fn(async (sessionId: string, _options?: { prompt?: string }) => {
+			durableHistoryIds.add(sessionId)
+			return true
+		}),
 	}
+	const historyStore = new Map<string, HistoryItem>()
 	const options = {
 		stateManager: {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
@@ -277,7 +418,14 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: {
 			findHistoryItem: vi.fn(() => (input.hasHistoryItem === false ? undefined : historyItem)),
 			updateTaskHistory: vi.fn().mockResolvedValue([]),
-			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
+			updateTaskHistoryItem: vi.fn(async (item: HistoryItem) => {
+				// Mirrors production: update is a no-op until a durable session row exists.
+				if (!durableHistoryIds.has(item.id)) {
+					return
+				}
+				historyStore.set(item.id, item)
+			}),
+			listDurableHistory: () => [...historyStore.values()],
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -343,6 +491,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		options,
 		state,
 		tempHost,
+		sdkHost,
+		durableHistoryIds,
+		historyStore,
 	}
 }
 
