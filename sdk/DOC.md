@@ -209,6 +209,14 @@ executes its available tools without inheriting that policy or approval callback
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
 
+### Session tool policies and spawned agents
+
+A session's `toolPolicies` with `enabled: false` (directly, or through
+`"*": { enabled: false }` without a per-tool `enabled: true`) also remove that
+tool from `spawn_agent` children, configured subagents, and teammates.
+Configured subagents can narrow the set further with their `tools` allowlist,
+but no child regains a tool the parent session disabled.
+
 ## Saving provider credentials
 
 `saveLocalProviderSettings` is asynchronous; callers must await it before

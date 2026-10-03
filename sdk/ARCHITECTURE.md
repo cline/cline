@@ -186,6 +186,24 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs. Node clients register their version and PID together with caller metadata on every connection; `HubSessionClient` passes metadata through at registration so client events, refreshed lists, and reconnects retain the same details.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+A Hub session owns its agent config. `session.create` fixes the system prompt
+(`sessionConfig.systemPrompt`), model, mode, `enableTools`, and `toolPolicies`
+for that session's runtime. Client capability contributions (custom tools, tool
+executors, hooks) come only from the creating client's `session.create` payload
+and are routed back to that client; `session.attach`, `session.detach`, and the
+client that sends a turn do not add, remove, or reroute tools. `toolPolicies`
+apply after contributions are merged: a per-tool entry overrides `"*"`, so
+`{"*": {enabled: false}, read_files: {enabled: true}}` is an allowlist and
+`{run_commands: {enabled: false}}` is a denylist. Disabled tools, including
+client-contributed and Hub-registered ones, are removed from the session's model
+requests and rejected if called anyway, and are left out of the tool sets built
+for `spawn_agent` children, configured subagents, and teammates. A fork is a new
+`session.create` seeded with `initialMessages`, so it carries whatever prompt
+and policies the forking client passes. Of this config, only the connection
+(provider, model, reasoning) changes after creation, through
+`session.update_connection`. A session that is no longer resident is restarted
+from the config the restarting client supplies.
+
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
 NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
