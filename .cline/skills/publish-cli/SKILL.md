@@ -13,6 +13,12 @@ The CLI is npm-only. Do not add alternate distribution channels. Windows binarie
 
 The skill should guide the user through one release preparation flow, then offer the publish path options. The two normal publish paths are GitHub Actions and local publishing from an authenticated machine.
 
+## Coordinated SDK, CLI, and Desktop release
+
+When the user wants all three products released together, use `.github/workflows/publish-new-version.yml` instead of manually preparing three releases. Dispatch it from `main` with independent `sdk_bump`, `cli_bump`, and `desktop_bump` choices (`patch`, `minor`, or `major`, each defaulting to `patch`). It calculates the next versions and opens one release PR with the manifests, lockfile, draft changelogs, and release plan.
+
+Review and edit the draft notes in the PR, then merge with squash or a merge commit. The merge triggers validation, creates tags at the merged commit, and runs SDK → CLI → Desktop publishing in sequence. Desktop retains its signing approval. Do not manually tag or dispatch the individual publishers for that release. Read [the coordinated release guide](../../../.github/RELEASING.md) for setup, npm trusted publisher configuration, and recovery. The standalone CLI flow below still applies when releasing only the CLI.
+
 ## Release contract
 
 - SDK prerequisite: the CLI depends on the SDK via `workspace:*` (`@cline/core`, `@cline/shared`, and friends). If the SDK changed since its last release, release the SDK first and wait for it to finish publishing before releasing the CLI. See "Step 0: Release the SDK first if it changed" below.
@@ -30,6 +36,21 @@ The skill should guide the user through one release preparation flow, then offer
 - Local GitHub release creation requires `gh` to be authenticated with release permissions for the repo.
 - Always ask before pushing commits or tags.
 - Do not amend commits unless explicitly requested.
+
+## Before triggering `cli-publish.yml`
+
+For `publish_target=main`, the workflow publishes an already-prepared release. It does **not** bump `apps/cli/package.json`, update the changelog, commit release files, or create the git tag. Complete this sequence first:
+
+1. Check for unreleased SDK changes and, if needed, complete the SDK release in Step 0 below.
+2. Agree on the CLI version and release notes. Manually set `apps/cli/package.json` to `X.Y.Z` and prepend the matching `## X.Y.Z` section to `apps/cli/CHANGELOG.md`.
+3. Build the SDK and run the release checks below, then commit the release files.
+4. Land the release commit on `origin/main` (merge the release PR, or push to `main` when authorized). Pushing a release branch alone is insufficient.
+5. Create and push `cli-vX.Y.Z` at the intended release commit on `main`, after any PR merge. The version in that tagged commit must be `X.Y.Z`. If the tag already exists, verify it instead of recreating or moving it.
+6. Dispatch the workflow in `cline/cline` from the `main` branch using a non-bot account, with `publish_target=main`, `git_tag=cli-vX.Y.Z`, and `confirm_publish=publish`. In the Actions UI, select **Run workflow → Use workflow from: main**; pass the release tag as the `git_tag` input, not as the workflow branch/ref.
+
+The tagged commit may be an older commit reachable from `origin/main`; it does not have to be the current tip. The workflow checks out the tag and verifies both its package version and its ancestry before building, testing, publishing to npm's `latest` channel, and creating the GitHub release. Pushing the tag alone does not trigger publishing: this workflow has no tag-push trigger.
+
+Nightly is different: dispatch with `publish_target=nightly` from `main` (or let the daily schedule run). No manual version bump, release changelog entry, git tag, or `confirm_publish` input is needed. The workflow generates `X.Y.Z-nightly.TIMESTAMP` in its checkout without committing it and publishes to npm's `nightly` channel. It skips publishing when there are no commits in the last 24 hours unless `force_nightly_publish=true` is supplied.
 
 ## Step 0: Release the SDK first if it changed
 
@@ -159,9 +180,10 @@ Prepend a section to `apps/cli/CHANGELOG.md` for the approved version using the 
 
 6. Verify before committing.
 
-Run focused checks first:
+Build the SDK dependencies before running the focused checks:
 
 ```sh
+bun run build:sdk
 bun -F @cline/cli typecheck
 bun -F @cline/cli test:unit
 ```
@@ -197,7 +219,16 @@ Ask before pushing the release commit:
 git push origin HEAD
 ```
 
-For the GitHub main release path, ask before creating and pushing the release tag:
+For the GitHub main release path, ensure the release commit has landed on `origin/main` first. If it was prepared on a branch, merge its PR before tagging; `git push origin HEAD` above only pushes the current branch. Update the local checkout and verify that it contains the intended release version and changelog:
+
+```sh
+git checkout main
+git pull --ff-only
+node -p "require('./apps/cli/package.json').version"
+git log -1 --oneline
+```
+
+Then ask before creating and pushing the release tag at that verified commit:
 
 ```sh
 git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
@@ -216,20 +247,20 @@ Ask the user which path to use:
 For GitHub main release:
 
 ```sh
-gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh workflow run cli-publish.yml --repo cline/cline --ref main -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
 gh run list --workflow=cli-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
 
 For GitHub nightly release:
 
 ```sh
-gh workflow run cli-publish.yml -f publish_target=nightly
+gh workflow run cli-publish.yml --repo cline/cline --ref main -f publish_target=nightly
 ```
 
 For forced GitHub nightly release:
 
 ```sh
-gh workflow run cli-publish.yml -f publish_target=nightly -f force_nightly_publish=true
+gh workflow run cli-publish.yml --repo cline/cline --ref main -f publish_target=nightly -f force_nightly_publish=true
 ```
 
 For local publish:
