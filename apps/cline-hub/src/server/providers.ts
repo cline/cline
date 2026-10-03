@@ -9,6 +9,7 @@ import {
 	normalizeOAuthProvider,
 	saveLocalProviderSettings,
 } from "@cline/core";
+import { isChatCompatibleModel } from "@cline/shared";
 import type {
 	WebviewInboundMessage,
 	WebviewProviderModel,
@@ -71,7 +72,14 @@ export async function loadProviders(
 			providers.find((provider) => provider.id === defaults.provider)) ||
 		providers[0];
 	if (selected) {
-		await loadModels(ctx, peer, selected.id);
+		// Endpoint-owned model lists (LiteLLM etc.) reject when the host is
+		// unreachable; report it without aborting the rest of peer setup.
+		await loadModels(ctx, peer, selected.id).catch((error: unknown) => {
+			ctx.send(peer, {
+				type: "error",
+				text: error instanceof Error ? error.message : String(error),
+			});
+		});
 	}
 }
 
@@ -84,14 +92,29 @@ export async function loadModels(
 	if (!provider) return;
 	const payload = await getLocalProviderModels(
 		provider,
-		providerSettingsManager.getProviderConfig(provider),
+		providerSettingsManager.getProviderConfig(provider, {
+			includeKnownModels: false,
+		}),
 	);
-	const models: WebviewProviderModel[] = payload.models.map((model) => ({
-		id: model.id,
-		name: model.name,
-		supportsReasoning: model.supportsReasoning,
-		supportsThinking: model.supportsReasoning,
-	}));
+	const models: WebviewProviderModel[] = payload.models
+		.filter((model) =>
+			isChatCompatibleModel({
+				operation: model.operation,
+				modalities: {
+					input: model.inputModalities,
+					output: model.outputModalities,
+				},
+			}),
+		)
+		.map((model) => ({
+			id: model.id,
+			name: model.name,
+			operation: model.operation,
+			supportsReasoning: model.supportsReasoning,
+			supportsThinking: model.supportsReasoning,
+			inputModalities: model.inputModalities,
+			outputModalities: model.outputModalities,
+		}));
 	ctx.send(peer, { type: "models", providerId: provider, models });
 }
 
@@ -115,7 +138,7 @@ export async function saveProviderSettings(
 	peer: BrowserPeer,
 	frame: Extract<WebviewInboundMessage, { type: "saveProviderSettings" }>,
 ): Promise<void> {
-	const result = saveLocalProviderSettings(providerSettingsManager, {
+	const result = await saveLocalProviderSettings(providerSettingsManager, {
 		providerId: frame.providerId,
 		enabled: frame.enabled,
 		apiKey: frame.apiKey,

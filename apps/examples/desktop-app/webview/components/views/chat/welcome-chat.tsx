@@ -1,131 +1,84 @@
 "use client";
 
-import { AgentAurora, AgentHeroHeading } from "@cline/ui";
+import type { AgendaTaskRecord } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared/browser";
+import {
+	AgentConversationLayout,
+	type AgentQuickAction,
+	AgentQuickActions,
+	AgentWelcomeHero,
+} from "@cline/ui";
+import { Cloud } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
+import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { cn } from "@/lib/utils";
-import { SessionContent } from "./session-content";
+import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
+import {
+	type CloudBranchListOptions,
+	type CloudBranchListResult,
+	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
+	normalizeCloudRepositoryUrl,
+	readCloudRepositorySelection,
+	resolveRememberedCloudBranch,
+	writeCloudRepositorySelection,
+} from "@/lib/cloud-repositories";
+import { desktopClient } from "@/lib/desktop-client";
+import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
+import type { WorkIn } from "@/lib/work-in-selection";
+import {
+	CloudOnboardingCard,
+	type CloudOnboardingVariant,
+} from "./cloud-onboarding";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
-// Prompt suggestions (including "Review changes") are temporarily disabled
-// while we improve them. To re-enable, uncomment the block below plus the
-// `AgentQuickActions` render in `WelcomeScreen`, restore the commented-out
-// imports (`isChatWorkspacePath`, `AgentQuickAction`, `AgentQuickActions`,
-// `useMemo`) and the `onStartChat`/`quickActions` props, and re-enable the
-// suggestion tests in `welcome-chat.test.tsx`.
-//
-// import { isChatWorkspacePath } from "@cline/shared/browser";
-// import { type AgentQuickAction, AgentQuickActions } from "@cline/ui";
-// import { useMemo } from "react";
-//
-// /** Code-centric starters, shown only when the folder is a git repository. */
-// const DEVELOPER_QUICK_ACTIONS: AgentQuickAction[] = [
-// 	{
-// 		id: "review-changes",
-// 		label: "Review changes",
-// 		description: "Review the current changes and call out anything risky.",
-// 		value: "Review the current changes and call out anything risky.",
-// 	},
-// 	{
-// 		id: "check-build",
-// 		label: "Check for build errors",
-// 		description: "Run the relevant checks and help me fix any failures.",
-// 		value: "Check this project for build errors and help me fix any failures.",
-// 	},
-// ];
-//
-// /**
-//  * General-purpose starters for a plain (non-git) folder — phrased around the
-//  * files the agent can see, with no developer vocabulary.
-//  */
-// const FOLDER_QUICK_ACTIONS: AgentQuickAction[] = [
-// 	{
-// 		id: "summarize-folder",
-// 		label: "Summarize this folder",
-// 		description: "Get a plain-language overview of the files here.",
-// 		value:
-// 			"Look through the files in this folder and give me a plain-language summary of what's here.",
-// 	},
-// 	{
-// 		id: "organize-files",
-// 		label: "Organize these files",
-// 		description: "Tidy up names and structure, with your approval.",
-// 		value:
-// 			"Help me organize this folder: suggest a tidy structure and clearer file names, and check with me before moving anything.",
-// 	},
-// 	{
-// 		id: "draft-document",
-// 		label: "Draft a document",
-// 		description: "Start a new doc with a first draft you can edit.",
-// 		value:
-// 			"Help me draft a new document in this folder. Ask me a few questions about what it should cover, then write a first draft.",
-// 	},
-// ];
-//
-// /** Starters for chat with no folder selected at all. */
-// const CHAT_QUICK_ACTIONS: AgentQuickAction[] = [
-// 	{
-// 		id: "draft-document",
-// 		label: "Draft a document",
-// 		description: "Start a new doc with a first draft you can edit.",
-// 		value:
-// 			"Help me draft a document. Ask me a few questions about what it should cover, then write a first draft.",
-// 	},
-// 	{
-// 		id: "research-topic",
-// 		label: "Research a topic",
-// 		description: "Gather the key facts and sum them up.",
-// 		value:
-// 			"Research a topic for me: ask me what I want to learn about, then summarize the key points in plain language.",
-// 	},
-// 	{
-// 		id: "plan-something",
-// 		label: "Plan something",
-// 		description: "Break a goal into clear, doable steps.",
-// 		value:
-// 			"Help me plan something. Ask me what I'm trying to get done, then break it into clear steps.",
-// 	},
-// ];
-//
-// /**
-//  * Picks starter suggestions that match what the user actually opened: code
-//  * cards only make sense inside a git repo; a plain folder gets file-oriented
-//  * cards; no folder at all gets folderless general-purpose cards.
-//  *
-//  * `gitBranch` is `null` while branch discovery for the selected folder is
-//  * still pending; no cards are suggested until the folder is classified so a
-//  * git repo never flashes the plain-folder set (or vice versa).
-//  */
-// export function defaultQuickActionsForContext({
-// 	workspaceRoot,
-// 	gitBranch,
-// }: {
-// 	workspaceRoot: string;
-// 	gitBranch: string | null;
-// }): AgentQuickAction[] {
-// 	const isChatWorkspace =
-// 		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
-// 	if (isChatWorkspace) {
-// 		return CHAT_QUICK_ACTIONS;
-// 	}
-// 	if (gitBranch === null) {
-// 		return [];
-// 	}
-// 	if (gitBranch !== "no-git") {
-// 		return DEVELOPER_QUICK_ACTIONS;
-// 	}
-// 	return FOLDER_QUICK_ACTIONS;
-// }
+// Used only until the API's connectUrl arrives (or when it is blank), so a
+// staging/local build still points at its own dashboard.
+const FALLBACK_CONNECT_URL = `${getClineEnvironmentConfig().appBaseUrl}/dashboard/integrations`;
+const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;
+
+type CloudSetupState = {
+	status:
+		| "unknown"
+		| "checking"
+		| "ready"
+		| "not_connected"
+		| "no_repositories"
+		| "restore_error"
+		| "error";
+	connectUrl: string;
+	scope: string | null;
+	requestId: number;
+	repositories: CloudRepositoryOption[];
+	/** Normalized URLs of repositories the account can currently access. */
+	repositoryUrls: string[];
+};
+
+const noop = () => undefined;
 
 export function WelcomeScreen({
 	active,
 	body,
 	composer,
 	notice,
+	environmentSelector,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	executionTarget = "local",
+	repoUrl = "",
+	cloudBranch = "",
+	onRepoUrlChange = noop,
+	onCloudBranchChange = noop,
+	cloudAgentsEnabled = false,
+	workIn,
+	onWorkInChange,
+	onOpenSession,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -134,9 +87,39 @@ export function WelcomeScreen({
 	notice?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	environmentSelector: ReactNode;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	onRepoUrlChange?: (repoUrl: string) => void;
+	onCloudBranchChange?: (branch: string) => void;
+	cloudAgentsEnabled?: boolean;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
+	const { user, activeOrganization, refreshAccount } = useAccount();
+	const cloudScope = user
+		? JSON.stringify([
+				getClineEnvironmentConfig().appBaseUrl,
+				user.id,
+				activeOrganization?.organizationId ?? null,
+			])
+		: null;
+	const [signingIn, setSigningIn] = useState(false);
+	const [signInError, setSignInError] = useState<string | null>(null);
+	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
+		status: "unknown",
+		connectUrl: FALLBACK_CONNECT_URL,
+		scope: null,
+		requestId: 0,
+		repositories: [],
+		repositoryUrls: [],
+	});
+	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
+	const cloudSetupRequestRef = useRef(0);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -145,90 +128,454 @@ export function WelcomeScreen({
 		pickWorkspaceDirectory,
 		selectChat,
 	} = useWorkspace();
-	// Suggestions are disabled for now; see the note above.
-	// const defaultActions = useMemo(
-	// 	() => defaultQuickActionsForContext({ workspaceRoot, gitBranch }),
-	// 	[workspaceRoot, gitBranch],
-	// );
-	// const actions = quickActions.length > 0 ? quickActions : defaultActions;
+	const applyCloudSetupResult = useCallback(
+		(result: CloudRepositoryListResult, requestId: number) => {
+			setCloudSetup({
+				scope: cloudScope,
+				requestId,
+				repositories: result.repositories,
+				status:
+					result.connected === false
+						? "not_connected"
+						: result.repositories.length === 0
+							? "no_repositories"
+							: "ready",
+				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
+				repositoryUrls: result.repositories.map((repository) =>
+					normalizeCloudRepositoryUrl(repository.url),
+				),
+			});
+		},
+		[cloudScope],
+	);
+	const fetchCloudRepositories = useCallback(
+		() =>
+			desktopClient.invoke<CloudRepositoryListResult>(
+				"list_cloud_repositories",
+				{},
+			),
+		[],
+	);
+	const listCloudRepositories = useCallback(async () => {
+		// Keep stale-selection checks aligned with the latest account scope.
+		const requestId = ++cloudSetupRequestRef.current;
+		const result = await fetchCloudRepositories().catch((error) => {
+			// Resume saved-selection restoration if the picker refresh fails.
+			setCloudSetup((prev) =>
+				cloudSetupRequestRef.current === requestId && prev.status === "ready"
+					? { ...prev, requestId }
+					: prev,
+			);
+			throw error;
+		});
+		if (cloudSetupRequestRef.current === requestId) {
+			applyCloudSetupResult(result, requestId);
+		}
+		return result;
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const listCloudBranches = useCallback(
+		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
+			const result = await desktopClient.invoke<{
+				available?: boolean;
+				branches?: string[];
+				nextToken?: string;
+			}>("list_cloud_branches", { repositoryId, ...options });
+			return {
+				available: result.available !== false,
+				branches: Array.isArray(result.branches) ? result.branches : [],
+				nextToken:
+					typeof result.nextToken === "string" ? result.nextToken : undefined,
+			} satisfies CloudBranchListResult;
+		},
+		[],
+	);
+	const openExternalUrl = useCallback(async (url: string) => {
+		await desktopClient.invoke("open_external_url", { url });
+	}, []);
+	const connectGitHub = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization, openExternalUrl],
+	);
+
+	const cloudModeActive =
+		active && cloudAgentsEnabled && executionTarget === "cloud";
+	const signedIn = Boolean(user);
+	const accountUserId = user?.id ?? null;
+	// Read by the poll interval without making the state updater impure or
+	// re-subscribing the effect on every status change.
+	const cloudSetupStatusRef = useRef(cloudSetup.status);
+	cloudSetupStatusRef.current = cloudSetup.status;
+
+	const checkCloudSetup = useCallback(async () => {
+		const requestId = ++cloudSetupRequestRef.current;
+		setCloudSetupChecking(true);
+		try {
+			const result = await fetchCloudRepositories();
+			if (cloudSetupRequestRef.current !== requestId) return;
+			applyCloudSetupResult(result, requestId);
+		} catch {
+			if (cloudSetupRequestRef.current !== requestId) return;
+			setCloudSetup((prev) => ({ ...prev, status: "error" }));
+		} finally {
+			if (cloudSetupRequestRef.current === requestId) {
+				setCloudSetupChecking(false);
+			}
+		}
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const invalidateCloudScope = useCallback(() => {
+		setCloudSetup((prev) => ({
+			...prev,
+			status: "checking",
+			repositoryUrls: [],
+		}));
+		onRepoUrlChange("");
+		onCloudBranchChange("");
+	}, [onCloudBranchChange, onRepoUrlChange]);
+
+	// GitHub setup finishes in the browser; poll while onboarding is visible.
+	useEffect(() => {
+		void accountUserId;
+		if (!cloudModeActive || !signedIn) return;
+		invalidateCloudScope();
+		void checkCloudSetup();
+		const handleFocus = () => void checkCloudSetup();
+		window.addEventListener("focus", handleFocus);
+		const interval = window.setInterval(() => {
+			const status = cloudSetupStatusRef.current;
+			if (status === "not_connected" || status === "no_repositories") {
+				void checkCloudSetup();
+			}
+		}, CLOUD_SETUP_POLL_INTERVAL_MS);
+		return () => {
+			window.removeEventListener("focus", handleFocus);
+			window.clearInterval(interval);
+		};
+	}, [
+		accountUserId,
+		checkCloudSetup,
+		cloudModeActive,
+		invalidateCloudScope,
+		signedIn,
+	]);
+
+	// Refresh on account/org switches even after the onboarding poll stops.
+	useEffect(() => {
+		if (!cloudModeActive || !signedIn) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			invalidateCloudScope();
+			void checkCloudSetup();
+		});
+	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
+
+	// Keep sending blocked until the saved repository and branch are validated.
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			repoUrl ||
+			cloudSetup.status !== "ready" ||
+			cloudSetup.scope !== cloudScope ||
+			cloudSetup.requestId !== cloudSetupRequestRef.current
+		)
+			return;
+		const saved = readCloudRepositorySelection(cloudScope);
+		const repository = cloudSetup.repositories.find(
+			(candidate) =>
+				normalizeCloudRepositoryUrl(candidate.url) === saved?.repoUrl,
+		);
+		if (!saved || !repository) return;
+		let cancelled = false;
+		void resolveRememberedCloudBranch(
+			repository.id,
+			saved.branch,
+			repository.defaultBranch,
+			listCloudBranches,
+		)
+			.then((branch) => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				onRepoUrlChange(saved.repoUrl);
+				onCloudBranchChange(branch);
+			})
+			.catch(() => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				setCloudSetup((prev) => ({ ...prev, status: "restore_error" }));
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudModeActive,
+		cloudScope,
+		cloudSetup,
+		repoUrl,
+		listCloudBranches,
+		onRepoUrlChange,
+		onCloudBranchChange,
+	]);
 
 	useEffect(() => {
-		if (active) void refreshWorkspaces();
-	}, [active, refreshWorkspaces]);
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			cloudSetup.scope !== cloudScope ||
+			(cloudSetup.status !== "ready" &&
+				cloudSetup.status !== "restore_error") ||
+			!repoUrl ||
+			!cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl))
+		)
+			return;
+		writeCloudRepositorySelection(cloudScope, {
+			repoUrl: normalizeCloudRepositoryUrl(repoUrl),
+			branch: cloudBranch,
+		});
+		if (cloudSetup.status === "restore_error") {
+			setCloudSetup((prev) => ({ ...prev, status: "ready" }));
+		}
+	}, [cloudModeActive, cloudScope, cloudSetup, repoUrl, cloudBranch]);
+
+	const agenda = useAgendaTasks(
+		{
+			scope: "workspace",
+			workspaceRoot,
+			types: ["suggestion", "reminder", "follow-up"],
+			statuses: ["pending_approval", "approved", "in_progress", "failed"],
+			limit: 8,
+		},
+		AGENDA_UI_ENABLED && active && workspaceRoot.trim().length > 0,
+	);
+	const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
+	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
+	const quickActionTasks = useMemo(
+		() => agenda.tasks.filter((task) => !isAgendaTaskExpired(task)).slice(0, 4),
+		[agenda.tasks],
+	);
+	const actions = useMemo<AgentQuickAction[]>(
+		() =>
+			quickActionTasks.map((task) => ({
+				id: task.taskId,
+				label: task.title,
+				description:
+					task.description ||
+					`${task.type === "follow-up" ? "Follow-up" : task.type === "reminder" ? "Reminder" : "Suggestion"} · P${task.priority}`,
+				value: task.instructions,
+			})),
+		[quickActionTasks],
+	);
+
+	const handleTaskAction = useCallback(
+		async (task: AgendaTaskRecord) => {
+			setRunningTaskId(task.taskId);
+			try {
+				if (task.status === "in_progress" && task.lastSessionId) {
+					await onOpenSession?.(task.lastSessionId);
+					return;
+				}
+				let runnable = task;
+				if (runnable.status === "pending_approval") {
+					runnable = await agenda.approveTask(runnable);
+				}
+				if (runnable.status === "in_progress" && runnable.lastSessionId) {
+					await onOpenSession?.(runnable.lastSessionId);
+					return;
+				}
+				if (runnable.status === "approved" || runnable.status === "failed") {
+					const started = await agenda.runTask(runnable);
+					if (started.lastSessionId) {
+						await onOpenSession?.(started.lastSessionId);
+					}
+				}
+			} catch {
+				// useAgendaTasks renders the command failure with the quick actions.
+			} finally {
+				setRunningTaskId(null);
+			}
+		},
+		[agenda.approveTask, agenda.runTask, onOpenSession],
+	);
+
+	useEffect(() => {
+		if (active && executionTarget === "local") void refreshWorkspaces();
+	}, [active, executionTarget, refreshWorkspaces]);
+
+	// Clear repositories made inaccessible by account/org or GitHub access changes.
+	useEffect(() => {
+		if (!cloudModeActive || cloudSetup.status === "unknown") return;
+		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
+			return;
+		}
+		const normalized = normalizeCloudRepositoryUrl(repoUrl);
+		if (!normalized) return;
+		if (!cloudSetup.repositoryUrls.includes(normalized)) {
+			onRepoUrlChange("");
+			onCloudBranchChange("");
+		}
+	}, [
+		cloudModeActive,
+		cloudSetup,
+		onCloudBranchChange,
+		onRepoUrlChange,
+		repoUrl,
+	]);
+
+	const signIn = async () => {
+		if (signingIn) return;
+		setSigningIn(true);
+		setSignInError(null);
+		try {
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
+			invalidateProviderCatalogCache();
+			await refreshAccount();
+		} catch (error) {
+			setSignInError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setSigningIn(false);
+		}
+	};
+
+	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
+		? null
+		: !signedIn
+			? "signed_out"
+			: cloudSetup.status === "not_connected"
+				? "not_connected"
+				: cloudSetup.status === "no_repositories"
+					? "no_repositories"
+					: cloudSetup.status === "error" ||
+							cloudSetup.status === "restore_error"
+						? "error"
+						: null;
+	// A failed restore must still allow a manual repository selection.
+	const showCloudOnboarding =
+		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";
 
 	return (
-		<div
-			className={cn(
-				active
-					? "relative h-full min-h-0 overflow-hidden bg-background"
-					: "contents",
-			)}
-		>
-			{active ? <AgentAurora /> : null}
-			<div
-				className={cn(
-					active
-						? "relative z-10 h-full w-full overflow-x-hidden overflow-y-auto"
-						: "contents",
-				)}
-			>
-				<div
-					className={cn(
-						active
-							? "mx-auto flex min-h-full w-full max-w-240 flex-col justify-center px-6 py-16 max-[720px]:px-4 max-[720px]:py-10"
-							: "contents",
-					)}
-				>
-					{active ? (
-						<div className="cline-view-enter">
-							<AgentHeroHeading />
+		<AgentConversationLayout
+			welcome={active}
+			body={body}
+			bodyClassName="cline-view-enter"
+			composer={composer}
+			notice={notice && !showCloudOnboarding ? notice : null}
+			hideWelcomeComposer={showCloudOnboarding}
+			welcomeHeader={
+				<div className="cline-view-enter">
+					<h1 className="sr-only">What would you like to build?</h1>
+					<AgentWelcomeHero />
 
-							<div className="mt-11 flex min-w-0 items-center">
-								<WelcomeWorkspaceControls
-									currentBranch={gitBranch}
-									onListGitBranches={onListGitBranches}
-									onPickWorkspaceDirectory={pickWorkspaceDirectory}
-									onRefreshWorkspaces={refreshWorkspaces}
-									onSelectChat={selectChat}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={switchWorkspace}
-									workspaceRoot={workspaceRoot}
-									workspaces={workspaces}
-								/>
-							</div>
-						</div>
-					) : null}
-
-					<div
-						className={
-							active
-								? "hidden"
-								: "cline-view-enter h-full min-h-0 overflow-hidden"
-						}
-						key="conversation-body"
-					>
-						{body}
-					</div>
-
-					{active && notice ? notice : null}
-
-					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6"}
-						key="persistent-composer"
-					>
-						{active ? composer : <SessionContent>{composer}</SessionContent>}
-					</div>
-
-					{/* Prompt suggestions are disabled for now; see the note above.
-					{active ? (
-						<AgentQuickActions
-							actions={actions}
-							className="cline-view-enter mt-11"
-							onSelect={(action) => onStartChat(action.value)}
+					<div className="mt-11 flex min-w-0 items-center gap-2">
+						{environmentSelector}
+						<WelcomeWorkspaceControls
+							cloudBranch={cloudBranch}
+							cloudControlsHidden={showCloudOnboarding}
+							cloudEnabled={cloudAgentsEnabled}
+							currentBranch={gitBranch}
+							executionTarget={executionTarget}
+							onCloudBranchChange={onCloudBranchChange}
+							onListCloudBranches={listCloudBranches}
+							onListCloudRepositories={listCloudRepositories}
+							onListGitBranches={onListGitBranches}
+							onOpenExternalUrl={connectGitHub}
+							onPickWorkspaceDirectory={pickWorkspaceDirectory}
+							onRefreshWorkspaces={refreshWorkspaces}
+							onRepoUrlChange={onRepoUrlChange}
+							onSignIn={signIn}
+							onSelectChat={selectChat}
+							onSwitchGitBranch={onSwitchGitBranch}
+							onSwitchWorkspace={switchWorkspace}
+							repoUrl={repoUrl}
+							signedIn={signedIn}
+							signingIn={signingIn}
+							onWorkInChange={onWorkInChange}
+							workIn={workIn}
+							workspaceRoot={workspaceRoot}
+							workspaces={workspaces}
 						/>
-					) : null} */}
+						{signInError ? (
+							<p className="mt-2 text-xs text-destructive">
+								Sign in failed: {signInError}
+							</p>
+						) : null}
+					</div>
 				</div>
-			</div>
-		</div>
+			}
+			welcomeSetup={
+				cloudOnboardingVariant !== null ? (
+					<div className="mt-4 w-full">
+						<CloudOnboardingCard
+							checking={cloudSetupChecking}
+							onConnect={() =>
+								void (cloudOnboardingVariant === "not_connected"
+									? connectGitHub(cloudSetup.connectUrl)
+									: openExternalUrl(cloudSetup.connectUrl))
+							}
+							onRefresh={() => void checkCloudSetup()}
+							onSignIn={() => void signIn()}
+							signingIn={signingIn}
+							variant={cloudOnboardingVariant}
+						/>
+					</div>
+				) : null
+			}
+			welcomeFooter={
+				<>
+					{active && AGENDA_UI_ENABLED ? (
+						<>
+							<AgentQuickActions
+								actions={actions}
+								className="cline-view-enter mt-11"
+								disabled={runningTaskId !== null}
+								onSelect={(action) => {
+									const task = quickActionTasks.find(
+										(candidate) => candidate.taskId === action.id,
+									);
+									if (!task) return;
+									if (task.status === "pending_approval") {
+										setReviewTask(task);
+									} else {
+										void handleTaskAction(task);
+									}
+								}}
+							/>
+							<AgendaTaskReviewDialog
+								confirmLabel="Approve and start"
+								onConfirm={async (task) => {
+									await handleTaskAction(task);
+									setReviewTask(null);
+								}}
+								onOpenChange={(open) => {
+									if (!open) setReviewTask(null);
+								}}
+								open={reviewTask !== null}
+								pending={runningTaskId === reviewTask?.taskId}
+								task={reviewTask}
+							/>
+							{agenda.error ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									{agenda.error}
+								</p>
+							) : null}
+						</>
+					) : null}
+					{active && cloudModeActive && !showCloudOnboarding ? (
+						<p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+							<Cloud aria-hidden="true" className="size-3 shrink-0" />
+							Cloud sessions run on a secure sandbox, work on a branch, and keep
+							going even when you close the app.
+						</p>
+					) : null}
+				</>
+			}
+		/>
 	);
 }

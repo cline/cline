@@ -213,6 +213,23 @@ async function projectAgentEvent(
 			return;
 		}
 	}
+	if (
+		agentEvent.type === "content_update" &&
+		agentEvent.contentType === "tool"
+	) {
+		ctx.publish(
+			ctx.buildEvent(
+				"tool.updated",
+				{
+					toolCallId: agentEvent.toolCallId,
+					toolName: agentEvent.toolName,
+					update: agentEvent.update,
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
 	if (agentEvent.type === "content_end") {
 		switch (agentEvent.contentType) {
 			case "text":
@@ -310,6 +327,7 @@ async function projectAgentEvent(
 						outputTokens: agentEvent.outputTokens,
 						cacheReadTokens: agentEvent.cacheReadTokens ?? 0,
 						cacheWriteTokens: agentEvent.cacheWriteTokens ?? 0,
+						reasoningTokenCount: agentEvent.reasoningTokenCount,
 						totalCost: agentEvent.cost ?? 0,
 					},
 					totals: {

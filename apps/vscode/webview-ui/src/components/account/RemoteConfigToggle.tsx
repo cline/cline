@@ -1,16 +1,13 @@
 import { UpdateSettingsRequest, UserOrganization } from "@shared/proto/index.cline"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { isAdminOrOwner } from "./helpers"
 
 export function RemoteConfigToggle({ activeOrganization }: { activeOrganization: UserOrganization | null }) {
-	const { optOutOfRemoteConfig } = useExtensionState()
-	const hadOptedOutOfRemoteConfig = useRef(optOutOfRemoteConfig)
+	const { optOutOfRemoteConfig, remoteConfigAvailable } = useExtensionState()
 
-	// If there is no active org but the user had already opted out, keep displaying the toggle
-	if (!hadOptedOutOfRemoteConfig.current && activeOrganization && !isAdminOrOwner(activeOrganization)) {
+	if (!activeOrganization || !isAdminOrOwner(activeOrganization) || !remoteConfigAvailable) {
 		return null
 	}
 

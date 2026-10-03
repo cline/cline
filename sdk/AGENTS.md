@@ -30,13 +30,14 @@ flowchart TD
   shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"]
   llms --> agents & core
   agents --> core
-  core --> apps["CLI / VS Code / Code App"]
+  core --> apps["CLI / VS Code / Desktop App"]
 ```
 
 Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
 - `core` owns stateful orchestration, including the shared-hub daemon, server, and client adapters under `src/hub/`
+- `@cline/core/cloud` owns remote cloud-session transport and state; hosts own authentication, feature gating, persistence, and UI projection.
 
 ## Change Routing
 

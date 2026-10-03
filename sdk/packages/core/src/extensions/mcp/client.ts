@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -55,11 +56,47 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // still fail fast through the spawn error/exit path; only an alive-but-silent
 // server waits out this budget.
 export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
+// configured. Like the stdio initialize budget above, connect runs on the
+// session-create critical path capped by the hub at 30s
+// (HUB_DEFAULT_COMMAND_TIMEOUT_MS). Without its own budget an unreachable
+// server spends the full request timeout (60s by default, with the SSE
+// transport stuck in a reconnect loop), stalling session.create past the hub
+// deadline and tearing the whole session down. 10s is generous for a healthy
+// remote handshake (DNS, TLS, OAuth discovery) while staying far from the hub
+// cap; servers connect in parallel. An explicit `timeout` overrides this in
+// either direction.
+export const DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS = 10_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
+const STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 250;
+const STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+async function settlesWithin(
+	promise: Promise<void>,
+	timeoutMs: number,
+): Promise<boolean> {
+	return new Promise((resolve) => {
+		let settled = false;
+		const finish = (result: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeout);
+			resolve(result);
+		};
+		const timeout = setTimeout(() => finish(false), timeoutMs);
+		timeout.unref();
+		promise.then(
+			() => finish(true),
+			() => finish(true),
+		);
+	});
 }
 
 /**
@@ -162,6 +199,7 @@ class NewlineMessageParser {
 class StdioMcpClient implements McpServerClient {
 	private readonly registration: McpServerRegistration;
 	private process?: ChildProcessWithoutNullStreams;
+	private processClose?: Promise<void>;
 	private nextRequestId = 1;
 	private readonly pending = new Map<
 		number,
@@ -211,6 +249,7 @@ class StdioMcpClient implements McpServerClient {
 			capabilities: {},
 			clientInfo: { name: "@cline/core", version: "0.0.0" },
 		};
+		await this.ensureAgentPluginDataDirectory();
 		this.spawnProcess("newline");
 		try {
 			await this.request(
@@ -240,17 +279,74 @@ class StdioMcpClient implements McpServerClient {
 		this.connected = true;
 	}
 
+	/**
+	 * Agent Plugin discovery is intentionally read-only. Create the plugin's
+	 * persistent writable data directory only when its stdio server is about to
+	 * launch, as required by the Agent Plugins MCP runtime contract.
+	 */
+	private async ensureAgentPluginDataDirectory(): Promise<void> {
+		if (this.registration.metadata?.source !== "agent-plugin") {
+			return;
+		}
+		const pluginDataPath = this.registration.metadata.pluginDataPath;
+		if (typeof pluginDataPath !== "string" || pluginDataPath.length === 0) {
+			return;
+		}
+		await mkdir(pluginDataPath, { recursive: true });
+	}
+
 	async disconnect(): Promise<void> {
 		const child = this.process;
+		const processClose = this.processClose;
 		this.connected = false;
 		this.process = undefined;
+		this.processClose = undefined;
 		this.failAllPending(
 			new Error(`Disconnected from MCP server "${this.registration.name}".`),
 		);
-		if (!child) {
+		if (!processClose) {
 			return;
 		}
+		if (!child) {
+			if (
+				!(await settlesWithin(
+					processClose,
+					STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS,
+				))
+			) {
+				throw new Error(
+					`MCP process for "${this.registration.name}" did not close during disconnect.`,
+				);
+			}
+			return;
+		}
+
+		// Closing stdin first lets well-behaved MCP servers shut down cleanly. This
+		// matters on Windows, where a live child process keeps its cwd locked.
+		if (!child.stdin.destroyed) {
+			child.stdin.end();
+		}
+		if (
+			await settlesWithin(processClose, STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS)
+		) {
+			return;
+		}
+
 		child.kill();
+		if (
+			await settlesWithin(processClose, STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS)
+		) {
+			return;
+		}
+
+		child.kill("SIGKILL");
+		if (
+			!(await settlesWithin(processClose, STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS))
+		) {
+			throw new Error(
+				`MCP process for "${this.registration.name}" did not exit during disconnect.`,
+			);
+		}
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
@@ -328,6 +424,9 @@ class StdioMcpClient implements McpServerClient {
 		});
 
 		this.process = child;
+		this.processClose = new Promise((resolve) => {
+			child.once("close", () => resolve());
+		});
 		child.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
 		child.stderr.on("data", (chunk: Buffer) => {
 			if (this.process !== child) {
@@ -546,6 +645,8 @@ export interface DefaultMcpServerClientFactoryOptions {
 	clientName?: string;
 	clientVersion?: string;
 	fetch?: FetchLike;
+	/** Keep literal configured headers on the declared MCP origin only. */
+	restrictConfiguredHeadersToOrigin?: boolean;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -565,6 +666,7 @@ class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
+	private readonly connectAttemptTimeoutMs: number;
 
 	constructor(
 		private readonly registration: McpServerRegistration,
@@ -573,6 +675,14 @@ class SdkUrlMcpClient implements McpServerClient {
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
+		// Connect gets its own default budget so an offline server fails fast
+		// instead of stalling session.create; an explicit `timeout` overrides
+		// it in either direction.
+		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
+			registration.timeoutSeconds,
+		)
+			? this.requestTimeoutMs
+			: DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -612,8 +722,12 @@ class SdkUrlMcpClient implements McpServerClient {
 				registration: this.registration,
 				oauthProvider,
 				fetch: this.options.fetch,
+				restrictConfiguredHeadersToOrigin:
+					this.options.restrictConfiguredHeadersToOrigin,
 			});
-			await client.connect(transport, { timeout: this.requestTimeoutMs });
+			await client.connect(transport, {
+				timeout: this.connectAttemptTimeoutMs,
+			});
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
@@ -621,7 +735,7 @@ class SdkUrlMcpClient implements McpServerClient {
 			const effectiveError = augmentMcpTimeoutError(
 				error,
 				this.registration.name,
-				this.requestTimeoutMs,
+				this.connectAttemptTimeoutMs,
 			);
 			const unauthorized = isMcpUnauthorizedError(error);
 			const message = unauthorized

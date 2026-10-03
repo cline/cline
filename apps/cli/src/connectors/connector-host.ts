@@ -1028,6 +1028,7 @@ export async function handleConnectorUserTurn<
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
 			runtimeInput,
 			input.userInstructionService,
+			{ mode: startRequest.mode },
 		);
 		try {
 			await input.client.sendRuntimeSession(
@@ -1117,6 +1118,7 @@ async function runConnectorRuntimeTurnWithRecovery<
 	const { prompt, userImages, userFiles } = await buildUserInputMessage(
 		runtimeInput,
 		input.userInstructionService,
+		{ mode: startRequest.mode },
 	);
 	const request: ChatRunTurnRequest = {
 		config: startRequest,

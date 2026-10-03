@@ -98,6 +98,8 @@ export interface GatewayModelOperationCapability {
 }
 
 export interface GatewayProviderRouting {
+	/** Honor catalog model API protocols under this provider's shared base URL. */
+	modelApiProtocol?: boolean;
 	promptCache?: {
 		format: GatewayPromptCacheFormat;
 		routes: GatewayModelRoute[];
@@ -134,6 +136,7 @@ export interface GatewayProviderMetadata {
 	imageTransport?: "openrouter";
 	/** Provider-owned implementation used for the transcription operation. */
 	transcriptionTransport?:
+		| "openai-native"
 		| "openai-compatible"
 		| "vercel-ai-gateway"
 		| "elevenlabs";

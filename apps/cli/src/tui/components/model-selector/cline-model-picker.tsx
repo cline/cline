@@ -7,7 +7,8 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
+import type { DialogPalette } from "../../themes";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
@@ -24,7 +25,7 @@ export {
 	freeTierDescriptionFor,
 } from "./cline-model-entries";
 
-function tagColor(tag: string): string {
+function tagColor(tag: string, palette: DialogPalette): string {
 	if (tag === "FREE") return palette.success;
 	if (tag === "BEST") return "magenta";
 	return palette.act;
@@ -58,6 +59,7 @@ export function ClineModelPicker(props: {
 	currentModelId?: string;
 }) {
 	const { entries, selected, loading, currentModelId } = props;
+	const palette = useDialogPalette();
 
 	if (loading) {
 		return (
@@ -119,7 +121,7 @@ export function ClineModelPicker(props: {
 					{tags.map((t) => (
 						<text
 							key={t}
-							fg={isSel ? palette.textOnSelection : tagColor(t)}
+							fg={isSel ? palette.textOnSelection : tagColor(t, palette)}
 							flexShrink={0}
 						>
 							{t}

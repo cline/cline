@@ -1,18 +1,52 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
 
-const NOTICE_ID = "cline-cli-cline-pass-intro";
+export const CLINE_PASS_NOTICE_ID = "cline-cli-cline-pass-intro";
+const DESKTOP_NOTICE_ID = "cline-cli-desktop-launch";
 const FORCE_NOTICE_ENV = "CLINE_FORCE_CLINE_PASS_NOTICE";
+// Historically named for the ClinePass promo; disables every startup notice.
 const DISABLE_NOTICE_ENV = "CLINE_DISABLE_CLINE_PASS_NOTICE";
+const DESKTOP_APP_URL = "https://cline.bot/desktop";
 
 export interface CliMigrationNotice {
 	id: string;
 	title: string;
+	body: string;
+	url: string;
+	openLabel: string;
 }
 
 export interface CliMigrationNoticeOptions {
 	activeProviderId?: string;
+}
+
+function getClinePassNotice(): CliMigrationNotice {
+	return {
+		id: CLINE_PASS_NOTICE_ID,
+		title: "Try ClinePass",
+		body: "ClinePass is a $9.99/month subscription plan to get access to the latest open-weight coding models with enough quota for day-to-day work, at a much lower cost than paying API costs directly.",
+		url: getCliSubscriptionUrl(),
+		openLabel: "Open ClinePass",
+	};
+}
+
+function getDesktopNotice(): CliMigrationNotice {
+	return {
+		id: DESKTOP_NOTICE_ID,
+		title: "Introducing Cline Desktop",
+		body: [
+			"A native app for working with open weights models. Use it with ClinePass and our free models, or BYOK.",
+			"- Import tasks from Claude Code and Codex",
+			"- Run Cline on a regular schedule",
+			"- Use web search tool and voice input",
+			"- Browse Marketplace for plugins, MCPs, and skills",
+			"Available for macOS and Windows.",
+		].join("\n"),
+		url: DESKTOP_APP_URL,
+		openLabel: "Get Cline Desktop",
+	};
 }
 
 interface CliNoticeState {
@@ -84,32 +118,33 @@ export function getClineCliMigrationNotice(
 	if (disableNotice && !forceNotice) {
 		return undefined;
 	}
+	// At most one notice per launch, oldest first, so a user who has already
+	// dismissed the ClinePass intro sees the desktop launch on their next start.
 	if (
-		shouldSuppressClineCliMigrationNoticeForActiveProvider(
+		!shouldSuppressClineCliMigrationNoticeForActiveProvider(
 			options.activeProviderId,
 			env,
-		)
+		) &&
+		(forceNotice || !noticeState.shown[CLINE_PASS_NOTICE_ID])
 	) {
-		return undefined;
+		return getClinePassNotice();
 	}
-	if (noticeState.shown[NOTICE_ID] && !forceNotice) {
-		return undefined;
+	if (!noticeState.shown[DESKTOP_NOTICE_ID]) {
+		return getDesktopNotice();
 	}
-	return {
-		id: NOTICE_ID,
-		title: "Try ClinePass",
-	};
+	return undefined;
 }
 
 export function markClineCliMigrationNoticeShown(
 	dataDir = resolveClineDataDir(),
+	noticeId = CLINE_PASS_NOTICE_ID,
 ): void {
 	const noticePath = resolveCliNoticeStatePath(dataDir);
 	const noticeState = readNoticeState(noticePath);
 	const nextState: CliNoticeState = {
 		shown: {
 			...noticeState.shown,
-			[NOTICE_ID]: true,
+			[noticeId]: true,
 		},
 	};
 	mkdirSync(dirname(noticePath), { recursive: true, mode: 0o700 });

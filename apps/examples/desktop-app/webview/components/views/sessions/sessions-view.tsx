@@ -7,18 +7,21 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronsLeft,
+	Cloud,
 	Filter,
 	Folder,
 	GitFork,
+	Import,
 	Loader2,
 	MoreHorizontal,
 	Pencil,
+	Pin,
 	Search,
-	Star,
 	Trash2,
 	X,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -52,6 +55,8 @@ import {
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type SessionsViewProps = {
 	activeSessionId?: string | null;
@@ -131,7 +136,8 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
-		thread.pinned ? "favorite:yes" : undefined,
+		thread.origin === "cloud" ? "location:cloud" : undefined,
+		thread.pinned ? "pinned:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -155,6 +161,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
@@ -206,6 +213,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 				thread.codebase,
 				thread.provider,
 				thread.model,
+				thread.repoUrl,
 				session?.workspaceRoot,
 				session?.cwd,
 			]
@@ -237,6 +245,24 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	const canGoNext =
 		currentPage + 1 < pageCount ||
 		(history.mayHaveMoreSessions && !requiresCompleteHistory);
+
+	// Tokens and cost are not part of the discovery rows; the hook reads them
+	// from each transcript on demand, so tell it which rows are on screen.
+	// Paging (or a fresh batch of older sessions) changes the visible rows and
+	// the new page fills in the same way.
+	useEffect(() => {
+		history.requestUsage(visibleThreads.map((thread) => thread.id));
+	}, [history.requestUsage, visibleThreads]);
+	// Leaving the view releases its page, so running sessions on it stop being
+	// re-read while nobody is looking at them. Separate from the effect above
+	// on purpose: a per-change cleanup would clear and re-set the same ids and
+	// restart the hook's hydration each time a row filled in.
+	useEffect(
+		() => () => {
+			history.requestUsage([]);
+		},
+		[history.requestUsage],
+	);
 
 	// Snap back when a page disappears (filters changed, or "next" asked the
 	// backend for older sessions and there were none left).
@@ -333,6 +359,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							value={query}
 						/>
 					</div>
+					<Button
+						aria-label="Import sessions from other tools"
+						className="h-8 rounded-md px-2.5"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						title="Import sessions from Claude Code, Codex, or opencode"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-4" />
+						Import
+					</Button>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -426,13 +464,16 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						<span className="sr-only">Actions</span>
 					</div>
 					<div>
-						{history.isLoadingHistory && history.threads.length === 0 ? (
+						{/* Keep the loader up until the backend's first response: the
+						    empty-state copy must only describe an actual zero-session
+						    answer, not a fetch that is still in flight or retrying. */}
+						{!history.hasLoadedHistory && history.threads.length === 0 ? (
 							<div className="flex items-center gap-2 border-t px-4 py-8 text-sm text-muted-foreground">
 								<Loader2 className="size-4 animate-spin" />
 								Loading session history...
 							</div>
 						) : null}
-						{!history.isLoadingHistory && filteredThreads.length === 0 ? (
+						{history.hasLoadedHistory && filteredThreads.length === 0 ? (
 							<div className="border-t px-4 py-8 text-sm text-muted-foreground">
 								{history.threads.length === 0
 									? "No sessions yet."
@@ -448,7 +489,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								: null;
 							const workspace = session?.workspaceRoot || session?.cwd || "";
 							const updated = formatRelativeTime(
-								session?.endedAt || session?.startedAt,
+								session?.lastActivityAt ||
+									session?.endedAt ||
+									session?.startedAt,
 							);
 							return (
 								<div
@@ -568,17 +611,34 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													tone={sessionStatusTone(thread.status)}
 												/>
 												<span className="truncate">{thread.title}</span>
+												{thread.origin === "cloud" ? (
+													<Cloud
+														aria-label="Cloud session"
+														className="size-3.5 shrink-0 text-muted-foreground"
+													/>
+												) : null}
 												{thread.pinned ? (
-													<Star
-														aria-label="Favorited"
+													<Pin
+														aria-label="Pinned"
 														className="size-3.5 shrink-0 fill-current text-muted-foreground"
 													/>
 												) : null}
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-												<Folder className="size-3.5 shrink-0" />
-												<span className="truncate" title={workspace}>
-													{workspace ? basenamePath(workspace) : "No workspace"}
+												{thread.origin === "cloud" ? (
+													<Cloud className="size-3.5 shrink-0" />
+												) : (
+													<Folder className="size-3.5 shrink-0" />
+												)}
+												<span
+													className="truncate"
+													title={thread.repoUrl || workspace}
+												>
+													{thread.origin === "cloud"
+														? thread.repoUrl || "Cloud repository"
+														: workspace
+															? basenamePath(workspace)
+															: "No workspace"}
 												</span>
 											</span>
 											<span
@@ -615,32 +675,36 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" sideOffset={6}>
-												<DropdownMenuItem
-													onClick={() =>
-														void history.setThreadPinned(
-															thread.id,
-															!thread.pinned,
-														)
-													}
-												>
-													<Star
-														className={cn(
-															"size-4",
-															thread.pinned && "fill-current",
-														)}
-													/>
-													{thread.pinned ? "Unfavorite" : "Favorite"}
-												</DropdownMenuItem>
+												{thread.origin !== "cloud" ? (
+													<DropdownMenuItem
+														onClick={() =>
+															void history.setThreadPinned(
+																thread.id,
+																!thread.pinned,
+															)
+														}
+													>
+														<Pin
+															className={cn(
+																"size-4",
+																thread.pinned && "fill-current",
+															)}
+														/>
+														{thread.pinned ? "Unpin" : "Pin"}
+													</DropdownMenuItem>
+												) : null}
 												<DropdownMenuItem onClick={() => startRename(thread)}>
 													<Pencil className="size-4" />
 													Rename
 												</DropdownMenuItem>
-												<DropdownMenuItem
-													onClick={() => void history.forkThread(thread.id)}
-												>
-													<GitFork className="size-4" />
-													Fork
-												</DropdownMenuItem>
+												{thread.origin !== "cloud" ? (
+													<DropdownMenuItem
+														onClick={() => void history.forkThread(thread.id)}
+													>
+														<GitFork className="size-4" />
+														Fork
+													</DropdownMenuItem>
+												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
 													onClick={() => setDeleteCandidate(thread)}
@@ -748,8 +812,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "{deleteCandidate?.title ?? "this session"}" from
-							local history.
+							{deleteCandidate?.origin === "cloud"
+								? `This deletes "${deleteCandidate?.title ?? "this session"}" and its cloud workspace.`
+								: `This removes "${deleteCandidate?.title ?? "this session"}" from local history.`}
+							{deleteCandidate?.origin !== "cloud" &&
+							isTaskWorktreePath(deleteCandidate?.workspacePath ?? "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -780,6 +849,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<ImportSessionsDialog
+				onImported={() => void history.refreshSessions()}
+				onOpenChange={setImportDialogOpen}
+				open={importDialogOpen}
+			/>
 		</div>
 	);
 }

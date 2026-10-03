@@ -25,7 +25,7 @@ export class SdkSessionConfigBuilder {
 			config.onConsecutiveMistakeLimitReached = this.options.onConsecutiveMistakeLimitReached
 		}
 
-		config.hooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage)
+		config.hooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage, input.cwd)
 
 		return config
 	}

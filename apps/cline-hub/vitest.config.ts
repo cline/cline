@@ -9,6 +9,10 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
+				find: /^@\/(.+)$/,
+				replacement: resolve(rootDir, "src/webview/src/$1"),
+			},
+			{
 				find: /^@cline\/core$/,
 				replacement: resolve(rootDir, "../../sdk/packages/core/src/index.ts"),
 			},

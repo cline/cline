@@ -20,6 +20,24 @@ import {
 } from "./paths";
 import { DefaultRemoteConfigTelemetryAdapter } from "./telemetry";
 
+export async function clearMaterializedRemoteConfigRuntime(options: {
+	workspacePath: string;
+	pluginName?: string;
+	artifactStore?: RemoteConfigManagedArtifactStore;
+}): Promise<void> {
+	const paths = resolveRemoteConfigPaths(options);
+	const artifactStore =
+		options.artifactStore ?? new FileSystemRemoteConfigManagedArtifactStore();
+	await artifactStore.removeChildren(paths.workflowsPath);
+	await artifactStore.removeChildren(paths.skillsPath);
+	await artifactStore.remove(paths.rulesFilePath);
+	await artifactStore.remove(paths.manifestPath);
+	// The cached bundle can carry secrets (e.g. blob-store access keys) and is
+	// used as an offline fallback; an authoritative clear must remove it so the
+	// policy cannot be resurrected after opt-out or explicit no-config.
+	await artifactStore.remove(paths.bundleCachePath);
+}
+
 function deriveClaims(
 	bundle: RemoteConfigBundle | undefined,
 ): RemoteConfigSyncResult["claims"] {

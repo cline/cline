@@ -62,7 +62,9 @@ describe("provider model catalog backend smoke", () => {
 		})
 		expect(models.ok).toBe(true)
 		expect(models.requestId).toBe("smoke-request")
-		expect(Object.keys(models.models).length).toBeGreaterThanOrEqual(4)
+		// Don't pin an exact count: the generated catalog is refreshed regularly
+		// and DeepSeek's lineup changes (e.g. the v4 refresh shrank it to 3).
+		expect(Object.keys(models.models).length).toBeGreaterThan(0)
 
 		const modelId = models.defaultModelId || Object.keys(models.models)[0]
 		expect(modelId).toBeTruthy()

@@ -24,6 +24,7 @@ import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
 import {
 	createGateway,
+	DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
 	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
 	resolveGatewayRequestMaxTokens,
 } from "./gateway";
@@ -419,26 +420,62 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("uses the old default output cap when request max tokens are omitted", () => {
+	it("defaults to a fraction of the model's advertised output budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 			}),
+		).toBe(Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION));
+	});
+
+	it("never lowers the default below the flat cap for a model with a small output budget", () => {
+		// The catalog fraction (30% of 8,000 = 2,400) is smaller than the flat
+		// default, so the flat default applies here instead — the model's own
+		// output-budget cap (pushed separately below) is what then clamps the
+		// result down to what this model can actually emit (8,000), not the
+		// fraction shrinking the default further on top of that.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { maxOutputTokens: 8_000, contextWindow: 200_000 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(8_000);
+	});
+
+	it("falls back to the flat default when the model advertises no output budget", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				model: { contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
 		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+	});
+
+	it("honors an explicit caller default over the catalog fraction", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				defaultMaxOutputTokens: 16_000,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(16_000);
 	});
 
 	it("lifts the default output cap above an explicit reasoning budget", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
-				reasoningBudgetTokens: 50_000,
+				reasoningBudgetTokens: 70_000,
 				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
 				estimatedInputTokens: 1_000,
 				outputReserveTokens: 1_024,
 			}),
-		).toBe(51_024);
+		).toBe(71_024);
 
 		// Still clamped by the model's max output tokens.
 		expect(
@@ -523,10 +560,12 @@ describe("sdk-gateway", () => {
 		expect(estimatedTokens).toBeGreaterThan(4_000);
 	});
 
-	it("applies the old default output cap when the request omits max tokens", async () => {
+	it("defaults max tokens to a fraction of the model output budget", async () => {
 		const createProvider = vi.fn(() => ({
 			async *stream(request: { maxTokens?: number }) {
-				expect(request.maxTokens).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
+				expect(request.maxTokens).toBe(
+					Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION),
+				);
 				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
 			},
 		}));
@@ -562,6 +601,80 @@ describe("sdk-gateway", () => {
 				messages: baseMessages,
 			}),
 		);
+	});
+
+	it("passes AI SDK 7 telemetry and correlation context to streamText", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					distinctId: "user-1",
+					sessionId: "session-1",
+					clientName: "cline-desktop",
+					clientVersion: "1.2.3",
+					clineCoreVersion: "4.5.6",
+					tags: ["nightly", "cline"],
+					conversationId: "conversation-1",
+					runId: "run-1",
+					iteration: 2,
+				},
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| {
+					experimental_telemetry?: unknown;
+					telemetry?: unknown;
+					runtimeContext?: unknown;
+			  }
+			| undefined;
+		expect(call).not.toHaveProperty("experimental_telemetry");
+		expect(call?.telemetry).toEqual({
+			isEnabled: expect.any(Boolean),
+			functionId: "cline-agent-turn",
+			includeRuntimeContext: {
+				distinctId: true,
+				userId: true,
+				sessionId: true,
+				clientName: true,
+				clientVersion: true,
+				clineCoreVersion: true,
+				tags: true,
+				conversationId: true,
+				runId: true,
+				iteration: true,
+				providerId: true,
+				modelId: true,
+				resolvedModelId: true,
+			},
+		});
+		expect(call?.runtimeContext).toEqual({
+			distinctId: "user-1",
+			userId: "user-1",
+			sessionId: "session-1",
+			clientName: "cline-desktop",
+			clientVersion: "1.2.3",
+			clineCoreVersion: "4.5.6",
+			tags: ["nightly", "cline"],
+			conversationId: "conversation-1",
+			runId: "run-1",
+			iteration: 2,
+			providerId: "openrouter",
+			modelId: "anthropic/claude-test",
+			resolvedModelId: "anthropic/claude-test",
+		});
 	});
 
 	it("translates portable web_search intent into a native provider tool", async () => {
@@ -633,6 +746,144 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it("surfaces provider-executed tool activity as observational events", async () => {
+		// Providers like the Claude Code CLI execute their own tools inside the
+		// inference request and mark every part providerExecuted. That activity
+		// must surface as execution-tagged events (visible in the transcript)
+		// without ever entering AgentRuntime's local execution/approval loop.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					input: { file_path: "/tmp/a.txt" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					input: { file_path: "/tmp/a.txt" },
+					output: { content: "hello" },
+					providerExecuted: true,
+				},
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "cli_read_1",
+				toolName: "Read",
+				execution: "provider",
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_read_1",
+				toolName: "Read",
+				execution: "provider",
+				output: { content: "hello" },
+			}),
+		);
+		// Never the runtime-execution path: no execution-less tool events, and
+		// the turn finishes as a normal completion, not a tool-call handoff.
+		expect(
+			events.filter(
+				(event) =>
+					event.type === "tool-call-delta" && event.execution === undefined,
+			),
+		).toHaveLength(0);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
+	it("matches flag-less results and errors to observational provider tool calls by ID", async () => {
+		// Some provider packages set providerExecuted only on the call half of
+		// the pair. Results and errors are matched by tool-call ID so the
+		// activity still completes observationally instead of being dropped or
+		// misread as a runtime tool call.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "cli_bash_1",
+					toolName: "Bash",
+					input: { command: "ls" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_bash_1",
+					toolName: "Bash",
+					output: { stdout: "a.txt" },
+				},
+				{
+					type: "tool-call",
+					toolCallId: "cli_bash_2",
+					toolName: "Bash",
+					input: { command: "boom" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-error",
+					toolCallId: "cli_bash_2",
+					toolName: "Bash",
+					error: new Error("command failed"),
+				},
+				// Deliberately no trailing text: a tool-only stream must still
+				// surface the activity and finish cleanly.
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_bash_1",
+				toolName: "Bash",
+				execution: "provider",
+				output: { stdout: "a.txt" },
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_bash_2",
+				toolName: "Bash",
+				execution: "provider",
+				isError: true,
+				output: { error: "command failed" },
+			}),
+		);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 
 	it("rejects model tools not declared by the provider manifest", async () => {
@@ -1288,6 +1539,7 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 				errorClass: "unknown",
+				errorRetryable: false,
 			},
 		]);
 	});
@@ -2121,6 +2373,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "OpenAI image generation tool returned no supported image output",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -2336,6 +2589,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Invalid API key",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -2551,6 +2805,7 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: "Invalid API key",
 				errorClass: "unknown",
+				errorRetryable: false,
 			},
 		]);
 	});
@@ -2591,6 +2846,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "prompt is too long: 213462 tokens > 200000 maximum",
 			errorClass: "context_window_exceeded",
+			errorRetryable: false,
 		});
 	});
 
@@ -2627,6 +2883,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Instructions are required",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -3033,14 +3290,26 @@ describe("sdk-gateway", () => {
 			mockSuccessfulStream();
 
 			const gateway = createGateway({
-				providerConfigs: [{ providerId: "deepseek", apiKey: "deepseek-key" }],
+				providerConfigs: [
+					{
+						providerId: "deepseek",
+						apiKey: "deepseek-key",
+						models: [
+							{
+								id: "deepseek-text-only",
+								name: "DeepSeek Text Only",
+								// Advertises no "images" capability.
+								capabilities: ["text"],
+							},
+						],
+					},
+				],
 			});
 
 			await collect(
 				await gateway.stream({
 					providerId: "deepseek",
-					// Catalog entry advertises no "images" capability.
-					modelId: "deepseek-chat",
+					modelId: "deepseek-text-only",
 					messages: imageHistory,
 				}),
 			);
@@ -3216,7 +3485,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 
-	it("preserves usage cost from market cost fields", async () => {
+	it("uses discounted billed cost instead of Vercel market cost", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{
@@ -3224,12 +3493,12 @@ describe("sdk-gateway", () => {
 					usage: {
 						prompt_tokens: 3793,
 						completion_tokens: 1250,
-						cost: 0,
+						cost: 0.009145675,
 						market_cost: 0.01829135,
 					},
 					providerMetadata: {
 						gateway: {
-							cost: "0.01829135",
+							cost: "0.009145675",
 							marketCost: "0.01829135",
 						},
 					},
@@ -3270,7 +3539,60 @@ describe("sdk-gateway", () => {
 				outputTokens: 1250,
 				cacheReadTokens: 0,
 				cacheWriteTokens: 0,
-				totalCost: 0.01829135,
+				totalCost: 0.009145675,
+			},
+		});
+	});
+
+	it.each([
+		"cline-pass",
+		"cline",
+	])("emits zero cost for included models on %s", async (providerId) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 1000,
+						completion_tokens: 200,
+						cost: 0.5,
+						market_cost: 1,
+					},
+				},
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: "test-key",
+					models: [
+						{
+							id: "included-model",
+							name: "Included Model",
+							metadata: {
+								pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+							},
+						},
+					],
+				},
+			],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "included-model",
+				messages: baseMessages,
+			}),
+		);
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: {
+				inputTokens: 1000,
+				outputTokens: 200,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0,
 			},
 		});
 	});
@@ -5851,11 +6173,8 @@ describe("sdk-gateway", () => {
 				reasoning: "medium",
 			}),
 		);
-		// The openrouter catalog advertises an explicitly empty
-		// reasoning_options list for z-ai/glm-4.7 ("no user-facing control"),
-		// so no reasoning provider options are forwarded either way.
-		for (const callIndex of [0, 1]) {
-			const call = streamTextSpy.mock.calls[callIndex]?.[0] as {
+		{
+			const call = streamTextSpy.mock.calls[0]?.[0] as {
 				providerOptions?: Record<string, Record<string, unknown> | undefined>;
 			};
 			expect(call.providerOptions?.openrouter).not.toEqual(
@@ -5865,6 +6184,22 @@ describe("sdk-gateway", () => {
 				expect.objectContaining({ reasoning: expect.anything() }),
 			);
 		}
+		// The OpenRouter catalog advertises a reasoning toggle for z-ai/glm-4.7,
+		// so explicit disablement is preserved and encoded in OpenRouter's wire
+		// shape. The compatible bucket retains the routed GLM exclusion shape.
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { effort: "none" },
+					}),
+					openaiCompatible: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
 		expect(streamTextSpy).toHaveBeenNthCalledWith(
 			3,
 			expect.objectContaining({

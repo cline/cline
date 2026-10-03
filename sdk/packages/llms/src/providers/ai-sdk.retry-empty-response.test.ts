@@ -12,6 +12,7 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import {
 	createAnthropicProvider,
+	createClineProvider,
 	createOllamaProvider,
 	createOpenAICompatibleProvider,
 	withEmptyResponseRetry,
@@ -50,7 +51,10 @@ function queuedFetch(bodies: string[]) {
 		async () =>
 			new Response(bodies[Math.min(call++, bodies.length - 1)], {
 				status: 200,
-				headers: { "content-type": "text/event-stream" },
+				headers: {
+					"content-type": "text/event-stream",
+					"X-Request-ID": `request-${call}`,
+				},
 			}),
 	);
 }
@@ -169,6 +173,37 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		const finishes = finishEvents(events);
 		expect(finishes).toHaveLength(1);
 		expect(finishes[0]).not.toMatchObject({ reason: "error" });
+		// The returned HTTP ID, not the SSE generation ID (cmpl-1) or hidden retry's ID.
+		expect(finishes[0]).toMatchObject({ requestId: "request-2" });
+	});
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("exposes only returned HTTP IDs for %s", async (providerId) => {
+		for (const requestId of ["backend-request", undefined]) {
+			const config = {
+				providerId,
+				apiKey: "test-key",
+				baseUrl: "http://fake.local/v1",
+				fetch: (async () =>
+					new Response(textSse, {
+						headers: {
+							"content-type": "text/event-stream",
+							...(requestId ? { "X-Request-ID": requestId } : {}),
+						},
+					})) as typeof fetch,
+			};
+			const provider = await createClineProvider(config);
+			const events = await collect(
+				await provider.stream(
+					{ ...streamRequest(), providerId },
+					providerContext(providerId, config),
+				),
+			);
+			expect(hasTextDelta(events, "hello")).toBe(true);
+			expect(finishEvents(events)[0]?.requestId).toBe(requestId);
+		}
 	});
 
 	it("does not retry a non-empty turn", async () => {
@@ -176,6 +211,25 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(hasTextDelta(events, "hello")).toBe(true);
+	});
+
+	it("surfaces a filtered empty turn as content-filter without retrying", async () => {
+		const filteredSse =
+			chunk({ role: "assistant", content: "" }) +
+			chunk({}, "content_filter") +
+			"data: [DONE]\n\n";
+		const { fetchMock, events } = await run([filteredSse]);
+
+		// Retrying a filtered turn just re-bills the same refusal, so the
+		// middleware must let it through on the first attempt...
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(events.some((event) => event.type === "text-delta")).toBe(false);
+		// ...and the reason must survive as its own finish reason. Collapsed
+		// into "stop" (the old behaviour) this became "Model returned empty
+		// response", telling the user to retry something that cannot succeed.
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({ reason: "content-filter" }),
+		]);
 	});
 
 	it("does not retry a tool-call-only turn", async () => {

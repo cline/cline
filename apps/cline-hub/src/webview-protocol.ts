@@ -15,7 +15,12 @@ export type WebviewUsage = {
 
 export type WebviewProviderModel = Pick<
 	ProviderModel,
-	"id" | "name" | "supportsReasoning"
+	| "id"
+	| "name"
+	| "operation"
+	| "supportsReasoning"
+	| "inputModalities"
+	| "outputModalities"
 > & {
 	supportsThinking?: boolean;
 };
@@ -122,6 +127,8 @@ export type WebviewConnectedClient = {
 	clientId: string;
 	displayName?: string;
 	clientType: string;
+	version?: string;
+	pid?: number;
 	connectedAt: number;
 };
 

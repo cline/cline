@@ -102,8 +102,14 @@ export class HookDiscoveryCache {
 
 	/**
 	 * Get cached hook scripts or scan if not cached
+	 *
+	 * @param hooksDirs Optional snapshot of the hooks directories to scan on a
+	 * cache miss. Callers that already resolved the window's workspace roots
+	 * pass this so discovery uses the same snapshot as cwd selection and hook
+	 * input metadata (and the miss costs no extra host lookup). Ignored on a
+	 * cache hit.
 	 */
-	async get(hookName: HookName): Promise<string[]> {
+	async get(hookName: HookName, hooksDirs?: string[]): Promise<string[]> {
 		this.log(`Getting hooks for ${hookName}`)
 
 		const cached = this.cache.get(hookName)
@@ -127,7 +133,7 @@ export class HookDiscoveryCache {
 			} else {
 				// This caller initiates the scan
 				initiatedScan = true
-				scripts = await this.scan(hookName)
+				scripts = await this.scan(hookName, hooksDirs)
 			}
 		}
 
@@ -147,7 +153,7 @@ export class HookDiscoveryCache {
 	/**
 	 * Scan for hook scripts and cache the result
 	 */
-	private async scan(hookName: HookName): Promise<string[]> {
+	private async scan(hookName: HookName, knownHooksDirs?: string[]): Promise<string[]> {
 		// Check if a scan is already in progress for this hook
 		const existingPromise = this.scanningPromises.get(hookName)
 		if (existingPromise) {
@@ -158,8 +164,9 @@ export class HookDiscoveryCache {
 		// Create a new scan promise
 		const scanPromise = (async () => {
 			try {
-				// Get all current hooks directories
-				const hooksDirs = await getAllHooksDirs()
+				// Use the caller's hooks-dir snapshot when provided, otherwise
+				// resolve the current hooks directories
+				const hooksDirs = knownHooksDirs ?? (await getAllHooksDirs())
 				this.log(`Scanning ${hooksDirs.length} directories for ${hookName}`)
 
 				// Ensure watchers are set up for each directory (lazy initialization)

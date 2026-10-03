@@ -354,6 +354,25 @@ async function checkpointCapturedUntracked(
 	}
 }
 
+/** Commits reachable from `to` but not from `from`; undefined when unknown. */
+async function countCommitsBetween(
+	cwd: string,
+	from: string,
+	to: string,
+): Promise<number | undefined> {
+	try {
+		const result = await execFile(
+			"git",
+			["-C", cwd, "rev-list", "--count", `${from}..${to}`],
+			{ windowsHide: true },
+		);
+		const count = Number(result.stdout.trim());
+		return Number.isFinite(count) ? count : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -374,11 +393,38 @@ export async function applyCheckpointToWorktree(
 	const checkpointKind = await resolveCheckpointKind(cwd, checkpoint);
 	const restoreBase =
 		checkpointKind === "commit" ? checkpoint.ref : `${checkpoint.ref}^1`;
-	await execFile(
-		"git",
-		["-C", cwd, "cat-file", "-e", `${restoreBase}^{commit}`],
-		{ windowsHide: true },
-	);
+	const restoreBaseSha = (
+		await execFile(
+			"git",
+			["-C", cwd, "rev-parse", "--verify", `${restoreBase}^{commit}`],
+			{ windowsHide: true },
+		)
+	).stdout.trim();
+	// `git reset --hard` moves the current branch pointer. If HEAD is no
+	// longer the commit this checkpoint was created on (commits were made
+	// after it, or the branch was rebased/switched), resetting would silently
+	// knock those commits off the branch, leaving them reachable only through
+	// the reflog. Refuse instead of destroying history; the caller can still
+	// restore the chat only, or move the branch back deliberately.
+	const currentHead = (
+		await execFile("git", ["-C", cwd, "rev-parse", "--verify", "HEAD"], {
+			windowsHide: true,
+		})
+	).stdout.trim();
+	if (currentHead !== restoreBaseSha) {
+		const commitsAfter = await countCommitsBetween(
+			cwd,
+			restoreBaseSha,
+			currentHead,
+		);
+		const reason =
+			commitsAfter && commitsAfter > 0
+				? `${commitsAfter} commit${commitsAfter === 1 ? " was" : "s were"} added to the current branch after this checkpoint and would be removed by the restore`
+				: "the current branch is no longer on the commit this checkpoint was created from (e.g. after a rebase or branch switch)";
+		throw new Error(
+			`Cannot restore the workspace: ${reason}. Restore the chat only, or move the branch back to ${restoreBaseSha.slice(0, 12)} manually (e.g. with git reset) before restoring the workspace.`,
+		);
+	}
 	if (checkpointKind === "stash") {
 		await execFile(
 			"git",
@@ -390,7 +436,26 @@ export async function applyCheckpointToWorktree(
 		cwd,
 		checkpoint.ref,
 	);
-	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
+	// `git update-ref <ref> <new> <old>` is git's native compare-and-swap: it
+	// moves HEAD to the restore base only if HEAD still points at the commit
+	// verified above, closing the race between the guard check and the reset.
+	// The bare `reset --hard` then syncs the index and worktree to the
+	// already-moved HEAD without touching the branch pointer again.
+	await execFile(
+		"git",
+		[
+			"-C",
+			cwd,
+			"update-ref",
+			"-m",
+			"cline: checkpoint restore",
+			"HEAD",
+			restoreBaseSha,
+			currentHead,
+		],
+		{ windowsHide: true },
+	);
+	await execFile("git", ["-C", cwd, "reset", "--hard"], {
 		windowsHide: true,
 	});
 	// Only clear untracked files for snapshots that captured them (third

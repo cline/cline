@@ -24,6 +24,11 @@ export interface AgentExtensionRule {
 	id: string;
 	content: string | (() => string | Promise<string>);
 	source?: string;
+	/**
+	 * Include this rule only while the named tool is available after host,
+	 * global-settings, and per-session policy filtering.
+	 */
+	whenToolAvailable?: string;
 }
 
 export interface AgentExtensionMessageBuilder<TMessage = unknown> {

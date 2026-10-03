@@ -17,6 +17,15 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
+/**
+ * Sent when the user resumes a task without typing anything: a turn cannot
+ * start without a prompt, so the Resume button needs a synthetic one. Never
+ * include the original task text here — the model treats it as new
+ * instructions and redoes already-completed work (#12975). Hidden from the
+ * transcript by isSyntheticUserPrompt via the [TASK RESUMPTION] prefix.
+ */
+const TASK_RESUMPTION_PROMPT = "[TASK RESUMPTION] Please continue where you left off."
+
 export interface SdkFollowupCoordinatorOptions {
 	stateManager: StateManager
 	interactions: SdkInteractionCoordinator
@@ -34,8 +43,6 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
-	/** Resolves once no session rebuild is in flight. */
-	waitForPendingRebuilds: () => Promise<void>
 	/** Serializes transcript preparation and session start with rebuilds and displayed-task compaction. */
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 	/**
@@ -74,17 +81,14 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.sendToActiveSession(activeSession, true, prompt, images, files)
+			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)
 			return
 		}
 
-		// Rebuilds replace idle sessions. Wait before acquiring the shared
-		// prepare/start boundary so this follow-up cannot target a replaced host.
-		await this.options.waitForPendingRebuilds()
-
 		await this.options.runExclusive(async () => {
-			// Task navigation does not use the rebuild scheduler. Do not deliver a
-			// prompt submitted from one task into a task selected while we waited.
+			// Task navigation and follow-up selection share this rebuild boundary.
+			// Still recheck logical identity because navigation may have completed
+			// before this operation acquired the boundary.
 			// Compare by taskId: reloading the same task allocates a new TaskProxy,
 			// and the user's follow-up should survive that.
 			if (task && this.options.getTask()?.taskId !== task.taskId) {
@@ -96,7 +100,17 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.sendToActiveSession(currentSession, true, prompt, images, files)
+				await this.queueToActiveSession(currentSession, task?.taskId, prompt, images, files)
+				return
+			}
+
+			// Stopping a turn keeps the session alive, so a matching idle
+			// session is continued in place — mirroring the CLI, which reuses
+			// the live session after an abort. Rebuilding from task history is
+			// reserved for tasks without a live session (opened from history,
+			// extension host reload).
+			if (currentSession && (!task || currentSession.sessionId === task.taskId)) {
+				await this.continueIdleSession(currentSession, prompt, images, files)
 				return
 			}
 
@@ -106,43 +120,79 @@ export class SdkFollowupCoordinator {
 				return
 			}
 
-			if (!currentSession) {
-				Logger.error("[SdkController] askResponse: No active session")
-				await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
-				return
-			}
-
-			await this.sendToActiveSession(currentSession, false, prompt, images, files)
+			Logger.error("[SdkController] askResponse: No active session")
+			await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
 		})
 	}
 
-	private async sendToActiveSession(
+	/** Queue a follow-up onto a session whose turn is still running. */
+	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
-		shouldQueue: boolean,
+		displayedTaskId: string | undefined,
+		prompt?: string,
+		images?: string[],
+		files?: string[],
+	): Promise<void> {
+		const { sessionId } = activeSession
+		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
+
+		// The submitted turn phase is authoritative when the lifecycle flag is
+		// briefly stale. Keep passive rebuilds behind the active turn while mention
+		// resolution runs. Core owns the queue: it shows the prompt in the webview
+		// at once, and a later session rebuild carries the queue over.
+		this.options.sessions.setRunning(true)
+		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+		if (displayedTaskId && this.options.getTask()?.taskId !== displayedTaskId) {
+			await this.abandonFollowUp(`Task changed while resolving a follow-up for ${displayedTaskId}; cancelling follow-up`)
+			return
+		}
+
+		const currentSession = this.options.sessions.getActiveSession()
+		if (!currentSession || (displayedTaskId && currentSession.sessionId !== displayedTaskId)) {
+			await this.abandonFollowUp("askResponse: Session ended before the follow-up could be queued")
+			return
+		}
+		this.options.sessions.fireAndForgetSend(
+			currentSession.sdkHost,
+			currentSession.sessionId,
+			resolvedPrompt,
+			images,
+			files,
+			"queue",
+		)
+	}
+
+	/**
+	 * Continue a live idle session in place instead of tearing it down and
+	 * rebuilding it from task history. A bare resume (no user content) sends
+	 * the synthetic resumption prompt without echoing a user bubble;
+	 * user-provided content is echoed and sent as-is. If the session's abort
+	 * is still settling, the runtime auto-queues the send and drains it once
+	 * the abort completes.
+	 */
+	private async continueIdleSession(
+		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
 	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
-		if (shouldQueue) {
-			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
-		}
+		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
 
 		this.options.sessions.setRunning(true)
-		if (!shouldQueue) {
+		// Bump the epoch before echoing the bubble, as resumeSessionFromTask does.
+		// Echoed first, the bubble would carry the old epoch while a state snapshot
+		// built moments later carries the new one; that snapshot replaces the
+		// webview transcript wholesale, and the bubble's stale-epoch copies are
+		// then dropped for good.
+		this.options.resetMessageTranslator()
+		if (prompt?.trim() || images?.length || files?.length) {
 			this.emitUserFeedback(sessionId, prompt, images, files)
-			this.options.resetMessageTranslator()
 		}
 
-		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(
-			sdkHost,
-			sessionId,
-			resolvedPrompt,
-			images,
-			files,
-			shouldQueue ? "queue" : undefined,
-		)
+		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
+		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
 	}
 
 	private async tryResumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {
@@ -224,11 +274,7 @@ export class SdkFollowupCoordinator {
 				}
 			}
 
-			const effectivePrompt =
-				prompt?.trim() ||
-				(historyItem
-					? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
-					: "[TASK RESUMPTION] Please continue where you left off.")
+			const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 			if (this.options.getTask()?.taskId !== taskId) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)

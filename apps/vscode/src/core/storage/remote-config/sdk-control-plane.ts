@@ -1,7 +1,6 @@
-import type { RemoteConfigBundle } from "@cline/shared"
+import type { RemoteConfigBundle, RemoteConfigManagedInstructionFile } from "@cline/shared"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
-import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
@@ -10,11 +9,19 @@ import { APIKeySchema, type APIKeySettings, type RemoteConfig, RemoteConfigSchem
 import { Logger } from "@/shared/services/Logger"
 import type { ConfiguredAPIKeys } from "@/shared/storage/state-keys"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
+import { parseRemoteConfigDiscovery, parseRemoteConfigValue } from "./contracts"
 import { isRemoteConfigEnabled } from "./utils"
 
 export interface SdkRemoteConfigControlPlaneController {
-	accountService: { switchAccount(organizationId: string): Promise<unknown> }
-	stateManager: { setSecret(key: "remoteLiteLlmApiKey", value: string | undefined): unknown }
+	accountService: {
+		switchAccount(organizationId: string): Promise<unknown>
+		fetchUserRemoteConfig(): Promise<import("@/shared/ClineAccount").UserRemoteConfigDiscoveryResponse | null | undefined>
+	}
+	stateManager: {
+		setSecret(key: "remoteLiteLlmApiKey", value: string | undefined): unknown
+		getGlobalStateKey(key: "remoteRulesToggles" | "remoteWorkflowToggles" | "remoteSkillsToggles"): Record<string, boolean>
+		getGlobalStateKey(key: "lastManagedOrganizationId"): string | undefined
+	}
 }
 
 interface RemoteConfigControlPlaneFetchInput {
@@ -26,17 +33,7 @@ interface RemoteConfigControlPlaneFetchInput {
 	now?: number
 }
 
-interface RemoteConfigManagedInstructionFile {
-	id: string
-	name: string
-	kind: "skill"
-	contents: string
-	alwaysEnabled?: boolean
-}
-
-export interface SdkRemoteConfigBundle extends RemoteConfigBundle {
-	remoteConfig?: RemoteConfigBundle["remoteConfig"] & RemoteConfig
-}
+export type SdkRemoteConfigBundle = RemoteConfigBundle
 
 function parseApiKeys(value: string): APIKeySettings {
 	try {
@@ -96,7 +93,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 			await deleteRemoteConfigFromCache(organizationId)
 			return undefined
 		}
-		return RemoteConfigSchema.parse(JSON.parse(configData.value))
+		return parseRemoteConfigValue(configData.value)
 	} catch (error) {
 		Logger.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
@@ -107,7 +104,10 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 				Logger.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
 			}
 		}
-		return undefined
+		// A transient failure with no usable cache must NOT be reported as "no
+		// config" — the caller would clear the org's policy and report success.
+		// Rethrow so the refresh preserves the last known-good state instead.
+		throw error
 	}
 }
 
@@ -123,7 +123,7 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<APIK
 
 function parseDiscoveredConfig(value: string, organizationId: string): RemoteConfig | undefined {
 	try {
-		return RemoteConfigSchema.parse(JSON.parse(value))
+		return parseRemoteConfigValue(value)
 	} catch (error) {
 		Logger.warn(`Failed to parse discovered config for org ${organizationId}, will re-fetch`, error)
 		return undefined
@@ -140,10 +140,15 @@ function skillsToManagedInstructions(remoteConfig: RemoteConfig): RemoteConfigMa
 	}))
 }
 
+function isInstructionEnabled(entry: { name: string; alwaysEnabled?: boolean }, toggles: Record<string, boolean>): boolean {
+	return Boolean(entry.alwaysEnabled) || toggles[entry.name] !== false
+}
+
 export class SdkRemoteConfigControlPlane {
 	readonly name = "cline-extension-remote-config"
 	private lastConfiguredKeys: ConfiguredAPIKeys = {}
 	private lastRemoteConfig: RemoteConfig | undefined
+	private remoteConfigAvailable = false
 	private explicitNoConfig = false
 
 	constructor(private readonly controller: SdkRemoteConfigControlPlaneController) {}
@@ -160,10 +165,15 @@ export class SdkRemoteConfigControlPlane {
 		return this.explicitNoConfig
 	}
 
+	isRemoteConfigAvailable(): boolean {
+		return this.remoteConfigAvailable
+	}
+
 	async fetchBundle(_input: RemoteConfigControlPlaneFetchInput): Promise<SdkRemoteConfigBundle | undefined> {
 		this.explicitNoConfig = false
 		this.lastConfiguredKeys = {}
 		this.lastRemoteConfig = undefined
+		this.remoteConfigAvailable = false
 
 		const discovered = await this.discoverRemoteConfigOrg()
 		if (!discovered) {
@@ -173,7 +183,8 @@ export class SdkRemoteConfigControlPlane {
 
 		const { organizationId, discoveredValue } = discovered
 		const remoteConfig = await this.resolveRemoteConfig(organizationId, discoveredValue)
-		if (!remoteConfig) {
+		this.remoteConfigAvailable = Boolean(remoteConfig)
+		if (!remoteConfig || !isRemoteConfigEnabled(organizationId)) {
 			this.explicitNoConfig = true
 			return undefined
 		}
@@ -187,20 +198,68 @@ export class SdkRemoteConfigControlPlane {
 		await writeRemoteConfigToCache(organizationId, remoteConfig)
 		this.lastRemoteConfig = remoteConfig
 
+		const ruleToggles = this.controller.stateManager.getGlobalStateKey("remoteRulesToggles") || {}
+		const workflowToggles = this.controller.stateManager.getGlobalStateKey("remoteWorkflowToggles") || {}
+		const skillToggles = this.controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+		// Explicit host-to-SDK boundary: skills are not part of the SDK RemoteConfig
+		// schema and are adapted into managedInstructions below. The assignment keeps
+		// the remaining runtime config structurally checked without an unsafe cast.
+		const { globalSkills: _globalSkills, ...sdkRemoteConfig } = remoteConfig
+		const effectiveRemoteConfig: NonNullable<RemoteConfigBundle["remoteConfig"]> = {
+			...sdkRemoteConfig,
+			globalRules: remoteConfig.globalRules?.filter((entry) => isInstructionEnabled(entry, ruleToggles)),
+			globalWorkflows: remoteConfig.globalWorkflows?.filter((entry) => isInstructionEnabled(entry, workflowToggles)),
+		}
+
 		return {
 			source: this.name,
 			version: remoteConfig.version,
-			remoteConfig: remoteConfig as SdkRemoteConfigBundle["remoteConfig"],
-			managedInstructions: skillsToManagedInstructions(remoteConfig),
+			remoteConfig: effectiveRemoteConfig,
+			managedInstructions: skillsToManagedInstructions(remoteConfig).filter((entry) =>
+				isInstructionEnabled(entry, skillToggles),
+			),
 			metadata: { organizationId },
 		}
 	}
 
 	private async discoverRemoteConfigOrg(): Promise<{ organizationId: string; discoveredValue?: string } | undefined> {
-		const accountService = ClineAccountService.getInstance()
-		const discovery = await accountService.fetchUserRemoteConfig()
-		if (!discovery) {
+		const activeOrganizationId = AuthService.getInstance().getActiveOrganizationId()
+
+		// Opt-out is a local, admin-gated preference. Evaluate it before any
+		// network call so opting out clears remote config even while offline.
+		if (activeOrganizationId && !isRemoteConfigEnabled(activeOrganizationId)) {
+			// The org still distributes config; keep availability so the account
+			// UI keeps offering the opt-in toggle to the opted-out admin.
+			this.remoteConfigAvailable = true
 			return undefined
+		}
+
+		const response = await this.controller.accountService.fetchUserRemoteConfig()
+		if (response === undefined) {
+			// No auth token was available. An active organization means the user
+			// is signed in, so this is auth/network trouble (e.g. token refresh
+			// failed offline), not an org without config. The persisted marker
+			// covers the offline cold start where identity restore fails and BOTH
+			// token and org come back null: this install last ran under org
+			// policy, so reporting no-config here would wipe the policy — and the
+			// marker itself — permanently disarming the fail-closed session gate.
+			// A real sign-out clears the marker directly, so it never gets stuck.
+			if (activeOrganizationId || this.controller.stateManager.getGlobalStateKey("lastManagedOrganizationId")) {
+				throw new Error("Remote config discovery returned no response for a managed install")
+			}
+			return undefined
+		}
+		if (response === null) {
+			// The server answered and distributes no remote config for this user.
+			return undefined
+		}
+
+		const discovery = parseRemoteConfigDiscovery(response)
+		if (activeOrganizationId) {
+			return {
+				organizationId: activeOrganizationId,
+				discoveredValue: activeOrganizationId === discovery.organizationId ? discovery.value : undefined,
+			}
 		}
 
 		if (isRemoteConfigEnabled(discovery.organizationId)) {

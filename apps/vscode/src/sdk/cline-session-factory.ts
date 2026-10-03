@@ -9,6 +9,7 @@
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
 import {
+	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
 	type CoreSessionConfig,
 	getProviderAuthHandler,
@@ -25,7 +26,7 @@ import {
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
-import { buildClineSystemPrompt } from "@cline/shared"
+import { buildClineSystemPrompt, isClineProvider } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -91,6 +92,12 @@ export interface ActiveSession {
 	startResult?: StartSessionResult
 	/** Whether the session is currently running */
 	isRunning: boolean
+	/**
+	 * Prompts Core holds in this session's queue. Core drains the queue itself
+	 * as soon as a turn ends, so a session with queued prompts is about to run
+	 * again and is not idle for passive rebuilds.
+	 */
+	queuedPromptCount: number
 }
 
 function createSdkLogger() {
@@ -129,6 +136,34 @@ async function resolveIsMultiRootWorkspace(): Promise<boolean> {
 		return paths.length > 1
 	} catch {
 		return false
+	}
+}
+
+/**
+ * Client identity the SDK reports for this host: the session's
+ * `extensionContext.client`, and the source of the Cline surface headers
+ * (`X-CLIENT-TYPE`, `X-PLATFORM`, …). Standalone requests (commit message
+ * generation) call this too, so a one-shot request and a task from the same
+ * host report the same client by construction — there is no second mapping
+ * to keep in step. Falls back to the extension's own identity when the host
+ * bridge can't answer.
+ */
+export interface HostClientContext {
+	name: string
+	version: string
+	platform?: string
+	platformVersion?: string
+	isMultiRoot: boolean
+}
+
+export async function resolveClineRequestClientContext(): Promise<HostClientContext> {
+	const [hostIdentity, isMultiRoot] = await Promise.all([resolveHostIdentity(), resolveIsMultiRootWorkspace()])
+	return {
+		name: hostIdentity?.clineType || ClineClient.VSCode,
+		version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
+		platform: hostIdentity?.platform || undefined,
+		platformVersion: hostIdentity?.version || undefined,
+		isMultiRoot,
 	}
 }
 
@@ -258,20 +293,29 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	setCapability("prompt-cache", modelInfo.supportsPromptCache)
 	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
 	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
-	if (preservedCapabilities === undefined) {
+	if (preservedCapabilities === undefined || preservedCapabilities.length === 0) {
 		// No authoritative SDK list survived to here (dynamic-list snapshot,
 		// fallback metadata, or a custom model). The array we are rebuilding
 		// from booleans must still carry a definitive tool-calling signal,
 		// because a non-empty capabilities array without "tools" reads as
 		// "cannot call tools" to the SDK runtime. Legacy metadata only models
 		// tool support for OpenAI-compatible entries via `supportsTools`.
+		//
+		// An EMPTY array is the same "no signal" state as an absent one —
+		// modelHasCapability treats both as unspecified — and configs carried
+		// over from before the field existed (or round-tripped through a
+		// boundary that defaults it to []) land exactly here. Guarding only
+		// `undefined` let those custom models keep a non-empty, tool-less
+		// array once any boolean projection (e.g. reasoning) populated it,
+		// silently disabling tool calling at the runtime gate (#13463).
 		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
 		setCapability("tools", supportsTools !== false)
 	}
 
 	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
 	const contextWindow = positiveFiniteNumber(modelInfo.contextWindow)
-	const maxInputTokens = positiveFiniteNumber(selection.overrides?.maxInputTokens)
+	const maxInputTokens =
+		positiveFiniteNumber(selection.overrides?.maxInputTokens) ?? positiveFiniteNumber(modelInfo.maxInputTokens)
 	const temperature = nonNegativeFiniteNumber(modelInfo.temperature)
 	const inputPrice = nonNegativeFiniteNumber(modelInfo.inputPrice)
 	const outputPrice = nonNegativeFiniteNumber(modelInfo.outputPrice)
@@ -603,6 +647,55 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+/**
+ * Resolve Azure OpenAI settings (API version / Entra ID auth) for the OpenAI
+ * Compatible provider. The webview saves them only to legacy state
+ * (`azureApiVersion` / `azureIdentity`); the providers.json `azure` block is
+ * the fallback for entries written by the CLI onboarding or the one-shot
+ * legacy migration. Without this mapping the SDK gateway never appends
+ * `?api-version=` to Azure deployment URLs and Azure rejects every request
+ * with "Resource not found" (#13655).
+ *
+ * Values resolved from legacy state are also mirrored into providers.json so
+ * the CLI — which reads only providers.json — sees the same Azure
+ * configuration the extension uses. The legacy migration never updates
+ * existing entries, so this mirror is the only ongoing sync for these fields.
+ */
+export function resolveAzureProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "azure"> | undefined {
+	const apiVersion = config.azureApiVersion?.trim() || undefined
+	const useIdentity = typeof config.azureIdentity === "boolean" ? config.azureIdentity : undefined
+
+	let stored: ProviderSettings | undefined
+	try {
+		stored = getProviderSettingsManager().getProviderSettings("openai-compatible")
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible Azure settings from providers.json")
+	}
+
+	if (apiVersion === undefined && useIdentity === undefined) {
+		return stored?.azure ? { azure: stored.azure } : undefined
+	}
+
+	const azure: NonNullable<ProviderSettings["azure"]> = {
+		...(stored?.azure ?? {}),
+		...(apiVersion !== undefined ? { apiVersion } : {}),
+		...(useIdentity !== undefined ? { useIdentity } : {}),
+	}
+
+	if (stored?.azure?.apiVersion !== azure.apiVersion || stored?.azure?.useIdentity !== azure.useIdentity) {
+		try {
+			getProviderSettingsManager().saveProviderSettings(
+				{ ...(stored ?? {}), provider: "openai-compatible", azure },
+				{ setLastUsed: false },
+			)
+		} catch {
+			Logger.warn("[SessionFactory] Failed to mirror Azure settings into providers.json")
+		}
+	}
+
+	return { azure }
+}
+
 type OllamaProviderConfig = {
 	modelInfo?: { id: string; name: string; contextWindow: number }
 	timeoutMs?: number
@@ -777,6 +870,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
+	let azureProviderConfig: Pick<ProviderSettings, "azure"> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -822,6 +916,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			if (providerId === "ollama") {
 				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
+			}
+
+			// The OpenAI Compatible provider is spelled "openai" after the
+			// legacy fold above; keep the SDK spelling as a defensive alias.
+			if (providerId === "openai" || providerId === "openai-compatible") {
+				azureProviderConfig = resolveAzureProviderConfig(apiConfig)
 			}
 
 			Logger.log(
@@ -892,10 +992,17 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
 			: resolveProviderReasoningConfig(providerId)
 
-	// Build the system prompt using the shared prompt builder. Core still
-	// expects callers to provide a concrete systemPrompt, but the prompt builder
-	// can derive baseline workspace context from the root path and workspace
-	// name, so we avoid duplicating core's richer workspace metadata pass here.
+	// Include rich workspace metadata so Cline API observability can extract
+	// git remotes and the latest commit hash from the system message.
+	let workspaceMetadata: string | undefined
+	if (isClineProvider(providerId)) {
+		try {
+			workspaceMetadata = await buildWorkspaceMetadata(workspaceRoot)
+		} catch (error) {
+			Logger.warn("[SessionFactory] Failed to build workspace metadata:", error)
+		}
+	}
+
 	let systemPrompt = ""
 	try {
 		const workspaceName = resolveWorkspaceName(cwd)
@@ -903,6 +1010,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			ide: "VS Code",
 			workspaceRoot,
 			workspaceName,
+			metadata: workspaceMetadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
@@ -942,8 +1050,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
-	const hostIdentity = await resolveHostIdentity()
-	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	const client = await resolveClineRequestClientContext()
 	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
 	try {
 		// Constructing the settings manager loads providers.json and models.json into
@@ -976,6 +1083,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
 		...(cloudProviderConfig ?? {}),
+		// Only spread when defined: an explicit `azure: undefined` key would
+		// clobber the providers.json azure block core merges in downstream
+		// (buildProviderConfig spreads this session config over stored settings).
+		...(azureProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
@@ -1025,13 +1136,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		logger: sdkLogger,
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
-			client: {
-				name: hostIdentity?.clineType || ClineClient.VSCode,
-				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
-				platform: hostIdentity?.platform || undefined,
-				platformVersion: hostIdentity?.version || undefined,
-				isMultiRoot,
-			},
+			client,
 			workspace: {
 				rootPath: workspaceRoot,
 				cwd,

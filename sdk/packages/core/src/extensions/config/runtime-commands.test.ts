@@ -125,6 +125,52 @@ Do not run this workflow.`,
 		}
 	});
 
+	it("passes skills through but still expands workflows when skill expansion is off", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillDir = join(tempRoot, "skills", "ship");
+		const workflowsDir = join(tempRoot, "workflows");
+		await mkdir(skillDir, { recursive: true });
+		await mkdir(workflowsDir, { recursive: true });
+		await writeFile(join(skillDir, "SKILL.md"), "Use the ship skill.");
+		await writeFile(
+			join(workflowsDir, "release.md"),
+			`---
+name: release
+---
+Run the release workflow.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [join(tempRoot, "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [workflowsDir] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			// Hosts whose sessions register the skills tool keep the typed
+			// command so the model loads the instructions via the tool.
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/ship now", watcher, {
+					expandSkillCommands: false,
+				}),
+			).toBe("/ship now");
+			// Workflows are not served by the skills tool and always expand.
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/release now", watcher, {
+					expandSkillCommands: false,
+				}),
+			).toBe("Run the release workflow. now");
+			// Default keeps legacy textual expansion.
+			expect(resolveRuntimeSlashCommandFromWatcher("/ship now", watcher)).toBe(
+				"Use the ship skill. now",
+			);
+		} finally {
+			watcher.stop();
+		}
+	});
+
 	it("normalizes configured names into resolvable slash command tokens", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);

@@ -1,5 +1,162 @@
 # Cline CLI Changelog
 
+## 3.0.68
+
+- Agent teams stay fast in long sessions and while teammates are streaming. Every streamed chunk used to re-save the whole team state, so team runs got slower over time and `~/.cline/data/db/teams.db` could grow to gigabytes. Existing team data is compacted automatically the first time it's opened
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
+## 3.0.67
+
+- When an MCP tool returns more output than fits in context, the agent can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost
+- Custom providers defined in `providers.json`/`models.json` now work when you run a task. They showed up in the provider and model pickers but failed with `Unknown or disabled provider`
+- If saving provider credentials fails during onboarding or in the provider settings dialog, the error now shows in place instead of failing silently
+- On Linux, the auto-approve indicator in the status bar uses a glyph that common monospace fonts include, instead of rendering as a blank box or nothing
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol. Default models change for 302.AI (Claude Sonnet 5.5), NanoGPT (Ling 3.1 Flash), Vivgrid (GPT-6.1 Sol), and Vultr (MiMo V2.6 Flash RL). Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected
+
+## 3.0.66
+
+- The CLI binaries are now built with Bun 1.4.2. macOS 27 no longer kills them at launch, and the x64 builds run on CPUs without AVX2
+- The hub now starts on Windows machines with a system proxy (Clash, v2ray, corporate proxies). Loopback discovery requests were sent through the proxy, so a healthy hub looked unreachable and startup failed with "No compatible hub runtime is available"
+- Pressing Esc right after sending a prompt now stops the turn. A stop that landed while the turn was still being set up was ignored, and the agent kept working in the background
+- When a response is blocked by a content filter, the CLI now says so and suggests rephrasing, instead of "Model returned empty response" (which implied a retry would help)
+- Direct Anthropic requests now use Anthropic's server-side refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request
+- Reasoning tokens are no longer counted twice in output token totals. Cost is unchanged, since reasoning is billed at the output rate
+- Bedrock fixes. GPT-6 and GPT-5.6 route through inference profiles, India regions (`ap-south-1`, `ap-south-2`) resolve the `in.` profile, and Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects. A legacy bare `awsProfile` setting now migrates as Bedrock profile auth
+- Gateway models on providers that mix endpoints keep their own API protocol instead of falling back to the provider-wide default
+- Yolo mode (`-y`) no longer includes plan/act mode instructions in the system prompt
+- Cron (`.cline/cron/*.md`) and task (`*.task.md`) specs saved with a UTF-8 BOM, as Windows Notepad does, now parse
+- `search_codebase` now includes PHP sources and templates (`php`, `phtml`, `inc`, `twig`), and Composer's `vendor` directory is excluded like `node_modules`
+- On Windows, a nested `pwsh -Command` wrapper keeps your configured shell path instead of resolving a bare `powershell.exe`, which could pick up an executable planted in the workspace
+- Hub diagnostics. The hub daemon log records why each socket closed, a daemon that dies with `EADDRINUSE` reports what holds the port, and the hub web app shows each connected client's version and PID
+- Refreshed the model catalog. New providers are Bee and Pareto (`PARETO_API_KEY`), and the Cline recommended list adds Claude Sonnet 5.5 and Claude Opus 5.5. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. If you use one of those without pinning a model, expect a different default
+
+## 3.0.65
+
+- Long sessions on local models no longer die mid-answer at the output-token limit. llama.cpp, Ollama, and LM Studio cap generation at whatever context is left, whatever output budget you set, so a text-only reply could be cut off and fail the run. The CLI now compacts the conversation and retries that turn once before falling back to the existing concise-retry recovery, and the partial answer is kept if nothing helps
+- When the hub fails to start, the error now says why instead of only "No compatible hub runtime is available". The CLI also waits up to 15 seconds for a freshly started hub instead of 8, since the first launch after an install or update can take 8 to 13 seconds on Windows
+- Error messages in a session are now kept when you resume it. A failure shown during a run, including one reported after retries ran out, used to disappear once you left the session; it now reappears in the transcript on resume without being sent to the model or counted by compaction
+- `cline history update --title` and `--prompt` now persist for hub-managed sessions. The new title only changed in memory and reverted on the next launch, and updating metadata could drop other keys such as pinned state
+- A plugin that fails to load no longer costs a sandbox spawn on every prompt. The CLI continues without that plugin's slash commands and retries loading it after 30 seconds, so a transient sandbox timeout recovers on its own
+- Pressing Esc during an empty-response retry now cancels right away instead of after the backoff delay
+- Yolo mode (`-y`) prompts the model with tighter output rules: shorter plans, no preamble before routine tool calls, and code and edits written straight into tool calls instead of drafted in text first. Expect less narration and fewer tokens spent restating the plan
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan. Set `AIAND_API_KEY`; the default model is GLM 5.3
+- Refreshed the model catalog: 6,237 to 6,386 models across the same 209 providers. The default model changes for 19 providers. Eleven land on Claude Opus 5.5 (Cortecs, CrossModel, DigitalOcean, Eden AI, GitHub Copilot, both LLM Gateway providers, Ofox, Requesty, Vertex, Vivgrid), both StepFun providers move to Step 5 Preview, Above to MiMo V2.6 Flash, Fireworks to Ember-1, Kenari to DeepSeek V4.1 Flash, NanoGPT to Aion 3.5, OpenCode Go to Space Bunny Free, and Pioneer to GLiNER 2.5 Multi. If you use one of those without pinning a model, expect a different default
+
+## 3.0.64
+
+- Runs no longer die when a model turn hits its output-token limit before making a tool call. A reasoning-heavy or oversized response could spend the whole output allowance and end the run with an output-token-limit error; the turn is now retried up to three times with a reminder to be concise and split the work across tool calls, and only fails after that
+- Models with a large advertised output limit get a bigger default output budget — 30% of the limit rather than a flat 32,000 tokens, whichever is larger. Nothing changes for models under roughly 107k output tokens. Longer responses can mean higher per-turn cost and latency on those models
+- Refreshed the model catalog: 6,188 to 6,237 models across the same 209 providers. Cline Pass gains MiMo V2.6 Flash and MiMo V2.6 Pro. The default model changes for 10 providers — six land on MiMo V2.6 Flash (Xiaomi and its three token plans, Empirio Labs, NanoGPT), Eden AI moves to Grok 4.7, CoreWeave to DeepSeek V4.1 Flash, CoralBricks to DeepSeek V4.1 Flash Fast, and Tempr to Gemini 3.8 Flash. If you use one of those without pinning a model, expect a different default
+
+## 3.0.63
+
+- Context compaction no longer silently degrades to truncation partway through a long session on OAuth providers. The summarizer kept the access token resolved when the session started while the main agent loop refreshed its own each turn, so once the token rotated the summarizer's request failed with 401 and the failure was swallowed by the truncation fallback — you got a chopped transcript instead of a summary, most visibly on `cline-free/*` models. The summarizer also stayed on the original model after a mid-session model switch. Both now follow the session's current credentials and model
+- Startup no longer waits on a feature-flag network round trip. The CLI awaited a PostHog poll before the session was ready; flags now refresh in the background, and a concurrent poll no longer reads a stale default while the first request is still in flight
+- Context injected by a hook is no longer mistaken for something you typed. The `prompt_submit` dispatch and the audit logger both fired on injected hook-context messages, which carry the user role but a system display role. Run-start hook control (`cancel` and context injection from `agent_start`/`agent_resume` scripts) remains inert in the CLI pending a deliberate opt-in
+- Compaction now fires on your provider's actual token usage instead of a character estimate. Dense content — disassembly, image dumps, minified sources — tokenizes far denser than the estimate assumed, so a long session could hit the real context ceiling without ever compacting and then get squeezed down to a handful of output tokens per turn. The summarizer also gets a larger output budget, since a model that reasons by default could spend a tight one thinking and return no summary at all
+- Subagents now run their tool calls concurrently, instead of the first child finishing before the next starts. Approvals and hooks still run in order, and the parent still waits for every result before its next turn
+- Configured subagents no longer ask you to approve their own tool calls after you have already approved the delegation. With concurrent siblings this was also unsafe: several children could reach the terminal prompt on the same stdin at once, where a single `y` could approve more than one pending operation
+- Deleting a session from history now actually removes it. A session whose index row was missing but whose on-disk manifest survived was reported as deleted and then reappeared on the next refresh
+- `.cline/rules` and global rules are now found consistently. Only one of the two supported workspace rule layouts was being looked for, and the CLI could miss global rules that the VS Code extension had created in a OneDrive-redirected Documents folder
+- Press Enter on an empty prompt to steer the first queued message to the front of the queue
+- Typing an answer to an `ask_question` prompt now keeps your capitalization, punctuation, spaces, and Unicode. The input reconstructed text from the normalized key name, so shifted letters came out lowercased, and backspace could leave malformed text behind after an emoji or combining mark. Backspace now deletes one whole grapheme
+- On Windows, a program planted in your workspace can no longer run in place of the real one. Windows resolves a bare program name by searching the working directory before PATH, and the CLI spawns `rg`, `git` and `powershell` with your repo as the working directory, so opening a repo containing an `rg.exe` ran it during file indexing, before any approval. The CLI and the hub daemon it boots now opt out at startup
+- Non-interactive commands no longer load the interactive runtime. Commands like `cline history --json` pulled in core through the MCP and schedule wizards; on Windows an isolated history listing went from 6–7.5 seconds to about 0.85 seconds
+- Login-shell PATH probing waits up to 5 seconds per shell instead of 2. nvm-style profiles regularly need longer than 2 seconds on older machines, and a failed probe leaves the runtimes Cline spawns missing from PATH
+- CoreWeave replaces the Weights & Biases branding and docs link on that provider. Your provider ID and stored credentials are unchanged
+- Refreshed the model catalog, from 203 to 209 providers and 6,079 to 6,188 models. Kimi For Coding splits into separate kimi.com and kimi.ai providers, and AI21 Labs, ainetcafe, Inco, OCI Generative AI, Tempr, and Vispark are new. The resolved default model changes for 29 providers — eight land on DeepSeek V4.1 Flash (Alibaba CN and its token plan, Nebius, Neuralwatt, SCNet, Synthetic, TensorX, Vancine) and six on GLM 5.3 Flash or FlashX (iteracompute, Privatemode AI, SiliconFlow, Volcengine, ZenMux, Zhipu AI), while GitHub Copilot moves from GPT-6 Astra to Grok 4.7 and StepFun to Step 5 Preview. If you use one of those providers without pinning a model, expect a different default
+
+## 3.0.62
+
+- Introducing Cline Desktop: a native app for working with open-weight models, with task import from Claude Code and Codex, scheduled runs, web search and voice input, and a marketplace for plugins, MCP servers, and skills. The CLI now shows a one-time startup notice pointing at cline.bot/desktop. At most one notice appears per launch, and `CLINE_DISABLE_CLINE_PASS_NOTICE=1` still suppresses all of them
+- Agent Plugins are now managed through the Hub. Packages under `~/.agents/plugins/*` are discovered and validated, their skills are exposed through the skills tool as `plugin-name:skill-name`, and their MCP servers start without touching `cline_mcp_settings.json`. The config screen lists them separately from Cline Plugins and Space toggles them. Workspace `.agents/plugins` directories are deliberately not scanned, so opening a repo cannot implicitly start repo-controlled MCP servers
+- A model turn that dies mid-stream with a transient provider error is now retried up to 3 times with backoff instead of failing the run — a single forwarded 429 from OpenRouter previously ended the run with exit 1. A turn that already streamed output is never retried, so nothing is duplicated
+- Streaming output is no longer throttled by the Hub. Every streamed token was proxied to client hooks as a round trip carrying a full copy of the session, with the agent loop waiting on it
+- Checkpoints no longer stall every message in workspaces with large untracked directories. Each turn re-hashed every untracked file before the model call, which on multi-GB workspaces blocked messages for seconds to minutes; a persistent per-session snapshot index now lets git skip unchanged files
+- Fixed `run_commands` hanging until timeout after a command that backgrounds a child process. The command had finished, but the backgrounded child held the output pipes open
+- Fixed `cline` being OOM-killed when run from your home directory. Typing an `@` mention indexed every file under `$HOME` and re-ranked it on each keystroke
+- Fixed `apply_patch` silently overwriting an existing file when the model used "Add File" on a path that already exists
+- Fixed PowerShell commands that the model wrapped in another `powershell -Command "..."` being parsed twice, which stripped `$_` out of pipelines and produced an error per enumerated item while still reporting success. The tool description now also names which PowerShell edition is in use and tells the model not to wrap commands
+- API keys pasted with an invisible character (BOM, zero-width space) are now cleaned before being saved. They were stored corrupted and the provider's 401 was indistinguishable from a wrong key
+- Signing in with Claude Code no longer demands an API key it never reads. It authenticates from the `claude` CLI's own credential store, but onboarding treated it as an API-key provider and dropped you into the sign-in wizard; the workaround was storing a dummy key. A missing `claude` on PATH now warns instead of blocking, since a configured path, bundled binary, or npx also works. OpenCode gets the same local-CLI treatment
+- Web search is now on by default in non-yolo sessions on models that support it
+- A running Hub on the same core version as your CLI no longer prompts you to update it. Anyone with both the desktop app and the CLI installed saw a "Cline Hub was updated" dialog on every launch that could never resolve
+- Scheduled runs no longer stall behind each other — one long turn blocked dispatch of every other schedule. Parallelism limits are now enforced at claim time, work resumed after system sleep is no longer started twice, and a schedule created without a timezone uses your local one instead of an implicit default
+- Session history no longer goes blank when a session spawns many subagents. Child rows crowded out the roots, hiding the parent session and everything older
+- Fixed TUI toasts being clipped to their first line. The Hub messages that use them are all longer than that, so the keep-Hub reminder never showed the `cline hub upgrade` command it exists to deliver
+- Cline Pass now defaults to a subscribed model instead of a free one. Its model list mixes both tiers and the default was whichever model shipped most recently, so subscribers who never picked a model were put on the free tier
+- Cline Pass and free models now show zero cost instead of the upstream market price for requests you are not billed per token for
+- Model pickers now fall back to the full Recommended, Free, and Subscribed tiers when the models endpoint is unreachable. Previously the offline fallback was six hardcoded models with no subscribed tier at all
+- The OpenAI Codex (ChatGPT subscription) model list no longer includes models the backend rejects, and Codex context limits are applied to every Codex model instead of being inherited from the OpenAI API catalog, which was inflating the context budget and the usage math
+- Model lists for all shared-catalog providers now refresh from the live catalog, so newly published models appear without a CLI update, with timeouts so a hung provider endpoint cannot stall the list
+- Cline Pass now shows as a configured provider after sign-in — it stores credentials under Cline, so one sign-in configured both but only Cline appeared
+- Fixed OpenCode Go serving several wire protocols behind one URL while every model was sent over the OpenAI chat-completions adapter
+- Collapsed a nested `undici@5.29.0` (CVE-2026-1525) onto 7.x. The earlier remediation's version-scoped override key was silently ignored by Bun, so a vulnerable copy survived
+- Refreshed the model catalog. Adds four providers (Infer by Flow7, Melious, NaN, and Wallaby) and takes the bundled catalog from 5,788 to 6,079 models. This is a wide refresh: the resolved default model changes for 44 providers, most of them landing on DeepSeek V4.1 Flash — among them Hugging Face, Fireworks, Requesty, Nebius, Cortecs, CrossModel, DigitalOcean, Eden AI, and OpenCode Go. Gemini and Vertex now resolve to Gemini 3.8 Flash, GitHub Copilot and Vivgrid to GPT-6 Astra, and NVIDIA to GLM 5.3 Flash. If you use any provider without pinning a model, expect a different default
+
+## 3.0.61
+
+- Cline now handles a running Hub that is older than your CLI. Instead of quietly talking to a hub executing stale code, you get a prompt showing how many active sessions a replacement would interrupt, with enter-to-replace or escape-to-keep. The replacement drains the Hub first so in-flight turns finish, and a hub too old or wedged to accept the drain is left alone rather than killed
+- Windows binaries are now Authenticode-signed via Azure Trusted Signing, and a launch blocked by application-control policy now prints an actionable error instead of failing bare
+- Fixed the CLI dying when an enabled remote (SSE/streamable HTTP) MCP server is unreachable. The connect now has a 10s budget, so an offline server no longer stalls session startup past the Hub's deadline and tears the session down — previously the interactive TUI exited and one-shot runs failed
+- Fixed tool calling being silently disabled for Dify, SAP AI Core, opencode, and Codex CLI models. Their catalog entries declare no capabilities, and the empty list was read as an authoritative denial that stripped every tool from the request
+- Fixed images being dropped from file reads on models whose capability list is empty
+- Langfuse tracing now works in released builds. Detection identified the OpenTelemetry provider by class name, which minification renames, so tracing silently initialized as not-ready in every published binary while working in dev
+- Restoring a checkpoint now refuses to run when you have made commits after it, instead of silently knocking them off the branch where only the reflog could recover them. Chat-only restore is unaffected
+- `apply_patch` now preserves a file's existing CRLF line endings
+- Global rules are now also read from `~/Cline/Rules`, which is where the VS Code Rules tab writes them on WSL and headless installs
+- Signing in to OpenAI Codex (ChatGPT subscription) now fails with a clear "port in use" error when 1455 is occupied, instead of opening a browser to a flow that can never complete
+- A transient network failure while refreshing Codex or OpenAI-compatible-account tokens no longer logs you out
+- Aborting a session now also cancels the delegated subagents and teammates it spawned, instead of leaving their work running
+- Agent-created schedules now live in `~/.cline/schedules` instead of inheriting whichever chat folder they were created in. Schedules you create with `--workspace` are unchanged
+- Fixed scheduled tasks disappearing after a hub restart
+- Fixed markdown flashing as it settled at the end of a streamed response
+- The message the model sees when you reject a tool call now names the tool and reads as your decision rather than an error
+- Cline provider models now come from the live catalog, so newly published models show up without a CLI update
+- Refreshed the model catalog. Adds ten providers (Bothub, OpenReason, SenseNova (China), TokenGo, TokenRouter, Vancine, Volcengine Ark, Volcengine Ark Coding Plan, above.dev, and klokintegration.se) and updates model lists and pricing across providers. This is an unusually wide refresh: the resolved default model changes for 57 providers. Most consequentially, Anthropic now resolves to Claude Fable 5.1 instead of Claude Opus 5, and Amazon Bedrock, Vertex, OpenRouter, Vercel AI Gateway, Kilo Gateway, LLM Gateway, DevPass, DigitalOcean, CrossModel, Eden AI, and NanoGPT follow it to Fable 5.1. If you use any provider without pinning a model, expect a different default
+
+## 3.0.60
+
+- The config screen now separates Cline Plugins from Agent Plugins discovered by the Hub. Agent Plugins can be enabled or disabled with Space; the Hub persists the state and their skills and MCP servers follow it when the interactive runtime is rebuilt
+- Fixed the background hub process ballooning in memory during long sessions — session status updates were broadcasting a full copy of the conversation transcript to every connected client, which on a large task could grow the process to tens of gigabytes. Upgrading retires the running hub so the fix takes effect on the next command
+- New files are now created with your platform's native line endings
+- Fixed the codebase search tool crashing on files that contain a single enormous line
+- Cost estimates are no longer shown for Claude Code. Its usage is typically covered by a Claude Pro/Max subscription, but its models reuse Anthropic API pricing, so Cline was showing charges you were not being billed
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model
+- Installing an MCP server no longer misreads a `--` separator in the install arguments as part of the server command
+- Refreshed the model catalog. Adds seven providers (Agnes AI, Aixy, IteraCompute, LLM Tech, NeoSmith, Pendra, and Standard Compute) and updates model lists and pricing across providers. The resolved default model changes for ClinePass (now GLM 5.3), Z.ai, Hugging Face, evroc, LLM Gateway, NanoGPT, and Weights & Biases, so if you use one of those without pinning a model you will get a different default
+
+## 3.0.58
+
+- The first-launch "Try ClinePass" dialog no longer advertises the $4.99 first-month promo, which is ending
+- The hub's event log is now capped at 64 MiB on disk. Events carrying full session snapshots could previously grow the log to tens of gigabytes on a long-running hub, since deleting rows never shrinks the file. Oldest events are dropped first and the space is returned, and pruning runs on volume as well as on a timer
+- Refreshed the model catalog. Adds two providers (AgentRouter and Opper) and updates model lists and pricing across providers. The resolved default model changes for Aki.io and NanoGPT, so if you use one of those without pinning a model you will get a different default
+
+## 3.0.57
+
+- Added `cline hub drain`, which stops a hub from accepting new mutating work while it finishes what it is already running, and `cline hub drain --off` to lift it
+- Added `cline hub upgrade`, which drains the hub, waits for it to go idle, stops it, and starts a fresh one on the current build. An aborted upgrade lifts the drain again, so the hub is never left refusing work
+- Sessions now survive a hub restart. A reconnecting client replays the events it missed while disconnected, deduped by event id so nothing is delivered twice
+- Fixed tool calling being silently disabled for custom OpenAI-Compatible models whose capability list was inferred from convenience flags like `supportsReasoning`. The inferred list read as an authoritative denial and stripped every tool from the request
+- Langfuse traces now carry session and client identity for hub-backed and delegated-agent runs, instead of arriving without their session grouping or client version
+- Refreshed the model catalog, which updates model lists and pricing across providers and changes the resolved default model for several of them (DeepSeek, Crof, CrossModel, Eden AI, Kilo, and NanoGPT)
+
+## 3.0.56
+
+- Models that support image generation can now produce media during a turn. The TUI saves each generated file to a temporary path and prints it so you can open it with your usual tools, HTML session exports embed images inline, and ACP clients receive generated images as image content
+- Skill slash commands now load through the skills tool instead of expanding into your message. History and resume show the `/command` you typed instead of the whole skill body, and the instructions reach the model once instead of twice. Workflows still expand, as does zen mode, whose preset has no skills tool
+- Image, voice, and other non-chat models are no longer offered in the onboarding and model pickers or ACP model listings, and are rejected for `--model`
+- Fixed TUI dialog colors not following theme changes live
+- Fixed the account dialog's selection chevron so it matches the other dialogs
+- Fixed provider-executed tool activity — every tool the Claude Code provider runs inside its own session — being dropped instead of shown as a tool card
+- Fixed `PreToolUse` hook `contextModification` never reaching the model, and `PostToolUse` hooks running fire-and-forget with their output and `cancel` control discarded
+- Fixed `run_commands` failing with ENOENT when a structured command carried a full command line with no `args`
+- PowerShell commands now fail fast on the first error instead of emitting an error record per enumerated item and still reporting success
+- Fixed Gemini custom base URLs configured as a host root
+- Fixed `cline schedule` commands against a remote hub, which now register a workspace client so they are authorized under the new workspace-scoped schedule rules
+- Usage now displays the billed gateway cost
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists, pricing, and per-provider default models across the board
+
 ## 3.0.55
 
 - Auto-updates no longer install while a CLI is attached to the Hub. The update is recorded at startup and installed on exit, once the Hub confirms nothing else is attached, so a background update can no longer swap the package out from under a live session and kill it with `Hub connection closed (code=1006)`. `cline update` still installs immediately and now tells you the update applies on next start

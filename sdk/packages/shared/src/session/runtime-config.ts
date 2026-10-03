@@ -5,13 +5,15 @@ export type RuntimeConfigExtensionKind =
 	| "rules"
 	| "skills"
 	| "workflows"
-	| "plugins";
+	| "plugins"
+	| "hooks";
 
 export const RUNTIME_CONFIG_EXTENSION_KINDS = [
 	"rules",
 	"skills",
 	"workflows",
 	"plugins",
+	"hooks",
 ] as const satisfies readonly RuntimeConfigExtensionKind[];
 
 export const DEFAULT_RUNTIME_CONFIG_EXTENSIONS = RUNTIME_CONFIG_EXTENSION_KINDS;

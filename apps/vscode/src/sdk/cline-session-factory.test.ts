@@ -16,6 +16,7 @@ import {
 	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
 	resolveApiKey,
+	resolveAzureProviderConfig,
 	updateHistoryItem,
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -103,6 +104,9 @@ beforeEach(() => {
 	mocks.providerSettingsManager.getFilePath.mockReturnValue(path.join(tempDir, "settings", "providers.json"))
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+	// clearAllMocks keeps implementations: re-pin the default so a test that
+	// swaps in a real manager cannot leak it into later tests.
+	mocks.getProviderSettingsManager.mockImplementation(() => mocks.providerSettingsManager)
 })
 
 afterEach(() => {
@@ -355,6 +359,8 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("cline")
 		expect(config.apiKey).toBe("workos:test-access-token")
+		expect(config.systemPrompt).toContain("# Workspace Configuration")
+		expect(config.systemPrompt).toContain(JSON.stringify("/tmp/workspace"))
 	})
 
 	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {
@@ -506,6 +512,164 @@ describe("buildSessionConfig", () => {
 			providerId: "asksage",
 			baseUrl: "https://asksage.migrated.example/server",
 		})
+	})
+
+	it("forwards Azure settings from legacy state and mirrors them into providers.json", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "gpt-5.6-terra",
+			openAiApiKey: "azure-key",
+			openAiBaseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+			azureApiVersion: "2025-01-01-preview",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		// Without this the SDK gateway never appends ?api-version= to Azure
+		// deployment URLs and Azure rejects every request with
+		// "Resource not found" (#13655).
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			azure: { apiVersion: "2025-01-01-preview" },
+		})
+		expect(mocks.providerSettingsManager.saveProviderSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "openai-compatible",
+				azure: { apiVersion: "2025-01-01-preview" },
+			}),
+			{ setLastUsed: false },
+		)
+	})
+
+	it("falls back to the providers.json Azure settings when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "azure-key",
+				baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+				azure: { apiVersion: "2025-04-01-preview", useIdentity: true },
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "gpt-5.6-terra",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			azure: { apiVersion: "2025-04-01-preview", useIdentity: true },
+		})
+		expect(mocks.providerSettingsManager.saveProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("treats a blank legacy Azure API version as unset and keeps the stored value", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				azure: { apiVersion: "2025-04-01-preview" },
+			} as any
+		})
+
+		expect(resolveAzureProviderConfig({ azureApiVersion: "   " } as any)).toEqual({
+			azure: { apiVersion: "2025-04-01-preview" },
+		})
+		expect(mocks.providerSettingsManager.saveProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("merges legacy Azure fields over the stored azure block when mirroring", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "stored-key",
+				model: "gpt-5.6-terra",
+				azure: { apiVersion: "2024-06-01", useIdentity: true },
+			} as any
+		})
+
+		const resolved = resolveAzureProviderConfig({ azureApiVersion: "2025-01-01-preview" } as any)
+
+		expect(resolved).toEqual({ azure: { apiVersion: "2025-01-01-preview", useIdentity: true } })
+		// The mirror must preserve unrelated stored fields (key, model, ...).
+		expect(mocks.providerSettingsManager.saveProviderSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "openai-compatible",
+				apiKey: "stored-key",
+				model: "gpt-5.6-terra",
+				azure: { apiVersion: "2025-01-01-preview", useIdentity: true },
+			}),
+			{ setLastUsed: false },
+		)
+	})
+
+	it("mirrors Azure settings through the real ProviderSettingsManager (schema round-trip)", async () => {
+		// The mocked-manager tests above cannot catch a mirror payload that the
+		// real ProviderSettingsSchema.parse would reject (the resolver swallows
+		// save failures), so exercise the real manager against a temp file.
+		// Import the built package by file path: the bare "@cline/core"
+		// specifier is aliased to an in-memory stub in vitest.config.ts (which
+		// validates nothing), and importing SDK *source* would pull it into
+		// this project's tsc program (TS6059: outside rootDir).
+		const { ProviderSettingsManager } = await import("../../node_modules/@cline/core/dist/index.js")
+		const realManager = new ProviderSettingsManager({
+			filePath: path.join(tempDir, "settings", "providers.json"),
+		})
+		// Reporter's #13655 state: entry written by the CLI onboarding (key,
+		// base URL, model) but no azure block.
+		realManager.saveProviderSettings(
+			{
+				provider: "openai-compatible",
+				apiKey: "azure-key",
+				model: "gpt-5.6-terra",
+				baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+			},
+			{ setLastUsed: false },
+		)
+		mocks.getProviderSettingsManager.mockReturnValue(realManager as never)
+
+		const resolved = resolveAzureProviderConfig({ azureApiVersion: "2025-01-01-preview" } as any)
+
+		expect(resolved).toEqual({ azure: { apiVersion: "2025-01-01-preview" } })
+		const persisted = realManager.getProviderSettings("openai-compatible")
+		expect(persisted).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "azure-key",
+			model: "gpt-5.6-terra",
+			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-5.6-terra",
+			azure: { apiVersion: "2025-01-01-preview" },
+		})
+		// Assert on the file, not just the manager: the in-memory vitest stub
+		// would satisfy the manager-level assertions too, but only the real
+		// manager persists to disk.
+		const onDisk = JSON.parse(fs.readFileSync(path.join(tempDir, "settings", "providers.json"), "utf8"))
+		expect(onDisk.providers["openai-compatible"].settings.azure).toEqual({ apiVersion: "2025-01-01-preview" })
+	})
+
+	it("does not rewrite providers.json when the stored Azure settings already match", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				azure: { apiVersion: "2025-01-01-preview" },
+			} as any
+		})
+
+		const resolved = resolveAzureProviderConfig({ azureApiVersion: "2025-01-01-preview" } as any)
+
+		expect(resolved).toEqual({ azure: { apiVersion: "2025-01-01-preview" } })
+		expect(mocks.providerSettingsManager.saveProviderSettings).not.toHaveBeenCalled()
 	})
 
 	it("forwards the regional API line from legacy state so the gateway can route to the regional endpoint", async () => {
@@ -713,6 +877,80 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.family).toBe(expectedModel.family)
 	})
 
+	it("injects cached LiteLLM max input tokens when the dynamic model is absent from the SDK registry", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "openai/grok-4.6",
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				maxTokens: 64_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["openai/grok-4.6"]
+
+		expect(config.providerId).toBe("litellm")
+		expect(knownModel).toMatchObject({
+			id: "openai/grok-4.6",
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+		})
+		expect(config.knownModels?.["openai/grok-4.6"]).toEqual(knownModel)
+		getModelsSpy.mockRestore()
+	})
+
+	it("keeps an explicit max-input override ahead of cached LiteLLM metadata", async () => {
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: modelId,
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		createProviderConfigStore().commitSelection(providerId, "act", {
+			providerId,
+			modelId,
+			overrides: { maxInputTokens: 300_000 },
+		})
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels[modelId]
+
+		expect(knownModel.contextWindow).toBe(500_000)
+		expect(knownModel.maxInputTokens).toBe(300_000)
+		getModelsSpy.mockRestore()
+	})
+
+	it("does not inject fabricated max input metadata for an unknown LiteLLM model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "custom/no-metadata",
+			liteLlmApiKey: "litellm-key",
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.knownModels).toBeUndefined()
+		expect(config.providerConfig).not.toHaveProperty("knownModels")
+		getModelsSpy.mockRestore()
+	})
+
 	it("keeps session creation non-fatal when known-model lookup fails", async () => {
 		const lookupError = new Error("registry unavailable")
 		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(lookupError)
@@ -832,6 +1070,35 @@ describe("buildSessionConfig", () => {
 
 		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
 		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+	})
+
+	it("defaults tool-calling on when the preserved capability list is defined but empty", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/empty-capabilities-model",
+			openRouterApiKey: "openrouter-key",
+			// A capabilities field that round-tripped through a boundary
+			// defaulting the missing array to [] — same "no signal" state as
+			// an absent one (modelHasCapability treats both as unspecified).
+			// Before the fix, the strict `=== undefined` guard skipped the
+			// tools seeding, supportsReasoning populated the array, and the
+			// runtime gate silently dropped every tool definition (#13463).
+			actModeOpenRouterModelInfo: {
+				name: "Empty Capabilities Model",
+				contextWindow: 16_000,
+				// Required by the store's isModelInfo gate: without a boolean
+				// supportsPromptCache the state snapshot is rejected and the
+				// model never reaches knownModels at all.
+				supportsPromptCache: false,
+				supportsReasoning: true,
+				capabilities: [],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/empty-capabilities-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["reasoning", "tools"]))
 	})
 
 	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {

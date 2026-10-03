@@ -18,6 +18,7 @@ const PROVIDER_API_KEY_URLS: Record<string, string> = {
 	fireworks: "https://app.fireworks.ai/settings/users/api-keys",
 	together: "https://api.together.ai/settings/api-keys",
 	cline: "https://app.cline.bot",
+	wandb: "https://wandb.ai/settings",
 };
 
 /** Cline account dashboard, where Cline API keys are created and managed. */

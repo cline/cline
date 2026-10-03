@@ -94,6 +94,9 @@
 	--text-cline-ui-sm: var(--text-sm);
 	--text-cline-ui-sm--line-height: var(--text-sm--line-height);
 	--text-cline-ui-sm--letter-spacing: var(--text-sm--letter-spacing);
+	--text-cline-ui-md: var(--text-md);
+	--text-cline-ui-md--line-height: var(--text-md--line-height);
+	--text-cline-ui-md--letter-spacing: var(--text-md--letter-spacing);
 	--text-cline-ui-base: var(--text-base);
 	--text-cline-ui-base--line-height: var(--text-base--line-height);
 	--text-cline-ui-base--letter-spacing: var(--text-base--letter-spacing);

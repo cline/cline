@@ -11,8 +11,7 @@ import { refreshHooks } from "../core/controller/file/refreshHooks"
 import { toggleHook } from "../core/controller/file/toggleHook"
 import { hookFileName, withPlatform } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
-import { StateManager } from "../core/storage/StateManager"
-import { HostProvider } from "../hosts/host-provider"
+import { stubWorkspacePaths } from "./host-provider-test-utils"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
 
 /**
@@ -27,8 +26,6 @@ describe("Hook Management", () => {
 	let globalHooksDir: string
 	let workspaceHooksDir: string
 	let mockController: Controller
-	let stateManagerStub: sinon.SinonStub
-	let getWorkspacePathsStub: sinon.SinonStub
 
 	beforeEach(async () => {
 		// Reset the hook discovery cache before each test
@@ -49,23 +46,8 @@ describe("Hook Management", () => {
 			},
 		} as any
 
-		// Mock StateManager to return test workspace
-		stateManagerStub = sinon.stub(StateManager, "get").returns({
-			getGlobalStateKey: (key: string) => {
-				if (key === "workspaceRoots") {
-					return [{ path: path.join(tempDir, "workspace") }]
-				}
-				return undefined
-			},
-		} as any)
-
-		// Mock HostProvider.workspace.getWorkspacePaths - need to stub the method directly
-		getWorkspacePathsStub = sinon.stub().resolves({
-			paths: [path.join(tempDir, "workspace")],
-		})
-		sinon.stub(HostProvider, "workspace").value({
-			getWorkspacePaths: getWorkspacePathsStub,
-		})
+		// Resolve the test workspace as this window's workspace root
+		stubWorkspacePaths(sinon, [path.join(tempDir, "workspace")])
 	})
 
 	afterEach(async () => {

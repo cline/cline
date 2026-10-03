@@ -76,3 +76,22 @@ export function supportsModelTool(
 		? providerManifestSupportsModelTool(manifest, input.modelId, toolName)
 		: false;
 }
+
+/**
+ * Whether the provider declares the model tool for at least some of its
+ * models, independent of the selected model. Settings surfaces use this to
+ * explain provider-level availability; per-request attachment still resolves
+ * through supportsModelTool with the selected model.
+ */
+export function providerOffersModelTool(
+	providerId: string,
+	toolName: ModelToolName,
+): boolean {
+	const manifest =
+		BUILTIN_PROVIDER_MANIFESTS_BY_ID[normalizeProviderId(providerId)];
+	return (
+		manifest?.modelToolCapabilities?.some(
+			(capability) => capability.name === toolName,
+		) === true
+	);
+}

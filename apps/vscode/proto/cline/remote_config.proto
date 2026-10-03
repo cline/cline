@@ -26,7 +26,13 @@ message RemoteConfigSettingsResponse {
   repeated RemoteConfigSetting settings = 1;
 }
 
+message ToggleRemoteConfigSettingRequest {
+  RemoteConfigType type = 1;
+  string name = 2;
+  bool enabled = 3;
+}
+
 service RemoteConfigService {
   rpc getRemoteConfigSettings(Empty) returns (RemoteConfigSettingsResponse);
-  rpc toggleRemoteConfigSetting(StringRequest) returns (RemoteConfigSetting);
+  rpc toggleRemoteConfigSetting(ToggleRemoteConfigSettingRequest) returns (RemoteConfigSetting);
 }

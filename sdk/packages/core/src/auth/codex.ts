@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
+	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
@@ -311,6 +312,21 @@ export async function loginOpenAICodex(options: {
 		expectedState: state,
 	});
 
+	// startLocalOAuthServer returns a no-op server (empty callbackUrl, a
+	// waitForCallback that resolves null immediately) when every candidate
+	// port is occupied. Codex OAuth uses the fixed registered redirect
+	// http://localhost:1455/auth/callback, so without that port the browser
+	// callback can never be received. Unless the host offers manual code
+	// entry as a fallback, fail fast with an actionable error instead of
+	// opening a browser flow that silently dead-ends.
+	if (!server.callbackUrl && !options.onManualCodeInput) {
+		const error = new Error(
+			`Port ${callbackConfig.port} is already in use, so the OpenAI sign-in callback cannot be received. Close the application using that port (for example another Codex or Cline sign-in) and try again.`,
+		);
+		captureAuthFailed(options.telemetry, "openai-codex", error.message);
+		throw error;
+	}
+
 	options.onAuth({
 		url,
 		instructions: "Continue the authentication process in your browser.",
@@ -324,6 +340,9 @@ export async function loginOpenAICodex(options: {
 			onManualCodeInput: options.onManualCodeInput,
 			parseOptions: { allowHashCodeState: true },
 		});
+		if (authResult.error) {
+			throw new Error(`OAuth error: ${authResult.error}`);
+		}
 		if (authResult.state && authResult.state !== state) {
 			throw new Error("State mismatch");
 		}
@@ -423,16 +442,44 @@ export async function getValidOpenAICodexCredentials(
 		);
 		return refreshed;
 	} catch (error) {
+		const failureDetails = {
+			status:
+				error instanceof OpenAICodexOAuthTokenError ? error.status : undefined,
+			errorCode:
+				error instanceof OpenAICodexOAuthTokenError
+					? error.errorCode
+					: undefined,
+			errorName: error instanceof Error ? error.name : undefined,
+		};
 		if (
 			error instanceof OpenAICodexOAuthTokenError &&
 			error.isLikelyInvalidGrant()
 		) {
-			captureAuthLoggedOut(options?.telemetry, "openai-codex", "invalid_grant");
+			captureAuthLoggedOut(
+				options?.telemetry,
+				"openai-codex",
+				"invalid_grant",
+				{
+					status: error.status,
+					errorCode: error.errorCode,
+				},
+			);
 			return null;
 		}
-		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {
+		const tokenExpired =
+			currentCredentials.expires - Date.now() <= retryableTokenGraceMs;
+		captureAuthRefreshSoftFailure(options?.telemetry, "openai-codex", {
+			...failureDetails,
+			tokenExpired,
+		});
+		if (!tokenExpired) {
 			return currentCredentials;
 		}
-		return null;
+		// Rethrow instead of returning null. A null from this function means the
+		// refresh token was REJECTED (re-auth required); a network blip or server
+		// error that happens to land after expiry must not be mistaken for that —
+		// callers turn null into a forced "requires re-authentication" stop even
+		// though the very next refresh attempt would likely succeed.
+		throw error;
 	}
 }

@@ -11,17 +11,32 @@ import { basename, join, resolve } from "node:path";
 
 const packageRoot = join(import.meta.dir, "..");
 const importCheck = `
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentConversationHeader,
+	AgentConversationLayout,
+	AgentSessionContent,
+	AgentChangedFile,
+	AgentChangesPanel,
+	AgentPullRequestBar,
+	AgentCommandOutput,
+	AgentImageLightboxContent,
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
+	AttachmentDropZone,
 	AgentAurora,
 	AgentHeroHeading,
+	AgentWelcomeHero,
 	AgentPromptQueue,
 	AgentQuickActions,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	AgentSessionOverview,
 	SearchCombobox,
 	SessionStatus,
+	Switch,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
@@ -38,6 +53,22 @@ for (const specifier of [
 	}
 }
 
+const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
+		throw new Error("packed review UI stylesheet is missing: " + name);
+	}
+}
+const heroCss = readFileSync(
+	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
+	"utf8",
+);
+const inlineHeroMaskCount =
+	heroCss.split('url("data:image/svg+xml;base64,').length - 1;
+if (inlineHeroMaskCount !== 4) {
+	throw new Error("packed hero CSS does not contain four inline SVG masks");
+}
+
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
 const summary = buildToolSummary({
@@ -51,14 +82,29 @@ if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
 if (
+	!AgentConversationHeader ||
+	!AgentConversationLayout ||
+	!AgentSessionContent ||
+	!AgentChangedFile ||
+	!AgentChangesPanel ||
+	!AgentPullRequestBar ||
+	!AgentCommandOutput ||
+	!AgentImageLightboxContent ||
 	!AgentApprovalCard ||
+	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
+	!AgentWelcomeHero ||
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
+	!AgentSessionRow ||
+	!AgentSessionRowEditor ||
+	!AgentSessionOverview ||
 	!SessionStatus ||
+	!Switch ||
 	!Conversation ||
 	!Message ||
 	!css ||
@@ -88,6 +134,38 @@ function createConsumer(root: string): void {
 	);
 }
 
+async function verifyDiffDeclarations(root: string): Promise<void> {
+	const consumer = join(root, "tool-diff-consumer.ts");
+	writeFileSync(
+		consumer,
+		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import type { ComponentProps } from "react";
+const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
+	diffStyle: "split",
+};
+void options;
+`,
+	);
+	await run(
+		[
+			process.execPath,
+			join(root, "node_modules/typescript/bin/tsc"),
+			"--noEmit",
+			"--strict",
+			"--skipLibCheck",
+			"false",
+			"--target",
+			"ES2022",
+			"--module",
+			"ESNext",
+			"--moduleResolution",
+			"Bundler",
+			consumer,
+		],
+		root,
+	);
+}
+
 async function compileTailwind(
 	root: string,
 	name: string,
@@ -111,6 +189,16 @@ function expectCandidate(css: string, candidate: string): void {
 function expectFragment(css: string, fragment: string, contract: string): void {
 	if (!css.includes(fragment)) {
 		throw new Error(`${contract} did not emit ${fragment}`);
+	}
+}
+
+function expectInlineHeroMasks(css: string, contract: string): void {
+	const masks = css.match(/url\("?data:image\/svg\+xml;base64,/g);
+	if (masks?.length !== 4) {
+		throw new Error(`${contract} did not emit four inline SVG masks`);
+	}
+	if (css.includes("agent-welcome-hero-assets")) {
+		throw new Error(`${contract} emitted external hero mask URLs`);
 	}
 }
 
@@ -139,13 +227,17 @@ async function verifyTailwindContract(
 		"border-cline-ui-border/60",
 		"text-cline-ui-muted-foreground",
 		"bg-cline-ui-primary/10",
-		"max-h-56",
+		"max-h-64",
 		"leading-none",
 		"max-h-44",
 		"not-last:border-b",
 		"focus-visible:outline-3",
 		"min-h-8",
 		"resize-none",
+		"backdrop-blur-sm",
+		"border-dashed",
+		"pointer-events-none",
+		"group-hover/row:bg-cline-ui-surface-hover",
 	]) {
 		expectCandidate(css, candidate);
 	}
@@ -156,6 +248,7 @@ async function verifyTailwindContract(
 	]) {
 		expectFragment(css, fragment, "host Tailwind namespace");
 	}
+	expectInlineHeroMasks(css, "host Tailwind namespace");
 
 	const noPreflightCss = await compileTailwind(
 		root,
@@ -177,6 +270,23 @@ async function verifyTailwindContract(
 		"padding-block:0",
 	]) {
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
+	}
+	expectInlineHeroMasks(noPreflightCss, "no-Preflight Tailwind contract");
+	for (const output of [css, noPreflightCss]) {
+		for (const candidate of [
+			"font-cline-ui-mono",
+			"text-cline-ui-xs",
+			"cursor-zoom-out",
+			"rounded-cline-ui-lg",
+		]) {
+			expectCandidate(output, candidate);
+		}
+		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
+		expectFragment(
+			output,
+			".cline-ui-switch__input:checked",
+			"packed switch states",
+		);
 	}
 }
 
@@ -215,13 +325,17 @@ try {
 			archive,
 			"react@19.2.4",
 			"react-dom@19.2.4",
-			"@pierre/diffs@1.3.2",
+			"@pierre/diffs@1.4.0",
+			"@types/react@19.2.14",
+			"@types/node@22.20.3",
+			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
+	await verifyDiffDeclarations(bunConsumer);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
@@ -241,19 +355,23 @@ try {
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
+			"@types/react@18.3.1",
+			"@types/node@22.20.3",
+			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	await verifyDiffDeclarations(npmConsumer);
 	await verifyTailwindContract(npmConsumer, [
 		"npx",
 		"--no-install",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18, including Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and npm/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });

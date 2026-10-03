@@ -24,15 +24,35 @@ export type UpdateManifest = {
 	platforms: Record<string, UpdaterPlatformEntry>;
 };
 
-// Maps the arch token embedded in artifact file names (see the "Collect
+// Maps the arch token embedded in macOS artifact file names (see the "Collect
 // artifacts" workflow step) to the platform keys the Tauri updater requests.
 // A universal (fat) bundle serves both macOS architectures: each slice of the
 // installed app requests its own compile-time arch key at runtime, and both
 // keys point at the same artifact and signature.
-const PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
+const MACOS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
 	aarch64: ["darwin-aarch64"],
 	x86_64: ["darwin-x86_64"],
 	universal: ["darwin-aarch64", "darwin-x86_64"],
+};
+
+// On Windows the updater artifact is the NSIS installer itself
+// (createUpdaterArtifacts signs the setup exe with the updater key), named
+// `<Product>_<version>_<arch>-setup.exe` by the Tauri bundler.
+const WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
+	x64: ["windows-x86_64"],
+	arm64: ["windows-aarch64"],
+};
+
+// On Linux the updater artifacts are the packages themselves, signed by
+// createUpdaterArtifacts. The updater asks for `linux-<arch>-<installer>`
+// first and falls back to the bare `linux-<arch>` key, so each package format
+// gets only its own suffixed key: a deb must never be served to an rpm
+// install (or to an AppImage, which we do not ship).
+const LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX: Record<string, string[]> = {
+	"_amd64.deb": ["linux-x86_64-deb"],
+	"_arm64.deb": ["linux-aarch64-deb"],
+	"_x86_64.rpm": ["linux-x86_64-rpm"],
+	"_aarch64.rpm": ["linux-aarch64-rpm"],
 };
 
 const getArgValue = (args: string[], name: string): string | undefined => {
@@ -45,13 +65,28 @@ const getArgValue = (args: string[], name: string): string | undefined => {
 	return inline?.slice(prefix.length);
 };
 
-const archOfUpdaterArtifact = (fileName: string): string | undefined => {
-	if (!fileName.endsWith(".app.tar.gz")) {
-		return undefined;
+const platformKeysOfUpdaterArtifact = (
+	fileName: string,
+): string[] | undefined => {
+	if (fileName.endsWith(".app.tar.gz")) {
+		const arch = Object.keys(MACOS_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
+			(candidate) => fileName.includes(`_${candidate}`),
+		);
+		return arch ? MACOS_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
 	}
-	return Object.keys(PLATFORM_KEYS_BY_ARCH_SUFFIX).find((arch) =>
-		fileName.includes(`_${arch}`),
+	if (fileName.endsWith("-setup.exe")) {
+		const arch = Object.keys(WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
+			(candidate) => fileName.endsWith(`_${candidate}-setup.exe`),
+		);
+		return arch ? WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
+	}
+	const linuxSuffix = Object.keys(LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX).find(
+		(candidate) => fileName.endsWith(candidate),
 	);
+	if (linuxSuffix) {
+		return LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX[linuxSuffix];
+	}
+	return undefined;
 };
 
 export const buildUpdateManifest = (options: {
@@ -65,8 +100,8 @@ export const buildUpdateManifest = (options: {
 	const platforms: Record<string, UpdaterPlatformEntry> = {};
 
 	for (const fileName of readdirSync(options.dir).sort()) {
-		const arch = archOfUpdaterArtifact(fileName);
-		if (!arch) {
+		const platformKeys = platformKeysOfUpdaterArtifact(fileName);
+		if (!platformKeys) {
 			continue;
 		}
 		const signaturePath = path.join(options.dir, `${fileName}.sig`);
@@ -74,7 +109,7 @@ export const buildUpdateManifest = (options: {
 		if (!signature) {
 			throw new Error(`empty updater signature at ${signaturePath}`);
 		}
-		for (const platformKey of PLATFORM_KEYS_BY_ARCH_SUFFIX[arch]) {
+		for (const platformKey of platformKeys) {
 			if (platforms[platformKey]) {
 				throw new Error(
 					`multiple updater artifacts claim platform ${platformKey}; found ${fileName} after ${platforms[platformKey].url}`,
@@ -89,7 +124,7 @@ export const buildUpdateManifest = (options: {
 
 	if (Object.keys(platforms).length === 0) {
 		throw new Error(
-			`no updater artifacts (*.app.tar.gz with a known arch suffix) found in ${options.dir}`,
+			`no updater artifacts (*.app.tar.gz, *-setup.exe, *.deb or *.rpm with a known arch suffix) found in ${options.dir}`,
 		);
 	}
 
@@ -121,7 +156,7 @@ const main = () => {
 
 	const notes = notesFile
 		? readFileSync(notesFile, "utf8").trim()
-		: `Cline Code v${version}`;
+		: `Cline v${version}`;
 
 	const manifest = buildUpdateManifest({
 		version,

@@ -169,6 +169,15 @@ export function getUserMessageBackground(terminalBg: string | null): string {
 	return liftedFromTerminalBg(terminalBg, BASE_LIFT, 0, 0);
 }
 
+// Dialog panels lift the theme background the same way, but a touch softer:
+// they cover a large area and sit over a dimmed backdrop, so a smaller step
+// already reads as "raised" without washing out the theme's hue.
+const DIALOG_SURFACE_LIFT = 0.16;
+
+export function getDialogSurfaceBackground(terminalBg: string | null): string {
+	return liftedFromTerminalBg(terminalBg, DIALOG_SURFACE_LIFT, 0, 0);
+}
+
 export function getModeInputForeground(
 	mode: string,
 	terminalBg: string | null,

@@ -30,6 +30,8 @@ export {
 export {
 	type ApplyPatchExecutorOptions,
 	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
 	computePatchChanges,
 	createApplyPatchExecutor,
 	createDefaultExecutors,
@@ -45,6 +47,8 @@ export {
 	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
+	RunCommandExecutionController,
+	type RunningCommandRegistration,
 	type SearchExecutorOptions,
 	type ShellExecutorOptions,
 	type WebFetchExecutorOptions,
@@ -73,8 +77,12 @@ export {
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isCoreBuiltinToolAvailable,
+	isSkillsToolAvailable,
 	resolveCoreSelectedToolIds,
+	resolveToolClientType,
 	type ToolCatalogEntry,
+	type ToolClientType,
 } from "./runtime";
 // Schemas
 export {

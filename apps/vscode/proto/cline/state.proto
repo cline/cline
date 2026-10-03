@@ -116,6 +116,7 @@ message Settings {
   reserved "custom_prompt";
   reserved 139; // was max_consecutive_mistakes (removed; the SDK owns the mistake limit)
   reserved "max_consecutive_mistakes";
+  reserved 142; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -252,7 +253,6 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  reserved 142; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
   optional bool use_auto_condense = 143;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
@@ -276,7 +276,6 @@ message Settings {
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
-  optional bool auto_approve_all_toggled = 174;
   map<string, string> open_ai_headers = 177;
   optional string plan_mode_cline_model_id = 178;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;

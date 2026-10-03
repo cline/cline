@@ -43,6 +43,39 @@ function makeUserInfo(
 	}
 }
 
+describe("OpenTelemetryTelemetryProvider disposal", () => {
+	it("awaits shutdown of an owned trace-only client", async () => {
+		let release!: () => void
+		const client = {
+			dispose: sinon.stub().returns(
+				new Promise<void>((resolve) => {
+					release = resolve
+				}),
+			),
+		}
+		const provider = new OpenTelemetryTelemetryProvider(null, null, { bypassUserSettings: true, client })
+		let finished = false
+		const disposal = provider.dispose().then(() => {
+			finished = true
+		})
+		expect(client.dispose.calledOnce).to.be.true
+		await Promise.resolve()
+		expect(finished).to.be.false
+		release()
+		await disposal
+		expect(finished).to.be.true
+	})
+
+	it("does not shut down borrowed providers without an owner", async () => {
+		const loggerProvider = new LoggerProvider()
+		const shutdown = sinon.spy(loggerProvider, "shutdown")
+		const provider = new OpenTelemetryTelemetryProvider(null, loggerProvider, { bypassUserSettings: true })
+		await provider.dispose()
+		expect(shutdown.called).to.be.false
+		await loggerProvider.shutdown()
+	})
+})
+
 describe("OpenTelemetryTelemetryProvider.identifyUser", () => {
 	let logExporter: InMemoryLogRecordExporter
 	let loggerProvider: LoggerProvider

@@ -79,8 +79,49 @@ export function appendLegacyResumeWarning<T extends { role: string; content: unk
 	]
 }
 
+/**
+ * Classic Cline truncated long conversations by omitting an index range of
+ * api_conversation_history from every API request: it kept the first
+ * user-assistant pair, dropped everything up to and including the range end,
+ * and stripped orphaned tool_results from the first kept message
+ * (ContextManager.getTruncatedMessages — see origin/main). The range was
+ * persisted on the history item while the full history stayed on disk.
+ *
+ * Migration must replay that truncation: converting the full file hands the
+ * resumed SDK session an untruncated working context that can exceed the
+ * model's context window by millions of tokens, wedging the session with
+ * "prompt is too long" on every request (cline/cline#12996).
+ */
+function applyLegacyDeletedRange(apiHistory: unknown[], historyItem: HistoryItem): unknown[] {
+	const deletedRangeEnd = historyItem.conversationHistoryDeletedRange?.[1]
+	if (
+		deletedRangeEnd === undefined ||
+		!Number.isInteger(deletedRangeEnd) ||
+		deletedRangeEnd < 2 ||
+		deletedRangeEnd >= apiHistory.length - 1
+	) {
+		return apiHistory
+	}
+	const truncated = [...apiHistory.slice(0, 2), ...apiHistory.slice(deletedRangeEnd + 1)]
+	// Classic's orphan cleanup: the first message after the cut may carry
+	// tool_results whose tool_use was truncated away, which providers reject.
+	const firstAfterCut = truncated[2]
+	if (firstAfterCut && typeof firstAfterCut === "object") {
+		const record = firstAfterCut as Record<string, unknown>
+		if (record.role === "user" && Array.isArray(record.content)) {
+			const content = record.content.filter(
+				(block) => !(block && typeof block === "object" && (block as { type?: unknown }).type === "tool_result"),
+			)
+			if (content.length !== record.content.length) {
+				truncated[2] = { ...record, content }
+			}
+		}
+	}
+	return truncated
+}
+
 export function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: HistoryItem): MessageWithMetadata[] {
-	const messages = apiHistory.flatMap((raw): MessageWithMetadata[] => {
+	const messages = applyLegacyDeletedRange(apiHistory, historyItem).flatMap((raw): MessageWithMetadata[] => {
 		if (!raw || typeof raw !== "object") {
 			return []
 		}
