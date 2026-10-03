@@ -341,7 +341,9 @@ function createBunSocketFacade(
 			}
 			state.listeners.close.add(listener as () => void);
 		},
-		once(event: "close", listener: (...args: never[]) => void): void {
+		// Only "close" is requested today; the name keeps the `ws` signature
+		// readable without tripping noUnusedParameters in the build config.
+		once(_event: "close", listener: (...args: never[]) => void): void {
 			state.listeners.onceClose.add(listener as () => void);
 		},
 		ping(): void {
