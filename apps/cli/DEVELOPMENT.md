@@ -429,8 +429,6 @@ tui-test --session cline close
 rm -r "$DATA_DIR" "$HOME_DIR"
 ```
 
-The dummy `test-key` is enough to inspect the chat UI and settings; actual agent turns need a valid provider credential or VCR playback. Use unique session names for parallel runs. For automated tests, `bun run test:e2e:cli:tui` runs the `src/tests/**/*.test.ts` suite through the JavaScript API without the standalone CLI.
-
 ### Adding a new TUI component
 
 1. Create a `.tsx` file in `src/tui/components/`
