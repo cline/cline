@@ -58,7 +58,7 @@ jobs:
         run: bun run test:dmg-background
 
   windows-installer:
-    name: Test x86 installer against x64 sidecars
+    name: Test x86 installer against x64 app executables
     runs-on: windows-latest
     timeout-minutes: 10
     defaults:
@@ -78,7 +78,7 @@ jobs:
           no-cache: true
 
       # Use the same NSIS distribution as the locked Tauri CLI. No workspace
-      # install or full desktop build: the test compiles a disposable sidecar.
+      # install or full desktop build: the test compiles a disposable fixture executable.
       # The test asserts makensis reports NSIS_VERSION and that bun.lock still
       # resolves TAURI_CLI_VERSION, so changing this download or bumping the
       # CLI without updating windows-installer.test.ts fails the job.
