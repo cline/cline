@@ -110,11 +110,6 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{
 		modelsDevKey: "vercel",
 		generatedProviderId: "vercel-ai-gateway",
-		runtimeProviderId: "dify",
-	},
-	{
-		modelsDevKey: "vercel",
-		generatedProviderId: "vercel-ai-gateway",
 	},
 	{
 		modelsDevKey: "openrouter",
