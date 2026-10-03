@@ -2,7 +2,7 @@
 // Page-object helpers for the main Cline chat view.
 // ---------------------------------------------------------------------------
 
-import type { Terminal } from "@microsoft/tui-test/lib/terminal/term";
+import type { TuiTest as Terminal } from "@microsoft/tui-test";
 import { expectVisible, typeAndSubmit } from "../terminal.js";
 
 const chatReadyTimeoutMs = 20_000;
@@ -26,14 +26,14 @@ export async function submitPrompt(
 
 /** Toggle between Plan and Act mode by pressing Tab */
 export async function togglePlanAct(terminal: Terminal): Promise<void> {
-	terminal.write("\t");
+	await terminal.press("Tab");
 	// Wait for the mode indicator to update rather than sleeping a fixed amount
 	await expectVisible(terminal, /● Plan|● Act/);
 }
 
 /** Toggle auto-approve-all with Shift+Tab */
 export async function toggleAutoApproveAll(terminal: Terminal): Promise<void> {
-	terminal.write("\x1b[Z"); // shift tab
+	await terminal.press("Shift+Tab");
 }
 
 /** Wait for "Task completed" to appear */
@@ -64,31 +64,31 @@ export async function waitForApproveReject(terminal: Terminal): Promise<void> {
 }
 
 /** Press "1" to start a new task after task completion */
-export function startNewTask(terminal: Terminal) {
-	terminal.write("1");
+export async function startNewTask(terminal: Terminal): Promise<void> {
+	await terminal.type("1");
 }
 
-export function approveTool(terminal: Terminal) {
-	terminal.write("1");
+export async function approveTool(terminal: Terminal): Promise<void> {
+	await terminal.type("1");
 }
 
-export function rejectTool(terminal: Terminal) {
-	terminal.write("2");
+export async function rejectTool(terminal: Terminal): Promise<void> {
+	await terminal.type("2");
 }
 
 /** Press "2" to exit after task completion */
-export function exitAfterTask(terminal: Terminal) {
-	terminal.write("2");
+export async function exitAfterTask(terminal: Terminal): Promise<void> {
+	await terminal.type("2");
 }
 
 /** Wait for a permission prompt and approve it (press "1" / Save) */
-export function approvePermission(terminal: Terminal) {
-	terminal.write("1");
+export async function approvePermission(terminal: Terminal): Promise<void> {
+	await terminal.type("1");
 }
 
 /** Wait for a permission prompt and reject it (press "2" / Reject) */
-export function rejectPermission(terminal: Terminal) {
-	terminal.write("2");
+export async function rejectPermission(terminal: Terminal): Promise<void> {
+	await terminal.type("2");
 }
 
 /** Navigate to /settings */
