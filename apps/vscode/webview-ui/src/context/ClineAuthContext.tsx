@@ -67,23 +67,28 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				if (switchRequestRef.current === request) setAccountSwitch({ organizationId, slow: true })
 			}, 10_000)
 			let succeeded = false
+			let switchError: string | undefined
 			try {
 				await AccountServiceClient.setUserOrganization({ organizationId })
-				succeeded = true
 			} catch (error) {
-				if (switchRequestRef.current === request) {
-					setAccountSwitchError(error instanceof Error ? error.message : String(error))
-				}
+				switchError = error instanceof Error ? error.message : String(error)
 			} finally {
 				if (switchRequestRef.current === request) {
-					// Failure does not imply rollback: the PUT may have succeeded before
-					// auth refresh failed. Re-read the server instead of assuming rollback.
+					// Failure does not imply rollback, and a missed response deadline does
+					// not imply failure: the PUT may have landed while the auth refresh
+					// behind it was still running. The server's answer decides.
 					const organizations = await getUserOrganizations()
 					succeeded =
-						succeeded &&
 						!!organizations &&
 						(organizations.find((org) => org.active)?.organizationId ?? undefined) === organizationId
 					if (switchRequestRef.current === request) {
+						// A newer auth-status read may still be in flight and would discard
+						// this answer; without it, ending the switch falls back to the
+						// pre-switch organizations until that read lands.
+						if (organizations) {
+							setUserOrganizations((old) => (deepEqual(organizations, old) ? old : organizations))
+						}
+						if (!succeeded && switchError && organizations) setAccountSwitchError(switchError)
 						switchRequestRef.current = null
 						setAccountSwitch(null)
 					} else {

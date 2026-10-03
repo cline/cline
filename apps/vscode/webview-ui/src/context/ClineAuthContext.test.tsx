@@ -197,6 +197,73 @@ describe("ClineAuthProvider", () => {
 		expect(await result).toBe(true)
 	})
 
+	it("confirms a switch that lands after the response deadline, even while a newer read is in flight", async () => {
+		const confirmation = createDeferred<UserOrganizationsResponse>()
+		const activeNext = {
+			organizations: [{ organizationId: "org-next", active: true, memberId: "m", name: "Next", roles: [] }],
+		}
+		grpcMocks.getUserOrganizations
+			.mockResolvedValueOnce({ organizations: [{ ...activeNext.organizations[0], active: false }] })
+			.mockReturnValueOnce(confirmation.promise)
+			.mockReturnValue(new Promise(() => {}))
+		grpcMocks.setUserOrganization.mockRejectedValue(new Error("Account switch was not confirmed within 10 seconds"))
+		let result: Promise<boolean> | undefined
+		function SwitchProbe() {
+			const { switchOrganization, accountSwitchError, activeOrganization } = useClineAuth()
+			return (
+				<>
+					<button
+						onClick={() => {
+							result = switchOrganization("org-next")
+						}}
+						type="button">
+						Switch next
+					</button>
+					<div data-testid="switch-error">{accountSwitchError ?? "none"}</div>
+					<div data-testid="active-organization">{activeOrganization?.organizationId ?? "personal"}</div>
+				</>
+			)
+		}
+		render(
+			<ClineAuthProvider>
+				<SwitchProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch next"))
+		})
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			confirmation.resolve(activeNext)
+		})
+		expect(await result).toBe(true)
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("none")
+		expect(screen.getByTestId("active-organization")).toHaveTextContent("org-next")
+	})
+
+	it("reports a failed switch that the server did not apply", async () => {
+		grpcMocks.getUserOrganizations.mockResolvedValue({ organizations: [] })
+		grpcMocks.setUserOrganization.mockRejectedValue(new Error("Account switch was not confirmed within 10 seconds"))
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch"))
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("Account switch was not confirmed within 10 seconds")
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
+	})
+
 	it("does not report a background profile read as a failed account switch", async () => {
 		grpcMocks.getUserOrganizations.mockRejectedValue(new Error("offline"))
 		render(
