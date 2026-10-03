@@ -24,10 +24,12 @@ vi.mock("@/services/grpc-client", () => ({
 
 function createDeferred<T>() {
 	let resolve: (value: T) => void = () => {}
-	const promise = new Promise<T>((promiseResolve) => {
+	let reject: (error: Error) => void = () => {}
+	const promise = new Promise<T>((promiseResolve, promiseReject) => {
 		resolve = promiseResolve
+		reject = promiseReject
 	})
-	return { promise, resolve }
+	return { promise, resolve, reject }
 }
 
 function AuthStateProbe() {
@@ -259,6 +261,34 @@ describe("ClineAuthProvider", () => {
 		})
 		await act(async () => {
 			fireEvent.click(screen.getByText("Switch"))
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("Account switch was not confirmed within 10 seconds")
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
+	})
+
+	it("reports a failed switch whose confirmation read also fails behind a newer read", async () => {
+		const confirmation = createDeferred<UserOrganizationsResponse>()
+		grpcMocks.getUserOrganizations
+			.mockResolvedValueOnce({ organizations: [] })
+			.mockReturnValueOnce(confirmation.promise)
+			.mockReturnValue(new Promise(() => {}))
+		grpcMocks.setUserOrganization.mockRejectedValue(new Error("Account switch was not confirmed within 10 seconds"))
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch"))
+		})
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			confirmation.reject(new Error("offline"))
 		})
 		expect(screen.getByTestId("switch-error")).toHaveTextContent("Account switch was not confirmed within 10 seconds")
 		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")

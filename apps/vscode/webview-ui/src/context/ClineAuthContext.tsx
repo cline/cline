@@ -88,7 +88,8 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 						if (organizations) {
 							setUserOrganizations((old) => (deepEqual(organizations, old) ? old : organizations))
 						}
-						if (!succeeded && switchError && organizations) setAccountSwitchError(switchError)
+						// A failed read may already have reported why it could not confirm.
+						if (!succeeded && switchError) setAccountSwitchError((current) => current ?? switchError)
 						switchRequestRef.current = null
 						setAccountSwitch(null)
 					} else {
