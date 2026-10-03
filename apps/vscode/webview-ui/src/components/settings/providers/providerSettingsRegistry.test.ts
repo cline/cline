@@ -126,6 +126,25 @@ describe("providerSettingsRegistry", () => {
 		})
 	})
 
+	it("builds Melious settings with its signup and base URL fields", () => {
+		expect(hasCustomProviderSettings("melious")).toBe(false)
+		expect(
+			getGenericProviderSettings(
+				"melious",
+				listing({ id: "melious", name: "Melious", protocol: "openai-chat", allowsCustomModelIds: false }),
+			),
+		).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.melious.ai/v1",
+			},
+			providerId: "melious",
+			providerName: "Melious",
+			signupUrl: "https://melious.ai/account/api/keys",
+		})
+	})
+
 	it("allows future simple SDK providers to use the generic fallback", () => {
 		const futureProvider = listing({
 			allowsCustomModelIds: true,
