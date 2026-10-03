@@ -1,0 +1,71 @@
+{
+	"name": "@cline/i18n",
+	"version": "0.0.1",
+	"description": "Shared, framework-agnostic i18n runtime for Cline apps (locales, interpolation, plurals, Intl formatting) with an optional React binding.",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/i18n"
+	},
+	"private": false,
+	"internal": true,
+	"publishConfig": {
+		"access": "public"
+	},
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./react": {
+			"types": "./dist/react.d.ts",
+			"import": "./dist/react.js",
+			"default": "./dist/react.js"
+		},
+		"./locales/*": "./locales/*",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist",
+		"locales",
+		"README.md",
+		"GLOSSARY.zh-Hans.md"
+	],
+	"sideEffects": false,
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"build": "bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc --noEmit",
+		"test": "vitest run --config vitest.config.ts",
+		"i18n:types": "bun scripts/generate-message-types.ts",
+		"i18n:check": "bun scripts/check-catalogs.ts"
+	},
+	"keywords": [
+		"cline",
+		"i18n",
+		"internationalization",
+		"localization",
+		"translation"
+	],
+	"license": "Apache-2.0",
+	"peerDependencies": {
+		"react": ">=18.3.0 <20"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.13",
+		"@types/node": "^25.3.5",
+		"@types/react": "19.2.14",
+		"react": "19.2.4",
+		"typescript": "5.9.3",
+		"vitest": "^4.0.18"
+	}
+}
