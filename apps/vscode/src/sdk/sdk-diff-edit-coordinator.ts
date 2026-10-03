@@ -397,7 +397,11 @@ export function computeNewEditorContent(
 	if (input.insert_line != null) {
 		const eol = detectLineEnding(originalContent)
 		const lines = originalContent.split(/\r\n|\n/)
-		const maxBoundaryLine = lines.length + 1
+		// Same boundary rule as the executor: a trailing newline ends the last
+		// line rather than adding an empty one, so it must not count toward the
+		// range (github.com/cline/cline/issues/13545).
+		const trailingSegment = lines[lines.length - 1] === "" ? 1 : 0
+		const maxBoundaryLine = lines.length - trailingSegment + 1
 		if (input.insert_line < 1 || input.insert_line > maxBoundaryLine) {
 			throw new Error(
 				`Invalid insert_line: ${input.insert_line}. insert_line must be a positive one-based boundary line in the range 1-${maxBoundaryLine}. Use ${maxBoundaryLine} to append at EOF.`,
