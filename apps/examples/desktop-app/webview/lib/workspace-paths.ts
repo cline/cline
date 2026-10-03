@@ -44,9 +44,18 @@ export function normalizeWorkspacePath(path: string): string {
 	if (!trimmed) {
 		return "";
 	}
+	// Windows accepts both separators, so identity has to pick one. Only the
+	// identity is normalized: mergeWorkspacePaths keeps the first spelling seen
+	// for display, so project labels still read the way the path was recorded.
+	if (/^[A-Za-z]:/.test(trimmed)) {
+		const windowsPath = trimmed.replace(/\//g, "\\").toLowerCase();
+		if (/^[a-z]:\\+$/.test(windowsPath)) {
+			return `${windowsPath.slice(0, 2)}\\`;
+		}
+		return windowsPath.replace(/\\+$/, "");
+	}
 	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "");
-	const normalized = withoutTrailingSeparators || trimmed[0] || "";
-	return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
+	return withoutTrailingSeparators || trimmed[0] || "";
 }
 
 /**
