@@ -1,6 +1,7 @@
 import {
 	clearHubDiscovery,
 	ensureDetachedHubServer,
+	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
 	probeHubServer,
 	readHubDiscovery,
@@ -56,6 +57,41 @@ function resolveCliHubOwnerContext() {
 		: resolveSharedHubOwnerContext();
 }
 
+interface EnsureCommandOptions {
+	json?: boolean;
+	discoveryPath?: string;
+	allowPortFallback?: boolean;
+	/** Commander maps `--no-connectors` to `connectors: false`. */
+	connectors?: boolean;
+	loginShellPath?: boolean;
+}
+
+/**
+ * The connection record `hub ensure --json` prints.
+ *
+ * Callers that tunnel to the hub (the desktop app's SSH remotes) need the port
+ * and path separately rather than having to re-parse the URL, and they need the
+ * auth token to attach at all. Port and pathname are derived from the URL the
+ * hub actually bound, so they stay correct under `--allow-port-fallback`.
+ */
+export function describeHubConnection(resolution: {
+	url: string;
+	authToken: string;
+}): {
+	url: string;
+	authToken: string;
+	port: number;
+	pathname: string;
+} {
+	const parsed = new URL(resolution.url);
+	return {
+		url: resolution.url,
+		authToken: resolution.authToken,
+		port: Number(parsed.port),
+		pathname: parsed.pathname || "/hub",
+	};
+}
+
 function parseWaitSeconds(value: string): number {
 	const parsed = Number.parseInt(value, 10);
 	if (Number.isNaN(parsed) || parsed < 0) {
@@ -96,22 +132,65 @@ export function createHubCommand(
 		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
 		.option("--pathname <path>", "Hub websocket path");
 
-	hub.command("ensure").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
-			const { url } = await ensureDetachedHubServer(opts.cwd, {
-				host: opts.host,
-				port: opts.port,
-				pathname: opts.pathname,
-			});
-			io.writeln(url);
-		}),
-	);
+	hub
+		.command("ensure")
+		.description("Start the hub if needed and print how to reach it")
+		.option(
+			"--json",
+			"Print the full connection record (url, authToken, port, pathname) instead of just the URL",
+		)
+		.option(
+			"--discovery-path <path>",
+			"Track this hub in a dedicated discovery record instead of the default one",
+		)
+		.option(
+			"--allow-port-fallback",
+			"Bind an ephemeral port when the requested one is unavailable",
+		)
+		.option(
+			"--no-connectors",
+			"Do not adopt or supervise account-wide connectors",
+		)
+		.option(
+			"--login-shell-path",
+			"Merge the login shell's PATH into this process before starting the hub",
+		)
+		.action(
+			action(async (options: EnsureCommandOptions) => {
+				const opts = hub.opts<{
+					cwd: string;
+					host?: string;
+					port?: number;
+					pathname?: string;
+				}>();
+				// A non-interactive `ssh host cline hub ensure` runs with a
+				// minimal PATH, which the daemon — and everything an agent
+				// session spawns under it — would inherit. Opt-in because a
+				// local shell already has the login PATH and this costs a
+				// shell spawn.
+				if (options.loginShellPath) {
+					await ensureLoginShellPath();
+				}
+				// A dedicated discovery record is the isolation boundary for a
+				// hub that must not be reused as — or retire — the user's
+				// default one. Core reads the owner from this variable.
+				if (options.discoveryPath) {
+					process.env.CLINE_HUB_DISCOVERY_PATH = options.discoveryPath;
+				}
+				const result = await ensureDetachedHubServer(opts.cwd, {
+					host: opts.host,
+					port: opts.port,
+					pathname: opts.pathname,
+					allowPortFallback: options.allowPortFallback,
+					manageConnectors: options.connectors,
+				});
+				io.writeln(
+					options.json
+						? JSON.stringify(describeHubConnection(result))
+						: result.url,
+				);
+			}),
+		);
 
 	hub.command("start").action(
 		action(async () => {
@@ -154,13 +233,24 @@ export function createHubCommand(
 		}),
 	);
 
-	hub.command("stop").action(
-		action(async () => {
-			const opts = hub.opts<{ cwd: string }>();
-			const stopped = await stopHubServer(opts.cwd);
-			io.writeln(JSON.stringify({ stopped }));
-		}),
-	);
+	hub
+		.command("stop")
+		.option(
+			"--discovery-path <path>",
+			"Stop the hub tracked by this discovery record instead of the default one",
+		)
+		.action(
+			action(async (options: { discoveryPath?: string }) => {
+				const opts = hub.opts<{ cwd: string }>();
+				// Mirrors `ensure --discovery-path`: this is what lets a caller
+				// stop only the hub it started, never the user's default one.
+				if (options.discoveryPath) {
+					process.env.CLINE_HUB_DISCOVERY_PATH = options.discoveryPath;
+				}
+				const stopped = await stopHubServer(opts.cwd);
+				io.writeln(JSON.stringify({ stopped }));
+			}),
+		);
 
 	hub
 		.command("drain")

@@ -41,11 +41,11 @@
 		"shortDescription": "Cline AI coding agent",
 		"longDescription": "Cline is an AI coding agent. It reads your code, edits files, runs commands, and works through tasks with you in any project on your machine.",
 		"homepage": "https://cline.bot",
-		"externalBin": ["bin/code-sidecar"],
+		"externalBin": ["bin/code-sidecar", "bin/cline"],
 		"resources": [
 			"icons/app/*.png",
 			"icons/app/macos/*.png",
-			"bin/remote-helpers/*"
+			"bin/remote-clis/*"
 		],
 		"icon": [
 			"icons/32x32.png",

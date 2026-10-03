@@ -5,11 +5,11 @@ import { remoteHelperBinaryFilename } from "@cline/core";
 import { expect, it } from "vitest";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
 
-it("finds SSH helpers in the installed Windows resource layout", () => {
+it("finds remote CLIs in the installed Windows resource layout", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const target = { platform: "linux", arch: "x64" } as const;
-		const directory = join(root, "bin", "remote-helpers");
+		const directory = join(root, "bin", "remote-clis");
 		mkdirSync(directory, { recursive: true });
 		const helper = join(directory, remoteHelperBinaryFilename(target));
 		writeFileSync(helper, "helper");
@@ -29,20 +29,23 @@ it("finds SSH helpers in the installed Windows resource layout", () => {
 const FAT_MACHO_HEADER = Buffer.from("cafebabe00000002", "hex");
 const THIN_ARM64_MACHO_HEADER = Buffer.from("cffaedfe0c000001", "hex");
 
-it("uses the packaged universal macOS sidecar as the helper for Mac remotes", () => {
+it("uses the packaged universal macOS CLI for Mac remotes", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const macOS = join(root, "Cline.app", "Contents", "MacOS");
 		mkdirSync(macOS, { recursive: true });
 		const sidecar = join(macOS, "code-sidecar");
-		writeFileSync(sidecar, FAT_MACHO_HEADER);
+		// The CLI ships beside the sidecar as a signed externalBin, so it is the
+		// one Mach-O in the bundle that may be uploaded to a Mac remote.
+		const cli = join(macOS, "cline");
+		writeFileSync(cli, FAT_MACHO_HEADER);
 		for (const arch of ["arm64", "x64"] as const) {
 			expect(
 				resolveDesktopRemoteHelper(
 					{ platform: "darwin", arch },
 					{ execPath: sidecar, cwd: tmpdir(), env: {}, platform: "darwin" },
 				),
-			).toBe(sidecar);
+			).toBe(cli);
 		}
 		expect(
 			resolveDesktopRemoteHelper(
@@ -55,13 +58,14 @@ it("uses the packaged universal macOS sidecar as the helper for Mac remotes", ()
 	}
 });
 
-it("only offers a thin packaged macOS sidecar to Mac remotes of its own architecture", () => {
+it("only offers a thin packaged macOS CLI to Mac remotes of its own architecture", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const macOS = join(root, "Cline.app", "Contents", "MacOS");
 		mkdirSync(macOS, { recursive: true });
 		const sidecar = join(macOS, "code-sidecar");
-		writeFileSync(sidecar, THIN_ARM64_MACHO_HEADER);
+		const cli = join(macOS, "cline");
+		writeFileSync(cli, THIN_ARM64_MACHO_HEADER);
 		const options = {
 			execPath: sidecar,
 			cwd: tmpdir(),
@@ -73,7 +77,7 @@ it("only offers a thin packaged macOS sidecar to Mac remotes of its own architec
 				{ platform: "darwin", arch: "arm64" },
 				options,
 			),
-		).toBe(sidecar);
+		).toBe(cli);
 		expect(
 			resolveDesktopRemoteHelper({ platform: "darwin", arch: "x64" }, options),
 		).toBeUndefined();
@@ -82,13 +86,13 @@ it("only offers a thin packaged macOS sidecar to Mac remotes of its own architec
 	}
 });
 
-it("uses the compiled sidecar for Mac remotes under tauri dev on macOS", () => {
+it("uses the compiled CLI for Mac remotes under tauri dev on macOS", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-dev-helpers-"));
 	try {
 		const bin = join(root, "src-tauri", "bin");
 		mkdirSync(bin, { recursive: true });
-		const sidecar = join(bin, "code-sidecar-aarch64-apple-darwin");
-		writeFileSync(sidecar, "sidecar");
+		const cli = join(bin, "cline-aarch64-apple-darwin");
+		writeFileSync(cli, "cli");
 		const options = {
 			execPath: "/usr/local/bin/bun",
 			cwd: root,
@@ -100,7 +104,7 @@ it("uses the compiled sidecar for Mac remotes under tauri dev on macOS", () => {
 				{ platform: "darwin", arch: "arm64" },
 				options,
 			),
-		).toBe(sidecar);
+		).toBe(cli);
 		expect(
 			resolveDesktopRemoteHelper({ platform: "darwin", arch: "x64" }, options),
 		).toBeUndefined();
@@ -109,7 +113,7 @@ it("uses the compiled sidecar for Mac remotes under tauri dev on macOS", () => {
 	}
 });
 
-it("finds SSH helpers in the installed Linux resource layout", () => {
+it("finds remote CLIs in the installed Linux resource layout", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const target = { platform: "linux", arch: "arm64" } as const;
@@ -119,7 +123,7 @@ it("finds SSH helpers in the installed Linux resource layout", () => {
 			"lib",
 			"Cline Beta",
 			"bin",
-			"remote-helpers",
+			"remote-clis",
 		);
 		mkdirSync(directory, { recursive: true });
 		const helper = join(directory, remoteHelperBinaryFilename(target));

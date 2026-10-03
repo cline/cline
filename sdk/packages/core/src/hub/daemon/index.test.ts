@@ -165,6 +165,7 @@ describe("ensureDetachedHubServer", () => {
 		const { __test__ } = await import(".");
 		__test__.resetRetireAttempts();
 		delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
+		delete process.env.CLINE_HUB_LAUNCHER_BINARY;
 		spawn.mockReset();
 		spawn.mockImplementation(() => ({ unref: vi.fn() }));
 		closeSync.mockReset();
@@ -255,6 +256,40 @@ describe("ensureDetachedHubServer", () => {
 		expect(spawnOptions?.env?.CLINE_CONNECTOR_CLI_LAUNCH).toBe(
 			process.env.CLINE_CONNECTOR_CLI_LAUNCH,
 		);
+	});
+
+	it("spawns the hub daemon from a configured launcher binary", async () => {
+		process.env.CLINE_HUB_LAUNCHER_BINARY = "/Applications/Cline.app/cline";
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		probeHubServer.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+		});
+		verifyHubConnection.mockResolvedValueOnce(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		await ensureDetachedHubServer("/workspace");
+
+		const spawnCalls = (spawn as unknown as { mock: { calls: unknown[][] } })
+			.mock.calls;
+		expect(spawnCalls[0]?.[0]).toBe("/Applications/Cline.app/cline");
+		// The launcher embeds its own copy of this Core build, so it takes the
+		// personality marker rather than a path to an entry script it cannot read.
+		expect(spawnCalls[0]?.[1]).toEqual([
+			"--cline-hub-daemon",
+			"--cwd",
+			"/workspace",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"25463",
+			"--pathname",
+			"/hub",
+		]);
 	});
 
 	it("retries a transient ETXTBSY spawn failure while starting the detached daemon", async () => {

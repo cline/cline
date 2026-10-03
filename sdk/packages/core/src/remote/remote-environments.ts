@@ -345,13 +345,7 @@ export class RemoteEnvironmentService {
 			bootstrap = { helper: remoteHelper, discoveryPath };
 			const ensureResult = await this.execRemote(profile, {
 				command: remoteHelper,
-				args: [
-					"--remote-hub-ensure",
-					"--cwd",
-					inspection.home,
-					"--discovery-path",
-					discoveryPath,
-				],
+				args: remoteHubEnsureArgs(inspection.home, discoveryPath),
 			});
 			const hub = parseRemoteHubResult(ensureResult.stdout);
 			const localPort = await this.dependencies.reservePort();
@@ -416,11 +410,7 @@ export class RemoteEnvironmentService {
 					// An independent SSH command works even when forwarding never opened.
 					await this.execRemote(profile, {
 						command: bootstrap.helper,
-						args: [
-							"--remote-hub-stop",
-							"--discovery-path",
-							bootstrap.discoveryPath,
-						],
+						args: remoteHubStopArgs(bootstrap.discoveryPath),
 					});
 				} catch (failure) {
 					cleanupError = failure;
@@ -537,7 +527,7 @@ export class RemoteEnvironmentService {
 		if (!localHelper || !(await this.dependencies.fileReadable(localHelper))) {
 			throw new Error(
 				`Remote target ${inspection.platform}/${inspection.arch} is unsupported in SSH: ` +
-					"no compatible remote helper binary is available. Build the matching core remote helper and set " +
+					"no compatible Cline CLI binary is available to upload. Build the matching CLI binary and set " +
 					"CLINE_REMOTE_HELPER_BINARY; network installers are intentionally not used.",
 			);
 		}
@@ -547,9 +537,11 @@ export class RemoteEnvironmentService {
 			inspection.home,
 			REMOTE_HELPER_DIRECTORY,
 		);
+		// Content-addressed so an upgraded client uploads alongside the copy an
+		// older session may still be running, rather than overwriting it.
 		const remoteHelper = joinRemote(
 			remoteDirectory,
-			`cline-remote-helper-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
+			`cline-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
 		);
 		await this.installHelper(
 			profile,
@@ -868,7 +860,7 @@ export class RemoteEnvironmentService {
 						);
 			await this.execRemote(cleanupProfile, {
 				command: helper,
-				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
+				args: remoteHubStopArgs(cleanup.discoveryPath),
 			});
 			await rm(path, { force: true });
 		}
@@ -959,7 +951,7 @@ function createDefaultDependencies(
 				...(configuredHelperDirectory
 					? [join(configuredHelperDirectory, filename)]
 					: []),
-				join(executableDirectory, "remote-helpers", filename),
+				join(executableDirectory, "remote-clis", filename),
 			];
 			for (const candidate of candidates) {
 				try {
@@ -985,6 +977,51 @@ function createDefaultDependencies(
 	};
 }
 
+/**
+ * Start (or reuse) the Hub on an SSH host through the Cline CLI that was
+ * uploaded there.
+ *
+ * Every flag is load-bearing for a remote, session-scoped Hub:
+ * - `--json` returns the auth token and port needed to tunnel and attach.
+ * - `--discovery-path` is the isolation boundary. It keeps this Hub out of the
+ *   host's default discovery record, so a Cline running on that host directly
+ *   is neither reused as, nor retired by, this one.
+ * - `--allow-port-fallback` lets it bind an ephemeral port instead of fighting
+ *   over the default one, which the tunnel then forwards.
+ * - `--no-connectors` keeps it from adopting the account's connectors; it
+ *   exists only to serve this desktop session.
+ * - `--login-shell-path` because a non-interactive SSH command runs with a
+ *   minimal PATH that the Hub, and everything an agent session spawns under
+ *   it, would otherwise inherit.
+ */
+export function remoteHubEnsureArgs(
+	cwd: string,
+	discoveryPath: string,
+): string[] {
+	return [
+		"hub",
+		"--cwd",
+		cwd,
+		"ensure",
+		"--json",
+		"--discovery-path",
+		discoveryPath,
+		"--allow-port-fallback",
+		"--no-connectors",
+		"--login-shell-path",
+	];
+}
+
+/** Stop only the Hub tracked by this session's own discovery record. */
+export function remoteHubStopArgs(discoveryPath: string): string[] {
+	return ["hub", "stop", "--discovery-path", discoveryPath];
+}
+
+/**
+ * Filename of the bundled Cline CLI binary that can run on `target`. Clients
+ * ship one per remote platform/arch they support and upload the matching one
+ * over SSH, where it starts the Hub via `cline hub ensure`.
+ */
 export function remoteHelperBinaryFilename(target: RemoteHelperTarget): string {
 	const triple =
 		target.platform === "darwin"
@@ -994,7 +1031,7 @@ export function remoteHelperBinaryFilename(target: RemoteHelperTarget): string {
 			: target.arch === "arm64"
 				? "aarch64-unknown-linux-gnu"
 				: "x86_64-unknown-linux-gnu";
-	return `cline-remote-helper-${triple}`;
+	return `cline-${triple}`;
 }
 
 export async function runRemoteProcess(
