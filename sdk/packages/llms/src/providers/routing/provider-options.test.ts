@@ -1,9 +1,10 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 	ModelReasoningOption,
 } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
@@ -138,6 +139,82 @@ describe("Anthropic server-side refusal fallbacks", () => {
 			makeContext(selection),
 		);
 		expect(options.anthropic).toMatchObject({ fallbacks: "default" });
+	});
+
+	it.each([
+		"https://api.anthropic.com/v1",
+		"https://api.anthropic.com/v1/",
+	])("enables refusal fallbacks for the official endpoint %s", (baseUrl) => {
+		const selection = { providerId: "anthropic", modelId: "claude-fable-5" };
+		const context = makeContext(selection);
+		context.config.baseUrl = baseUrl;
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			context,
+		);
+		expect(options.anthropic).toMatchObject({ fallbacks: "default" });
+	});
+
+	it.each([
+		"https://example.services.ai.azure.com/anthropic/v1",
+		"https://example.services.ai.azure.com/anthropic",
+		"https://example.services.ai.azure.com",
+		"https://api.anthropic.com.example.com/v1",
+	])("omits official-only refusal fallbacks for custom endpoint %s", (baseUrl) => {
+		const selection = { providerId: "anthropic", modelId: "claude-fable-5" };
+		const context = makeContext(selection);
+		context.config.baseUrl = baseUrl;
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			context,
+		);
+		for (const bucket of Object.values(options)) {
+			expect(bucket).not.toHaveProperty("fallbacks");
+		}
+	});
+
+	it.each([
+		{ baseUrl: undefined, expectedFallbacks: "default" },
+		{ baseUrl: "https://api.anthropic.com/v1", expectedFallbacks: "default" },
+		{
+			baseUrl: "https://example.services.ai.azure.com/anthropic/v1",
+			expectedFallbacks: undefined,
+		},
+	])("serializes refusal fallbacks only for the official endpoint ($baseUrl)", async ({
+		baseUrl,
+		expectedFallbacks,
+	}) => {
+		const selection = { providerId: "anthropic", modelId: "claude-sonnet-4-6" };
+		const context = makeContext(selection);
+		context.config.baseUrl = baseUrl;
+		const providerOptions = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			context,
+		);
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockRejectedValue(new Error("request captured"));
+		const model = createAnthropic({
+			apiKey: "test-key",
+			baseURL: baseUrl,
+			fetch: fetchMock,
+		})(selection.modelId);
+
+		await expect(
+			model.doGenerate({
+				prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+				maxOutputTokens: 100,
+				providerOptions,
+			}),
+		).rejects.toThrow("request captured");
+
+		const init = fetchMock.mock.calls[0]?.[1];
+		const body = JSON.parse(init?.body as string);
+		expect(body.fallbacks).toBe(expectedFallbacks);
+		const betaHeader = new Headers(init?.headers).get("anthropic-beta") ?? "";
+		expect(betaHeader.includes("server-side-fallback")).toBe(
+			expectedFallbacks !== undefined,
+		);
 	});
 
 	it.each([

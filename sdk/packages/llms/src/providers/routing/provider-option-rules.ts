@@ -129,7 +129,19 @@ const directAnthropicProviderRule: ProviderOptionRule = {
 	suppresses: { genericFanout: true },
 	// The Anthropic adapter adds the required beta header. This option is
 	// specific to the Claude API, not Claude models served by other gateways.
-	build: () => ({ anthropic: { fallbacks: "default" } }),
+	build: (input) => {
+		const baseUrl = input.context.config.baseUrl;
+		if (baseUrl) {
+			try {
+				if (new URL(baseUrl).origin !== "https://api.anthropic.com") {
+					return undefined;
+				}
+			} catch {
+				return undefined;
+			}
+		}
+		return { anthropic: { fallbacks: "default" } };
+	},
 };
 
 const directGoogleProviderRule: ProviderOptionRule = {
