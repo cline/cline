@@ -720,6 +720,39 @@ describe("createHookConfigFileHooks", () => {
 		30_000,
 	);
 
+	it.runIf(process.platform === "win32")(
+		"executes non-blocking TaskStart.ps1 hook with detachAsyncHooks on Windows",
+		async () => {
+			const outputPath = join(tmpdir(), `hooks-task-start-${Date.now()}.log`);
+			const { workspace } = await createWorkspaceWithHook(
+				"TaskStart.ps1",
+				`[Console]::In.ReadToEnd() | Out-Null\nAdd-Content -Path '${outputPath.replace(/\\/g, "/")}' -Value 'task-start-ok'\n`,
+			);
+			try {
+				const hooks = createHookConfigFileHooks({
+					cwd: workspace,
+					workspacePath: workspace,
+					detachAsyncHooks: true,
+				});
+				expect(hooks?.beforeRun).toBeTypeOf("function");
+				await hooks?.beforeRun?.({
+					snapshot: beforeToolContext().snapshot,
+				});
+				const lines = await waitForJsonLines(outputPath, 1, 5_000);
+				expect(lines[0]).toBe("task-start-ok");
+			} finally {
+				await rm(outputPath, { force: true }).catch(() => {});
+				await rm(workspace, {
+					recursive: true,
+					force: true,
+					maxRetries: 3,
+					retryDelay: 250,
+				});
+			}
+		},
+		30_000,
+	);
+
 	it("maps TaskError hook files to agent_error stop events", async () => {
 		const outputPath = join(tmpdir(), `hooks-task-error-${Date.now()}.json`);
 		const { workspace } = await createWorkspaceWithHook(

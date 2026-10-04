@@ -1,5 +1,9 @@
+import { existsSync, readFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { runSubprocessEvent } from "./subprocess-runner";
+import { isPowerShellCommand, runSubprocessEvent } from "./subprocess-runner";
 
 describe("runSubprocessEvent", () => {
 	it("does not lose close events from children that exit while stdin is flushing", async () => {
@@ -180,6 +184,70 @@ describe("runSubprocessEvent", () => {
 		// window, which is what an observation timer left armed would report.
 		await new Promise((resolve) => setTimeout(resolve, 500));
 		expect(observed).toHaveLength(0);
+	});
+
+	it.runIf(process.platform === "win32")(
+		"executes detached PowerShell hook without premature exit on Windows",
+		async () => {
+			const outputPath = join(
+				tmpdir(),
+				`subprocess-powershell-${Date.now()}.log`,
+			);
+			const observed: Array<{ durationMs: number; exited: boolean }> = [];
+			try {
+				await runSubprocessEvent(
+					{},
+					{
+						command: [
+							"powershell",
+							"-NoProfile",
+							"-NonInteractive",
+							"-Command",
+							`[Console]::In.ReadToEnd() | Out-Null; Add-Content -Path '${outputPath.replace(/\\/g, "/")}' -Value 'subprocess-ok'`,
+						],
+						detached: true,
+						detachedObservationMs: 5_000,
+						onDetachedSettled: (event) => observed.push(event),
+					},
+				);
+				await vi.waitFor(
+					() => {
+						expect(observed).toHaveLength(1);
+						expect(existsSync(outputPath)).toBe(true);
+					},
+					{ timeout: 5_000 },
+				);
+				expect(observed[0].exited).toBe(true);
+				expect(readFileSync(outputPath, "utf8").trim()).toBe("subprocess-ok");
+			} finally {
+				await rm(outputPath, { force: true }).catch(() => {});
+			}
+		},
+	);
+});
+
+describe("isPowerShellCommand", () => {
+	it("detects powershell executables regardless of case and extension", () => {
+		expect(isPowerShellCommand(["powershell"])).toBe(true);
+		expect(isPowerShellCommand(["PowerShell.EXE", "-File", "test.ps1"])).toBe(
+			true,
+		);
+		expect(isPowerShellCommand(["pwsh"])).toBe(true);
+		expect(isPowerShellCommand(["PWSH.exe", "-File", "test.ps1"])).toBe(true);
+		expect(
+			isPowerShellCommand([
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			]),
+		).toBe(true);
+		expect(isPowerShellCommand(["/usr/bin/pwsh"])).toBe(true);
+	});
+
+	it("returns false for non-powershell commands", () => {
+		expect(isPowerShellCommand(["node", "index.js"])).toBe(false);
+		expect(isPowerShellCommand(["bun", "run", "index.ts"])).toBe(false);
+		expect(isPowerShellCommand(["bash", "hook.sh"])).toBe(false);
+		expect(isPowerShellCommand(["cmd.exe", "/c", "hook.cmd"])).toBe(false);
+		expect(isPowerShellCommand([])).toBe(false);
 	});
 });
 
