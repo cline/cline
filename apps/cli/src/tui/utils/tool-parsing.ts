@@ -202,7 +202,7 @@ function chunkBase64(data: string): string {
 // payload handed to the model keeps its original bytes.
 const ANSI_SEQUENCE =
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching the control bytes is the point of these patterns
-	/\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g;
+	/\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching the control bytes is the point of these patterns
 const NON_PRINTING_CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
 
@@ -212,19 +212,23 @@ export function normalizeTerminalText(text: string): string {
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching the control bytes is the point of these patterns
 	if (!/[\u0000-\u0008\u000b-\u001f\u007f]/.test(text)) return text;
 
-	const collapsed = text
+	// A bare carriage return means "overwrite this line from column 0", so a
+	// line renders as its last non-empty CR-separated segment — what a
+	// terminal ends up showing, without simulating column positions. CRLF
+	// survives intact: `\r\n` splits into a trailing `\r` segment, which is
+	// empty and therefore drops out.
+	const rendered = text
 		.split("\n")
 		.map((line) => {
-			// A carriage return means "overwrite this line from column 0", so the
-			// last one on a line leaves only the text after it visible.
-			const lastCarriageReturn = line.lastIndexOf("\r");
-			return lastCarriageReturn === -1
-				? line
-				: line.slice(lastCarriageReturn + 1);
+			let visible = "";
+			for (const segment of line.split("\r")) {
+				if (segment !== "") visible = segment;
+			}
+			return visible;
 		})
 		.join("\n");
 
-	return collapsed.replace(ANSI_SEQUENCE, "").replace(NON_PRINTING_CONTROL, "");
+	return rendered.replace(ANSI_SEQUENCE, "").replace(NON_PRINTING_CONTROL, "");
 }
 
 export function extractFullOutputText(raw: unknown): string | undefined {
