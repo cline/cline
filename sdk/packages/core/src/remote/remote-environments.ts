@@ -343,16 +343,16 @@ export class RemoteEnvironmentService {
 				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}-${createHash("sha256").update(profile.id).digest("hex").slice(0, 16)}.json`,
 			);
 			bootstrap = { helper: remoteHelper, discoveryPath };
-			const ensureResult = await this.execRemote(profile, {
-				command: remoteHelper,
-				args: [
+			const ensureResult = await this.execRemote(
+				profile,
+				remoteHelperCommand(remoteHelper, [
 					"--remote-hub-ensure",
 					"--cwd",
 					inspection.home,
 					"--discovery-path",
 					discoveryPath,
-				],
-			});
+				]),
+			);
 			const hub = parseRemoteHubResult(ensureResult.stdout);
 			const localPort = await this.dependencies.reservePort();
 			const tunnel = this.dependencies.spawnTunnel(
@@ -414,14 +414,14 @@ export class RemoteEnvironmentService {
 			if (bootstrap) {
 				try {
 					// An independent SSH command works even when forwarding never opened.
-					await this.execRemote(profile, {
-						command: bootstrap.helper,
-						args: [
+					await this.execRemote(
+						profile,
+						remoteHelperCommand(bootstrap.helper, [
 							"--remote-hub-stop",
 							"--discovery-path",
 							bootstrap.discoveryPath,
-						],
-					});
+						]),
+					);
 				} catch (failure) {
 					cleanupError = failure;
 					await this.persistPendingCleanup({ profile, ...bootstrap });
@@ -866,10 +866,14 @@ export class RemoteEnvironmentService {
 							cleanupProfile,
 							await this.inspectRemote(cleanupProfile),
 						);
-			await this.execRemote(cleanupProfile, {
-				command: helper,
-				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
-			});
+			await this.execRemote(
+				cleanupProfile,
+				remoteHelperCommand(helper, [
+					"--remote-hub-stop",
+					"--discovery-path",
+					cleanup.discoveryPath,
+				]),
+			);
 			await rm(path, { force: true });
 		}
 	}
@@ -1283,6 +1287,22 @@ function validateCommandInput(input: RemoteCommandInput): void {
 			"Remote working directory cannot contain newlines or NUL bytes",
 		);
 	}
+}
+
+// The desktop UPX-packs its Linux helpers, so their embedded Bun payload is
+// unpacked into anonymous memory. After startup Bun drops the payload's source
+// pages with MADV_DONTNEED, expecting them to fault back in from the file on
+// disk; under UPX they come back as zeros and the helper dies with
+// "SyntaxError: Invalid character: '\0'". Bun reads this flag before any JS
+// runs, so it must be set at exec. The Hub daemon the helper spawns inherits it.
+function remoteHelperCommand(
+	helper: string,
+	args: string[],
+): RemoteCommandInput {
+	return {
+		command: "env",
+		args: ["BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1", helper, ...args],
+	};
 }
 
 function buildRemoteCommand(

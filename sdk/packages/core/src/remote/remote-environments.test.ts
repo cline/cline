@@ -480,6 +480,9 @@ describe("RemoteEnvironmentService", () => {
 		const ensure = invocations.find((invocation) =>
 			invocation.args.at(-1)?.includes("--remote-hub-ensure"),
 		);
+		expect(ensure?.args.at(-1)).toMatch(
+			/^exec 'env' 'BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1' '\/home\/dev\/[^']+' '--remote-hub-ensure'/,
+		);
 		expect(ensure?.args.at(-1)).toContain("'/home/dev'");
 		expect(ensure?.args.at(-1)).toMatch(
 			/\/home\/dev\/\.cline\/data\/remote\/[a-f0-9-]+\.json/,

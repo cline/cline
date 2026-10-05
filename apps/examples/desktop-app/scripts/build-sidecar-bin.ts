@@ -83,9 +83,10 @@ const buildSidecar = async (
 // Each compiled helper embeds a full Bun runtime (~100 MB) around ~14 MB of
 // our code, and both helpers ship inside every desktop bundle. UPX packs the
 // ELF in place to about a quarter of its size and it self-extracts in memory on
-// launch (measured: ~1.6 s extra startup, ~55 MB extra RSS on the Hub daemon),
-// so nothing downstream changes: the installer, the SSH upload, and the remote
-// run all see one ordinary executable. `strip` is not an option here; it
+// launch (measured: ~1.6 s extra startup, ~55 MB extra RSS on the Hub daemon).
+// Packed helpers must run with BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1
+// (remote-environments.ts sets it); without it, Bun zeroes their embedded
+// source after startup. `strip` is not an option here; it
 // discards Bun's appended module payload. Requires upx on PATH; the publish
 // workflow installs it on every runner.
 const compressRemoteHelper = async (outfile: string): Promise<void> => {
