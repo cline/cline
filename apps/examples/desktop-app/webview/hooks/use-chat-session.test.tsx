@@ -20,6 +20,7 @@ import {
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
+import { usePromptDraft } from "./use-prompt-draft";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -432,6 +433,70 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
+		const drafts = new Map<string, string>();
+		let draft!: ReturnType<typeof usePromptDraft>;
+		function DraftHarness({ threadId }: { threadId: string }) {
+			current = useChatSession("local");
+			draft = usePromptDraft(drafts, threadId);
+			return null;
+		}
+		const show = (threadId: string) =>
+			act(async () => {
+				root.render(<DraftHarness key={threadId} threadId={threadId} />);
+			});
+		const started = deferred<void>();
+		let rejectStart!: (error: Error) => void;
+		const startResult = new Promise<never>((_resolve, reject) => {
+			rejectStart = reject;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request;
+					if (
+						request &&
+						typeof request === "object" &&
+						"action" in request &&
+						request.action === "start"
+					) {
+						started.resolve();
+						return await startResult;
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		await show("A");
+		let restore!: (value: string) => boolean;
+		let send!: Promise<boolean>;
+		await act(async () => {
+			restore = draft.clearPromptForSend();
+			send = current.sendPrompt("Original submitted prompt");
+			await started.promise;
+		});
+		await show("B");
+		await show("A");
+		act(() => draft.handlePromptInputChange("Newer unsent prompt"));
+		await act(async () => {
+			rejectStart(new Error("Provider connection failed"));
+			const accepted = await send;
+			expect(accepted).toBe(false);
+			expect(restore("Original submitted prompt")).toBe(false);
+		});
+		await show("B");
+		await show("A");
+		expect(draft.promptDraft.value).toBe("Newer unsent prompt");
+	});
+
 	const cloudSessionConfig = {
 		provider: "cline",
 		model: "test-model",
