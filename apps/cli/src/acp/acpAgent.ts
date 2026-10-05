@@ -337,29 +337,22 @@ export class AcpAgent implements Agent {
 		session.abortController = abortController;
 		session.fatalError = undefined;
 
-		// If cancel() was already called before prompt() started, bail early.
-		if (abortController.signal.aborted) {
-			session.abortController = undefined;
-			return { stopReason: "cancelled" };
-		}
-
-		await this.ensureSessionManager(session, params.sessionId);
-
-		// Re-check after async initialization.
-		if (abortController.signal.aborted) {
-			session.abortController = undefined;
-			return { stopReason: "cancelled" };
-		}
-
 		let stopReason: StopReason = "end_turn";
+		const onAbort = () => {
+			if (session.activeSessionId && session.sessionManager) {
+				session.sessionManager
+					.abort(session.activeSessionId, abortController.signal.reason)
+					.catch(() => {});
+			}
+		};
 		try {
-			const onAbort = () => {
-				if (session.activeSessionId && session.sessionManager) {
-					session.sessionManager
-						.abort(session.activeSessionId, abortController.signal.reason)
-						.catch(() => {});
-				}
-			};
+			await this.ensureSessionManager(session, params.sessionId);
+
+			// Re-check after async initialization.
+			if (abortController.signal.aborted) {
+				return { stopReason: "cancelled" };
+			}
+
 			abortController.signal.addEventListener("abort", onAbort, {
 				once: true,
 			});
@@ -378,7 +371,10 @@ export class AcpAgent implements Agent {
 				stopReason = mapFinishReason(result.finishReason);
 			}
 		} finally {
-			session.abortController = undefined;
+			abortController.signal.removeEventListener("abort", onAbort);
+			if (session.abortController === abortController) {
+				session.abortController = undefined;
+			}
 		}
 
 		sendSessionInfoUpdate(this.conn, params.sessionId, {
@@ -709,53 +705,68 @@ export class AcpAgent implements Agent {
 			workspaceRoot: config.workspaceRoot,
 		});
 
-		let initialMessages: MessageWithMetadata[] | undefined;
-		if (options?.resume) {
-			initialMessages = await sessionManager
-				.readMessages(acpSessionId)
-				.catch(() => undefined);
+		let unsubscribe: (() => void) | undefined;
+		try {
+			const initialMessages = options?.resume
+				? await sessionManager.readMessages(acpSessionId).catch(() => undefined)
+				: session.pendingInitialMessages;
 
-			if (!initialMessages || initialMessages.length === 0) {
-				await sessionManager
-					.dispose("acp_load_session_not_found")
-					.catch(() => {});
+			if (
+				options?.resume &&
+				(!initialMessages || initialMessages.length === 0)
+			) {
 				throw RequestError.resourceNotFound(acpSessionId);
 			}
-		} else {
-			initialMessages = session.pendingInitialMessages;
-			session.pendingInitialMessages = undefined;
+
+			unsubscribe = subscribeToAgentEvents(
+				sessionManager,
+				(event: AgentEvent) => {
+					// Remember unrecoverable failures so prompt() can fail the turn.
+					if (event.type === "error" && !event.recoverable) {
+						session.fatalError =
+							event.error instanceof Error
+								? event.error
+								: new Error(describeAgentError(event.error));
+					}
+					forwardAgentEvent(this.conn, acpSessionId, event);
+				},
+			);
+
+			const started = await sessionManager.start({
+				source: SessionSource.CLI,
+				// Persist the core session under the ACP session id so that
+				// session/load can find the conversation by the id the client holds.
+				config: {
+					...config,
+					modelId: session.currentModelId,
+					sessionId: acpSessionId,
+				},
+				interactive: true,
+				initialMessages,
+			});
+
+			// Startup transfers ownership of the candidate and consumes only the
+			// pending conversation used by this candidate, not a newer replacement.
+			session.sessionManager = sessionManager;
+			session.activeSessionId = started.sessionId;
+			session.unsubscribe = unsubscribe;
+			if (
+				!options?.resume &&
+				session.pendingInitialMessages === initialMessages
+			) {
+				session.pendingInitialMessages = undefined;
+			}
+			return initialMessages;
+		} catch (error) {
+			try {
+				unsubscribe?.();
+			} finally {
+				await sessionManager
+					.dispose("acp_session_start_failed")
+					.catch(() => {});
+			}
+			throw error;
 		}
-
-		session.unsubscribe = subscribeToAgentEvents(
-			sessionManager,
-			(event: AgentEvent) => {
-				// Remember unrecoverable failures so prompt() can fail the turn.
-				if (event.type === "error" && !event.recoverable) {
-					session.fatalError =
-						event.error instanceof Error
-							? event.error
-							: new Error(describeAgentError(event.error));
-				}
-				forwardAgentEvent(this.conn, acpSessionId, event);
-			},
-		);
-
-		const started = await sessionManager.start({
-			source: SessionSource.CLI,
-			// Persist the core session under the ACP session id so that
-			// session/load can find the conversation by the id the client holds.
-			config: {
-				...config,
-				modelId: session.currentModelId,
-				sessionId: acpSessionId,
-			},
-			interactive: true,
-			initialMessages,
-		});
-
-		session.sessionManager = sessionManager;
-		session.activeSessionId = started.sessionId;
-		return initialMessages;
 	}
 
 	private async buildConfig(session: SessionState): Promise<Config> {
