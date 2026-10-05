@@ -2303,7 +2303,10 @@ function createAiSdkProvider(
 					context,
 					messagesSystemPrompt,
 				);
-				const portableReasoning = resolvePortableReasoning(request);
+				const portableReasoning = resolvePortableReasoning(request, {
+					adapter: kind,
+					context,
+				});
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
