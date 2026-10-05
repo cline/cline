@@ -47,6 +47,19 @@ describe("resolvePortableReasoning", () => {
 		).toBe("none");
 	});
 
+	it("leaves explicit disable to native rules for openai-compatible providers", () => {
+		// @ai-sdk/openai-compatible drops the portable "none" on the floor,
+		// so the disable intent must stay on the request for provider-option
+		// rules (e.g. DeepSeek thinking.type="disabled") to encode natively.
+		for (const providerId of ["deepseek", "fireworks", "groq", "xai"]) {
+			const disable = { ...request({ enabled: false }), providerId };
+			expect(resolvePortableReasoning(disable)).toBeUndefined();
+			expect(withoutPortableReasoning(disable).reasoning).toEqual({
+				enabled: false,
+			});
+		}
+	});
+
 	it("removes conflicting controls from native disable requests", () => {
 		const normalized = withoutPortableReasoning({
 			...request({ enabled: false, effort: "high", budgetTokens: 12_000 }),

@@ -3,19 +3,25 @@ import type { CallSettings } from "ai";
 
 export type AiSdkReasoning = NonNullable<CallSettings["reasoning"]>;
 
-const PORTABLE_REASONING_PROVIDERS = new Set([
+/**
+ * Providers whose AI SDK package maps the full portable scale, including the
+ * explicit-disable value "none". Providers routed through
+ * `@ai-sdk/openai-compatible` (deepseek, fireworks, groq, xai, ...) are
+ * deliberately absent: that package forwards effort levels as
+ * `reasoning_effort` but silently drops "none", so an explicit disable would
+ * vanish from the wire. Their disable requests must keep riding the native
+ * provider-option rules (e.g. DeepSeek `thinking.type = "disabled"`,
+ * Fireworks `reasoning_effort: "none"`).
+ */
+const PORTABLE_REASONING_DISABLE_PROVIDERS = new Set([
 	"anthropic",
 	"bedrock",
-	"deepseek",
-	"fireworks",
 	"gemini",
 	"google",
-	"groq",
-	"openai-native",
-	"openai-codex",
 	"ollama",
+	"openai-codex",
+	"openai-native",
 	"vertex",
-	"xai",
 ]);
 
 const NON_PORTABLE_REASONING_PROVIDERS = new Set([
@@ -34,9 +40,10 @@ export function resolvePortableReasoning(
 	if (!reasoning) {
 		return undefined;
 	}
-	const fullySupported = PORTABLE_REASONING_PROVIDERS.has(request.providerId);
 	if (reasoning.enabled === false) {
-		return fullySupported ? "none" : undefined;
+		return PORTABLE_REASONING_DISABLE_PROVIDERS.has(request.providerId)
+			? "none"
+			: undefined;
 	}
 	if (typeof reasoning.budgetTokens === "number") {
 		return undefined;
