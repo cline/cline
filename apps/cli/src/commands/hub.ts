@@ -30,10 +30,21 @@ const HUB_DISCOVERY_PATH_ENV = "CLINE_HUB_DISCOVERY_PATH";
 
 async function stopHubServer(): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
-	// A discovery PID can be stale and reused by an unrelated process. Only
-	// the authenticated shutdown endpoint establishes ownership of the hub.
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	if (!discovery) {
+		return true; // Already stopped: cleanup is idempotent.
+	}
 	if (!(await stopLocalHubServerGracefully(owner))) {
-		return false;
+		// A stale PID must never receive a termination signal. A zero-signal
+		// existence check can only establish that the recorded process exited;
+		// a live/reused PID or a permission error cannot prove shutdown.
+		if (!discovery.pid) return false;
+		try {
+			process.kill(discovery.pid, 0);
+			return false;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ESRCH") return false;
+		}
 	}
 	await clearHubDiscovery(owner.discoveryPath);
 	return true;
@@ -199,6 +210,7 @@ export function createHubCommand(
 		action(async () => {
 			const stopped = await stopHubServer();
 			io.writeln(JSON.stringify({ stopped }));
+			if (!stopped) fail();
 		}),
 	);
 

@@ -119,7 +119,7 @@ it("uses the compiled CLI for Mac remotes under tauri dev on macOS", () => {
 	}
 });
 
-it("finds SSH helpers in the installed Linux resource layout", () => {
+it("selects only the running Linux channels SSH helpers", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const target = { platform: "linux", arch: "arm64" } as const;
@@ -134,13 +134,35 @@ it("finds SSH helpers in the installed Linux resource layout", () => {
 		mkdirSync(directory, { recursive: true });
 		const helper = join(directory, remoteHelperBinaryFilename(target));
 		writeFileSync(helper, "helper");
+		const otherDirectory = join(
+			root,
+			"usr",
+			"lib",
+			"Cline",
+			"bin",
+			"remote-helpers",
+		);
+		mkdirSync(otherDirectory, { recursive: true });
+		writeFileSync(
+			join(otherDirectory, remoteHelperBinaryFilename(target)),
+			"other channel",
+		);
 		expect(
 			resolveDesktopRemoteHelper(target, {
 				execPath: join(root, "usr", "bin", "cline-cli"),
 				cwd: tmpdir(),
-				env: {},
+				env: { CLINE_REMOTE_HELPER_DIRECTORY: directory },
 			}),
 		).toBe(helper);
+		// A missing binary in this channel must not fall back to another app.
+		rmSync(helper);
+		expect(
+			resolveDesktopRemoteHelper(target, {
+				execPath: join(root, "usr", "bin", "cline-cli"),
+				cwd: tmpdir(),
+				env: { CLINE_REMOTE_HELPER_DIRECTORY: directory },
+			}),
+		).toBeUndefined();
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

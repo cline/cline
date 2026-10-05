@@ -554,7 +554,11 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         }
         command
             .env("BUN_BE_BUN", "1")
-            .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root);
+            .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root)
+            .env(
+                "CLINE_REMOTE_HELPER_DIRECTORY",
+                context.resource_dir.join("bin").join("remote-helpers"),
+            );
         command
     } else {
         return Err(format!(

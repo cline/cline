@@ -1,10 +1,4 @@
-import {
-	closeSync,
-	existsSync,
-	openSync,
-	readdirSync,
-	readSync,
-} from "node:fs";
+import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	type RemoteHelperTarget,
@@ -14,23 +8,6 @@ import { resolveDesktopCliPath } from "./cli-runtime";
 
 /** Base name of the Cline CLI binary the desktop app bundles (Tauri externalBin). */
 export const DESKTOP_CLI_BINARY_NAME = "cline-cli";
-
-// Tauri's Linux bundles (deb, rpm, AppImage) install binaries under `usr/bin`
-// and resources under `usr/lib/<productName>`. The product name differs per
-// release channel ("Cline", "Cline Beta"), so scan the sibling lib directory.
-function linuxResourceCandidates(
-	executableDirectory: string,
-	relativePath: string,
-): string[] {
-	const libDirectory = join(executableDirectory, "..", "lib");
-	try {
-		return readdirSync(libDirectory, { withFileTypes: true })
-			.filter((entry) => entry.isDirectory())
-			.map((entry) => join(libDirectory, entry.name, relativePath));
-	} catch {
-		return [];
-	}
-}
 
 const MACHO_FAT_MAGIC = 0xcafebabe;
 const MACHO_64_MAGIC = 0xfeedfacf;
@@ -118,7 +95,6 @@ export function resolveDesktopRemoteHelper(
 		join(executableDirectory, "remote-helpers", filename),
 		join(executableDirectory, bundledPath),
 		join(executableDirectory, "..", "Resources", bundledPath),
-		...linuxResourceCandidates(executableDirectory, bundledPath),
 		join(cwd, "src-tauri", bundledPath),
 		join(cwd, "apps", "examples", "desktop-app", "src-tauri", bundledPath),
 	].find(existsSync);

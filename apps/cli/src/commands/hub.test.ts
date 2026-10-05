@@ -309,11 +309,79 @@ describe("createHubCommand", () => {
 		});
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		const kill = vi.spyOn(process, "kill").mockReturnValue(true);
-		const { cmd, output } = createCommand();
+		const { cmd, output, exitCode } = createCommand();
 		await cmd.parseAsync(["stop"], { from: "user" });
-		expect(kill).not.toHaveBeenCalled();
+		expect(kill).toHaveBeenCalledExactlyOnceWith(50174, 0);
+		expect(exitCode()).toBe(1);
 		expect(mockClearHubDiscovery).not.toHaveBeenCalled();
 		expect(JSON.parse(output[0] || "")).toEqual({ stopped: false });
+	});
+
+	it("succeeds when the hub has already exited", async () => {
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			pid: 50174,
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		vi.spyOn(process, "kill").mockImplementation(() => {
+			throw Object.assign(new Error("no such process"), { code: "ESRCH" });
+		});
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(exitCode()).toBe(0);
+		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
+		expect(mockClearHubDiscovery).toHaveBeenCalled();
+	});
+
+	it("succeeds when there is no discovery record", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(exitCode()).toBe(0);
+		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
+		expect(mockStopLocalHubServerGracefully).not.toHaveBeenCalled();
+	});
+
+	it("does not mistake an inaccessible process for an exited hub", async () => {
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			pid: 50174,
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		vi.spyOn(process, "kill").mockImplementation(() => {
+			throw Object.assign(new Error("not permitted"), { code: "EPERM" });
+		});
+		const { cmd, exitCode } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(exitCode()).toBe(1);
+		expect(mockClearHubDiscovery).not.toHaveBeenCalled();
+	});
+
+	it("replaces a hub that exits before upgrade can shut it down", async () => {
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			pid: 50174,
+			authToken: "token",
+		});
+		mockRequestHubDrain.mockResolvedValue(false);
+		mockLocalHubHasNoActiveSessions.mockResolvedValue(true);
+		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+		});
+		vi.spyOn(process, "kill").mockImplementation(() => {
+			throw Object.assign(new Error("no such process"), { code: "ESRCH" });
+		});
+		const { cmd, output, errors, exitCode } = createCommand();
+		await cmd.parseAsync(["upgrade", "--wait", "0"], { from: "user" });
+		expect(exitCode()).toBe(0);
+		expect(errors).toEqual([]);
+		expect(mockClearHubDiscovery).toHaveBeenCalled();
+		expect(mockEnsureDetachedHubServer).toHaveBeenCalled();
+		expect(JSON.parse(output[0] || "")).toEqual({
+			upgraded: true,
+			url: "ws://127.0.0.1:25466/hub",
+		});
 	});
 
 	it("prints the hub URL by default from ensure", async () => {
