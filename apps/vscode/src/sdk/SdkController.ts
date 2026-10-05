@@ -2055,10 +2055,10 @@ export class Controller {
 		const limit = request.limit > 0 ? Math.min(request.limit, 100) : 50
 		const offset = request.offset > 0 ? request.offset : 0
 		const workspacePath = currentWorkspaceOnly ? await this.getWorkspaceRoot() : undefined
+		// Filtering and alternate sort orders must see the metadata history before
+		// pagination; a recent-session page cannot represent the matching result set.
 		const sessionHistory = await this.taskHistory.listHistory({
 			hydrate: false,
-			limit: limit + 1,
-			offset,
 		})
 
 		let filteredTasks = sessionHistory.filter((item) => {
@@ -2121,8 +2121,8 @@ export class Controller {
 			}
 		})
 
-		const hasMore = sessionHistory.length > limit
-		const tasks = filteredTasks.slice(0, limit).map((item) => {
+		const hasMore = filteredTasks.length > offset + limit
+		const tasks = filteredTasks.slice(offset, offset + limit).map((item) => {
 			const metadata = item.metadata
 			return {
 				id: item.sessionId,
