@@ -137,6 +137,11 @@ const NETWORK_TYPE_ERROR_MESSAGES = new Set([
  * and a user cancel must never be retried. Everything else — HTTP business
  * errors, context-window errors, provider-reported payloads — does not
  * match.
+ *
+ * Bun's fetch reports its request timeouts (and the response watchdog in
+ * `provider-fetch-timeout.ts`) as a `DOMException` named `TimeoutError` with
+ * a numeric `code`, so it is matched by name — the Bun counterpart of
+ * undici's `UND_ERR_HEADERS_TIMEOUT`, which is already retried above.
  */
 export function isTransientNetworkError(error: unknown): boolean {
 	let aborted = false;
@@ -169,7 +174,8 @@ export function isTransientNetworkError(error: unknown): boolean {
 				typeof candidate.message === "string" &&
 				NETWORK_TYPE_ERROR_MESSAGES.has(candidate.message.toLowerCase())) ||
 			(typeof candidate.code === "string" &&
-				TRANSIENT_NETWORK_ERROR_CODES.has(candidate.code))
+				TRANSIENT_NETWORK_ERROR_CODES.has(candidate.code)) ||
+			candidate.name === "TimeoutError"
 		) {
 			transient = true;
 		}

@@ -56,6 +56,7 @@ import {
 	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
+import { wrapFetchWithResponseTimeout } from "./provider-fetch-timeout";
 import {
 	recordProviderRequestCapture,
 	wrapFetchForProviderRequestCapture,
@@ -2145,7 +2146,10 @@ function createAiSdkProvider(
 					{
 						...config,
 						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
+							wrapFetchForProviderRequestCapture(
+								wrapFetchWithResponseTimeout(config.fetch),
+								request,
+							),
 							request,
 							context,
 						),

@@ -702,6 +702,13 @@ describe("isTransientNetworkError", () => {
 		const bunClosed = new Error("The socket connection was closed");
 		(bunClosed as Error & { code?: string }).code = "ConnectionClosed";
 		expect(isTransientNetworkError(bunClosed)).toBe(true);
+		// Bun's fetch timeout (and the provider response watchdog) is a
+		// DOMException with a numeric code, matched by name.
+		expect(
+			isTransientNetworkError(
+				new DOMException("The operation timed out.", "TimeoutError"),
+			),
+		).toBe(true);
 	});
 
 	it("vetoes aborts, even wrapped in network vocabulary", () => {

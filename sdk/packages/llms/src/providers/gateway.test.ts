@@ -6903,8 +6903,9 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("does not wrap provider fetch when wire capture is disabled", async () => {
-		const customFetch = vi.fn() as unknown as typeof fetch;
+	it("does not capture or rewrite provider requests when wire capture is disabled", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -6926,7 +6927,21 @@ describe("sdk-gateway", () => {
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		// Only the response-timeout wrapper remains: the configured fetch is
+		// called once with the request body untouched.
+		const body = JSON.stringify({
+			messages: [{ role: "user", content: "hi" }],
+		});
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body,
+		});
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as
+			| (RequestInit & { timeout?: unknown })
+			| undefined;
+		expect(init?.body).toBe(body);
+		expect(init?.timeout).toBe(false);
 	});
 
 	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
@@ -7251,7 +7266,8 @@ describe("sdk-gateway", () => {
 	});
 
 	it("does not fall back to conversationId for OpenRouter session_id", async () => {
-		const { fetch: customFetch } = createFetchMock();
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -7274,7 +7290,16 @@ describe("sdk-gateway", () => {
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		const body = JSON.stringify({
+			messages: [{ role: "user", content: "hi" }],
+		});
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body,
+		});
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(init?.body).toBe(body);
 	});
 
 	it("wraps provider fetch for wire capture while delegating to the configured fetch", async () => {
