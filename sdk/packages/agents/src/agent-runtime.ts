@@ -959,6 +959,29 @@ export class AgentRuntime {
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
+					// The stream died after emitting only reasoning (a provider
+					// closing the connection mid-think, say). The provider-error retry
+					// above skips any turn with content because re-streaming would
+					// duplicate visible output — but nothing visible was produced
+					// here, so the partial turn stays recorded and the model is
+					// nudged for another turn through the same bounded recovery as
+					// a clean reasoning-only turn. Auth and context-window failures
+					// reproduce on every request and still fail the run.
+					const errorClass = this.state.lastErrorClass;
+					if (
+						!hasVisibleContent(message) &&
+						errorClass !== "auth" &&
+						errorClass !== "context_window_exceeded" &&
+						(await this.recoverFromEmptyTurn(this.state.lastError))
+					) {
+						await this.emit({
+							type: "turn-finished",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCallCount: 0,
+						});
+						continue;
+					}
 					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
@@ -1207,17 +1230,21 @@ export class AgentRuntime {
 	 * whitespace only, no tool call): nudge the model to act and let the loop
 	 * request another turn, up to EMPTY_TURN_RECOVERY_LIMIT consecutive times.
 	 * Returns false once the limit is exhausted so the run fails instead of
-	 * looping or completing silently.
+	 * looping or completing silently. `streamError` is the provider failure
+	 * when the turn ended because the stream died rather than finished.
 	 */
-	private async recoverFromEmptyTurn(): Promise<boolean> {
+	private async recoverFromEmptyTurn(streamError?: string): Promise<boolean> {
 		if (this.emptyTurnRecoveryCount >= EMPTY_TURN_RECOVERY_LIMIT) {
 			return false;
 		}
 		this.emptyTurnRecoveryCount += 1;
+		const attempt = `attempt ${this.emptyTurnRecoveryCount}/${EMPTY_TURN_RECOVERY_LIMIT}`;
 		await this.emit({
 			type: "status-notice",
 			snapshot: this.snapshot(),
-			message: `turn ended without a visible response or tool call — nudging to continue (attempt ${this.emptyTurnRecoveryCount}/${EMPTY_TURN_RECOVERY_LIMIT})`,
+			message: streamError
+				? `model stream failed before a visible response or tool call — nudging to continue (${attempt}): ${streamError}`
+				: `turn ended without a visible response or tool call — nudging to continue (${attempt})`,
 			metadata: {
 				kind: "empty_turn_recovery",
 				reason: "empty_turn_recovery",
@@ -1225,6 +1252,7 @@ export class AgentRuntime {
 				iteration: this.state.iteration,
 				attempt: this.emptyTurnRecoveryCount,
 				maxRetries: EMPTY_TURN_RECOVERY_LIMIT,
+				...(streamError ? { providerError: streamError } : {}),
 			},
 		});
 		await this.addUserReminderMessage(EMPTY_TURN_RECOVERY_NUDGE);

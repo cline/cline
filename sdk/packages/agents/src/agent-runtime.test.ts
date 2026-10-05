@@ -616,6 +616,95 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(8);
 	});
 
+	it("nudges instead of failing when the stream dies after emitting only reasoning", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking for twenty minutes..." },
+				{
+					type: "finish",
+					reason: "error",
+					error: "Response stream ended without a finish reason.",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "Here is the answer." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+		const notices: Array<{ message: string; metadata?: unknown }> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				notices.push({ message: event.message, metadata: event.metadata });
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Here is the answer.");
+		expect(model.requests).toHaveLength(2);
+		// The partial reasoning turn stays in the transcript, then the nudge.
+		expect(result.messages.map((m) => m.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(result.messages[1]?.content).toMatchObject([
+			{ type: "reasoning", text: "thinking for twenty minutes..." },
+		]);
+		expect(notices).toMatchObject([
+			{
+				message: expect.stringContaining(
+					"Response stream ended without a finish reason.",
+				),
+				metadata: {
+					kind: "empty_turn_recovery",
+					attempt: 1,
+					providerError: "Response stream ended without a finish reason.",
+				},
+			},
+		]);
+	});
+
+	it.each<{ errorClass: "auth" | "context_window_exceeded" }>([
+		{ errorClass: "auth" },
+		{ errorClass: "context_window_exceeded" },
+	])("still fails a reasoning-only stream error classified as $errorClass", async ({
+		errorClass,
+	}) => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking..." },
+				{ type: "finish", reason: "error", error: "rejected", errorClass },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("rejected");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("still fails a stream error once visible content was emitted", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "partial answer" },
+				{ type: "finish", reason: "error", error: "stream dropped" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("stream dropped");
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("recovers a max-tokens-truncated text turn with a forced compaction and one retry", async () => {
 		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
 		const model = new ScriptedModel([
