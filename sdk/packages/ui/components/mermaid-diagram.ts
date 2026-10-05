@@ -50,13 +50,6 @@ export function slugifyDiagramName(
 	return slug.slice(0, maxLength).replace(/-+$/g, "");
 }
 
-const QUOTED_TITLE =
-	/(?:^|[\s{,])title\s*[=:]\s*(?:"([^"]*)"|'([^']*)'|\u201c([^\u201d]*)\u201d)/i;
-const UNQUOTED_TITLE = /(?:^|[\s{,])title\s*[=:]\s*([^\s"'\u201c{},]+)/i;
-// While a fence header is still arriving the closing quote may be missing.
-const UNTERMINATED_TITLE =
-	/(?:^|[\s{,])title\s*[=:]\s*["'\u201c]([^"'\u201d]*)$/i;
-
 /**
  * Reads `title="..."` from a code-fence metastring. Tolerates single quotes,
  * curly quotes, an unquoted value, `title:` instead of `title=`, and a missing
@@ -67,12 +60,41 @@ export function parseFenceTitle(
 	meta: string | null | undefined,
 ): string | undefined {
 	if (!meta) return undefined;
-	const quoted = QUOTED_TITLE.exec(meta);
-	const value = quoted
-		? (quoted[1] ?? quoted[2] ?? quoted[3])
-		: (UNQUOTED_TITLE.exec(meta)?.[1] ?? UNTERMINATED_TITLE.exec(meta)?.[1]);
-	const trimmed = value?.trim();
-	return trimmed ? trimmed : undefined;
+	const closingQuotes: Record<string, string> = {
+		'"': '"',
+		"'": "'",
+		"“": "”",
+	};
+	const lastQuotes: Record<string, number> = {
+		'"': meta.lastIndexOf('"'),
+		"'": meta.lastIndexOf("'"),
+		"”": meta.lastIndexOf("”"),
+	};
+	const lastTerminator = Math.max(...Object.values(lastQuotes));
+	let unquoted: string | undefined;
+	let unterminated: string | undefined;
+	const unquotedValue = /[^\s"'“{},]+/y;
+	for (const match of meta.matchAll(/(?:^|[\s{,])title\s*[=:]/gi)) {
+		let start = match.index + match[0].length;
+		while (start < meta.length && /\s/.test(meta[start] ?? "")) start++;
+		const closing = closingQuotes[meta[start] ?? ""];
+		if (closing) {
+			// A missing closing quote must not rescan the suffix for every title.
+			if ((lastQuotes[closing] ?? -1) > start) {
+				return (
+					meta.slice(start + 1, meta.indexOf(closing, start + 1)).trim() ||
+					undefined
+				);
+			}
+			if (start >= lastTerminator && unterminated === undefined) {
+				unterminated = meta.slice(start + 1);
+			}
+		} else if (unquoted === undefined) {
+			unquotedValue.lastIndex = start;
+			unquoted = unquotedValue.exec(meta)?.[0];
+		}
+	}
+	return (unquoted ?? unterminated)?.trim() || undefined;
 }
 
 const FRONTMATTER =
@@ -105,7 +127,7 @@ function unquote(value: string): string {
 export function parseFrontmatterTitle(source: string): string | undefined {
 	const { frontmatter } = splitFrontmatter(source);
 	if (!frontmatter) return undefined;
-	const match = /^title[ \t]*:[ \t]*(.+?)[ \t]*$/m.exec(frontmatter);
+	const match = /^title[ \t]*:(.+)$/m.exec(frontmatter);
 	const title = match ? unquote(match[1] ?? "") : "";
 	return title || undefined;
 }
@@ -171,8 +193,19 @@ function pushUnique(labels: string[], label: string | undefined): void {
 }
 
 function stripDirectivesAndComments(body: string): string {
-	return body
-		.replace(/%%\{[\s\S]*?\}%%/g, "")
+	const parts: string[] = [];
+	let cursor = 0;
+	while (cursor < body.length) {
+		const start = body.indexOf("%%{", cursor);
+		if (start === -1) break;
+		const end = body.indexOf("}%%", start + 3);
+		if (end === -1) break;
+		parts.push(body.slice(cursor, start));
+		cursor = end + 3;
+	}
+	parts.push(body.slice(cursor));
+	return parts
+		.join("")
 		.split(/\r?\n/)
 		.filter((line) => !/^\s*%%/.test(line))
 		.join("\n");
@@ -320,7 +353,7 @@ export function diagramFileName(
 
 /** Source text as copied / saved to `.mmd`: trailing whitespace collapsed to one newline. */
 export function normalizeDiagramSource(source: string): string {
-	return `${source.replace(/\s+$/, "")}\n`;
+	return `${source.trimEnd()}\n`;
 }
 
 // ---------------------------------------------------------------------------
@@ -475,7 +508,7 @@ export function parseCssColor(input: string): RgbaColor | null {
 	const hex = parseHex(value);
 	if (hex) return hex;
 
-	const fn = /^([a-z-]+)\(\s*([^)]*)\)$/i.exec(value);
+	const fn = /^([a-z-]+)\(([^)]*)\)$/i.exec(value);
 	if (!fn) return null;
 	const name = (fn[1] ?? "").toLowerCase();
 	const { alpha, tokens } = splitFunctionArgs(fn[2] ?? "");
@@ -956,7 +989,9 @@ export function prepareSvgForRaster(svg: string): PreparedSvg {
 
 	tag = setAttribute(tag, "width", String(width));
 	tag = setAttribute(tag, "height", String(height));
-	tag = tag.replace(/\sstyle\s*=\s*"[^"]*max-width[^"]*"/i, "");
+	tag = tag.replace(/\sstyle\s*=\s*"([^"]*)"/i, (attribute, value: string) =>
+		value.toLowerCase().includes("max-width") ? "" : attribute,
+	);
 	if (!/\sxmlns\s*=/i.test(tag)) {
 		tag = tag.replace(/^<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
 	}
