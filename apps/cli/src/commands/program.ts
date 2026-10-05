@@ -24,6 +24,10 @@ export function addRootOptions(cmd: Command): Command {
 	return (
 		cmd
 			.option("-p, --plan", "Run in plan mode")
+			.option(
+				"-y, --yolo",
+				"Auto-approve a limited tool set for unsupervised runs (benchmarks, CI). DANGEROUS: use only in sandboxed environments.",
+			)
 			.option("--json", "Output messages as JSON instead of styled text")
 			.option(
 				"--auto-approve <boolean>",
@@ -85,14 +89,6 @@ export function addRootOptions(cmd: Command): Command {
 				// Act mode is the default. Keep the legacy flags accepted for users who
 				// still pass them, but do not advertise them in help output.
 				new Option("-a, --act", "Run in act mode").hideHelp(),
-			)
-			.addOption(
-				// `-y, --yolo` is still accepted (and behaves the same as before) but
-				// hidden from `--help` output.
-				new Option(
-					"-y, --yolo",
-					"Enable yolo mode where agents can use tools without approval with only a small set of tools available.",
-				).hideHelp(),
 			)
 			.addOption(
 				// TODO: Refactor teams to resume session without team name
