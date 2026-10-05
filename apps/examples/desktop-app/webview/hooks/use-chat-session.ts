@@ -1,6 +1,9 @@
 "use client";
 
-import { formatDisplayUserInput } from "@cline/shared/browser";
+import {
+	formatDisplayUserInput,
+	type ProviderAuthInfo,
+} from "@cline/shared/browser";
 import {
 	createElement,
 	useCallback,
@@ -630,6 +633,7 @@ export function useChatSession(environmentId: string) {
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const providerIdRef = useRef(config.provider);
+	const providerAuthRef = useRef(config.providerAuth);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -703,7 +707,8 @@ export function useChatSession(environmentId: string) {
 	}, [messages]);
 	useEffect(() => {
 		providerIdRef.current = config.provider;
-	}, [config.provider]);
+		providerAuthRef.current = config.providerAuth;
+	}, [config.provider, config.providerAuth]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -869,9 +874,9 @@ export function useChatSession(environmentId: string) {
 				return;
 			}
 			setErrorState(
-				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				`${message} ${resolveCredentialFailureHint(providerId, providerAuthRef.current)}`,
 				sid,
-				credentialFailureMeta(providerId),
+				credentialFailureMeta(providerId, providerAuthRef.current),
 			);
 		},
 		[setErrorState],
@@ -893,6 +898,7 @@ export function useChatSession(environmentId: string) {
 			detail: string,
 			ownedGeneration?: number,
 			ownedProviderId?: string,
+			ownedProviderAuth?: ProviderAuthInfo,
 		) => {
 			const generation = ownedGeneration ?? failureTurnGenerationRef.current;
 			const isCurrentTurn =
@@ -906,10 +912,18 @@ export function useChatSession(environmentId: string) {
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
 			const providerId = ownedProviderId ?? providerIdRef.current;
-			const content = formatRunError(description, providerId);
+			// Use the auth facts captured with the submitted provider; the current
+			// selection may have changed since the turn started.
+			const providerAuth =
+				ownedProviderId === undefined
+					? providerAuthRef.current
+					: ownedProviderAuth;
+			const content = formatRunError(description, providerId, providerAuth);
 			const meta = {
 				providerId,
-				...(looksCredentialRelated ? credentialFailureMeta(providerId) : {}),
+				...(looksCredentialRelated
+					? credentialFailureMeta(providerId, providerAuth)
+					: {}),
 			};
 			const shown = shownTurnFailureRef.current;
 			if (shown && shown.sid === sid && shown.generation === generation) {
@@ -3476,6 +3490,7 @@ export function useChatSession(environmentId: string) {
 						runError || toolError?.trim() || "",
 						failureGenerationAtSubmission,
 						parsed.provider,
+						parsed.providerAuth,
 					);
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
@@ -3770,14 +3785,18 @@ export function useChatSession(environmentId: string) {
 			const leavingTaskWorktree = isTaskWorktreePath(
 				prev.workspaceRoot || prev.cwd || "",
 			);
+			const switchingTarget = prev.executionTarget !== initial.executionTarget;
 			return {
 				...prev,
 				sessionId: undefined,
+				executionTarget: initial.executionTarget,
+				repoUrl: undefined,
+				branch: undefined,
 				provider: initial.provider,
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
-				...(leavingTaskWorktree
+				...(switchingTarget || leavingTaskWorktree
 					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
 					: {}),
 			};

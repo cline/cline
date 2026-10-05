@@ -110,6 +110,10 @@ type UserInstructionConfigResponse = {
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
+		name: "compact",
+		description: "Summarize the conversation to free up context",
+	},
+	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
@@ -172,7 +176,6 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
-const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -472,6 +475,9 @@ function ChatInputBarImpl({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const [cloudModelReady, setCloudModelReady] = useState(false);
+	const needsCloudModel =
+		executionTarget === "cloud" && !hasActiveSession && !cloudModelReady;
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
@@ -535,7 +541,11 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend =
-		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!needsCloudModel &&
+		!readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -563,7 +573,7 @@ function ChatInputBarImpl({
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository) return;
+		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -577,6 +587,7 @@ function ChatInputBarImpl({
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
+		needsCloudModel,
 		readOnly,
 		onSend,
 		promptInput,
@@ -1534,21 +1545,20 @@ function ChatInputBarImpl({
 					</div>
 					<div className="min-w-0 shrink-0">
 						<ModelSelector
-							allowedProviderIds={
-								executionTarget === "cloud"
-									? CLINE_ONLY_PROVIDER_IDS
-									: undefined
-							}
+							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
 							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
+							onModelReadyChange={setCloudModelReady}
 							onModelChange={onModelChange}
 							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
-							onOpenModelSettings={onOpenModelSettings}
+							onOpenModelSettings={
+								executionTarget === "cloud" ? undefined : onOpenModelSettings
+							}
 							onProviderChange={onProviderChange}
 							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
@@ -1649,6 +1659,7 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onModelReadyChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
@@ -1662,15 +1673,15 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
+	onModelReadyChange: (ready: boolean) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
 	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
-	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
-	>(FALLBACK_PROVIDER_MODELS);
+	>(includeCloudModels ? {} : FALLBACK_PROVIDER_MODELS);
 	const [providerReasoningModels, setProviderReasoningModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_REASONING_MODELS);
@@ -1685,10 +1696,30 @@ const ModelSelector = memo(function ModelSelector({
 		Record<string, ProviderModel[]>
 	>({});
 	const [lastSelection, setLastSelection] = useState(() =>
-		readModelSelectionStorageFromWindow(),
+		includeCloudModels
+			? { lastProvider: "", lastModelByProvider: {} }
+			: readModelSelectionStorageFromWindow(),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const normalizedProvider = includeCloudModels
+		? (Object.keys(providerModels).find((id) =>
+				providerModels[id]?.includes(model),
+			) ??
+			(model.startsWith("cline-pass/")
+				? "cline-pass"
+				: model.startsWith("cline-cloud/")
+					? "cline-cloud"
+					: "cline"))
+		: normalizeProviderId(provider);
+	useEffect(() => {
+		if (!includeCloudModels) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			setProviderModels({});
+			setEnabledProviderIds([]);
+			setCatalogRevision((current) => current + 1);
+		});
+	}, [includeCloudModels]);
 	useEffect(
 		() =>
 			subscribeToProviderCatalogInvalidation(() =>
@@ -1723,9 +1754,11 @@ const ModelSelector = memo(function ModelSelector({
 	// catalog and briefly flash a stale name in the trigger.
 	const refreshActiveProviderModels = useCallback(() => {
 		if (!normalizedProvider) return;
-		const loading = includeCloudModels
-			? loadProviderModels(normalizedProvider, { includeCloudModels: true })
-			: loadProviderModels(normalizedProvider);
+		if (includeCloudModels) {
+			setCatalogRevision((current) => current + 1);
+			return;
+		}
+		const loading = loadProviderModels(normalizedProvider);
 		loading
 			.then((models) => {
 				if (models.length === 0) return;
@@ -1764,6 +1797,18 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		return providers[0] ?? "";
 	}, [normalizedProvider, providers, rememberedLastProvider]);
+	useEffect(() => {
+		onModelReadyChange(
+			providers.includes(normalizedProvider) &&
+				(providerModels[normalizedProvider]?.includes(model) ?? false),
+		);
+	}, [
+		model,
+		normalizedProvider,
+		onModelReadyChange,
+		providerModels,
+		providers,
+	]);
 	const modelsForProvider = useMemo(
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
@@ -1780,9 +1825,16 @@ const ModelSelector = memo(function ModelSelector({
 			const models = (visibleProviderModels[providerId] ?? []).map(
 				(id) => detailsById.get(id) ?? { id, name: id },
 			);
-			return buildModelPickerData(providerId, models);
+			return includeCloudModels
+				? {
+						options: models.map((entry) => ({
+							label: entry.name,
+							value: entry.id,
+						})),
+					}
+				: buildModelPickerData(providerId, models);
 		},
-		[modelDetails, visibleProviderModels],
+		[includeCloudModels, modelDetails, visibleProviderModels],
 	);
 	useEffect(() => {
 		const selected = modelDetails[normalizedProvider]?.find(
@@ -1816,6 +1868,9 @@ const ModelSelector = memo(function ModelSelector({
 		if (
 			model &&
 			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model)) &&
+			(!includeCloudModels ||
+				!autoCorrectModel ||
 				modelsForProvider.includes(model))
 		) {
 			return model;
@@ -1835,6 +1890,8 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		includeCloudModels,
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
@@ -1889,7 +1946,9 @@ const ModelSelector = memo(function ModelSelector({
 
 		async function loadCatalogAndActiveModels() {
 			try {
-				const payload = await loadProviderModelCatalog();
+				const payload = await loadProviderModelCatalog(
+					includeCloudModels ? { includeCloudModels: true } : undefined,
+				);
 				if (cancelled) {
 					return;
 				}
@@ -1906,11 +1965,14 @@ const ModelSelector = memo(function ModelSelector({
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					if (normalizedProvider) {
+					if (
+						normalizedProvider &&
+						(!includeCloudModels || !autoCorrectModel)
+					) {
 						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
-						if (providerId in payload.providerModels) {
+						if (!includeCloudModels && providerId in payload.providerModels) {
 							nextProviderIds.add(providerId);
 						}
 					}
@@ -1920,15 +1982,11 @@ const ModelSelector = memo(function ModelSelector({
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
 
-			if (!normalizedProvider || cancelled) {
+			if (includeCloudModels || !normalizedProvider || cancelled) {
 				return;
 			}
 			try {
-				const models = includeCloudModels
-					? await loadProviderModels(normalizedProvider, {
-							includeCloudModels: true,
-						})
-					: await loadProviderModels(normalizedProvider);
+				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
@@ -1945,6 +2003,7 @@ const ModelSelector = memo(function ModelSelector({
 		};
 	}, [
 		applyProviderModels,
+		autoCorrectModel,
 		catalogRevision,
 		includeCloudModels,
 		normalizedProvider,
@@ -1953,7 +2012,7 @@ const ModelSelector = memo(function ModelSelector({
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
-			if (includeCloudModels && normalizedId === "cline") return;
+			if (includeCloudModels) return;
 			applyProviderModels(normalizedId, models);
 		});
 	}, [applyProviderModels, includeCloudModels]);
@@ -1995,12 +2054,13 @@ const ModelSelector = memo(function ModelSelector({
 	);
 
 	useEffect(() => {
+		if (!persistSelection) return;
 		try {
 			writeModelSelectionStorageToWindow(lastSelection);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection]);
+	}, [lastSelection, persistSelection]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
@@ -2009,7 +2069,11 @@ const ModelSelector = memo(function ModelSelector({
 		if (isBusy) {
 			return;
 		}
-		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
+		if (
+			!includeCloudModels &&
+			resolvedProvider &&
+			resolvedProvider !== normalizedProvider
+		) {
 			onProviderChange(resolvedProvider);
 		}
 		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
@@ -2017,6 +2081,7 @@ const ModelSelector = memo(function ModelSelector({
 		}
 	}, [
 		autoCorrectModel,
+		includeCloudModels,
 		isBusy,
 		model,
 		onModelChange,
@@ -2060,7 +2125,7 @@ const ModelSelector = memo(function ModelSelector({
 				onOpenModelSettings?.();
 				return;
 			}
-			onProviderChange(value);
+			if (!includeCloudModels) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
 			// Preserve live-only remembered models missing from the bundled
@@ -2081,6 +2146,7 @@ const ModelSelector = memo(function ModelSelector({
 			}
 		},
 		[
+			includeCloudModels,
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
@@ -2159,6 +2225,21 @@ const ModelSelector = memo(function ModelSelector({
 		/>
 	);
 
+	if (
+		includeCloudModels &&
+		reasoningCapabilitySource === "fallback" &&
+		providers.length === 0
+	) {
+		return (
+			<button
+				className="text-xs text-destructive"
+				onClick={refreshActiveProviderModels}
+				type="button"
+			>
+				Could not load cloud models. Retry
+			</button>
+		);
+	}
 	return (
 		<div className="relative min-w-0 shrink-0 text-sm">
 			<button

@@ -106,14 +106,22 @@ export function EnvironmentSelector({
 			: Laptop;
 
 	const selectEnvironment = async (environmentId: string) => {
-		if (busy || (!cloudSelected && environmentId === activeEnvironmentId))
+		// Clicking Local must save the choice even after an automatic fallback.
+		if (
+			busy ||
+			(!cloudSelected &&
+				environmentId === activeEnvironmentId &&
+				environmentId !== LOCAL_WORKSPACE_ENVIRONMENT_ID)
+		)
 			return;
 		setInternalSwitchingId(environmentId);
 		try {
-			if (cloudSelected) onSelectExecutionTarget?.("local");
 			if (environmentId !== activeEnvironmentId) {
 				await onSelectEnvironment(environmentId);
 			}
+			// Persist the choice only after a successful environment switch.
+			if (cloudSelected || environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID)
+				onSelectExecutionTarget?.("local");
 		} catch {
 			// The parent owns connection errors and their user-facing presentation;
 			// reopen so the failed choice does not strand the user at a closed menu.

@@ -7,20 +7,78 @@
 // returned here. Both share the same provider/model/key/baseUrl resolution so
 // there is no second source of truth.
 
-import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
+import { CORE_BUILD_VERSION, SessionSource } from "@cline/core"
+import { type ApiHandler, createHandler, type ProviderConfig, resolveProviderRequestHeaders } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
+import { ClineClient } from "@shared/cline"
+import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
 import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
+import { ExtensionRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import {
+	type HostClientContext,
 	resolveApiKey,
 	resolveBaseUrl,
+	resolveClineRequestClientContext,
 	resolveModelId,
 	resolveOllamaProviderConfig,
 	resolveVertexProviderConfig,
 } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { getProviderSettingsManager } from "./provider-migration"
+
+/**
+ * Resolve the request headers for a standalone handler.
+ *
+ * Delegates to the same `resolveProviderRequestHeaders` policy the session path
+ * uses (see `local-runtime-bootstrap.ts` in `@cline/core`), so the Cline surface
+ * identity headers — `X-CLIENT-TYPE`, `X-CLIENT-VERSION`, `X-PLATFORM`,
+ * `User-Agent`, … — are identical whether a request comes from a task or from a
+ * one-shot utility caller. Without them the Cline gateway rejects requests for
+ * models restricted to Cline product surfaces (free models) with HTTP 403.
+ *
+ * No `sessionId` is passed: a standalone handler is not a task, so `X-Task-ID`
+ * is omitted rather than sent empty (the pre-SDK extension sent an empty value
+ * here, so nothing server-side depends on it).
+ */
+function resolveRequestHeaders(
+	providerId: string,
+	client: Partial<HostClientContext> | undefined,
+): Record<string, string> | undefined {
+	return resolveProviderRequestHeaders({
+		providerId,
+		source: SessionSource.VSCODE,
+		defaultSource: SessionSource.VSCODE,
+		client: {
+			name: client?.name ?? ClineClient.VSCode,
+			version: client?.version ?? ExtensionRegistryInfo.version,
+			platform: client?.platform,
+			platformVersion: client?.platformVersion,
+			isMultiRoot: client?.isMultiRoot,
+		},
+		// The core's own build version, which is what a session from
+		// `local-runtime-bootstrap` sends as `X-CORE-VERSION` — not the
+		// extension's version, so the two paths agree by construction.
+		coreVersion: CORE_BUILD_VERSION,
+		headers: {
+			// Custom headers the user configured for this provider in
+			// providers.json, layered under the required headers exactly as the
+			// session path layers them.
+			stored: resolveStoredProviderHeaders(providerId),
+		},
+	})
+}
+
+function resolveStoredProviderHeaders(providerId: string): Record<string, string> | undefined {
+	try {
+		return getProviderSettingsManager().getProviderSettings(providerId)?.headers
+	} catch {
+		Logger.warn(`[SdkApiHandler] Failed to read stored headers for ${providerId} from providers.json`)
+		return undefined
+	}
+}
 
 export interface BuildApiHandlerOptions {
 	/**
@@ -31,6 +89,13 @@ export interface BuildApiHandlerOptions {
 	 * OpenRouter don't receive a reasoning config at all.
 	 */
 	disableReasoning?: boolean
+	/**
+	 * Host client identity used to build the Cline surface headers. Resolving it
+	 * needs an async hostbridge round-trip, so callers that can await should use
+	 * `buildApiHandlerWithHostContext`; when omitted we fall back to the
+	 * extension's own identity.
+	 */
+	client?: Partial<HostClientContext>
 }
 
 /**
@@ -65,11 +130,15 @@ export function buildSdkProviderConfig(
 
 	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
 
+	const sdkProviderId = toSdkProviderId(providerId)
+	const headers = resolveRequestHeaders(sdkProviderId, options?.client)
+
 	const base: ProviderConfig = {
-		providerId: toSdkProviderId(providerId),
+		providerId: sdkProviderId,
 		modelId: modelId ?? "",
 		apiKey: apiKey ?? "",
 		baseUrl,
+		...(headers ? { headers } : {}),
 		...(vertexProviderConfig ?? {}),
 		// Use the proxy-aware fetch so gateway providers respect corporate proxy
 		// configuration (see .clinerules/network.md).
@@ -123,4 +192,20 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode, opt
 	}
 
 	return handler
+}
+
+/**
+ * Build an SDK-backed `ApiHandler` with the host's client identity resolved.
+ *
+ * Prefer this over `buildApiHandler` wherever the caller can await: resolving
+ * the host identity takes a hostbridge round-trip, and without it the Cline
+ * surface headers fall back to the extension's own identity.
+ */
+export async function buildApiHandlerWithHostContext(
+	configuration: ApiConfiguration,
+	mode: Mode,
+	options?: BuildApiHandlerOptions,
+): Promise<ApiHandler> {
+	const client = options?.client ?? (await resolveClineRequestClientContext())
+	return buildApiHandler(configuration, mode, { ...options, client })
 }

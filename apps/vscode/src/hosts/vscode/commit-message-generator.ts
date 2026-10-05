@@ -2,7 +2,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
-import { buildApiHandler } from "@/sdk/sdk-api-handler"
+import { buildApiHandlerWithHostContext } from "@/sdk/sdk-api-handler"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
@@ -23,7 +23,11 @@ export async function getGitDiffStagedFirst(cwd: string): Promise<string> {
 	}
 }
 
-let commitGenerationAbortController: AbortController | undefined
+// Every generation still running. Stop aborts all of them: a second
+// generation can start while one runs (the Generate keybinding stays live, and
+// "Generate for all repositories" starts one per repository), and nothing but
+// Stop may cancel a generation.
+const activeCommitGenerations = new Set<AbortController>()
 
 type GitRepositoryInputBox = {
 	value: string
@@ -190,7 +194,13 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 	)
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
+export async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
+	// This generation's cancel handle, registered before the first await. The
+	// SCM stop action is live as soon as the context key flips, so a handle
+	// registered after resolving the host identity would miss a cancel issued meanwhile and
+	// send the request anyway.
+	const abortController = new AbortController()
+	activeCommitGenerations.add(abortController)
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
@@ -215,7 +225,12 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		// transform that doesn't need extended thinking; disabling reasoning also
 		// avoids sending both reasoning.effort and reasoning.max_tokens, which
 		// some providers (e.g. OpenRouter) reject.
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
+		//
+		// Resolve the host client identity so the request carries the same Cline
+		// surface headers as a task: the Cline gateway serves models restricted to
+		// Cline product surfaces (the free models) only to requests that identify
+		// themselves, and answers anything else with HTTP 403.
+		const apiHandler = await buildApiHandlerWithHostContext(apiConfiguration, currentMode, { disableReasoning: true })
 
 		// Create a system prompt
 		const systemPrompt = PROMPT.system
@@ -223,13 +238,14 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]
 
-		commitGenerationAbortController = new AbortController()
+		// Cancelled while the host identity was resolving: send nothing.
+		abortController.signal.throwIfAborted()
 		const stream = apiHandler.createMessage(systemPrompt, messages)
 
 		let response = ""
 		let streamError: string | undefined
 		for await (const chunk of stream) {
-			commitGenerationAbortController.signal.throwIfAborted()
+			abortController.signal.throwIfAborted()
 			if (chunk.type === "text") {
 				response += chunk.text
 				inputBox.value = extractCommitMessage(response)
@@ -249,18 +265,28 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 			)
 		}
 	} catch (error) {
+		// A cancel is what the user asked for, not a failure to report.
+		if (abortController.signal.aborted) {
+			return
+		}
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to generate commit message: ${errorMessage}`,
 		})
 	} finally {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		// The button shows Stop while any generation runs, not just this one.
+		activeCommitGenerations.delete(abortController)
+		if (activeCommitGenerations.size === 0) {
+			vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		}
 	}
 }
 
 export function abortCommitGeneration() {
-	commitGenerationAbortController?.abort()
+	for (const generation of activeCommitGenerations) {
+		generation.abort()
+	}
 	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 }
 

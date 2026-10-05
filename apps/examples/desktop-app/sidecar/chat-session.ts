@@ -6,6 +6,7 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	createContextCompactionPrepareTurn,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
@@ -26,7 +27,10 @@ import {
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { MessageWithMetadata } from "@cline/llms";
+import {
+	getGeneratedModelsForRuntimeProvider,
+	type MessageWithMetadata,
+} from "@cline/llms";
 import {
 	buildClineSystemPrompt,
 	type ConsecutiveMistakeLimitContext,
@@ -128,7 +132,93 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["compact", "fork", "team"]);
+
+const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000;
+const COMPACT_WHILE_RUNNING_MESSAGE =
+	"Cannot compact while a response is in progress. Try again once the current turn finishes.";
+
+/**
+ * Manual `/compact`, mirroring the CLI's local command: summarizes the full
+ * canonical transcript and stores it as the session's compaction sidecar, so
+ * the next turn and resumes use the compacted working context while the saved
+ * history stays intact. Returns the text shown to the user.
+ */
+async function compactSession(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+): Promise<string> {
+	if ((await manager.get(sessionId))?.status === "running") {
+		return COMPACT_WHILE_RUNNING_MESSAGE;
+	}
+	const messages = await manager.readMessages(sessionId);
+	const conversationMessages = messages.filter(
+		(message) => message.metadata?.displayOnly !== true,
+	);
+	if (conversationMessages.length === 0) {
+		return "No messages to compact.";
+	}
+	const {
+		providerId = "",
+		modelId = "",
+		apiKey,
+		baseUrl,
+		headers,
+		providerConfig,
+	} = buildSessionConnectionUpdate(await withRemoteProviderCredentials(config));
+	const compact = createContextCompactionPrepareTurn(
+		{
+			providerId,
+			modelId,
+			apiKey,
+			baseUrl,
+			headers,
+			providerConfig,
+			compaction: { enabled: true },
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+			sessionId,
+		},
+		{ mode: "manual" },
+	);
+	const result = await compact?.({
+		agentId: "cline-desktop",
+		conversationId: sessionId,
+		parentAgentId: null,
+		iteration: 0,
+		messages: conversationMessages,
+		apiMessages: conversationMessages,
+		abortSignal: new AbortController().signal,
+		systemPrompt: "",
+		tools: [],
+		model: {
+			id: modelId,
+			provider: providerId,
+			info: getGeneratedModelsForRuntimeProvider(providerId)[modelId] ?? {
+				id: modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			},
+		},
+	});
+	if (!result?.messages) {
+		return "No compaction needed.";
+	}
+	const { updated } = await manager.updateSessionCompactionState(
+		sessionId,
+		createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: result.messages,
+			conversationId: sessionId,
+			systemPrompt: result.systemPrompt,
+		}),
+	);
+	if (!updated) {
+		throw new Error("Compaction could not be saved. Try again.");
+	}
+	return `Compacted context from ${messages.length} to ${result.messages.length} messages.`;
+}
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -1320,6 +1410,29 @@ async function handleSend(
 	// as in the CLI: the handler's reply goes to the webview as a toast and
 	// only its `submitPrompt` (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (commandName === "compact") {
+		let text: string;
+		try {
+			text = session?.busy
+				? COMPACT_WHILE_RUNNING_MESSAGE
+				: await compactSession(
+						ctx,
+						manager,
+						sessionId,
+						request.config
+							? mergeSessionConfig(session?.config ?? {}, request.config)
+							: (session?.config ?? {}),
+					);
+		} catch (error) {
+			text = `Compaction failed: ${error instanceof Error ? error.message : String(error)}`;
+		}
+		sendEvent(ctx, "chat_command_output", {
+			sessionId,
+			command: commandName,
+			text,
+		});
+		return { sessionId, ok: true, commandHandled: true };
+	}
 	const pluginCommand =
 		commandName &&
 		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
