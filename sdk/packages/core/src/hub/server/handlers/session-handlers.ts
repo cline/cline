@@ -393,6 +393,9 @@ export async function handleSessionCreate(
 		initialMessages: Array.isArray(payload.initialMessages)
 			? (payload.initialMessages as never[])
 			: undefined,
+		initialPendingPrompts: Array.isArray(payload.initialPendingPrompts)
+			? (payload.initialPendingPrompts as import("../../../types/events").SessionPendingPrompt[])
+			: undefined,
 		initialCompactionState,
 		localRuntime: {
 			modelCatalogDefaults: {
@@ -938,7 +941,9 @@ export async function handleSessionGet(
 	const sessionId = extractSessionId(envelope);
 	const includeSnapshot = envelope.payload?.includeSnapshot === true;
 	const [session, snapshot] = await Promise.all([
-		readHubSessionRecord(ctx, sessionId),
+		readHubSessionRecord(ctx, sessionId, {
+			liveOnly: envelope.payload?.liveOnly === true,
+		}),
 		includeSnapshot
 			? readCoreSessionSnapshot(ctx, sessionId)
 			: Promise.resolve(undefined),

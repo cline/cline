@@ -711,7 +711,9 @@ function ChatMessagesImpl({
 								    reasoning/tool trigger's geometry exactly (icon slot,
 								    min-height, padding), so the first real row replaces it
 								    in place with no jump. */}
-								{(status === "starting" || isAwaitingFirstOutput) &&
+								{(status === "starting" ||
+									isAwaitingFirstOutput ||
+									activityLabel) &&
 								!isSessionSwitching ? (
 									<div
 										className={cn(

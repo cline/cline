@@ -158,6 +158,8 @@ export interface StartSessionInput {
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
 	initialMessages?: LlmsProviders.MessageWithMetadata[];
+	/** Pending work restored atomically with the resident session; waits for the next turn. */
+	initialPendingPrompts?: SessionPendingPrompt[];
 	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
@@ -377,7 +379,10 @@ export interface RuntimeHost {
 	abort(sessionId: string, reason?: unknown): Promise<void>;
 	stopSession(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
-	getSession(sessionId: string): Promise<SessionRecord | undefined>;
+	getSession(
+		sessionId: string,
+		options?: { liveOnly?: boolean },
+	): Promise<SessionRecord | undefined>;
 	listSessions(
 		limit?: number,
 		options?: ListSessionsOptions,

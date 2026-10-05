@@ -20,6 +20,7 @@ import {
 	readSessionCheckpointHistory,
 	resolveProviderApiKeyFromSettings,
 	type SessionCompactionState,
+	SessionNotFoundError,
 	type SessionPendingPrompt,
 	type SessionRecord,
 	SessionSource,
@@ -922,6 +923,8 @@ function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
 		steer: item.delivery === "steer",
 		attachmentCount: item.attachmentCount,
 		userImages: item.userImages,
+		userFiles: item.userFiles,
+		mode: item.mode,
 	};
 }
 
@@ -1250,6 +1253,7 @@ async function startRebuiltSession(
 	systemPrompt: string,
 	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
+	initialPendingPrompts?: SessionPendingPrompt[],
 ): Promise<void> {
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
@@ -1269,6 +1273,7 @@ async function startRebuiltSession(
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		initialMessages: messages,
+		...(initialPendingPrompts ? { initialPendingPrompts } : {}),
 		...(projectedMessages
 			? {
 					initialCompactionState: createSessionCompactionState({
@@ -1546,13 +1551,11 @@ async function recoverSessionAfterHubLoss(
 	let outcome: HubReconnectOutcome = "failed";
 	while (Date.now() < deadline && stillWanted()) {
 		try {
-			// The same connection refresh a send performs. It only succeeds
-			// against a hub that holds the session live, so it tells a
-			// surviving session apart from one lost with its hub.
-			await manager.updateSessionConnection(
-				sessionId,
-				buildSessionConnectionUpdate(session.config),
-			);
+			// Persisted metadata survives a Hub restart; only a resident runtime
+			// proves the session survived. This probe must not write cached settings.
+			if (!(await manager.get(sessionId, { liveOnly: true }))) {
+				throw new SessionNotFoundError(sessionId);
+			}
 			if (stillWanted()) outcome = "survived";
 			break;
 		} catch (error) {
@@ -1566,6 +1569,17 @@ async function recoverSessionAfterHubLoss(
 						.readSessionCompactionState(sessionId)
 						.catch(() => undefined);
 					if (!stillWanted()) break;
+					// Capture before startup publishes its queue snapshot. Preserve IDs,
+					// delivery, mode and attachments without dispatching partial restores.
+					const pendingPrompts = session.promptsInQueue.map((item) => ({
+						id: item.id,
+						prompt: item.prompt,
+						mode: item.mode,
+						delivery: item.steer ? ("steer" as const) : ("queue" as const),
+						attachmentCount: item.attachmentCount ?? 0,
+						userImages: item.userImages,
+						userFiles: item.userFiles,
+					}));
 					await startRebuiltSession(
 						manager,
 						ctx,
@@ -1574,6 +1588,7 @@ async function recoverSessionAfterHubLoss(
 						systemPrompt,
 						readPersistedChatMessages(sessionId) ?? session.messages ?? [],
 						compactionState,
+						pendingPrompts,
 					);
 					if (!stillWanted()) {
 						// Undo a cancelled rebuild only while the projection still

@@ -2370,3 +2370,25 @@ describe("ChatMessages credential failures", () => {
 		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });
+
+describe("ChatMessages reconnect activity", () => {
+	it("keeps reconnect status visible after the assistant starts streaming", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "partial",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Partial response",
+				createdAt: Date.now(),
+			},
+		];
+		await renderMessages(messages, {
+			status: "running",
+			activityLabel: "Reconnecting to Cline Hub...",
+		});
+		expect(container.textContent).toContain("Partial response");
+		expect(container.textContent).toContain("Reconnecting to Cline Hub...");
+		await renderMessages(messages, { status: "running", activityLabel: null });
+		expect(container.textContent).not.toContain("Reconnecting to Cline Hub...");
+	});
+});

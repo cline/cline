@@ -1111,6 +1111,9 @@ describe("first-send connection updates", () => {
 		attachedViaHub?: boolean;
 		config?: Record<string, unknown>;
 	}) {
+		const get = vi.fn(async (_sessionId?: string, _options?: unknown) => ({
+			sessionId: "session-connection-test",
+		}));
 		const updateSessionConnection = vi.fn(async () => undefined);
 		const send = vi.fn(async (_input?: unknown) => ({
 			text: "done",
@@ -1145,6 +1148,10 @@ describe("first-send connection updates", () => {
 			wsClients: new Set(),
 			...localRuntimeContext(
 				{
+					get: (id: string, options?: { liveOnly?: boolean }) =>
+						options?.liveOnly
+							? get(id, options)
+							: Promise.resolve({ sessionId: id }),
 					readMessages,
 					readSessionCompactionState,
 					send,
@@ -1160,6 +1167,7 @@ describe("first-send connection updates", () => {
 		} as unknown as SidecarContext;
 		return {
 			ctx,
+			get,
 			readMessages,
 			readSessionCompactionState,
 			send,
@@ -1746,10 +1754,9 @@ describe("first-send connection updates", () => {
 			});
 
 		it("rebuilds a session the restarted hub lost and ends the turn interrupted", async () => {
-			const { ctx, send, sessionId, start, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, get } = createContext();
 			send.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			get.mockRejectedValueOnce(missing(sessionId));
 
 			const response = (await handleChatSessionCommand(ctx, {
 				action: "send",
@@ -1765,8 +1772,61 @@ describe("first-send connection updates", () => {
 			});
 		});
 
+		it("restores queued follow-ups with their IDs, mode, delivery and attachments", async () => {
+			const { ctx, send, sessionId, start, get } = createContext();
+			const prompts = [
+				{
+					id: "steer-1",
+					prompt: "change direction",
+					steer: true,
+					mode: "plan" as const,
+					attachmentCount: 2,
+					userImages: ["image-data"],
+					userFiles: ["/tmp/queued-file"],
+				},
+				{
+					id: "queue-2",
+					prompt: "then check",
+					steer: false,
+					attachmentCount: 0,
+				},
+			];
+			const session = ctx.liveSessions.get(sessionId);
+			if (!session) throw new Error("Expected live session");
+			session.promptsInQueue = prompts;
+			send.mockRejectedValueOnce(transportLost());
+			get.mockResolvedValueOnce(undefined as never);
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "interrupted turn",
+			});
+			expect(start.mock.calls[0]?.[0]).toMatchObject({
+				initialPendingPrompts: [
+					{
+						id: "steer-1",
+						prompt: "change direction",
+						delivery: "steer",
+						mode: "plan",
+						userImages: ["image-data"],
+						userFiles: ["/tmp/queued-file"],
+					},
+					{ id: "queue-2", prompt: "then check", delivery: "queue" },
+				],
+			});
+			expect(send).toHaveBeenCalledOnce();
+		});
+
 		it("leaves a session the hub still holds alone and reports the failure", async () => {
-			const { ctx, send, sessionId, start, stop } = createContext();
+			const {
+				ctx,
+				send,
+				sessionId,
+				start,
+				stop,
+				get,
+				updateSessionConnection,
+			} = createContext();
 			send.mockRejectedValueOnce(transportLost());
 
 			const response = (await handleChatSessionCommand(ctx, {
@@ -1778,22 +1838,21 @@ describe("first-send connection updates", () => {
 			expect(start).not.toHaveBeenCalled();
 			expect(stop).not.toHaveBeenCalled();
 			expect(response.result?.finishReason).toBe("error");
+			expect(get).toHaveBeenCalledWith(sessionId, { liveOnly: true });
+			expect(updateSessionConnection).not.toHaveBeenCalled();
 		});
 
 		it("does not revive a session the user stops during the reconnect window", async () => {
-			const { ctx, send, sessionId, start, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, get } = createContext();
 			send.mockRejectedValueOnce(transportLost());
-			updateSessionConnection.mockRejectedValue(transportLost());
+			get.mockRejectedValue(transportLost());
 
 			const pending = handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,
 				prompt: "hello",
 			}) as Promise<{ result?: { finishReason?: string } }>;
-			await vi.waitFor(() =>
-				expect(updateSessionConnection).toHaveBeenCalled(),
-			);
+			await vi.waitFor(() => expect(get).toHaveBeenCalled());
 			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
 
 			expect((await pending).result?.finishReason).toBe("error");
@@ -1801,10 +1860,9 @@ describe("first-send connection updates", () => {
 		});
 
 		it("re-queues a queued prompt once the session is rebuilt", async () => {
-			const { ctx, send, sessionId, start, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, get } = createContext();
 			send.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			get.mockRejectedValueOnce(missing(sessionId));
 
 			const response = (await handleChatSessionCommand(ctx, {
 				action: "send",
@@ -1840,8 +1898,7 @@ describe("first-send connection updates", () => {
 		});
 
 		it("serializes replacement recovery behind a cancelled rebuild and retains sharing", async () => {
-			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, stop, get } = createContext();
 			let finishOld!: (result: { sessionId: string }) => void;
 			let finishNew!: (result: { sessionId: string }) => void;
 			start
@@ -1861,7 +1918,7 @@ describe("first-send connection updates", () => {
 				.mockRejectedValueOnce(missing(sessionId))
 				.mockRejectedValueOnce(missing(sessionId))
 				.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			get.mockRejectedValue(missing(sessionId));
 			const first = handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,
@@ -1890,7 +1947,7 @@ describe("first-send connection updates", () => {
 				// The old Hub startup still owns this session ID. Its late
 				// registration must finish before another startup can begin.
 				expect(start).toHaveBeenCalledOnce();
-				expect(updateSessionConnection).toHaveBeenCalledOnce();
+				expect(get).toHaveBeenCalledOnce();
 				finishOld({ sessionId });
 				await expect(first).resolves.toMatchObject({
 					result: { finishReason: "error" },
@@ -1906,7 +1963,7 @@ describe("first-send connection updates", () => {
 				// Let the failed send join recovery before resolving startup.
 				await new Promise((resolve) => setTimeout(resolve, 0));
 				expect(start).toHaveBeenCalledTimes(2);
-				expect(updateSessionConnection).toHaveBeenCalledTimes(2);
+				expect(get).toHaveBeenCalledTimes(2);
 				finishNew({ sessionId });
 				await expect(replacementSend).resolves.toMatchObject({
 					result: { hubInterrupted: true },
@@ -1928,8 +1985,7 @@ describe("first-send connection updates", () => {
 			null,
 		])("bounds replacement recovery including a cancelled startup (%s)", async (oldStartupDelay) => {
 			vi.useFakeTimers();
-			const { ctx, send, sessionId, start, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, get } = createContext();
 			let finishOld!: (result: { sessionId: string }) => void;
 			start.mockImplementationOnce(
 				() =>
@@ -1938,7 +1994,7 @@ describe("first-send connection updates", () => {
 					}),
 			);
 			send.mockRejectedValue(missing(sessionId));
-			updateSessionConnection
+			get
 				.mockRejectedValue(transportLost())
 				.mockRejectedValueOnce(missing(sessionId));
 			const first = handleChatSessionCommand(ctx, {
@@ -1985,7 +2041,7 @@ describe("first-send connection updates", () => {
 				if (oldStartupDelay === null) {
 					// Returning at the deadline must not release the underlying
 					// startup barrier: a further send still waits for registration.
-					updateSessionConnection.mockRejectedValue(missing(sessionId));
+					get.mockRejectedValue(missing(sessionId));
 					ctx.liveSessions.set(sessionId, { ...replacement, status: "idle" });
 					laterSend = handleChatSessionCommand(ctx, {
 						action: "send",
@@ -2010,8 +2066,7 @@ describe("first-send connection updates", () => {
 		});
 
 		it("shares an in-flight rebuild with a queued send without stopping it", async () => {
-			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, stop, get } = createContext();
 			let finishStart!: (result: { sessionId: string }) => void;
 			start.mockImplementationOnce(
 				() =>
@@ -2022,7 +2077,7 @@ describe("first-send connection updates", () => {
 			send
 				.mockRejectedValueOnce(missing(sessionId))
 				.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			get.mockRejectedValue(missing(sessionId));
 			const first = handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,
@@ -2050,11 +2105,10 @@ describe("first-send connection updates", () => {
 		});
 
 		it("recovers hub loss during an attached session's connection refresh", async () => {
-			const { ctx, send, sessionId, start, updateSessionConnection } =
+			const { ctx, send, sessionId, start, get, updateSessionConnection } =
 				createContext({ attachedViaHub: true });
-			updateSessionConnection
-				.mockRejectedValueOnce(missing(sessionId))
-				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			get.mockRejectedValueOnce(missing(sessionId));
 			const response = await handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,
@@ -2067,14 +2121,8 @@ describe("first-send connection updates", () => {
 		});
 
 		it("does not start a rebuild when stopped while loading recovery state", async () => {
-			const {
-				ctx,
-				send,
-				sessionId,
-				start,
-				readSessionCompactionState,
-				updateSessionConnection,
-			} = createContext();
+			const { ctx, send, sessionId, start, readSessionCompactionState, get } =
+				createContext();
 			let finishRead!: () => void;
 			readSessionCompactionState.mockImplementationOnce(
 				() =>
@@ -2083,7 +2131,7 @@ describe("first-send connection updates", () => {
 					}),
 			);
 			send.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			get.mockRejectedValueOnce(missing(sessionId));
 			const pending = handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,
@@ -2101,8 +2149,7 @@ describe("first-send connection updates", () => {
 		});
 
 		it("undoes a rebuild stopped while startup was in flight", async () => {
-			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, stop, get } = createContext();
 			let finishStart!: (result: { sessionId: string }) => void;
 			start.mockImplementationOnce(
 				() =>
@@ -2111,7 +2158,7 @@ describe("first-send connection updates", () => {
 					}),
 			);
 			send.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			get.mockRejectedValueOnce(missing(sessionId));
 			const pending = handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,
@@ -2127,8 +2174,7 @@ describe("first-send connection updates", () => {
 		});
 
 		it("leaves a newly attached session alone after a cancelled rebuild", async () => {
-			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
-				createContext();
+			const { ctx, send, sessionId, start, stop, get } = createContext();
 			let finishStart!: (result: { sessionId: string }) => void;
 			start.mockImplementationOnce(
 				() =>
@@ -2137,7 +2183,7 @@ describe("first-send connection updates", () => {
 					}),
 			);
 			send.mockRejectedValueOnce(missing(sessionId));
-			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			get.mockRejectedValueOnce(missing(sessionId));
 			const pending = handleChatSessionCommand(ctx, {
 				action: "send",
 				sessionId,

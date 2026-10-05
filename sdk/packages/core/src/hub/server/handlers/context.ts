@@ -173,8 +173,9 @@ export function buildHubEvent(
 export async function readHubSessionRecord(
 	ctx: HubTransportContext,
 	sessionId: string,
+	options?: { liveOnly?: boolean },
 ): Promise<HubSessionRecord | undefined> {
-	const session = await ctx.sessionHost.getSession(sessionId);
+	const session = await ctx.sessionHost.getSession(sessionId, options);
 	if (!session) {
 		return undefined;
 	}
