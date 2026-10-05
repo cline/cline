@@ -1146,6 +1146,7 @@ describe("first-send connection updates", () => {
 		return {
 			ctx,
 			readMessages,
+			readSessionCompactionState,
 			send,
 			sessionId,
 			start,
@@ -1801,6 +1802,157 @@ describe("first-send connection updates", () => {
 			expect(send).toHaveBeenCalledTimes(2);
 			expect(send.mock.calls[1]?.[0]).toMatchObject({ delivery: "queue" });
 			expect(response.queued).toBe(true);
+		});
+
+		it("shares an in-flight rebuild with a queued send without stopping it", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "first",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			const queued = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "next",
+				delivery: "queue",
+			});
+			await vi.waitFor(() =>
+				expect(send.mock.calls.length).toBeGreaterThanOrEqual(2),
+			);
+			finishStart({ sessionId });
+			const [firstResponse, queuedResponse] = await Promise.all([
+				first,
+				queued,
+			]);
+			expect(start).toHaveBeenCalledOnce();
+			expect(stop).not.toHaveBeenCalled();
+			expect(firstResponse).toMatchObject({ result: { hubInterrupted: true } });
+			expect(queuedResponse).toMatchObject({ queued: true });
+		});
+
+		it("recovers hub loss during an attached session's connection refresh", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext({ attachedViaHub: true });
+			updateSessionConnection
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+				config: { ...baseConfig },
+			});
+			expect(start).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledOnce();
+			expect(response).toMatchObject({ result: { finishReason: "completed" } });
+		});
+
+		it("does not start a rebuild when stopped while loading recovery state", async () => {
+			const {
+				ctx,
+				send,
+				sessionId,
+				start,
+				readSessionCompactionState,
+				updateSessionConnection,
+			} = createContext();
+			let finishRead!: () => void;
+			readSessionCompactionState.mockImplementationOnce(
+				() =>
+					new Promise<undefined>((resolve) => {
+						finishRead = () => resolve(undefined);
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() =>
+				expect(readSessionCompactionState).toHaveBeenCalledOnce(),
+			);
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			finishRead();
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(start).not.toHaveBeenCalled();
+		});
+
+		it("undoes a rebuild stopped while startup was in flight", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			finishStart({ sessionId });
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(stop).toHaveBeenCalledTimes(2);
+		});
+
+		it("leaves a newly attached session alone after a cancelled rebuild", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			const previous = ctx.liveSessions.get(sessionId);
+			if (!previous) throw new Error("Expected a live session after stop");
+			const replacement = {
+				...previous,
+				attachedViaHub: true,
+			};
+			ctx.liveSessions.set(sessionId, replacement);
+			finishStart({ sessionId });
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(stop).toHaveBeenCalledOnce();
+			expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
 		});
 	});
 });
