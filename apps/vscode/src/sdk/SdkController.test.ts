@@ -658,7 +658,7 @@ describe("cancelling a provisioning cloud task", () => {
 		const phases: string[] = []
 		const controller = {
 			turnStateTracker: { set: (phase: string) => phases.push(phase) },
-			cloud: { cancelPendingStart: vi.fn(() => true) },
+			cloud: { cancelPendingStartFor: vi.fn(() => true) },
 			clearTask: vi.fn(async () => phases.push("cleared")),
 			taskControl: { cancelTask: vi.fn() },
 		}
