@@ -55,6 +55,65 @@ describe("BrowserWebSocketHubAdapter", () => {
 		vi.restoreAllMocks();
 	});
 
+	it("retains capability ownership during reconnect and ignores a superseded socket close", async () => {
+		vi.useFakeTimers();
+		const transport = {
+			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
+				version: "v1" as const,
+				requestId: envelope.requestId,
+				ok: true,
+			})),
+			subscribe: vi.fn(() => () => {}),
+		};
+		const adapter = new BrowserWebSocketHubAdapter(transport);
+		const register = async (socket: ReturnType<typeof createSocket>) => {
+			adapter.attach(socket);
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						command: "client.register",
+						requestId: "register",
+						clientId: "owner",
+						payload: {
+							clientId: "owner",
+							clientType: "test",
+							transport: "websocket",
+						},
+					},
+				}),
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+		};
+		const first = createSocket();
+		await register(first);
+		first.emitClose();
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(
+			transport.command.mock.calls.filter(
+				([e]) => e.command === "client.unregister",
+			),
+		).toHaveLength(0);
+		const second = createSocket();
+		await register(second);
+		first.emitClose();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(
+			transport.command.mock.calls.filter(
+				([e]) => e.command === "client.unregister",
+			),
+		).toHaveLength(0);
+		second.emitClose();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(
+			transport.command.mock.calls.filter(
+				([e]) => e.command === "client.unregister",
+			),
+		).toHaveLength(1);
+	});
+
 	it("ignores malformed websocket frames instead of throwing", async () => {
 		const transport = {
 			command: vi.fn(),

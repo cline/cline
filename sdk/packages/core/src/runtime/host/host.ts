@@ -153,6 +153,7 @@ export async function createRuntimeHost(
 		return new RemoteRuntimeHost({
 			endpoint: remoteEndpoint,
 			authToken: options.remote?.authToken,
+			resolveReconnectUrl: options.remote?.resolveReconnectUrl,
 			clientType: options.remote?.clientType,
 			displayName: options.remote?.displayName,
 			workspaceRoot: options.remote?.workspaceRoot,

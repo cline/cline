@@ -40,6 +40,8 @@ export interface HubOptions {
 }
 
 export interface RemoteOptions {
+	/** Replaces failed forwarding without changing the remote Hub identity. */
+	resolveReconnectUrl?: (failedUrl: string) => Promise<string>;
 	endpoint: string;
 	authToken?: string;
 	clientType?: string;

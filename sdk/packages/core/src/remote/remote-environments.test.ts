@@ -864,7 +864,8 @@ describe("RemoteEnvironmentService", () => {
 
 		tunnel.emit("exit", 255, null);
 
-		expect(service.getActive()).toBeUndefined();
+		expect(service.getActive()?.profileId).toBe(profile.id);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(onConnectionLost).toHaveBeenCalledWith(
 			expect.objectContaining({
 				profileId: profile.id,
@@ -874,6 +875,85 @@ describe("RemoteEnvironmentService", () => {
 		// Cleanup uses a fresh SSH connection, never the failed local tunnel.
 		await service.dispose();
 		expect(requestHubShutdown).not.toHaveBeenCalled();
+	});
+
+	it("replaces stalled forwarding once without rebooting the remote Hub", async () => {
+		const invocations: Invocation[] = [];
+		const tunnels: FakeTunnel[] = [];
+		const tunnelArgs: string[][] = [];
+		const requestHubShutdown = vi.fn(async () => true);
+		const service = createService({
+			runProcess: async (executable, args, options) => {
+				invocations.push({ executable, args, options });
+				const command = args.at(-1) ?? "";
+				if (command.includes("uname -s"))
+					return inspection("Linux", "x86_64", "/home/dev");
+				if (command.includes("--remote-hub-ensure"))
+					return success(
+						'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}',
+					);
+				return success();
+			},
+			resolveHelperBinary: async () => "/opt/cline/helper",
+			fileReadable: async () => true,
+			hashFile: async () => "0123456789abcdef",
+			reservePort: async () => 41_000 + tunnels.length,
+			spawnTunnel: (_executable, args) => {
+				tunnelArgs.push(args);
+				const tunnel = new FakeTunnel();
+				tunnels.push(tunnel);
+				return tunnel;
+			},
+			waitForTunnel: async () => undefined,
+			requestHubShutdown,
+		});
+		const profile = await service.upsert({ name: "SSM", host: "ssm-host" });
+		const initial = await service.connect(profile.id);
+		invocations.length = 0;
+		const [recovered, observer] = await Promise.all([
+			service.recoverForwarding(profile.id, initial.endpoint),
+			service.recoverForwarding(profile.id, initial.endpoint),
+		]);
+		expect(observer).toEqual(recovered);
+		expect(recovered).toMatchObject({
+			authToken: initial.authToken,
+			remoteHubUrl: initial.remoteHubUrl,
+			workspaceRoot: initial.workspaceRoot,
+			localPort: 41_001,
+		});
+		expect(tunnels).toHaveLength(2);
+		expect(tunnels[0].killed).toBe(true);
+		expect(tunnels[1].killed).toBe(false);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(
+			invocations.some(({ args }) =>
+				args.some(
+					(arg) =>
+						arg.includes("--remote-hub-ensure") ||
+						arg.includes("--remote-hub-stop"),
+				),
+			),
+		).toBe(false);
+		if (process.platform !== "win32") {
+			expect(tunnelArgs[0]).toContain("ControlMaster=auto");
+			expect(
+				tunnelArgs[0].find((arg) => arg.startsWith("ControlPath=")),
+			).not.toEqual(
+				tunnelArgs[1].find((arg) => arg.startsWith("ControlPath=")),
+			);
+			expect(
+				invocations.some(
+					({ args }) => args.includes("-O") && args.includes("exit"),
+				),
+			).toBe(true);
+		}
+		// An actual SSH exit follows the same recovery path and keeps Hub identity.
+		tunnels[1].emit("exit", 255, null);
+		const afterExit = await service.connect(profile.id);
+		expect(afterExit.authToken).toBe(initial.authToken);
+		expect(tunnels).toHaveLength(3);
+		await service.dispose();
+		expect(requestHubShutdown).toHaveBeenCalledTimes(1);
 	});
 
 	it("quotes command arguments and rejects non-zero remote commands", async () => {

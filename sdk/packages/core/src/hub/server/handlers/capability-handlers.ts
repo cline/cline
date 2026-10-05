@@ -47,18 +47,14 @@ export async function requestCapability(
 				resolve(result.payload);
 			},
 		});
-		ctx.publish(
-			ctx.buildEvent(
-				"capability.requested",
-				{
-					requestId,
-					targetClientId,
-					capabilityName,
-					payload,
-				},
-				sessionId,
-			),
+		const requestedEvent = ctx.buildEvent(
+			"capability.requested",
+			{ requestId, targetClientId, capabilityName, payload },
+			sessionId,
 		);
+		const pending = ctx.pendingCapabilityRequests.get(requestId);
+		if (pending) pending.requestedEvent = requestedEvent;
+		ctx.publish(requestedEvent);
 		logHubMessage("info", "capability.request.published", {
 			requestId,
 			sessionId,

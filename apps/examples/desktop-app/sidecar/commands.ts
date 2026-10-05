@@ -44,6 +44,7 @@ import {
 	getLocalProviderModels,
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
+	HubTransportError,
 	identifyAccount,
 	isModelToolEnabledGlobally,
 	listHookConfigFiles,
@@ -332,29 +333,12 @@ function getRemoteEnvironmentService(
 				broadcastEvent(ctx, "remote_environment_status", status);
 			},
 			onConnectionLost: (status) => {
-				const binding = ctx.runtimeBindings.get(status.profileId);
-				if (binding?.kind !== "ssh") return;
-				const wasActive = ctx.activeEnvironmentId === status.profileId;
-				void disconnectRemoteSessionRuntime(ctx, status.profileId)
-					.catch((error) => {
-						ctx.logger?.log("Failed to dispose dead SSH runtime", {
-							error,
-							environmentId: status.profileId,
-							severity: "warn",
-						});
-					})
-					.finally(() => {
-						if (
-							!wasActive ||
-							ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID
-						) {
-							return;
-						}
-						broadcastLocalEnvironment(ctx, {
-							reason: "tunnel_error",
-							message: status.message,
-						});
-					});
+				// Keep runtime clients and capability handlers alive. Their transport
+				// recovery replaces the forwarding path without detaching live runs.
+				ctx.logger?.log("SSH forwarding lost; waiting for transport recovery", {
+					environmentId: status.profileId,
+					message: status.message,
+				});
 			},
 		});
 	}
@@ -848,6 +832,65 @@ function metadataSessionSearchHits(
 // ---------------------------------------------------------------------------
 // Git helpers
 // ---------------------------------------------------------------------------
+
+type BranchRefresh = {
+	branch?: string;
+	retryAt: number;
+	pending?: Promise<string | undefined>;
+};
+const remoteBranchRefreshes = new WeakMap<
+	SidecarContext,
+	Map<string, BranchRefresh>
+>();
+
+async function readCurrentGitBranch(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd: string,
+): Promise<string | undefined> {
+	if (binding.kind !== "ssh") {
+		return (
+			(
+				await execFileAsync("git", ["branch", "--show-current"], {
+					cwd,
+					encoding: "utf8",
+				}).catch(() => undefined)
+			)?.stdout.trim() || undefined
+		);
+	}
+	let cache = remoteBranchRefreshes.get(ctx);
+	if (!cache) {
+		cache = new Map();
+		remoteBranchRefreshes.set(ctx, cache);
+	}
+	const remote = ctx.remoteEnvironments;
+	if (!remote) throw new Error("Remote environment service is unavailable");
+	const key = JSON.stringify([binding.environmentId, cwd]);
+	let entry = cache.get(key);
+	if (entry?.pending) return entry.pending;
+	if (entry && Date.now() < entry.retryAt) return entry.branch;
+	entry ??= { retryAt: 0 };
+	cache.set(key, entry);
+	const current = entry;
+	current.pending = (async () => {
+		try {
+			const result = await remote.run(binding.environmentId, {
+				command: "git",
+				args: ["branch", "--show-current"],
+				cwd,
+			});
+			current.branch = result.stdout.trim() || undefined;
+			current.retryAt = Date.now() + (current.branch ? 5_000 : 60_000);
+		} catch {
+			// Keep the last branch through network failures; don't hammer SSM.
+			current.retryAt = Date.now() + 60_000;
+		}
+		return current.branch;
+	})().finally(() => {
+		current.pending = undefined;
+	});
+	return current.pending;
+}
 
 async function listGitBranches(
 	ctx: SidecarContext,
@@ -2604,9 +2647,38 @@ export async function handleCommand(
 			if (value === null) delete merged[key];
 			else merged[key] = value;
 		}
-		const result = await binding.sessionManager.update(sessionId, {
-			metadata: merged,
-		});
+		const result = await binding.sessionManager
+			.update(sessionId, {
+				metadata: merged,
+			})
+			.catch(async (error: unknown) => {
+				const code =
+					error && typeof error === "object" && "code" in error
+						? error.code
+						: undefined;
+				if (
+					binding.kind !== "ssh" ||
+					!(
+						code === "hub_command_timeout" || error instanceof HubTransportError
+					)
+				)
+					throw error;
+				// A lost reply is not proof that the update failed. Read through the
+				// recovered transport and compare only the requested keys.
+				const saved = await binding.sessionManager
+					.get(sessionId)
+					.catch(() => undefined);
+				if (
+					!saved ||
+					!Object.entries(patch as JsonRecord).every(([key, value]) =>
+						value === null
+							? !(key in asRecord(saved.metadata))
+							: isDeepStrictEqual(asRecord(saved.metadata)[key], value),
+					)
+				)
+					throw error;
+				return { updated: true };
+			});
 		if (!result.updated) throw new Error(`Session ${sessionId} not found`);
 		// Annotating a session is not session activity. updateSession stamps
 		// updated_at, which clients sort and label rows by, so a pin would
@@ -3473,12 +3545,12 @@ export async function handleCommand(
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
 				: binding.workspaceRoot;
-		const branches = await listGitBranches(ctx, binding, cwd);
+		const branch = await readCurrentGitBranch(ctx, binding, cwd);
 		if (binding.kind === "local") {
 			const { prewarmWorkspaceMetadata } = await import("./chat-session");
 			prewarmWorkspaceMetadata(cwd);
 		}
-		return { environmentId: binding.environmentId, branch: branches.current };
+		return { environmentId: binding.environmentId, branch };
 	}
 	if (command === "list_git_branches") {
 		const binding = getCommandRuntimeBinding(ctx, args);
@@ -3510,6 +3582,9 @@ export async function handleCommand(
 				encoding: "utf8",
 			});
 		}
+		remoteBranchRefreshes
+			.get(ctx)
+			?.delete(JSON.stringify([binding.environmentId, targetCwd]));
 		const { refreshWorkspaceMetadata } = await import("./chat-session");
 		if (binding.kind === "local") refreshWorkspaceMetadata(targetCwd);
 		return { environmentId: binding.environmentId, branch };

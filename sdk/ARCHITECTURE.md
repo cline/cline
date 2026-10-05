@@ -1044,6 +1044,26 @@ backend. The helper uploads are content-addressed and the remote Hub binds only
 to loopback. SSH forwards that endpoint to a local ephemeral port. The helper's
 explicit discovery record is separate from the remote account's default Hub.
 
+On POSIX hosts, commands and forwarding share a private OpenSSH control socket.
+`recoverForwarding` replaces the forwarding port and control socket while keeping
+remote Hub identity, authentication, sessions, and running prompts. An unexpected
+tunnel exit retains the runtime binding; only explicit disconnect stops the Hub.
+Remote clients probe subscribed connections every 15 seconds, invalidate silent
+connections after a 10-second probe timeout, and resolve a fresh forwarding URL.
+Reads and capability acknowledgements may retry once; other writes require state
+reconciliation. Desktop metadata updates read back requested keys after an
+uncertain reply instead of reporting a committed pin as failed.
+
+WebSocket capability ownership survives a disconnect for 60 seconds. Registration
+with the same client ID replaces the old connection and cancels its expiry.
+Pending capability requests replay on subscription; an already executing handler
+ignores duplicate requests. Acknowledged remote runs keep their pending reply
+across reconnection and resolve from the correlated terminal event, without
+resending the prompt. Existing durable event cursors replay missed run events.
+Desktop branch status only reads the current branch, coalesces concurrent reads,
+and backs off for 60 seconds on empty/error results; branch enumeration remains
+an explicit picker operation.
+
 Desktop retains presentation, packaged-resource lookup, and its environment-to-
 runtime bindings. Settings and the chat environment selector call the shared
 service; each runtime binding supplies the same session/approval/event APIs.

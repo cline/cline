@@ -40,6 +40,7 @@ export type PendingApproval = {
 };
 
 export type PendingCapabilityRequest = {
+	requestedEvent?: HubEventEnvelope;
 	sessionId: string;
 	targetClientId: string;
 	capabilityName: string;

@@ -111,6 +111,10 @@ function registrationAuthority(
 }
 
 export class BrowserWebSocketHubAdapter {
+	private readonly connections = new Map<
+		string,
+		{ detach: () => void; expiry?: ReturnType<typeof setTimeout> }
+	>();
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
@@ -146,6 +150,7 @@ export class BrowserWebSocketHubAdapter {
 
 		const onMessage = async (event: { data: string }): Promise<void> => {
 			try {
+				if (closed) return;
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
 					case "command": {
@@ -298,6 +303,12 @@ export class BrowserWebSocketHubAdapter {
 						}
 						if (frame.envelope.command === "client.register" && reply.ok) {
 							if (registration) {
+								const previous = this.connections.get(registration.clientId);
+								if (previous?.expiry) clearTimeout(previous.expiry);
+								this.connections.set(registration.clientId, {
+									detach: onClose,
+								});
+								previous?.detach();
 								registeredClientIds.add(registration.clientId);
 								authority = registration;
 							}
@@ -307,6 +318,9 @@ export class BrowserWebSocketHubAdapter {
 						) {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
+								const connection = this.connections.get(clientId);
+								if (connection?.expiry) clearTimeout(connection.expiry);
+								this.connections.delete(clientId);
 								registeredClientIds.delete(clientId);
 								authority = undefined;
 							}
@@ -480,11 +494,20 @@ export class BrowserWebSocketHubAdapter {
 			}
 			subscriptions.clear();
 			for (const clientId of registeredClientIds) {
-				void this.transport.command({
-					version: "v1",
-					command: "client.unregister",
-					clientId,
-				});
+				const connection = this.connections.get(clientId);
+				if (connection?.detach !== onClose) continue;
+				// A stable client identity may reconnect on a new socket. Only an
+				// explicit unregister cancels its capabilities immediately.
+				connection.expiry = setTimeout(() => {
+					if (this.connections.get(clientId) !== connection) return;
+					this.connections.delete(clientId);
+					void this.transport.command({
+						version: "v1",
+						command: "client.unregister",
+						clientId,
+					});
+				}, 60_000);
+				connection.expiry.unref?.();
 			}
 			registeredClientIds.clear();
 			socket.removeEventListener("message", onMessage);

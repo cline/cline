@@ -879,6 +879,28 @@ describe("HubRuntimeHost", () => {
 
 		expect(receivedSignal).toBeDefined();
 		expect(receivedSignal?.aborted).toBe(false);
+		// Reconnect subscription replay must not execute an in-flight handler twice.
+		onEvent?.({
+			version: "v1",
+			event: "capability.requested",
+			sessionId: "sess-1",
+			payload: {
+				requestId: "capreq-1",
+				targetClientId: "client-1",
+				capabilityName: "tool_executor.askQuestion",
+				payload: {
+					args: ["Which approach?", ["Use the SDK"]],
+					context: {
+						agentId: "agent-1",
+						conversationId: "conversation-1",
+						iteration: 1,
+					},
+				},
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(askQuestion).toHaveBeenCalledTimes(1);
+
 		onEvent?.({
 			version: "v1",
 			event: "capability.resolved",

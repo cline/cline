@@ -18,6 +18,7 @@ class MockWebSocket {
 	static instances: MockWebSocket[] = [];
 	static commandPayloads = new Map<string, unknown>();
 	static failNextOpen = false;
+	static droppedCommands = new Set<string>();
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -39,6 +40,7 @@ class MockWebSocket {
 	static reset(): void {
 		MockWebSocket.instances = [];
 		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.droppedCommands.clear();
 		MockWebSocket.failNextOpen = false;
 	}
 
@@ -50,6 +52,7 @@ class MockWebSocket {
 		this.sentFrames.push(frame);
 		if (frame.kind === "command" && frame.envelope?.requestId) {
 			const command = frame.envelope.command ?? "client.register";
+			if (MockWebSocket.droppedCommands.has(command)) return;
 			queueMicrotask(() => {
 				this.emit("message", {
 					data: JSON.stringify({
@@ -1601,5 +1604,138 @@ describe("requestHubDrain", () => {
 		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
 		expect(requested.pathname).toBe("/drain");
 		expect(requested.searchParams.get("off")).toBe("1");
+	});
+});
+
+describe("remote forwarding recovery", () => {
+	let client: NodeHubClient;
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.stubGlobal("WebSocket", MockWebSocket);
+	});
+	afterEach(() => {
+		client?.close();
+		MockWebSocket.reset();
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+	const framesFor = (command: string) =>
+		MockWebSocket.instances
+			.flatMap((s) => s.sentFrames)
+			.filter(
+				(frame) =>
+					(frame as { envelope?: { command?: string } }).envelope?.command ===
+					command,
+			);
+	const event = (
+		socket: MockWebSocket,
+		name: string,
+		requestId: string,
+		payload = {},
+	) =>
+		socket.emit("message", {
+			data: JSON.stringify({
+				kind: "event",
+				envelope: {
+					version: "v1",
+					eventId: `${name}-event`,
+					event: name,
+					timestamp: new Date().toISOString(),
+					sessionId: "session-1",
+					payload: { requestId, ...payload },
+				},
+			}),
+		});
+
+	it("retires a socket with dropped replies and recovers a read through a fresh endpoint", async () => {
+		const recover = vi.fn(async () => {
+			MockWebSocket.droppedCommands.delete("session.get");
+			return "ws://127.0.0.1:41002/hub";
+		});
+		client = new NodeHubClient({
+			url: "ws://127.0.0.1:41001/hub",
+			resolveReconnectUrl: recover,
+		});
+		await client.connect();
+		MockWebSocket.droppedCommands.add("session.get");
+		const read = client.command("session.get", {}, "session-1", {
+			timeoutMs: 100,
+		});
+		await vi.advanceTimersByTimeAsync(100);
+		await expect(read).resolves.toMatchObject({ ok: true });
+		expect(recover).toHaveBeenCalledWith("ws://127.0.0.1:41001/hub");
+		expect(MockWebSocket.instances[0].readyState).toBe(MockWebSocket.CLOSED);
+		expect(MockWebSocket.instances[1].url).toContain("41002");
+		expect(framesFor("session.get")).toHaveLength(2);
+	});
+
+	it("never automatically replays a write after a lost reply", async () => {
+		const recover = vi.fn(async () => "ws://127.0.0.1:41002/hub");
+		client = new NodeHubClient({
+			url: "ws://127.0.0.1:41001/hub",
+			resolveReconnectUrl: recover,
+		});
+		await client.connect();
+		MockWebSocket.droppedCommands.add("session.update");
+		const write = client.command("session.update", {}, "session-1", {
+			timeoutMs: 100,
+		});
+		const assertion = expect(write).rejects.toMatchObject({
+			code: "hub_command_timeout",
+		});
+		await vi.advanceTimersByTimeAsync(100);
+		await assertion;
+		await client.command("session.get", {}, "session-1");
+		expect(framesFor("session.update")).toHaveLength(1);
+		expect(recover).toHaveBeenCalledTimes(1);
+	});
+
+	it("detects a silently stalled subscribed connection with a bounded probe", async () => {
+		const recover = vi.fn(async () => "ws://127.0.0.1:41002/hub");
+		client = new NodeHubClient({
+			url: "ws://127.0.0.1:41001/hub",
+			resolveReconnectUrl: recover,
+		});
+		client.subscribe(() => {});
+		await client.connect();
+		MockWebSocket.droppedCommands.add("client.list");
+		await vi.advanceTimersByTimeAsync(25_500);
+		expect(recover).toHaveBeenCalledTimes(1);
+		expect(MockWebSocket.instances).toHaveLength(2);
+	});
+
+	it("resolves an acknowledged run from replay after disconnect without resending its prompt", async () => {
+		client = new NodeHubClient({
+			url: "ws://127.0.0.1:41001/hub",
+			resolveReconnectUrl: async () => "ws://127.0.0.1:41002/hub",
+		});
+		client.subscribe(() => {}, { sessionId: "session-1" });
+		await client.connect();
+		MockWebSocket.droppedCommands.add("run.start");
+		const run = client.command(
+			"run.start",
+			{ prompt: "execute once" },
+			"session-1",
+		);
+		await vi.advanceTimersByTimeAsync(0);
+		const frame = framesFor("run.start")[0] as {
+			envelope: { requestId: string };
+		};
+		const first = MockWebSocket.instances[0];
+		event(first, "run.started", frame.envelope.requestId);
+		first.close();
+		await vi.advanceTimersByTimeAsync(500);
+		const result = { text: "completed", finishReason: "stop", messages: [] };
+		event(first, "run.failed", frame.envelope.requestId, {
+			error: "stale socket",
+		});
+		event(
+			MockWebSocket.instances[1],
+			"run.completed",
+			frame.envelope.requestId,
+			{ result },
+		);
+		await expect(run).resolves.toMatchObject({ ok: true, payload: { result } });
+		expect(framesFor("run.start")).toHaveLength(1);
 	});
 });
