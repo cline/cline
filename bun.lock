@@ -131,6 +131,20 @@
         "vite": "^8.0.0",
       },
     },
+    "apps/device-bridge": {
+      "name": "@cline/device-bridge",
+      "version": "0.0.0",
+      "bin": {
+        "cline-device-bridge": "./src/main.ts",
+      },
+      "dependencies": {
+        "@ai-sdk/gateway": "^4.0.64",
+        "@ai-sdk/openai": "^4.0.47",
+        "@cline/core": "workspace:*",
+        "@cline/shared": "workspace:*",
+        "ai": "^7.0.79",
+      },
+    },
     "apps/examples/cli-agent": {
       "name": "@cline/example-cli-agent",
       "version": "0.0.0",
@@ -1089,6 +1103,8 @@
     "@cline/cli": ["@cline/cli@workspace:apps/cli"],
 
     "@cline/cline-hub": ["@cline/cline-hub@workspace:apps/cline-hub"],
+
+    "@cline/device-bridge": ["@cline/device-bridge@workspace:apps/device-bridge"],
 
     "@cline/cline-hub-webview": ["@cline/cline-hub-webview@workspace:apps/cline-hub/src/webview"],
 

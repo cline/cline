@@ -1,0 +1,12 @@
+{
+	"name": "Cline Pet",
+	"short_name": "Cline Pet",
+	"start_url": "./",
+	"display": "standalone",
+	"orientation": "portrait",
+	"background_color": "#14121f",
+	"theme_color": "#14121f",
+	"icons": [
+		{ "src": "pets/cline/idle.gif", "sizes": "192x208", "type": "image/gif" }
+	]
+}
