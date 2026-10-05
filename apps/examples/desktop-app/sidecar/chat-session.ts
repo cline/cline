@@ -1290,7 +1290,11 @@ const HUB_INTERRUPTED_TEXT =
 // rebuild a session the user has since walked away from.
 const hubReconnects = new Map<
 	string,
-	{ controller: AbortController; outcome: Promise<HubReconnectOutcome> }
+	{
+		session: LiveSession;
+		controller: AbortController;
+		outcome: Promise<HubReconnectOutcome>;
+	}
 >();
 
 function cancelHubReconnect(sessionId: string): void {
@@ -1362,11 +1366,10 @@ async function reconnectSessionAfterHubLoss(
 ): Promise<HubReconnectOutcome> {
 	if (!session) return "failed";
 	const existing = hubReconnects.get(sessionId);
-	if (existing) return existing.outcome;
+	if (existing?.session === session) return existing.outcome;
 	const controller = new AbortController();
-	// Publish the shared operation before it runs so concurrent sends never
-	// start competing rebuilds. Cancellation retains ownership until cleanup
-	// completes, preventing a newer recovery from being stopped by the old one.
+	// Share recovery within this live projection. A reattached projection gets
+	// its own operation even while a cancelled rebuild is still settling.
 	const outcome = Promise.resolve()
 		.then(() =>
 			recoverSessionAfterHubLoss(
@@ -1378,9 +1381,11 @@ async function reconnectSessionAfterHubLoss(
 			),
 		)
 		.finally(() => {
-			hubReconnects.delete(sessionId);
+			if (hubReconnects.get(sessionId)?.controller === controller) {
+				hubReconnects.delete(sessionId);
+			}
 		});
-	hubReconnects.set(sessionId, { controller, outcome });
+	hubReconnects.set(sessionId, { session, controller, outcome });
 	return outcome;
 }
 
@@ -1653,8 +1658,8 @@ async function handleSend(
 			try {
 				await queuePrompt();
 			} catch (error) {
-				// Nothing ran yet, so once the session is back the prompt can
-				// simply be queued again.
+				// A surviving hub may have accepted the prompt before its reply
+				// was lost. Only a rebuilt session is safe to enqueue into again.
 				if (
 					binding.kind === "ssh" ||
 					!isHubLossError(error) ||
@@ -1663,7 +1668,7 @@ async function handleSend(
 						manager,
 						sessionId,
 						session,
-					)) === "failed"
+					)) !== "rebuilt"
 				) {
 					throw error;
 				}

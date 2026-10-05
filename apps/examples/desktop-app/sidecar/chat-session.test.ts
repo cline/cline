@@ -1804,6 +1804,102 @@ describe("first-send connection updates", () => {
 			expect(response.queued).toBe(true);
 		});
 
+		it("does not re-queue an accepted prompt when only its reply was lost", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			const acceptedPrompts: string[] = [];
+			send.mockImplementationOnce(async (input) => {
+				acceptedPrompts.push((input as { prompt: string }).prompt);
+				throw transportLost();
+			});
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "execute once",
+				delivery: "queue",
+			});
+			expect(send).toHaveBeenCalledOnce();
+			expect(acceptedPrompts).toEqual(["execute once"]);
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(response).toMatchObject({ result: { finishReason: "error" } });
+		});
+
+		it("gives a replacement session its own recovery and keeps it shared after stale cleanup", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishOld!: (result: { sessionId: string }) => void;
+			let finishNew!: (result: { sessionId: string }) => void;
+			start
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishOld = resolve;
+						}),
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishNew = resolve;
+						}),
+				);
+			send
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "old turn",
+			});
+			let replacementSend: Promise<unknown> | undefined;
+			let queued: Promise<unknown> | undefined;
+			try {
+				await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+				await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+				const oldSession = ctx.liveSessions.get(sessionId);
+				if (!oldSession) throw new Error("Expected stopped session");
+				const replacement = {
+					...oldSession,
+					status: "idle" as const,
+					busy: false,
+				};
+				ctx.liveSessions.set(sessionId, replacement);
+				replacementSend = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "replacement turn",
+				});
+				await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+				finishOld({ sessionId });
+				await expect(first).resolves.toMatchObject({
+					result: { finishReason: "error" },
+				});
+				queued = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "next turn",
+					delivery: "queue",
+				});
+				await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+				// Let the failed send join recovery before resolving startup.
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				expect(start).toHaveBeenCalledTimes(2);
+				expect(updateSessionConnection).toHaveBeenCalledTimes(2);
+				finishNew({ sessionId });
+				await expect(replacementSend).resolves.toMatchObject({
+					result: { hubInterrupted: true },
+				});
+				await expect(queued).resolves.toMatchObject({ queued: true });
+				expect(stop).toHaveBeenCalledOnce();
+				expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
+			} finally {
+				finishOld?.({ sessionId });
+				finishNew?.({ sessionId });
+				await Promise.all([first, replacementSend, queued]);
+			}
+		});
+
 		it("shares an in-flight rebuild with a queued send without stopping it", async () => {
 			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
 				createContext();
