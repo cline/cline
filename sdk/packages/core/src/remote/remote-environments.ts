@@ -175,6 +175,22 @@ const REMOTE_HELPER_DIRECTORY = ".cline/remote";
 const REMOTE_DISCOVERY_DIRECTORY = ".cline/data/remote";
 const REMOTE_INSPECTION_SENTINEL = "CLINE_REMOTE_INSPECT_V1";
 
+// Bun 1.4 compiled executables madvise(MADV_DONTNEED) their embedded source
+// text after startup, assuming the pages are file-backed and fault back in
+// from disk. The UPX-packed Linux helpers unpack into anonymous memory, so
+// those pages read back as zeros and the first lazily parsed function throws
+// "SyntaxError: Invalid character: '\0'" (oven-sh/bun#42509). The flag skips
+// the hint; the daemon the helper spawns inherits it. Drop this once a Bun
+// release includes oven-sh/bun#42515.
+const REMOTE_HELPER_ENV = ["BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1"];
+
+function remoteHelperCommand(
+	helper: string,
+	args: string[],
+): RemoteCommandInput {
+	return { command: "env", args: [...REMOTE_HELPER_ENV, helper, ...args] };
+}
+
 export class RemoteEnvironmentService {
 	private readonly profilesPath: string;
 	private readonly ownerId = randomUUID();
@@ -343,16 +359,16 @@ export class RemoteEnvironmentService {
 				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}-${createHash("sha256").update(profile.id).digest("hex").slice(0, 16)}.json`,
 			);
 			bootstrap = { helper: remoteHelper, discoveryPath };
-			const ensureResult = await this.execRemote(profile, {
-				command: remoteHelper,
-				args: [
+			const ensureResult = await this.execRemote(
+				profile,
+				remoteHelperCommand(remoteHelper, [
 					"--remote-hub-ensure",
 					"--cwd",
 					inspection.home,
 					"--discovery-path",
 					discoveryPath,
-				],
-			});
+				]),
+			);
 			const hub = parseRemoteHubResult(ensureResult.stdout);
 			const localPort = await this.dependencies.reservePort();
 			const tunnel = this.dependencies.spawnTunnel(
@@ -414,14 +430,14 @@ export class RemoteEnvironmentService {
 			if (bootstrap) {
 				try {
 					// An independent SSH command works even when forwarding never opened.
-					await this.execRemote(profile, {
-						command: bootstrap.helper,
-						args: [
+					await this.execRemote(
+						profile,
+						remoteHelperCommand(bootstrap.helper, [
 							"--remote-hub-stop",
 							"--discovery-path",
 							bootstrap.discoveryPath,
-						],
-					});
+						]),
+					);
 				} catch (failure) {
 					cleanupError = failure;
 					await this.persistPendingCleanup({ profile, ...bootstrap });
@@ -866,10 +882,14 @@ export class RemoteEnvironmentService {
 							cleanupProfile,
 							await this.inspectRemote(cleanupProfile),
 						);
-			await this.execRemote(cleanupProfile, {
-				command: helper,
-				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
-			});
+			await this.execRemote(
+				cleanupProfile,
+				remoteHelperCommand(helper, [
+					"--remote-hub-stop",
+					"--discovery-path",
+					cleanup.discoveryPath,
+				]),
+			);
 			await rm(path, { force: true });
 		}
 	}

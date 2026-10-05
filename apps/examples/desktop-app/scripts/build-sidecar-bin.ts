@@ -87,7 +87,10 @@ const buildSidecar = async (
 // so nothing downstream changes: the installer, the SSH upload, and the remote
 // run all see one ordinary executable. `strip` is not an option here; it
 // discards Bun's appended module payload. Requires upx on PATH; the publish
-// workflow installs it on every runner.
+// workflow installs it on every runner. Packed helpers must run with
+// BUN_FEATURE_FLAG_DISABLE_STANDALONE_MADVISE=1 (see REMOTE_HELPER_ENV in
+// @cline/core remote-environments.ts) or Bun 1.4 zero-fills their source
+// pages after startup.
 const compressRemoteHelper = async (outfile: string): Promise<void> => {
 	if (!Bun.which("upx")) {
 		if (process.env.CI) {
