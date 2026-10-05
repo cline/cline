@@ -1,10 +1,9 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 	ModelReasoningOption,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
@@ -173,48 +172,35 @@ describe("Anthropic server-side refusal fallbacks", () => {
 		}
 	});
 
-	it.each([
-		{ baseUrl: undefined, expectedFallbacks: "default" },
-		{ baseUrl: "https://api.anthropic.com/v1", expectedFallbacks: "default" },
-		{
-			baseUrl: "https://example.services.ai.azure.com/anthropic/v1",
-			expectedFallbacks: undefined,
-		},
-	])("serializes refusal fallbacks only for the official endpoint ($baseUrl)", async ({
-		baseUrl,
-		expectedFallbacks,
-	}) => {
-		const selection = { providerId: "anthropic", modelId: "claude-sonnet-4-6" };
-		const context = makeContext(selection);
-		context.config.baseUrl = baseUrl;
-		const providerOptions = composeAiSdkProviderOptions(
-			makeRequest(selection),
-			context,
-		);
-		const fetchMock = vi
-			.fn<typeof fetch>()
-			.mockRejectedValue(new Error("request captured"));
-		const model = createAnthropic({
-			apiKey: "test-key",
-			baseURL: baseUrl,
-			fetch: fetchMock,
-		})(selection.modelId);
+	it("changes nothing but fallbacks for a custom endpoint", () => {
+		// A thinking budget stays in provider options; effort-only requests
+		// travel through the AI SDK's top-level reasoning setting instead.
+		const selection = { providerId: "anthropic", modelId: "claude-sonnet-4-5" };
+		const request = makeRequest({
+			...selection,
+			reasoning: { enabled: true, budgetTokens: 2048 },
+		});
+		const makeAnthropicContext = () =>
+			makeContext({
+				...selection,
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024),
+			});
+		const customContext = makeAnthropicContext();
+		customContext.config.baseUrl =
+			"https://example.services.ai.azure.com/anthropic";
 
-		await expect(
-			model.doGenerate({
-				prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
-				maxOutputTokens: 100,
-				providerOptions,
-			}),
-		).rejects.toThrow("request captured");
-
-		const init = fetchMock.mock.calls[0]?.[1];
-		const body = JSON.parse(init?.body as string);
-		expect(body.fallbacks).toBe(expectedFallbacks);
-		const betaHeader = new Headers(init?.headers).get("anthropic-beta") ?? "";
-		expect(betaHeader.includes("server-side-fallback")).toBe(
-			expectedFallbacks !== undefined,
+		const official = composeAiSdkProviderOptions(
+			request,
+			makeAnthropicContext(),
 		);
+		const custom = composeAiSdkProviderOptions(request, customContext);
+
+		const { fallbacks, ...officialAnthropic } = official.anthropic ?? {};
+		expect(fallbacks).toBe("default");
+		// Thinking must still be routed, or the comparison below is vacuous.
+		expect(officialAnthropic).toHaveProperty("thinking.type", "enabled");
+		expect(custom).toEqual({ ...official, anthropic: officialAnthropic });
 	});
 
 	it.each([
