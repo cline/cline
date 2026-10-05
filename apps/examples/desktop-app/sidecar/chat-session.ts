@@ -1293,6 +1293,7 @@ const hubReconnects = new Map<
 	{
 		session: LiveSession;
 		controller: AbortController;
+		completion: Promise<HubReconnectOutcome>;
 		outcome: Promise<HubReconnectOutcome>;
 	}
 >();
@@ -1366,13 +1367,21 @@ async function reconnectSessionAfterHubLoss(
 ): Promise<HubReconnectOutcome> {
 	if (!session) return "failed";
 	const existing = hubReconnects.get(sessionId);
-	if (existing?.session === session) return existing.outcome;
+	if (existing?.session === session && !existing.controller.signal.aborted) {
+		return existing.outcome;
+	}
 	const controller = new AbortController();
-	// Share within a live projection, but serialize across replacements of the
-	// same session ID. A cancelled Hub startup can still register a runtime;
-	// it and its cleanup must settle before the replacement probes or rebuilds.
+	const deadline = Date.now() + HUB_RECONNECT_WINDOW_MS;
+	// Keep the underlying completion as the serialization barrier, even when
+	// cancellation/deadline returns to the caller before a Hub startup settles.
 	existing?.controller.abort();
-	const outcome = Promise.resolve(existing?.outcome)
+	emitHubReconnectActivity(
+		ctx,
+		sessionId,
+		"started",
+		"Cline Hub connection lost; reconnecting",
+	);
+	const completion = Promise.resolve(existing?.completion)
 		.catch(() => undefined)
 		.then(() =>
 			recoverSessionAfterHubLoss(
@@ -1381,6 +1390,7 @@ async function reconnectSessionAfterHubLoss(
 				sessionId,
 				session,
 				controller.signal,
+				deadline,
 			),
 		)
 		.finally(() => {
@@ -1388,8 +1398,45 @@ async function reconnectSessionAfterHubLoss(
 				hubReconnects.delete(sessionId);
 			}
 		});
-	hubReconnects.set(sessionId, { session, controller, outcome });
+	const outcome = waitForHubRecovery(completion, controller, deadline).then(
+		(result) => {
+			const current = hubReconnects.get(sessionId);
+			if (!current || current.controller === controller)
+				emitHubReconnectActivity(
+					ctx,
+					sessionId,
+					"finished",
+					result === "failed"
+						? "Cline Hub reconnect gave up"
+						: "Cline Hub reconnected",
+				);
+			return result;
+		},
+	);
+	hubReconnects.set(sessionId, { session, controller, completion, outcome });
 	return outcome;
+}
+
+function waitForHubRecovery(
+	completion: Promise<HubReconnectOutcome>,
+	controller: AbortController,
+	deadline: number,
+): Promise<HubReconnectOutcome> {
+	return new Promise((resolve) => {
+		const finish = (result: HubReconnectOutcome) => {
+			clearTimeout(timer);
+			controller.signal.removeEventListener("abort", cancelled);
+			resolve(result);
+		};
+		const cancelled = () => finish("failed");
+		const timer = setTimeout(
+			() => controller.abort(),
+			Math.max(0, deadline - Date.now()),
+		);
+		controller.signal.addEventListener("abort", cancelled, { once: true });
+		completion.then(finish, () => finish("failed"));
+		if (controller.signal.aborted) cancelled();
+	});
 }
 
 async function recoverSessionAfterHubLoss(
@@ -1398,81 +1445,68 @@ async function recoverSessionAfterHubLoss(
 	sessionId: string,
 	session: LiveSession,
 	signal: AbortSignal,
+	deadline: number,
 ): Promise<HubReconnectOutcome> {
 	const stillWanted = () =>
-		!signal.aborted && ctx.liveSessions.get(sessionId) === session;
-	emitHubReconnectActivity(
-		ctx,
-		sessionId,
-		"started",
-		"Cline Hub connection lost; reconnecting",
-	);
-	const deadline = Date.now() + HUB_RECONNECT_WINDOW_MS;
+		!signal.aborted &&
+		Date.now() < deadline &&
+		ctx.liveSessions.get(sessionId) === session;
 	let delay = 1_000;
 	let lastError: unknown;
 	let outcome: HubReconnectOutcome = "failed";
-	try {
-		while (Date.now() < deadline && stillWanted()) {
-			try {
-				// The same connection refresh a send performs. It only succeeds
-				// against a hub that holds the session live, so it tells a
-				// surviving session apart from one lost with its hub.
-				await manager.updateSessionConnection(
-					sessionId,
-					buildSessionConnectionUpdate(session.config),
-				);
-				if (stillWanted()) outcome = "survived";
-				break;
-			} catch (error) {
-				lastError = error;
-				if (isMissingSessionError(error)) {
-					try {
-						const systemPrompt = await resolveSystemPrompt(session.config);
-						const compactionState = await manager
-							.readSessionCompactionState(sessionId)
-							.catch(() => undefined);
-						if (!stillWanted()) break;
-						await startRebuiltSession(
-							manager,
-							ctx,
-							sessionId,
-							session.config,
-							systemPrompt,
-							readPersistedChatMessages(sessionId) ?? session.messages ?? [],
-							compactionState,
-						);
-						if (!stillWanted()) {
-							// Undo a cancelled rebuild only while the projection still
-							// belongs to it, or reset removed it. A newly attached
-							// projection owns the session now and must be left alone.
-							const current = ctx.liveSessions.get(sessionId);
-							if (signal.aborted && (!current || current === session)) {
-								await manager.stop(sessionId).catch(() => undefined);
-							}
-							break;
+	while (Date.now() < deadline && stillWanted()) {
+		try {
+			// The same connection refresh a send performs. It only succeeds
+			// against a hub that holds the session live, so it tells a
+			// surviving session apart from one lost with its hub.
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(session.config),
+			);
+			if (stillWanted()) outcome = "survived";
+			break;
+		} catch (error) {
+			lastError = error;
+			if (!stillWanted()) break;
+			if (isMissingSessionError(error)) {
+				try {
+					const systemPrompt = await resolveSystemPrompt(session.config);
+					if (!stillWanted()) break;
+					const compactionState = await manager
+						.readSessionCompactionState(sessionId)
+						.catch(() => undefined);
+					if (!stillWanted()) break;
+					await startRebuiltSession(
+						manager,
+						ctx,
+						sessionId,
+						session.config,
+						systemPrompt,
+						readPersistedChatMessages(sessionId) ?? session.messages ?? [],
+						compactionState,
+					);
+					if (!stillWanted()) {
+						// Undo a cancelled rebuild only while the projection still
+						// belongs to it, or reset removed it. A newly attached
+						// projection owns the session now and must be left alone.
+						const current = ctx.liveSessions.get(sessionId);
+						if (signal.aborted && (!current || current === session)) {
+							await manager.stop(sessionId).catch(() => undefined);
 						}
-						outcome = "rebuilt";
 						break;
-					} catch (rebuildError) {
-						lastError = rebuildError;
 					}
+					outcome = "rebuilt";
+					break;
+				} catch (rebuildError) {
+					lastError = rebuildError;
 				}
 			}
-			await waitForRetry(
-				Math.min(delay, Math.max(0, deadline - Date.now())),
-				signal,
-			);
-			delay = Math.min(delay * 2, HUB_RECONNECT_MAX_DELAY_MS);
 		}
-	} finally {
-		emitHubReconnectActivity(
-			ctx,
-			sessionId,
-			"finished",
-			outcome === "failed"
-				? "Cline Hub reconnect gave up"
-				: "Cline Hub reconnected",
+		await waitForRetry(
+			Math.min(delay, Math.max(0, deadline - Date.now())),
+			signal,
 		);
+		delay = Math.min(delay * 2, HUB_RECONNECT_MAX_DELAY_MS);
 	}
 	ctx.logger?.log("Desktop session hub reconnect finished", {
 		sessionId,

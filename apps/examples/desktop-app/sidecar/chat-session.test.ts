@@ -1908,6 +1908,92 @@ describe("first-send connection updates", () => {
 			}
 		});
 
+		it.each([
+			30_000,
+			null,
+		])("bounds replacement recovery including a cancelled startup (%s)", async (oldStartupDelay) => {
+			vi.useFakeTimers();
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			let finishOld!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					}),
+			);
+			send.mockRejectedValue(missing(sessionId));
+			updateSessionConnection
+				.mockRejectedValue(transportLost())
+				.mockRejectedValueOnce(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "old turn",
+			});
+			let replacementSend: Promise<unknown> | undefined;
+			let laterSend: Promise<unknown> | undefined;
+			try {
+				await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+				await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+				const oldSession = ctx.liveSessions.get(sessionId);
+				if (!oldSession) throw new Error("Expected stopped projection");
+				const replacement = {
+					...oldSession,
+					busy: false,
+					status: "idle" as const,
+				};
+				ctx.liveSessions.set(sessionId, replacement);
+				let finished = false;
+				replacementSend = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "replacement turn",
+				}).then((result) => {
+					finished = true;
+					return result;
+				});
+				await vi.advanceTimersByTimeAsync(0);
+				if (oldStartupDelay !== null) {
+					await vi.advanceTimersByTimeAsync(oldStartupDelay);
+					finishOld({ sessionId });
+					await vi.advanceTimersByTimeAsync(0);
+				}
+				await vi.advanceTimersByTimeAsync(59_999 - (oldStartupDelay ?? 0));
+				expect(finished).toBe(false);
+				await vi.advanceTimersByTimeAsync(1);
+				expect(finished).toBe(true);
+				await expect(replacementSend).resolves.toMatchObject({
+					result: { finishReason: "error" },
+				});
+				expect(start).toHaveBeenCalledOnce();
+				if (oldStartupDelay === null) {
+					// Returning at the deadline must not release the underlying
+					// startup barrier: a further send still waits for registration.
+					updateSessionConnection.mockRejectedValue(missing(sessionId));
+					ctx.liveSessions.set(sessionId, { ...replacement, status: "idle" });
+					laterSend = handleChatSessionCommand(ctx, {
+						action: "send",
+						sessionId,
+						prompt: "retry",
+					});
+					await vi.advanceTimersByTimeAsync(0);
+					expect(start).toHaveBeenCalledOnce();
+					finishOld({ sessionId });
+					await vi.advanceTimersByTimeAsync(0);
+					await expect(laterSend).resolves.toMatchObject({
+						result: { hubInterrupted: true },
+					});
+					expect(start).toHaveBeenCalledTimes(2);
+				}
+			} finally {
+				finishOld?.({ sessionId });
+				await vi.advanceTimersByTimeAsync(60_000);
+				await Promise.all([first, replacementSend, laterSend]);
+				vi.useRealTimers();
+			}
+		});
+
 		it("shares an in-flight rebuild with a queued send without stopping it", async () => {
 			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
 				createContext();
@@ -2022,7 +2108,7 @@ describe("first-send connection updates", () => {
 			expect(await pending).toMatchObject({
 				result: { finishReason: "error" },
 			});
-			expect(stop).toHaveBeenCalledTimes(2);
+			await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(2));
 		});
 
 		it("leaves a newly attached session alone after a cancelled rebuild", async () => {
