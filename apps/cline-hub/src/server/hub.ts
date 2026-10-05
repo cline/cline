@@ -13,7 +13,7 @@ import {
 	requestToolApprovalFromWebview,
 } from "./approvals";
 import { configureConnectorCliLaunch } from "./connectors";
-import { workspaceRoot } from "./deps";
+import { externalHub, workspaceRoot } from "./deps";
 import {
 	formatClientDetails,
 	formatSessionCreator,
@@ -91,9 +91,19 @@ export async function syncHubClientsAndSessions(
 	if (mostRecent) ctx.lastSessionContext = mostRecent;
 }
 
+async function resolveHubEndpoint(): Promise<{
+	url: string;
+	authToken: string;
+}> {
+	if (externalHub) {
+		return { url: externalHub.url, authToken: externalHub.authToken ?? "" };
+	}
+	return await ensureDetachedHubServer(workspaceRoot);
+}
+
 export async function attachHub(ctx: HubContext): Promise<void> {
 	configureConnectorCliLaunch();
-	const hub = await ensureDetachedHubServer(workspaceRoot);
+	const hub = await resolveHubEndpoint();
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
 
@@ -255,6 +265,13 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 }
 
 export async function restartHub(ctx: HubContext): Promise<void> {
+	if (externalHub) {
+		// The external hub belongs to another process; stopping it would take
+		// down every client attached to it and nothing here could respawn it.
+		throw new Error(
+			`This dashboard is attached to an external hub (${externalHub.url}) and cannot restart it.`,
+		);
+	}
 	ctx.broadcast({
 		type: "notification",
 		title: "Hub restarting",

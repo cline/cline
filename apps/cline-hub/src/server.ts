@@ -7,6 +7,7 @@ import {
 import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
+	externalHub,
 	host,
 	inviteUrl,
 	port,
@@ -286,7 +287,9 @@ export function printClineHubDashboardServerInfo(
 ): void {
 	console.log(`Cline Hub dashboard listening: ${server.listenUrl}`);
 	console.log(`Cline Hub public URL: ${server.publicUrl}`);
-	console.log(`hub endpoint: ${server.hubUrl}`);
+	console.log(
+		`hub endpoint: ${server.hubUrl}${externalHub ? " (external; restart disabled)" : ""}`,
+	);
 	if (server.inviteRequired) {
 		console.log(`Cline Hub invite URL: ${server.inviteUrl}`);
 	} else if (isNonLocalBindHost(server.bindHost)) {

@@ -5,7 +5,8 @@ import { buildInviteUrl, resolveClineHubServerOptions } from "../options";
 import type { BrowserConfig } from "./types";
 
 export const options = resolveClineHubServerOptions();
-export const { host, port, publicUrl, roomSecret, workspaceRoot } = options;
+export const { host, port, publicUrl, roomSecret, workspaceRoot, externalHub } =
+	options;
 export const inviteUrl = buildInviteUrl(publicUrl, roomSecret);
 
 const serverDir = dirname(fileURLToPath(import.meta.url));

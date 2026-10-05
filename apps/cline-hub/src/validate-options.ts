@@ -58,9 +58,47 @@ expectEqual(
 	"invite URL for direct IP public URL",
 );
 
+expectEqual(defaults.externalHub, undefined, "default external hub");
+
+const external = resolveClineHubServerOptions({
+	CLINE_HUB_ENDPOINT: "ws://0.0.0.0:8080/hub",
+	CLINE_HUB_AUTH_TOKEN: " token-123 ",
+});
+expectEqual(
+	external.externalHub?.url,
+	"ws://127.0.0.1:8080/hub",
+	"wildcard external hub host connects via loopback",
+);
+expectEqual(
+	external.externalHub?.authToken,
+	"token-123",
+	"external hub auth token",
+);
+expectEqual(
+	resolveClineHubServerOptions({ CLINE_HUB_ENDPOINT: "http://127.0.0.1:8080" })
+		.externalHub?.url,
+	"ws://127.0.0.1:8080/hub",
+	"http external hub URL maps to ws with default /hub path",
+);
+expectEqual(
+	resolveClineHubServerOptions({
+		CLINE_HUB_ENDPOINT: "wss://hub.example.test/custom",
+	}).externalHub?.url,
+	"wss://hub.example.test/custom",
+	"explicit external hub path is preserved",
+);
+
 expectThrows(
 	() => resolveClineHubServerOptions({ HOST: "0.0.0.0" }),
 	"non-local bind without ROOM_SECRET",
+);
+expectThrows(
+	() => resolveClineHubServerOptions({ CLINE_HUB_AUTH_TOKEN: "token-123" }),
+	"external hub auth token without endpoint",
+);
+expectThrows(
+	() => resolveClineHubServerOptions({ CLINE_HUB_ENDPOINT: "ftp://hub.test" }),
+	"invalid external hub protocol",
 );
 expectThrows(
 	() => resolveClineHubServerOptions({ CLINE_HUB_DASHBOARD_PORT: "70000" }),
