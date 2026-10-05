@@ -51,6 +51,7 @@ const originalBuildEnv = process.env.CLINE_BUILD_ENV;
 describe("createHubCommand", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
+		vi.restoreAllMocks();
 		if (originalBuildEnv === undefined) {
 			delete process.env.CLINE_BUILD_ENV;
 		} else {
@@ -228,6 +229,28 @@ describe("createHubCommand", () => {
 		);
 	});
 
+	it("un-drains and aborts upgrade when authenticated shutdown fails", async () => {
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+		});
+		mockRequestHubDrain.mockResolvedValue(true);
+		mockLocalHubHasNoActiveSessions.mockResolvedValue(true);
+		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		const { cmd, errors, exitCode } = createCommand();
+		await cmd.parseAsync(["upgrade", "--wait", "0"], { from: "user" });
+		expect(exitCode()).toBe(1);
+		expect(errors).toEqual(["Hub shutdown failed; upgrade aborted."]);
+		expect(mockClearHubDiscovery).not.toHaveBeenCalled();
+		expect(mockEnsureDetachedHubServer).not.toHaveBeenCalled();
+		expect(mockRequestHubDrain).toHaveBeenLastCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"token",
+			"cline hub upgrade aborted",
+			{ off: true },
+		);
+	});
+
 	it("rejects a non-numeric upgrade --wait instead of treating it as an expired deadline", async () => {
 		mockReadHubDiscovery.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
@@ -276,6 +299,21 @@ describe("createHubCommand", () => {
 			discoveryPath: "/tmp/cline-data/locks/hub/owners/hub-owner.json",
 		});
 		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
+	});
+
+	it("does not signal a stale discovery PID when authenticated shutdown fails", async () => {
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			pid: 50174,
+			authToken: "expired-token",
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+		const { cmd, output } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(kill).not.toHaveBeenCalled();
+		expect(mockClearHubDiscovery).not.toHaveBeenCalled();
+		expect(JSON.parse(output[0] || "")).toEqual({ stopped: false });
 	});
 
 	it("prints the hub URL by default from ensure", async () => {

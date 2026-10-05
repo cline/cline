@@ -50,9 +50,9 @@ For a **beta** release, work on `desktop-experimental` (check out `origin/deskto
 
 ```sh
 # stable (on main):
-git log <last-desktop-tag>..HEAD --oneline --no-merges -- apps/examples/desktop-app sdk/packages .github/workflows/desktop-publish.yml
+git log <last-desktop-tag>..HEAD --oneline --no-merges -- apps/examples/desktop-app apps/cli sdk/packages .github/workflows/desktop-publish.yml
 # beta (on desktop-experimental):
-git log <last-desktop-tag>..origin/desktop-experimental --oneline --no-merges -- apps/examples/desktop-app sdk/packages .github/workflows/desktop-publish.yml
+git log <last-desktop-tag>..origin/desktop-experimental --oneline --no-merges -- apps/examples/desktop-app apps/cli sdk/packages .github/workflows/desktop-publish.yml
 ```
 
 The desktop backend and the bundled Cline CLI (which runs the Hub) are built from the monorepo's `@cline/core` and friends, so SDK and CLI changes ship inside the desktop app too. Fold user-visible SDK changes (providers, models, behavior fixes) into the notes; skip purely internal ones.

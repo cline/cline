@@ -87,6 +87,29 @@ afterAll(() => {
 	}
 });
 
+test("the shipped CLI and backend report telemetry without starting a hub", async () => {
+	const cli = await resolveCliBinary();
+	const bundle = resolveBackendBundle();
+	for (const args of [
+		["--telemetry-selfcheck"],
+		["run", "--no-env-file", bundle, "--telemetry-selfcheck"],
+	]) {
+		const result = spawnSync(cli, args, {
+			encoding: "utf8",
+			timeout: 10_000,
+			env: { ...process.env, BUN_BE_BUN: args[0] === "run" ? "1" : "" },
+		});
+		expect(result.status, result.stderr || String(result.error)).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			telemetry_selfcheck: true,
+			enabled: expect.any(Boolean),
+			otlp_endpoint_host: expect.any(String),
+			logs_exporter: expect.any(String),
+			metrics_exporter: expect.any(String),
+		});
+	}
+}, 120_000);
+
 async function reserveLoopbackPort(): Promise<number> {
 	const server = createServer();
 	await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));

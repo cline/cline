@@ -484,6 +484,11 @@ export {
 	createClineTelemetryServiceMetadata,
 } from "./services/telemetry-config";
 export type {
+	TelemetrySelfcheckConfig,
+	TelemetrySelfcheckReport,
+} from "./services/telemetry-selfcheck";
+export { buildTelemetrySelfcheckReport } from "./services/telemetry-selfcheck";
+export type {
 	HookSessionContext,
 	HookSessionContextLookup,
 	HookSessionContextProvider,

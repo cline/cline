@@ -94,6 +94,7 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    resource_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -504,21 +505,11 @@ fn resolve_desktop_cli_path(context: &AppContext) -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
-fn desktop_backend_bundle_candidates(exe_dir: &Path) -> Vec<PathBuf> {
-    let relative = Path::new("bin").join("desktop-backend").join("index.js");
-    let mut candidates = vec![exe_dir.join(&relative)];
-    if let Some(contents_dir) = exe_dir.parent() {
-        // macOS: Contents/MacOS/<app> with resources in Contents/Resources.
-        candidates.push(contents_dir.join("Resources").join(&relative));
-        // Linux packages: /usr/bin/<app> with resources in
-        // /usr/lib/<productName>, which differs per release channel.
-        if let Ok(entries) = fs::read_dir(contents_dir.join("lib")) {
-            for entry in entries.flatten() {
-                candidates.push(entry.path().join(&relative));
-            }
-        }
-    }
-    candidates
+fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
+    vec![resource_dir
+        .join("bin")
+        .join("desktop-backend")
+        .join("index.js")]
 }
 
 fn resolve_desktop_backend_bundle_path(context: &AppContext) -> Option<PathBuf> {
@@ -526,12 +517,7 @@ fn resolve_desktop_backend_bundle_path(context: &AppContext) -> Option<PathBuf> 
     if let Some(path) = non_empty_env_path("CLINE_DESKTOP_BACKEND_BUNDLE") {
         candidates.push(path);
     }
-    if let Some(exe_dir) = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(Path::to_path_buf))
-    {
-        candidates.extend(desktop_backend_bundle_candidates(&exe_dir));
-    }
+    candidates.extend(desktop_backend_bundle_candidates(&context.resource_dir));
     candidates.push(
         desktop_app_bin_dir(context)
             .join("desktop-backend")
@@ -1539,10 +1525,6 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
-    let app_context = AppContext {
-        launch_cwd,
-        workspace_root,
-    };
 
     tauri::Builder::default()
         // Closing the window only hides it, so on Windows a second launch from
@@ -1556,10 +1538,14 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
-        .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
-        .setup(|app| {
+        .setup(move |app| {
+            app.manage(AppContext {
+                launch_cwd: launch_cwd.clone(),
+                workspace_root: workspace_root.clone(),
+                resource_dir: app.path().resource_dir()?,
+            });
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),
@@ -1677,24 +1663,20 @@ mod tests {
     }
 
     #[test]
-    fn backend_bundle_is_found_in_each_platform_resource_layout() {
-        let root = std::env::temp_dir().join(format!(
-            "cline-desktop-backend-layout-{}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&root);
+    fn backend_bundle_uses_only_the_running_apps_resource_directory() {
         let relative = Path::new("bin").join("desktop-backend").join("index.js");
-        let linux_bundle = root.join("lib").join("Cline Beta").join(&relative);
-        fs::create_dir_all(linux_bundle.parent().unwrap()).unwrap();
-
-        let candidates = desktop_backend_bundle_candidates(&root.join("bin"));
-        let _ = fs::remove_dir_all(&root);
-
-        // Windows installs resources next to the exe, macOS under
-        // Contents/Resources, Linux under /usr/lib/<productName>.
-        assert_eq!(candidates[0], root.join("bin").join(&relative));
-        assert_eq!(candidates[1], root.join("Resources").join(&relative));
-        assert!(candidates.contains(&linux_bundle));
+        for resource_dir in [
+            Path::new("/Applications/Cline.app/Contents/Resources"),
+            Path::new("C:/Program Files/Cline"),
+            Path::new("/usr/lib/Cline"),
+            Path::new("/usr/lib/Cline Beta"),
+            Path::new("/usr/lib/Cline Nightly"),
+        ] {
+            assert_eq!(
+                desktop_backend_bundle_candidates(resource_dir),
+                vec![resource_dir.join(&relative)]
+            );
+        }
     }
 
     #[test]

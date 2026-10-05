@@ -463,25 +463,31 @@ jobs:
       # malformed, or non-http(s) OTLP endpoint would still drop every event
       # at runtime (the SDK exporters speak OTLP http/json only), so the
       # selfcheck must also report a usable endpoint host.
-      - name: Verify desktop backend telemetry config was inlined
+      - name: Verify CLI and desktop backend telemetry configs were inlined
         working-directory: apps/examples/desktop-app
         run: |
-          SELFCHECK=$(BUN_BE_BUN=1 ./src-tauri/bin/cline-cli-universal-apple-darwin run --no-env-file src-tauri/bin/desktop-backend/index.js --telemetry-selfcheck)
-          echo "$SELFCHECK"
-          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
-            echo "Packaged desktop backend reports telemetry disabled."
-            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
-            echo "'Build, sign, and notarize desktop bundle' step and the"
-            echo "--define inlining in scripts/build-desktop-runtime.ts."
-            exit 1
-          fi
-          if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
-            echo "Packaged desktop backend reports telemetry enabled but its OTLP"
-            echo "endpoint is missing, unparseable, or not an http(s) URL, so"
-            echo "every event would be dropped at runtime. Check the"
-            echo "OTEL_EXPORTER_OTLP_ENDPOINT secret."
-            exit 1
-          fi
+          for COMPONENT in cli backend; do
+            if [ "$COMPONENT" = cli ]; then
+              SELFCHECK=$(./src-tauri/bin/cline-cli-universal-apple-darwin --telemetry-selfcheck)
+            else
+              SELFCHECK=$(BUN_BE_BUN=1 ./src-tauri/bin/cline-cli-universal-apple-darwin run --no-env-file src-tauri/bin/desktop-backend/index.js --telemetry-selfcheck)
+            fi
+            echo "$SELFCHECK"
+            if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+              echo "Packaged $COMPONENT reports telemetry disabled."
+              echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+              echo "'Build, sign, and notarize desktop bundle' step and the"
+              echo "--define inlining in scripts/build-desktop-runtime.ts."
+              exit 1
+            fi
+            if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
+              echo "Packaged $COMPONENT reports telemetry enabled but its OTLP"
+              echo "endpoint is missing, unparseable, or not an http(s) URL, so"
+              echo "every event would be dropped at runtime. Check the"
+              echo "OTEL_EXPORTER_OTLP_ENDPOINT secret."
+              exit 1
+            fi
+          done
 
       # Boot the Cline CLI and desktop backend that will actually ship — built
       # with the production --target, --minify and telemetry defines, on the
@@ -809,25 +815,31 @@ jobs:
           echo "Updater endpoint verified: ${WANT:-disabled}"
 
       # Same guardrail as the macOS job, run natively on the Windows build.
-      - name: Verify desktop backend telemetry config was inlined
+      - name: Verify CLI and desktop backend telemetry configs were inlined
         shell: bash
         working-directory: apps/examples/desktop-app
         run: |
-          SELFCHECK=$(BUN_BE_BUN=1 ./src-tauri/bin/cline-cli-x86_64-pc-windows-msvc.exe run --no-env-file src-tauri/bin/desktop-backend/index.js --telemetry-selfcheck)
-          echo "$SELFCHECK"
-          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
-            echo "Packaged desktop backend reports telemetry disabled."
-            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
-            echo "'Build and sign desktop bundle' step and the --define"
-            echo "inlining in scripts/build-desktop-runtime.ts."
-            exit 1
-          fi
-          if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
-            echo "Packaged desktop backend reports telemetry enabled but its OTLP"
-            echo "endpoint is missing, unparseable, or not an http(s) URL."
-            echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
-            exit 1
-          fi
+          for COMPONENT in cli backend; do
+            if [ "$COMPONENT" = cli ]; then
+              SELFCHECK=$(./src-tauri/bin/cline-cli-x86_64-pc-windows-msvc.exe --telemetry-selfcheck)
+            else
+              SELFCHECK=$(BUN_BE_BUN=1 ./src-tauri/bin/cline-cli-x86_64-pc-windows-msvc.exe run --no-env-file src-tauri/bin/desktop-backend/index.js --telemetry-selfcheck)
+            fi
+            echo "$SELFCHECK"
+            if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+              echo "Packaged $COMPONENT reports telemetry disabled."
+              echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+              echo "'Build and sign desktop bundle' step and the --define"
+              echo "inlining in scripts/build-desktop-runtime.ts."
+              exit 1
+            fi
+            if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
+              echo "Packaged $COMPONENT reports telemetry enabled but its OTLP"
+              echo "endpoint is missing, unparseable, or not an http(s) URL."
+              echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+              exit 1
+            fi
+          done
 
       # Same release-time gate as the macOS job; see the comment there.
       - name: Smoke-test the packaged desktop runtime against an isolated Hub
@@ -1074,26 +1086,32 @@ jobs:
           echo "Updater endpoint verified: ${WANT:-disabled}"
 
       # Same guardrail as the other build jobs, run on the Linux build.
-      - name: Verify desktop backend telemetry config was inlined
+      - name: Verify CLI and desktop backend telemetry configs were inlined
         working-directory: apps/examples/desktop-app
         env:
           TARGET: ${{ matrix.target }}
         run: |
-          SELFCHECK=$(BUN_BE_BUN=1 ./src-tauri/bin/cline-cli-${TARGET} run --no-env-file src-tauri/bin/desktop-backend/index.js --telemetry-selfcheck)
-          echo "$SELFCHECK"
-          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
-            echo "Packaged desktop backend reports telemetry disabled."
-            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
-            echo "'Build desktop bundles' step and the --define inlining in"
-            echo "scripts/build-desktop-runtime.ts."
-            exit 1
-          fi
-          if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
-            echo "Packaged desktop backend reports telemetry enabled but its OTLP"
-            echo "endpoint is missing, unparseable, or not an http(s) URL."
-            echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
-            exit 1
-          fi
+          for COMPONENT in cli backend; do
+            if [ "$COMPONENT" = cli ]; then
+              SELFCHECK=$(./src-tauri/bin/cline-cli-${TARGET} --telemetry-selfcheck)
+            else
+              SELFCHECK=$(BUN_BE_BUN=1 ./src-tauri/bin/cline-cli-${TARGET} run --no-env-file src-tauri/bin/desktop-backend/index.js --telemetry-selfcheck)
+            fi
+            echo "$SELFCHECK"
+            if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+              echo "Packaged $COMPONENT reports telemetry disabled."
+              echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+              echo "'Build desktop bundles' step and the --define inlining in"
+              echo "scripts/build-desktop-runtime.ts."
+              exit 1
+            fi
+            if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
+              echo "Packaged $COMPONENT reports telemetry enabled but its OTLP"
+              echo "endpoint is missing, unparseable, or not an http(s) URL."
+              echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+              exit 1
+            fi
+          done
 
       # Same release-time gate as the macOS job; see the comment there.
       - name: Smoke-test the packaged desktop runtime against an isolated Hub

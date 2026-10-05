@@ -9,6 +9,7 @@ import {
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import {
+	buildTelemetrySelfcheckReport,
 	captureSdkError,
 	disableCurrentDirectoryExecutableSearch,
 	ensureLoopbackProxyBypass,
@@ -27,7 +28,6 @@ import {
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
-import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;

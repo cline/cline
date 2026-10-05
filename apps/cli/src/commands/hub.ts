@@ -28,23 +28,15 @@ interface HubEnsureCommandOptions {
 
 const HUB_DISCOVERY_PATH_ENV = "CLINE_HUB_DISCOVERY_PATH";
 
-async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
+async function stopHubServer(): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath);
-	if (await stopLocalHubServerGracefully(owner)) {
-		await clearHubDiscovery(owner.discoveryPath);
-		return true;
-	}
-	const pid = discovery?.pid;
-	if (pid) {
-		try {
-			process.kill(pid, "SIGTERM");
-		} catch {
-			// best effort
-		}
+	// A discovery PID can be stale and reused by an unrelated process. Only
+	// the authenticated shutdown endpoint establishes ownership of the hub.
+	if (!(await stopLocalHubServerGracefully(owner))) {
+		return false;
 	}
 	await clearHubDiscovery(owner.discoveryPath);
-	return !!pid;
+	return true;
 }
 
 function formatHubUptimeFromStartedAt(
@@ -205,8 +197,7 @@ export function createHubCommand(
 
 	hub.command("stop").action(
 		action(async () => {
-			const opts = hub.opts<{ cwd: string }>();
-			const stopped = await stopHubServer(opts.cwd);
+			const stopped = await stopHubServer();
 			io.writeln(JSON.stringify({ stopped }));
 		}),
 	);
@@ -308,7 +299,9 @@ export function createHubCommand(
 							fail();
 							return;
 						}
-						await stopHubServer(opts.cwd);
+						if (!(await stopHubServer())) {
+							throw new Error("Hub shutdown failed; upgrade aborted.");
+						}
 					} catch (error) {
 						await undrain();
 						throw error;
