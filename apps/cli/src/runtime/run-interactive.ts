@@ -206,7 +206,12 @@ export async function runInteractive(
 					workspaceRoot: config.workspaceRoot,
 					logger: config.logger,
 					commands,
-					getSessionId: () => sessionRuntime.getActiveSessionId(),
+					getTarget: () => {
+						const workspacePath = chatCommandState.workspaceRoot || chatCommandState.cwd;
+						return { workspacePath, cwd: chatCommandState.cwd,
+							sessionId: sessionRuntime.getPluginCommandSessionId(workspacePath),
+							providerId: config.providerId, modelId: config.modelId, pluginPaths: config.pluginPaths };
+					},
 				}),
 			)
 			.then((host) => {
@@ -229,8 +234,15 @@ export async function runInteractive(
 			instructions: "",
 		}));
 	};
-	const subscribeAdditionalSlashCommands = async (listener: () => void) =>
-		(await ensurePluginHost()).subscribe(listener);
+	const commandTargetListeners = new Set<() => void>();
+	const subscribeAdditionalSlashCommands = async (listener: () => void) => {
+		commandTargetListeners.add(listener);
+		const stopSession = sessionRuntime.subscribeSessionChanges(listener);
+		try {
+			const stopCatalog = (await ensurePluginHost()).subscribe(listener);
+			return () => { commandTargetListeners.delete(listener); stopSession(); stopCatalog(); };
+		} catch (error) { commandTargetListeners.delete(listener); stopSession(); throw error; }
+	};
 
 	const enableChatCommands = true;
 	const {
@@ -574,6 +586,7 @@ export async function runInteractive(
 				}
 
 				if (input.trimStart().startsWith("/")) await ensurePluginHost();
+				const previousWorkspace = chatCommandState.workspaceRoot || chatCommandState.cwd;
 				const chatCommandResult = await runInteractiveChatCommand({
 					prompt: input,
 					enabled: enableChatCommands,
@@ -586,6 +599,9 @@ export async function runInteractive(
 					stop: () => tuiApp?.destroy(),
 					onCommandOutput,
 				});
+				if (previousWorkspace !== (chatCommandState.workspaceRoot || chatCommandState.cwd)) {
+					for (const listener of commandTargetListeners) listener();
+				}
 				if (chatCommandResult.handled) {
 					return chatCommandResult.turnResult;
 				}

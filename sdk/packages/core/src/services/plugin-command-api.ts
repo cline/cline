@@ -13,6 +13,11 @@ export interface PluginCommandResult {
 }
 export interface PluginCommandTarget {
 	workspacePath: string;
+	/** Workspace discovery uses the same plugin selection as session bootstrap. */
+	cwd?: string;
+	providerId?: string;
+	modelId?: string;
+	pluginPaths?: string[];
 	/** Use the resident session's plugins, including their session-local state. */
 	sessionId?: string;
 }
@@ -57,6 +62,7 @@ export function listPluginCommands(
 ): PluginSlashCommand[] {
 	const result = new Map<string, PluginSlashCommand>();
 	for (const command of commands) {
+		if (command.kind && command.kind !== "plugin") continue;
 		const name = normalizePluginCommandName(command.name);
 		if (!name || /\s/.test(name) || !command.handler || result.has(name))
 			continue;
@@ -72,6 +78,7 @@ export async function executePluginCommand(
 	if (!parsed) return undefined;
 	const command = commands.find(
 		(command) =>
+			(!command.kind || command.kind === "plugin") &&
 			normalizePluginCommandName(command.name) === parsed.name &&
 			command.handler,
 	);

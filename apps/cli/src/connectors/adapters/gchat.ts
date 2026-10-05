@@ -601,6 +601,7 @@ class GoogleChatConnector extends ConnectorBase<
 		await client.connect();
 		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			commands: client.pluginCommands,
+			selection: { providerId: startRequest.provider, modelId: startRequest.model },
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});

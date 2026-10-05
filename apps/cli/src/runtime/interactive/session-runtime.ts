@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import {
 	type AgentEvent,
 	type AgentHooks,
@@ -119,6 +120,9 @@ export function createInteractiveSessionRuntime(input: {
 	let startupError: unknown;
 	let shutdownRequested = false;
 	let activeSessionId = "";
+	let activeWorkspacePath: string | undefined;
+	const sessionListeners = new Set<() => void>();
+	const notifySessionChanged = () => { for (const listener of sessionListeners) listener(); };
 	let abortRequested = false;
 	let missingSessionRecoveryPromise:
 		| Promise<MissingSessionRecovery>
@@ -132,7 +136,9 @@ export function createInteractiveSessionRuntime(input: {
 
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
+		activeWorkspacePath = undefined;
 		setActiveCliSession(undefined);
+		notifySessionChanged();
 	};
 
 	const applyStartedSession = (started: StartedSession): void => {
@@ -140,6 +146,8 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		activeWorkspacePath = started.manifest.workspace_root;
+		notifySessionChanged();
 	};
 
 	const ensureSessionManager = async (): Promise<CliCore> => {
@@ -923,6 +931,11 @@ export function createInteractiveSessionRuntime(input: {
 		abortAll,
 		cleanup,
 		getActiveSessionId: () => activeSessionId,
+		getPluginCommandSessionId: (workspacePath: string) => activeWorkspacePath && resolve(activeWorkspacePath) === resolve(workspacePath) ? activeSessionId || undefined : undefined,
+		subscribeSessionChanges: (listener: () => void) => {
+			sessionListeners.add(listener);
+			return () => { sessionListeners.delete(listener); };
+		},
 		isShutdownRequested: () => shutdownRequested,
 	};
 }

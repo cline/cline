@@ -243,6 +243,25 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 			session.sessionId,
 		);
 	});
+	it("discovers configured external plugins using the selected provider and model before a session", async () => {
+		const external = join(root, "external.js");
+		await writeFile(external, `export default {name:'targeted',manifest:{capabilities:['commands'],providerIds:['openai-native'],modelIds:['chosen']},setup(api){api.registerCommand({name:'targeted',handler:()=> 'selected'});}};`);
+		const selected = { workspacePath: root, providerId: "openai-native", modelId: "chosen", pluginPaths: [external] };
+		expect((await command("plugins.commands.list", selected)).payload?.catalog).toMatchObject({ commands: expect.arrayContaining([expect.objectContaining({ name: "targeted" })]) });
+		expect((await command("plugins.commands.run", { ...selected, prompt: "/targeted" })).payload?.result).toMatchObject({ reply: "selected" });
+		expect((await command("plugins.commands.list", { ...selected, modelId: "other" })).payload?.catalog).toMatchObject({ commands: [{ name: "counter" }] });
+		expect((await command("plugins.commands.list", selected)).payload?.catalog).toMatchObject({ commands: expect.arrayContaining([expect.objectContaining({ name: "targeted" })]) });
+	});
+	it("allows only the owning connection to access session commands", async () => {
+		const created = await command("session.create", { workspaceRoot: root, cwd: root, modelSelection: { providerId: "openai-native", modelId: "gpt-4o-mini" }, sessionConfig: { apiKey: "test", systemPrompt: "test", enableTools: false, enableSpawnAgent: false, enableAgentTeams: false } });
+		const sessionId = (created.payload?.session as { sessionId: string }).sessionId;
+		const request = { version: "v1" as const, clientId: "other", sessionId, command: "plugins.commands.run" as const, payload: { workspacePath: root, prompt: "/counter" } };
+		const authority = { clientId: "other", workspaceContext: { workspaceRoot: root } };
+		expect(await transport.handleCommand(request, authority)).toMatchObject({ ok: false, error: { code: "session_wrong_client" } });
+		expect(await transport.handleCommand({ ...request, command: "plugins.commands.list" }, authority)).toMatchObject({ ok: false, error: { code: "session_wrong_client" } });
+		expect(await transport.handleCommand({ ...request, clientId: "test" }, { ...authority, clientId: "test" })).toMatchObject({ ok: true, payload: { result: { reply: `${sessionId}:1:` } } });
+	});
+
 	it("rejects a workspace outside the authenticated connection scope", async () => {
 		await expect(
 			transport.handleCommand(

@@ -204,7 +204,7 @@ describe("handleConnectorUserTurn", () => {
 				});
 				await handleConnectorUserTurn({
 					thread: thread as never,
-					client: {} as never,
+					client: { getSession: vi.fn(async () => ({ sessionId: id })) } as never,
 					pendingApprovals: new Map(),
 					baseStartRequest: baseStartRequest() as never,
 					clientId: "client",
@@ -226,6 +226,7 @@ describe("handleConnectorUserTurn", () => {
 				expect(run).toHaveBeenCalledWith({
 					sessionId: id,
 					workspacePath: workspace,
+					cwd: workspace,
 					prompt: "/echo hello",
 				});
 				expect(messageText(posts.at(-1))).toContain("handled");

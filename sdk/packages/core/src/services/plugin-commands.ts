@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, type FSWatcher, statSync, watch } from "node:fs";
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
-import { dirname, resolve, sep } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import {
 	type AgentExtensionCommand,
 	type AgentTool,
@@ -10,6 +10,7 @@ import {
 	type Message,
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
+import { collectStaticModuleSpecifiers, resolveRelativeImportPath } from "../extensions/plugin/plugin-module-import";
 import {
 	loadResolvedAgentPlugins,
 	resolveAgentPluginPaths,
@@ -26,6 +27,7 @@ import {
 type LoadedPlugins = Awaited<ReturnType<typeof loadResolvedAgentPlugins>>;
 type Entry = {
 	workspacePath: string;
+	target: PluginCommandTarget;
 	catalog: PluginCommandCatalog;
 	commands: AgentExtensionCommand[];
 	loaded: LoadedPlugins[];
@@ -39,6 +41,7 @@ type Entry = {
 	watchers: FSWatcher[];
 	watchRetry?: ReturnType<typeof setTimeout>;
 	fingerprint?: string;
+	sourcePaths: string[];
 	/** Serializes execution with reload/disposal so a handler cannot lose its sandbox. */
 	tail: Promise<unknown>;
 };
@@ -71,11 +74,14 @@ export class PluginCommandManager implements PluginCommandsApi {
 	private entry(target: PluginCommandTarget): Entry {
 		if (this.disposed) throw new Error("Plugin command manager is disposed");
 		const workspacePath = resolve(target.workspacePath);
-		let entry = this.entries.get(workspacePath);
+		const normalized = { workspacePath, cwd: resolve(target.cwd ?? workspacePath), providerId: target.providerId, modelId: target.modelId, pluginPaths: target.pluginPaths ?? [] };
+		const key = JSON.stringify(normalized);
+		let entry = this.entries.get(key);
 		if (!entry) {
 			entry = {
 				workspacePath,
-				catalog: { workspacePath, status: "ready", commands: [] },
+				target: normalized,
+				catalog: { ...normalized, status: "ready", commands: [] },
 				commands: [],
 				loaded: [],
 				pluginPaths: [],
@@ -83,9 +89,10 @@ export class PluginCommandManager implements PluginCommandsApi {
 				dirty: true,
 				retryCount: 0,
 				watchers: [],
+				sourcePaths: [],
 				tail: Promise.resolve(),
 			};
-			this.entries.set(workspacePath, entry);
+			this.entries.set(key, entry);
 		}
 		return entry;
 	}
@@ -103,37 +110,54 @@ export class PluginCommandManager implements PluginCommandsApi {
 		return new Set([
 			...resolvePluginConfigSearchPaths(entry.workspacePath),
 			...entry.pluginPaths.map(dirname),
+			...entry.sourcePaths.map(dirname),
+			...(entry.target.pluginPaths ?? []).map((path) => resolve(entry.target.cwd ?? entry.workspacePath, path)),
 			resolveGlobalSettingsPath(),
 		]);
 	}
-	/**
-	 * Compare contents across watcher outages without replacing unchanged plugin instances.
-	 * Unreadable entries contribute their error code instead of failing the scan.
-	 */
-	private async fingerprint(entry: Entry): Promise<string> {
+	/** Fingerprint module inputs, never mutable cache/state files beside them. */
+	private async fingerprint(entry: Entry, pluginPaths = entry.pluginPaths): Promise<string> {
 		const hash = createHash("sha256");
 		const visited = new Set<string>();
-		const visit = async (path: string): Promise<void> => {
-			hash.update(JSON.stringify(path));
+		const sourcePaths = new Set<string>();
+		const visit = async (path: string, module = false): Promise<void> => {
+			sourcePaths.add(path);
 			try {
 				const real = await realpath(path);
 				if (visited.has(real)) return;
 				visited.add(real);
-				const info = await stat(path);
-				if (info.isDirectory()) {
-					for (const name of (await readdir(path)).sort()) {
-						if (name !== "node_modules") await visit(resolve(path, name));
+				hash.update(JSON.stringify(path));
+				const source = await readFile(path);
+				hash.update(source);
+				if (module) {
+					for (const specifier of collectStaticModuleSpecifiers(source.toString("utf8"))) {
+						if (!specifier.startsWith(".") && !specifier.startsWith("file:") && !isAbsolute(specifier)) continue;
+						const dependency = resolveRelativeImportPath(path, specifier);
+						if (dependency) await visit(dependency, true);
 					}
-				} else if (info.isFile()) hash.update(await readFile(path));
+				}
 			} catch (error) {
-				hash.update(
-					`error:${(error as NodeJS.ErrnoException).code ?? "unknown"}`,
-				);
+				hash.update(JSON.stringify([path, (error as NodeJS.ErrnoException).code ?? "unknown"]));
 			}
 		};
-		for (const root of [...this.watchRoots(entry)].sort()) await visit(root);
+		hash.update(JSON.stringify(pluginPaths));
+		await visit(resolveGlobalSettingsPath());
+		for (const path of pluginPaths) {
+			await visit(path, true);
+			// Package manifests affect targeting and entry point selection.
+			let directory = dirname(path);
+			while (true) {
+				const manifest = resolve(directory, "package.json");
+				if (existsSync(manifest)) { await visit(manifest); break; }
+				const parent = dirname(directory);
+				if (parent === directory) break;
+				directory = parent;
+			}
+		}
+		entry.sourcePaths = [...sourcePaths];
 		return hash.digest("hex");
 	}
+
 	private reconnect(entry: Entry): void {
 		if (this.disposed) return;
 		clearTimeout(entry.watchRetry);
@@ -141,11 +165,8 @@ export class PluginCommandManager implements PluginCommandsApi {
 			if (this.disposed) return;
 			// Install watchers first, then reconcile changes missed during the outage.
 			this.watch(entry);
-			void this.fingerprint(entry).then((fingerprint) => {
-				if (this.disposed || fingerprint === entry.fingerprint) return;
-				entry.dirty = true;
-				void this.refresh(entry);
-			});
+			entry.dirty = true;
+			void this.refresh(entry);
 		}, 1000);
 		entry.watchRetry.unref?.();
 	}
@@ -207,29 +228,29 @@ export class PluginCommandManager implements PluginCommandsApi {
 		entry.pending = entry.tail
 			.then(async () => {
 				if (this.disposed) return;
-				if (!retryOnly) {
-					await Promise.all(
-						entry.loaded.map((loaded) => loaded.shutdown?.().catch(() => {})),
-					);
-					entry.loaded = [];
-					entry.commands = [];
-					entry.failedPaths = undefined;
-				}
 				let loaded: LoadedPlugins | undefined;
 				let error: string | undefined;
 				try {
-					if (!entry.failedPaths) {
-						entry.pluginPaths = resolveAgentPluginPaths({
-							cwd: entry.workspacePath,
-							workspacePath: entry.workspacePath,
-						});
-						entry.failedPaths = entry.pluginPaths;
-						entry.fingerprint = await this.fingerprint(entry);
+					if (!retryOnly || !entry.fingerprint) {
+						const paths = resolveAgentPluginPaths(entry.target);
+						const fingerprint = await this.fingerprint(entry, paths);
+						if (fingerprint === entry.fingerprint) {
+							this.watch(entry);
+							if (entry.catalog.status === "error") this.schedule(entry, this.options.retryDelayMs ?? 1000, true);
+							return;
+						}
+						await Promise.all(entry.loaded.map((loaded) => loaded.shutdown?.().catch(() => {})));
+						entry.loaded = [];
+						entry.commands = [];
+						entry.pluginPaths = paths;
+						entry.failedPaths = paths;
+						entry.fingerprint = fingerprint;
 					}
+
 					loaded = await (this.options.load ?? loadResolvedAgentPlugins)({
-						cwd: entry.workspacePath,
-						workspacePath: entry.workspacePath,
-						pluginPaths: entry.failedPaths,
+						...entry.target,
+						workspaceInfo: { rootPath: entry.workspacePath },
+						pluginPaths: entry.failedPaths ?? entry.pluginPaths,
 					});
 					const registry = createContributionRegistry<
 						(typeof loaded.extensions)[number],
@@ -256,7 +277,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 					);
 				}
 				entry.catalog = {
-					workspacePath: entry.workspacePath,
+					...entry.target,
 					status: error ? "error" : "ready",
 					error,
 					commands: listPluginCommands(entry.commands),

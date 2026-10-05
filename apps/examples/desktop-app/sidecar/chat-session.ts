@@ -1316,6 +1316,8 @@ async function handleSend(
 	const workspacePath =
 		readWorkspacePath(session?.config ?? request.config) ??
 		ctx.localWorkspaceRoot;
+	const commandConfig = session?.config ?? request.config;
+	const pluginWorkspacePath = String(commandConfig?.workspaceRoot ?? commandConfig?.workspace_root ?? "").trim() || workspacePath;
 	// Plugin slash commands execute in the session runtime.
 	// The handler's reply goes to the webview as a toast and
 	// only its `submitPrompt` (if any) reaches the model.
@@ -1323,7 +1325,11 @@ async function handleSend(
 	const pluginCommand =
 		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
 			? await runPluginSlashCommand(ctx, {
-					workspacePath,
+					workspacePath: pluginWorkspacePath,
+					cwd: workspacePath,
+					providerId: String(commandConfig?.provider ?? commandConfig?.providerId ?? "") || undefined,
+					modelId: String(commandConfig?.model ?? commandConfig?.modelId ?? "") || undefined,
+					pluginPaths: Array.isArray(commandConfig?.pluginPaths) ? commandConfig.pluginPaths.filter((path): path is string => typeof path === "string") : undefined,
 					prompt,
 					sessionId,
 					environmentId: binding.environmentId,

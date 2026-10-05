@@ -1041,6 +1041,8 @@ function ChatInputBarImpl({
 						workspacePath: workspaceRoot,
 						environmentId,
 						sessionId: sessionId ?? undefined,
+						providerId: provider,
+						modelId: model,
 					},
 				);
 				if (cancelled || id !== requestId) return;
@@ -1087,7 +1089,7 @@ function ChatInputBarImpl({
 			unsubscribe();
 			unsubscribeSettings();
 		};
-	}, [workspaceRoot, environmentId, sessionId, executionTarget]);
+	}, [workspaceRoot, environmentId, sessionId, executionTarget, provider, model]);
 
 	// Instruction files have no catalog-change event. Refresh them on open,
 	// retaining the last response while fetching so suggestions do not flash away.

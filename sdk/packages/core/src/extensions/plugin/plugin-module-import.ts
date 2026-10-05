@@ -376,7 +376,7 @@ function isPackageBasedPlugin(pluginFilePath: string): boolean {
 	return false;
 }
 
-function resolveRelativeImportPath(
+export function resolveRelativeImportPath(
 	fromPath: string,
 	specifier: string,
 ): string | null {
@@ -387,7 +387,7 @@ function resolveRelativeImportPath(
 			: resolve(dirname(fromPath), specifier);
 	if (
 		existsSync(resolvedBase) &&
-		SUPPORTED_PLUGIN_EXTENSIONS.has(extname(resolvedBase))
+		(SUPPORTED_PLUGIN_EXTENSIONS.has(extname(resolvedBase)) || extname(resolvedBase) === ".json")
 	) {
 		return resolvedBase;
 	}
@@ -406,9 +406,10 @@ function resolveRelativeImportPath(
 	return null;
 }
 
-function collectStaticModuleSpecifiers(source: string): string[] {
+export function collectStaticModuleSpecifiers(source: string): string[] {
 	const specifiers = new Set<string>();
 	const patterns = [
+		/\bimport\s*["'`]([^"'`]+)["'`]/g,
 		/\bimport\s+(?:type\s+)?[^"'`]*?\bfrom\s*["'`]([^"'`]+)["'`]/g,
 		/\bexport\s+[^"'`]*?\bfrom\s*["'`]([^"'`]+)["'`]/g,
 		/\bimport\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/g,

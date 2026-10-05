@@ -3572,6 +3572,11 @@ export async function handleCommand(
 			workspacePath,
 			typeof args?.sessionId === "string" ? args.sessionId : undefined,
 			requestedEnvironmentId(args),
+			{
+				providerId: typeof args?.providerId === "string" ? args.providerId : undefined,
+				modelId: typeof args?.modelId === "string" ? args.modelId : undefined,
+				pluginPaths: Array.isArray(args?.pluginPaths) ? args.pluginPaths.filter((path): path is string => typeof path === "string") : undefined,
+			},
 		);
 	}
 	if (command === "list_marketplace_installed_entries") {

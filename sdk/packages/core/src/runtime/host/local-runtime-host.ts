@@ -349,8 +349,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}));
 			},
 			run: async (input) => {
-				if (!input.sessionId) return this.pluginCommandManager.run(input);
-				const session = this.getSessionOrThrow(input.sessionId);
+				const session = input.sessionId
+					? this.sessions.get(input.sessionId)
+					: undefined;
+				// A stale binding (hub restart, deleted session) falls back to workspace discovery.
+				if (!session) return this.pluginCommandManager.run(input);
 				if (
 					resolve(input.workspacePath) !==
 					resolve(resolveWorkspacePath(session.config))

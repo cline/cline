@@ -611,24 +611,28 @@ export async function handleConnectorUserTurn<
 		return;
 	}
 
-	if (
-		await maybeHandleChatCommand(resolvedInput, {
+	let commandSessionId: string | undefined;
+	const handleCommand = () => maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
 			botUserName: input.botUserName,
 			requireBotMention: !input.thread.isDM,
 			host: input.chatCommandHost,
 			getState: async () => {
-				const current = await loadThreadState(
+				let current = await loadThreadState(
 					input.thread,
 					input.bindingsPath,
 					input.baseStartRequest,
 				);
+				if (current.sessionId && !(await input.client.getSession(current.sessionId))) {
+					await forgetStaleThreadSession({ ...input, sessionId: current.sessionId });
+					current = await loadThreadState(input.thread, input.bindingsPath, input.baseStartRequest);
+				}
 				const effectiveCurrent = applyForcedToolDisable(
 					current,
 					input.forceDisableTools,
 				);
 				return {
-					sessionId: effectiveCurrent.sessionId,
+					sessionId: (commandSessionId = effectiveCurrent.sessionId),
 					enableTools:
 						effectiveCurrent.enableTools ?? input.baseStartRequest.enableTools,
 					autoApproveTools:
@@ -996,10 +1000,15 @@ export async function handleConnectorUserTurn<
 						: `Schedule not found: ${scheduleId}`;
 				},
 			},
-		})
-	) {
-		return;
+		});
+	let commandHandled: boolean;
+	try { commandHandled = await handleCommand(); }
+	catch (error) {
+		if (!commandSessionId || !isUnusableSessionError(error)) throw error;
+		await forgetStaleThreadSession({ ...input, sessionId: commandSessionId });
+		commandHandled = await handleCommand();
 	}
+	if (commandHandled) return;
 
 	const currentState = await loadThreadState(
 		input.thread,

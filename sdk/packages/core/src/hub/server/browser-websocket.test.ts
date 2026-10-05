@@ -55,6 +55,26 @@ describe("BrowserWebSocketHubAdapter", () => {
 		vi.restoreAllMocks();
 	});
 
+	it.each([false, true])("filters catalog events in live delivery and replay (crossWorkspace=%s)", async (crossWorkspace) => {
+		let listener!: (event: HubEventEnvelope) => void;
+		const catalogEvent = (workspacePath: string, sequence: number): HubEventEnvelope => ({ version: "v1", event: "plugins.commands.changed", sequence, payload: { catalog: { workspacePath, status: "ready", commands: [{ name: "private" }] } } });
+		const transport = {
+			command: vi.fn(async () => ({ version: "v1" as const, ok: true })),
+			subscribe: vi.fn((_clientId, callback) => { listener = callback; return () => {}; }),
+			replayEventsAfter: vi.fn((cursor: number) => cursor === 0 ? [catalogEvent("/workspace", 1), catalogEvent("/private", 2)] : []),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport, undefined, "/workspace").attach(socket, { allowRegisteredWorkspace: crossWorkspace });
+		socket.emitMessage(JSON.stringify({ kind: "command", envelope: { version: "v1", command: "client.register", clientId: "client", payload: { clientId: "client", workspaceContext: { workspaceRoot: "/workspace" } } } }));
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+		socket.emitMessage(JSON.stringify({ kind: "stream.subscribe", clientId: "client", sinceSequence: 0 }));
+		await vi.waitFor(() => expect(transport.replayEventsAfter).toHaveBeenCalledTimes(2));
+		listener(catalogEvent("/private", 3));
+		listener(catalogEvent("/workspace", 4));
+		const events = socket.sent.map((frame) => JSON.parse(frame)).filter((frame) => frame.kind === "event");
+		expect(events.map((frame) => frame.envelope.sequence)).toEqual(crossWorkspace ? [1, 2, 3, 4] : [1, 4]);
+	});
+
 	it("ignores malformed websocket frames instead of throwing", async () => {
 		const transport = {
 			command: vi.fn(),

@@ -1,4 +1,4 @@
-import type { BasicLogger, PluginCommandsApi } from "@cline/core";
+import type { BasicLogger, PluginCommandsApi, PluginCommandTarget } from "@cline/core";
 import { chatCommandHost } from "./chat-commands";
 
 export async function createWorkspaceChatCommandHost(input: {
@@ -6,17 +6,18 @@ export async function createWorkspaceChatCommandHost(input: {
 	workspaceRoot?: string;
 	logger?: BasicLogger;
 	commands: PluginCommandsApi;
-	getSessionId?: () => string | undefined;
+	selection?: Pick<PluginCommandTarget, "providerId" | "modelId" | "pluginPaths">;
+	getTarget?: () => PluginCommandTarget;
 }) {
 	const commands = input.commands;
-	const target = () => ({
-		workspacePath: input.workspaceRoot?.trim() || input.cwd,
-		sessionId: input.getSessionId?.() || undefined,
-	});
+	const target = () => input.getTarget?.() ?? ({ ...input.selection, workspacePath: input.workspaceRoot?.trim() || input.cwd });
 	const host = chatCommandHost.clone().setFallback(async (parsed, context) => {
+		const current = target();
 		const result = await commands.run({
+			...current,
 			workspacePath: parsed.state.workspaceRoot || parsed.state.cwd,
-			sessionId: parsed.state.sessionId ?? input.getSessionId?.(),
+			cwd: parsed.state.cwd,
+			sessionId: input.getTarget ? current.sessionId : parsed.state.sessionId,
 			prompt: `${parsed.command}${parsed.argumentsText}`,
 		});
 		if (!result) return false;

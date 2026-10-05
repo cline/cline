@@ -423,6 +423,7 @@ function createUserInstructionServiceProxy(
 				)) {
 					api.registerCommand({
 						name: command.name,
+						kind: command.kind,
 						description: command.description,
 						handler: (input) => {
 							const trimmed = input.trim();

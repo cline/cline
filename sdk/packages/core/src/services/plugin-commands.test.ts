@@ -274,6 +274,48 @@ describe("runtime plugin catalogs", () => {
 			),
 		).rejects.toThrow("handler boom");
 	});
+	it("does not execute instruction commands as plugin replies, including name collisions", async () => {
+		const instruction = vi.fn(() => "instructions");
+		const plugin = vi.fn(() => "plugin");
+		const commands = [
+			{ name: "skill", kind: "skill" as const, handler: instruction },
+			{ name: "workflow", kind: "workflow" as const, handler: instruction },
+			{ name: "skill", handler: plugin },
+		];
+		expect(await executePluginCommand(commands, "/workflow")).toBeUndefined();
+		expect(await executePluginCommand(commands, "/skill")).toMatchObject({ reply: "plugin" });
+		expect(instruction).not.toHaveBeenCalled();
+	});
+	it("ignores mutable state files but reloads imported module changes", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		await writeFile(join(directory, "echo.js"), "import './helper.js'; export default {};");
+		await writeFile(join(directory, "helper.js"), "export const value = 1;");
+		const callbacks: Array<(event: string, file: string) => void> = [];
+		const watchFiles = vi.fn((_path, _options, callback) => {
+			callbacks.push(callback);
+			return Object.assign(new EventEmitter(), { close: vi.fn() });
+		});
+		let count = 0;
+		const initial = loaded(async () => String(++count));
+		const load = vi.fn(async () => initial);
+		const manager = new PluginCommandManager({ load, watch: watchFiles as unknown as typeof watch });
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject({ reply: "1" });
+		await writeFile(join(directory, "state.json"), "{}" );
+		const attempts = watchFiles.mock.calls.length;
+		for (const callback of callbacks.slice()) callback("change", "state.json");
+		await vi.waitFor(() => expect(watchFiles.mock.calls.length).toBeGreaterThan(attempts));
+		expect(load).toHaveBeenCalledTimes(1);
+		expect(initial.shutdown).not.toHaveBeenCalled();
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject({ reply: "2" });
+		await writeFile(join(directory, "helper.js"), "export const value = 2;");
+		for (const callback of callbacks.slice()) callback("change", "helper.js");
+		await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+	});
+
 	it("parses slash input without changing internal whitespace", () => {
 		expect(parsePluginCommand(" \n/GOAL a  b\nc ")).toEqual({
 			name: "goal",

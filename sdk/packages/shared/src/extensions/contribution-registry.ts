@@ -7,6 +7,8 @@ import type { ClientContext, UserContext } from "./context";
 
 export interface AgentExtensionCommand {
 	name: string;
+	/** Instruction commands expand prompts; plugin commands execute directly. */
+	kind?: "plugin" | "skill" | "workflow";
 	description?: string;
 	handler?: (
 		input: string,

@@ -101,7 +101,7 @@ function localRuntimeContext(
 					workspaceRoot,
 					sessionManager,
 					hubClient: {
-						command: vi.fn(async () => ({ ok: true, payload: {} })),
+						command: vi.fn(async () => ({ ok: true, payload: { catalog: { status: "ready", commands: [] } } })),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
@@ -1898,10 +1898,11 @@ Follow the desktop send workflow instructions.`,
 		const liveSession = ctx.liveSessions.get(sessionId);
 		if (liveSession) liveSession.config.apiKey = "test-key";
 		binding.sessionManager.updateSessionConnection = vi.fn(async () => {});
-		const command = vi.fn(async () => ({
+		const command = vi.fn(async (name: string) => ({
 			version: "v1" as const,
 			ok: true,
 			payload: {
+				catalog: name === "plugins.commands.list" ? { status: "ready", commands: [{ name: "goal" }] } : undefined,
 				result: {
 					reply: "Goal set",
 					submitPrompt: "expanded  goal\nnext line",

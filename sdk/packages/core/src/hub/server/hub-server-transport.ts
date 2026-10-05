@@ -772,7 +772,7 @@ export class HubServerTransport implements NativeHubTransport {
 							}
 						: undefined
 					: (authority ?? undefined);
-			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
+			const reply = await this.dispatchCommand(envelope, effectiveAuthority, authority !== undefined);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -791,6 +791,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority,
+		authenticatedConnection = false,
 	): Promise<HubReplyEnvelope> {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
@@ -918,6 +919,10 @@ export class HubServerTransport implements NativeHubTransport {
 				return okReply(envelope);
 			case "plugins.commands.list":
 			case "plugins.commands.run": {
+				if (authenticatedConnection && !authority) return {
+					version: envelope.version, requestId: envelope.requestId, ok: false,
+					error: { code: "client_not_registered", message: "Plugin commands require a registered connection" },
+				};
 				const service = (
 					this.sessionHost as RuntimeHost &
 						Partial<PluginCommandsRuntimeService>
@@ -946,8 +951,28 @@ export class HubServerTransport implements NativeHubTransport {
 					throw new Error(
 						"Plugin workspace is outside the connection's authority",
 					);
-				const sessionId = envelope.sessionId;
-				const target = { workspacePath, ...(sessionId ? { sessionId } : {}) };
+				let sessionId = envelope.sessionId;
+				if (sessionId && authenticatedConnection) {
+					const state = this.sessionState.get(sessionId);
+					if (!state && envelope.command === "plugins.commands.list") sessionId = undefined;
+					else if (!state) return {
+						version: envelope.version, requestId: envelope.requestId, ok: false,
+						error: { code: "session_not_found", message: `Unknown session: ${sessionId}` },
+					};
+					else if (state.createdByClientId !== authority?.clientId) {
+					return {
+						version: envelope.version, requestId: envelope.requestId, ok: false,
+						error: { code: "session_wrong_client", message: "Plugin commands require the session's owning client" },
+					};
+					}
+				}
+				const target = {
+					workspacePath, ...(sessionId ? { sessionId } : {}),
+					cwd: typeof envelope.payload?.cwd === "string" ? envelope.payload.cwd : workspacePath,
+					providerId: typeof envelope.payload?.providerId === "string" ? envelope.payload.providerId : undefined,
+					modelId: typeof envelope.payload?.modelId === "string" ? envelope.payload.modelId : undefined,
+					pluginPaths: Array.isArray(envelope.payload?.pluginPaths) ? envelope.payload.pluginPaths.filter((path): path is string => typeof path === "string") : undefined,
+				};
 				const payload =
 					envelope.command === "plugins.commands.list"
 						? { catalog: await service.list(target) }
