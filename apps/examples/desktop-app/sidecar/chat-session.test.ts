@@ -1824,7 +1824,7 @@ describe("first-send connection updates", () => {
 			expect(response).toMatchObject({ result: { finishReason: "error" } });
 		});
 
-		it("gives a replacement session its own recovery and keeps it shared after stale cleanup", async () => {
+		it("serializes replacement recovery behind a cancelled rebuild and retains sharing", async () => {
 			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
 				createContext();
 			let finishOld!: (result: { sessionId: string }) => void;
@@ -1870,11 +1870,17 @@ describe("first-send connection updates", () => {
 					sessionId,
 					prompt: "replacement turn",
 				});
-				await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+				await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				// The old Hub startup still owns this session ID. Its late
+				// registration must finish before another startup can begin.
+				expect(start).toHaveBeenCalledOnce();
+				expect(updateSessionConnection).toHaveBeenCalledOnce();
 				finishOld({ sessionId });
 				await expect(first).resolves.toMatchObject({
 					result: { finishReason: "error" },
 				});
+				await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
 				queued = handleChatSessionCommand(ctx, {
 					action: "send",
 					sessionId,
@@ -1895,8 +1901,10 @@ describe("first-send connection updates", () => {
 				expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
 			} finally {
 				finishOld?.({ sessionId });
+				await first;
+				await new Promise((resolve) => setTimeout(resolve, 0));
 				finishNew?.({ sessionId });
-				await Promise.all([first, replacementSend, queued]);
+				await Promise.all([replacementSend, queued]);
 			}
 		});
 

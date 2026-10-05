@@ -1368,9 +1368,12 @@ async function reconnectSessionAfterHubLoss(
 	const existing = hubReconnects.get(sessionId);
 	if (existing?.session === session) return existing.outcome;
 	const controller = new AbortController();
-	// Share recovery within this live projection. A reattached projection gets
-	// its own operation even while a cancelled rebuild is still settling.
-	const outcome = Promise.resolve()
+	// Share within a live projection, but serialize across replacements of the
+	// same session ID. A cancelled Hub startup can still register a runtime;
+	// it and its cleanup must settle before the replacement probes or rebuilds.
+	existing?.controller.abort();
+	const outcome = Promise.resolve(existing?.outcome)
+		.catch(() => undefined)
 		.then(() =>
 			recoverSessionAfterHubLoss(
 				ctx,
