@@ -451,14 +451,19 @@ class StdioMcpClient implements McpServerClient {
 		// A server that dies or closes stdin while a request is still being
 		// written fails that write asynchronously on the stdin stream. Without
 		// a listener Node raises it as an uncaught exception on the host
-		// process. The "exit" handler reports the server's fate for anything
-		// still pending, and that is the useful message (exit code, stderr), so
-		// the write error is only recorded to annotate it.
+		// process. Either way the connection is dead: nothing holds the pipe's
+		// read end any more, so no further request can reach the server. Kill
+		// it and let the "exit" handler fail what is pending with the useful
+		// message (exit code, stderr); the write error only annotates that. A
+		// server that already exited keeps its real exit status -- the kill is
+		// a no-op -- while one that closed stdin but stayed alive fails now
+		// instead of waiting out the request timeout.
 		child.stdin.on("error", (error) => {
 			if (this.process !== child) {
 				return;
 			}
 			this.stdinFailure = toErrorMessage(error);
+			child.kill();
 		});
 		child.once("exit", (code, signal) => {
 			if (this.process !== child) {

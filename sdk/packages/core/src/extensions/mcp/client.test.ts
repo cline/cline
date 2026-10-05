@@ -168,6 +168,51 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+// Answers initialize, then closes its stdin the moment a tools/call request
+// starts arriving and stays alive. It reads fd 0 directly rather than through
+// process.stdin so that libuv holds no handle on it and the close is real.
+const CLOSE_STDIN_SERVER_SCRIPT = `
+const fs = require("node:fs");
+const chunk = Buffer.alloc(4096);
+let buffer = "";
+for (;;) {
+	let read;
+	try {
+		read = fs.readSync(0, chunk, 0, chunk.length, null);
+	} catch (error) {
+		if (error.code === "EAGAIN") continue;
+		throw error;
+	}
+	if (read === 0) break;
+	const text = chunk.toString("utf8", 0, read);
+	if (text.includes('"tools/call"')) {
+		fs.closeSync(0);
+		setInterval(() => {}, 1000);
+		break;
+	}
+	buffer += text;
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined || msg.method !== "initialize") continue;
+		const result = {
+			protocolVersion: "2024-11-05",
+			capabilities: {},
+			serverInfo: { name: "fake", version: "0.0.0" },
+		};
+		fs.writeSync(1, JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+	}
+}
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
@@ -176,6 +221,11 @@ beforeAll(() => {
 	writeFileSync(
 		join(tempRoot, "exit-on-call-server.js"),
 		EXIT_ON_CALL_SERVER_SCRIPT,
+		"utf8",
+	);
+	writeFileSync(
+		join(tempRoot, "close-stdin-server.js"),
+		CLOSE_STDIN_SERVER_SCRIPT,
 		"utf8",
 	);
 	writeFileSync(
@@ -659,4 +709,38 @@ describe("mcp client stdin failures", () => {
 			await client.disconnect();
 		}
 	}, 30_000);
+
+	// On win32 the server runs under a cmd.exe wrapper (shell: true) that holds
+	// the pipe open, so closing stdin inside the script never fails the write.
+	it.skipIf(process.platform === "win32")(
+		"fails the request at once when the server closes stdin but stays alive",
+		async () => {
+			const factory = createDefaultMcpServerClientFactory();
+			const client = await factory(
+				fakeServerRegistration({
+					delayMs: 0,
+					timeoutSeconds: 20,
+					script: "close-stdin-server.js",
+				}),
+			);
+			try {
+				await client.connect();
+				const startedAt = Date.now();
+				await expect(
+					client.callTool({
+						name: "anything",
+						arguments: { blob: "x".repeat(1_000_000) },
+					}),
+				).rejects.toThrow(
+					/MCP process exited for "fake-server" .*stopped reading its input/s,
+				);
+				// Well under the 20s request timeout: the client killed the server
+				// instead of waiting for a reply that could never come.
+				expect(Date.now() - startedAt).toBeLessThan(5_000);
+			} finally {
+				await client.disconnect();
+			}
+		},
+		30_000,
+	);
 });
