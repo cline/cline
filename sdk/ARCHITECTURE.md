@@ -1048,8 +1048,14 @@ On POSIX hosts, commands and forwarding share a private OpenSSH control socket.
 `recoverForwarding` replaces the forwarding port and control socket while keeping
 remote Hub identity, authentication, sessions, and running prompts. An unexpected
 tunnel exit retains the runtime binding; only explicit disconnect stops the Hub.
+Changing a disconnected profile's SSH identity closes its old control master;
+subsequent commands and forwarding use a fresh socket and the new credentials.
+Disposal attempts every managed connection even when an individual Hub stop
+fails, retains failed cleanup records, and reports errors after local teardown.
 Remote clients probe subscribed connections every 15 seconds, invalidate silent
-connections after a 10-second probe timeout, and resolve a fresh forwarding URL.
+connections after a 10-second probe timeout with no intervening command replies,
+and resolve a fresh forwarding URL. Command timeouts share the same bounded
+health probe; a slow command alone does not invalidate healthy forwarding.
 Reads and capability acknowledgements may retry once; other writes require state
 reconciliation. Desktop metadata updates read back requested keys after an
 uncertain reply instead of reporting a committed pin as failed.
@@ -1060,6 +1066,10 @@ Pending capability requests replay on subscription; an already executing handler
 ignores duplicate requests. Acknowledged remote runs keep their pending reply
 across reconnection and resolve from the correlated terminal event, without
 resending the prompt. Existing durable event cursors replay missed run events.
+Each interrupted run keeps a 60-second recovery deadline through registration;
+only its correlated reply, terminal event, or live heartbeat clears that deadline.
+Without replay or live evidence, recovery rejects within that bound instead of
+leaving a missed terminal event pending forever.
 Desktop branch status only reads the current branch, coalesces concurrent reads,
 and backs off for 60 seconds on empty/error results; branch enumeration remains
 an explicit picker operation.

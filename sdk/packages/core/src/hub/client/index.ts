@@ -34,6 +34,7 @@ import {
 type PendingReply = {
 	resumeRun?: boolean;
 	accepted?: boolean;
+	recoveryDeadline?: ReturnType<typeof setTimeout>;
 	resolve: (reply: HubReplyEnvelope) => void;
 	reject: (error: unknown) => void;
 };
@@ -337,7 +338,8 @@ export class NodeHubClient {
 	private socket: WebSocketLike | undefined;
 	private refreshEndpoint = false;
 	private heartbeatTimer: ReturnType<typeof setTimeout> | undefined;
-	private recoveryDeadline: ReturnType<typeof setTimeout> | undefined;
+	private transportProbe: Promise<void> | undefined;
+	private receivedReplies = 0;
 	private connectPromise: Promise<void> | undefined;
 	private readonly clientId: string;
 	private currentUrl: string;
@@ -476,8 +478,6 @@ export class NodeHubClient {
 				);
 			}
 			this.reconnectAttempt = 0;
-			if (this.recoveryDeadline) clearTimeout(this.recoveryDeadline);
-			this.recoveryDeadline = undefined;
 			this.scheduleHeartbeat();
 		});
 		const registrationPromise = this.connectPromise;
@@ -724,6 +724,7 @@ export class NodeHubClient {
 		sessionId?: string,
 		options?: HubCommandOptions,
 		ensureConnected = true,
+		skipTransportProbe = false,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
@@ -739,7 +740,7 @@ export class NodeHubClient {
 			const timeout =
 				effectiveTimeoutMs === null
 					? undefined
-					: setTimeout(() => {
+					: setTimeout(async () => {
 							if (!this.pendingReplies.delete(requestId)) {
 								return;
 							}
@@ -748,26 +749,29 @@ export class NodeHubClient {
 								"hub_command_timeout",
 								`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). The command may have completed; read back state before retrying a write.`,
 							);
+							if (!skipTransportProbe && this.options.resolveReconnectUrl)
+								await this.checkTransport(10_000);
 							reject(error);
-							if (this.options.resolveReconnectUrl && this.socket)
-								this.resetFailedTransport(this.socket, error);
 						}, effectiveTimeoutMs);
-			this.pendingReplies.set(requestId, {
+			const pending: PendingReply = {
 				resumeRun:
 					command === "run.start" && Boolean(this.options.resolveReconnectUrl),
 				resolve: (value) => {
+					clearTimeout(pending.recoveryDeadline);
 					if (timeout) {
 						clearTimeout(timeout);
 					}
 					resolve(value);
 				},
 				reject: (error) => {
+					clearTimeout(pending.recoveryDeadline);
 					if (timeout) {
 						clearTimeout(timeout);
 					}
 					reject(error);
 				},
-			});
+			};
+			this.pendingReplies.set(requestId, pending);
 		});
 		try {
 			this.sendFrame({
@@ -843,6 +847,7 @@ export class NodeHubClient {
 	private resetFailedTransport(socket: WebSocketLike, error: Error): void {
 		if (this.socket !== socket) return;
 		this.refreshEndpoint = true;
+		this.transportProbe = undefined;
 		this.registered = false;
 		this.socket = undefined;
 		this.connectPromise = undefined;
@@ -850,7 +855,16 @@ export class NodeHubClient {
 		if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
 		this.heartbeatTimer = undefined;
 		for (const [id, pending] of this.pendingReplies) {
-			if (pending.resumeRun && pending.accepted) continue;
+			if (pending.resumeRun && pending.accepted) {
+				// Registration alone does not prove this run is still observable.
+				// Keep the bound until its reply, terminal event, or live heartbeat.
+				pending.recoveryDeadline ??= setTimeout(() => {
+					this.pendingReplies.delete(id);
+					pending.reject(error);
+				}, 60_000);
+				pending.recoveryDeadline.unref?.();
+				continue;
+			}
 			this.pendingReplies.delete(id);
 			pending.reject(error);
 		}
@@ -859,22 +873,35 @@ export class NodeHubClient {
 		} catch {
 			/* already closed */
 		}
-		if (
-			[...this.pendingReplies.values()].some((pending) => pending.resumeRun) &&
-			!this.recoveryDeadline
-		) {
-			this.recoveryDeadline = setTimeout(() => {
-				this.recoveryDeadline = undefined;
-				for (const [id, pending] of this.pendingReplies) {
-					if (!pending.resumeRun) continue;
-					this.pendingReplies.delete(id);
-					pending.reject(error);
-				}
-			}, 60_000);
-			this.recoveryDeadline.unref?.();
-		}
 		if (!this.closedByClient && this.hasActiveSubscriptions())
 			this.scheduleReconnect();
+	}
+
+	private checkTransport(timeoutMs: number): Promise<void> {
+		if (this.transportProbe) return this.transportProbe;
+		const socket = this.socket;
+		if (!socket || !this.registered) return Promise.resolve();
+		const receivedReplies = this.receivedReplies;
+		const probe = this.commandOnce(
+			"client.list",
+			undefined,
+			undefined,
+			{ timeoutMs },
+			false,
+			true,
+		)
+			.then(() => undefined)
+			.catch((error) => {
+				// A slow probe is not evidence of transport failure while other
+				// commands are receiving replies on the same socket.
+				if (this.receivedReplies === receivedReplies)
+					this.resetFailedTransport(socket, error);
+			})
+			.finally(() => {
+				if (this.transportProbe === probe) this.transportProbe = undefined;
+			});
+		this.transportProbe = probe;
+		return probe;
 	}
 
 	private scheduleHeartbeat(): void {
@@ -886,9 +913,7 @@ export class NodeHubClient {
 			return;
 		this.heartbeatTimer = setTimeout(() => {
 			this.heartbeatTimer = undefined;
-			void this.commandOnce("client.list", undefined, undefined, {
-				timeoutMs: 10_000,
-			})
+			void this.checkTransport(10_000)
 				.catch(() => undefined)
 				.finally(() => {
 					if (this.registered) this.scheduleHeartbeat();
@@ -992,10 +1017,9 @@ export class NodeHubClient {
 
 	close(): void {
 		const socket = this.socket;
+		this.transportProbe = undefined;
 		if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
 		this.heartbeatTimer = undefined;
-		if (this.recoveryDeadline) clearTimeout(this.recoveryDeadline);
-		this.recoveryDeadline = undefined;
 		this.closedByClient = true;
 		// Invalidate any in-flight connection attempt.
 		this.connectGeneration += 1;
@@ -1110,6 +1134,7 @@ export class NodeHubClient {
 	private handleFrame(frame: HubTransportFrame): void {
 		switch (frame.kind) {
 			case "reply": {
+				this.receivedReplies += 1;
 				const requestId = frame.envelope.requestId;
 				if (!requestId) {
 					return;
@@ -1132,7 +1157,10 @@ export class NodeHubClient {
 					: undefined;
 				if (pending?.resumeRun) {
 					if (frame.envelope.event === "run.started") pending.accepted = true;
-					else if (
+					else if (frame.envelope.event === "run.heartbeat") {
+						clearTimeout(pending.recoveryDeadline);
+						pending.recoveryDeadline = undefined;
+					} else if (
 						["run.completed", "run.failed", "run.aborted"].includes(
 							frame.envelope.event,
 						)

@@ -199,7 +199,9 @@ describe("RemoteEnvironmentService", () => {
 		let requiredIdentity: string | undefined;
 		let helperMissing = false;
 		let uploads = 0;
+		const requestHubShutdown = vi.fn(async () => true);
 		const dependencies: Partial<RemoteEnvironmentDependencies> = {
+			requestHubShutdown,
 			runProcess: async (_executable, args, options) => {
 				const command = args.at(-1) ?? "";
 				commands.push(command);
@@ -250,6 +252,10 @@ describe("RemoteEnvironmentService", () => {
 		offline = true;
 		tunnels[0].emit("exit", 255, null);
 		await expect(service.dispose()).rejects.toThrow("Network unavailable");
+		expect(tunnels.every((tunnel) => tunnel.killed)).toBe(true);
+		expect(service.getConnection(first.id)).toBeUndefined();
+		expect(service.getConnection(second.id)).toBeUndefined();
+		expect(requestHubShutdown).toHaveBeenCalledTimes(1);
 		expect(await readdir(`${profilesPath}.cleanup`)).toHaveLength(1);
 		offline = false;
 		const restarted = createService(dependencies);
@@ -955,6 +961,48 @@ describe("RemoteEnvironmentService", () => {
 		await service.dispose();
 		expect(requestHubShutdown).toHaveBeenCalledTimes(1);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"replaces a tested profile's SSH master after an identity edit",
+		async () => {
+			const invocations: string[][] = [];
+			const service = createService({
+				runProcess: async (_executable, args) => {
+					invocations.push(args);
+					return args.at(-1)?.includes("uname -s")
+						? inspection("Linux", "x86_64", "/home/dev")
+						: success();
+				},
+			});
+			try {
+				const profile = await service.upsert({
+					name: "SSM",
+					host: "ssm-host",
+					identityFile: "/keys/old",
+				});
+				await service.test(profile.id);
+				const oldPath = invocations[0].find((arg) =>
+					arg.startsWith("ControlPath="),
+				);
+				await service.upsert({ ...profile, name: "Renamed" });
+				await service.test(profile.id);
+				expect(invocations[1]).toContain(oldPath);
+				await service.upsert({ ...profile, identityFile: "/keys/new" });
+				const close = invocations.find((args) => args.includes("-O"));
+				expect(close).toContain(oldPath);
+				expect(close).toContain("/keys/old");
+				expect(close).toContain("exit");
+				await service.test(profile.id);
+				const next = invocations.at(-1) as string[];
+				expect(next).toContain("/keys/new");
+				expect(next.find((arg) => arg.startsWith("ControlPath="))).not.toEqual(
+					oldPath,
+				);
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
 
 	it("quotes command arguments and rejects non-zero remote commands", async () => {
 		const invocations: Invocation[] = [];

@@ -268,6 +268,13 @@ export class RemoteEnvironmentService {
 				profiles.push(profile);
 			}
 			await this.writeProfiles(profiles);
+			if (existing && !profilesUseSameConnection(existing, profile)) {
+				await this.closeControlMaster(
+					existing,
+					this.controlPaths.get(profile.id),
+				);
+				this.controlPaths.delete(profile.id);
+			}
 			const connected = this.connections.get(profile.id);
 			if (
 				connected &&
@@ -649,11 +656,20 @@ export class RemoteEnvironmentService {
 
 	public dispose(): Promise<void> {
 		return this.withMutation(async () => {
+			const errors: unknown[] = [];
 			try {
 				for (const id of [...this.connections.keys()]) {
-					await this.disconnectProfile(id);
+					try {
+						await this.disconnectProfile(id);
+					} catch (error) {
+						errors.push(error);
+					}
 				}
-				await this.retryPendingCleanup();
+				try {
+					await this.retryPendingCleanup();
+				} catch (error) {
+					errors.push(error);
+				}
 			} finally {
 				// Inspection/branch commands can create masters without a Hub binding.
 				const profiles = await this.list();
@@ -669,6 +685,12 @@ export class RemoteEnvironmentService {
 					this.controlDirectory = undefined;
 				}
 			}
+			if (errors.length === 1) throw errors[0];
+			if (errors.length > 1)
+				throw new AggregateError(
+					errors,
+					`Failed to dispose remote environments: ${errors.map(errorMessage).join("; ")}`,
+				);
 		});
 	}
 
