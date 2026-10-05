@@ -188,7 +188,7 @@ for (;;) {
 	const text = chunk.toString("utf8", 0, read);
 	if (text.includes('"tools/call"')) {
 		fs.closeSync(0);
-		const exitAfterMs = Number(process.env.FAKE_MCP_EXIT_AFTER_CLOSE_MS ?? "");
+		const exitAfterMs = Number(process.env.FAKE_MCP_EXIT_AFTER_CLOSE_MS);
 		if (Number.isFinite(exitAfterMs)) {
 			setTimeout(() => process.exit(7), exitAfterMs);
 		} else {
@@ -744,7 +744,7 @@ describe("mcp client stdin failures", () => {
 						arguments: { blob: "x".repeat(1_000_000) },
 					}),
 				).rejects.toThrow(
-					/MCP process exited for "fake-server" .*stopped reading its input/s,
+					/MCP process exited for "fake-server" \(code=null, signal=SIGTERM\).*stopped reading its input/s,
 				);
 				// Well under the 20s request timeout: the client killed the server
 				// instead of waiting for a reply that could never come.
