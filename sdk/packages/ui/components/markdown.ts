@@ -12,11 +12,10 @@ import type {
 import {
 	buildMermaidConfig,
 	createDefaultMermaidConfig,
+	createMermaidService,
 	defaultMermaidLoader,
 	type LazyMermaidInstance,
-	type MermaidModule,
 	type MermaidModuleLoader,
-	neutralizeDiagramLinks,
 } from "./mermaid-diagram.js";
 import { readMermaidTheme } from "./mermaid-dom.js";
 
@@ -96,39 +95,32 @@ export const DEFAULT_MERMAID_CONFIG: MermaidConfig =
 export function createLazyMermaidPlugin(
 	loader: MermaidModuleLoader = defaultMermaidLoader,
 ): DiagramPlugin {
+	const service = createMermaidService(loader);
 	let overrides: MermaidConfig = {};
-	let modulePromise: Promise<MermaidModule> | undefined;
-	const getModule = () => {
-		modulePromise ??= loader().catch((error: unknown) => {
-			modulePromise = undefined;
-			throw error;
-		});
-		return modulePromise;
-	};
-
-	let appliedKey: string | undefined;
+	let cached: { config: MermaidConfig; key: string } | undefined;
 
 	const instance: LazyMermaidInstance = {
 		initialize(nextConfig: MermaidConfig) {
 			overrides = { ...overrides, ...nextConfig };
-			appliedKey = undefined;
+			cached = undefined;
 		},
-		async render(id: string, source: string) {
-			const mermaidModule = await getModule();
-			const mermaid = mermaidModule.default;
+		render(id: string, source: string) {
 			const theme = readMermaidTheme();
-			if (appliedKey !== theme.key) {
-				mermaid.initialize({
-					...buildMermaidConfig(theme.tokens, theme.mode, {
-						fontFamily: theme.fontFamily,
-					}),
-					...overrides,
-					securityLevel: "strict",
-				});
-				appliedKey = theme.key;
+			// One config object per theme key so the shared service only calls
+			// `initialize` when the theme or the overrides change.
+			if (cached?.key !== theme.key) {
+				cached = {
+					config: {
+						...buildMermaidConfig(theme.tokens, theme.mode, {
+							fontFamily: theme.fontFamily,
+						}),
+						...overrides,
+						securityLevel: "strict",
+					},
+					key: theme.key,
+				};
 			}
-			const result = await mermaid.render(id, source);
-			return { ...result, svg: neutralizeDiagramLinks(result.svg) };
+			return service.render(id, source, cached.config);
 		},
 	};
 

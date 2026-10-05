@@ -10,7 +10,6 @@ import {
 	cssColorToHex,
 	DEFAULT_DIAGRAM_NAME,
 	deriveDiagramLabels,
-	deriveMermaidDiagramName,
 	diagramFileName,
 	encodePngWithinLimit,
 	FALLBACK_MERMAID_TOKENS,
@@ -332,78 +331,6 @@ describe("resolveDiagramSlug", () => {
 	test("keeps derived names short", () => {
 		const long = `flowchart LR\n  subgraph ${"Very".repeat(30)}\n  end`;
 		expect(resolveDiagramSlug({ source: long }).length).toBeLessThanOrEqual(48);
-	});
-});
-
-describe("deriveMermaidDiagramName", () => {
-	test.each([
-		[
-			'title="App Infra Architecture"',
-			"App Infra Architecture",
-			"app-infra-architecture",
-		],
-		["title='single quoted'", "single quoted", "single-quoted"],
-		["title=unquoted-name", "unquoted-name", "unquoted-name"],
-	])("reads the fence title from %s", (meta, title, slug) => {
-		expect(deriveMermaidDiagramName({ code: FLOW, meta })).toEqual({
-			slug,
-			title,
-		});
-	});
-
-	test("falls back to the frontmatter title", () => {
-		expect(
-			deriveMermaidDiagramName({
-				code: `---\ntitle: Auth Flow\n---\n${FLOW}`,
-			}),
-		).toEqual({ slug: "auth-flow", title: "Auth Flow" });
-	});
-
-	test("derives from the diagram type and first labels", () => {
-		expect(
-			deriveMermaidDiagramName({
-				code: "flowchart TD\n  subgraph VPC\n    GW[API Gateway]\n  end",
-				meta: "",
-			}),
-		).toEqual({
-			slug: "flowchart-vpc-api-gateway",
-			title: "flowchart vpc api gateway",
-		});
-	});
-
-	test("falls back to `diagram` and tolerates undefined meta and partial code", () => {
-		expect(deriveMermaidDiagramName({ code: "" })).toEqual({
-			slug: "diagram",
-			title: "diagram",
-		});
-		expect(
-			deriveMermaidDiagramName({ code: "---\ntitle: Ha", meta: undefined })
-				.slug,
-		).toBeTruthy();
-		expect(() =>
-			deriveMermaidDiagramName({
-				code: "flowchart LR\nA[[[ ((( --",
-				meta: null,
-			}),
-		).not.toThrow();
-	});
-
-	test("always yields a safe, non-empty filename stem", () => {
-		for (const title of [
-			"../../etc/passwd",
-			"a/b\\c",
-			"日本語のタイトル",
-			"con\u0000trol\u0007chars",
-			"x".repeat(500),
-			"!!!",
-		]) {
-			const { slug } = deriveMermaidDiagramName({
-				code: FLOW,
-				meta: `title="${title}"`,
-			});
-			expect(slug, title).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
-			expect(slug.length).toBeLessThanOrEqual(MAX_DIAGRAM_SLUG_LENGTH);
-		}
 	});
 });
 

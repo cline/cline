@@ -421,34 +421,6 @@ export function resolveDiagramSlug({
 	return derived || DEFAULT_DIAGRAM_NAME;
 }
 
-export interface MermaidDiagramName {
-	/** Filename stem: lowercase, `[a-z0-9-]`, never empty, safe for any OS. */
-	slug: string;
-	/** Human-readable name the slug was derived from. */
-	title: string;
-}
-
-/**
- * Name for a diagram, as a display `title` plus a filename-safe `slug`. Order:
- * fence `title="..."`, diagram frontmatter `title:`, diagram type + first
- * subgraph/node labels, then `diagram`. Accepts partial (still streaming)
- * source and an undefined `meta`; never throws.
- */
-export function deriveMermaidDiagramName({
-	code,
-	meta,
-}: {
-	code: string;
-	meta?: string | null;
-}): MermaidDiagramName {
-	const slug = resolveDiagramSlug({ meta, source: code });
-	const explicit = [parseFenceTitle(meta), parseFrontmatterTitle(code)].find(
-		(candidate) => candidate && slugifyDiagramName(candidate) === slug,
-	);
-	if (explicit) return { slug, title: explicit };
-	return { slug, title: slug.replace(/-/g, " ") };
-}
-
 export type DiagramFileExtension = "mmd" | "png";
 
 export function diagramFileName(
