@@ -1,40 +1,11 @@
+import type { EventEmitter } from "node:events";
 import { accessSync, existsSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
-// Keep this import static so the VS Code extension bundle includes the SAP
-// provider. Hiding it behind a computed dynamic import leaves the published
-// extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
-// runtime, but VSIX packaging uses the bundled extension output.
-import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
-
-// @sap-cloud-sdk/util, pulled in by the SAP provider, builds a winston logger
-// with `exceptionHandlers` at module load. That installs a process-wide
-// "uncaughtException" listener which, with winston's default exitOnError,
-// calls process.exit(1) three seconds after ANY uncaught exception in the host
-// process -- including ones the host's own handler already caught and chose to
-// survive. Libraries must never own process lifecycle (see
-// stripRogueSignalHandlers below). The SDK's disableExceptionLogger() is not
-// enough: @jerome-benoit/sap-ai-provider bundles a second, private copy of the
-// util module that no import can reach. winston registers its catchers as
-// `this._uncaughtException.bind(this)` / `this._unhandledRejection.bind(this)`,
-// so match them by that name and remove every instance.
-function stripWinstonProcessCatchers(): void {
-	for (const listener of process.listeners("uncaughtException")) {
-		if (listener.name === "bound _uncaughtException") {
-			process.removeListener("uncaughtException", listener);
-		}
-	}
-	for (const listener of process.listeners("unhandledRejection")) {
-		if (listener.name === "bound _unhandledRejection") {
-			process.removeListener("unhandledRejection", listener);
-		}
-	}
-}
-stripWinstonProcessCatchers();
 
 type SapModel = Record<PropertyKey, unknown>;
 const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
@@ -188,29 +159,48 @@ export async function createOpenAICodexProviderModule(
 	};
 }
 
-// ai-sdk-provider-opencode-sdk registers process.once("SIGINT") and
-// process.once("SIGTERM") handlers that call process.exit() immediately.
-// Libraries must never hijack process lifecycle -- that is the host
-// application's responsibility. These handlers prevent host apps (like
-// Kanban) from performing graceful shutdown (e.g. persisting state,
-// cleaning up worktrees) because the opencode handler fires first and
-// force-exits the process.
+type ProcessLifecycleEvent =
+	| "SIGINT"
+	| "SIGTERM"
+	| "uncaughtException"
+	| "unhandledRejection";
+
+// Some provider packages hijack process lifecycle, which is the host
+// application's responsibility, not a library's:
 //
-// Workaround: snapshot listeners before provider creation, then remove
-// any new SIGINT/SIGTERM listeners the library added.
+// - ai-sdk-provider-opencode-sdk registers process.once("SIGINT"/"SIGTERM")
+//   handlers that call process.exit() immediately, so a host (like Kanban)
+//   never gets to shut down gracefully.
+// - @sap-cloud-sdk/util, a dependency of the SAP AI Core provider, builds a
+//   winston logger with `exceptionHandlers` at module load. winston installs a
+//   process-wide "uncaughtException" listener which, with its default
+//   exitOnError, calls process.exit(1) three seconds after ANY uncaught
+//   exception in the host process -- including ones the host's own handler
+//   caught and chose to survive. Its disableExceptionLogger() cannot help:
+//   @jerome-benoit/sap-ai-provider bundles a second, private copy of the module.
 //
-// TODO: remove once ai-sdk-provider-opencode-sdk stops calling
-// process.exit() from signal handlers.
-async function stripRogueSignalHandlers<T>(fn: () => Promise<T>): Promise<T> {
-	const signals = ["SIGINT", "SIGTERM"] as const;
+// Workaround: snapshot the listeners for the given events, run the import and
+// provider construction, then remove only the listeners that were added in
+// between. Diffing (rather than matching by name) keeps any handlers the
+// embedding host installed for the same events intact.
+//
+// TODO: remove each entry once the upstream package stops touching process
+// lifecycle.
+async function withoutRogueProcessListeners<T>(
+	events: readonly ProcessLifecycleEvent[],
+	fn: () => Promise<T>,
+): Promise<T> {
+	// Through the plain EventEmitter type: bun-types merges extra overloads
+	// into `process` that break resolution for a union of event names.
+	const emitter = process as unknown as EventEmitter;
 	const before = new Map(
-		signals.map((sig) => [sig, new Set(process.listeners(sig))]),
+		events.map((event) => [event, new Set(emitter.listeners(event))]),
 	);
 	const result = await fn();
-	for (const sig of signals) {
-		for (const listener of process.listeners(sig)) {
-			if (!before.get(sig)?.has(listener)) {
-				process.removeListener(sig, listener);
+	for (const event of events) {
+		for (const listener of emitter.listeners(event)) {
+			if (!before.get(event)?.has(listener)) {
+				emitter.removeListener(event, listener as (...args: unknown[]) => void);
 			}
 		}
 	}
@@ -223,15 +213,18 @@ export async function createOpenCodeProviderModule(
 	// Dynamic import is intentional: ai-sdk-provider-opencode-sdk runs
 	// `var opencode = createOpencode()` at module scope, which registers
 	// process.once("SIGINT") / process.once("SIGTERM") handlers that call
-	// process.exit(0). Importing it inside stripRogueSignalHandlers ensures
+	// process.exit(0). Importing it inside withoutRogueProcessListeners ensures
 	// both the module side effect and the explicit createOpencode() call are
 	// captured, so the rogue handlers get removed.
 	// TODO: switch back to a static import once the upstream package stops
 	// calling process.exit() from signal handlers.
-	const provider = await stripRogueSignalHandlers(async () => {
-		const { createOpencode } = await import("ai-sdk-provider-opencode-sdk");
-		return createOpencode(readOptions(config));
-	});
+	const provider = await withoutRogueProcessListeners(
+		["SIGINT", "SIGTERM"],
+		async () => {
+			const { createOpencode } = await import("ai-sdk-provider-opencode-sdk");
+			return createOpencode(readOptions(config));
+		},
+	);
 	return {
 		operations: { language: (modelId) => provider(modelId) },
 	};
@@ -397,29 +390,40 @@ export async function createSapAiCoreProviderModule(
 	const serviceKey = buildSapServiceKey(config, options);
 
 	const deploymentId = readStringOption(options, "deploymentId");
-	const provider = createSAPAIProvider({
-		name: config.providerId,
-		...(deploymentId
-			? { deploymentId }
-			: { resourceGroup: readStringOption(options, "resourceGroup") }),
-		api: resolveSapApi(options),
-		...(typeof options.defaultSettings === "object" &&
-		options.defaultSettings !== null &&
-		!Array.isArray(options.defaultSettings)
-			? { defaultSettings: options.defaultSettings }
-			: {}),
-		requestConfig: {
-			headers: { "ai-client-type": "Cline" },
-			// Standard cline axios settings mirroring `getAxiosSettings()`
-			adapter: "fetch",
-			...(config.fetch ? { fetch: config.fetch } : {}),
-			maxBodyLength: Number.POSITIVE_INFINITY,
-			maxContentLength: Number.POSITIVE_INFINITY,
+	// Dynamic import is intentional: loading the SAP provider arms winston's
+	// exit-on-uncaught-exception handlers (see withoutRogueProcessListeners), so
+	// both the import and the construction run inside the wrapper, which also
+	// confines that side effect to actual SAP AI Core usage. The specifier is a
+	// literal so bundlers still include the package (a computed specifier left
+	// the VSIX trying to load it from node_modules at runtime).
+	const provider = await withoutRogueProcessListeners(
+		["uncaughtException", "unhandledRejection"],
+		async () => {
+			const { createSAPAIProvider } = await import(
+				"@jerome-benoit/sap-ai-provider"
+			);
+			return createSAPAIProvider({
+				name: config.providerId,
+				...(deploymentId
+					? { deploymentId }
+					: { resourceGroup: readStringOption(options, "resourceGroup") }),
+				api: resolveSapApi(options),
+				...(typeof options.defaultSettings === "object" &&
+				options.defaultSettings !== null &&
+				!Array.isArray(options.defaultSettings)
+					? { defaultSettings: options.defaultSettings }
+					: {}),
+				requestConfig: {
+					headers: { "ai-client-type": "Cline" },
+					// Standard cline axios settings mirroring `getAxiosSettings()`
+					adapter: "fetch",
+					...(config.fetch ? { fetch: config.fetch } : {}),
+					maxBodyLength: Number.POSITIVE_INFINITY,
+					maxContentLength: Number.POSITIVE_INFINITY,
+				},
+			});
 		},
-	});
-	// The SAP SDK loads parts of itself lazily; make sure nothing it pulled in
-	// while building the provider re-armed an exit-on-uncaught handler.
-	stripWinstonProcessCatchers();
+	);
 	return {
 		operations: {
 			language: (modelId) =>

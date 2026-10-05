@@ -216,6 +216,7 @@ class StdioMcpClient implements McpServerClient {
 	private stderrBuffer = "";
 	// Set when a write to the current child's stdin failed; see spawnProcess.
 	private stdinFailure: string | undefined;
+	private stdinFailureKill: ReturnType<typeof setTimeout> | undefined;
 	private connected = false;
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
@@ -407,6 +408,7 @@ class StdioMcpClient implements McpServerClient {
 		this.newlineParser = new NewlineMessageParser();
 		this.stderrBuffer = "";
 		this.stdinFailure = undefined;
+		this.clearStdinFailureKill();
 		this.protocolMode = protocolMode;
 
 		const platformOptions =
@@ -452,18 +454,25 @@ class StdioMcpClient implements McpServerClient {
 		// written fails that write asynchronously on the stdin stream. Without
 		// a listener Node raises it as an uncaught exception on the host
 		// process. Either way the connection is dead: nothing holds the pipe's
-		// read end any more, so no further request can reach the server. Kill
-		// it and let the "exit" handler fail what is pending with the useful
-		// message (exit code, stderr); the write error only annotates that. A
-		// server that already exited keeps its real exit status -- the kill is
-		// a no-op -- while one that closed stdin but stayed alive fails now
-		// instead of waiting out the request timeout.
+		// read end any more, so no further request can reach the server. Let
+		// the "exit" handler fail what is pending with the useful message (exit
+		// code, stderr); the write error only annotates that. A server that is
+		// on its way out gets the usual graceful window to report its own exit
+		// status; one that closed stdin but stayed alive is killed after it,
+		// instead of stalling the request until the timeout.
 		child.stdin.on("error", (error) => {
 			if (this.process !== child) {
 				return;
 			}
 			this.stdinFailure = toErrorMessage(error);
-			child.kill();
+			this.clearStdinFailureKill();
+			this.stdinFailureKill = setTimeout(() => {
+				this.stdinFailureKill = undefined;
+				if (this.process === child) {
+					child.kill();
+				}
+			}, STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS);
+			this.stdinFailureKill.unref();
 		});
 		child.once("exit", (code, signal) => {
 			if (this.process !== child) {
@@ -471,6 +480,7 @@ class StdioMcpClient implements McpServerClient {
 			}
 			this.connected = false;
 			this.process = undefined;
+			this.clearStdinFailureKill();
 			const suffix = this.stderrBuffer.trim()
 				? ` stderr: ${this.stderrBuffer.trim()}`
 				: "";
@@ -610,6 +620,13 @@ class StdioMcpClient implements McpServerClient {
 			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method) +
 				this.describeStdinFailure(),
 		);
+	}
+
+	private clearStdinFailureKill(): void {
+		if (this.stdinFailureKill !== undefined) {
+			clearTimeout(this.stdinFailureKill);
+			this.stdinFailureKill = undefined;
+		}
 	}
 
 	private describeStdinFailure(): string {
