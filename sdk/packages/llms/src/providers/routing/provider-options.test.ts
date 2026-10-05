@@ -13,6 +13,8 @@ import {
 	mergeProviderOptionPatches,
 	type ProviderOptionsPatch,
 } from "./provider-options";
+import { inferProviderOptionsTarget } from "./provider-options-types";
+import { toProviderOptionsKey } from "./utils";
 
 type RequestOverrides = Partial<GatewayStreamRequest> & {
 	providerId: string;
@@ -166,6 +168,14 @@ function runCases(cases: ReadonlyArray<Case>) {
 				...context,
 			}),
 		);
+		const providerOptionsKey = toProviderOptionsKey(request.providerId);
+		if (
+			inferProviderOptionsTarget(request.providerId) === "openai-compatible" &&
+			providerOptionsKey !== request.providerId
+		) {
+			expect(result).not.toHaveProperty(request.providerId);
+			expect(result[providerOptionsKey]).toBeDefined();
+		}
 		if (resolvePortableReasoning(gatewayRequest)) {
 			for (const bucket of Object.values(result)) {
 				for (const key of [
@@ -1037,18 +1047,13 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "vercel-ai-gateway GLM thinking-enabled -> provider+alias buckets, no thinking leak",
+			name: "vercel-ai-gateway GLM thinking-enabled -> alias bucket, no thinking leak",
 			request: {
 				providerId: "vercel-ai-gateway",
 				modelId: "z-ai/glm-4.7",
 				reasoning: { enabled: true },
 			},
 			expect: [
-				{
-					bucket: "vercel-ai-gateway",
-					has: { reasoning: { enabled: true } },
-					lacks: ["thinking"],
-				},
 				{
 					bucket: "vercelAiGateway",
 					has: { reasoning: { enabled: true } },
@@ -1073,7 +1078,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "vercel-ai-gateway GLM thinking-disabled -> reasoning.exclude in provider+alias",
+			name: "vercel-ai-gateway GLM thinking-disabled -> reasoning.exclude in alias",
 			request: {
 				providerId: "vercel-ai-gateway",
 				modelId: "z-ai/glm-4.7",
@@ -1674,11 +1679,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			expect: [
 				{
-					bucket: "vercel-ai-gateway",
-					has: { reasoning: { enabled: true } },
-					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
-				},
-				{
 					bucket: "vercelAiGateway",
 					has: { reasoning: { enabled: true } },
 					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
@@ -1717,7 +1717,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			expect: [
 				{
-					bucket: "vercel-ai-gateway",
+					bucket: "vercelAiGateway",
 					lacks: ["thinking", "reasoning"],
 				},
 			],
