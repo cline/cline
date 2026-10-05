@@ -75,6 +75,21 @@ const MAX_TOKENS_RECOVERY_NUDGE =
 	"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.";
 
 /**
+ * How many consecutive turns that end with nothing visible — reasoning or
+ * whitespace only, no text, tool call, media, or provider tool activity — are
+ * nudged before the run fails. Such a turn is not a completion: the user sees
+ * a collapsed thinking block and then silence, and has to type "continue" to
+ * get the model moving again. The counter resets on any turn that produces a
+ * tool call, so this bounds only a run of consecutive empty turns.
+ */
+const EMPTY_TURN_RECOVERY_LIMIT = 3;
+/** Nudge appended after a turn with nothing visible, asking the model to act. */
+const EMPTY_TURN_RECOVERY_NUDGE =
+	"Your previous turn ended without a visible response or tool call. Continue the task: call the next tool you need, or reply with your answer.";
+const EMPTY_TURN_LIMIT_MESSAGE =
+	"Model returned no visible response or tool call across several consecutive turns";
+
+/**
  * How many times to retry a model turn that failed with a transient,
  * provider-side error (rate limits, 5xx, network hiccups, OpenRouter's
  * generic "Provider returned error"). The initial attempt is not counted, so
@@ -484,6 +499,24 @@ function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
 	return request.options?.thinking === false;
 }
 
+/**
+ * Whether the turn left the user something to see: non-whitespace text, a tool
+ * call, media, or provider-executed tool activity (recorded in metadata, not
+ * content). Reasoning alone does not count — it renders as a collapsed block
+ * and carries no answer.
+ */
+function hasVisibleContent(message: AgentMessage): boolean {
+	const activities = message.metadata?.modelToolActivities;
+	return (
+		message.content.some(
+			(part: AgentMessagePart) =>
+				part.type !== "reasoning" &&
+				(part.type !== "text" || part.text.trim().length > 0),
+		) ||
+		(Array.isArray(activities) && activities.length > 0)
+	);
+}
+
 function textFromMessage(message: AgentMessage | undefined): string {
 	if (!message) {
 		return "";
@@ -596,6 +629,8 @@ export class AgentRuntime {
 	private maxTokensRecoveryCount = 0;
 	/** One automatic recovery attempt per run for max-tokens-truncated turns. */
 	private maxTokensRecoveryAttempted = false;
+	/** Consecutive nothing-visible turns nudged this run; see EMPTY_TURN_RECOVERY_LIMIT. */
+	private emptyTurnRecoveryCount = 0;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private modelSteerController?: AbortController;
@@ -802,6 +837,7 @@ export class AgentRuntime {
 		this.pendingHookContexts = [];
 		this.maxTokensRecoveryCount = 0;
 		this.maxTokensRecoveryAttempted = false;
+		this.emptyTurnRecoveryCount = 0;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -926,9 +962,10 @@ export class AgentRuntime {
 					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
-				// A turn that yields tool calls is progress: reset the cut-off streak.
+				// A turn that yields tool calls is progress: reset the recovery streaks.
 				if (toolCalls.length > 0) {
 					this.maxTokensRecoveryCount = 0;
+					this.emptyTurnRecoveryCount = 0;
 				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
 
@@ -939,6 +976,17 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						toolCallCount: 0,
 					});
+					// Reasoning-only (or whitespace-only) turn: the user sees nothing,
+					// so this is not a completion. Nudge and loop, bounded so a model
+					// that keeps returning nothing ends with an error instead of
+					// looping forever or "completing" silently.
+					if (!hasVisibleContent(message)) {
+						if (await this.recoverFromEmptyTurn()) {
+							continue;
+						}
+						this.state.lastFinishReason = finishReason;
+						throw new Error(EMPTY_TURN_LIMIT_MESSAGE);
+					}
 					const completionReminderMessages =
 						this.getCompletionReminderMessages();
 					if (completionReminderMessages.length > 0) {
@@ -1151,6 +1199,35 @@ export class AgentRuntime {
 			},
 		});
 		await this.addUserReminderMessage(MAX_TOKENS_RECOVERY_NUDGE);
+		return true;
+	}
+
+	/**
+	 * Recover from a turn that ended with nothing visible (reasoning or
+	 * whitespace only, no tool call): nudge the model to act and let the loop
+	 * request another turn, up to EMPTY_TURN_RECOVERY_LIMIT consecutive times.
+	 * Returns false once the limit is exhausted so the run fails instead of
+	 * looping or completing silently.
+	 */
+	private async recoverFromEmptyTurn(): Promise<boolean> {
+		if (this.emptyTurnRecoveryCount >= EMPTY_TURN_RECOVERY_LIMIT) {
+			return false;
+		}
+		this.emptyTurnRecoveryCount += 1;
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: `turn ended without a visible response or tool call — nudging to continue (attempt ${this.emptyTurnRecoveryCount}/${EMPTY_TURN_RECOVERY_LIMIT})`,
+			metadata: {
+				kind: "empty_turn_recovery",
+				reason: "empty_turn_recovery",
+				phase: "started",
+				iteration: this.state.iteration,
+				attempt: this.emptyTurnRecoveryCount,
+				maxRetries: EMPTY_TURN_RECOVERY_LIMIT,
+			},
+		});
+		await this.addUserReminderMessage(EMPTY_TURN_RECOVERY_NUDGE);
 		return true;
 	}
 
