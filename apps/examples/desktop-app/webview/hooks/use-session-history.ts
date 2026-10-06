@@ -447,8 +447,6 @@ function areSessionsEquivalent(
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
 			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
-			JSON.stringify(a.metadata?.handoff) !==
-				JSON.stringify(b.metadata?.handoff) ||
 			!areScheduleInfosEqual(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),
@@ -573,17 +571,6 @@ function mergeDiscoveredSessions(
 			},
 		};
 	});
-}
-
-export function resolveLiveHistorySession(
-	snapshot: SessionHistoryItem | undefined,
-	sessions: readonly SessionHistoryItem[],
-): SessionHistoryItem | undefined {
-	if (!snapshot) return undefined;
-	return (
-		sessions.find((session) => sessionKey(session) === sessionKey(snapshot)) ??
-		snapshot
-	);
 }
 
 export function useSessionHistory({

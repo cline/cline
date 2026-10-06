@@ -217,6 +217,31 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).not.toContain("interactive mode");
 	});
 
+	it("emits the same config JSON for either flag placement without a TTY", () => {
+		const env = createIsolatedEnv({
+			CLINE_NO_AUTO_UPDATE: "1",
+			CLINE_TELEMETRY_DISABLED: "1",
+		});
+		const options = { env, cwd: env.HOME, stdin: "" };
+		const local = runCli(["config", "--json"], options);
+		const global = runCli(["--json", "config"], options);
+
+		expect(local.status).toBe(0);
+		expect(global.status).toBe(0);
+		expect(asText(local.stderr)).toBe("");
+		expect(asText(global.stderr)).toBe("");
+		const inventory = JSON.parse(asText(local.stdout));
+		expect(inventory).toEqual(JSON.parse(asText(global.stdout)));
+		expect(inventory).toEqual(
+			expect.objectContaining({
+				rules: expect.any(Array),
+				skills: expect.any(Array),
+				mcp: expect.any(Array),
+				tools: expect.any(Array),
+			}),
+		);
+	});
+
 	it("returns an error for unknown config targets", () => {
 		const result = runCli(["config", "unknown-target"], {
 			env: createIsolatedEnv(),

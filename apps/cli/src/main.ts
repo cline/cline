@@ -277,6 +277,7 @@ export async function runCli(): Promise<void> {
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
 			const realCmd = await createConfigRuntimeCommand();
+			realCmd.setOptionValue("json", cmd.opts().json);
 			await realCmd.parseAsync(cmd.args, { from: "user" });
 		});
 

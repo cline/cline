@@ -1,7 +1,6 @@
 import { ClineAccountService, ProviderSettingsManager } from "@cline/core";
 import {
 	type CloudCreationOptions,
-	type CloudSendLifecycle,
 	CloudSessionApi,
 	CloudSessionController,
 	type CloudSessionControllerOptions,
@@ -179,7 +178,6 @@ export class CloudSessionManager extends CloudSessionController {
 		delivery?: "queue" | "steer",
 		modelId?: string,
 		images?: string[],
-		lifecycle?: CloudSendLifecycle,
 	) {
 		// Existing desktop commands update this local preference before lazy inner creation.
 		const config = this.ctx.liveSessions.get(id)?.config;
@@ -199,7 +197,7 @@ export class CloudSessionManager extends CloudSessionController {
 					: {}),
 			});
 		try {
-			return await super.send(id, prompt, delivery, modelId, images, lifecycle);
+			return await super.send(id, prompt, delivery, modelId, images);
 		} finally {
 			const snapshot = this.getSnapshot(id);
 			if (snapshot)
