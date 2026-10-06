@@ -27,6 +27,9 @@ type FetchWithOptionalPreconnect = typeof fetch & {
 	preconnect?: (...args: unknown[]) => unknown;
 };
 
+/** `RequestInit` plus Bun's nonstandard per-request timeout switch. */
+type RequestInitWithBunTimeout = RequestInit & { timeout?: false };
+
 function timeoutError(): DOMException {
 	return new DOMException("The operation timed out.", "TimeoutError");
 }
@@ -50,12 +53,13 @@ export function wrapFetchWithResponseTimeout(
 		const signal = init?.signal
 			? AbortSignal.any([init.signal, controller.signal])
 			: controller.signal;
+		const requestInit: RequestInitWithBunTimeout = {
+			...init,
+			signal,
+			timeout: false,
+		};
 		try {
-			return await delegate(input, {
-				...init,
-				signal,
-				timeout: false,
-			} as RequestInit);
+			return await delegate(input, requestInit);
 		} finally {
 			clearTimeout(timer);
 		}
