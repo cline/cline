@@ -2,8 +2,10 @@
 
 import { isMainThread } from "node:worker_threads";
 import {
+	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
+	createClineTelemetryServiceConfig,
 	disableCurrentDirectoryExecutableSearch,
 	disposeAll,
 	ensureLoopbackProxyBypass,
@@ -32,6 +34,12 @@ ensureLoopbackProxyBypass();
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (process.argv.includes("--telemetry-selfcheck")) {
+	// Inspect the config embedded in this executable without starting a hub,
+	// loading user settings, or initializing telemetry exporters.
+	process.stdout.write(
+		`${JSON.stringify(buildTelemetrySelfcheckReport(createClineTelemetryServiceConfig()))}\n`,
+	);
 } else if (claimHubDaemonProcess()) {
 	// Claim rather than read: the sentinel is consumed here so the processes a
 	// daemon-hosted session spawns do not inherit it and try to become daemons.
