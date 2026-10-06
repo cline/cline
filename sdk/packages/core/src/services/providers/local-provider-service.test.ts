@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
@@ -3302,5 +3308,66 @@ describe("refreshProviderModelsFromSource", () => {
 		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
 			modelsState,
 		);
+	});
+});
+
+describe("catalog write failure and the last-used selection", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+	const providerId = "lan-llm";
+	const failure = new Error("catalog write failed");
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+		// An enabled, never-configured provider next to a dangling pointer.
+		// The pointer is written directly: it is the state other surfaces leave.
+		markLocalProviderEnabled(manager, providerId);
+		const filePath = manager.getFilePath();
+		const raw = JSON.parse(readFileSync(filePath, "utf8"));
+		raw.lastUsedProvider = "cline";
+		writeFileSync(filePath, JSON.stringify(raw));
+	});
+
+	afterEach(() => cleanup());
+
+	const configure = () =>
+		updateLocalProvider(manager, {
+			providerId,
+			baseUrl: "http://127.0.0.1:8080/v1",
+			models: ["m1"],
+			apiKey: "k",
+		});
+
+	it("selects the configured provider when the catalog write succeeds", async () => {
+		await configure();
+		expect(manager.read().lastUsedProvider).toBe(providerId);
+	});
+
+	it("restores the previous selection when the catalog write fails", async () => {
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			failure,
+		);
+		await expect(configure()).rejects.toBe(failure);
+		expect(manager.getProviderSettings(providerId)).toEqual({
+			provider: providerId,
+		});
+		expect(manager.read().lastUsedProvider).toBe("cline");
+		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+	});
+
+	it("keeps an explicit selection made while the catalog write was pending", async () => {
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				// Picked in the provider picker, sign-in not completed yet: a
+				// selection the dangling-pointer repair would never re-derive.
+				manager.saveProviderSettings(
+					{ provider: "openai-codex", model: "gpt-5.4" },
+					{ setLastUsed: true },
+				);
+				throw failure;
+			},
+		);
+		await expect(configure()).rejects.toBe(failure);
+		expect(manager.read().lastUsedProvider).toBe("openai-codex");
 	});
 });

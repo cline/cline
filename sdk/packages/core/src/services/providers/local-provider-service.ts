@@ -43,6 +43,7 @@ import {
 	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
+import { normalizeLastUsedProvider } from "../storage/provider-settings-last-used";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -489,7 +490,9 @@ async function persistProviderUpdate(
 	update: PreparedProviderUpdate,
 ): Promise<void> {
 	const { providerId, modelsPath, modelsState, nextSettings } = update;
-	const previousEntry = manager.read().providers[providerId];
+	const previous = manager.read();
+	const previousEntry = previous.providers[providerId];
+	const previousSelection = previous.lastUsedProvider;
 	const saved = manager.saveProviderSettings(nextSettings, {
 		setLastUsed: false,
 	});
@@ -498,6 +501,9 @@ async function persistProviderUpdate(
 	const writtenEntry: unknown = JSON.parse(
 		JSON.stringify(saved.providers[providerId]),
 	);
+	// The selection actually persisted: write() may have repaired a dangling
+	// pointer to this provider once the save made it usable.
+	const writtenSelection = normalizeLastUsedProvider(saved).lastUsedProvider;
 	try {
 		await writeModelsFile(modelsPath, modelsState);
 	} catch (error) {
@@ -508,6 +514,14 @@ async function persistProviderUpdate(
 			if (isDeepStrictEqual(state.providers[providerId], writtenEntry)) {
 				if (previousEntry) state.providers[providerId] = previousEntry;
 				else delete state.providers[providerId];
+				// Undo a selection this save made, unless it changed since.
+				if (
+					writtenSelection !== previousSelection &&
+					state.lastUsedProvider === writtenSelection
+				) {
+					if (previousSelection === undefined) delete state.lastUsedProvider;
+					else state.lastUsedProvider = previousSelection;
+				}
 				manager.write(state);
 			}
 		} catch (rollbackError) {
