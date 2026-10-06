@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
 	CLINE_JS_RUNTIME_PATH_ENV,
+	isCompiledBunExecutable,
 	resolveSubprocessRuntimeExecutable,
 	SubprocessSandbox,
 } from "./subprocess-sandbox";
@@ -49,6 +50,17 @@ describe("SubprocessSandbox runtime resolution", () => {
 				env: {},
 			}),
 		).toBe("node");
+	});
+
+	it("self-execs via BUN_BE_BUN only for the current compiled Bun binary", () => {
+		// A foreign packaged binary (not this process) is never a runtime.
+		expect(isCompiledBunExecutable("/usr/local/bin/cline")).toBe(false);
+		expect(isCompiledBunExecutable("/usr/local/bin/bun")).toBe(false);
+		expect(isCompiledBunExecutable("/usr/local/bin/node")).toBe(false);
+		// Tests run on a real bun/node binary, so even the self path does not
+		// qualify here; compiled-binary behavior is covered by the desktop
+		// app's packaged plugin test.
+		expect(isCompiledBunExecutable(process.execPath)).toBe(false);
 	});
 
 	it("allows an explicit helper runtime override", () => {

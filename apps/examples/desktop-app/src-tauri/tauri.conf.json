@@ -45,7 +45,10 @@
 		"resources": [
 			"icons/app/*.png",
 			"icons/app/macos/*.png",
-			"bin/remote-helpers/*"
+			"bin/remote-helpers/*",
+			"extensions/plugin-sandbox-bootstrap.js",
+			"extensions/node_modules/jiti/package.json",
+			"extensions/node_modules/jiti/dist/babel.cjs"
 		],
 		"icon": [
 			"icons/32x32.png",

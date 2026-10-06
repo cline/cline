@@ -513,10 +513,49 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
+/// Locate the self-contained plugin-sandbox bootstrap that `build:sidecar:bin`
+/// emits. The compiled sidecar cannot hand its embedded copy of the bootstrap
+/// to a child process and the bundle ships no node_modules, so the sidecar is
+/// pointed at this file via `CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH`. Candidates
+/// cover the repo checkout, then each packaged resource layout.
+fn resolve_plugin_sandbox_bootstrap_path(context: &AppContext) -> Option<PathBuf> {
+    let relative = PathBuf::from("extensions").join("plugin-sandbox-bootstrap.js");
+    let mut candidates = vec![PathBuf::from(&context.workspace_root)
+        .join("apps")
+        .join("examples")
+        .join("desktop-app")
+        .join("src-tauri")
+        .join(&relative)];
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(PathBuf::from))
+    {
+        // Windows: resources unpack next to the executable.
+        candidates.push(exe_dir.join(&relative));
+        if let Some(parent) = exe_dir.parent() {
+            // macOS: Contents/MacOS/<exe> -> Contents/Resources/.
+            candidates.push(parent.join("Resources").join(&relative));
+            // Linux: usr/bin/<exe> -> usr/lib/<productName>/. The product name
+            // differs per release channel, so scan the sibling lib directory.
+            if let Ok(entries) = std::fs::read_dir(parent.join("lib")) {
+                for entry in entries.flatten() {
+                    candidates.push(entry.path().join(&relative));
+                }
+            }
+        }
+    }
+    candidates.into_iter().find(|path| path.exists())
+}
+
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         let mut command = Command::new(binary_path);
         command.current_dir(&context.workspace_root);
+        // Only the compiled sidecar needs the shipped bootstrap; a source run
+        // under `bun` resolves its own sibling bootstrap.
+        if let Some(bootstrap_path) = resolve_plugin_sandbox_bootstrap_path(context) {
+            command.env("CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH", bootstrap_path);
+        }
         command
     } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
         let mut command = Command::new("bun");

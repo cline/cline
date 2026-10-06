@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import { telemetryDefineArgs } from "./telemetry-define-args";
@@ -143,6 +145,35 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 	await $`lipo -info ${outfile}`;
 };
 
+// The plugin sandbox is a subprocess that runs a bootstrap file from disk. The
+// compiled sidecar cannot hand its embedded copy to a child process and the
+// bundle ships no node_modules, so emit a self-contained bundle (inlines
+// @cline/shared and jiti) that Tauri ships as a resource; main.rs points the
+// sidecar at it via CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH and the Hub daemon
+// inherits it. --target=node keeps the bundle runtime-agnostic: the sandbox
+// runtime may be a host node, a host bun, or the sidecar re-executing itself
+// via BUN_BE_BUN=1 (bun-targeted output uses import.meta.require, which
+// breaks under node).
+const buildPluginSandboxBootstrap = async (): Promise<void> => {
+	const resourceDir = "./src-tauri/extensions";
+	await $`mkdir -p ${resourceDir}`;
+	await $`bun build ../../../sdk/packages/core/src/extensions/plugin/plugin-sandbox-bootstrap.ts --target=node --outfile ${join(resourceDir, "plugin-sandbox-bootstrap.js")}`;
+
+	// jiti lazily requires its babel transform relative to its own location,
+	// which does not survive bundling. The bootstrap prefers a transform
+	// resolved from a `node_modules/jiti` found next to itself, so ship the
+	// minimal jiti package alongside the bootstrap. jiti is a dependency of
+	// @cline/core, not of this app, so resolve it through core's module tree.
+	const requireFromCore = createRequire(
+		createRequire(import.meta.url).resolve("@cline/core"),
+	);
+	const jitiPackageDir = dirname(requireFromCore.resolve("jiti/package.json"));
+	const jitiResourceDir = join(resourceDir, "node_modules", "jiti");
+	await $`mkdir -p ${join(jitiResourceDir, "dist")}`;
+	await $`cp ${join(jitiPackageDir, "package.json")} ${jitiResourceDir}`;
+	await $`cp ${join(jitiPackageDir, "dist", "babel.cjs")} ${join(jitiResourceDir, "dist")}`;
+};
+
 const main = async () => {
 	// All compiled helpers and the sidecar depend on fresh SDK package exports.
 	await $`bun run build:sdk`.cwd(
@@ -156,6 +187,7 @@ const main = async () => {
 		await buildSidecar(targetTriple);
 	}
 	await buildRemoteHelpers();
+	await buildPluginSandboxBootstrap();
 };
 
 main().catch((error: unknown) => {
