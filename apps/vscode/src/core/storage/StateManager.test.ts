@@ -3,6 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import chokidar from "chokidar"
+import { ClineFileStorage } from "@/shared/storage/ClineFileStorage"
 import { createStorageContext } from "@/shared/storage/storage-context"
 
 // Keep host services out of this node-side storage test.
@@ -49,7 +50,8 @@ describe("StateManager initialization", () => {
 
 		stateManager.setGlobalState("clineVersion", "updated-version")
 		await stateManager.flushPendingState()
-		expect(storage.globalState.get("clineVersion")).toBe("updated-version")
+		const savedState = new ClineFileStorage<string>(path.join(storage.dataDir, "globalState.json"))
+		expect(savedState.get("clineVersion")).toBe("updated-version")
 		await stateManager.reInitialize()
 		expect(stateManager.getGlobalStateKey("clineVersion")).toBe("updated-version")
 
