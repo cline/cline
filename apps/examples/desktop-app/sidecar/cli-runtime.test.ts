@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { adoptDesktopCliRuntime, ensureHubWithDesktopCli } from "./cli-runtime";
 
 describe("ensureHubWithDesktopCli", () => {
-	it("asks the bundled CLI to start or reuse the Hub and returns only its URL", async () => {
+	it("asks the installed CLI to start or reuse the Hub and returns only its URL", async () => {
 		const run = vi.fn(
 			async () =>
 				'warming up\n{"url":"ws://127.0.0.1:25463/hub","authToken":"secret","cwd":"/work"}\n',
@@ -36,7 +36,7 @@ describe("ensureHubWithDesktopCli", () => {
 });
 
 describe("adoptDesktopCliRuntime", () => {
-	it("routes Hub spawns through the bundled CLI and restores the workspace cwd", () => {
+	it("routes Hub spawns through the installed CLI and restores the workspace cwd", () => {
 		const env: NodeJS.ProcessEnv = {
 			BUN_BE_BUN: "1",
 			CLINE_DESKTOP_CLI_PATH:
@@ -61,7 +61,7 @@ describe("adoptDesktopCliRuntime", () => {
 		});
 	});
 
-	it("keeps the default Hub launcher when no bundled CLI is provided", () => {
+	it("keeps the default Hub launcher when no installed CLI is provided", () => {
 		const chdir = vi.fn();
 		const setLauncher = vi.fn();
 

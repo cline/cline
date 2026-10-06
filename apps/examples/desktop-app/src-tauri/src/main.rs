@@ -5,6 +5,8 @@ mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
 
+mod cli_runtime;
+
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
@@ -95,6 +97,7 @@ struct AppContext {
     launch_cwd: String,
     workspace_root: String,
     resource_dir: PathBuf,
+    runtime_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -362,8 +365,7 @@ impl DesktopBackendState {
                 let _ = Command::new("kill").arg(child.id().to_string()).status();
                 // Windows has no SIGTERM equivalent, so terminate outright.
                 // Reap the child too: TerminateProcess is quick, and the
-                // update-restart path needs the bundled CLI's file lock
-                // released before the NSIS installer replaces it.
+                // update-restart path needs the backend process reaped.
                 #[cfg(not(unix))]
                 {
                     let _ = child.kill();
@@ -397,7 +399,7 @@ struct DesktopBackendReadyLine {
 }
 
 /// The release binary is a GUI-subsystem app (no console), so on Windows
-/// every console-subsystem child (git, cmd, the bundled CLI) would otherwise
+/// every console-subsystem child (git, cmd, the installed CLI) would otherwise
 /// allocate its own visible console window. Piped stdio does not prevent
 /// that; only CREATE_NO_WINDOW does.
 #[cfg(windows)]
@@ -457,23 +459,6 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-/// The bundled Cline CLI (a Tauri `externalBin`). It starts or reuses the
-/// shared Hub, runs as the Hub daemon, and is the runtime the packaged
-/// desktop backend script executes on, so the app needs no Node or Bun.
-fn desktop_cli_binary_names() -> Vec<String> {
-    let extension = if cfg!(windows) { ".exe" } else { "" };
-    let bundled_name = format!("cline-cli{extension}");
-    let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
-    if target_triple.is_empty() {
-        return vec![bundled_name];
-    }
-
-    vec![
-        bundled_name,
-        format!("cline-cli-{target_triple}{extension}"),
-    ]
-}
-
 fn non_empty_env_path(name: &str) -> Option<PathBuf> {
     non_empty_env(name).map(PathBuf::from)
 }
@@ -487,22 +472,27 @@ fn desktop_app_bin_dir(context: &AppContext) -> PathBuf {
         .join("bin")
 }
 
-fn resolve_desktop_cli_path(context: &AppContext) -> Option<PathBuf> {
-    let current_exe = std::env::current_exe().ok();
-    let mut candidates = Vec::new();
+fn resolve_desktop_cli_path(context: &AppContext) -> Result<Option<PathBuf>, String> {
     if let Some(path) = non_empty_env_path("CLINE_DESKTOP_CLI_BIN") {
-        candidates.push(path);
-    }
-    for binary_name in desktop_cli_binary_names() {
-        if let Some(path) = current_exe
-            .as_ref()
-            .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
-        {
-            candidates.push(path);
+        if !path.is_file() {
+            return Err(format!("CLI override not found: {}", path.display()));
         }
-        candidates.push(desktop_app_bin_dir(context).join(&binary_name));
+        return Ok(Some(path));
     }
-    candidates.into_iter().find(|path| path.is_file())
+    if cfg!(debug_assertions) {
+        let target = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or(cli_runtime::host_target());
+        let extension = if cfg!(windows) { ".exe" } else { "" };
+        return Ok([target, cli_runtime::host_target()]
+            .into_iter()
+            .map(|target| {
+                desktop_app_bin_dir(context).join(format!("cline-cli-{target}{extension}"))
+            })
+            .find(|path| path.is_file()));
+    }
+    let installer_dir = context.resource_dir.join("bin").join("cli-installer");
+    let release = cli_runtime::release_tag(&installer_dir)?;
+    let cache_dir = context.runtime_dir.join(&release);
+    cli_runtime::install(&installer_dir, &cache_dir, &release).map(Some)
 }
 
 fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
@@ -527,7 +517,7 @@ fn resolve_desktop_backend_bundle_path(context: &AppContext) -> Option<PathBuf> 
 }
 
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
-    let cli_path = resolve_desktop_cli_path(context);
+    let cli_path = resolve_desktop_cli_path(context)?;
     let script_path = if cfg!(debug_assertions) {
         resolve_desktop_backend_script_path(context)
     } else {
@@ -555,14 +545,15 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         command
             .env("BUN_BE_BUN", "1")
             .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root)
+            .env("CLINE_DESKTOP_RUNTIME_DIRECTORY", &context.runtime_dir)
             .env(
-                "CLINE_REMOTE_HELPER_DIRECTORY",
-                context.resource_dir.join("bin").join("remote-helpers"),
+                "CLINE_DESKTOP_INSTALLER_DIRECTORY",
+                context.resource_dir.join("bin").join("cli-installer"),
             );
         command
     } else {
         return Err(format!(
-            "desktop backend not found: needs the bundled Cline CLI ({}) and backend bundle. checked under workspace_root={} and launch_cwd={}",
+            "desktop backend not found: needs the installed Cline CLI ({}) and backend bundle. checked under workspace_root={} and launch_cwd={}",
             if cli_path.is_some() { "found" } else { "missing" },
             context.workspace_root,
             context.launch_cwd
@@ -843,7 +834,7 @@ fn wait_for_desktop_backend_endpoint(
                 .unwrap_or(true)
         {
             last_respawn = Some(Instant::now());
-            // A spawn error (bundled CLI or backend missing) is permanent for this
+            // A spawn error (installed CLI or backend missing) is permanent for this
             // wait; report it instead of burning the rest of the window.
             respawn()?;
         }
@@ -939,8 +930,7 @@ fn apply_staged_update(app: &tauri::AppHandle) {
     let update_state = app.state::<Arc<UpdateState>>();
     // Neither restart() nor install() returns, so the run-loop Exit handler
     // does not get a chance to stop the sidecar; shut it down explicitly
-    // first. On Windows this also releases the bundled CLI's file lock,
-    // which the NSIS installer needs in order to replace it.
+    // first. The next release installs its CLI in a separate cache directory.
     backend_state.stop();
     // Windows and Linux: install the bytes staged by the background cycle.
     // On Windows install() launches the NSIS installer (which relaunches the
@@ -1549,6 +1539,7 @@ fn main() {
                 launch_cwd: launch_cwd.clone(),
                 workspace_root: workspace_root.clone(),
                 resource_dir: app.path().resource_dir()?,
+                runtime_dir: app.path().app_local_data_dir()?.join("runtimes"),
             });
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (

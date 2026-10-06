@@ -2,7 +2,8 @@ name: desktop-publish
 
 # Like ext-vscode-publish-nightly, nightlies are manually dispatched because
 # PublishDesktop requires approval. Dispatch from main with channel=nightly.
-# Nightlies upload Actions artifacts only; they do not publish releases or feeds.
+# Nightly installers stay in Actions; runtime assets get a GitHub prerelease.
+# Neither updater feed changes.
 # Each successful nightly is tagged desktop-nightly-<stamp> and announced to
 # Slack with the commits since the previous nightly or release.
 on:
@@ -316,11 +317,6 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
-      # build-desktop-runtime.ts UPX-packs the Linux Cline CLI binaries it
-      # bundles for SSH remotes; without upx on PATH the CI build fails.
-      - name: Install UPX
-        run: brew install upx
-
       - name: Write App Store Connect API key
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
@@ -340,7 +336,7 @@ jobs:
         run: bunx tauri build --target universal-apple-darwin $CONFIG_ARGS
         env:
           CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
-          # Telemetry config for the desktop backend and bundled Cline CLI.
+          # Telemetry config for the desktop backend and downloadable Cline CLI.
           # Tauri's beforeBuildCommand (`bun run build` -> build:runtime)
           # builds both during this step and inlines these values via
           # `--define` (scripts/telemetry-define-args.ts); a packaged app
@@ -373,11 +369,35 @@ jobs:
           # bare DMG. macOS runners have a GUI session, so opt out of the skip.
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
 
-      # Tauri lipos the main binary itself but the bundled Cline CLI is merged
-      # by our own build-desktop-runtime.ts, so assert every Mach-O in the
-      # bundle really carries both slices before anything is published. A
-      # single-arch CLI would otherwise ship fine and only crash on the other
-      # arch.
+      - name: Sign and notarize downloadable macOS runtime
+        working-directory: apps/examples/desktop-app
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          # Tauri removes its temporary signing keychain after packaging.
+          KEYCHAIN="$RUNNER_TEMP/runtime-signing.keychain-db"
+          PASSWORD=$(openssl rand -hex 24)
+          printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$RUNNER_TEMP/runtime-signing.p12"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/runtime-signing.p12" -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PASSWORD" "$KEYCHAIN"
+          trap 'security delete-keychain "$KEYCHAIN"; rm -f "$RUNNER_TEMP/runtime-signing.p12"' EXIT
+          CLI=src-tauri/bin/cline-cli-universal-apple-darwin
+          codesign --force --timestamp --options runtime --keychain "$KEYCHAIN" --entitlements src-tauri/entitlements.plist --sign "$APPLE_SIGNING_IDENTITY" "$CLI"
+          codesign --verify --strict --verbose=2 "$CLI"
+          lipo -verify_arch arm64 x86_64 "$CLI"
+          ditto -c -k "$CLI" "$RUNNER_TEMP/cline-runtime.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/cline-runtime.zip" --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait --output-format json > "$RUNNER_TEMP/runtime-notary.json"
+          node -e 'const result = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (result.status !== "Accepted") throw new Error(JSON.stringify(result))' "$RUNNER_TEMP/runtime-notary.json"
+          bun scripts/collect-runtime-asset.ts universal-apple-darwin
+
+      # The separately published CLI was checked above; also verify every
+      # executable in the desktop bundle carries both architecture slices.
       - name: Verify bundle is a universal binary
         working-directory: apps/examples/desktop-app
         env:
@@ -629,45 +649,6 @@ jobs:
         with:
           bun-version: "1.4.2"
 
-      # build-desktop-runtime.ts cross-compiles the Linux SSH remote CLIs on
-      # every platform, and the Windows installer ships them (they are Tauri
-      # resources, bundle.resources in tauri.conf.json). Bun cross-compiles by
-      # downloading the target's release zip and extracting the executable
-      # from it, and on a Windows host that extraction fails deterministically
-      # ("Failed to extract executable for 'bun-linux-x64-v1.3.13'. The
-      # download may be incomplete."): the download and archive are fine, Bun
-      # just never finds the `bun-linux-x64/bun` entry it needs. Bun only
-      # downloads when the cache lacks `<target>-v<version>`, so seed the cache
-      # with the same runtimes from npm (@oven/bun-<target>, byte-identical to
-      # the zip payload) and the build never enters the broken path. The macOS
-      # job does not need this; the extractor works there.
-      - name: Seed Bun cache with Linux remote CLI runtimes
-        shell: bash
-        run: |
-          BUN_VERSION="$(bun --version)"
-          CACHE_DIR="${RUNNER_TEMP//\\//}/bun-install-cache"
-          mkdir -p "$CACHE_DIR"
-          # Keep these runtimes aligned with build-desktop-runtime.ts, including
-          # the baseline x64 runtime needed by SSH hosts without AVX2.
-          for target in linux-x64-baseline linux-aarch64; do
-            dest="$CACHE_DIR/bun-$target-v$BUN_VERSION"
-            work="$(mktemp -d)"
-            (cd "$work" && npm pack "@oven/bun-$target@$BUN_VERSION" --silent >/dev/null && tar -xzf ./*.tgz package/bin/bun)
-            mv "$work/package/bin/bun" "$dest"
-            if [ "$(head -c 4 "$dest" | od -An -c | tr -d ' ')" != "177ELF" ]; then
-              echo "$dest is not an ELF executable; refusing to seed a bad runtime"
-              exit 1
-            fi
-            echo "seeded $dest ($(stat -c %s "$dest") bytes)"
-          done
-          echo "BUN_INSTALL_CACHE_DIR=${CACHE_DIR}" >> "$GITHUB_ENV"
-
-      # build-desktop-runtime.ts UPX-packs the Linux SSH remote CLIs it bundles
-      # into the installer; without upx on PATH the CI build fails. UPX packs
-      # Linux ELF files from a Windows host.
-      - name: Install UPX
-        run: choco install upx --no-progress -y
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
         with:
@@ -717,7 +698,7 @@ jobs:
       - name: Prime Azure Trusted Signing token
         run: az account get-access-token --resource https://codesigning.azure.net --query expiresOn --output tsv
 
-      # Tauri invokes signCommand once per staged binary (main exe, Cline CLI,
+      # Tauri invokes signCommand once per staged binary (main exe,
       # NSIS uninstaller, and the installer itself). The overlay is generated
       # here rather than committed because signCommand needs an absolute path
       # to the signing script on this runner.
@@ -880,6 +861,18 @@ jobs:
 
           ls -lh "$OUT"
 
+      - name: Sign downloadable Windows runtime
+        shell: pwsh
+        working-directory: apps/examples/desktop-app
+        env:
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP }}
+        run: |
+          ./scripts/tauri-sign-windows.ps1 src-tauri/bin/cline-cli-x86_64-pc-windows-msvc.exe
+          bun scripts/collect-runtime-asset.ts x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw "Runtime asset collection failed" }
+
       # Independent Authenticode gate on the exact artifact users download.
       # The signing script already verifies each file it signs, but this step
       # would still catch an installer that skipped signCommand entirely.
@@ -887,10 +880,8 @@ jobs:
         shell: pwsh
         working-directory: apps/examples/desktop-app
         run: |
-          # The Tauri bundler signs the bundled Cline CLI in place, so check it
-          # here too; a WDAC-locked machine blocks the app at runtime if the
-          # CLI it spawns is unsigned, even when the installer itself is fine.
-          $files = @(Get-ChildItem dist/publish/*.exe) + @(Get-Item src-tauri/bin/cline-cli-x86_64-pc-windows-msvc.exe)
+          # Verify the installer and independently downloaded runtime.
+          $files = @(Get-ChildItem dist/publish/*.exe)
           if ($files.Count -lt 2) { throw "expected at least the installer and the Cline CLI to verify" }
           foreach ($file in $files) {
             $sig = Get-AuthenticodeSignature $file.FullName
@@ -988,16 +979,15 @@ jobs:
           bun-version: "1.4.2"
 
       # Tauri's Linux build deps (WebKitGTK, GTK, the appindicator used by the
-      # tray icon, librsvg for icons, xdo for the window helpers) plus upx:
-      # build-desktop-runtime.ts UPX-packs the Linux SSH remote CLIs and fails
-      # the CI build without it. rpm packages are written by the bundler's own
+      # tray icon, librsvg for icons, xdo for the window helpers).
+      # rpm packages are written by the bundler's own
       # Rust rpm implementation, so rpmbuild is not needed.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev libxdo-dev libssl-dev build-essential upx-ucl
+            librsvg2-dev libxdo-dev libssl-dev build-essential
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
@@ -1157,6 +1147,10 @@ jobs:
           cp "${RPM}.sig" "$OUT/${PREFIX}_${VERSION}_${RPM_ARCH}.rpm.sig"
 
           ls -lh "$OUT"
+
+      - name: Collect downloadable Linux runtime
+        working-directory: apps/examples/desktop-app
+        run: bun scripts/collect-runtime-asset.ts ${{ matrix.target }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -1432,6 +1426,23 @@ jobs:
             git tag "$TAG"
             git push origin "refs/tags/${TAG}"
           fi
+
+      - name: Download runtime artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/desktop
+          merge-multiple: true
+
+      - name: Publish nightly runtime assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.changes.outputs.tag }}
+          name: Cline desktop nightly runtime ${{ needs.validate.outputs.version }}
+          prerelease: true
+          make_latest: false
+          body: Runtime assets for this nightly. Download desktop installers from the Actions run.
+          files: dist/desktop/cline-runtime-*
+          fail_on_unmatched_files: true
 
       - name: Post nightly to Slack
         uses: slackapi/slack-github-action@v3.0.1

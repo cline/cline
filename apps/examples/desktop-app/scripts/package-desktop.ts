@@ -140,7 +140,7 @@ const assertCanBuildPlatform = (platform: DesktopPlatform): void => {
 		throw new Error(
 			[
 				`cannot build ${platform} desktop bundles from ${host}.`,
-				"Tauri desktop bundles are produced on the target OS because the native bundle tools and bundled Cline CLI binary are platform-specific.",
+				"Tauri desktop bundles are produced on the target OS because the native bundle tools and compiled Cline CLI release asset are platform-specific.",
 				"Run this same package script on macOS, Windows, and Linux runners to produce all three artifact sets.",
 			].join("\n"),
 		);

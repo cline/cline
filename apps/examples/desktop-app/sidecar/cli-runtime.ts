@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { setHubDaemonLauncher } from "@cline/core";
 
-/** Absolute path of the Cline CLI binary the desktop shell bundles and launched us with. */
+/** Absolute path of the Cline CLI binary the desktop shell installed and launched us with. */
 export const DESKTOP_CLI_PATH_ENV = "CLINE_DESKTOP_CLI_PATH";
 /** Workspace root the shell resolved; the backend starts in its own resource directory. */
 export const DESKTOP_WORKSPACE_ROOT_ENV = "CLINE_DESKTOP_WORKSPACE_ROOT";
@@ -15,7 +15,7 @@ export function resolveDesktopCliPath(
 }
 
 /**
- * The packaged backend is a script running on the bundled Cline CLI's embedded
+ * The packaged backend is a script running on the installed Cline CLI's embedded
  * runtime. Adopt that host before anything spawns: every child (the Hub
  * daemon, connectors, agent tools) must see the CLI binary as the CLI, not as
  * a script runner, and Hubs this process starts must be CLI-managed Hubs.
@@ -79,7 +79,7 @@ const runCliCommand: RunCliCommand = (command, args, options) =>
 	});
 
 /**
- * Has the bundled CLI start the shared Hub, or reuse a compatible healthy
+ * Has the installed CLI start the shared Hub, or reuse a compatible healthy
  * one, before the session manager connects. Returns the Hub URL (never the
  * auth token, which callers may log).
  */

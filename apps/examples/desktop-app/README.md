@@ -1,6 +1,6 @@
 # Desktop App Example
 
-Tauri desktop shell + desktop backend (`sidecar/`) + Next.js UI for running and inspecting Cline chat sessions. The packaged app bundles a self-contained Cline CLI binary that starts the shared Hub and runs the backend, so no Node or Bun install is needed.
+Tauri desktop shell + desktop backend (`sidecar/`) + Next.js UI for running and inspecting Cline chat sessions. The packaged app installs a self-contained Cline CLI runtime on first launch, then uses it to start the shared Hub and run the backend. No Node or Bun install is needed.
 
 ## Dev Commands
 
@@ -13,7 +13,7 @@ From `apps/examples/desktop-app/`:
 - `bun run build:web` - build production web assets only (includes the shared UI build)
 - `bun run build` - build web assets and the desktop runtime
 - `bun run build:sidecar` - build the Bun sidecar bundle
-- `bun run build:runtime` - compile the bundled Cline CLI (host plus Linux SSH remote copies) and bundle the desktop backend into `src-tauri/bin/`
+- `bun run build:runtime` - compile the host Cline CLI release asset and bundle the backend and installer scripts into `src-tauri/bin/`
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
@@ -155,14 +155,11 @@ content-addressed, branch-matched, self-contained Cline CLI binary under
 `~/.cline/remote/` and runs `cline hub ensure --json --discovery-path ...`
 there, which reuses a compatible healthy remote Hub or starts one bound to
 remote loopback. The desktop forwards it to a random local loopback port.
-Linux x64 and arm64 CLI copies are bundled by `bun run build:runtime`; 32-bit
-Raspberry Pi operating systems are not supported. A macOS desktop reaches
-macOS SSH hosts with its own signed universal Cline CLI; Windows and Linux
-desktops need a locally built darwin CLI passed through
-`CLINE_REMOTE_HELPER_BINARY`. The remote CLI includes its own runtime and is
-UPX-compressed at build time (install `upx` locally to match the packaged
-size). It is copied once per matching desktop build and cached, with no
-`apt`, `npm`, root access, global CLI install, or public Hub port.
+Linux x64/arm64 and universal macOS runtimes download on demand from the
+same desktop release on every desktop platform. 32-bit Raspberry Pi operating
+systems are not supported. The remote CLI includes its own runtime and is
+copied once per matching desktop build and cached, with no remote package
+manager, root access, global CLI install, or public Hub port.
 Disconnecting runs `cline hub stop` for the desktop-owned remote Hub but leaves
 the CLI cached for a faster reconnect. The remote Hub imports the remote
 login-shell `PATH` (`--login-shell-path`), so user-installed Git, GitHub CLI,
@@ -237,14 +234,10 @@ sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL (x86_64)
 sudo dnf install ./Cline_<version>_aarch64.rpm   # Fedora / RHEL (arm64)
 ```
 
-The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
-bundled Cline CLI is `/usr/bin/cline-cli`, and the desktop backend bundle and
-SSH remote CLIs live in `/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
-GNOME with the AppIndicator extension); without one the app still runs but the
-tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
-Bun-compiled Cline CLI (`ldd` fails on it and `patchelf` corrupts it), so the
-AppImage target is excluded from `tauri build` on Linux. A Linux desktop
-cannot use a Mac as an SSH remote host (see the changelog).
+The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry. The
+backend bundle and installer scripts live in `/usr/lib/Cline/`; the CLI lives
+in the user's app data directory. The tray icon needs a StatusNotifier host
+(KDE, XFCE, or GNOME with the AppIndicator extension).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -300,9 +293,9 @@ Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
    In a packaged app the backend is `bin/desktop-backend/index.js`, executed by
-   the bundled Cline CLI (`cline-cli run`); `bun run dev` runs `sidecar/index.ts`
+   the installed Cline CLI (`cline run`); `bun run dev` runs `sidecar/index.ts`
    with Bun directly.
-2. The backend runs `cline-cli hub ensure`, which reuses a compatible healthy
+2. The backend runs `cline hub ensure`, which reuses a compatible healthy
    shared Cline Hub on loopback or starts one (the Hub daemon is the same CLI
    binary). The backend then attaches to the Hub and exposes one websocket
    transport (`/transport`) for desktop commands, queries, and pushed events.
@@ -323,11 +316,56 @@ Desktop transport envelope:
 - From the UI you can open a create form and add, pause/resume, trigger-now, and delete schedules.
 - The view is wired to the same scheduler APIs used by `cline schedule` through Tauri commands and `scripts/routine-schedules.ts`.
 
+## CLI runtime installation
+
+The desktop bundle contains `scripts/cli-installer/install.sh` and
+`install.ps1`, the backend JS, and a generated `release.txt`. It contains no
+CLI executables. On first launch, the shell invokes the installer for the
+host target with `--no-modify-path` (PowerShell: `-NoModifyPath`). Downloads
+come from that exact desktop GitHub release, including beta/nightly tags;
+using a separately published CLI version could give the backend a different
+SDK build identity. The publish workflow signs the macOS/Windows runtimes
+independently and uploads each executable with a SHA-256 sidecar.
+
+Installed runtimes live under the platform's app local data directory at
+`runtimes/<release>/<target>/cline` (`cline.exe` on Windows). Checksums are
+verified before installation, concurrent installs are serialized, and later
+launches validate and reuse the cache offline. Each new desktop release gets
+its own runtime directory. The first launch of a release requires network
+access, `curl` and Bash on Unix, or PowerShell on Windows. Failed downloads
+surface as backend startup errors and can be retried. Linux requires glibc;
+x64 builds use Bun's baseline runtime for CPUs without AVX2.
+
+SSH connections install only their requested target into the same cache, then
+upload that CLI to the remote host. Both Linux architectures and universal
+macOS are available from every desktop platform. Development builds use the
+locally compiled host CLI; use `CLINE_REMOTE_HELPER_BINARY` or
+`CLINE_REMOTE_HELPER_DIRECTORY` for other development SSH targets.
+
+For a standalone terminal install from a desktop release:
+
+```sh
+bash scripts/cli-installer/install.sh --version 0.0.43
+# Pin a beta or nightly explicitly:
+bash scripts/cli-installer/install.sh --release desktop-v0.0.43-beta.1
+# Test a local binary without downloading or changing shell configuration:
+bash scripts/cli-installer/install.sh --binary /path/to/cline --no-modify-path
+```
+
+```powershell
+./scripts/cli-installer/install.ps1 -Version 0.0.43
+```
+
+Manual installs default to `~/.cline/bin` and add it to the user's PATH;
+desktop-managed installs leave PATH and shell configuration untouched.
+Nightly installers remain Actions artifacts, but their runtime assets are
+published to the corresponding nightly GitHub release for durable access.
+
 ## Key Files
 
 - [`src-tauri/src/main.rs`](./src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
 - [`sidecar/index.ts`](./sidecar/index.ts) - persistent desktop backend entrypoint
-- [`sidecar/cli-runtime.ts`](./sidecar/cli-runtime.ts) - bundled Cline CLI runtime adoption and `hub ensure`
+- [`sidecar/cli-runtime.ts`](./sidecar/cli-runtime.ts) - installed Cline CLI runtime adoption and `hub ensure`
 - [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - shared-Hub chat session adapter
 - [`webview/lib/desktop-client.ts`](./webview/lib/desktop-client.ts) - typed desktop websocket client
 - [`webview/hooks/use-chat-session.ts`](./webview/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions

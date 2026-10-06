@@ -82,8 +82,14 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The packaged backend runs on the bundled Cline CLI and has it start the Hub:
-`cline-cli hub ensure` reuses a compatible healthy Hub or starts one, and the
+The native shell installs the exact desktop release’s Cline CLI into a
+versioned per-user cache using the bundled Bash/PowerShell installer. Release
+executables are independently signed and downloaded with SHA-256 verification;
+no CLI or SSH binaries are included in the desktop bundle. SSH runtimes are
+installed on demand from the same release. Cached runtimes work offline.
+
+The packaged backend runs on that installed Cline CLI and has it start the Hub:
+`cline hub ensure` reuses a compatible healthy Hub or starts one, and the
 Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.

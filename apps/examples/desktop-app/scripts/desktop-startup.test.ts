@@ -43,7 +43,41 @@ async function resolveCliBinary(): Promise<string> {
 			autoloadLaunchDirectoryConfig: false,
 			execArgv: ["--use-system-ca"],
 		});
-		compiledCli = outfile;
+		const installDir = join(ensureBuildDir(), "installed-runtime");
+		const installerDir = fileURLToPath(
+			new URL("./cli-installer/", import.meta.url),
+		);
+		const windows = process.platform === "win32";
+		const installed = spawnSync(
+			windows ? "powershell.exe" : "/bin/bash",
+			windows
+				? [
+						"-NoProfile",
+						"-NonInteractive",
+						"-ExecutionPolicy",
+						"Bypass",
+						"-File",
+						join(installerDir, "install.ps1"),
+						"-Binary",
+						outfile,
+						"-InstallDir",
+						installDir,
+						"-NoModifyPath",
+					]
+				: [
+						join(installerDir, "install.sh"),
+						"--binary",
+						outfile,
+						"--install-dir",
+						installDir,
+						"--no-modify-path",
+					],
+			{ encoding: "utf8", timeout: 30_000 },
+		);
+		expect(installed.status, installed.stderr || String(installed.error)).toBe(
+			0,
+		);
+		compiledCli = join(installDir, windows ? "cline.exe" : "cline");
 	}
 	return compiledCli;
 }
@@ -243,7 +277,7 @@ async function runStartupScenario(
 		} else {
 			expect(hub.port).toBe(Number(env.CLINE_HUB_PORT));
 		}
-		// Either way the Hub daemon is the bundled CLI, not the backend.
+		// Either way the Hub daemon is the installed CLI, not the backend.
 		expect(hub.pid).not.toBe(child.pid);
 		const hubCommand = processCommandLine(hub.pid);
 		if (hubCommand !== undefined) {
@@ -298,7 +332,7 @@ async function runStartupScenario(
 	}
 }
 
-test("desktop backend has the bundled CLI start the Hub when none is running", async () => {
+test("desktop backend has the installed CLI start the Hub when none is running", async () => {
 	await runStartupScenario({}, { hubAlreadyRunning: false });
 }, 180_000);
 

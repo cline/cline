@@ -1,6 +1,6 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (artifact-only test build of main's HEAD, tagged desktop-nightly-<stamp> after it builds). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
+description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (test build with Actions installers and published runtime assets of main's HEAD, tagged desktop-nightly-<stamp> after it builds). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
 ---
 
 # Desktop App Release
@@ -9,7 +9,7 @@ Use this skill when the user asks to release the desktop app, publish the Cline 
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases ship three platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Linux: x64 `.deb` and `.rpm` packages (`<Product>_<version>_amd64.deb`, `<Product>_<version>_x86_64.rpm`) built on Ubuntu 22.04 in the `build-linux` job, deb + rpm only (no AppImage: linuxdeploy cannot process the Bun-compiled Cline CLI the app bundles). Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
+Desktop releases ship three platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Linux: x64 `.deb` and `.rpm` packages (`<Product>_<version>_amd64.deb`, `<Product>_<version>_x86_64.rpm`) built on Ubuntu 22.04 in the `build-linux` job, deb + rpm only (no AppImage: linuxdeploy cannot process a Bun-compiled executable). Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
 
 ## Release contract
 
@@ -55,7 +55,7 @@ git log <last-desktop-tag>..HEAD --oneline --no-merges -- apps/examples/desktop-
 git log <last-desktop-tag>..origin/desktop-experimental --oneline --no-merges -- apps/examples/desktop-app apps/cli sdk/packages .github/workflows/desktop-publish.yml
 ```
 
-The desktop backend and the bundled Cline CLI (which runs the Hub) are built from the monorepo's `@cline/core` and friends, so SDK and CLI changes ship inside the desktop app too. Fold user-visible SDK changes (providers, models, behavior fixes) into the notes; skip purely internal ones.
+The desktop backend and the downloadable Cline CLI (which runs the Hub) are built from the monorepo's `@cline/core` and friends, so SDK and CLI changes ship with the desktop release too. Fold user-visible SDK changes (providers, models, behavior fixes) into the notes; skip purely internal ones.
 
 3. Draft user-facing release notes.
 
@@ -129,7 +129,7 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments \
 
 Nothing after `validate` runs — and no signing key is readable — until then.
 
-The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the bundled Cline CLI is lipo'd by `build-desktop-runtime.ts`; beta adds the `tauri.beta.conf.json` overlay), verifies every Mach-O in the bundle carries both slices and that the compiled binary embeds exactly its own channel's feed URL, signs with the Developer ID certificate, notarizes with the App Store Connect API key, and signs the updater artifact with the Tauri updater key. In parallel, `build-windows` builds the x64 NSIS installer on a Windows runner, Authenticode-signs every binary via Azure Trusted Signing (Tauri `signCommand` -> `scripts/tauri-sign-windows.ps1`), runs the same feed-endpoint and telemetry guardrails, and verifies the shipped installer with `Get-AuthenticodeSignature`. The release job then creates the GitHub release (prerelease for beta), refreshes the channel's feed (`desktop-latest/latest.json` or `desktop-beta/latest.json`), and posts to Slack. Notarization typically adds 2–10 minutes.
+The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the downloadable Cline CLI is lipo'd by `build-desktop-runtime.ts` and independently signed/notarized; beta adds the `tauri.beta.conf.json` overlay), verifies every Mach-O in the bundle carries both slices and that the compiled binary embeds exactly its own channel's feed URL, signs with the Developer ID certificate, notarizes with the App Store Connect API key, and signs the updater artifact with the Tauri updater key. In parallel, `build-windows` builds the x64 NSIS installer on a Windows runner, Authenticode-signs every binary via Azure Trusted Signing (Tauri `signCommand` -> `scripts/tauri-sign-windows.ps1`), runs the same feed-endpoint and telemetry guardrails, and verifies the shipped installer with `Get-AuthenticodeSignature`. Each platform uploads `cline-runtime-<target>` plus its SHA-256 sidecar. The app ships only installer scripts and backend JS, and downloads its exact release’s runtime on first launch; SSH targets download on demand. Nightlies must publish runtime assets to their nightly GitHub release even though installers stay in Actions artifacts. The release job then creates the GitHub release (prerelease for beta), refreshes the channel's feed (`desktop-latest/latest.json` or `desktop-beta/latest.json`), and posts to Slack. Notarization typically adds 2–10 minutes.
 
 If the workflow fails on missing credentials, see "Publish secrets (one-time setup)" below.
 
@@ -150,13 +150,14 @@ Report: channel, version, tag, changelog updated, commit hash, what was pushed, 
 
 ## Nightly builds
 
-A nightly is a **throwaway test build**, not a release: no version bump, no
-changelog, no commit, no GitHub release, and neither auto-update feed is
-touched (the `release` job is gated `if: channel != 'nightly'`, and the nightly
-Tauri overlay ships empty updater endpoints). It exists to hand someone a signed,
-notarized installer of whatever is on `main` right now. The only trace it
-leaves in the repo is a lightweight `desktop-nightly-<stamp>` tag on the built
-commit, which is what the next nightly's announcement compares against.
+A nightly is a **test build**: no version bump, changelog, or commit, and
+neither auto-update feed is touched. Its runtime assets are published as a
+GitHub prerelease so the installers can download them on first launch.
+The regular `release` job is gated `if: channel != 'nightly'`, and the nightly
+Tauri overlay ships empty updater endpoints. Nightlies provide a signed,
+notarized installer of current `main`, plus a lightweight
+`desktop-nightly-<stamp>` tag on the built commit for the next announcement's
+comparison baseline.
 
 What the workflow does differently:
 

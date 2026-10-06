@@ -10,6 +10,8 @@ on:
       - "apps/examples/desktop-app/scripts/dmg-background.ts"
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
       - "apps/examples/desktop-app/scripts/windows-installer.test.ts"
+      - "apps/examples/desktop-app/scripts/cli-installer/**"
+      - "apps/examples/desktop-app/scripts/cli-installer.test.ts"
       - "apps/examples/desktop-app/src-tauri/nsis/**"
       # windows-installer.test.ts pins the @tauri-apps/cli version bun.lock resolves.
       - "bun.lock"
@@ -25,6 +27,8 @@ on:
       - "apps/examples/desktop-app/scripts/dmg-background.ts"
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
       - "apps/examples/desktop-app/scripts/windows-installer.test.ts"
+      - "apps/examples/desktop-app/scripts/cli-installer/**"
+      - "apps/examples/desktop-app/scripts/cli-installer.test.ts"
       - "apps/examples/desktop-app/src-tauri/nsis/**"
       # windows-installer.test.ts pins the @tauri-apps/cli version bun.lock resolves.
       - "bun.lock"
@@ -56,6 +60,9 @@ jobs:
       # not need a workspace dependency install or macOS runner.
       - name: Test DMG background tooling
         run: bun run test:dmg-background
+
+      - name: Test Unix CLI runtime installer
+        run: bun test scripts/cli-installer.test.ts
 
   windows-installer:
     name: Test x86 installer against x64 app executables
@@ -95,3 +102,6 @@ jobs:
 
       - name: Test install and uninstall process cleanup
         run: bun run test:windows-installer
+
+      - name: Test Windows CLI runtime installer
+        run: bun test scripts/cli-installer.test.ts

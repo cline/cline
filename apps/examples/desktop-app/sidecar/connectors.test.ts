@@ -29,7 +29,7 @@ describe("desktop connector lifecycle", () => {
 		});
 	});
 
-	it("runs connector commands through the bundled CLI when the shell provides one", () => {
+	it("runs connector commands through the installed CLI when the shell provides one", () => {
 		expect(
 			__test__.buildCliConnectCommand("/repo", ["telegram"], {
 				desktopCliPath: "C:\\Program Files\\Cline\\cline-cli.exe",

@@ -1,10 +1,9 @@
 !include "Win\RestartManager.nsh"
 
-; The bundled cline-cli.exe runs the desktop backend and, as a detached
-; daemon, the Hub, which outlives the desktop. Stop users of every installed
-; executable before replacing any: stopping only the CLI first leaves the
-; desktop able to spawn it again. code-sidecar.exe is the backend and Hub
-; executable of earlier releases; its Hub may still be running on upgrade.
+; Current releases download a versioned runtime outside the install directory.
+; Older installs bundled cline-cli.exe (backend and detached Hub), and earlier
+; releases bundled code-sidecar.exe. Stop users of these installed executables
+; before replacing the app; an old Hub may still be running during upgrade.
 ;
 ; Restart Manager identifies users of the exact files across architectures.
 ; Do not use Get-Process.Path: NSIS is x86 even for an x64 bundle, and x86
