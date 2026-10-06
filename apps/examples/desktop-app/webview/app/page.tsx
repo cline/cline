@@ -1522,9 +1522,11 @@ function ChatThreadPane({
 	const cloudHandoffAvailable = cloudAgentsEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
-	const handoffUi = sourceSessionId
-		? handoffUiState[sourceSessionId]
-		: undefined;
+	// Handoff state is keyed by local session id; another environment may reuse the id.
+	const handoffUi =
+		sourceSessionId && environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? handoffUiState[sourceSessionId]
+			: undefined;
 	const handoffProgress = handoffUi?.status === "progress" ? handoffUi : null;
 	const pendingHandoffRecovery = readPendingHandoffRecovery(
 		historySession?.metadata,
