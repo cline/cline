@@ -32,9 +32,3 @@ export enum ClineDefaultTool {
 	USE_SKILL = "use_skill",
 	USE_SUBAGENTS = "use_subagents",
 }
-
-const dynamicToolUseNamesByNamespace = new Map<string, Set<string>>()
-
-export function setDynamicToolUseNames(namespace: string, names: string[]): void {
-	dynamicToolUseNamesByNamespace.set(namespace, new Set(names.map((name) => name.trim()).filter(Boolean)))
-}
