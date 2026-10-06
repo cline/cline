@@ -137,7 +137,6 @@ describe("OnboardingView", () => {
 		Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 		window.localStorage.clear();
 		invoke.mockReset();
-		openExternalUrl.mockReset();
 		// AccountProvider fetches the account on mount; unresolved auth means
 		// the signed-out variant of the connect step renders.
 		invoke.mockImplementation(async (command: string) => {
@@ -321,7 +320,7 @@ describe("OnboardingView", () => {
 		).toBeNull();
 
 		const clineCardAction = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Continue with Cline"]',
+			'button[aria-label="Sign in with Cline"]',
 		);
 		expect(clineCardAction).not.toBeNull();
 		await act(async () => {
@@ -332,9 +331,7 @@ describe("OnboardingView", () => {
 		expect(clineOption?.getAttribute("data-selected")).toBe("true");
 		expect(apiKeyOption?.getAttribute("data-selected")).toBe("false");
 		expect(apiKeyForm?.getAttribute("aria-hidden")).toBe("true");
-		expect(document.activeElement?.textContent?.trim()).toBe(
-			"Continue with Cline",
-		);
+		expect(document.activeElement?.textContent?.trim()).toBe("Sign in");
 		expect(
 			container.querySelector('button[aria-label="Use your own API key"]'),
 		).not.toBeNull();
@@ -512,37 +509,6 @@ describe("OnboardingView", () => {
 		expect(container.textContent).toContain("You're all set");
 	});
 
-	it("connects through desktop authentication instead of a separate sign-up website", async () => {
-		await render();
-		await act(async () => {
-			buttonByText("Get started").click();
-		});
-		expect(
-			Array.from(container.querySelectorAll("button")).some(
-				(button) => button.textContent?.trim() === "Sign up",
-			),
-		).toBe(false);
-		invoke.mockImplementation(async (command: string) => {
-			if (command === "run_provider_oauth_login") {
-				throw new Error("Browser authentication could not start");
-			}
-			return {};
-		});
-		await act(async () => {
-			buttonByText("Continue with Cline").click();
-		});
-		expect(invoke).toHaveBeenCalledWith(
-			"run_provider_oauth_login",
-			{ provider: "cline" },
-			{ timeoutMs: 15 * 60_000 },
-		);
-		expect(openExternalUrl).not.toHaveBeenCalled();
-		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-			"Browser authentication could not start",
-		);
-		expect(buttonByText("Continue with Cline").disabled).toBe(false);
-	});
-
 	it("lets the user cancel a pending browser sign-in", async () => {
 		await render();
 		await act(async () => {
@@ -563,7 +529,7 @@ describe("OnboardingView", () => {
 			return {};
 		});
 		await act(async () => {
-			buttonByText("Continue with Cline").click();
+			buttonByText("Sign in").click();
 		});
 		expect(container.textContent).toContain("Waiting for browser...");
 
@@ -571,7 +537,7 @@ describe("OnboardingView", () => {
 			buttonByText("Cancel").click();
 		});
 		expect(container.textContent).not.toContain("Waiting for browser...");
-		expect(buttonByText("Continue with Cline")).toBeDefined();
+		expect(buttonByText("Sign in")).toBeDefined();
 		// Cancelling must also stop the backend browser round-trip so a
 		// later-completed authorization can never persist credentials.
 		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
@@ -707,7 +673,7 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			container
 				.querySelector<HTMLButtonElement>(
-					'button[aria-label="Continue with Cline"]',
+					'button[aria-label="Sign in with Cline"]',
 				)
 				?.click();
 		});
@@ -721,7 +687,7 @@ describe("OnboardingView", () => {
 			return {};
 		});
 		await act(async () => {
-			buttonByText("Continue with Cline").click();
+			buttonByText("Sign in").click();
 		});
 		expect(invoke).toHaveBeenCalledWith(
 			"run_provider_oauth_login",

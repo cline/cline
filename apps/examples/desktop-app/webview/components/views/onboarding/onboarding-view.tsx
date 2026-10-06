@@ -52,6 +52,7 @@ import {
 } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 
+const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 const CLINE_PASS_SUBSCRIBE_URL =
 	"https://app.cline.bot/onboarding/individual-plan";
 
@@ -565,7 +566,7 @@ function ConnectStep({
 				<SetupOptionCard
 					id="cline"
 					onSelect={() => setSelectedMethod("cline")}
-					selectLabel="Continue with Cline"
+					selectLabel="Sign in with Cline"
 					selected={selectedMethod === "cline"}
 				>
 					<SetupOptionHeader
@@ -591,7 +592,7 @@ function ConnectStep({
 							</ul>
 						}
 						icon={<ClineLogo className="size-5" />}
-						title="Cline account"
+						title="Sign in with Cline"
 					/>
 					{user ? (
 						<div className="mt-6 flex flex-wrap items-center justify-end gap-6">
@@ -625,7 +626,7 @@ function ConnectStep({
 								variant="fill"
 							>
 								{signingIn && <Loader2 className="size-4 animate-spin" />}
-								{signingIn ? "Waiting for browser..." : "Continue with Cline"}
+								{signingIn ? "Waiting for browser..." : "Sign in"}
 							</Button>
 							{signingIn ? (
 								<Button
@@ -637,7 +638,17 @@ function ConnectStep({
 								>
 									Cancel
 								</Button>
-							) : null}
+							) : (
+								<Button
+									onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+									size="md"
+									tone="neutral"
+									type="button"
+									variant="ghost"
+								>
+									Sign up
+								</Button>
+							)}
 						</div>
 					)}
 					{!user && signingIn && deviceUserCode ? (
