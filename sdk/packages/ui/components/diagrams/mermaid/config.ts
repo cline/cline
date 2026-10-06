@@ -62,3 +62,22 @@ export const UI_TIMING = {
 	noticeResetMs: 4000,
 	revokeUrlDelayMs: 1000,
 } as const;
+
+/**
+ * Flat aliases of the grouped values above, kept for the pre-grouping public
+ * API of `@cline/ui/components/mermaid-diagram`; the groups stay the single
+ * source of truth.
+ */
+export const DEFAULT_DIAGRAM_NAME = DIAGRAM_NAMING.defaultName;
+export const MAX_DIAGRAM_SLUG_LENGTH = DIAGRAM_NAMING.maxSlugLength;
+export const MERMAID_FONT_FAMILY = MERMAID_FONT.family;
+export const MERMAID_FONT_SIZE = MERMAID_FONT.size;
+export const MIN_DIAGRAM_ZOOM = DIAGRAM_ZOOM.min;
+export const MAX_DIAGRAM_ZOOM = DIAGRAM_ZOOM.max;
+export const DIAGRAM_ZOOM_STEP = DIAGRAM_ZOOM.step;
+export const PNG_MAX_EDGE = PNG_EXPORT.maxEdge;
+export const PNG_BASE_SCALE = PNG_EXPORT.baseScale;
+export const PNG_MAX_DESIRED_SCALE = PNG_EXPORT.maxDesiredScale;
+export const PNG_MAX_ENCODED_BYTES = PNG_EXPORT.maxEncodedBytes;
+export const PNG_RETRY_SCALE_FACTOR = PNG_EXPORT.retryScaleFactor;
+export const PNG_MAX_ATTEMPTS = PNG_EXPORT.attemptLimit;

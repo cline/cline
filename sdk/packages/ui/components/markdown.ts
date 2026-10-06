@@ -69,6 +69,7 @@ export {
 	createDefaultMermaidConfig,
 	DIAGRAM_LINK_HREF_ATTRIBUTE,
 	type MermaidColorMode,
+	type MermaidColorResolver,
 	type MermaidModuleLoader,
 	type MermaidThemeOptions,
 	type MermaidThemeTokens,

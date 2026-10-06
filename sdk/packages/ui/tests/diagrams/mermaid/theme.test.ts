@@ -80,6 +80,29 @@ describe("Mermaid theme", () => {
 		).toBe(MERMAID_FONT.family);
 	});
 
+	test("asks the injected resolver to resolve every token value", () => {
+		const seen: string[] = [];
+		const tokens = {
+			background: "var(--card)",
+			border: "var(--border)",
+			error: "var(--destructive)",
+			foreground: "var(--foreground)",
+			muted: "var(--muted)",
+			mutedForeground: "var(--muted-foreground)",
+			primary: "var(--primary)",
+		};
+		const vars = buildMermaidThemeVariables(tokens, "dark", {
+			resolveColor: (value) => {
+				seen.push(value);
+				return value === "var(--card)" ? "rgb(1, 2, 3)" : null;
+			},
+		});
+		expect(new Set(seen)).toEqual(new Set(Object.values(tokens)));
+		// Resolver output is normalized to hex; unresolved tokens use the palette.
+		expect(vars.background).toBe("#010203");
+		expect(vars.textColor).toBe(FALLBACK_MERMAID_TOKENS.dark.foreground);
+	});
+
 	test("honors a custom fontFamily and light/dark backgrounds differ", () => {
 		const config = buildMermaidConfig(FALLBACK_MERMAID_TOKENS.light, "light", {
 			fontFamily: "Georgia, serif",
