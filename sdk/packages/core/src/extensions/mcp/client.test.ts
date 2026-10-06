@@ -170,10 +170,17 @@ process.stdin.on("data", (chunk) => {
 
 // Answers initialize, then closes its stdin the moment a tools/call request
 // starts arriving and either stays alive or (FAKE_MCP_EXIT_AFTER_CLOSE_MS)
-// exits with code 7 shortly after. It reads fd 0 directly rather than through
-// process.stdin so that libuv holds no handle on it and the close is real.
+// exits with code 7 shortly after. FAKE_MCP_IGNORE_SIGTERM makes it survive
+// SIGTERM. It reads fd 0 directly rather than through process.stdin so that
+// libuv holds no handle on it and the close is real.
 const CLOSE_STDIN_SERVER_SCRIPT = `
 const fs = require("node:fs");
+if (process.env.FAKE_MCP_PID_FILE) {
+	fs.writeFileSync(process.env.FAKE_MCP_PID_FILE, String(process.pid));
+}
+if (process.env.FAKE_MCP_IGNORE_SIGTERM) {
+	process.on("SIGTERM", () => {});
+}
 const chunk = Buffer.alloc(4096);
 let buffer = "";
 for (;;) {
@@ -257,6 +264,7 @@ function fakeServerRegistration(options: {
 	pidFile?: string;
 	script?: string;
 	exitAfterCloseMs?: number;
+	ignoreSigterm?: boolean;
 }): McpServerRegistration {
 	return {
 		name: "fake-server",
@@ -282,6 +290,7 @@ function fakeServerRegistration(options: {
 					: {
 							FAKE_MCP_EXIT_AFTER_CLOSE_MS: String(options.exitAfterCloseMs),
 						}),
+				...(options.ignoreSigterm ? { FAKE_MCP_IGNORE_SIGTERM: "1" } : {}),
 			},
 		},
 		...(options.timeoutSeconds === undefined
@@ -724,37 +733,47 @@ describe("mcp client stdin failures", () => {
 
 	// On win32 the server runs under a cmd.exe wrapper (shell: true) that holds
 	// the pipe open, so closing stdin inside the script never fails the write.
-	it.skipIf(process.platform === "win32")(
-		"fails the request at once when the server closes stdin but stays alive",
-		async () => {
-			const factory = createDefaultMcpServerClientFactory();
-			const client = await factory(
-				fakeServerRegistration({
-					delayMs: 0,
-					timeoutSeconds: 20,
-					script: "close-stdin-server.js",
-				}),
-			);
-			try {
-				await client.connect();
-				const startedAt = Date.now();
-				await expect(
-					client.callTool({
-						name: "anything",
-						arguments: { blob: "x".repeat(1_000_000) },
-					}),
-				).rejects.toThrow(
-					/MCP process exited for "fake-server" \(code=null, signal=SIGTERM\).*stopped reading its input/s,
+	for (const ignoreSigterm of [false, true]) {
+		it.skipIf(process.platform === "win32")(
+			`fails the request at once and stops a server that closes stdin but stays alive (${ignoreSigterm ? "ignores" : "honors"} SIGTERM)`,
+			async () => {
+				const pidFile = join(
+					tempRoot,
+					`close-stdin-${ignoreSigterm ? "ignores" : "honors"}-sigterm.pid`,
 				);
-				// Well under the 20s request timeout: the client killed the server
-				// instead of waiting for a reply that could never come.
-				expect(Date.now() - startedAt).toBeLessThan(5_000);
-			} finally {
-				await client.disconnect();
-			}
-		},
-		30_000,
-	);
+				const factory = createDefaultMcpServerClientFactory();
+				const client = await factory(
+					fakeServerRegistration({
+						delayMs: 0,
+						timeoutSeconds: 20,
+						script: "close-stdin-server.js",
+						pidFile,
+						ignoreSigterm,
+					}),
+				);
+				try {
+					await client.connect();
+					const pid = Number(readFileSync(pidFile, "utf8"));
+					const startedAt = Date.now();
+					await expect(
+						client.callTool({
+							name: "anything",
+							arguments: { blob: "x".repeat(1_000_000) },
+						}),
+					).rejects.toThrow(
+						/MCP server "fake-server" stopped reading its input .*\(write EPIPE\) and did not exit/,
+					);
+					// Well under the 20s request timeout: no reply could ever come.
+					expect(Date.now() - startedAt).toBeLessThan(5_000);
+					// Escalates to SIGKILL when SIGTERM is ignored.
+					await waitFor(() => !isProcessRunning(pid), 10_000);
+				} finally {
+					await client.disconnect();
+				}
+			},
+			30_000,
+		);
+	}
 
 	it.skipIf(process.platform === "win32")(
 		"still reports the server's own exit code when it exits shortly after closing stdin",
