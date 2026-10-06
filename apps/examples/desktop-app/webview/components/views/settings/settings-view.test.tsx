@@ -7,6 +7,8 @@ import {
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
+import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
+import type { ProviderCatalogResponse } from "@/lib/provider-schema";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -159,5 +161,139 @@ describe("SettingsView cloud sessions rollout", () => {
 				) !== null,
 			).toBe(visible),
 		);
+	});
+});
+
+describe("SettingsView provider catalog invalidation", () => {
+	it("reloads provider connection state and ignores an older response", async () => {
+		let catalogCalls = 0;
+		let modelLoads = 0;
+		let resolveStaleCatalog:
+			| ((catalog: ProviderCatalogResponse) => void)
+			| undefined;
+
+		const catalog = (configured: boolean): ProviderCatalogResponse => ({
+			providers: [
+				{
+					id: "cline",
+					name: "Cline Usage-Billing",
+					models: null,
+					color: "",
+					letter: "C",
+					enabled: true,
+					configured,
+				},
+				{
+					id: "cline-pass",
+					name: "ClinePass",
+					models: null,
+					color: "",
+					letter: "C",
+					enabled: true,
+					configured,
+				},
+			],
+			settingsPath: "/tmp/providers.json",
+		});
+
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_provider_catalog") {
+				catalogCalls += 1;
+				if (catalogCalls === 1) {
+					return catalog(true);
+				}
+				if (catalogCalls === 2) {
+					return new Promise<ProviderCatalogResponse>((resolve) => {
+						resolveStaleCatalog = resolve;
+					});
+				}
+				return catalog(false);
+			}
+			if (command === "list_provider_models") {
+				modelLoads += 1;
+				return { models: [] };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="Providers"
+				/>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(catalogCalls).toBe(1);
+			expect(container.textContent).toContain("Configured");
+			expect(container.textContent).toContain("ClinePass");
+			expect(container.textContent).toContain("2 configured · 2 available");
+		});
+		await vi.waitFor(() => expect(modelLoads).toBeGreaterThan(0));
+
+		// Leave the Providers section so the shared invalidation can clear the
+		// SettingsView cache without triggering a second request immediately.
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="General"
+				/>,
+			);
+			invalidateProviderCatalogCache();
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="Providers"
+				/>,
+			);
+		});
+		await vi.waitFor(() => expect(catalogCalls).toBe(2));
+
+		// Invalidate the in-flight request, then navigate away and back so the
+		// next load gets the authoritative signed-out snapshot.
+		await act(async () => {
+			invalidateProviderCatalogCache();
+		});
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="General"
+				/>,
+			);
+		});
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="Providers"
+				/>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(catalogCalls).toBe(3);
+			expect(container.textContent).toContain("Not configured");
+		});
+
+		await act(async () => {
+			resolveStaleCatalog?.(catalog(true));
+		});
+
+		expect(container.textContent).toContain("Not configured");
+		expect(container.textContent).toContain("ClinePass");
+		expect(container.textContent).not.toContain("2 configured · 2 available");
+		expect(container.textContent).not.toContain("1 configured · 1 available");
 	});
 });
