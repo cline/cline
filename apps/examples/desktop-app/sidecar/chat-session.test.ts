@@ -26,26 +26,27 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
-	assertSessionDeleteAllowedDuringHandoff,
-	beginSessionMetadataUpdate,
-} from "./cloud-handoff";
-import {
 	getEnvironmentContext,
 	handleCoreSessionEvent,
-	handleHubLiveEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
-import * as pluginCommands from "./plugin-commands";
-import {
-	cleanupCloudHandoffGates,
-	enableCloudHandoffGates,
-	localRuntimeContext,
-	localSessionManager,
-} from "./session-test-helpers";
 import type { SidecarContext } from "./types";
 
-afterEach(cleanupCloudHandoffGates);
+const { createContextCompactionPrepareTurnMock } = vi.hoisted(() => ({
+	createContextCompactionPrepareTurnMock: vi.fn(),
+}));
+
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
+	createContextCompactionPrepareTurnMock.mockImplementation(
+		actual.createContextCompactionPrepareTurn,
+	);
+	return {
+		...actual,
+		createContextCompactionPrepareTurn: createContextCompactionPrepareTurnMock,
+	};
+});
 
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
@@ -100,6 +101,43 @@ describe("rewriteDesktopTeamPrompt", () => {
 		}
 	});
 });
+function localRuntimeContext(
+	sessionManager: Record<string, unknown>,
+	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
+) {
+	const workspaceRoot = options.workspaceRoot ?? "/workspace";
+	return {
+		runtimeBindings: new Map([
+			[
+				"local",
+				{
+					environmentId: "local",
+					kind: "local" as const,
+					workspaceRoot,
+					sessionManager,
+					hubClient: {
+						command: vi.fn(async () => undefined),
+					},
+					unsubscribeSessionEvents: () => {},
+				},
+			],
+		]),
+		sessionEnvironmentIds: new Map(
+			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
+		),
+		activeEnvironmentId: "local",
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
+	};
+}
+
+function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
+	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
+		string,
+		unknown
+	>;
+}
+
 describe("starting SSH sessions", () => {
 	const sessionId = "session-new-ssh";
 	const environmentId = "ssh-test";
@@ -444,356 +482,6 @@ describe("environment-bound session attach", () => {
 });
 
 describe("session forks", () => {
-	it("blocks the delete command while a persisted cloud handoff is pending", async () => {
-		const remove = vi.fn();
-		const sessionId = "pending-handoff-source";
-		const ctx = {
-			liveSessions: new Map(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId,
-						metadata: {
-							handoff: {
-								status: "pending",
-								toCloudSessionId: "cloud-pending",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-								dashboardUrl:
-									"https://app.cline.bot/agents?sessionId=cloud-pending",
-							},
-						},
-					})),
-					delete: remove,
-				},
-				{ sessionIds: [sessionId] },
-			),
-		} as unknown as SidecarContext;
-		const { handleCommand } = await import("./commands");
-
-		await expect(
-			handleCommand(ctx, "delete_chat_session", {
-				sessionId,
-			}),
-		).rejects.toThrow("Cloud handoff is still pending");
-		expect(remove).not.toHaveBeenCalled();
-	});
-
-	it("blocks local mutations while the handoff request is starting", async () => {
-		enableCloudHandoffGates();
-		let releaseGet: ((value: undefined) => void) | undefined;
-		const sessionId = "starting-handoff-source";
-		const get = vi
-			.fn()
-			.mockImplementationOnce(
-				async () =>
-					await new Promise<undefined>((resolve) => {
-						releaseGet = resolve;
-					}),
-			)
-			.mockResolvedValue(undefined);
-		const ctx = {
-			liveSessions: new Map(),
-			...localRuntimeContext({ get }, { sessionIds: [sessionId] }),
-		} as unknown as SidecarContext;
-		const handoff = handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId,
-			config: { environmentId: "local" },
-			handoffAttemptId: "attempt-a",
-			fingerprint: {
-				repoUrl: "https://github.com/cline/cline.git",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "anthropic/claude-sonnet-4.6",
-			},
-		});
-		await vi.waitFor(() => expect(releaseGet).toBeTypeOf("function"));
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "handoff",
-				sessionId,
-				config: { environmentId: "local" },
-				handoffAttemptId: "attempt-b",
-				fingerprint: {
-					repoUrl: "https://github.com/cline/cline.git",
-					branch: "main",
-					headSha: "abc123",
-					modelId: "anthropic/claude-sonnet-4.6",
-				},
-			}),
-		).rejects.toThrow("A different cloud handoff is already in progress");
-
-		await expect(
-			assertSessionDeleteAllowedDuringHandoff(ctx, sessionId),
-		).rejects.toThrow("Wait for the cloud handoff to finish before deleting");
-		const { handleCommand } = await import("./commands");
-		await expect(
-			handleCommand(ctx, "update_chat_session_metadata", {
-				sessionId,
-				metadata: { pinned: true },
-			}),
-		).rejects.toThrow(
-			"Wait for the cloud handoff to finish before updating session metadata",
-		);
-		releaseGet?.(undefined);
-		await expect(handoff).rejects.toThrow("was not found");
-	});
-
-	it("rejects a checkpoint fork when a handoff starts during its source read", async () => {
-		enableCloudHandoffGates();
-		const sessionId = "fork-race-source";
-		const releases: Array<(value: unknown) => void> = [];
-		const get = vi.fn(
-			async () => await new Promise((resolve) => releases.push(resolve)),
-		);
-		const ctx = {
-			liveSessions: new Map(),
-			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext({ get }, { sessionIds: [sessionId] }),
-		} as unknown as SidecarContext;
-		const fork = handleChatSessionCommand(ctx, {
-			action: "fork",
-			sessionId,
-			forkBeforeRunCount: 1,
-			config: { environmentId: "local" },
-		});
-		await vi.waitFor(() => expect(releases).toHaveLength(1));
-		const handoff = handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId,
-			config: { environmentId: "local" },
-			handoffAttemptId: "attempt-a",
-			fingerprint: {
-				repoUrl: "https://github.com/cline/cline.git",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "anthropic/claude-sonnet-4.6",
-			},
-		}).catch(() => undefined);
-		await vi.waitFor(() => expect(releases).toHaveLength(2));
-		releases[0]?.({
-			sessionId,
-			status: "completed",
-			cwd: "/workspace/project",
-			workspaceRoot: "/workspace/project",
-		});
-		await expect(fork).rejects.toThrow(
-			"Wait for the cloud handoff to finish before forking",
-		);
-		releases[1]?.(undefined);
-		await handoff;
-	});
-
-	it("blocks handoff until every metadata update releases, ignoring duplicate releases", async () => {
-		enableCloudHandoffGates();
-		const sessionId = "metadata-update-source";
-		const ctx = {
-			liveSessions: new Map(),
-			...localRuntimeContext(
-				{ get: vi.fn(async () => undefined) },
-				{ sessionIds: [sessionId] },
-			),
-		} as unknown as SidecarContext;
-		const releaseMetadataUpdate = beginSessionMetadataUpdate(ctx, sessionId);
-		const releaseOtherUpdate = beginSessionMetadataUpdate(ctx, sessionId);
-		releaseMetadataUpdate();
-		releaseMetadataUpdate();
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "handoff",
-				sessionId,
-				config: { environmentId: "local" },
-			}),
-		).rejects.toThrow(
-			"Wait for the session metadata update to finish before handing off",
-		);
-		releaseOtherUpdate();
-		await expect(
-			handleChatSessionCommand(ctx, { action: "handoff", sessionId }),
-		).rejects.toThrow("Run handoff preflight again");
-	});
-
-	it("blocks handoff while session deletion is starting", async () => {
-		enableCloudHandoffGates();
-		let releaseGet: ((value: undefined) => void) | undefined;
-		const sessionId = "deleting-handoff-source";
-		const ctx = {
-			liveSessions: new Map(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(
-						async () =>
-							await new Promise<undefined>((resolve) => {
-								releaseGet = resolve;
-							}),
-					),
-				},
-				{ sessionIds: [sessionId] },
-			),
-		} as unknown as SidecarContext;
-		const deletion = assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
-		expect(releaseGet).toBeTypeOf("function");
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "handoff",
-				sessionId,
-				config: { environmentId: "local" },
-				handoffAttemptId: "attempt-a",
-				fingerprint: {
-					repoUrl: "https://github.com/cline/cline.git",
-					branch: "main",
-					headSha: "abc123",
-					modelId: "anthropic/claude-sonnet-4.6",
-				},
-			}),
-		).rejects.toThrow("Wait for session deletion to finish before handing off");
-		releaseGet?.(undefined);
-		const releaseDelete = await deletion;
-		releaseDelete();
-	});
-
-	it("allows deletion after a cloud handoff has completed", async () => {
-		const sessionId = "completed-handoff-source";
-		const ctx = {
-			liveSessions: new Map(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId,
-						metadata: {
-							handoff: {
-								status: "complete",
-								toCloudSessionId: "cloud-complete",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-							},
-						},
-					})),
-				},
-				{ sessionIds: [sessionId] },
-			),
-		} as unknown as SidecarContext;
-
-		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
-			ctx,
-			sessionId,
-		);
-		releaseDelete();
-	});
-
-	it("keeps a persisted pending handoff read-only after restart", async () => {
-		const send = vi.fn();
-		const restore = vi.fn();
-		const sourceSessionId = "pending-handoff-source";
-		const pendingSession = {
-			sessionId: sourceSessionId,
-			status: "idle",
-			metadata: {
-				handoff: {
-					status: "pending",
-					toCloudSessionId: "cloud-pending",
-					handedOffAt: "2026-08-18T00:00:00.000Z",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
-				},
-			},
-		};
-		const ctx = {
-			liveSessions: new Map([
-				[
-					sourceSessionId,
-					{
-						config: { cwd: "/workspace/project" },
-						messages: [{ role: "user", content: "continue" }],
-						promptsInQueue: [],
-						busy: false,
-						startedAt: Date.now(),
-						status: "idle",
-					},
-				],
-			]),
-			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => pendingSession),
-					send,
-					restore,
-				},
-				{ sessionIds: [sourceSessionId] },
-			),
-			streamIndices: new Map(),
-			wsClients: new Set(),
-		} as unknown as SidecarContext;
-		const recovery = "Cloud handoff is still pending";
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId: sourceSessionId,
-				prompt: "race",
-			}),
-		).rejects.toThrow(recovery);
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "fork",
-				sessionId: sourceSessionId,
-			}),
-		).rejects.toThrow(recovery);
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "reset",
-				sessionId: sourceSessionId,
-			}),
-		).rejects.toThrow(recovery);
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "restore_checkpoint",
-				sessionId: sourceSessionId,
-				checkpointRunCount: 1,
-				config: { cwd: "/workspace/project" },
-			}),
-		).rejects.toThrow(recovery);
-		expect(send).not.toHaveBeenCalled();
-		expect(restore).not.toHaveBeenCalled();
-	});
-
-	it("rejects checkpoint restore after the source completed a cloud handoff", async () => {
-		const restore = vi.fn();
-		const sessionId = "handed-off-source";
-		const ctx = {
-			liveSessions: new Map(),
-			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId,
-						metadata: {
-							handoff: {
-								status: "complete",
-								toCloudSessionId: "cloud-target",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-							},
-						},
-					})),
-					restore,
-				},
-				{ sessionIds: [sessionId] },
-			),
-			streamIndices: new Map(),
-			wsClients: new Set(),
-		} as unknown as SidecarContext;
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "restore_checkpoint",
-				sessionId,
-				checkpointRunCount: 1,
-				config: { cwd: "/workspace/project" },
-			}),
-		).rejects.toThrow("Fork locally before restoring a checkpoint");
-		expect(restore).not.toHaveBeenCalled();
-	});
-
 	it("restores the selected workspace checkpoint before forking for message editing", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [
@@ -1136,16 +824,6 @@ describe("session forks", () => {
 						model: "anthropic/claude-sonnet-4.6",
 						cwd: "/workspace/project",
 						workspaceRoot: "/workspace/project",
-						metadata: {
-							handoff: {
-								toCloudSessionId: "ses-cloud-copy",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-								status: "complete",
-							},
-							cloudHandoffScope: "old-account",
-							cloudHandoffIntent: { fingerprint: {} },
-							cloudHandoffSeedDispatched: true,
-						},
 					})),
 					readMessages,
 					restore,
@@ -1181,16 +859,7 @@ describe("session forks", () => {
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
-			expect.objectContaining({
-				initialMessages: sourceMessages,
-				sessionMetadata: {
-					fork: {
-						forkedFromSessionId: sourceSessionId,
-						forkedAt: expect.any(String),
-						source: "desktop",
-					},
-				},
-			}),
+			expect.objectContaining({ initialMessages: sourceMessages }),
 		);
 	});
 
@@ -1351,10 +1020,7 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				...localRuntimeContext({
-					restore,
-					get: vi.fn(async () => undefined),
-				}),
+				...localRuntimeContext({ restore }),
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -1459,7 +1125,6 @@ describe("first-send connection updates", () => {
 		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
 		const start = vi.fn(async (_input?: unknown) => ({ sessionId }));
-		const get = vi.fn(async () => ({ sessionId, status: "idle" }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -1480,7 +1145,6 @@ describe("first-send connection updates", () => {
 			wsClients: new Set(),
 			...localRuntimeContext(
 				{
-					get,
 					readMessages,
 					readSessionCompactionState,
 					send,
@@ -1497,6 +1161,7 @@ describe("first-send connection updates", () => {
 		return {
 			ctx,
 			readMessages,
+			readSessionCompactionState,
 			send,
 			sessionId,
 			start,
@@ -1775,84 +1440,6 @@ describe("first-send connection updates", () => {
 			}
 			rmSync(testSessionDataDir, { recursive: true, force: true });
 		}
-	});
-
-	it("preserves an idle fork status when Core reports its resident process as running", async () => {
-		const { ctx, sessionId } = createContext({ attachedViaHub: true });
-		localSessionManager(ctx).hasSessionSubscription = () => false;
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
-			handleHubLiveEvent(ctx, {
-				event: "session.attached",
-				sessionId,
-				payload: { session: { status: "running" } },
-			});
-			return { version: "v1", ok: true };
-		});
-		const existing = ctx.liveSessions.get(sessionId);
-		if (!existing) throw new Error("missing session");
-		existing.status = "idle";
-		existing.busy = false;
-		(localSessionManager(ctx) as { get: unknown }).get = vi.fn(async () => ({
-			sessionId,
-			status: "running",
-			provider: "cline",
-			model: "anthropic/claude-sonnet-4.6",
-			cwd: "/workspace",
-			workspaceRoot: "/workspace",
-		}));
-
-		const result = (await handleChatSessionCommand(ctx, {
-			action: "attach",
-			sessionId,
-		})) as { status: string };
-
-		expect(result.status).toBe("idle");
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "idle",
-			busy: false,
-		});
-	});
-
-	it("preserves run.started while attach is pending and blocks handoff", async () => {
-		enableCloudHandoffGates();
-		const { ctx, sessionId } = createContext({ attachedViaHub: true });
-		localSessionManager(ctx).hasSessionSubscription = () => false;
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		const attaching = Promise.withResolvers<void>();
-		const attached = Promise.withResolvers<void>();
-		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
-			attaching.resolve();
-			await attached.promise;
-			return { version: "v1", ok: true };
-		});
-		const result = handleChatSessionCommand(ctx, {
-			action: "attach",
-			sessionId,
-		});
-		await attaching.promise;
-		handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		attached.resolve();
-		await expect(result).resolves.toMatchObject({ status: "running" });
-		handleHubLiveEvent(ctx, {
-			event: "session.attached",
-			sessionId,
-			sequence: 1,
-			payload: { session: { status: "idle" } },
-		});
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
-		).rejects.toThrow("Stop the current run before handing off");
 	});
 
 	it("updates a changed connection before sending", async () => {
@@ -2147,6 +1734,432 @@ describe("first-send connection updates", () => {
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
 		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
+
+	describe("hub loss recovery", () => {
+		const missing = (sessionId: string) =>
+			Object.assign(new Error(`session not found: ${sessionId}`), {
+				code: "command_failed",
+			});
+		const transportLost = () =>
+			Object.assign(new Error("Hub connection closed"), {
+				name: "HubTransportError",
+			});
+
+		it("rebuilds a session the restarted hub lost and ends the turn interrupted", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			})) as { result?: { finishReason?: string; hubInterrupted?: boolean } };
+
+			expect(start).toHaveBeenCalledTimes(1);
+			expect(start.mock.calls[0]?.[0]).toMatchObject({ config: { sessionId } });
+			expect(response.result).toMatchObject({
+				finishReason: "aborted",
+				hubInterrupted: true,
+			});
+		});
+
+		it("leaves a session the hub still holds alone and reports the failure", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			send.mockRejectedValueOnce(transportLost());
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			})) as { result?: { finishReason?: string } };
+
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(response.result?.finishReason).toBe("error");
+		});
+
+		it("does not revive a session the user stops during the reconnect window", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(transportLost());
+			updateSessionConnection.mockRejectedValue(transportLost());
+
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			}) as Promise<{ result?: { finishReason?: string } }>;
+			await vi.waitFor(() =>
+				expect(updateSessionConnection).toHaveBeenCalled(),
+			);
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+
+			expect((await pending).result?.finishReason).toBe("error");
+			expect(start).not.toHaveBeenCalled();
+		});
+
+		it("re-queues a queued prompt once the session is rebuilt", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			const response = (await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+				delivery: "queue",
+			})) as { queued?: boolean };
+
+			expect(start).toHaveBeenCalledTimes(1);
+			expect(send).toHaveBeenCalledTimes(2);
+			expect(send.mock.calls[1]?.[0]).toMatchObject({ delivery: "queue" });
+			expect(response.queued).toBe(true);
+		});
+
+		it("does not re-queue an accepted prompt when only its reply was lost", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			const acceptedPrompts: string[] = [];
+			send.mockImplementationOnce(async (input) => {
+				acceptedPrompts.push((input as { prompt: string }).prompt);
+				throw transportLost();
+			});
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "execute once",
+				delivery: "queue",
+			});
+			expect(send).toHaveBeenCalledOnce();
+			expect(acceptedPrompts).toEqual(["execute once"]);
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(response).toMatchObject({ result: { finishReason: "error" } });
+		});
+
+		it("serializes replacement recovery behind a cancelled rebuild and retains sharing", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishOld!: (result: { sessionId: string }) => void;
+			let finishNew!: (result: { sessionId: string }) => void;
+			start
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishOld = resolve;
+						}),
+				)
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishNew = resolve;
+						}),
+				);
+			send
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "old turn",
+			});
+			let replacementSend: Promise<unknown> | undefined;
+			let queued: Promise<unknown> | undefined;
+			try {
+				await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+				await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+				const oldSession = ctx.liveSessions.get(sessionId);
+				if (!oldSession) throw new Error("Expected stopped session");
+				const replacement = {
+					...oldSession,
+					status: "idle" as const,
+					busy: false,
+				};
+				ctx.liveSessions.set(sessionId, replacement);
+				replacementSend = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "replacement turn",
+				});
+				await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				// The old Hub startup still owns this session ID. Its late
+				// registration must finish before another startup can begin.
+				expect(start).toHaveBeenCalledOnce();
+				expect(updateSessionConnection).toHaveBeenCalledOnce();
+				finishOld({ sessionId });
+				await expect(first).resolves.toMatchObject({
+					result: { finishReason: "error" },
+				});
+				await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+				queued = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "next turn",
+					delivery: "queue",
+				});
+				await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+				// Let the failed send join recovery before resolving startup.
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				expect(start).toHaveBeenCalledTimes(2);
+				expect(updateSessionConnection).toHaveBeenCalledTimes(2);
+				finishNew({ sessionId });
+				await expect(replacementSend).resolves.toMatchObject({
+					result: { hubInterrupted: true },
+				});
+				await expect(queued).resolves.toMatchObject({ queued: true });
+				expect(stop).toHaveBeenCalledOnce();
+				expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
+			} finally {
+				finishOld?.({ sessionId });
+				await first;
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				finishNew?.({ sessionId });
+				await Promise.all([replacementSend, queued]);
+			}
+		});
+
+		it.each([
+			30_000,
+			null,
+		])("bounds replacement recovery including a cancelled startup (%s)", async (oldStartupDelay) => {
+			vi.useFakeTimers();
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext();
+			let finishOld!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					}),
+			);
+			send.mockRejectedValue(missing(sessionId));
+			updateSessionConnection
+				.mockRejectedValue(transportLost())
+				.mockRejectedValueOnce(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "old turn",
+			});
+			let replacementSend: Promise<unknown> | undefined;
+			let laterSend: Promise<unknown> | undefined;
+			try {
+				await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+				await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+				const oldSession = ctx.liveSessions.get(sessionId);
+				if (!oldSession) throw new Error("Expected stopped projection");
+				const replacement = {
+					...oldSession,
+					busy: false,
+					status: "idle" as const,
+				};
+				ctx.liveSessions.set(sessionId, replacement);
+				let finished = false;
+				replacementSend = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "replacement turn",
+				}).then((result) => {
+					finished = true;
+					return result;
+				});
+				await vi.advanceTimersByTimeAsync(0);
+				if (oldStartupDelay !== null) {
+					await vi.advanceTimersByTimeAsync(oldStartupDelay);
+					finishOld({ sessionId });
+					await vi.advanceTimersByTimeAsync(0);
+				}
+				await vi.advanceTimersByTimeAsync(59_999 - (oldStartupDelay ?? 0));
+				expect(finished).toBe(false);
+				await vi.advanceTimersByTimeAsync(1);
+				expect(finished).toBe(true);
+				await expect(replacementSend).resolves.toMatchObject({
+					result: { finishReason: "error" },
+				});
+				expect(start).toHaveBeenCalledOnce();
+				if (oldStartupDelay === null) {
+					// Returning at the deadline must not release the underlying
+					// startup barrier: a further send still waits for registration.
+					updateSessionConnection.mockRejectedValue(missing(sessionId));
+					ctx.liveSessions.set(sessionId, { ...replacement, status: "idle" });
+					laterSend = handleChatSessionCommand(ctx, {
+						action: "send",
+						sessionId,
+						prompt: "retry",
+					});
+					await vi.advanceTimersByTimeAsync(0);
+					expect(start).toHaveBeenCalledOnce();
+					finishOld({ sessionId });
+					await vi.advanceTimersByTimeAsync(0);
+					await expect(laterSend).resolves.toMatchObject({
+						result: { hubInterrupted: true },
+					});
+					expect(start).toHaveBeenCalledTimes(2);
+				}
+			} finally {
+				finishOld?.({ sessionId });
+				await vi.advanceTimersByTimeAsync(60_000);
+				await Promise.all([first, replacementSend, laterSend]);
+				vi.useRealTimers();
+			}
+		});
+
+		it("shares an in-flight rebuild with a queued send without stopping it", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValue(missing(sessionId));
+			const first = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "first",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			const queued = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "next",
+				delivery: "queue",
+			});
+			await vi.waitFor(() =>
+				expect(send.mock.calls.length).toBeGreaterThanOrEqual(2),
+			);
+			finishStart({ sessionId });
+			const [firstResponse, queuedResponse] = await Promise.all([
+				first,
+				queued,
+			]);
+			expect(start).toHaveBeenCalledOnce();
+			expect(stop).not.toHaveBeenCalled();
+			expect(firstResponse).toMatchObject({ result: { hubInterrupted: true } });
+			expect(queuedResponse).toMatchObject({ queued: true });
+		});
+
+		it("recovers hub loss during an attached session's connection refresh", async () => {
+			const { ctx, send, sessionId, start, updateSessionConnection } =
+				createContext({ attachedViaHub: true });
+			updateSessionConnection
+				.mockRejectedValueOnce(missing(sessionId))
+				.mockRejectedValueOnce(missing(sessionId));
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+				config: { ...baseConfig },
+			});
+			expect(start).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledOnce();
+			expect(response).toMatchObject({ result: { finishReason: "completed" } });
+		});
+
+		it("does not start a rebuild when stopped while loading recovery state", async () => {
+			const {
+				ctx,
+				send,
+				sessionId,
+				start,
+				readSessionCompactionState,
+				updateSessionConnection,
+			} = createContext();
+			let finishRead!: () => void;
+			readSessionCompactionState.mockImplementationOnce(
+				() =>
+					new Promise<undefined>((resolve) => {
+						finishRead = () => resolve(undefined);
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() =>
+				expect(readSessionCompactionState).toHaveBeenCalledOnce(),
+			);
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			finishRead();
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(start).not.toHaveBeenCalled();
+		});
+
+		it("undoes a rebuild stopped while startup was in flight", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			finishStart({ sessionId });
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(2));
+		});
+
+		it("leaves a newly attached session alone after a cancelled rebuild", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext();
+			let finishStart!: (result: { sessionId: string }) => void;
+			start.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishStart = resolve;
+					}),
+			);
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+			const pending = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+			await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+			const previous = ctx.liveSessions.get(sessionId);
+			if (!previous) throw new Error("Expected a live session after stop");
+			const replacement = {
+				...previous,
+				attachedViaHub: true,
+			};
+			ctx.liveSessions.set(sessionId, replacement);
+			finishStart({ sessionId });
+			expect(await pending).toMatchObject({
+				result: { finishReason: "error" },
+			});
+			expect(stop).toHaveBeenCalledOnce();
+			expect(ctx.liveSessions.get(sessionId)).toBe(replacement);
+		});
+	});
 });
 
 describe("workspace metadata prewarming", () => {
@@ -2222,7 +2235,6 @@ describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
 
 	afterEach(() => {
-		vi.restoreAllMocks();
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -2435,48 +2447,6 @@ Follow the desktop send workflow instructions.`,
 		});
 	});
 
-	it("expands a user /cloud workflow while the Cloud sessions gate is off", async () => {
-		const workspace = createWorkspaceWithSkill();
-		const workflowsDir = join(workspace, ".cline", "workflows");
-		writeFileSync(
-			join(workflowsDir, "cloud.md"),
-			`---
-name: cloud
----
-Follow the user cloud workflow instructions.`,
-		);
-		const { ctx, send, sessionId } = createContext(workspace);
-
-		// Explicitly disable the gate so local rollout/settings cannot affect this test.
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		// Gate off: the user's workflow owns /cloud.
-		await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "/cloud please",
-		});
-		expect(send).toHaveBeenLastCalledWith(
-			expect.objectContaining({
-				prompt: "Follow the user cloud workflow instructions. please",
-			}),
-		);
-
-		// Gate on: /cloud is built-in again and passes through untouched.
-		const runPlugin = vi
-			.spyOn(pluginCommands, "runPluginSlashCommand")
-			.mockResolvedValue(undefined);
-		enableCloudHandoffGates();
-		await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "/cloud please",
-		});
-		expect(send).toHaveBeenLastCalledWith(
-			expect.objectContaining({ prompt: "/cloud please" }),
-		);
-		expect(runPlugin).not.toHaveBeenCalled();
-	});
-
 	it("leaves built-in and unknown slash commands untouched", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, sessionId } = createContext(workspace);
@@ -2498,6 +2468,161 @@ Follow the user cloud workflow instructions.`,
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
 		);
+	});
+});
+
+describe("/compact", () => {
+	function createCompactContext(options: {
+		busy?: boolean;
+		messages?: unknown[];
+		config?: Record<string, unknown>;
+	}) {
+		const sessionId = "compact-session";
+		const wsSend = vi.fn();
+		const send = vi.fn();
+		const updateSessionCompactionState = vi.fn(async () => ({
+			updated: true,
+		}));
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: options.config ?? {
+							provider: "cline",
+							model: "test-model",
+						},
+						messages: [],
+						promptsInQueue: [],
+						busy: options.busy ?? false,
+						startedAt: Date.now(),
+						status: options.busy ? "running" : "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set([{ send: wsSend }]),
+			...localRuntimeContext(
+				{
+					send,
+					get: vi.fn(async () => ({ status: "idle" })),
+					readMessages: vi.fn(async () => options.messages ?? []),
+					updateSessionCompactionState,
+					pendingPrompts: { list: vi.fn(async () => []) },
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+		const readCommandOutput = () =>
+			wsSend.mock.calls
+				.map(
+					([encoded]) =>
+						JSON.parse(String(encoded)) as {
+							event: { name: string; payload: Record<string, unknown> };
+						},
+				)
+				.find((message) => message.event.name === "chat_command_output")?.event
+				.payload;
+		return {
+			ctx,
+			send,
+			sessionId,
+			readCommandOutput,
+			updateSessionCompactionState,
+		};
+	}
+
+	it("compacts with the session's connection settings and saves the result", async () => {
+		const summary = { role: "user", content: "Context summary" };
+		const compact = vi.fn(async () => ({ messages: [summary] }));
+		createContextCompactionPrepareTurnMock.mockReturnValueOnce(compact);
+		const {
+			ctx,
+			send,
+			sessionId,
+			readCommandOutput,
+			updateSessionCompactionState,
+		} = createCompactContext({
+			config: {
+				provider: "compact-test-provider",
+				model: "test-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "X-Team": "desktop" },
+			},
+			messages: [
+				{ role: "user", content: "first prompt" },
+				{ role: "assistant", content: "first response" },
+			],
+		});
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(createContextCompactionPrepareTurnMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerId: "compact-test-provider",
+				modelId: "test-model",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example/v1",
+				headers: { "X-Team": "desktop" },
+				compaction: { enabled: true },
+			}),
+			{ mode: "manual" },
+		);
+		expect(updateSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				source_message_count: 2,
+				messages: [summary],
+			}),
+		);
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			text: "Compacted context from 2 to 1 messages.",
+		});
+	});
+
+	it("refuses to compact while a turn is running without reaching the model", async () => {
+		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
+			busy: true,
+		});
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(result).toEqual({ sessionId, ok: true, commandHandled: true });
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			sessionId,
+			command: "compact",
+			text: expect.stringContaining("Cannot compact while a response"),
+		});
+	});
+
+	it("reports an empty session instead of sending the prompt", async () => {
+		const { ctx, send, sessionId, readCommandOutput } = createCompactContext({
+			messages: [],
+		});
+
+		const result = await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/compact",
+		});
+
+		expect(result).toEqual({ sessionId, ok: true, commandHandled: true });
+		expect(send).not.toHaveBeenCalled();
+		expect(readCommandOutput()).toMatchObject({
+			text: "No messages to compact.",
+		});
 	});
 });
 

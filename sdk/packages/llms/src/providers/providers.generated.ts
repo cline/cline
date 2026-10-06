@@ -414,7 +414,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "bedrock",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "bedrock",
-		defaultModelId: "openai.gpt-6.1-sol",
+		defaultModelId: "global.openai.gpt-6.1-sol",
 		apiKeyEnv: [
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",
@@ -696,7 +696,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "digitalocean",
-		defaultModelId: "anthropic-claude-sonnet-5.5",
+		defaultModelId: "openai-gpt-6-1-sol",
 		apiKeyEnv: ["DIGITALOCEAN_ACCESS_TOKEN"],
 		docsUrl:
 			"https://docs.digitalocean.com/products/gradient-ai-platform/details/models/",
@@ -909,7 +909,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "gmicloud",
-		defaultModelId: "zai-org/GLM-5.2-FP8",
+		defaultModelId: "Qwen/Qwen3.8-Flash",
 		apiKeyEnv: ["GMICLOUD_API_KEY"],
 		docsUrl:
 			"https://docs.gmicloud.ai/inference-engine/api-reference/llm-api-reference",
@@ -1218,7 +1218,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "apodex/apodex-1.1-mini:free",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1691,9 +1691,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "NanoGPT",
 		description: "NanoGPT model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
+		capabilities: ["tools", "prompt-cache", "reasoning"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "inclusionai/ling-3.1-flash",
+		defaultModelId: "unbiased/pareto-26.10-preview",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1805,7 +1805,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nvidia",
-		defaultModelId: "z-ai/glm-5.3-flash",
+		defaultModelId: "deepseek-ai/deepseek-v4.1-flash",
 		apiKeyEnv: ["NVIDIA_API_KEY"],
 		docsUrl: "https://docs.api.nvidia.com/nim/",
 		defaults: {
@@ -1835,7 +1835,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "ofox",
-		defaultModelId: "anthropic/claude-sonnet-5.5",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["OFOX_API_KEY"],
 		docsUrl: "https://ofox.ai/docs",
 		defaults: {
@@ -1874,7 +1874,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "gpt-6.1-sol",
+		defaultModelId: "fledge-alpha-free",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1916,7 +1916,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "apodex/apodex-1.1-mini:free",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2169,7 +2169,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "sapaicore",
-		defaultModelId: "gemini-3.5-flash-lite",
+		defaultModelId: "gemini-3.8-flash",
 		apiKeyEnv: ["AICORE_SERVICE_KEY"],
 		docsUrl: "https://help.sap.com/docs/sap-ai-core",
 	},

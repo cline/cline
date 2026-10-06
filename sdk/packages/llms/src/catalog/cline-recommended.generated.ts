@@ -44,6 +44,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
+				id: "cline-free/deepseek-v4.1-flash",
+				name: "Deepseek-v4.1-Flash",
+				description: "Fast and efficient with 1M context window ",
+				tags: [],
+			},
+			{
 				id: "stealth/space-bunny-alpha",
 				name: "space-bunny-alpha",
 				description: "Blazing-fast inference with 1M context",
@@ -57,12 +63,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-free/deepseek-v4.1-flash",
-				name: "Deepseek-v4.1-Flash",
-				description: "Fast and efficient with 1M context window ",
-				tags: [],
-			},
-			{
 				id: "cline-free/muse-spark-1.3-contributor",
 				name: "Muse Spark 1.3 Contributor",
 				description:
@@ -71,6 +71,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			},
 		],
 		clinePass: [
+			{
+				id: "cline-pass/deepseek-v4.1-flash",
+				name: "cline-pass/deepseek-v4.1-flash",
+				description: "Smarter and more efficient, with 1M context window",
+				tags: [],
+			},
 			{
 				id: "cline-pass/mimo-v2.6-flash",
 				name: "cline-pass/mimo-v2.6-flash",
@@ -102,12 +108,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/deepseek-v4.1-flash",
-				name: "cline-pass/deepseek-v4.1-flash",
-				description: "Smarter and more efficient, with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/muse-spark-1.3-contributor",
 				name: "cline-pass/muse-spark-1.3-contributor",
 				description: "",
@@ -127,9 +127,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
+				id: "cline-pass/qwen3.7-max",
+				name: "cline-pass/qwen3.7-max",
+				description: "Flagship agent model with 1M context window",
 				tags: [],
 			},
 			{
@@ -139,9 +139,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-max",
-				name: "cline-pass/qwen3.7-max",
-				description: "Flagship agent model with 1M context window",
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{

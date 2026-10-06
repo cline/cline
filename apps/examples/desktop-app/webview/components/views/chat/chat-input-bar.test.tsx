@@ -652,6 +652,12 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("suggests the built-in /compact command", async () => {
+		await renderVoiceComposer({ prompt: "/comp", executionTarget: "local" });
+		const suggestions = container.querySelector("#slash-command-suggestions");
+		expect(suggestions?.textContent).toContain("/compact");
+	});
+
 	it("scrolls the arrow-key selected slash command into view", async () => {
 		await renderVoiceComposer({ prompt: "/", executionTarget: "local" });
 		const textarea = container.querySelector("textarea");

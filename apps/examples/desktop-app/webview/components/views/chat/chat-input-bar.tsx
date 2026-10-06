@@ -110,6 +110,10 @@ type UserInstructionConfigResponse = {
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
+		name: "compact",
+		description: "Summarize the conversation to free up context",
+	},
+	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
