@@ -1017,6 +1017,25 @@ describe("ProviderSettingsManager", () => {
 			});
 		}
 
+		it("leaves an absent selection absent, on read and across an unrelated write", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				modes: {},
+				providers: { "openai-compatible": openAiCompatible },
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			expect(
+				JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider,
+			).toBeUndefined();
+		});
+
 		it("persists the repaired selection on the next write", () => {
 			const { filePath, manager } = setup({
 				version: 1,

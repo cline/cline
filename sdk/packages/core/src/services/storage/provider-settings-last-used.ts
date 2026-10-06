@@ -68,26 +68,11 @@ function isUsableFallback(
 }
 
 /**
- * The provider id `lastUsedProvider` effectively denotes: the stored id while
- * it still resolves to settings — including a signed-out `cline` entry, which
- * keeps its sign-in flow — otherwise the most recently saved provider that is
- * usable, and undefined when nothing is.
- *
- * The stored id can outlive its entry — another Cline surface sharing
- * providers.json removed the provider, or a migration carried a stale pointer
- * forward. Every consumer treats an unresolvable last-used provider as "no
- * provider" and then defaults to the credentialed Cline provider, which turns
- * a stale pointer into a sign-in wall for a user whose real provider is
- * configured right next to it.
+ * The most recently saved provider that is usable, or undefined when none is.
  */
-export function resolveEffectiveLastUsedProviderId(
+export function findUsableFallbackProviderId(
 	state: StoredProviderSettings,
 ): string | undefined {
-	const stored = state.lastUsedProvider;
-	if (stored && hasResolvableSettings(state, stored)) {
-		return stored;
-	}
-
 	let fallback: string | undefined;
 	let fallbackUpdatedAt = Number.NEGATIVE_INFINITY;
 	for (const [providerId, entry] of Object.entries(state.providers)) {
@@ -103,6 +88,34 @@ export function resolveEffectiveLastUsedProviderId(
 		}
 	}
 	return fallback;
+}
+
+/**
+ * The provider id `lastUsedProvider` effectively denotes. A stored id that
+ * still resolves to settings is kept — including a signed-out `cline` entry,
+ * which keeps its sign-in flow. A dangling id (one with no settings) is
+ * replaced by the most recently saved usable provider. An absent pointer stays
+ * absent: removing or disabling the selected provider deliberately clears the
+ * selection.
+ *
+ * The stored id can outlive its entry — another Cline surface sharing
+ * providers.json removed the provider, or a migration carried a stale pointer
+ * forward. Every consumer treats an unresolvable last-used provider as "no
+ * provider" and then defaults to the credentialed Cline provider, which turns
+ * a stale pointer into a sign-in wall for a user whose real provider is
+ * configured right next to it.
+ */
+export function resolveEffectiveLastUsedProviderId(
+	state: StoredProviderSettings,
+): string | undefined {
+	const stored = state.lastUsedProvider;
+	if (!stored) {
+		return undefined;
+	}
+	if (hasResolvableSettings(state, stored)) {
+		return stored;
+	}
+	return findUsableFallbackProviderId(state);
 }
 
 /**

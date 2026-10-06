@@ -16,7 +16,7 @@ import {
 	writeModelsFileSync,
 } from "../providers/local-provider-registry";
 import {
-	resolveEffectiveLastUsedProviderId,
+	findUsableFallbackProviderId,
 	resolveStoredProviderSettings,
 } from "./provider-settings-last-used";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
@@ -1068,7 +1068,7 @@ export function migrateLegacyProviderSettings(
 		preservedProvider ??
 		(migratedPreferredProvider && next.providers[migratedPreferredProvider]
 			? migratedPreferredProvider
-			: resolveEffectiveLastUsedProviderId(next));
+			: findUsableFallbackProviderId(next));
 
 	options.providerSettingsManager.write(next);
 	if (addedCustomProviderCount > 0) {
