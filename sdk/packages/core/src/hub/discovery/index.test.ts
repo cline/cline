@@ -246,12 +246,12 @@ describe("hub discovery", () => {
 			"utf8",
 		);
 
-		await expect(readHubDiscovery(discoveryPath)).rejects.toThrow(
-			"Invalid Hub discovery record",
-		);
+		await expect(
+			readHubDiscovery(discoveryPath, { onError: "throw" }),
+		).rejects.toThrow("Invalid Hub discovery record");
 	});
 
-	it("does not treat malformed JSON or invalid records as absent", async () => {
+	it("ignores invalid records for recovery but rejects them for shutdown", async () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_DISCOVERY_PATH;
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
@@ -260,9 +260,10 @@ describe("hub discovery", () => {
 		await mkdir(dirname(discoveryPath), { recursive: true });
 		for (const raw of ["{ invalid json", "null", "{}", "[]"]) {
 			await writeFile(discoveryPath, raw, "utf8");
-			await expect(readHubDiscovery(discoveryPath)).rejects.toThrow(
-				"Hub discovery record",
-			);
+			await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+			await expect(
+				readHubDiscovery(discoveryPath, { onError: "throw" }),
+			).rejects.toThrow("Hub discovery record");
 		}
 		await clearHubDiscovery(discoveryPath);
 	});
@@ -276,7 +277,12 @@ describe("hub discovery", () => {
 		).discoveryPath;
 		await mkdir(dirname(discoveryPath), { recursive: true });
 		// Opening the parent directory as a file fails on every supported OS.
-		await expect(readHubDiscovery(dirname(discoveryPath))).rejects.toThrow();
+		await expect(
+			readHubDiscovery(dirname(discoveryPath)),
+		).resolves.toBeUndefined();
+		await expect(
+			readHubDiscovery(dirname(discoveryPath), { onError: "throw" }),
+		).rejects.toThrow();
 	});
 
 	it("serializes generation cleanup with replacement publication", async () => {

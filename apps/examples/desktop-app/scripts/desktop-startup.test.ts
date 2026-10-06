@@ -6,6 +6,7 @@ import {
 	openSync,
 	readFileSync,
 	rmSync,
+	writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -131,7 +132,7 @@ function processCommandLine(pid: number): string | undefined {
 
 async function runStartupScenario(
 	extraEnv: Record<string, string>,
-	options: { hubAlreadyRunning: boolean },
+	options: { hubAlreadyRunning: boolean; discoveryContents?: string },
 ): Promise<void> {
 	const root = mkdtempSync(join(tmpdir(), "cline-desktop-startup-"));
 	const discoveryPath = join(root, "hub.json");
@@ -142,6 +143,9 @@ async function runStartupScenario(
 	let child: ReturnType<typeof Bun.spawn> | undefined;
 	let hubPid: number | undefined;
 	try {
+		if (options.discoveryContents !== undefined) {
+			writeFileSync(discoveryPath, options.discoveryContents);
+		}
 		const cli = await resolveCliBinary();
 		const bundle = resolveBackendBundle();
 
@@ -315,3 +319,12 @@ test("desktop startup works behind a dead HTTP(S) proxy", async () => {
 		{ hubAlreadyRunning: false },
 	);
 }, 180_000);
+
+for (const discoveryContents of ["{ invalid json", "{}"]) {
+	test(`desktop startup recovers from an invalid discovery record: ${discoveryContents}`, async () => {
+		await runStartupScenario(
+			{},
+			{ hubAlreadyRunning: false, discoveryContents },
+		);
+	}, 120_000);
+}

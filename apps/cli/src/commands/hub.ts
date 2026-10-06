@@ -30,7 +30,9 @@ const HUB_DISCOVERY_PATH_ENV = "CLINE_HUB_DISCOVERY_PATH";
 
 async function stopHubServer(): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const discovery = await readHubDiscovery(owner.discoveryPath, {
+		onError: "throw",
+	});
 	if (!discovery) {
 		return true; // Already stopped: cleanup is idempotent.
 	}

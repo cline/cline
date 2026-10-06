@@ -344,6 +344,9 @@ describe("createHubCommand", () => {
 		expect(exitCode()).toBe(1);
 		expect(output).toEqual([]);
 		expect(errors).toEqual([error.message]);
+		expect(mockReadHubDiscovery).toHaveBeenCalledWith(expect.any(String), {
+			onError: "throw",
+		});
 		expect(mockStopLocalHubServerGracefully).not.toHaveBeenCalled();
 		expect(mockClearHubDiscovery).not.toHaveBeenCalled();
 	});
