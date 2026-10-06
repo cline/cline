@@ -57,7 +57,10 @@ function parseTools(tools: string | string[] | undefined): ClineDefaultTool[] {
 		return []
 	}
 
-	return Array.from(new Set(rawTools.map(normalizeToolName)))
+	// Keep saved agent configs usable after Focus Chain's retirement. Ignore only
+	// the retired tool; unknown or empty tool names must still fail validation.
+	const activeTools = rawTools.map((tool) => tool.trim()).filter((tool) => tool !== "focus_chain")
+	return Array.from(new Set(activeTools.map(normalizeToolName)))
 }
 
 function normalizeSkillName(skillName: string): string {
