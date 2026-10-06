@@ -202,8 +202,18 @@ curl.exe -vv https://api.anthropic.com
 
 Use `--cacert $NODE_EXTRA_CA_CERTS` to specify a certificate if necessary.
 
-Next, check ~/.cline/cline-core-service.log (CLI, JetBrains) for log messages
-confirming your proxy configuration and any network-related errors.
+Next, check the logs for messages confirming your proxy configuration and any
+network-related errors. The location differs by client:
+
+- **CLI**: `~/.cline/data/logs/cline.log` (override with `CLINE_LOG_PATH`). If the
+  hub is involved, `~/.cline/data/logs/hub-daemon.log` covers the daemon itself.
+- **JetBrains IDEs**: `~/.cline/logs/cline-core-<project>-<hash>.log`. The plugin
+  runs one cline-core per open project and gives each its own file, so pick the
+  one named after the project you're debugging. Each run appends and is preceded
+  by a `cline-core start` line, so the output from before a restart is still
+  there — which is where to look if cline-core keeps restarting. To find the file
+  without guessing the hash, use **Help → Find Action…** and run "Show Cline
+  Logs".
 
 ## Common Proxy Patterns
 
