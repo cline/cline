@@ -954,9 +954,9 @@ describe("ProviderSettingsManager", () => {
 						settings: { provider: "sapaicore" },
 						...at("2026-09-10T00:00:00.000Z"),
 					},
-					// A keyless local provider still needs a base URL and a model.
-					"openai-compatible": {
-						settings: { provider: "openai-compatible", model: "qwen3-coder" },
+					// An OAuth provider whose sign-in never completed.
+					"openai-codex": {
+						settings: { provider: "openai-codex", model: "gpt-5.4" },
 						...at("2026-09-01T00:00:00.000Z"),
 					},
 				},
@@ -1034,6 +1034,36 @@ describe("ProviderSettingsManager", () => {
 			expect(
 				JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider,
 			).toBeUndefined();
+		});
+
+		it("lets a provider on its default endpoint stand in, and persists that choice", () => {
+			// LM Studio with no stored baseUrl is a supported configuration: the
+			// provider default (http://localhost:1234/v1) supplies the endpoint.
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					lmstudio: {
+						settings: { provider: "lmstudio", model: "local-model" },
+						...at("2026-09-01T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "lmstudio",
+				model: "local-model",
+			});
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"lmstudio",
+			);
 		});
 
 		it("persists the repaired selection on the next write", () => {

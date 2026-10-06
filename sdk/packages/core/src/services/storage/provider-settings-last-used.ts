@@ -4,6 +4,7 @@ import {
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
 	type StoredProviderSettings,
 } from "../../types/provider-settings";
+import { toProviderConfig } from "../llms/provider-settings";
 import { isProviderSettingsUsable } from "../providers/provider-readiness";
 
 /**
@@ -52,15 +53,24 @@ function hasResolvableSettings(
  * but holding credentials or a resolvable endpoint. A settings entry alone
  * proves little — migrations and empty "connect" saves create entries that
  * cannot serve a turn, such as a phantom `sapaicore` with no credentials.
+ *
+ * Readiness is judged against the resolved provider config, as the other
+ * readiness callers do, so a provider relying on its default endpoint (LM
+ * Studio with no stored baseUrl) counts as usable.
  */
 function isUsableFallback(
 	state: StoredProviderSettings,
 	providerId: string,
 ): boolean {
 	try {
+		const settings = resolveStoredProviderSettings(state, providerId);
+		if (!settings) {
+			return false;
+		}
 		return isProviderSettingsUsable(
 			providerId,
-			resolveStoredProviderSettings(state, providerId),
+			settings,
+			toProviderConfig(settings, { includeKnownModels: false }),
 		);
 	} catch {
 		return false;
