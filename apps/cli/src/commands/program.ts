@@ -57,7 +57,7 @@ export function addRootOptions(cmd: Command): Command {
 			)
 			.option("-z, --zen", "Start a session that runs in the background hub")
 			.option(
-				"--retries [value]",
+				"--retries <value>",
 				"Number of maximum consecutive mistakes (retries) before exiting (default: 6)",
 			)
 			.option(
@@ -201,12 +201,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	// Retries (max consecutive mistakes) validation
 	if (opts.retries !== undefined) {
-		const raw = opts.retries.trim();
+		const raw =
+			typeof opts.retries === "string"
+				? opts.retries.trim()
+				: String(opts.retries);
 		const parsed = Number.parseInt(raw, 10);
 		if (raw && Number.isInteger(parsed) && parsed >= 1) {
 			result.retries = parsed;
-		} else if (raw) {
-			result.invalidRetries = raw;
+		} else {
+			result.invalidRetries = raw || "(empty)";
 		}
 	}
 
