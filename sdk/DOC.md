@@ -37,6 +37,21 @@ anchors. `getAgentPullRequestMergeStatus` and
 `summarizeAgentPullRequestChecks` expose the same status normalization for other
 host presentation.
 
+## Session pull-request status
+
+The Hub command `session.pull_request_status` accepts only `{ sessionId }` and
+returns `{ sessionId, status: PullRequestStatus | null }`. It reads the stored
+session's workspace with Git and `gh`, without starting a run or changing session
+history. Hosts own polling and render the returned status with `AgentPullRequestBar`.
+A missing Git branch, unsupported remote, default branch, or unavailable GitHub
+authentication returns `null`; lookup failures return a sanitized error.
+
+`createPullRequestStatusReader` and `getPullRequestStatus` are exported from
+`@cline/core`; their default account-authentication probe preserves desktop
+behavior. The Hub reader disables that probe so repository-scoped installation
+tokens authenticate through the repository query. Older runtimes do not support
+this command; hosts should hide the status UI when it is unavailable.
+
 ## Fork metadata
 
 `createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
