@@ -11,6 +11,8 @@ Entries expire after five further model iterations without a cache read, across 
 
 A model turn with no tool call ends the run only when it left something visible: non-whitespace text, media, or provider-executed tool activity. A turn that produced only reasoning (or whitespace-only text) is not treated as a completion. `AgentRuntime` emits a `status-notice` with `metadata.kind: "empty_turn_recovery"`, appends a user reminder message (`metadata.userRunSpan: 0`, like the max-tokens nudge) asking the model to call a tool or answer, and requests another turn. Up to three consecutive empty turns are nudged; the counter resets whenever a turn makes a tool call. When the limit is exhausted the run fails with `Model returned no visible response or tool call across several consecutive turns` instead of completing silently. A turn with no content at all still fails immediately as `Model returned empty response`.
 
+A stream that fails after emitting only reasoning shares the same budget: the partial turn stays in the transcript and the model is nudged, with the provider error carried in the notice message and `metadata.providerError`. Stream failures classified as `auth` or `context_window_exceeded`, and any stream failure after visible content, still fail the run immediately.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed
