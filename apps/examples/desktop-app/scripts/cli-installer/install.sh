@@ -19,6 +19,7 @@ target=''
 install_dir="$HOME/.cline/bin"
 binary=''
 modify_path=true
+explicit_directory=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -29,7 +30,7 @@ while [[ $# -gt 0 ]]; do
                 --release) release="$2" ;;
                 --version) release="desktop-v${2#v}" ;;
                 --target) target="$2" ;;
-                --install-dir) install_dir="$2" ;;
+                --install-dir) install_dir="$2"; explicit_directory=true ;;
                 --binary) binary="$2" ;;
             esac
             shift 2 ;;
@@ -57,6 +58,24 @@ if [[ -z "$binary" ]]; then
     [[ "$release" =~ ^desktop-(v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?|nightly-[0-9]+)$ ]] || fail 'provide an exact desktop release tag with --release or --version'
     command -v curl >/dev/null || fail 'curl is required'
 fi
+# Reuse a compatible terminal installation, including a package-manager
+# wrapper. Never modify package-owned files or silently add a second CLI.
+if [[ "$explicit_directory" == false ]]; then
+    existing=$(command -v cline || true)
+    if [[ -n "$existing" && "$existing" != "$install_dir/cline" ]]; then
+        if [[ -n "$binary" ]]; then
+            expected_build=$("$binary" --runtime-build-id 2>/dev/null) || fail 'local binary cannot report its SDK identity'
+        else
+            expected_build=$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 30 --proto '=https' --proto-redir '=https' "https://github.com/cline/cline/releases/download/$release/cline-runtime-$target.build-id")
+        fi
+        installed_build=$(CLINE_NO_AUTO_UPDATE=1 "$existing" --runtime-build-id 2>/dev/null) || fail "update or remove the existing CLI at $existing before installing; no second copy was installed"
+        [[ -n "$expected_build" && "$installed_build" == "$expected_build" ]] || fail "the existing CLI at $existing has an incompatible SDK build; update or remove it before installing"
+        installed_path=$(CLINE_NO_AUTO_UPDATE=1 "$existing" --runtime-path 2>/dev/null) || fail 'installed CLI could not report its native executable'
+        [[ -f "$installed_path" ]] || fail 'installed CLI reported an invalid native executable'
+        printf '%s\n' "$installed_path"
+        exit 0
+    fi
+fi
 hash_file() {
     if command -v sha256sum >/dev/null; then sha256sum "$1" | awk '{print $1}';
     elif command -v shasum >/dev/null; then shasum -a 256 "$1" | awk '{print $1}';
@@ -64,7 +83,7 @@ hash_file() {
 }
 mkdir -p "$install_dir"
 # Serialize installs in this directory across desktop/SSH clients. Never
-# expose a partial download or replace a running Windows executable.
+# expose a partial download. Shared installs replace the previous runtime.
 lock="$install_dir/.install-lock"
 for ((attempt=0; ; attempt++)); do
     if mkdir "$lock" 2>/dev/null; then break; fi

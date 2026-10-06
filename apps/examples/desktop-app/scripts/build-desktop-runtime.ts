@@ -119,6 +119,11 @@ const main = async () => {
 		? `desktop-nightly-${nightlyStamp}`
 		: `desktop-v${version}`;
 	writeFileSync(`${installerDir}/release.txt`, `${release}\n`);
+	// Read the SDK identity in a fresh process after build:sdk, avoiding a
+	// previously imported dist module when the build changed its fingerprint.
+	const identity =
+		await $`bun -e 'import { resolveHubBuildIdentity } from "@cline/core/hub"; console.log(JSON.stringify(resolveHubBuildIdentity()))'`.text();
+	writeFileSync(`${installerDir}/identity.json`, identity);
 	await bundleDesktopBackend();
 	if (targetTriple === "universal-apple-darwin") {
 		await buildUniversalMacCli();

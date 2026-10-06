@@ -97,7 +97,8 @@ struct AppContext {
     launch_cwd: String,
     workspace_root: String,
     resource_dir: PathBuf,
-    runtime_dir: PathBuf,
+    shared_cli_dir: PathBuf,
+    remote_runtime_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -491,8 +492,7 @@ fn resolve_desktop_cli_path(context: &AppContext) -> Result<Option<PathBuf>, Str
     }
     let installer_dir = context.resource_dir.join("bin").join("cli-installer");
     let release = cli_runtime::release_tag(&installer_dir)?;
-    let cache_dir = context.runtime_dir.join(&release);
-    cli_runtime::install(&installer_dir, &cache_dir, &release).map(Some)
+    cli_runtime::install(&installer_dir, &context.shared_cli_dir, &release).map(Some)
 }
 
 fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
@@ -545,7 +545,10 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         command
             .env("BUN_BE_BUN", "1")
             .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root)
-            .env("CLINE_DESKTOP_RUNTIME_DIRECTORY", &context.runtime_dir)
+            .env(
+                "CLINE_DESKTOP_RUNTIME_DIRECTORY",
+                &context.remote_runtime_dir,
+            )
             .env(
                 "CLINE_DESKTOP_INSTALLER_DIRECTORY",
                 context.resource_dir.join("bin").join("cli-installer"),
@@ -1539,7 +1542,12 @@ fn main() {
                 launch_cwd: launch_cwd.clone(),
                 workspace_root: workspace_root.clone(),
                 resource_dir: app.path().resource_dir()?,
-                runtime_dir: app.path().app_local_data_dir()?.join("runtimes"),
+                shared_cli_dir: app.path().home_dir()?.join(".cline").join("bin"),
+                remote_runtime_dir: app
+                    .path()
+                    .home_dir()?
+                    .join(".cline")
+                    .join("remote-runtimes"),
             });
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (

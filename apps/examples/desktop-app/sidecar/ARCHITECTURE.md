@@ -82,11 +82,14 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The native shell installs the exact desktop release’s Cline CLI into a
-versioned per-user cache using the bundled Bash/PowerShell installer. Release
-executables are independently signed and downloaded with SHA-256 verification;
-no CLI or SSH binaries are included in the desktop bundle. SSH runtimes are
-installed on demand from the same release. Cached runtimes work offline.
+The native shell probes existing CLIs using `--runtime-info` and reuses the
+native executable when its SDK build matches. Otherwise, the standalone CLI
+is installed/updated at `~/.cline/bin`, shared with terminal use. Incompatible
+external installs stop setup instead of creating a duplicate or rewriting
+package-managed files. Older desktops cannot downgrade a newer shared runtime.
+Release downloads are independently signed and SHA-256 verified. SSH uses the
+host CLI when possible, otherwise one shared cache per remote target under
+`~/.cline/remote-runtimes`. No CLI binaries are included in the app bundle.
 
 The packaged backend runs on that installed Cline CLI and has it start the Hub:
 `cline hub ensure` reuses a compatible healthy Hub or starts one, and the

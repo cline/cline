@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -10,6 +10,20 @@ import {
 import { resolveDesktopCliPath } from "./cli-runtime";
 
 const execFileAsync = promisify(execFile);
+function isUniversalMacCli(path: string): boolean {
+	try {
+		const fd = openSync(path, "r");
+		try {
+			const header = Buffer.alloc(4);
+			readSync(fd, header, 0, 4, 0);
+			return header.readUInt32BE(0) === 0xcafebabe;
+		} finally {
+			closeSync(fd);
+		}
+	} catch {
+		return false;
+	}
+}
 
 /** Install an SSH runtime from the same release as the desktop backend. */
 export async function resolveDesktopRemoteHelper(
@@ -41,7 +55,16 @@ export async function resolveDesktopRemoteHelper(
 			target.platform === "darwin"
 				? "universal-apple-darwin"
 				: remoteHelperBinaryFilename(target).slice("cline-".length);
-		const directory = join(runtimeDir, release, triple);
+		// The host CLI is shared with terminal use; never download a duplicate
+		// for an SSH target that this same executable can run on.
+		if (
+			cli &&
+			platform === target.platform &&
+			(arch === target.arch ||
+				(platform === "darwin" && isUniversalMacCli(cli)))
+		)
+			return cli;
+		const directory = join(runtimeDir, triple);
 		const run =
 			options.runInstaller ??
 			(async (script, release, triple, directory) => {
@@ -90,7 +113,12 @@ export async function resolveDesktopRemoteHelper(
 	}
 	// Source development uses the locally compiled host CLI. Other targets
 	// can be supplied explicitly without depending on release infrastructure.
-	if (cli && platform === target.platform && arch === target.arch) return cli;
+	if (
+		cli &&
+		platform === target.platform &&
+		(arch === target.arch || (platform === "darwin" && isUniversalMacCli(cli)))
+	)
+		return cli;
 	if (env.CLINE_REMOTE_HELPER_DIRECTORY) {
 		const path = join(
 			env.CLINE_REMOTE_HELPER_DIRECTORY,

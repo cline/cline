@@ -27,7 +27,7 @@ function fixture(run: (root: string, env: NodeJS.ProcessEnv) => void) {
 		// Simulate release transport without reaching GitHub or touching the real HOME.
 		writeFileSync(
 			join(commands, "curl"),
-			`#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' "$*" >> "$TEST_ROOT/requests"\n[[ "\${FAIL_DOWNLOAD:-}" != 1 ]] || exit 22\nwhile [[ $# -gt 0 ]]; do\n case "$1" in -o) output="$2"; shift 2 ;; https://*) url="$1"; shift ;; *) shift ;; esac\ndone\ncase "$url" in *.sha256) printf '%s\\n' "\${EXPECTED_HASH}  runtime" > "$output" ;; *) printf '#!/bin/sh\\necho cline\\n' > "$output" ;; esac\n`,
+			`#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' "$*" >> "$TEST_ROOT/requests"\n[[ "\${FAIL_DOWNLOAD:-}" != 1 ]] || exit 22\nwhile [[ $# -gt 0 ]]; do\n case "$1" in -o) output="$2"; shift 2 ;; https://*) url="$1"; shift ;; *) shift ;; esac\ndone\ncase "$url" in *.build-id) printf 'sdk-fixture\\n' ;; *.sha256) printf '%s\\n' "\${EXPECTED_HASH}  runtime" > "$output" ;; *) printf '#!/bin/sh\\necho cline\\n' > "$output" ;; esac\n`,
 		);
 		chmodSync(join(commands, "curl"), 0o755);
 		run(root, {
@@ -114,6 +114,55 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			);
 			expect(result.trim()).toBe(join(directory, "cline"));
 		}));
+	test("reuses an existing native CLI through its wrapper without copying it", () =>
+		fixture((root, env) => {
+			const native = join(root, "existing native CLI");
+			const report = `#!/bin/sh\ncase "$1" in --runtime-build-id) echo sdk-fixture ;; --runtime-path) printf '%s\\n' '${native}' ;; *) exit 1 ;; esac\n`;
+			writeFileSync(native, report);
+			chmodSync(native, 0o755);
+			const wrapper = join(root, "commands", "cline");
+			writeFileSync(wrapper, report);
+			chmodSync(wrapper, 0o755);
+			const result = execFileSync(
+				"bash",
+				[script, "--binary", native, "--no-modify-path"],
+				{ env, encoding: "utf8" },
+			);
+			expect(result.trim()).toBe(native);
+			expect(existsSync(join(root, ".cline", "bin", "cline"))).toBe(false);
+			expect(existsSync(join(root, "requests"))).toBe(false);
+			writeFileSync(native, "#!/bin/sh\necho incompatible-sdk\n");
+			const mismatch = spawnSync(
+				"bash",
+				[script, "--binary", native, "--no-modify-path"],
+				{ env, encoding: "utf8" },
+			);
+			expect(mismatch.status).not.toBe(0);
+			expect(mismatch.stderr).toContain("incompatible SDK build");
+			expect(existsSync(join(root, ".cline"))).toBe(false);
+		}));
+	test("reuses a release-compatible external CLI after fetching only SDK metadata", () =>
+		fixture((root, env) => {
+			const native = join(root, "commands", "cline");
+			writeFileSync(
+				native,
+				`#!/bin/sh\ncase "$1" in --runtime-build-id) echo sdk-fixture ;; --runtime-path) printf '%s\\n' '${native}' ;; *) exit 1 ;; esac\n`,
+			);
+			chmodSync(native, 0o755);
+			const result = execFileSync(
+				"bash",
+				[script, "--release", release, "--target", target, "--no-modify-path"],
+				{ env, encoding: "utf8" },
+			);
+			expect(result.trim()).toBe(native);
+			expect(readFileSync(join(root, "requests"), "utf8")).toContain(
+				".build-id",
+			);
+			expect(
+				readFileSync(join(root, "requests"), "utf8").trim().split("\n"),
+			).toHaveLength(1);
+			expect(existsSync(join(root, ".cline"))).toBe(false);
+		}));
 	test("rejects unpinned tags and unknown options", () =>
 		fixture((_root, env) => {
 			expect(
@@ -184,6 +233,62 @@ function global:Invoke-WebRequest {
 				});
 				expect(result.status).not.toBe(0);
 				expect(existsSync(join(failedDirectory, "cline.exe"))).toBe(false);
+			} finally {
+				rmSync(root, { recursive: true, force: true });
+			}
+		});
+	},
+);
+
+describe.skipIf(process.platform !== "win32")(
+	"PowerShell CLI consolidation",
+	() => {
+		test("reuses a compatible external wrapper without creating a shared copy", () => {
+			const root = mkdtempSync(join(tmpdir(), "cline-consolidate-windows-"));
+			try {
+				const native = join(root, "native-cline.exe");
+				writeFileSync(native, "existing native executable");
+				const existing = join(root, "existing-cline.ps1");
+				writeFileSync(
+					existing,
+					"@{ buildId = 'sdk-fixture'; compiled = $true; executablePath = $env:NATIVE_CLI } | ConvertTo-Json -Compress",
+				);
+				const wrapper = join(root, "consolidate.ps1");
+				writeFileSync(
+					wrapper,
+					`
+$ErrorActionPreference = 'Stop'
+function global:Get-Command { param($Name, $ErrorAction) [PSCustomObject]@{ Source = $env:EXISTING_CLI } }
+function global:Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec) [PSCustomObject]@{ Content = 'sdk-fixture' } }
+& $env:INSTALLER_SCRIPT -Release desktop-v0.0.43 -NoModifyPath
+`,
+				);
+				const output = execFileSync(
+					"powershell.exe",
+					[
+						"-NoProfile",
+						"-NonInteractive",
+						"-ExecutionPolicy",
+						"Bypass",
+						"-File",
+						wrapper,
+					],
+					{
+						encoding: "utf8",
+						env: {
+							...process.env,
+							USERPROFILE: root,
+							NATIVE_CLI: native,
+							EXISTING_CLI: existing,
+							INSTALLER_SCRIPT: resolve(
+								import.meta.dir,
+								"cli-installer/install.ps1",
+							),
+						},
+					},
+				);
+				expect(output.trim()).toBe(native);
+				expect(existsSync(join(root, ".cline"))).toBe(false);
 			} finally {
 				rmSync(root, { recursive: true, force: true });
 			}

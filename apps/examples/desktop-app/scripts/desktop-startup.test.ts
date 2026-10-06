@@ -5,6 +5,7 @@ import {
 	mkdtempSync,
 	openSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -119,6 +120,28 @@ afterAll(() => {
 		} catch {
 			/* The runner discards its temp directory anyway. */
 		}
+	}
+});
+
+test("installed CLI exposes SDK identity and its native path without starting a Hub", async () => {
+	const cli = await resolveCliBinary();
+	const result = spawnSync(cli, ["--runtime-info"], {
+		encoding: "utf8",
+		timeout: 10_000,
+	});
+	expect(result.status, result.stderr).toBe(0);
+	const info = JSON.parse(result.stdout);
+	expect(info.compiled).toBe(true);
+	expect(info.executablePath).toBe(realpathSync(cli));
+	expect(info.buildId).toBeTruthy();
+	expect(info.coreVersion).toBeTruthy();
+	for (const [flag, expected] of [
+		["--runtime-path", realpathSync(cli)],
+		["--runtime-build-id", info.buildId],
+	]) {
+		const probe = spawnSync(cli, [flag], { encoding: "utf8", timeout: 10_000 });
+		expect(probe.status).toBe(0);
+		expect(probe.stdout.trim()).toBe(expected);
 	}
 });
 

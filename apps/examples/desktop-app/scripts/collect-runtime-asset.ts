@@ -15,3 +15,9 @@ writeFileSync(
 	`${output}.sha256`,
 	`${createHash("sha256").update(readFileSync(output)).digest("hex")}  ${name}\n`,
 );
+const identity = JSON.parse(
+	readFileSync("src-tauri/bin/cli-installer/identity.json", "utf8"),
+);
+if (typeof identity.buildId !== "string" || !identity.buildId.trim())
+	throw new Error("Missing runtime SDK build identity");
+writeFileSync(`${output}.build-id`, `${identity.buildId}\n`);

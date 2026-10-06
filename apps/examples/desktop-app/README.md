@@ -318,29 +318,38 @@ Desktop transport envelope:
 
 ## CLI runtime installation
 
-The desktop bundle contains `scripts/cli-installer/install.sh` and
-`install.ps1`, the backend JS, and a generated `release.txt`. It contains no
-CLI executables. On first launch, the shell invokes the installer for the
-host target with `--no-modify-path` (PowerShell: `-NoModifyPath`). Downloads
-come from that exact desktop GitHub release, including beta/nightly tags;
-using a separately published CLI version could give the backend a different
-SDK build identity. The publish workflow signs the macOS/Windows runtimes
-independently and uploads each executable with a SHA-256 sidecar.
+The desktop bundle contains installer scripts, backend JS, and manifests
+identifying its release and SDK build. It contains no CLI executables.
+Before installing, desktop searches the terminal PATH and login shell for
+`cline`, then probes `--runtime-info` to find its native executable and SDK
+identity. A compatible existing installation is reused directly, including
+package-manager installations; the desktop does not copy its binary.
 
-Installed runtimes live under the platform's app local data directory at
-`runtimes/<release>/<target>/cline` (`cline.exe` on Windows). Checksums are
-verified before installation, concurrent installs are serialized, and later
-launches validate and reuse the cache offline. Each new desktop release gets
-its own runtime directory. The first launch of a release requires network
-access, `curl` and Bash on Unix, or PowerShell on Windows. Failed downloads
-surface as backend startup errors and can be retried. Linux requires glibc;
-x64 builds use Bun's baseline runtime for CPUs without AVX2.
+Otherwise, the standalone CLI lives at `~/.cline/bin/cline` (`cline.exe` on
+Windows), shared by desktop and terminal use. Desktop installs or updates this
+single location and adds it to the user's PATH. Each update replaces the
+standalone runtime in place rather than retaining per-release host copies.
+An older desktop cannot downgrade a newer shared runtime: update desktop
+instead. Stable/beta apps with different SDK builds cannot require separate
+local CLI copies; the incompatible app must be updated to match.
 
-SSH connections install only their requested target into the same cache, then
-upload that CLI to the remote host. Both Linux architectures and universal
-macOS are available from every desktop platform. Development builds use the
-locally compiled host CLI; use `CLINE_REMOTE_HELPER_BINARY` or
-`CLINE_REMOTE_HELPER_DIRECTORY` for other development SSH targets.
+An incompatible or unrecognizable external installation stops setup with an
+explicit update/removal instruction. Package-managed files are never overwritten
+and a second local CLI is never silently installed. Older CLIs without runtime
+identity probes must be updated or removed before consolidation. On Windows,
+close running CLI sessions and their Hub before replacing a shared executable.
+
+Downloads come from the exact desktop release and are SHA-256 verified. The
+workflow publishes SDK build-ID sidecars and independently signed macOS/Windows
+executables. Cached installs work offline. Initial installs and incompatible
+standalone updates require internet access, Bash/curl on Unix or PowerShell on
+Windows. Linux requires glibc; x64 binaries use Bun's baseline runtime.
+
+SSH connections reuse the shared host CLI when it supports the remote target.
+Other architectures/platforms require their own executable, cached once per
+target at `~/.cline/remote-runtimes/<target>/cline` and updated in place. They are
+uploaded to the remote host using its content-addressed CLI staging mechanism.
+Development builds use locally compiled binaries and explicit SSH overrides.
 
 For a standalone terminal install from a desktop release:
 
@@ -357,7 +366,8 @@ bash scripts/cli-installer/install.sh --binary /path/to/cline --no-modify-path
 ```
 
 Manual installs default to `~/.cline/bin` and add it to the user's PATH;
-desktop-managed installs leave PATH and shell configuration untouched.
+desktop standalone installs use the same location and PATH setup.
+Use `--no-modify-path` for custom installations when desired.
 Nightly installers remain Actions artifacts, but their runtime assets are
 published to the corresponding nightly GitHub release for durable access.
 

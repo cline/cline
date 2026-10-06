@@ -14,6 +14,28 @@ if (-not $Target) { $Target = 'x86_64-pc-windows-msvc' }
 if (-not $Binary -and $Release -notmatch '^desktop-(v\d+\.\d+\.\d+(-beta\.\d+)?|nightly-\d+)$') {
     throw 'Provide an exact desktop release tag with -Release or -Version'
 }
+if (-not $PSBoundParameters.ContainsKey('InstallDir')) {
+    $existing = Get-Command cline -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existing -and $existing.Source -and $existing.Source -ne (Join-Path $InstallDir 'cline.exe')) {
+        if ($Binary) { $expectedBuild = (& $Binary --runtime-build-id).Trim() }
+        else {
+            $asset = "cline-runtime-$Target" + $(if ($Target -like '*windows*') { '.exe' } else { '' })
+            $expectedBuild = (Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/cline/cline/releases/download/$Release/$asset.build-id" -TimeoutSec 30).Content.Trim()
+        }
+        $previousAutoUpdate = $env:CLINE_NO_AUTO_UPDATE
+        try {
+            $env:CLINE_NO_AUTO_UPDATE = '1'
+            $info = (& $existing.Source --runtime-info | Out-String | ConvertFrom-Json)
+        } catch { throw "Update or remove the existing CLI at $($existing.Source) before installing; no second copy was installed" }
+        finally { $env:CLINE_NO_AUTO_UPDATE = $previousAutoUpdate }
+        if (-not $info.compiled -or -not $expectedBuild -or $info.buildId -ne $expectedBuild) {
+            throw "Existing CLI at $($existing.Source) has an incompatible SDK build; update or remove it before installing"
+        }
+        if (-not (Test-Path -LiteralPath $info.executablePath -PathType Leaf)) { throw 'Invalid installed executable path' }
+        Write-Output $info.executablePath
+        exit 0
+    }
+}
 $extension = if ($Target -like '*windows*') { '.exe' } else { '' }
 $destination = Join-Path $InstallDir "cline$extension"
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
@@ -47,7 +69,8 @@ try {
                 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $download -TimeoutSec 180
                 if ((Get-FileHash $download -Algorithm SHA256).Hash -ne $expected) { throw 'Runtime checksum mismatch' }
             }
-            # No replacement of a running CLI: each desktop release has its own cache.
+            # One shared runtime is upgraded in place. Windows refuses replacement
+            # while it is running; close its sessions and Hub before retrying.
             Move-Item -Force $download $destination
             (Get-FileHash $destination -Algorithm SHA256).Hash | Set-Content $checksumPath
             "$Release/$Target" | Set-Content $releasePath
