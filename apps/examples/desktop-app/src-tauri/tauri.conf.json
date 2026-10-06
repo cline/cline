@@ -48,7 +48,10 @@
 			"bin/remote-helpers/*",
 			"extensions/plugin-sandbox-bootstrap.js",
 			"extensions/node_modules/jiti/package.json",
-			"extensions/node_modules/jiti/dist/babel.cjs"
+			"extensions/node_modules/jiti/dist/babel.cjs",
+			"extensions/node_modules/cline-host-sdk/index.cjs",
+			"extensions/node_modules/@cline/*/package.json",
+			"extensions/node_modules/@cline/*/*.cjs"
 		],
 		"icon": [
 			"icons/32x32.png",
