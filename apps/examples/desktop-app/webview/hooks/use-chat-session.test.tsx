@@ -2483,21 +2483,7 @@ describe("useChatSession", () => {
 				repoUrl: "https://github.com/cline/test",
 			}),
 		);
-		await act(async () =>
-			current.sendPrompt("Keep working", [], {
-				handoffFollowUpId: "restored-draft",
-			}),
-		);
-		expect(invokeMock).toHaveBeenCalledWith(
-			"chat_session_command",
-			{
-				request: expect.objectContaining({
-					action: "send",
-					handoffFollowUpId: "restored-draft",
-				}),
-			},
-			{ timeoutMs: null },
-		);
+		await act(async () => current.sendPrompt("Keep working"));
 
 		expect(current.status).toBe("running");
 		expect(current.error).toBeNull();

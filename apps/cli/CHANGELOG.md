@@ -1,5 +1,10 @@
 # Cline CLI Changelog
 
+## 3.0.68
+
+- Agent teams stay fast in long sessions and while teammates are streaming. Every streamed chunk used to re-save the whole team state, so team runs got slower over time and `~/.cline/data/db/teams.db` could grow to gigabytes. Existing team data is compacted automatically the first time it's opened
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
 ## 3.0.67
 
 - When an MCP tool returns more output than fits in context, the agent can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost
