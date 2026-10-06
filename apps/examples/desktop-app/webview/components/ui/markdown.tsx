@@ -3,6 +3,7 @@ import {
 	markdownCodeHighlighter,
 } from "@cline/ui/components/markdown";
 import { cjk } from "@streamdown/cjk";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { isValidElement, memo, useState } from "react";
 import {
@@ -25,6 +26,7 @@ import {
 } from "./alert-dialog";
 
 const streamdownPlugins = { cjk, code: markdownCodeHighlighter };
+const streamdownIcons = { CheckIcon, CopyIcon };
 
 export function MarkdownLinkSafetyModal({
 	isOpen,
@@ -293,22 +295,21 @@ const markdownComponents = {
 	img: MarkdownImage,
 } satisfies Components;
 
+export type MarkdownProps = {
+	content: string;
+	streaming?: boolean;
+	className?: string;
+};
+
 export const MemoizedMarkdown = memo(
-	({
-		content,
-		classNames,
-		streaming = false,
-	}: {
-		content: string;
-		streaming?: boolean;
-		classNames?: string;
-	}) => (
+	({ content, className, streaming = false }: MarkdownProps) => (
 		<Streamdown
-			className={cn("cline-markdown", classNames)}
+			className={cn("cline-markdown", className)}
 			components={markdownComponents}
 			controls={agentMarkdownControls}
 			dir="auto"
 			isAnimating={streaming}
+			icons={streamdownIcons}
 			lineNumbers={false}
 			mode={streaming ? "streaming" : "static"}
 			normalizeHtmlIndentation
