@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	CLINE_DEFAULT_MODEL_ID,
-	type ProviderAuthInfo,
-} from "@cline/shared/browser";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -106,6 +103,7 @@ import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
+	type ProviderCatalogSnapshot,
 	readProviderCatalogSnapshot,
 	subscribeToProviderCatalogInvalidation,
 	writeProviderCatalogSnapshot,
@@ -1309,7 +1307,7 @@ function ChatThreadPane({
 			? "worktree"
 			: "local";
 	const [providerCredentials, setProviderCredentials] = useState<
-		Record<string, { apiKey: string; auth?: ProviderAuthInfo }>
+		ProviderCatalogSnapshot["credentials"]
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
 		useState<Record<string, Record<string, number>>>(
@@ -1454,8 +1452,7 @@ function ChatThreadPane({
 			if (providerCredentialsRequestRef.current !== requestId) {
 				return;
 			}
-			const next: Record<string, { apiKey: string; auth?: ProviderAuthInfo }> =
-				{};
+			const next: ProviderCatalogSnapshot["credentials"] = {};
 			const nextContextWindows: Record<string, Record<string, number>> = {};
 			let anyConnected = false;
 			for (const provider of payload.providers ?? []) {
@@ -1466,6 +1463,7 @@ function ChatThreadPane({
 				next[id] = {
 					apiKey: provider.apiKey?.trim() ?? "",
 					auth: provider.auth,
+					configured: provider.configured,
 				};
 				if (isProviderConnected(provider)) {
 					anyConnected = true;
@@ -1518,18 +1516,24 @@ function ChatThreadPane({
 			return;
 		}
 		const nextApiKey = selected.apiKey;
-		if (config.apiKey === nextApiKey && config.providerAuth === selected.auth) {
+		if (
+			config.apiKey === nextApiKey &&
+			config.providerAuth === selected.auth &&
+			config.providerConfigured === selected.configured
+		) {
 			return;
 		}
 		setConfig((prev) => ({
 			...prev,
 			apiKey: nextApiKey,
 			providerAuth: selected?.auth,
+			providerConfigured: selected.configured,
 		}));
 	}, [
 		config.apiKey,
 		config.provider,
 		config.providerAuth,
+		config.providerConfigured,
 		providerCredentials,
 		setConfig,
 	]);
@@ -2317,7 +2321,8 @@ function ChatThreadPane({
 				if (
 					prev.provider === nextProvider &&
 					prev.apiKey === nextApiKey &&
-					prev.providerAuth === selected?.auth
+					prev.providerAuth === selected?.auth &&
+					prev.providerConfigured === selected?.configured
 				) {
 					return prev;
 				}
@@ -2326,6 +2331,7 @@ function ChatThreadPane({
 					provider: nextProvider,
 					apiKey: nextApiKey,
 					providerAuth: selected?.auth,
+					providerConfigured: selected?.configured,
 				};
 			}),
 		[providerCredentials, setConfig],

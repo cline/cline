@@ -256,6 +256,12 @@ export function resolveCredentialError(
 	if (config.apiKey.trim().length > 0) {
 		return null;
 	}
+	// Keyless setups (a local OpenAI-compatible endpoint, Ollama, LM Studio)
+	// never have an API key. The host's readiness check already accepts them
+	// via base URL + model, so defer to it rather than demanding a key.
+	if (config.providerConfigured) {
+		return null;
+	}
 	return `Missing API key for provider "${config.provider}". Add credentials in Settings, or switch providers.`;
 }
 
