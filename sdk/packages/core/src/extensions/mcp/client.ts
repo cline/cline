@@ -47,15 +47,18 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Initialize budget when no timeout is configured. This wait sits on the
 // session-create critical path, which the hub caps at 30s
 // (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
-// then Content-Length framing), so the doubled total MUST stay well under
-// that cap or a hung server takes the whole session down with it. 3s covers
-// typical stdio startup while keeping the worst case (~6s per server, probed
-// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
-// ones like Oracle SQLcl, uvx downloading a package on first run) need an
-// explicit `timeout`, which overrides this in either direction. Dead commands
-// still fail fast through the spawn error/exit path; only an alive-but-silent
-// server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// then Content-Length framing), so the doubled total MUST stay under that cap
+// with headroom or a hung server takes the whole session down with it. 10s
+// covers the launchers marketplace servers actually use: `npx`/`uvx` through
+// cmd.exe on Windows routinely take 3-6s to reach initialize even with a warm
+// cache (a 3s budget silently dropped every such server from the session),
+// while the worst case (~20s per server, probed in parallel) still clears
+// the hub deadline. Servers slower than this (JVM-based ones like Oracle
+// SQLcl, a package download on first run) need an explicit `timeout`, which
+// overrides this in either direction. Dead commands still fail fast through
+// the spawn error/exit path; only an alive-but-silent server waits out this
+// budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 10_000;
 // Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
 // configured. Like the stdio initialize budget above, connect runs on the
 // session-create critical path capped by the hub at 30s
