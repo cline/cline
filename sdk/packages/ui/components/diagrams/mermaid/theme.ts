@@ -70,49 +70,29 @@ export function resolveMermaidFontFamily(
 
 export type MermaidThemeVariables = Record<string, string | boolean>;
 
-/**
- * Resolves a CSS color (`oklch(...)`, `var(--x)`, named, ...) to `#rrggbb`, or
- * returns null when it can't. Hosts with a DOM can pass a canvas/computed-style
- * backed resolver; tests can pass a stub. Consulted before the built-in parser.
- */
-export type MermaidColorResolver = (cssValue: string) => string | null;
-
 export interface MermaidThemeOptions {
 	/** Overrides the UI font stack; defaults to `MERMAID_FONT.family`. */
 	fontFamily?: string;
-	/** Optional host resolver for colors the pure parser can't read. */
-	resolveColor?: MermaidColorResolver;
 }
 
-function hexOr(
-	value: string,
-	fallback: string,
-	resolveColor: MermaidColorResolver | undefined,
-): string {
-	const resolved = resolveColor?.(value);
-	const hex = resolved ? cssColorToHex(resolved) : null;
-	return hex ?? cssColorToHex(value) ?? fallback;
+function hexOr(value: string, fallback: string): string {
+	return cssColorToHex(value) ?? fallback;
 }
 
 /** Normalizes every token to `#rrggbb`, substituting palette fallbacks. */
 export function normalizeMermaidTokens(
 	tokens: MermaidThemeTokens,
 	mode: MermaidColorMode,
-	resolveColor?: MermaidColorResolver,
 ): MermaidThemeTokens {
 	const fallback = FALLBACK_MERMAID_TOKENS[mode];
 	return {
-		background: hexOr(tokens.background, fallback.background, resolveColor),
-		border: hexOr(tokens.border, fallback.border, resolveColor),
-		error: hexOr(tokens.error, fallback.error, resolveColor),
-		foreground: hexOr(tokens.foreground, fallback.foreground, resolveColor),
-		muted: hexOr(tokens.muted, fallback.muted, resolveColor),
-		mutedForeground: hexOr(
-			tokens.mutedForeground,
-			fallback.mutedForeground,
-			resolveColor,
-		),
-		primary: hexOr(tokens.primary, fallback.primary, resolveColor),
+		background: hexOr(tokens.background, fallback.background),
+		border: hexOr(tokens.border, fallback.border),
+		error: hexOr(tokens.error, fallback.error),
+		foreground: hexOr(tokens.foreground, fallback.foreground),
+		muted: hexOr(tokens.muted, fallback.muted),
+		mutedForeground: hexOr(tokens.mutedForeground, fallback.mutedForeground),
+		primary: hexOr(tokens.primary, fallback.primary),
 	};
 }
 
@@ -125,9 +105,9 @@ export function normalizeMermaidTokens(
 export function buildMermaidThemeVariables(
 	tokens: MermaidThemeTokens,
 	mode: MermaidColorMode,
-	{ fontFamily = MERMAID_FONT.family, resolveColor }: MermaidThemeOptions = {},
+	{ fontFamily = MERMAID_FONT.family }: MermaidThemeOptions = {},
 ): MermaidThemeVariables {
-	const t = normalizeMermaidTokens(tokens, mode, resolveColor);
+	const t = normalizeMermaidTokens(tokens, mode);
 	const dark = mode === "dark";
 	const mix = THEME_MIX[mode];
 	const nodeFill = mixColors(t.background, t.primary, mix.node);

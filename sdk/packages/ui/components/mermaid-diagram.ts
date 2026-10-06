@@ -75,7 +75,6 @@ export {
 	createDefaultMermaidConfig,
 	FALLBACK_MERMAID_TOKENS,
 	type MermaidColorMode,
-	type MermaidColorResolver,
 	type MermaidThemeOptions,
 	type MermaidThemeTokens,
 	type MermaidThemeVariables,
