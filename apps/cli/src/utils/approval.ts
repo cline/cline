@@ -5,7 +5,13 @@ import {
 	USER_REJECTED_TOOL_REASON,
 } from "@cline/shared";
 import { truncate } from "./helpers";
-import { c, getActiveCliSession, write } from "./output";
+import {
+	c,
+	getActiveCliSession,
+	getCurrentOutputMode,
+	write,
+	writeDiagnostic,
+} from "./output";
 
 const SHOW_TERMINAL_CURSOR = "\x1b[?25h";
 
@@ -126,9 +132,12 @@ export async function askQuestionInTerminal(
 ): Promise<string> {
 	if (!process.stdin.isTTY || !process.stdout.isTTY) {
 		// Nobody can answer, so say so instead of silently picking options[0].
-		process.stderr.write(
-			"[follow-up] no terminal to ask on; question was not answered\n",
-		);
+		// JSON mode keeps stderr machine-readable; the tool result carries it.
+		if (getCurrentOutputMode() !== "json") {
+			writeDiagnostic(
+				"[follow-up] no terminal to ask on; question was not answered",
+			);
+		}
 		return NO_OPERATOR_ANSWER;
 	}
 
