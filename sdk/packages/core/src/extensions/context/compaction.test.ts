@@ -19,6 +19,7 @@ import {
 import {
 	COMPACTION_TRIGGER_RATIO,
 	createTokenEstimator,
+	DEFAULT_MAX_INPUT_TOKENS,
 	estimateTokens,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
@@ -327,6 +328,114 @@ function expectNoOrphanedToolPairs(messages: LlmsProviders.Message[]): void {
 describe("createContextCompactionPrepareTurn", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it.each([
+		undefined,
+		{ id: "custom-model" },
+		{ id: "custom-model", maxInputTokens: 0, contextWindow: Number.NaN },
+	])("does not auto-compact an unknown input budget (%j)", async (info) => {
+		const compact = vi.fn();
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			compaction: { enabled: true, compact },
+		});
+		const messages: MessageWithMetadata[] = [{ role: "user", content: "hi" }];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			// Reproduce a startup request exceeding the old guessed threshold.
+			systemPrompt: "x".repeat(DEFAULT_MAX_INPUT_TOKENS * 3),
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: { id: "custom-model", provider: "openai-compatible", info },
+			emitStatusNotice,
+		});
+
+		expect(result).toBeUndefined();
+		expect(compact).not.toHaveBeenCalled();
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"manual",
+		"overflow_recovery",
+	] as const)("keeps %s compaction available without model limits", async (mode) => {
+		const messages = overflowRecoveryTranscript();
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				compaction: { enabled: true, compact },
+			},
+			{ mode: mode === "manual" ? "manual" : "auto" },
+		);
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: mode === "overflow_recovery",
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: { id: "custom-model", provider: "openai-compatible" },
+		});
+
+		expect(result?.messages).toEqual([{ role: "user", content: "Compacted" }]);
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(compact.mock.calls[0]?.[0]).toMatchObject({
+			mode,
+			budget: { request: { maxInputTokens: DEFAULT_MAX_INPUT_TOKENS } },
+		});
+	});
+
+	it.each([
+		{ maxInputTokens: 1_000 },
+		{ contextWindow: 1_000 },
+	])("auto-compacts a custom model with configured limits (%j)", async (limits) => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-compatible",
+			modelId: "custom-model",
+			compaction: { enabled: true, compact },
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "x".repeat(3_000) },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "custom-model",
+				provider: "openai-compatible",
+				info: { id: "custom-model", ...limits },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(result?.messages).toEqual([{ role: "user", content: "Compacted" }]);
 	});
 
 	it("truncates text-block tool results when serializing compaction input", () => {
