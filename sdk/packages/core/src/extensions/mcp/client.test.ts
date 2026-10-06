@@ -13,6 +13,7 @@ import {
 	createDefaultMcpServerClientFactory,
 	DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+	DEFAULT_MCP_FRAMED_CONNECT_TIMEOUT_MS,
 	probeMcpServerConnection,
 } from "./client";
 import { resolveMcpServerRegistrations } from "./config-loader";
@@ -261,14 +262,14 @@ describe("mcp client request timeout", () => {
 
 	it("connects a moderately slow server without a configured timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
-		// The old 1.5s initialize probe killed servers that needed ~2s to answer
+		// Earlier 1.5s and 3s initialize probes killed ordinary servers that
+		// were slow to answer, notably `npx`/Python launchers on Windows
 		// (https://github.com/cline/cline/issues/13035), so the default budget
-		// must cover them. It deliberately stays small beyond that: initialize
-		// runs on the session.create critical path, so genuinely slow starters
-		// (e.g. JVM-based Oracle SQLcl) opt into patience with an explicit
-		// `timeout` instead of the default stalling every session.
+		// must cover them. It stays bounded beyond that: initialize runs on the
+		// session.create critical path, so genuinely slow starters (e.g.
+		// JVM-based Oracle SQLcl) opt into patience with an explicit `timeout`.
 		const client = await factory(
-			fakeServerRegistration({ delayMs: 0, initDelayMs: 2_000 }),
+			fakeServerRegistration({ delayMs: 0, initDelayMs: 5_000 }),
 		);
 		try {
 			await client.connect();
@@ -568,16 +569,16 @@ describe("remote MCP OAuth connection", () => {
 });
 
 describe("default connect budget", () => {
-	it("keeps the doubled initialize budget well under the hub command timeout", () => {
+	it("keeps the total initialize budget well under the hub command timeout", () => {
 		// MCP initialize runs on the session.create critical path, and connect()
-		// can spend the budget twice (newline then Content-Length framing). If
-		// the doubled total approaches HUB_DEFAULT_COMMAND_TIMEOUT_MS, a server
-		// that never initializes stalls session.create past the hub deadline and
-		// the whole session is torn down (a hung server used to kill the CLI
-		// this way). Keep headroom for the rest of session creation.
-		expect(DEFAULT_MCP_CONNECT_TIMEOUT_MS * 2).toBeLessThanOrEqual(
-			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
-		);
+		// can spend two budgets (newline then Content-Length framing). If the
+		// total approaches HUB_DEFAULT_COMMAND_TIMEOUT_MS, a server that never
+		// initializes stalls session.create past the hub deadline and the whole
+		// session is torn down (a hung server used to kill the CLI this way).
+		// Keep headroom for the rest of session creation.
+		expect(
+			DEFAULT_MCP_CONNECT_TIMEOUT_MS + DEFAULT_MCP_FRAMED_CONNECT_TIMEOUT_MS,
+		).toBeLessThanOrEqual(HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2);
 	});
 
 	it("keeps the remote connect budget well under the hub command timeout", () => {
