@@ -162,7 +162,12 @@ export async function runCli(): Promise<void> {
 	// has been applied, so the telemetry singleton's persisted distinct-id
 	// (and any other storage it touches) lands under the user-selected
 	// `--config <dir>` rather than the default home/config location.
-	captureCliExtensionActivated();
+	// `cline hub ...` is plumbing other clients invoke (the desktop app on
+	// every launch, the SSH remote flow on every connect), not a user
+	// activation, so it must not count as one.
+	if (cliArgs[0] !== "hub") {
+		captureCliExtensionActivated();
+	}
 
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 
