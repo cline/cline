@@ -2258,7 +2258,7 @@ function ChatThreadPane({
 		const hasInitialComposerState =
 			initialPromptDraft !== undefined || initialAttachments !== undefined;
 		if (hasInitialComposerState) {
-			// A remounted pane may already hold the user's cached edit of this follow-up.
+			// Keep a remounted pane's cached draft, but only link the follow-up when restoring it.
 			const preserveComposer =
 				historySession.origin === "cloud" &&
 				shouldPreserveCloudComposer(
@@ -2267,9 +2267,9 @@ function ChatThreadPane({
 					lastRestoredFollowUpIdRef.current,
 					initialHandoffFollowUpId,
 				);
-			restoredFollowUpIdRef.current = initialHandoffFollowUpId;
-			lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
 			if (!preserveComposer) {
+				restoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
 				setPromptInput(initialPromptDraft ?? "");
 				setPendingAttachments(
 					initialAttachments ? [...initialAttachments] : [],
