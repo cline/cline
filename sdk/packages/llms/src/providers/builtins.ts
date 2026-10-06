@@ -795,6 +795,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-4o",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
+		// Custom endpoints are commonly Anthropic proxies. The route only
+		// matches Anthropic-lineage model ids, so plain OpenAI models are
+		// untouched. See #13667.
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	cline,
 	clinePass,
@@ -879,6 +883,11 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["LITELLM_API_KEY"],
 		defaults: { baseUrl: "http://localhost:4000/v1" },
+		// LiteLLM passes `cache_control` through to the upstream Anthropic or
+		// Bedrock deployment, so Claude models proxied by it cache the same way
+		// they do on the other aggregators. Qwen still needs the catalog
+		// `prompt-cache` capability, which `/model/info` supplies. See #13667.
+		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 	},
 	{
 		id: "vercel-ai-gateway",
