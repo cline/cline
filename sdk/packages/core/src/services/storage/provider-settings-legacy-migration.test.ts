@@ -1579,6 +1579,51 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 	});
 
+	it("selects the legacy mode provider for a stale pointer even when it is unconfigured", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		writeFileSync(
+			providersPath,
+			JSON.stringify({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					anthropic: {
+						settings: { provider: "anthropic", apiKey: "existing-key" },
+						updatedAt: "2026-09-01T00:00:00.000Z",
+						tokenSource: "manual",
+					},
+				},
+			}),
+		);
+		// The user's own legacy selection, never configured. It is what the
+		// IDE session factory uses (it reads actModeApiProvider first), so the
+		// CLI and hub follow it rather than a usable provider the user did not
+		// select — the same rule that keeps a signed-out Cline user on Cline.
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "sapaicore",
+				actModeApiModelId: "anthropic--claude-3.5-sonnet",
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.lastUsedProvider).toBe("sapaicore");
+		expect(manager.getLastUsedProviderSettings()?.provider).toBe("sapaicore");
+	});
+
 	it("keeps an existing last-used provider that still resolves", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
