@@ -31,7 +31,7 @@ Remote configuration operates through Cline's hosted service at [app.cline.bot](
 
 ## Which products support each control
 
-Cline products read the organization's remote configuration when a member signs in to the organization. The VS Code and JetBrains extensions enforce every control below. Cline Desktop and the CLI apply only some of them, so members who use those products can choose other providers and MCP servers.
+Cline products read the organization's remote configuration when a member signs in to the organization. Each product enforces only the controls marked Yes below. Members who use Cline Desktop or the CLI can choose other providers and MCP servers.
 
 | Control | VS Code and JetBrains | CLI | Cline Desktop |
 |---|---|---|---|
@@ -52,11 +52,11 @@ To choose which products to recommend, check which controls your organization re
 
 ### Files Cline writes to the workspace
 
-To apply the organization's rules and workflows, Cline writes them, and a copy of the organization's settings, into the folder it's working in: `.cline/enterprise/` in the CLI, and `.cline/remote-config/` in the VS Code and JetBrains extensions. Cline rewrites these files when the organization's settings change. Add both folders to your repository's `.gitignore` so that nobody commits them:
+To apply the organization's rules and workflows, Cline writes them, and a copy of the organization's settings, into the folder it's working in: `.cline/enterprise/` in the CLI, and `.cline/remote-config/` in the VS Code and JetBrains extensions. Cline rewrites these files when the organization's settings change. The copy of the settings can include the access keys for [prompt storage](/enterprise-solutions/monitoring/prompt-storage), so add these patterns to your repository's `.gitignore`. The `**/` prefix also matches the folders below the repository root, for example when someone opens a subfolder in VS Code:
 
 ```text
-.cline/enterprise/
-.cline/remote-config/
+**/.cline/enterprise/
+**/.cline/remote-config/
 ```
 
 ## Supported Providers
