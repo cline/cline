@@ -9,7 +9,9 @@ Skills are modular instruction sets that extend Cline's capabilities for specifi
 Install multiple skills and Cline only loads what it needs. A deployment skill stays dormant until you ask about deploying. Unlike [rules](/customization/cline-rules) (which are always active), skills load on-demand so they don't consume context when you're working on something unrelated.
 
 <Note>
-Manage skills from the Skills menu: click the scale icon at the bottom of the Cline panel, to the left of the model selector, then switch to the **Skills** tab.
+**VS Code extension:** Click the scale icon at the bottom of the Cline panel, to the left of the model selector, then switch to the **Skills** tab.
+
+**CLI:** Run `cline skill list` to see installed skills, or use the `/skills` slash command inside the interactive TUI to browse and invoke skills.
 </Note>
 
 ## How Skills Work
@@ -18,21 +20,63 @@ Skills use progressive loading to maximize efficiency:
 
 | Level | When Loaded | Token Cost | Content |
 |-------|-------------|------------|---------|
-| Metadata | Always (at startup) | ~100 tokens per skill | `name` and `description` from YAML frontmatter |
-| Instructions | When skill is triggered | Under 5k tokens | SKILL.md body with instructions and guidance |
-| Resources | As needed | Effectively unlimited | Bundled files accessed via `read_file` or executed scripts |
+| Metadata | Always (at startup) | A few tokens per skill | The skill `name` is surfaced to the model in the `skills` tool listing |
+| Instructions | When skill is triggered | Whatever the file contains | The skill's `description` and SKILL.md body, loaded when the `skills` tool is called |
+| Resources | As needed | Effectively unlimited | Bundled files accessed via `read_files` or executed scripts |
 
-When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `use_skill` tool, which loads the full instructions from SKILL.md.
+When you send a message, Cline sees the list of available skill **names** in its `skills` tool. When your request matches a skill, Cline activates it by calling the `skills` tool with that name, which loads the full `SKILL.md` — the skill's description followed by its instructions — into the conversation context. Because only names are always visible, a clear, descriptive skill name is what lets Cline pick the right skill in the first place. The `skills` tool takes a `skill` name (required) and optional `args` — for example, `skill: "commit", args: "-m \"Fix bug\""`. (`use_skill` is accepted as an alias for the tool name.)
+
+## Where Skills Live
+
+Skills can be stored globally or in a project workspace. See [What Goes Where?](/getting-started/config#what-goes-where) for guidance on when to use each, and [Compatibility with the `.agents/` directory](/getting-started/config#compatibility-with-the-agents-directory) for how skills fit the shared `.agents/` convention.
+
+Project skills (scanned from the workspace root):
+- `.agents/skills/` (recommended)
+- `.cline/skills/` (supported for backward compatibility)
+- `.clinerules/skills/` (supported for backward compatibility)
+
+Global skills:
+- `~/.agents/skills/` (recommended; macOS/Linux)
+- `~/.cline/skills/` (backward compatibility; macOS/Linux)
+- `C:\Users\USERNAME\.agents\skills\` (recommended; Windows)
+- `C:\Users\USERNAME\.cline\skills\` (backward compatibility; Windows)
+
+The `.agents/skills/` convention is shared across agent tools, so skills placed there work with Cline and other compatible agents. The `.cline/` and `.clinerules/` locations are still scanned so existing setups keep working.
+
+When a global skill and project skill have the same name, the global skill takes precedence. Enterprise skills pushed via remote config take the highest precedence. This lets you keep general-purpose skills globally while using project-specific skills in `.agents/skills/` so the whole team can use them.
+
+Version control your project skills by committing `.agents/skills/`. Your team can share, review, and improve them together.
 
 ## Triggering Skills with Slash Commands
 
-You can also invoke enabled skills explicitly from the chat input using slash commands.
+You can invoke enabled skills explicitly from the chat input using slash commands. Skills are registered as slash commands — type `/<skill-name>` (for example, `/aws-deploy`) to trigger that skill immediately and load its `SKILL.md` instructions.
 
-1. Type `/` in chat to open command suggestions.
-2. Select the skill command you want to run (for example, `/aws-deploy`).
-3. Cline triggers that skill and loads its `SKILL.md` instructions.
+### VS Code extension
 
-This is useful when you want to force a specific skill immediately instead of waiting for auto-matching based on description.
+1. Open the **Skills** tab in the Customize menu (click the scale icon below the conversation box) to look up your skill's name.
+2. In the chat input, type `/<skill-name>` (for example, `/aws-deploy`) before your prompt. Cline triggers that skill and loads its `SKILL.md` instructions.
+
+### CLI
+
+1. Type `/skills` in the interactive TUI to open the skills picker, which lists all installed skills and workflows. Use the search box to filter, arrow keys to navigate, and Enter to invoke.
+2. The picker also includes a link to browse more skills at [skills.sh](https://skills.sh/).
+3. Alternatively, type `/<skill-name>` directly in the chat input to invoke a specific skill without opening the picker.
+
+This is useful when you want to force a specific skill immediately instead of waiting for Cline to auto-match a skill to your request.
+
+### Installing and Managing Skills via `cline skill` (CLI only)
+
+The CLI provides a `cline skill` subcommand that wraps the [open skills CLI](https://www.npmjs.com/package/skills) for installing, listing, and removing skills from the [skills.sh](https://skills.sh/) marketplace:
+
+```bash
+cline skill add <owner/repo>       # Add a skill into Cline
+cline skill install <owner/repo>   # Alias for add
+cline skill list                   # List installed skills
+cline skill remove <name>          # Remove an installed skill
+cline skill uninstall <name>       # Alias for remove
+```
+
+Install-style subcommands (`add`, `install`, `update`, `remove`, `uninstall`) default to `--agent cline` unless you pass your own `--agent` flag. Run `npx skills --help` for the full command reference.
 
 ## Skill Structure
 
@@ -66,8 +110,8 @@ Detailed instructions for Cline to follow when this skill is activated.
 ```
 
 Required fields:
-- `name` must exactly match the directory name
-- `description` tells Cline when to use this skill (max 1024 characters)
+- `name` should match the directory name. If omitted from frontmatter, the directory name is used as a fallback. A mismatch is logged as a warning but does not prevent the skill from loading.
+- `description` explains what the skill does and how to apply it. It is parsed at startup and loaded into context alongside the instructions when the skill is invoked (the always-visible metadata is the skill's `name`). Keep it concise.
 
 ## Creating a Skill
 
@@ -76,7 +120,7 @@ Required fields:
     Click the scale icon at the bottom of the Cline panel, to the left of the model selector. Switch to the Skills tab.
   </Step>
   <Step title="Create a new skill">
-    Click "New skill..." and enter a name for your skill (e.g., `aws-deploy`). Cline creates a skill directory with a template `SKILL.md` file.
+    Click "New skill..." and enter a name for your skill (e.g., `aws-deploy`). Cline creates a skill directory with a template `SKILL.md` file. Global skills are created in `~/.agents/skills/`; workspace skills are created in `.agents/skills/` within your project.
   </Step>
   <Step title="Write your skill instructions">
     Edit the `SKILL.md` file:
@@ -86,7 +130,7 @@ Required fields:
   </Step>
 </Steps>
 
-You can also create skills manually by creating the directory structure in your file system. Place skill directories in `.cline/skills/` (workspace) or `~/.cline/skills/` (global) and Cline will detect them automatically.
+You can also create skills manually by creating the directory structure in your file system. Place skill directories in any of the [scanned locations](#where-skills-live) and Cline will detect them automatically.
 
 Put the important information first in your SKILL.md. Cline reads the file sequentially, so front-load the common cases. Use clear section headers like "## Error Handling" or "## Configuration" so Cline can scan for relevant sections.
 
@@ -94,13 +138,21 @@ Put the important information first in your SKILL.md. Cline reads the file seque
 
 Every skill has a toggle to enable or disable it. This lets you control which skills are active without deleting the skill directory. Skills are enabled by default when discovered.
 
+**VS Code extension:** Toggle skills from the Skills tab in the Customize menu. Global skills, workspace skills, and enterprise-managed skills each appear in their own section.
+
+**CLI:** Toggle skills via the `/settings` command, then navigate to the **Skills** tab. Use Space or Enter to toggle a skill on or off.
+
+When you toggle a skill, the change is persisted in two places: the extension's toggle state store (for UI display) and the `SKILL.md` frontmatter `disabled: true` flag (which the runtime reads to decide whether to offer the skill to the model). Remote/enterprise skills have no backing file on disk, so only the toggle store is updated for those.
+
+Enterprise skills pushed via remote config can be locked with `alwaysEnabled: true`, meaning they cannot be disabled and appear with a lock icon in the UI.
+
 For example, you might disable a CI/CD skill when working on local development, or enable a client-specific skill only when working on that client's project.
 
 ## Writing Your SKILL.md
 
 ### Naming Conventions
 
-The skill name appears in the `name` field and must match the directory name exactly. Use lowercase with hyphens (kebab-case) and be descriptive about what the skill does.
+The skill name appears in the `name` field and should match the directory name. Use lowercase with hyphens (kebab-case) and be descriptive about what the skill does.
 
 Good names:
 - `aws-cdk-deploy`
@@ -116,7 +168,7 @@ Avoid:
 
 ### Writing Effective Descriptions
 
-The description determines when Cline activates the skill. A vague description means the skill won't trigger when you expect it to.
+The skill `name` is what Cline sees in its always-available skill list, so it carries most of the initial matching signal — but a clear description reinforces when the skill applies, guides how Cline uses it once loaded, and helps you find it in the `/skills` picker and the extension's Skills tab. A vague name or description means the skill won't trigger when you expect it to.
 
 Good descriptions are specific and actionable:
 
@@ -145,23 +197,6 @@ Start with what the skill does (action verbs), include trigger phrases users mig
 Keep SKILL.md under 5k tokens. If your skill needs more content, split it into separate files in a `docs/` directory and reference them from the main instructions. Cline loads referenced files only when needed.
 
 Include real examples. Show what commands to run, what output to expect, and what the result should look like. Abstract instructions are harder to follow than concrete examples.
-
-## Where Skills Live
-
-Skills can be stored globally or in a project workspace. See [Storage Locations](/getting-started/config#storage-locations) for guidance on when to use each.
-
-Project skills:
-- `.cline/skills/` (recommended)
-- `.clinerules/skills/`
-- `.claude/skills/`
-
-Global skills:
-- `~/.cline/skills/` (macOS/Linux)
-- `C:\Users\USERNAME\.cline\skills\` (Windows)
-
-When a global skill and project skill have the same name, the global skill takes precedence. This lets you keep general-purpose skills globally while using project-specific skills in `.cline/skills/` so the whole team can use them.
-
-Version control your project skills by committing `.cline/skills/`. Your team can share, review, and improve them together.
 
 ## Bundling Supporting Files
 
@@ -220,7 +255,7 @@ Run the validation script to check your configuration:
 python scripts/validate.py
 ```
 
-Cline reads documentation files using `read_file` when the instructions reference them. Scripts can be executed directly, and only the script's output enters the context window.
+Cline reads documentation files using `read_files` when the instructions reference them. Scripts can be executed directly via `run_commands`, and only the script's output enters the context window.
 
 | Use Scripts For | Use Instructions For |
 |-----------------|---------------------|
