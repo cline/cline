@@ -46,16 +46,22 @@ type JsonRpcMessage = {
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Initialize budget when no timeout is configured. This wait sits on the
 // session-create critical path, which the hub caps at 30s
-// (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
-// then Content-Length framing), so the doubled total MUST stay well under
-// that cap or a hung server takes the whole session down with it. 3s covers
-// typical stdio startup while keeping the worst case (~6s per server, probed
-// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
-// ones like Oracle SQLcl, uvx downloading a package on first run) need an
+// (HUB_DEFAULT_COMMAND_TIMEOUT_MS), so together with the Content-Length
+// fallback below it MUST stay well under that cap or a hung server takes the
+// whole session down with it. 10s covers ordinary servers on slower
+// machines: on Windows, `npx`/`uvx`/Python launchers run through cmd.exe and
+// routinely need more than 3s to answer initialize, and a server that misses
+// the budget silently contributes no tools. Genuinely slow starters
+// (JVM-based ones like Oracle SQLcl, first-run package downloads) need an
 // explicit `timeout`, which overrides this in either direction. Dead commands
 // still fail fast through the spawn error/exit path; only an alive-but-silent
 // server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 10_000;
+// Budget for the legacy Content-Length framing retry when no timeout is
+// configured. MCP stdio is newline-delimited, so the retry only exists for
+// rare framed-only servers; keeping it short caps a hung server at ~13s
+// (servers are probed in parallel).
+export const DEFAULT_MCP_FRAMED_CONNECT_TIMEOUT_MS = 3_000;
 // Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
 // configured. Like the stdio initialize budget above, connect runs on the
 // session-create critical path capped by the hub at 30s
@@ -218,6 +224,7 @@ class StdioMcpClient implements McpServerClient {
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private readonly framedConnectAttemptTimeoutMs: number;
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
@@ -227,11 +234,15 @@ class StdioMcpClient implements McpServerClient {
 		// Initialize gets its own default budget so slow-starting servers
 		// connect out of the box; an explicit `timeout` overrides it in
 		// either direction.
-		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
+		const timeoutConfigured = isMcpTimeoutConfigured(
 			registration.timeoutSeconds,
-		)
+		);
+		this.connectAttemptTimeoutMs = timeoutConfigured
 			? this.requestTimeoutMs
 			: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
+		this.framedConnectAttemptTimeoutMs = timeoutConfigured
+			? this.requestTimeoutMs
+			: DEFAULT_MCP_FRAMED_CONNECT_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -264,7 +275,7 @@ class StdioMcpClient implements McpServerClient {
 				await this.request(
 					"initialize",
 					initializeParams,
-					this.connectAttemptTimeoutMs,
+					this.framedConnectAttemptTimeoutMs,
 				);
 			} catch (framedError) {
 				await this.disconnect().catch(() => {});
