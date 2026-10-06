@@ -1641,8 +1641,8 @@ export class SqliteCronStore {
 			`);
 			while (claimed.length < limit) {
 				const row = nextDueRun.get({
-					now: referenceIso,
-					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+					":now": referenceIso,
+					":capacity": Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
 				});
 				if (!row) break;
 				const runId = asString(row.run_id);
