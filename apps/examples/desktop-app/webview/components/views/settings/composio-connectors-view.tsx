@@ -27,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAccount } from "@/contexts/account-context";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
+import { getClineSignUpUrl } from "@/lib/cline-signup-url";
 import { fetchComposioToolkitCatalog } from "@/lib/composio";
 import {
 	COMPOSIO_RECIPES,
@@ -46,8 +47,6 @@ import { useComposioConnections } from "@/lib/use-composio-connections";
 import { cn } from "@/lib/utils";
 
 /** Shared connector browser for Customize and Marketplace. */
-
-const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
 /** How many catalog entries to show before asking the user to search. */
 const CATALOG_PREVIEW_COUNT = 24;
@@ -843,7 +842,7 @@ function ConnectorsUnavailable({
 							{signingIn ? "Waiting for browser…" : "Sign in"}
 						</Button>
 						<Button
-							onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+							onClick={() => void openExternalUrl(getClineSignUpUrl())}
 							size="sm"
 							type="button"
 							variant="outline"

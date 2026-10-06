@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getClineSignUpUrl } from "@/lib/cline-signup-url";
 import { AccountView } from "./account-view";
 
 const { invoke, openExternalUrl } = vi.hoisted(() => ({
@@ -103,6 +104,13 @@ describe("AccountView signed-out state", () => {
 		expect(container.textContent).not.toContain(
 			"No Cline account auth token found",
 		);
+		const createAccount = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Create account",
+		);
+		expect(createAccount).toBeDefined();
+		await act(async () => createAccount?.click());
+		expect(openExternalUrl).toHaveBeenCalledWith(getClineSignUpUrl());
+
 		// The auth state gates the rest of the overview: signed out means the
 		// balance/organization commands are never fired.
 		const accountCalls = invoke.mock.calls.filter(
