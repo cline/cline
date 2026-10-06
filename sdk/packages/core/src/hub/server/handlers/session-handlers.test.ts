@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+	handleSessionGet,
 	readHubClientContext,
 	readHubUserContext,
 	readSessionConnectionUpdate,
@@ -138,5 +139,27 @@ describe("resolveSessionAutoApproveTools", () => {
 		expect(
 			resolveSessionAutoApproveTools(undefined, { autoApproveTools: true }),
 		).toBe(true);
+	});
+});
+
+describe("session.get live-only probe", () => {
+	it("returns missing when persisted metadata has no resident runtime", async () => {
+		const getSession = vi.fn(
+			async (_sessionId: string, options?: { liveOnly?: boolean }) =>
+				options?.liveOnly ? undefined : { sessionId: "persisted" },
+		);
+		const ctx = {
+			sessionHost: { getSession },
+		} as unknown as import("./context").HubTransportContext;
+		const reply = await handleSessionGet(ctx, {
+			version: "v1",
+			requestId: "probe",
+			command: "session.get",
+			sessionId: "persisted",
+			payload: { liveOnly: true },
+		});
+		expect(getSession).toHaveBeenCalledWith("persisted", { liveOnly: true });
+		expect(reply.ok).toBe(false);
+		expect(reply.error?.code).toBe("session_not_found");
 	});
 });

@@ -8249,3 +8249,92 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 });
+
+describe("session recovery seed", () => {
+	it("restores pending work before publishing status without starting a turn", async () => {
+		const sessionId = "seeded-queue";
+		const agent = {
+			run: vi.fn(),
+			getMessages: () => [],
+			getAgentId: () => "root",
+			getConversationId: () => "conversation",
+			subscribeEvents: () => () => {},
+			shutdown: vi.fn(),
+			canStartRun: () => true,
+		};
+		const host = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: { ensureSessionsDir: () => "/tmp/sessions" } as never,
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+		const pending = [
+			{
+				id: "pending-first",
+				prompt: "follow up",
+				mode: "plan" as const,
+				delivery: "steer" as const,
+				attachmentCount: 2,
+				userImages: ["image"],
+				userFiles: ["/tmp/file"],
+			},
+			{
+				id: "pending-second",
+				prompt: "then test",
+				delivery: "queue" as const,
+				attachmentCount: 0,
+			},
+		];
+		const snapshots: unknown[] = [];
+		host.subscribe((event) => {
+			if (event.type === "pending_prompts")
+				snapshots.push(event.payload.prompts);
+		});
+		try {
+			await host.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+					initialPendingPrompts: pending,
+				}),
+			);
+			expect(await host.pendingPrompts.list({ sessionId })).toEqual(pending);
+			expect(snapshots).toEqual([pending]);
+			expect(agent.run).not.toHaveBeenCalled();
+			const first = pending[0];
+			if (!first) throw new Error("Expected queued prompt");
+			first.prompt = "mutated caller snapshot";
+			expect((await host.pendingPrompts.list({ sessionId }))[0]?.prompt).toBe(
+				"follow up",
+			);
+			expect(
+				await host.getSession(sessionId, { liveOnly: true }),
+			).toBeDefined();
+		} finally {
+			await host.dispose();
+		}
+	});
+
+	it("does not mistake persisted session metadata for a live runtime", async () => {
+		const listSessions = vi.fn().mockResolvedValue([]);
+		const readSessionManifest = vi
+			.fn()
+			.mockResolvedValue(createManifest("persisted-only"));
+		const host = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: { listSessions, readSessionManifest } as never,
+		});
+		try {
+			expect(await host.getSession("persisted-only")).toBeDefined();
+			readSessionManifest.mockClear();
+			expect(
+				await host.getSession("persisted-only", { liveOnly: true }),
+			).toBeUndefined();
+			expect(readSessionManifest).not.toHaveBeenCalled();
+		} finally {
+			await host.dispose();
+		}
+	});
+});

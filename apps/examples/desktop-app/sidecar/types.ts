@@ -7,6 +7,7 @@ import type {
 	NodeHubClient,
 	RemoteEnvironmentConnection,
 	RemoteEnvironmentService,
+	SessionPendingPrompt,
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
@@ -51,6 +52,8 @@ export type PromptInQueue = {
 	steer: boolean;
 	attachmentCount?: number;
 	userImages?: string[];
+	userFiles?: string[];
+	mode?: SessionPendingPrompt["mode"];
 };
 
 export type LiveSession = {

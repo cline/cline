@@ -563,6 +563,8 @@ export function handleCoreSessionEvent(
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
 					userImages: item.userImages,
+					userFiles: item.userFiles,
+					mode: item.mode,
 				}))
 				.filter(
 					(item) => item.id && (item.prompt || (item.attachmentCount ?? 0) > 0),
@@ -1051,6 +1053,10 @@ export function handleHubLiveEvent(
 					steer: item.delivery === "steer",
 					attachmentCount:
 						typeof item.attachmentCount === "number" ? item.attachmentCount : 0,
+					mode: item.mode as PromptInQueue["mode"],
+					userFiles: Array.isArray(item.userFiles)
+						? (item.userFiles as string[])
+						: undefined,
 					userImages: Array.isArray(item.userImages)
 						? (item.userImages as string[])
 						: undefined,

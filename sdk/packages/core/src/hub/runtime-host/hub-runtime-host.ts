@@ -901,6 +901,9 @@ export class HubRuntimeHost implements RuntimeHost {
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
 				initialMessages: input.initialMessages,
+				...(input.initialPendingPrompts
+					? { initialPendingPrompts: input.initialPendingPrompts }
+					: {}),
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
 					: {}),
@@ -1327,10 +1330,17 @@ export class HubRuntimeHost implements RuntimeHost {
 		await this.client.dispose();
 	}
 
-	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
+	async getSession(
+		sessionId: string,
+		options?: { liveOnly?: boolean },
+	): Promise<SessionRecord | undefined> {
 		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
 		try {
-			reply = await this.client.command("session.get", undefined, sessionId);
+			reply = await this.client.command(
+				"session.get",
+				options?.liveOnly ? { liveOnly: true } : undefined,
+				sessionId,
+			);
 		} catch (error) {
 			if (isSessionNotFoundError(error)) {
 				return undefined;

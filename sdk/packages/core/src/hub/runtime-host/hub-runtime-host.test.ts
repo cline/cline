@@ -187,6 +187,49 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("transports restored pending prompts during creation and probes only live sessions", async () => {
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		subscribeMock.mockReturnValue(() => {});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "idle",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const host = new HubRuntimeHost({ url: "ws://localhost:7331" });
+		const prompts = [
+			{
+				id: "pending-1",
+				prompt: "follow up",
+				delivery: "queue" as const,
+				mode: "plan" as const,
+				attachmentCount: 1,
+				userFiles: ["/tmp/file"],
+			},
+		];
+		await host.startSession({
+			config: createConfig(),
+			interactive: true,
+			initialPendingPrompts: prompts,
+		});
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.create",
+			expect.objectContaining({ initialPendingPrompts: prompts }),
+		);
+		await host.getSession("sess-1", { liveOnly: true });
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"session.get",
+			{ liveOnly: true },
+			"sess-1",
+		);
+	});
+
 	it("reconstructs tool content updates from hub events", async () => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {

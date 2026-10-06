@@ -40,6 +40,7 @@ export interface SessionTeamProgressEvent {
 
 export interface SessionPendingPrompt {
 	id: string;
+	mode?: import("@cline/shared").AgentMode;
 	prompt: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;

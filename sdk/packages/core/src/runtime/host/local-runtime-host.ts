@@ -929,7 +929,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
-			pendingPrompts: [],
+			pendingPrompts: structuredClone(startInput.initialPendingPrompts ?? []),
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
@@ -994,6 +994,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		this.emitStatus(sessionId, active.status);
+		if (active.pendingPrompts.length > 0) {
+			this.emit({
+				type: "pending_prompts",
+				payload: {
+					sessionId,
+					prompts: this.pendingPromptsController.list(sessionId),
+				},
+			});
+		}
 
 		let result: AgentResult | undefined;
 		try {
@@ -1263,11 +1272,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.aggregateUsageBySession.clear();
 	}
 
-	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
+	async getSession(
+		sessionId: string,
+		options?: { liveOnly?: boolean },
+	): Promise<SessionRecord | undefined> {
 		const active = this.sessions.get(sessionId);
 		if (active) {
 			return toActiveSessionRecord(active);
 		}
+		if (options?.liveOnly) return undefined;
 		const target = sessionId.trim();
 		if (!target) return undefined;
 		const row = await this.getRow(target);

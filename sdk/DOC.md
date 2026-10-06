@@ -343,3 +343,9 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+### Session recovery inputs
+
+Use `cline.get(sessionId, { liveOnly: true })` to check whether a runtime is resident without changing it. It returns `undefined` when only persisted session history exists. The default `get(sessionId)` continues to include persisted sessions.
+
+`cline.start({ config, interactive: true, initialMessages, initialPendingPrompts })` can restore pending prompts atomically with the runtime. `initialPendingPrompts` contains `SessionPendingPrompt` snapshots including their IDs, delivery, optional mode, and attachment data. The restored queue is published to subscribers and waits for the next turn when no start prompt is supplied.

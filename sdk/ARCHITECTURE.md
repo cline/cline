@@ -1061,3 +1061,9 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Recovering resident sessions after Hub loss
+
+`ClineCore.get(sessionId, { liveOnly: true })` performs a read-only resident-runtime check. It bypasses persisted session metadata, which can survive even when the Hub runtime has been lost, and never refreshes a surviving runtime's connection settings.
+
+`StartSessionInput.initialPendingPrompts` seeds pending work as part of session creation. The Hub forwards the complete snapshots (IDs, mode, delivery, images and files), and the local host installs the queue before publishing session status and the pending-prompts snapshot. Creation without a prompt leaves that queue waiting for the next turn; recovery does not dispatch queued work piecemeal.

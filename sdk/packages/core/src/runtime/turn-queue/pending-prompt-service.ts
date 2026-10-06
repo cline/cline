@@ -403,6 +403,7 @@ function isErrorFinish(result: unknown): boolean {
 function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
 	return {
 		id: entry.id,
+		mode: entry.mode,
 		prompt: entry.prompt,
 		delivery: entry.delivery,
 		attachmentCount:
