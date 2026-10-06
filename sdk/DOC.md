@@ -39,18 +39,11 @@ host presentation.
 
 ## Session pull-request status
 
-The Hub command `session.pull_request_status` accepts only `{ sessionId }` and
-returns `{ sessionId, status: PullRequestStatus | null }`. It reads the stored
-session's workspace with Git and `gh`, without starting a run or changing session
-history. Hosts own polling and render the returned status with `AgentPullRequestBar`.
-A missing Git branch, unsupported remote, default branch, or unavailable GitHub
-authentication returns `null`; lookup failures return a sanitized error.
-
-`createPullRequestStatusReader` and `getPullRequestStatus` are exported from
-`@cline/core`; their default account-authentication probe preserves desktop
-behavior. The Hub reader disables that probe so repository-scoped installation
-tokens authenticate through the repository query. Older runtimes do not support
-this command; hosts should hide the status UI when it is unavailable.
+`session.pull_request_status` accepts `{ sessionId }` and returns
+`{ sessionId, status: PullRequestStatus | null }`, reading only the stored workspace
+without starting a run or changing history. The shared reader preserves desktop
+account probing by default; Hub queries authenticate with repository-scoped tokens.
+Hosts own polling and hide the status UI for unsupported runtimes.
 
 ## Fork metadata
 
