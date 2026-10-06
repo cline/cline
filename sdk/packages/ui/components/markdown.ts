@@ -9,6 +9,7 @@ import type {
 	ControlsConfig,
 	DiagramPlugin,
 } from "streamdown";
+import { readMermaidTheme } from "./diagrams/mermaid/dom.js";
 import {
 	buildMermaidConfig,
 	createDefaultMermaidConfig,
@@ -17,7 +18,6 @@ import {
 	type LazyMermaidInstance,
 	type MermaidModuleLoader,
 } from "./mermaid-diagram.js";
-import { readMermaidTheme } from "./mermaid-dom.js";
 
 /**
  * Shared Streamdown configuration for agent chat Markdown, so every product

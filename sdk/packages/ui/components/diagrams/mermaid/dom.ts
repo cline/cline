@@ -10,7 +10,7 @@ import {
 	prepareSvgForRaster,
 	resolveMermaidFontFamily,
 	resolvePngDesiredScale,
-} from "./mermaid-diagram.js";
+} from "../../mermaid-diagram.js";
 
 /**
  * Browser-only glue for the owned Mermaid block: samples the live Cline design
