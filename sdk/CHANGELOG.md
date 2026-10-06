@@ -1,5 +1,11 @@
 # Cline SDK Changelog
 
+## 0.0.90
+
+- Agent teams no longer slow down as a session runs or while a teammate is streaming. Every streamed chunk and 2-second heartbeat used to re-save the whole team state, including every finished teammate's full transcript (one local `teams.db` reached 1.66 GB, with a single run row rewritten ~339k times). Stream chunks and heartbeats now go to live UIs only and are never persisted, only changed entities are written (batched into one transaction every ~300 ms), run records keep a summary instead of the transcript, and `team_events` is capped per team (2000 rows, 30 days). SQLite team storage moves to schema v2 with a one-time migration that compacts existing data; `SqliteTeamStore.vacuum()` returns the freed space when called explicitly. Failed team writes are retried instead of dropped
+- Standalone provider requests made outside a session (such as commit message generation) can now resolve Cline surface headers. `sessionId` is optional in `resolveProviderRequestHeaders`, and `X-Task-ID` is omitted rather than sent empty
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
 ## 0.0.89
 
 - Oversized MCP and Composio tool results can now be recovered in full. Core caches the oversized output in a per-session in-memory cache and sends the model a bounded preview plus a `cline://cache/...` URI that `read_files` can page through by line range. Custom tools can opt in with `resultPolicy: "cache-oversized"` on `createTool`. Entries expire after five model iterations without a read, the cache is capped at 16 MiB per session, and original output stays in history and tool events
