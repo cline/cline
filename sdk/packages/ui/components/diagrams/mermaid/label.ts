@@ -6,16 +6,14 @@
  * entry point stays `mermaid-diagram.ts`.
  */
 
+import { DIAGRAM_NAMING } from "./config.js";
 import {
-	DEFAULT_DIAGRAM_NAME,
 	parseFenceTitle,
 	parseFrontmatterTitle,
 	slugifyDiagramName,
 	splitFrontmatter,
 	unquote,
 } from "./naming.js";
-
-const MAX_DERIVED_SLUG_LENGTH = 48;
 
 const DIAGRAM_TYPE_NAMES: Record<string, string> = {
 	"architecture-beta": "architecture",
@@ -186,7 +184,7 @@ function subgraphTitle(lines: string[]): string | undefined {
 
 function addNodeLabels(line: string, labels: string[]): void {
 	let index = 0;
-	while (labels.length < 2) {
+	while (labels.length < DIAGRAM_NAMING.maxLabels) {
 		const found = nextNodeLabel(line, index);
 		if (!found) return;
 		pushUnique(labels, found.label);
@@ -200,7 +198,7 @@ function flowchartLabels(lines: string[]): string[] {
 	for (const line of lines.slice(1)) {
 		if (FLOWCHART_SKIP_LINE.test(line)) continue;
 		addNodeLabels(line, labels);
-		if (labels.length >= 2) break;
+		if (labels.length >= DIAGRAM_NAMING.maxLabels) break;
 	}
 	return labels;
 }
@@ -272,7 +270,7 @@ export function deriveDiagramLabels(source: string): {
 	} else if (type) {
 		labels = genericLabels(lines);
 	}
-	return { labels: labels.slice(0, 2), type };
+	return { labels: labels.slice(0, DIAGRAM_NAMING.maxLabels), type };
 }
 
 export interface ResolveDiagramSlugInput {
@@ -301,7 +299,7 @@ export function resolveDiagramSlug({
 	const { labels, type } = deriveDiagramLabels(source);
 	const derived = slugifyDiagramName(
 		[type, ...labels].filter(Boolean).join(" "),
-		MAX_DERIVED_SLUG_LENGTH,
+		DIAGRAM_NAMING.maxDerivedSlugLength,
 	);
-	return derived || DEFAULT_DIAGRAM_NAME;
+	return derived || DIAGRAM_NAMING.defaultName;
 }

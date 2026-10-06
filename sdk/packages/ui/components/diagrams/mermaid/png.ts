@@ -5,24 +5,16 @@
  * canvas rasterizer lives in `dom.ts`.
  */
 
+import { PNG_EXPORT } from "./config.js";
+
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }
 
-// ---------------------------------------------------------------------------
-// PNG export
-// ---------------------------------------------------------------------------
-
-/** Longest allowed PNG edge; keeps encoded output well under ~5 MiB. */
-export const PNG_MAX_EDGE = 4096;
-/** Crisp-but-modest baseline; Streamdown's fixed 5x is needlessly large. */
-export const PNG_BASE_SCALE = 2;
-export const PNG_MAX_DESIRED_SCALE = 3;
-
 /**
- * Preferred export scale for a display: at least `PNG_BASE_SCALE`, following
- * the device pixel ratio up to `PNG_MAX_DESIRED_SCALE`. Non-finite or missing
- * ratios (SSR, odd embeds) yield the base scale.
+ * Preferred export scale for a display: at least the base scale, following
+ * the device pixel ratio up to `PNG_EXPORT.maxDesiredScale`. Missing or
+ * non-finite ratios (SSR, odd embeds) yield the base scale.
  */
 export function resolvePngDesiredScale(
 	devicePixelRatio?: number | null,
@@ -30,22 +22,13 @@ export function resolvePngDesiredScale(
 	const ratio =
 		typeof devicePixelRatio === "number" && Number.isFinite(devicePixelRatio)
 			? Math.ceil(devicePixelRatio)
-			: PNG_BASE_SCALE;
-	return clamp(ratio, PNG_BASE_SCALE, PNG_MAX_DESIRED_SCALE);
+			: PNG_EXPORT.baseScale;
+	return clamp(ratio, PNG_EXPORT.baseScale, PNG_EXPORT.maxDesiredScale);
 }
-/**
- * Attached images are validated on their base64 length, capped at 5 MiB
- * (`DEFAULT_MAX_IMAGE_ENCODED_BYTES` in `@cline/shared`'s `llms/media.ts`).
- */
-export const PNG_MAX_ENCODED_BYTES = 5 * 1024 * 1024;
-/** Each retry re-encodes at this fraction of the previous scale. */
-export const PNG_RETRY_SCALE_FACTOR = 0.7;
-export const PNG_MAX_ATTEMPTS = 4;
-const FALLBACK_SVG_SIZE = { height: 600, width: 800 };
 
 /** Whether a PNG of `byteLength` bytes stays attachable once base64-encoded. */
 export function pngFitsAttachmentLimit(byteLength: number): boolean {
-	return 4 * Math.ceil(byteLength / 3) <= PNG_MAX_ENCODED_BYTES;
+	return 4 * Math.ceil(byteLength / 3) <= PNG_EXPORT.maxEncodedBytes;
 }
 
 export interface PngExportSize {
@@ -55,17 +38,16 @@ export interface PngExportSize {
 }
 
 /**
- * `scale = min(desiredScale, maxEdge / longestEdge)`. Small diagrams get the
- * desired (crisp) scale; larger ones are scaled down so the longest edge never
- * exceeds `maxEdge`, which is what keeps the encoded PNG attachable. A diagram
- * whose natural size already passes the cap is therefore shrunk (scale < 1)
- * rather than exported oversize. Non-finite or non-positive dimensions are
- * treated as 1px so the result is always a finite, positive number.
+ * `scale = min(desiredScale, maxEdge / longestEdge)`: small diagrams keep the
+ * crisp desired scale, larger ones shrink so the longest edge never exceeds
+ * `maxEdge` — which is what keeps the encoded PNG attachable. A diagram whose
+ * natural size already passes the cap shrinks below 1x rather than exporting
+ * oversize.
  */
 export function computeExportScale(
 	size: { height: number; width: number },
-	desiredScale: number = PNG_BASE_SCALE,
-	maxEdge: number = PNG_MAX_EDGE,
+	desiredScale: number = PNG_EXPORT.baseScale,
+	maxEdge: number = PNG_EXPORT.maxEdge,
 ): number {
 	const width = Number.isFinite(size.width) && size.width > 0 ? size.width : 1;
 	const height =
@@ -76,8 +58,8 @@ export function computeExportScale(
 /** Canvas dimensions for `computeExportScale`, rounded to whole pixels. */
 export function computePngExportSize(
 	size: { height: number; width: number },
-	desiredScale: number = PNG_BASE_SCALE,
-	maxEdge: number = PNG_MAX_EDGE,
+	desiredScale: number = PNG_EXPORT.baseScale,
+	maxEdge: number = PNG_EXPORT.maxEdge,
 ): PngExportSize {
 	const width = Number.isFinite(size.width) && size.width > 0 ? size.width : 1;
 	const height =
@@ -92,32 +74,30 @@ export function computePngExportSize(
 
 /**
  * Encodes at the desired scale and, while the result is too large to attach
- * (see `pngFitsAttachmentLimit`), retries at `PNG_RETRY_SCALE_FACTOR` of the
- * previous scale. Retries stop at scale 1 (or earlier if the edge cap already
- * forced a smaller scale), after `PNG_MAX_ATTEMPTS`, or when a retry would not
- * shrink the image. The smallest attempt is returned even if it is still
+ * (see `pngFitsAttachmentLimit`), retries at a fraction of the previous scale
+ * — never below 1x. The smallest attempt is returned even if it is still
  * oversize: it is still a valid PNG for a plain file download.
  */
 export async function encodePngWithinLimit<T extends { size: number }>(
 	natural: { height: number; width: number },
 	encode: (size: PngExportSize) => Promise<T>,
-	initialScale: number = PNG_BASE_SCALE,
+	initialScale: number = PNG_EXPORT.baseScale,
 ): Promise<T> {
 	let desired = initialScale;
 	let previousScale = Number.POSITIVE_INFINITY;
 	let result: T | undefined;
-	for (let attempt = 0; attempt < PNG_MAX_ATTEMPTS; attempt += 1) {
+	for (let attempt = 0; attempt < PNG_EXPORT.attemptLimit; attempt += 1) {
 		const size = computePngExportSize(natural, desired);
 		if (result && size.scale >= previousScale) break;
 		result = await encode(size);
 		if (pngFitsAttachmentLimit(result.size)) return result;
 		previousScale = size.scale;
-		// The last attempt always drops to the 1x floor, so a geometric decay that
-		// never quite reaches it can't leave a smaller export untried.
+		// The last retry drops straight to the 1x floor so the geometric decay
+		// cannot exhaust the attempts just above it.
 		desired =
-			attempt + 2 >= PNG_MAX_ATTEMPTS
+			attempt + 2 >= PNG_EXPORT.attemptLimit
 				? 1
-				: Math.max(1, size.scale * PNG_RETRY_SCALE_FACTOR);
+				: Math.max(1, size.scale * PNG_EXPORT.retryScaleFactor);
 	}
 	if (!result) throw new Error("Failed to encode PNG");
 	return result;
@@ -165,17 +145,17 @@ function viewBoxSize(
  */
 export function prepareSvgForRaster(svg: string): PreparedSvg {
 	const tagMatch = /<svg\b[^>]*>/i.exec(svg);
-	if (!tagMatch) return { ...FALLBACK_SVG_SIZE, svg };
+	if (!tagMatch) return { ...PNG_EXPORT.fallbackSvg, svg };
 	let tag = tagMatch[0];
 	const box = viewBoxSize(tag);
 	const width =
 		box?.width ??
 		parseLength(readAttribute(tag, "width")) ??
-		FALLBACK_SVG_SIZE.width;
+		PNG_EXPORT.fallbackSvg.width;
 	const height =
 		box?.height ??
 		parseLength(readAttribute(tag, "height")) ??
-		FALLBACK_SVG_SIZE.height;
+		PNG_EXPORT.fallbackSvg.height;
 
 	tag = setAttribute(tag, "width", String(width));
 	tag = setAttribute(tag, "height", String(height));

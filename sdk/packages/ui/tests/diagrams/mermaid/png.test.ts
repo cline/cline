@@ -6,10 +6,7 @@ import {
 	computeExportScale,
 	computePngExportSize,
 	encodePngWithinLimit,
-	PNG_BASE_SCALE,
-	PNG_MAX_DESIRED_SCALE,
-	PNG_MAX_EDGE,
-	PNG_MAX_ENCODED_BYTES,
+	PNG_EXPORT,
 	pngFitsAttachmentLimit,
 	prepareSvgForRaster,
 	resolvePngDesiredScale,
@@ -17,23 +14,23 @@ import {
 
 describe("resolvePngDesiredScale", () => {
 	test("never goes below the 2x base, even on 1x displays", () => {
-		expect(resolvePngDesiredScale(1)).toBe(PNG_BASE_SCALE);
-		expect(resolvePngDesiredScale(0.5)).toBe(PNG_BASE_SCALE);
+		expect(resolvePngDesiredScale(1)).toBe(PNG_EXPORT.baseScale);
+		expect(resolvePngDesiredScale(0.5)).toBe(PNG_EXPORT.baseScale);
 	});
 
 	test("follows the device pixel ratio up to the max", () => {
 		expect(resolvePngDesiredScale(2)).toBe(2);
 		expect(resolvePngDesiredScale(2.5)).toBe(3);
 		expect(resolvePngDesiredScale(3)).toBe(3);
-		expect(resolvePngDesiredScale(5)).toBe(PNG_MAX_DESIRED_SCALE);
+		expect(resolvePngDesiredScale(5)).toBe(PNG_EXPORT.maxDesiredScale);
 	});
 
 	test("falls back to the base scale for missing or invalid ratios", () => {
-		expect(resolvePngDesiredScale()).toBe(PNG_BASE_SCALE);
-		expect(resolvePngDesiredScale(null)).toBe(PNG_BASE_SCALE);
-		expect(resolvePngDesiredScale(Number.NaN)).toBe(PNG_BASE_SCALE);
+		expect(resolvePngDesiredScale()).toBe(PNG_EXPORT.baseScale);
+		expect(resolvePngDesiredScale(null)).toBe(PNG_EXPORT.baseScale);
+		expect(resolvePngDesiredScale(Number.NaN)).toBe(PNG_EXPORT.baseScale);
 		expect(resolvePngDesiredScale(Number.POSITIVE_INFINITY)).toBe(
-			PNG_BASE_SCALE,
+			PNG_EXPORT.baseScale,
 		);
 	});
 });
@@ -41,7 +38,7 @@ describe("resolvePngDesiredScale", () => {
 describe("computeExportScale", () => {
 	test("keeps the base scale for small diagrams instead of Streamdown's 5x", () => {
 		expect(computeExportScale({ height: 200, width: 300 })).toBe(
-			PNG_BASE_SCALE,
+			PNG_EXPORT.baseScale,
 		);
 		expect(computeExportScale({ height: 200, width: 300 }, 3)).toBe(3);
 	});
@@ -49,9 +46,9 @@ describe("computeExportScale", () => {
 	test("caps huge diagrams so the longest edge is at most the max", () => {
 		const size = { height: 3000, width: 9000 };
 		const scale = computeExportScale(size);
-		expect(scale).toBeCloseTo(PNG_MAX_EDGE / 9000);
+		expect(scale).toBeCloseTo(PNG_EXPORT.maxEdge / 9000);
 		expect(Math.max(size.width, size.height) * scale).toBeLessThanOrEqual(
-			PNG_MAX_EDGE + 1e-9,
+			PNG_EXPORT.maxEdge + 1e-9,
 		);
 		expect(computeExportScale({ height: 1000, width: 1000 }, 5, 2000)).toBe(2);
 	});
@@ -85,20 +82,20 @@ describe("computePngExportSize", () => {
 
 	test("caps the longest edge at ~4096px", () => {
 		const size = computePngExportSize({ height: 500, width: 3000 }, 3);
-		expect(size.width).toBe(PNG_MAX_EDGE);
+		expect(size.width).toBe(PNG_EXPORT.maxEdge);
 		expect(size.height).toBe(683);
 		expect(size.scale).toBeCloseTo(4096 / 3000);
 		const tall = computePngExportSize({ height: 3000, width: 400 });
-		expect(tall.height).toBeLessThanOrEqual(PNG_MAX_EDGE);
+		expect(tall.height).toBeLessThanOrEqual(PNG_EXPORT.maxEdge);
 	});
 
 	test("shrinks a diagram that is already past the cap so the edge never exceeds it", () => {
 		const wide = computePngExportSize({ height: 100, width: 8192 });
-		expect(wide.width).toBe(PNG_MAX_EDGE);
+		expect(wide.width).toBe(PNG_EXPORT.maxEdge);
 		expect(wide.scale).toBeCloseTo(0.5);
 		expect(wide.height).toBe(50);
 		const tall = computePngExportSize({ height: 6807, width: 259 });
-		expect(tall.height).toBe(PNG_MAX_EDGE);
+		expect(tall.height).toBe(PNG_EXPORT.maxEdge);
 		expect(tall.scale).toBeLessThan(1);
 		expect(tall.width).toBeGreaterThanOrEqual(1);
 	});
@@ -113,8 +110,8 @@ describe("computePngExportSize", () => {
 			[20000, 30],
 		] as const) {
 			const size = computePngExportSize({ height, width });
-			expect(size.width).toBeLessThanOrEqual(PNG_MAX_EDGE);
-			expect(size.height).toBeLessThanOrEqual(PNG_MAX_EDGE);
+			expect(size.width).toBeLessThanOrEqual(PNG_EXPORT.maxEdge);
+			expect(size.height).toBeLessThanOrEqual(PNG_EXPORT.maxEdge);
 		}
 	});
 
@@ -126,7 +123,7 @@ describe("computePngExportSize", () => {
 });
 
 describe("encodePngWithinLimit", () => {
-	const OVERSIZE = PNG_MAX_ENCODED_BYTES; // base64 pushes this past the cap
+	const OVERSIZE = PNG_EXPORT.maxEncodedBytes; // base64 pushes this past the cap
 
 	test("accounts for base64 expansion when checking the attachment limit", () => {
 		expect(pngFitsAttachmentLimit(1024)).toBe(true);
@@ -167,7 +164,7 @@ describe("encodePngWithinLimit", () => {
 			},
 		);
 		expect(result.size).toBe(1000);
-		expect(scales[0]).toBe(PNG_BASE_SCALE);
+		expect(scales[0]).toBe(PNG_EXPORT.baseScale);
 		expect(scales.length).toBeGreaterThan(1);
 		expect(scales.at(-1)).toBeLessThanOrEqual(1.5);
 		expect(Math.min(...scales)).toBeGreaterThanOrEqual(1);
@@ -188,7 +185,7 @@ describe("encodePngWithinLimit", () => {
 		);
 		expect(scales.at(-1)).toBe(1);
 		expect(result.scale).toBe(1);
-		expect(scales.length).toBeLessThanOrEqual(4);
+		expect(scales.length).toBeLessThanOrEqual(PNG_EXPORT.attemptLimit);
 	});
 
 	test("does not retry when the edge cap already forced the scale below 1x", async () => {

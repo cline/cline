@@ -5,17 +5,12 @@
  * `mermaid-diagram.ts`; the React block lives in `mermaid-block.tsx`.
  */
 
-// ---------------------------------------------------------------------------
-// Naming
-// ---------------------------------------------------------------------------
-
-export const DEFAULT_DIAGRAM_NAME = "diagram";
-export const MAX_DIAGRAM_SLUG_LENGTH = 64;
+import { DIAGRAM_NAMING } from "./config.js";
 
 /** Lowercase, alphanumerics and single hyphens, trimmed, length-capped. */
 export function slugifyDiagramName(
 	value: string,
-	maxLength: number = MAX_DIAGRAM_SLUG_LENGTH,
+	maxLength: number = DIAGRAM_NAMING.maxSlugLength,
 ): string {
 	const slug = value
 		.normalize("NFKD")
@@ -87,7 +82,6 @@ export function splitFrontmatter(source: string): {
 	return { body: source.slice(match[0].length), frontmatter: match[1] };
 }
 
-// Shared with `label.ts`, which extracts labels the same way.
 export function unquote(value: string): string {
 	const trimmed = value.trim();
 	const quote = trimmed[0];
@@ -116,7 +110,7 @@ export function diagramFileName(
 	slug: string,
 	extension: DiagramFileExtension,
 ): string {
-	return `${slug || DEFAULT_DIAGRAM_NAME}.${extension}`;
+	return `${slug || DIAGRAM_NAMING.defaultName}.${extension}`;
 }
 
 /** Source text as copied / saved to `.mmd`: trailing whitespace collapsed to one newline. */

@@ -5,14 +5,15 @@
  * browser glue lives in `diagrams/mermaid/dom.ts` and the React block in
  * `mermaid-block.tsx`):
  *
- * - `naming`   fence titles, slugs, frontmatter, filenames
- * - `label`    diagram type detection and label extraction
- * - `color`    CSS color parsing and conversion
- * - `theme`    design tokens and Mermaid config construction
- * - `zoom`     viewport zoom/pan math
- * - `png`      PNG export sizing and SVG raster preparation
- * - `links`    navigable-link neutralization
- * - `service`  lazy, serialized render service
+ * - `config`    centralized tunable values (zoom, PNG, naming, font, timing)
+ * - `naming`    fence titles, slugs, frontmatter, filenames
+ * - `label`     diagram type detection and label extraction
+ * - `color`     CSS color parsing and conversion
+ * - `theme`     design tokens and Mermaid config construction
+ * - `zoom`      viewport zoom/pan math
+ * - `png`       PNG export sizing and SVG raster preparation
+ * - `links`     navigable-link neutralization
+ * - `service`   lazy, serialized render service
  */
 
 export {
@@ -22,6 +23,14 @@ export {
 	type RgbaColor,
 	rgbToHex,
 } from "./diagrams/mermaid/color.js";
+export {
+	DIAGRAM_NAMING,
+	DIAGRAM_ZOOM,
+	MERMAID_FONT,
+	PNG_EXPORT,
+	THEME_MIX,
+	UI_TIMING,
+} from "./diagrams/mermaid/config.js";
 
 export {
 	deriveDiagramLabels,
@@ -33,10 +42,8 @@ export {
 	neutralizeDiagramLinks,
 } from "./diagrams/mermaid/links.js";
 export {
-	DEFAULT_DIAGRAM_NAME,
 	type DiagramFileExtension,
 	diagramFileName,
-	MAX_DIAGRAM_SLUG_LENGTH,
 	normalizeDiagramSource,
 	parseFenceTitle,
 	parseFrontmatterTitle,
@@ -47,12 +54,6 @@ export {
 	computeExportScale,
 	computePngExportSize,
 	encodePngWithinLimit,
-	PNG_BASE_SCALE,
-	PNG_MAX_ATTEMPTS,
-	PNG_MAX_DESIRED_SCALE,
-	PNG_MAX_EDGE,
-	PNG_MAX_ENCODED_BYTES,
-	PNG_RETRY_SCALE_FACTOR,
 	type PngExportSize,
 	type PreparedSvg,
 	pngFitsAttachmentLimit,
@@ -73,8 +74,6 @@ export {
 	buildMermaidThemeVariables,
 	createDefaultMermaidConfig,
 	FALLBACK_MERMAID_TOKENS,
-	MERMAID_FONT_FAMILY,
-	MERMAID_FONT_SIZE,
 	type MermaidColorMode,
 	type MermaidColorResolver,
 	type MermaidThemeOptions,
@@ -85,11 +84,8 @@ export {
 } from "./diagrams/mermaid/theme.js";
 export {
 	clampDiagramZoom,
-	DIAGRAM_ZOOM_STEP,
 	type DiagramView,
 	INITIAL_DIAGRAM_VIEW,
-	MAX_DIAGRAM_ZOOM,
-	MIN_DIAGRAM_ZOOM,
 	stepDiagramZoom,
 	wheelZoomScale,
 	zoomViewAtPoint,

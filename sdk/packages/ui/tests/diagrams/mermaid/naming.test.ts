@@ -3,8 +3,8 @@
 
 import { describe, expect, test } from "vitest";
 import {
+	DIAGRAM_NAMING,
 	diagramFileName,
-	MAX_DIAGRAM_SLUG_LENGTH,
 	normalizeDiagramSource,
 	parseFenceTitle,
 	parseFrontmatterTitle,
@@ -31,10 +31,10 @@ describe("slugifyDiagramName", () => {
 
 	test("caps length without leaving a trailing hyphen", () => {
 		const slug = slugifyDiagramName(`${"a".repeat(63)} bbbb`);
-		expect(slug.length).toBeLessThanOrEqual(MAX_DIAGRAM_SLUG_LENGTH);
+		expect(slug.length).toBeLessThanOrEqual(DIAGRAM_NAMING.maxSlugLength);
 		expect(slug.endsWith("-")).toBe(false);
 		expect(slugifyDiagramName("x".repeat(500)).length).toBe(
-			MAX_DIAGRAM_SLUG_LENGTH,
+			DIAGRAM_NAMING.maxSlugLength,
 		);
 	});
 });
