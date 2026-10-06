@@ -134,7 +134,9 @@ export function resolveEffectiveLastUsedProviderId(
  * in to Cline creates the `cline` entry a dangling `cline` / `cline-pass`
  * pointer was waiting for, and that selection should come back. Otherwise the
  * pointer is repaired from the state before the save, so an unrelated save
- * cannot become the fallback just by being the newest entry.
+ * cannot become the fallback just by being the newest entry. When the state
+ * before the save has nothing usable, the dangling pointer is carried as-is
+ * and write() repairs it against the saved state.
  */
 export function carryLastUsedProvider(
 	previous: StoredProviderSettings,
@@ -144,25 +146,21 @@ export function carryLastUsedProvider(
 	if (stored && hasResolvableSettings(next, stored)) {
 		return stored;
 	}
-	return resolveEffectiveLastUsedProviderId(previous);
+	return resolveEffectiveLastUsedProviderId(previous) ?? stored;
 }
 
 /**
- * Return `state` with `lastUsedProvider` set to its effective value. The same
- * object is returned when nothing changes, so callers can detect a repair.
+ * Return `state` with a dangling `lastUsedProvider` replaced by its usable
+ * stand-in. A dangling pointer with no stand-in is kept: dropping it would
+ * erase the only record that a repair is still owed, and an absent pointer is
+ * never repaired. The same object is returned when nothing changes.
  */
 export function normalizeLastUsedProvider(
 	state: StoredProviderSettings,
 ): StoredProviderSettings {
 	const effective = resolveEffectiveLastUsedProviderId(state);
-	if (effective === state.lastUsedProvider) {
+	if (effective === undefined || effective === state.lastUsedProvider) {
 		return state;
 	}
-	const next: StoredProviderSettings = { ...state };
-	if (effective === undefined) {
-		delete next.lastUsedProvider;
-	} else {
-		next.lastUsedProvider = effective;
-	}
-	return next;
+	return { ...state, lastUsedProvider: effective };
 }

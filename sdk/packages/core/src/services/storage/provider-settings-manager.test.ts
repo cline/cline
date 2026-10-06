@@ -1066,6 +1066,45 @@ describe("ProviderSettingsManager", () => {
 			);
 		});
 
+		it("repairs a dangling pointer to the provider an unclaimed save makes usable", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {},
+			});
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"anthropic",
+			);
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe("anthropic");
+		});
+
+		it("keeps a dangling pointer on disk while nothing can replace it", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {},
+			});
+
+			// An entry that cannot serve a turn: enabled, never configured.
+			manager.saveProviderSettings(
+				{ provider: "openai-codex", model: "gpt-5.4" },
+				{ setLastUsed: false },
+			);
+
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"cline",
+			);
+			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+		});
+
 		it("persists the repaired selection on the next write", () => {
 			const { filePath, manager } = setup({
 				version: 1,
