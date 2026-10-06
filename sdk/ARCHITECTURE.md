@@ -966,18 +966,16 @@ whether the terminal failure returned or threw, without error/transcript text.
 Desktop reconciliation retains the full live failed turn until a saved terminal
 error reaches its user-run count and is not a previously displayed error ID.
 
-### Composio beta access
+### Composio availability
 
-Composio management in the desktop sidecar and tool registration/execution in
-local runtimes (including the detached hub) require the account-scoped PostHog
-flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
-evaluator reads the current Cline account ID from provider settings, caches the
-evaluation in memory for one minute, and discards grants on account changes.
-Missing identity, provider configuration, or flag values deny access; internal
-email domains do not bypass this gate. Saved connector schemas alone cannot
-enable tools. Existing sessions recheck access before each tool execution.
-Disconnect/cancel cleanup remains available after access is removed. The Cline
-API proxy must enforce the same flag server-side for authenticated requests.
+The Cline API proxy controls Composio availability through its server-side
+project API key. Desktop/CLI management probes the authenticated connectors API
+and caches availability briefly; 401/403/404 means unavailable. Local runtimes
+register saved account-scoped schemas and resolve the current account token for
+each execution. Account changes invalidate those tools. Hosts supplying connector
+requests and schemas use their own user-scoped authentication. Both paths rely
+on the proxy to enforce identity and connection ownership; neither checks an
+account feature flag. Clients never receive the Composio project key.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and

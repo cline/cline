@@ -10,6 +10,17 @@ import type { SidecarContext } from "./types";
 const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
 
+// The shared auth resolver imports the token manager directly from this module.
+vi.mock(
+	"../../../../sdk/packages/core/src/runtime/orchestration/runtime-oauth-token-manager",
+	async (importOriginal) => ({
+		...(await importOriginal<object>()),
+		RuntimeOAuthTokenManager: class {
+			resolveProviderApiKey = resolveProviderApiKeyMock;
+		},
+	}),
+);
+
 vi.mock("@cline/core", async () => {
 	const actual =
 		await vi.importActual<typeof import("@cline/core")>("@cline/core");
@@ -17,9 +28,6 @@ vi.mock("@cline/core", async () => {
 		...actual,
 		ProviderSettingsManager: class {
 			getProviderSettings = getProviderSettingsMock;
-		},
-		RuntimeOAuthTokenManager: class {
-			resolveProviderApiKey = resolveProviderApiKeyMock;
 		},
 	};
 });

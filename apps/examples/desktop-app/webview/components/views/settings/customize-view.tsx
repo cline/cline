@@ -67,8 +67,7 @@ export function CustomizeView({
 }) {
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
-	// Connectors are an org-provisioned feature: the tab only exists when the
-	// account has Composio beta access.
+	// Show the tab when the connectors API is available to the signed-in account.
 	const connectorsAvailable =
 		useSyncExternalStore(
 			subscribeComposioAvailability,

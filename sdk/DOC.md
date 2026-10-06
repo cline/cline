@@ -301,3 +301,7 @@ numeric exit is reported as `exitCode`.
 ### Connector management
 
 `@cline/core` exports `listComposioToolkits`, `getComposioStatus`, `connectComposioToolkit`, `cancelComposioConnect`, `disconnectComposioToolkit`, and `abandonComposioConnectsForOwner`. CLI and desktop use the same account-scoped service and refresh-aware Cline authentication. Browser launch and user prompts belong to the host. A connect response can be pending: the host must remain alive and observe status until completion, or cancel the attempt when the user exits. `@cline/shared` exports the browser-safe catalog and connection contracts. New sessions load the materialized connector tools from the shared account state.
+
+Connector API functions accept `ctx.request(path, init)` for host-supplied authentication; the host must keep it scoped to one user. The API proxy controls availability through its server-side Composio project key and enforces identity and connection ownership. `createComposioToolsExtension({ toolkits, request })` registers supplied schemas using that same transport; omitting these options preserves the saved desktop/CLI login and state.
+
+`executeConnectorTool` returns `{ successful: false, error }` for request rejection or non-2xx responses, without identifying whether the failure came from the proxy or provider. Hosts needing request diagnostics can observe rejection and HTTP status in their supplied `request`; response body read failures can still throw.

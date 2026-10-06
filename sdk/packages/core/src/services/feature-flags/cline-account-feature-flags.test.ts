@@ -24,7 +24,7 @@ vi.mock("@cline/core/services/feature-flags/posthog", () => ({
 
 import { isClineAccountFeatureEnabled } from "./cline-account-feature-flags";
 
-const flag = FeatureFlag.CLINE_COMPOSIO_BETA;
+const flag = FeatureFlag.CLINE_PASS;
 
 beforeEach(async () => {
 	vi.clearAllMocks();
@@ -42,7 +42,7 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-describe("Cline account beta flags", () => {
+describe("Cline account feature flags", () => {
 	it.each([
 		false,
 		undefined,
