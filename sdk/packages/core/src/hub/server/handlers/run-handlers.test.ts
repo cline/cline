@@ -2,7 +2,11 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
 import { buildHubEvent, type HubTransportContext } from "./context";
-import { handleRunAbort, handleSessionInput } from "./run-handlers";
+import {
+	handleRunAbort,
+	handleSessionHook,
+	handleSessionInput,
+} from "./run-handlers";
 
 function createContext(
 	overrides: Partial<RuntimeHost> = {},
@@ -339,5 +343,56 @@ describe("run handlers", () => {
 			payload: { applied: true },
 		});
 		expect(abort).toHaveBeenCalledWith("session-1", "user cancelled");
+	});
+
+	describe("session.hook", () => {
+		const hookPayload = {
+			clineVersion: "",
+			hookName: "agent_start",
+			timestamp: "2026-10-06T00:00:00.000Z",
+			taskId: "task-1",
+			workspaceRoots: ["/workspace"],
+			userId: "user-1",
+			agent_id: "agent-1",
+			parent_agent_id: null,
+			taskStart: { taskMetadata: {} },
+		};
+
+		it("dispatches a valid hook event payload", async () => {
+			const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+			const ctx = createContext({ dispatchHookEvent });
+
+			const reply = await handleSessionHook(ctx, {
+				version: "v1",
+				command: "session.hook",
+				requestId: "req-hook",
+				payload: { payload: hookPayload },
+			});
+
+			expect(reply).toMatchObject({ ok: true, payload: { applied: true } });
+			expect(dispatchHookEvent).toHaveBeenCalledWith(
+				expect.objectContaining({ hookName: "agent_start", taskId: "task-1" }),
+			);
+		});
+
+		it("names the rejected fields when the payload is invalid", async () => {
+			const dispatchHookEvent = vi.fn();
+			const ctx = createContext({ dispatchHookEvent });
+			const { userId: _userId, ...withoutUserId } = hookPayload;
+
+			const reply = await handleSessionHook(ctx, {
+				version: "v1",
+				command: "session.hook",
+				requestId: "req-hook",
+				payload: { payload: withoutUserId },
+			});
+
+			expect(reply).toMatchObject({
+				ok: false,
+				error: { code: "invalid_hook_payload" },
+			});
+			expect(reply.error?.message).toContain("userId");
+			expect(dispatchHookEvent).not.toHaveBeenCalled();
+		});
 	});
 });
