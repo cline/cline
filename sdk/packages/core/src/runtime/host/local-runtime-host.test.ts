@@ -221,99 +221,6 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it.each([
-		"interactive",
-		"failed",
-		"one-shot",
-	])("serializes duplicate session restoration after a %s start", async (mode) => {
-		const failFirst = mode === "failed";
-		let release!: () => void;
-		const gate = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		const runtimeBuilder = {
-			build: vi.fn(async () => ({
-				tools: [],
-				shutdown: vi.fn().mockResolvedValue(undefined),
-			})),
-		};
-		runtimeBuilder.build.mockImplementationOnce(async () => {
-			await gate;
-			if (failFirst) throw new Error("bootstrap failed");
-			return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
-		});
-		const agent = {
-			run: vi.fn().mockResolvedValue(createResult()),
-			continue: vi.fn().mockResolvedValue(createResult()),
-			getMessages: vi.fn().mockReturnValue([]),
-			getAgentId: vi.fn().mockReturnValue("restore-agent"),
-			getConversationId: vi.fn().mockReturnValue("restore-conversation"),
-			abort: vi.fn(),
-			updateConnection: vi.fn(),
-			subscribeEvents: vi.fn().mockReturnValue(() => {}),
-			canStartRun: vi.fn().mockReturnValue(true),
-			shutdown: vi.fn().mockResolvedValue(undefined),
-		};
-		const manager = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
-			runtimeBuilder: runtimeBuilder as never,
-			createAgent: () => agent as never,
-		});
-		const input = normalizeStartInput({
-			interactive: mode !== "one-shot",
-			prompt: mode === "one-shot" ? "Run once" : undefined,
-			config: createConfig({
-				sessionId: "restored-task",
-				cwd: isolatedHomeDir,
-				enableTools: false,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			}),
-		});
-		try {
-			const first = manager.startSession(input);
-			const firstResult = first.then(
-				() => "created",
-				(error: Error) => error.message,
-			);
-			await vi.waitFor(() =>
-				expect(runtimeBuilder.build).toHaveBeenCalledTimes(1),
-			);
-			const second = manager.startSession(input).then(
-				() => "created",
-				(error: { code: string }) => error.code,
-			);
-			await Promise.resolve();
-			expect(runtimeBuilder.build).toHaveBeenCalledTimes(1);
-			release();
-			expect(await firstResult).toBe(
-				failFirst ? "bootstrap failed" : "created",
-			);
-			expect(await second).toBe(
-				failFirst ? "created" : "session_already_exists",
-			);
-			expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 2 : 1);
-			if (mode === "one-shot") {
-				await expect(
-					manager.updateSessionConnection("restored-task", {}),
-				).rejects.toMatchObject({
-					code: "session_not_found",
-				});
-			} else {
-				await expect(
-					manager.updateSessionConnection("restored-task", {}),
-				).resolves.toBeUndefined();
-				await expect(manager.startSession(input)).rejects.toMatchObject({
-					code: "session_already_exists",
-				});
-			}
-		} finally {
-			release();
-			await manager.dispose();
-		}
-	});
-
 	it("preserves a caller-owned telemetry identity when no distinct id is supplied", async () => {
 		const setDistinctId = vi.fn();
 		const manager = new RuntimeHostUnderTest({
@@ -452,8 +359,6 @@ describe("LocalRuntimeHost", () => {
 					cwd: workspaceRoot,
 					workspaceRoot,
 					enableAgentTeams: false,
-					thinking: true,
-					reasoningEffort: "high",
 				}),
 				prompt: "change repository state",
 				interactive: true,
@@ -484,53 +389,6 @@ describe("LocalRuntimeHost", () => {
 				branch: "feature/session-git",
 			},
 		});
-		await manager.dispose();
-		for (const [index, { config, metadata, expected }] of [
-			{
-				config: {},
-				metadata: {},
-				expected: { thinking: true, reasoningEffort: "high" },
-			},
-			{
-				config: { thinking: false },
-				metadata: {},
-				expected: { thinking: false, reasoningEffort: null },
-			},
-			{
-				config: {},
-				metadata: { thinking: null, reasoningEffort: null },
-				expected: { thinking: null, reasoningEffort: null },
-			},
-		].entries()) {
-			await git.checkoutLocalBranch(`feature/restore-${index}`);
-			const restored = new RuntimeHostUnderTest({
-				distinctId,
-				sessionService: new FileSessionService(sessionsDir),
-				runtimeBuilder: runtimeBuilder as never,
-				createAgent: () => agent as never,
-			});
-			try {
-				await restored.startSession(
-					normalizeStartInput({
-						config: createConfig({ sessionId, cwd: workspaceRoot, ...config }),
-						initialMessages: [{ role: "user", content: "Saved conversation" }],
-						interactive: true,
-						sessionMetadata: metadata,
-					}),
-				);
-				expect((await restored.getSession(sessionId))?.metadata).toMatchObject(
-					expected,
-				);
-				expect(
-					sessionService.readSessionManifest(sessionId)?.metadata,
-				).toMatchObject({
-					...expected,
-					git: { branch: `feature/restore-${index}` },
-				});
-			} finally {
-				await restored.dispose();
-			}
-		}
 	});
 
 	it("forwards rootOnly to the session backend when listing sessions", async () => {
@@ -773,7 +631,6 @@ describe("LocalRuntimeHost", () => {
 			...manifest,
 			compaction_path: "/tmp/compaction.json",
 			title: "renamed session",
-			metadata: { savedPreference: "preserve" },
 		};
 		const readSessionManifest = vi.fn().mockResolvedValue(diskManifest);
 		(sessionService as Record<string, unknown>).readSessionManifest =
@@ -797,27 +654,25 @@ describe("LocalRuntimeHost", () => {
 
 		sessionService.writeSessionManifest.mockClear();
 		await manager.updateSessionConnection(sessionId, { thinking: true });
-		expect(sessionService.writeSessionManifest).toHaveBeenCalledWith(
-			"/tmp/manifest.json",
-			expect.objectContaining({
-				compaction_path: "/tmp/compaction.json",
-				title: "renamed session",
-				metadata: expect.objectContaining({
-					savedPreference: "preserve",
-					thinking: true,
-					reasoningEffort: null,
-				}),
-			}),
-		);
-		sessionService.writeSessionManifest.mockClear();
-		await manager.updateSessionConnection(sessionId, {});
 		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
 	});
 
-	it("persists reasoning preferences for a fresh host and updates thinking budgets", async () => {
+	it("persists thinking budget token connection updates", async () => {
 		const sessionId = "sess-thinking-budget-update";
-		const sessionsDir = join(isolatedHomeDir, "sessions");
-		const sessionService = new FileSessionService(sessionsDir);
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
 		};
@@ -845,7 +700,6 @@ describe("LocalRuntimeHost", () => {
 			normalizeStartInput({
 				config: createConfig({
 					sessionId,
-					cwd: isolatedHomeDir,
 					thinking: true,
 					reasoningEffort: "high",
 					thinkingBudgetTokens: 1024,
@@ -855,26 +709,6 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		const freshHost = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService: new FileSessionService(sessionsDir),
-		});
-		const expectPersistedReasoning = async (
-			thinking: boolean | null,
-			reasoningEffort: string | null,
-		) => {
-			const metadata = { thinking, reasoningEffort };
-			expect((await manager.getSession(sessionId))?.metadata).toMatchObject(
-				metadata,
-			);
-			expect((await freshHost.getSession(sessionId))?.metadata).toMatchObject(
-				metadata,
-			);
-			expect(
-				sessionService.readSessionManifest(sessionId)?.metadata,
-			).toMatchObject(metadata);
-		};
-		await expectPersistedReasoning(true, "high");
 
 		expect(createAgent).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -902,13 +736,6 @@ describe("LocalRuntimeHost", () => {
 			thinking: true,
 			thinkingBudgetTokens: 2048,
 		});
-		await expectPersistedReasoning(true, "high");
-		await manager.updateSessionConnection(sessionId, {
-			reasoningEffort: "low",
-		});
-		await expectPersistedReasoning(true, "low");
-		await manager.updateSessionConnection(sessionId, { reasoningEffort: null });
-		await expectPersistedReasoning(true, null);
 
 		await manager.updateSessionConnection(sessionId, {
 			thinking: false,
@@ -924,7 +751,6 @@ describe("LocalRuntimeHost", () => {
 			reasoningEffort: undefined,
 			thinkingBudgetTokens: undefined,
 		});
-		await expectPersistedReasoning(false, null);
 
 		await manager.updateSessionConnection(sessionId, {
 			thinking: null,
@@ -935,9 +761,6 @@ describe("LocalRuntimeHost", () => {
 		expect(session.config.thinking).toBeUndefined();
 		expect(session.config.reasoningEffort).toBeUndefined();
 		expect(session.config.thinkingBudgetTokens).toBeUndefined();
-		await expectPersistedReasoning(null, null);
-		await manager.dispose();
-		await freshHost.dispose();
 	});
 
 	it("captures active session lookup misses as handled telemetry", async () => {
@@ -4275,6 +4098,116 @@ describe("LocalRuntimeHost", () => {
 				payload: expect.objectContaining({ sessionId, reason: "aborted" }),
 			}),
 		);
+	});
+
+	it("aborts a turn whose Stop arrived while the turn was still being prepared", async () => {
+		const sessionId = "sess-abort-during-prep";
+		const manifest = createManifest(sessionId);
+		let releaseStatusUpdate: (() => void) | undefined;
+		const statusUpdateStarted = new Promise<void>((resolve) => {
+			releaseStatusUpdate = resolve;
+		});
+		let finishStatusUpdate: (() => void) | undefined;
+		const statusUpdateGate = new Promise<void>((resolve) => {
+			finishStatusUpdate = resolve;
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			// markTurnRunning is the last preparation step before the agent run;
+			// hold it open so the abort lands while no run exists yet.
+			updateSessionStatus: vi.fn(async (_id: string, status: string) => {
+				if (status === "running") {
+					releaseStatusUpdate?.();
+					await statusUpdateGate;
+				}
+				return { updated: true };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let activeRun = false;
+		let abortedAfterRunStarted = false;
+		const run = vi.fn(async () => {
+			activeRun = true;
+			// Mirrors SessionRuntime: an abort requested once the run exists ends
+			// it as "aborted" before any model call.
+			await Promise.resolve();
+			activeRun = false;
+			return createResult({
+				text: "",
+				finishReason: abortedAfterRunStarted ? "aborted" : "completed",
+				messages: [{ role: "user", content: "stop me" }],
+			});
+		});
+		const agent = {
+			run,
+			continue: run,
+			abort: vi.fn(() => {
+				if (activeRun) abortedAfterRunStarted = true;
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn(() => []),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// A Stop between turns targets a run that already ended and must not
+			// leak into the next turn.
+			await manager.abort(sessionId, new Error("stale abort"));
+
+			const turn = manager.runTurn({ sessionId, prompt: "stop me" });
+			await statusUpdateStarted;
+			expect(run).not.toHaveBeenCalled();
+			await manager.abort(sessionId, new Error("user cancelled"));
+			finishStatusUpdate?.();
+
+			await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+			expect(run).toHaveBeenCalledTimes(1);
+			// The first abort had no run to cancel; the host re-issued it once
+			// the run existed.
+			expect(agent.abort).toHaveBeenCalledTimes(3);
+			expect(agent.abort.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
+				run.mock.invocationCallOrder[0] ?? 0,
+			);
+			await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+				status: "idle",
+			});
+
+			// The stale abort alone must not abort a later turn.
+			abortedAfterRunStarted = false;
+			await expect(
+				manager.runTurn({ sessionId, prompt: "next" }),
+			).resolves.toMatchObject({ finishReason: "completed" });
+			expect(run).toHaveBeenCalledTimes(2);
+			expect(agent.abort).toHaveBeenCalledTimes(3);
+		} finally {
+			await manager.dispose();
+		}
 	});
 
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {

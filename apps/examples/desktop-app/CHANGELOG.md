@@ -1,5 +1,60 @@
 # Cline Desktop Changelog
 
+## 0.0.43
+
+- Existing users get a one-time **What's new** dialog introducing Connectors, with connector logos, a clickable example prompt, and an **Open Connectors** button. You can replay it from **Settings → About → Show what's new**
+
+## 0.0.42
+
+- New `/compact` slash command. It summarizes the conversation so far to free up context. The summary uses your session's provider settings and is not sent to the model as a prompt
+- **Connectors** is now the first and default tab in **Customize**. A new **Browse** section lists the full connector catalog in two columns with search, so you no longer need the Marketplace to find a connector. Installed and Browse each have their own search box
+- Connectors now show their brand logo, both in Customize and in Marketplace rows
+- If connectors aren't available to you, the Connectors tab now says why: a sign-in card when you're signed out, or a rollout notice with **Check again** when your account doesn't have beta access yet
+
+## 0.0.41
+
+- Cloud sessions can now use the same models as Cline on the web. The model picker lists **Cline Usage-Billing**, **ClinePass**, and **ClineFree** models (organization accounts don't get ClinePass), instead of only Cline. A new Cloud session waits until a model is ready before sending, and you can retry if the model list fails to load
+- An unsent prompt is no longer lost when you switch to another session and back. **New** in the sidebar returns to your unfinished draft; **Cmd/Ctrl+N** still starts a fresh session
+- Sessions you start in the app are now highlighted in the sidebar while open, instead of only sessions reopened from history. They also no longer get marked unread by their own messages
+- **Customize → Connectors** now matches the Skills, Plugins, and MCP tabs, with search, a refresh button, and an Installed section. A new Suggested section offers ready-made connector combos (such as incident root-cause analysis or organizing your day), each with an example prompt and one-click installs for its connectors
+- Marketplace rows now show what type each item is, so same-named entries like the Figma MCP server and the Figma connector are easy to tell apart. Category filters moved into a single dropdown
+- A connector's details now show how many tools it adds to new sessions, instead of the catalog's total tool count
+- Agent teams stay fast in long sessions and while teammates are streaming. Existing team data is compacted automatically the first time it's opened
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
+## 0.0.40
+
+- Custom providers added with **Add Provider** now work when you run a task. They showed up in the provider and model pickers but failed with `Unknown or disabled provider`
+- New chats remember whether you last used **Cloud** or **Local**, and which Cloud model you picked, instead of always going back to Local. Switching a thread from Local to Cloud also opens on your remembered Cloud model
+- Saving provider credentials no longer fails when the provider's model list can't be fetched, and the model list refreshes when you change a provider's API key or endpoint
+- MCP settings always use the same file. With `CLINE_MCP_SETTINGS_PATH`, `CLINE_DATA_DIR`, or `CLINE_DIR` set, reading and saving servers, MCP OAuth sign-in, and **Open MCP settings** now all use that path, where some could open a different file before
+- Tool diffs now follow the app's font size setting instead of a fixed 13px
+- When an MCP tool returns more output than fits in context, the agent can now read the rest. It gets a preview plus a link it can page through, so the output past the cutoff is no longer lost
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol. Default models change for 302.AI (Claude Sonnet 5.5), NanoGPT (Ling 3.1 Flash), Vivgrid (GPT-6.1 Sol), and Vultr (MiMo V2.6 Flash RL). Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected
+
+## 0.0.39
+
+- On Linux with the proprietary NVIDIA driver, the app window no longer opens blank. The app now turns off WebKitGTK's DMA-BUF renderer when it detects the NVIDIA driver. To keep that renderer on (for example, on a hybrid-GPU system), set `WEBKIT_DISABLE_DMABUF_RENDERER=0`
+- The Linux `.deb` and `.rpm` packages now include app info, so GNOME Software and KDE Discover show Cline's icon and description and list it under Installed
+
+## 0.0.38
+
+- Linux on ARM is now supported: each release ships arm64 `.deb` and `.rpm` packages alongside the x64 ones, and they auto-update like the others
+- Web search settings moved from **General** to **Customize → Tools**, next to the other built-in tools. That page shows whether your provider supports search, and links to provider settings when it doesn't
+- Connectors are labeled **Beta**, and opening the marketplace from Connectors now shows only connectors
+- Pressing **Stop** right after sending a prompt now stops the turn. Before, a stop that landed while the turn was still being set up was ignored: the agent kept editing in the background, and reverting failed with "Wait for all turns in this workspace to finish before restoring it"
+- Inserting a slash command no longer deletes the text after your cursor
+- On Windows, **Export Diagnostics** no longer fails when the output folder already exists
+- Cloud agent sessions now keep their workspace. A suspended cloud session resumes with the same files, history, and reasoning settings
+- When a response is blocked by a content filter, the app now says so and suggests rephrasing, instead of "Model returned empty response"
+- Direct Anthropic requests now use Anthropic's refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request
+- Reasoning tokens are no longer counted twice in token usage. Cost is unchanged
+- On Amazon Bedrock, Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects, and a legacy bare `awsProfile` setting now migrates as profile auth
+- Gateway models keep their own API protocol instead of falling back to the provider-wide default
+- Scheduled task specs saved with a UTF-8 BOM (as Windows Notepad does) now parse, and codebase search now includes PHP projects (Composer's `vendor` folder is skipped)
+- On Windows, a nested `pwsh -Command` keeps your configured shell path instead of picking up a `powershell.exe` from the workspace
+- Refreshed the model catalog. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. New providers are Bee and Pareto
+
 ## 0.0.37
 
 - Settings has a new **About** page. It shows your version and channel, has **Check for updates** and **Restart to update** buttons, and lists the release notes for recent versions with links to each GitHub release and the full changelog. **Report an issue** is there too

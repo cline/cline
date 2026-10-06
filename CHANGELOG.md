@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.1.22]
+
+### Added
+
+- New providers: Bee (by HEOSSI) and Pareto Inference (`PARETO_API_KEY`).
+
+### Changed
+
+- Direct Anthropic requests now use Anthropic's server-side refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request.
+- When a response is blocked by a content filter, Cline now says so and suggests rephrasing, instead of "Model returned empty response".
+- Refreshed the model catalog. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. The Cline recommended list adds Claude Sonnet 5.5 and Claude Opus 5.5. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- After an API error you can type and send a new message instead of only using Retry. A `/compact` (or `/smol`, `/newtask`) typed during recovery stays in the composer instead of being sent to the model as text.
+- If a new task fails Cline sign-in, signing in and submitting a revised prompt now starts the task with that prompt. Before, nothing happened.
+- **Reset Code** is now disabled when a message has no checkpoint, and no longer stays disabled for a message whose checkpoint exists (seen on slow disks). Changing the Checkpoints setting now applies to the active task, and follow-up messages typed while it applies are kept in order.
+- Canceling right after sending a message now stops the task. A cancel that landed while the turn was still being set up was ignored, and the task kept running.
+- Reasoning tokens are no longer counted twice in token usage. Cost is unchanged.
+- Amazon Bedrock: GPT-6 and GPT-5.6 route through inference profiles, and India regions (`ap-south-1`, `ap-south-2`) resolve the `in.` profile. OpenAI models behind inference profiles get the reasoning effort setting they support. Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects. A legacy AWS profile setting saved without the "use profile" flag now carries over as profile authentication instead of being dropped.
+- Gateway models on providers that mix endpoints keep their own API protocol instead of falling back to the provider-wide default.
+
 ## [4.1.21]
 
 ### Added

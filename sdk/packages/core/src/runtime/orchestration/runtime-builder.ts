@@ -59,6 +59,7 @@ import type {
 	RuntimeBuilderInput,
 	BuiltRuntime as RuntimeEnvironment,
 } from "./session-runtime";
+import { TeamPersistenceWriter } from "./team-persistence-writer";
 
 function hasConfigExtension(
 	extensions: ReadonlyArray<RuntimeConfigExtensionKind> | undefined,
@@ -606,6 +607,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const teammateSpecs = new Map(
 			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
 		);
+		const teamPersistence = teamStore
+			? new TeamPersistenceWriter({
+					teamKey: teamStoreKey,
+					store: teamStore,
+					source: () => teamRuntime,
+					teammates: () => Array.from(teammateSpecs.values()),
+					onError: (error) =>
+						(logger ?? config.logger)?.log?.(
+							`[team] failed to persist team state: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						),
+				})
+			: undefined;
 		const registryKey = config.sessionId || effectiveTeamName;
 		let leadAgentInstance:
 			| {
@@ -700,9 +715,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					leadAgentId: config.sessionId || "lead",
 					missionLogIntervalSteps: normalized.missionLogIntervalSteps,
 					missionLogIntervalMs: normalized.missionLogIntervalMs,
+					onStateDirty: () => teamPersistence?.markStateDirty(),
 					onTeamEvent: (event: TeamEvent) => {
 						onTeamEvent(event);
-						if (teamRuntime && teamStore) {
+						if (teamPersistence) {
 							if (
 								event.type === "teammate_spawned" &&
 								event.teammate?.rolePrompt
@@ -714,19 +730,17 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									maxIterations: event.teammate.maxIterations,
 								};
 								teammateSpecs.set(spec.agentId, spec);
+								teamPersistence.markTeammatesDirty();
 							}
 							if (
 								event.type === "teammate_shutdown" &&
 								!isRuntimeLifecycleShutdownReason(event.reason)
 							) {
 								teammateSpecs.delete(event.agentId);
+								teamPersistence.markTeammatesDirty();
 							}
-							teamStore.handleTeamEvent(teamStoreKey, event);
-							teamStore.persistRuntime(
-								teamStoreKey,
-								teamRuntime.exportState(),
-								Array.from(teammateSpecs.values()),
-							);
+							// Telemetry is dropped; durable changes are batched.
+							teamPersistence.onEvent(event);
 						}
 					},
 				});
@@ -873,6 +887,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
+				// Final synchronous write so nothing batched is lost on exit.
+				teamPersistence?.dispose();
 				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
 				for (const service of ownedUserInstructionServices) {

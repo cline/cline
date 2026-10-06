@@ -201,7 +201,7 @@ Releases are built, signed, notarized, and published by the `desktop-publish`
 GitHub workflow as a single universal macOS DMG — one download that runs
 natively on both Apple Silicon and Intel (macOS picks the matching slice at
 launch, so users never choose an architecture) — plus a Windows x64 NSIS
-installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
+installer and Linux x64 and arm64 `.deb` and `.rpm` packages. The step-by-step flow
 (version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
 skill (`.cline/skills/publish-desktop/SKILL.md`).
 
@@ -223,14 +223,17 @@ can't verify new updates).
 ### Linux
 
 Linux ships as `.deb` (Debian, Ubuntu and derivatives) and `.rpm` (Fedora,
-RHEL, openSUSE) packages for x86_64, built on Ubuntu 22.04 so they run on
-distros with at least that era's glibc and WebKitGTK 4.1. Install from the
-release page with the system package manager so the runtime dependencies
-(`libwebkit2gtk-4.1-0`, `libgtk-3-0`, `libayatana-appindicator3-1`) resolve:
+RHEL, openSUSE) packages for x86_64 and arm64 (aarch64), each built natively
+on Ubuntu 22.04 so they run on distros with at least that era's glibc and
+WebKitGTK 4.1. Install from the release page with the system package manager
+so the runtime dependencies (`libwebkit2gtk-4.1-0`, `libgtk-3-0`,
+`libayatana-appindicator3-1`) resolve:
 
 ```bash
-sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu
-sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL
+sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu (x86_64)
+sudo apt install ./Cline_<version>_arm64.deb     # Debian / Ubuntu (arm64)
+sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL (x86_64)
+sudo dnf install ./Cline_<version>_aarch64.rpm   # Fedora / RHEL (arm64)
 ```
 
 The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
@@ -362,6 +365,17 @@ credentials, request headers, recorded audio, or transcript contents.
 - Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
+- Linux with the proprietary NVIDIA driver: WebKitGTK's DMA-BUF renderer
+  fails there (`KMS: DRM_IOCTL_MODE_CREATE_DUMB failed: Permission denied`,
+  `Failed to create GBM buffer ...: Permission denied`) and the window stays
+  blank, so when `/sys/module/nvidia` is loaded the app sets
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` before creating the webview (see
+  [Tauri's Linux graphics guide](https://v2.tauri.app/develop/debug/linux-graphics/)).
+  This also matches hybrid-GPU systems where another GPU renders, which then
+  lose the faster DMA-BUF path (not hardware acceleration as a whole). To opt
+  out, fully Quit from the tray (closing the window only hides it) and launch
+  with `WEBKIT_DISABLE_DMABUF_RENDERER=0 cline-app`; any value you set is
+  left untouched.
 - If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`).
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.

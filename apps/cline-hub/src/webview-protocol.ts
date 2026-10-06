@@ -127,6 +127,8 @@ export type WebviewConnectedClient = {
 	clientId: string;
 	displayName?: string;
 	clientType: string;
+	version?: string;
+	pid?: number;
 	connectedAt: number;
 };
 
