@@ -322,6 +322,7 @@ describe("runCli lightweight command dispatch", () => {
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
 		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
+		hubCommandMocks.createHubCommand.mockClear();
 		connectMocks.formatAdapterList.mockReset();
 		connectMocks.formatAdapterList.mockReturnValue("");
 		connectMocks.runConnectAdapter.mockReset();
