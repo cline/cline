@@ -49,6 +49,12 @@
 // through unchanged (resuming mid-content would require deduplicating
 // already-delivered text), and a user abort is never retried.
 //
+// Request-start failures get the same treatment when they are transient:
+// the AI SDK re-runs `doStream()` only for a retryable `APICallError`, and it
+// treats a `TimeoutError` (Bun's fetch timeout, or the response watchdog in
+// `provider-fetch-timeout.ts`) as an abort and rethrows it raw. Such a
+// rejection is retried here with the same backoff and attempt budget.
+//
 // Safety properties:
 //   * A tool-call-only turn counts as content, so it is never retried.
 //   * Unsupported-but-real output (custom parts, reasoning files, sources,
@@ -297,8 +303,69 @@ export function createRetryEmptyResponseMiddleware(
 		specificationVersion: "v4",
 		wrapStream: async ({ doStream, params, model }) => {
 			const abortSignal = params.abortSignal;
+			// Number of the request currently being issued. Shared by the
+			// request-start retry below and the stream-level retries in the
+			// loop, so the total number of requests never exceeds maxAttempts.
+			let attempt = 0;
+			// Counted separately from the shared attempt number so the first
+			// network retry always waits `networkRetryDelayMs`, regardless of
+			// any empty-response retries that came first.
+			let networkRetries = 0;
+
+			const logNetworkRetry = (
+				message: string,
+				error: unknown,
+				retryDelayMs: number,
+			): void => {
+				logger?.log?.(message, {
+					severity: "warn",
+					provider: model.provider,
+					modelId: model.modelId,
+					attempt,
+					maxAttempts,
+					retryDelayMs,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			};
+
+			/**
+			 * Issue a request, retrying when `doStream()` itself rejects with a
+			 * transient transport failure before any response arrived — a
+			 * connect failure, or the response watchdog's `TimeoutError`. The AI
+			 * SDK's own request-start retry does not cover these: it only
+			 * re-runs a retryable `APICallError`, and it classifies a
+			 * `TimeoutError` as an abort and rethrows it raw.
+			 */
+			const issueRequest = async (): Promise<LanguageModelV4StreamResult> => {
+				for (;;) {
+					attempt++;
+					try {
+						return await doStream();
+					} catch (error) {
+						const canRetry =
+							attempt < maxAttempts &&
+							abortSignal?.aborted !== true &&
+							isTransientNetworkError(error);
+						if (!canRetry) {
+							throw error;
+						}
+						const delayMs = networkRetryDelayMs * 2 ** networkRetries;
+						networkRetries++;
+						logNetworkRetry(
+							"Transient network failure before any response; retrying",
+							error,
+							delayMs,
+						);
+						await sleep(delayMs, abortSignal);
+						if (abortSignal?.aborted) {
+							throw abortSignal.reason ?? error;
+						}
+					}
+				}
+			};
+
 			// Kick off the first attempt eagerly, matching normal doStream timing.
-			const firstResult = await doStream();
+			const firstResult = await issueRequest();
 			// The AI SDK holds this object until step completion; keep its headers
 			// aligned with the surfaced attempt rather than a discarded retry.
 			const response = { ...firstResult.response };
@@ -307,12 +374,8 @@ export function createRetryEmptyResponseMiddleware(
 				async start(controller) {
 					let result: LanguageModelV4StreamResult = firstResult;
 					const discardedUsage: LanguageModelV4Usage[] = [];
-					// Counted separately from the shared attempt number so the
-					// first network retry always waits `networkRetryDelayMs`,
-					// regardless of any empty-response retries that came first.
-					let networkRetries = 0;
 
-					for (let attempt = 1; ; attempt++) {
+					for (;;) {
 						response.headers = result.response?.headers;
 						const reader = result.stream.getReader();
 						// Parts held back until this attempt proves non-empty.
@@ -383,20 +446,10 @@ export function createRetryEmptyResponseMiddleware(
 							response.headers = undefined;
 							const delayMs = networkRetryDelayMs * 2 ** networkRetries;
 							networkRetries++;
-							logger?.log?.(
+							logNetworkRetry(
 								"Transient network interruption before any model output; retrying",
-								{
-									severity: "warn",
-									provider: model.provider,
-									modelId: model.modelId,
-									attempt,
-									maxAttempts,
-									retryDelayMs: delayMs,
-									error:
-										streamFailure instanceof Error
-											? streamFailure.message
-											: String(streamFailure),
-								},
+								streamFailure,
+								delayMs,
 							);
 							await sleep(delayMs, abortSignal);
 							if (abortSignal?.aborted) {
@@ -406,7 +459,7 @@ export function createRetryEmptyResponseMiddleware(
 								return;
 							}
 							try {
-								result = await doStream();
+								result = await issueRequest();
 							} catch (error) {
 								controller.error(error);
 								return;
@@ -471,7 +524,7 @@ export function createRetryEmptyResponseMiddleware(
 							return;
 						}
 						try {
-							result = await doStream();
+							result = await issueRequest();
 						} catch (error) {
 							controller.error(error);
 							return;

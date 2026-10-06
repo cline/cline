@@ -50,8 +50,13 @@ export function wrapFetchWithResponseTimeout(
 	const timeoutFetch = (async (input, init) => {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(timeoutError()), timeoutMs);
-		const signal = init?.signal
-			? AbortSignal.any([init.signal, controller.signal])
+		// An explicit init signal wins, as in fetch itself; otherwise keep the
+		// signal carried by a `Request` input, which setting `init.signal`
+		// would otherwise replace.
+		const callerSignal =
+			init?.signal ?? (input instanceof Request ? input.signal : undefined);
+		const signal = callerSignal
+			? AbortSignal.any([callerSignal, controller.signal])
 			: controller.signal;
 		const requestInit: RequestInitWithBunTimeout = {
 			...init,

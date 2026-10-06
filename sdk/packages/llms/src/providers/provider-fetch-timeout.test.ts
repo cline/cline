@@ -105,6 +105,22 @@ describe("wrapFetchWithResponseTimeout", () => {
 		await expect(pending).rejects.toBe(reason);
 	});
 
+	it("honors the signal carried by a Request input when init has none", async () => {
+		const { fetch } = recordingFetch((init) => rejectOnAbort(init.signal));
+		const wrapped = wrapFetchWithResponseTimeout(fetch);
+		const controller = new AbortController();
+		const reason = new Error("user cancelled");
+
+		const pending = wrapped?.(
+			new Request("https://api.example.com/v1/chat", {
+				signal: controller.signal,
+			}),
+		);
+		controller.abort(reason);
+
+		await expect(pending).rejects.toBe(reason);
+	});
+
 	it("preserves preconnect from the delegate", () => {
 		const preconnect = vi.fn();
 		const fetch = Object.assign(

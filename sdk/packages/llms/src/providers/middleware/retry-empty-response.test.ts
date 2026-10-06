@@ -660,6 +660,72 @@ describe("network interruption retry", () => {
 		expect(networkDelays).toEqual([8, 16]);
 	});
 
+	it("retries a request that rejects before any response with a TimeoutError", async () => {
+		// The response watchdog (and Bun's own fetch timeout) reject the fetch
+		// itself, so `doStream()` rejects before a stream exists. The AI SDK
+		// treats a TimeoutError as an abort and does not retry it.
+		const timeout = new DOMException(
+			"The operation timed out.",
+			"TimeoutError",
+		);
+		const log = vi.fn();
+		const doStream = vi
+			.fn()
+			.mockRejectedValueOnce(timeout)
+			.mockResolvedValueOnce(streamOf(textParts));
+		const parts = await collect(await run(doStream, { logger: { log } }));
+
+		expect(doStream).toHaveBeenCalledTimes(2);
+		expect(
+			parts.some((p) => p.type === "text-delta" && p.delta === "hello"),
+		).toBe(true);
+		expect(log).toHaveBeenCalledWith(
+			expect.stringContaining("before any response"),
+			expect.objectContaining({ severity: "warn", attempt: 1 }),
+		);
+	});
+
+	it("does not retry a request-start rejection that is not transient", async () => {
+		const failure = new Error("401 Unauthorized: invalid API key");
+		const doStream = vi.fn().mockRejectedValue(failure);
+
+		await expect(run(doStream)).rejects.toBe(failure);
+		expect(doStream).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not retry a request-start rejection once the user has aborted", async () => {
+		const abort = new AbortController();
+		abort.abort();
+		const timeout = new DOMException(
+			"The operation timed out.",
+			"TimeoutError",
+		);
+		const doStream = vi.fn().mockRejectedValue(timeout);
+
+		await expect(run(doStream, {}, abort.signal)).rejects.toBe(timeout);
+		expect(doStream).toHaveBeenCalledTimes(1);
+	});
+
+	it("counts request-start retries against the shared attempt budget", async () => {
+		// Attempt 1 rejects at request start, attempt 2 dies pre-content,
+		// attempt 3 rejects at request start again: out of budget, surface it.
+		const first = new DOMException("The operation timed out.", "TimeoutError");
+		const last = new DOMException("The operation timed out.", "TimeoutError");
+		const doStream = vi
+			.fn()
+			.mockRejectedValueOnce(first)
+			.mockResolvedValueOnce(
+				streamThatDies([streamStart], undiciSocketClosed()),
+			)
+			.mockRejectedValueOnce(last);
+		const { error } = await collectWithError(
+			await run(doStream, { maxAttempts: 3 }),
+		);
+
+		expect(doStream).toHaveBeenCalledTimes(3);
+		expect(error).toBe(last);
+	});
+
 	it("logs a warning on each network retry", async () => {
 		const log = vi.fn();
 		const doStream = vi
