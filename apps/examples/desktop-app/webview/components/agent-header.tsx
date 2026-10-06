@@ -237,10 +237,7 @@ function AgentHeaderImpl({
 							return;
 						}
 						setTitleEditorWidth(
-							Math.max(
-								240,
-								event.currentTarget.getBoundingClientRect().width,
-							),
+							Math.max(240, event.currentTarget.getBoundingClientRect().width),
 						);
 						setTitleInput(threadTitle);
 						setIsEditingTitle(true);

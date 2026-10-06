@@ -1,4 +1,12 @@
 
+## Oversized tool result recovery
+
+Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
+
+Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core enables this for MCP and Composio tools. Original output remains in history and events; synchronous model preparation sends a bounded preview with a `cline://cache/<encoded-session-id>/<result-id>.result.txt` URI for cached oversized responses. Use `read_files` with `start_line`/`end_line` to read omitted content. Shell and filesystem search tools do not support these URIs. The stateless agent runtime does not own a cache.
+
+Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed
@@ -161,6 +169,16 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
+provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
+registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
+data to the shared helper. `listLocalProviders` includes the resulting facts in
+each `ProviderListItem.auth`, allowing browser clients to render authentication
+guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
@@ -191,6 +209,34 @@ executes its available tools without inheriting that policy or approval callback
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
 
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
+fails during discovery, the new settings are still saved and the last known
+catalog is retained. Settings and catalog persistence errors still reject the save.
+Provider-service mutations are serialized per catalog file within the process,
+including across manager instances and different providers. Discovery prepares
+the update before the complete settings patch is persisted once. If the catalog
+write fails, the prior provider settings are restored only while the failed
+operation still owns the current settings entry; newer saves and removals are
+preserved. A rollback failure is reported alongside the original error.
+Explicit `updateLocalProvider` calls still reject failed model fetches and retain
+the prior settings and catalog.
+
+Catalog refreshes replace discovery-owned model IDs while retaining manually
+added models, their default selection, and overrides on retained model entries.
+`models.json` records discovery-only IDs in `discoveredModelIds`; IDs also supplied
+explicitly are user-managed. An explicit `models` update replaces the manual list.
+An existing model selection in provider settings does not count as a manual
+addition when initializing a source-backed catalog.
+Provider capabilities are inherited when registering models, so stored per-model
+capability overrides continue to take precedence after refreshes.
 
 ## Shared UI session rows
 

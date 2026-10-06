@@ -3,9 +3,36 @@ import {
 	isGitHubRepositoryUrl,
 	normalizeCloudRepositoryUrl,
 	preferredCloudBranch,
+	resolveRememberedCloudBranch,
 } from "./cloud-repositories";
 
 describe("cloud repository selection", () => {
+	it.each([
+		true,
+		false,
+	])("validates a saved branch across pages (still exists: %s)", async (exists) => {
+		const calls: unknown[] = [];
+		const branch = await resolveRememberedCloudBranch(
+			7,
+			"feature",
+			"main",
+			async (id, options) => {
+				calls.push({ id, ...options });
+				return options.cursor
+					? { available: true, branches: exists ? ["feature"] : [] }
+					: {
+							available: true,
+							branches: ["feature-other"],
+							nextToken: "page-2",
+						};
+			},
+		);
+		expect(branch).toBe(exists ? "feature" : "main");
+		expect(calls).toEqual([
+			{ id: 7, query: "feature", cursor: undefined },
+			{ id: 7, query: "feature", cursor: "page-2" },
+		]);
+	});
 	it("accepts GitHub repository URLs but not arbitrary URLs", () => {
 		expect(isGitHubRepositoryUrl("https://github.com/cline/cline")).toBe(true);
 		expect(isGitHubRepositoryUrl("git@github.com:cline/cline.git")).toBe(false);

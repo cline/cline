@@ -21,7 +21,6 @@ import type {
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
 } from "../../../runtime/host/runtime-host";
-import { SessionAlreadyExistsError } from "../../../runtime/host/runtime-host";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
@@ -264,23 +263,6 @@ function authorizeSessionCompactionAccess(input: {
 }
 
 export async function handleSessionCreate(
-	ctx: HubTransportContext,
-	envelope: HubCommandEnvelope,
-	requestToolApproval: (
-		request: ToolApprovalRequest,
-	) => Promise<{ approved: boolean; reason?: string }>,
-): Promise<HubReplyEnvelope> {
-	try {
-		return await createSession(ctx, envelope, requestToolApproval);
-	} catch (error) {
-		if (error instanceof SessionAlreadyExistsError) {
-			return errorReply(envelope, error.code, error.message);
-		}
-		throw error;
-	}
-}
-
-async function createSession(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	requestToolApproval: (

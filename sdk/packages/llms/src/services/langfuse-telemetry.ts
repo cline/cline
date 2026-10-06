@@ -5,6 +5,8 @@ type DirectLangfuseTelemetryConfig = {
 	baseUrl: string;
 	publicKey: string;
 	secretKey: string;
+	/** Langfuse environment (`LANGFUSE_TRACING_ENVIRONMENT`). */
+	environment?: string;
 };
 
 type DirectLangfuseTelemetryRuntime = {
@@ -37,11 +39,102 @@ export async function withLangfuseTraceAttributes<T>(
 		return await callback();
 	}
 
+	const merged = mergeEnvTraceAttributes(attributes);
+	if (!merged) {
+		return await callback();
+	}
+
 	const { propagateAttributes } = await import("@langfuse/tracing");
-	return await propagateAttributes(attributes, callback);
+	return await propagateAttributes(merged, callback);
+}
+
+/**
+ * Operator-supplied trace dimensions. `CLINE_LANGFUSE_TAGS` is a
+ * comma-separated tag list and `CLINE_LANGFUSE_METADATA` is either a JSON
+ * object or comma-separated `key=value` pairs. Both are merged under the
+ * runtime's own attributes, so a benchmark harness can label every trace it
+ * produces (for example `benchmark-run-1`) without touching call sites.
+ */
+export function readEnvTraceAttributes(): Pick<
+	LangfuseTraceAttributes,
+	"tags" | "metadata"
+> {
+	const tags = parseEnvTags(process.env[LANGFUSE_TAGS_ENV]);
+	const metadata = parseEnvMetadata(process.env[LANGFUSE_METADATA_ENV]);
+	return {
+		...(tags.length ? { tags } : {}),
+		...(Object.keys(metadata).length ? { metadata } : {}),
+	};
+}
+
+function mergeEnvTraceAttributes(
+	attributes: LangfuseTraceAttributes,
+): LangfuseTraceAttributes | undefined {
+	const env = readEnvTraceAttributes();
+	const tags = dedupe([...(env.tags ?? []), ...(attributes.tags ?? [])]);
+	const metadata = { ...env.metadata, ...attributes.metadata };
+	const merged: LangfuseTraceAttributes = {
+		...attributes,
+		...(tags.length ? { tags } : {}),
+		...(Object.keys(metadata).length ? { metadata } : {}),
+	};
+	if (!tags.length) delete merged.tags;
+	if (!Object.keys(metadata).length) delete merged.metadata;
+	return Object.keys(merged).length ? merged : undefined;
+}
+
+function parseEnvTags(raw: string | undefined): string[] {
+	if (!raw) return [];
+	return dedupe(
+		raw
+			.split(",")
+			.map((tag) => tag.trim())
+			.filter((tag) => tag.length > 0),
+	);
+}
+
+function parseEnvMetadata(raw: string | undefined): Record<string, string> {
+	const trimmed = raw?.trim();
+	if (!trimmed) return {};
+	const metadata: Record<string, string> = {};
+	if (trimmed.startsWith("{")) {
+		try {
+			const parsed: unknown = JSON.parse(trimmed);
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				for (const [key, value] of Object.entries(parsed)) {
+					if (value === undefined || value === null) continue;
+					metadata[key] =
+						typeof value === "string" ? value : JSON.stringify(value);
+				}
+			}
+		} catch (error) {
+			debugLangfuse(
+				`ignoring malformed ${LANGFUSE_METADATA_ENV} JSON error=${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+		return metadata;
+	}
+	for (const pair of trimmed.split(",")) {
+		const separator = pair.indexOf("=");
+		if (separator <= 0) continue;
+		const key = pair.slice(0, separator).trim();
+		const value = pair.slice(separator + 1).trim();
+		if (key) metadata[key] = value;
+	}
+	return metadata;
+}
+
+function dedupe(values: string[]): string[] {
+	return [...new Set(values)];
 }
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
+/** Opt-in: trace non-Cline (BYOK) providers through direct credentials. */
+const LANGFUSE_ALL_PROVIDERS_ENV = "CLINE_LANGFUSE_ALL_PROVIDERS";
+const LANGFUSE_TAGS_ENV = "CLINE_LANGFUSE_TAGS";
+const LANGFUSE_METADATA_ENV = "CLINE_LANGFUSE_METADATA";
+/** Read by `LangfuseSpanProcessor` too; passed explicitly so it keys the runtime. */
+const LANGFUSE_ENVIRONMENT_ENV = "LANGFUSE_TRACING_ENVIRONMENT";
 
 let directLangfuseRuntimes = new Map<
 	string,
@@ -61,7 +154,17 @@ function readDirectLangfuseTelemetryConfig():
 		return undefined;
 	}
 
-	return { baseUrl, publicKey, secretKey };
+	const environment = process.env[LANGFUSE_ENVIRONMENT_ENV]?.trim();
+	return {
+		baseUrl,
+		publicKey,
+		secretKey,
+		...(environment ? { environment } : {}),
+	};
+}
+
+function isAllProvidersTracingEnabled(): boolean {
+	return isEnvTruthy(process.env[LANGFUSE_ALL_PROVIDERS_ENV]);
 }
 
 function isClineProviderId(providerId: string): boolean {
@@ -81,13 +184,34 @@ const TELEMETRY_DISABLED: AiSdkTelemetryDecision = { isEnabled: false };
  * Select exactly one per-call integration. A host OTLP relay takes precedence
  * over direct credentials, and its sampling, opt-out and content policy is
  * checked on every stream. Direct exports own an isolated tracer provider.
+ *
+ * Third-party (BYOK) providers are traced only when the operator opts in with
+ * `CLINE_LANGFUSE_ALL_PROVIDERS` and supplies direct `LANGFUSE_*` credentials.
+ * They never ride the host relay, so BYOK prompts cannot reach a collector the
+ * operator did not configure themselves.
+ *
+ * Scope, for every provider: streamed language requests only. Dedicated image
+ * generation goes through the AI SDK's `generateImage`, which takes no
+ * telemetry option and has no Langfuse integration hook, so it returns before
+ * this decision runs and emits no trace.
  */
 export async function resolveAiSdkTelemetry(
 	providerId: string,
 	samplingKey?: string,
 ): Promise<AiSdkTelemetryDecision> {
 	if (!isClineProviderId(providerId)) {
-		return TELEMETRY_DISABLED;
+		if (!isAllProvidersTracingEnabled()) {
+			return TELEMETRY_DISABLED;
+		}
+		const config = readDirectLangfuseTelemetryConfig();
+		if (!config) return TELEMETRY_DISABLED;
+		const integration = await ensureDirectLangfuseIntegration(
+			providerId,
+			config,
+		);
+		return integration
+			? { isEnabled: true, integrations: integration }
+			: TELEMETRY_DISABLED;
 	}
 
 	let relayTracer = await getHostOtlpTracer();
@@ -294,7 +418,9 @@ async function initializeDirectLangfuseTelemetry(
 		const integration = new LangfuseVercelAiSdkIntegration({
 			tracer: tracerProvider.getTracer("cline-langfuse-direct"),
 		});
-		debugLangfuse(`created isolated direct exporter baseUrl=${config.baseUrl}`);
+		debugLangfuse(
+			`created isolated direct exporter baseUrl=${config.baseUrl} environment=${config.environment ?? ""}`,
+		);
 
 		return { integration, tracerProvider };
 	} catch (error) {
