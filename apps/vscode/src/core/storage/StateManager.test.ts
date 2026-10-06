@@ -51,7 +51,8 @@ describe("StateManager initialization", () => {
 		stateManager.setGlobalState("clineVersion", "updated-version")
 		await stateManager.flushPendingState()
 		const savedState = new ClineFileStorage<string>(path.join(storage.dataDir, "globalState.json"))
-		expect(savedState.get("clineVersion")).toBe("updated-version")
+		const savedVersion = savedState.get("clineVersion")
+		expect(savedVersion).toBe("updated-version")
 		await stateManager.reInitialize()
 		expect(stateManager.getGlobalStateKey("clineVersion")).toBe("updated-version")
 
