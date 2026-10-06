@@ -3,21 +3,15 @@
  * lives in `viewport.tsx`.
  */
 
+import { DIAGRAM_ZOOM } from "./config.js";
+
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }
 
-// ---------------------------------------------------------------------------
-// Zoom
-// ---------------------------------------------------------------------------
-
-export const MIN_DIAGRAM_ZOOM = 0.25;
-export const MAX_DIAGRAM_ZOOM = 4;
-export const DIAGRAM_ZOOM_STEP = 1.25;
-
 export function clampDiagramZoom(scale: number): number {
 	if (!Number.isFinite(scale)) return 1;
-	return clamp(scale, MIN_DIAGRAM_ZOOM, MAX_DIAGRAM_ZOOM);
+	return clamp(scale, DIAGRAM_ZOOM.min, DIAGRAM_ZOOM.max);
 }
 
 export function stepDiagramZoom(
@@ -25,8 +19,8 @@ export function stepDiagramZoom(
 	direction: "in" | "out",
 ): number {
 	const next =
-		direction === "in" ? scale * DIAGRAM_ZOOM_STEP : scale / DIAGRAM_ZOOM_STEP;
-	// Round so repeated in/out returns to 1 instead of drifting.
+		direction === "in" ? scale * DIAGRAM_ZOOM.step : scale / DIAGRAM_ZOOM.step;
+	// Rounds away float drift so repeated in/out steps return to exactly 1.
 	return clampDiagramZoom(Math.round(next * 1000) / 1000);
 }
 
@@ -38,10 +32,7 @@ export interface DiagramView {
 
 export const INITIAL_DIAGRAM_VIEW: DiagramView = { scale: 1, x: 0, y: 0 };
 
-/**
- * Zooms to `nextScale` keeping the content under `point` (viewport-relative)
- * fixed, for a `translate(x, y) scale(s)` transform with a top-left origin.
- */
+/** Zooms to `nextScale`, keeping the content under `point` (viewport-relative) fixed. */
 export function zoomViewAtPoint(
 	view: DiagramView,
 	nextScale: number,
@@ -56,7 +47,11 @@ export function zoomViewAtPoint(
 	};
 }
 
-/** Exponential wheel zoom; `deltaY` is clamped so a notched wheel isn't jumpy. */
 export function wheelZoomScale(scale: number, deltaY: number): number {
-	return scale * Math.exp(-clamp(deltaY, -100, 100) * 0.0025);
+	const delta = clamp(
+		deltaY,
+		-DIAGRAM_ZOOM.wheelMaxDeltaY,
+		DIAGRAM_ZOOM.wheelMaxDeltaY,
+	);
+	return scale * Math.exp(-delta * DIAGRAM_ZOOM.wheelSensitivity);
 }

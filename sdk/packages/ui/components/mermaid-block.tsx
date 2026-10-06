@@ -11,6 +11,7 @@ import {
 	useState,
 } from "react";
 import type { CustomRenderer, CustomRendererProps } from "streamdown";
+import { UI_TIMING } from "./diagrams/mermaid/config.js";
 import {
 	cleanupMermaidArtifacts,
 	downloadBlob,
@@ -53,9 +54,6 @@ type RenderState =
 	| { background: string; status: "ready"; svg: string }
 	| { message: string; status: "error" };
 
-const COPIED_RESET_MS = 1500;
-const NOTICE_RESET_MS = 4000;
-
 let cachedConfig: { config: MermaidConfig; key: string } | undefined;
 
 /** One config object per theme so `initialize` only reruns when it changes. */
@@ -90,7 +88,7 @@ function useTimedFlag(): [boolean, () => void] {
 	const [active, setActive] = useState(false);
 	useEffect(() => {
 		if (!active) return;
-		const timer = setTimeout(() => setActive(false), COPIED_RESET_MS);
+		const timer = setTimeout(() => setActive(false), UI_TIMING.copiedResetMs);
 		return () => clearTimeout(timer);
 	}, [active]);
 	return [active, () => setActive(true)];
@@ -158,7 +156,7 @@ export function MermaidBlock({
 
 	useEffect(() => {
 		if (!notice) return;
-		const timer = setTimeout(() => setNotice(null), NOTICE_RESET_MS);
+		const timer = setTimeout(() => setNotice(null), UI_TIMING.noticeResetMs);
 		return () => clearTimeout(timer);
 	}, [notice]);
 

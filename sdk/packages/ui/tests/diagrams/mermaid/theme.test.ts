@@ -7,7 +7,7 @@ import {
 	buildMermaidThemeVariables,
 	createDefaultMermaidConfig,
 	FALLBACK_MERMAID_TOKENS,
-	MERMAID_FONT_FAMILY,
+	MERMAID_FONT,
 	normalizeMermaidTokens,
 	resolveMermaidFontFamily,
 } from "../../../components/mermaid-diagram";
@@ -72,12 +72,12 @@ describe("Mermaid theme", () => {
 	});
 
 	test("uses an Inter-first, non-monospace font stack", () => {
-		expect(MERMAID_FONT_FAMILY.toLowerCase()).toContain("inter");
-		expect(MERMAID_FONT_FAMILY.trim().toLowerCase()).not.toBe("monospace");
+		expect(MERMAID_FONT.family.toLowerCase()).toContain("inter");
+		expect(MERMAID_FONT.family.trim().toLowerCase()).not.toBe("monospace");
 		expect(
 			buildMermaidThemeVariables(FALLBACK_MERMAID_TOKENS.light, "light")
 				.fontFamily,
-		).toBe(MERMAID_FONT_FAMILY);
+		).toBe(MERMAID_FONT.family);
 	});
 
 	test("asks the injected resolver to resolve every token value", () => {
@@ -120,12 +120,12 @@ describe("Mermaid theme", () => {
 
 	test("derives the font stack from --font-sans, never monospace", () => {
 		expect(resolveMermaidFontFamily('"Inter Variable", sans-serif')).toBe(
-			`'Inter Variable', sans-serif, ${MERMAID_FONT_FAMILY}`,
+			`'Inter Variable', sans-serif, ${MERMAID_FONT.family}`,
 		);
-		expect(resolveMermaidFontFamily("")).toBe(MERMAID_FONT_FAMILY);
-		expect(resolveMermaidFontFamily(undefined)).toBe(MERMAID_FONT_FAMILY);
+		expect(resolveMermaidFontFamily("")).toBe(MERMAID_FONT.family);
+		expect(resolveMermaidFontFamily(undefined)).toBe(MERMAID_FONT.family);
 		expect(resolveMermaidFontFamily("ui-monospace, monospace")).toBe(
-			MERMAID_FONT_FAMILY,
+			MERMAID_FONT.family,
 		);
 		expect(resolveMermaidFontFamily('"A", serif')).not.toContain('"');
 	});
@@ -133,7 +133,7 @@ describe("Mermaid theme", () => {
 	test("config uses the base theme, strict security, and SVG-text labels", () => {
 		const config = buildMermaidConfig(FALLBACK_MERMAID_TOKENS.dark, "dark");
 		expect(config).toMatchObject({
-			fontFamily: MERMAID_FONT_FAMILY,
+			fontFamily: MERMAID_FONT.family,
 			// foreignObject labels taint canvases and break PNG export.
 			htmlLabels: false,
 			securityLevel: "strict",

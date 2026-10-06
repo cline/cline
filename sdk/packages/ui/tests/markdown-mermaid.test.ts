@@ -11,7 +11,7 @@ import {
 } from "../components/markdown";
 import {
 	FALLBACK_MERMAID_TOKENS,
-	MERMAID_FONT_FAMILY,
+	MERMAID_FONT,
 } from "../components/mermaid-diagram";
 
 function createRenderer() {
@@ -26,7 +26,7 @@ function createRenderer() {
 describe("DEFAULT_MERMAID_CONFIG", () => {
 	test("is the light base theme with an Inter-first font, not `default`/monospace", () => {
 		expect(DEFAULT_MERMAID_CONFIG).toMatchObject({
-			fontFamily: MERMAID_FONT_FAMILY,
+			fontFamily: MERMAID_FONT.family,
 			securityLevel: "strict",
 			startOnLoad: false,
 			suppressErrorRendering: true,

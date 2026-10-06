@@ -4,8 +4,8 @@
 import { describe, expect, test } from "vitest";
 import {
 	clampDiagramZoom,
+	DIAGRAM_ZOOM,
 	INITIAL_DIAGRAM_VIEW,
-	MAX_DIAGRAM_ZOOM,
 	stepDiagramZoom,
 	wheelZoomScale,
 	zoomViewAtPoint,
@@ -13,11 +13,11 @@ import {
 
 describe("zoom", () => {
 	test("clamps and steps within bounds, returning exactly to 1", () => {
-		expect(clampDiagramZoom(100)).toBe(MAX_DIAGRAM_ZOOM);
+		expect(clampDiagramZoom(100)).toBe(DIAGRAM_ZOOM.max);
 		expect(clampDiagramZoom(0)).toBeGreaterThan(0);
 		expect(clampDiagramZoom(Number.NaN)).toBe(1);
 		expect(stepDiagramZoom(stepDiagramZoom(1, "in"), "out")).toBe(1);
-		expect(stepDiagramZoom(MAX_DIAGRAM_ZOOM, "in")).toBe(MAX_DIAGRAM_ZOOM);
+		expect(stepDiagramZoom(DIAGRAM_ZOOM.max, "in")).toBe(DIAGRAM_ZOOM.max);
 	});
 
 	test("keeps the point under the cursor fixed while zooming", () => {
@@ -32,7 +32,7 @@ describe("zoom", () => {
 			(point.y - before.y) / before.scale,
 		);
 		expect(zoomViewAtPoint(INITIAL_DIAGRAM_VIEW, 999, point).scale).toBe(
-			MAX_DIAGRAM_ZOOM,
+			DIAGRAM_ZOOM.max,
 		);
 	});
 

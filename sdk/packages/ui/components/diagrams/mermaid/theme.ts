@@ -1,5 +1,6 @@
 import type { MermaidConfig } from "mermaid";
 import { cssColorToHex, mixColors } from "./color.js";
+import { MERMAID_FONT, THEME_MIX } from "./config.js";
 
 /**
  * The Cline Mermaid theme: resolved design tokens, the Mermaid `base`-theme
@@ -52,24 +53,19 @@ export const FALLBACK_MERMAID_TOKENS: Record<
 	},
 };
 
-/** Inter-first, matching `--font-sans`; never monospace. */
-export const MERMAID_FONT_FAMILY =
-	"'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-export const MERMAID_FONT_SIZE = "14px";
-
 /**
  * Font stack for a raw `--font-sans` value (`"Inter Variable", sans-serif`).
  * Double quotes become single quotes so the stack survives Mermaid's inline
  * `style="..."` attributes, and the Inter-first system stack is appended so
  * text still measures sensibly before the web font loads. An empty or
- * monospace value falls back to `MERMAID_FONT_FAMILY`.
+ * monospace value falls back to `MERMAID_FONT.family`.
  */
 export function resolveMermaidFontFamily(
 	cssFontValue: string | null | undefined,
 ): string {
 	const value = cssFontValue?.trim().replace(/"/g, "'") ?? "";
-	if (!value || /\bmonospace\b/i.test(value)) return MERMAID_FONT_FAMILY;
-	return `${value}, ${MERMAID_FONT_FAMILY}`;
+	if (!value || /\bmonospace\b/i.test(value)) return MERMAID_FONT.family;
+	return `${value}, ${MERMAID_FONT.family}`;
 }
 
 export type MermaidThemeVariables = Record<string, string | boolean>;
@@ -82,7 +78,7 @@ export type MermaidThemeVariables = Record<string, string | boolean>;
 export type MermaidColorResolver = (cssValue: string) => string | null;
 
 export interface MermaidThemeOptions {
-	/** Overrides the UI font stack; defaults to `MERMAID_FONT_FAMILY`. */
+	/** Overrides the UI font stack; defaults to `MERMAID_FONT.family`. */
 	fontFamily?: string;
 	/** Optional host resolver for colors the pure parser can't read. */
 	resolveColor?: MermaidColorResolver;
@@ -129,16 +125,17 @@ export function normalizeMermaidTokens(
 export function buildMermaidThemeVariables(
 	tokens: MermaidThemeTokens,
 	mode: MermaidColorMode,
-	{ fontFamily = MERMAID_FONT_FAMILY, resolveColor }: MermaidThemeOptions = {},
+	{ fontFamily = MERMAID_FONT.family, resolveColor }: MermaidThemeOptions = {},
 ): MermaidThemeVariables {
 	const t = normalizeMermaidTokens(tokens, mode, resolveColor);
 	const dark = mode === "dark";
-	const nodeFill = mixColors(t.background, t.primary, dark ? 0.18 : 0.1);
-	const nodeBorder = mixColors(t.background, t.primary, dark ? 0.6 : 0.5);
-	const neutralFill = mixColors(t.background, t.foreground, dark ? 0.08 : 0.05);
-	const clusterFill = mixColors(t.background, t.foreground, dark ? 0.05 : 0.03);
-	const tertiaryFill = mixColors(t.background, t.primary, dark ? 0.07 : 0.04);
-	const errorFill = mixColors(t.background, t.error, dark ? 0.2 : 0.12);
+	const mix = THEME_MIX[mode];
+	const nodeFill = mixColors(t.background, t.primary, mix.node);
+	const nodeBorder = mixColors(t.background, t.primary, mix.nodeBorder);
+	const neutralFill = mixColors(t.background, t.foreground, mix.neutral);
+	const clusterFill = mixColors(t.background, t.foreground, mix.cluster);
+	const tertiaryFill = mixColors(t.background, t.primary, mix.tertiary);
+	const errorFill = mixColors(t.background, t.error, mix.error);
 
 	return {
 		activationBkgColor: neutralFill,
@@ -155,7 +152,7 @@ export function buildMermaidThemeVariables(
 		errorBkgColor: errorFill,
 		errorTextColor: t.error,
 		fontFamily,
-		fontSize: MERMAID_FONT_SIZE,
+		fontSize: MERMAID_FONT.size,
 		labelBoxBkgColor: neutralFill,
 		labelBoxBorderColor: t.border,
 		labelTextColor: t.foreground,
@@ -196,7 +193,7 @@ export function buildMermaidConfig(
 	options: MermaidThemeOptions = {},
 ): MermaidConfig {
 	return {
-		fontFamily: options.fontFamily ?? MERMAID_FONT_FAMILY,
+		fontFamily: options.fontFamily ?? MERMAID_FONT.family,
 		htmlLabels: false,
 		securityLevel: "strict",
 		startOnLoad: false,

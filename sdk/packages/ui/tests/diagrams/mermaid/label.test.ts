@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "vitest";
 import {
-	DEFAULT_DIAGRAM_NAME,
+	DIAGRAM_NAMING,
 	deriveDiagramLabels,
 	resolveDiagramSlug,
 } from "../../../components/mermaid-diagram";
@@ -79,7 +79,7 @@ describe("resolveDiagramSlug", () => {
 					"flowchart TD\n  subgraph VPC\n    GW[API Gateway] --> S[Service]\n  end",
 			}),
 		).toBe("flowchart-vpc-api-gateway");
-		expect(resolveDiagramSlug({ source: "" })).toBe(DEFAULT_DIAGRAM_NAME);
+		expect(resolveDiagramSlug({ source: "" })).toBe(DIAGRAM_NAMING.defaultName);
 	});
 
 	test("skips a fence title that slugifies to nothing", () => {
