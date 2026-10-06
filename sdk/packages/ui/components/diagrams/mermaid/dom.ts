@@ -1,4 +1,3 @@
-import type { MermaidConfig } from "mermaid";
 import { cssColorToHex } from "./color.js";
 import { UI_TIMING } from "./config.js";
 import {
@@ -7,7 +6,6 @@ import {
 	resolvePngDesiredScale,
 } from "./png.js";
 import {
-	buildMermaidConfig,
 	FALLBACK_MERMAID_TOKENS,
 	type MermaidColorMode,
 	type MermaidThemeTokens,
@@ -137,12 +135,6 @@ export function readMermaidTheme(element?: Element): ResolvedMermaidTheme {
 		mode,
 		tokens,
 	};
-}
-
-/** Themed Mermaid config for the tokens currently in effect. */
-export function resolveThemedMermaidConfig(element?: Element): MermaidConfig {
-	const { fontFamily, mode, tokens } = readMermaidTheme(element);
-	return buildMermaidConfig(tokens, mode, { fontFamily });
 }
 
 /**

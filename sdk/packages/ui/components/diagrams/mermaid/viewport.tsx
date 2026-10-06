@@ -1,5 +1,6 @@
 "use client";
 
+import { Minimize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type PointerEvent as ReactPointerEvent,
@@ -8,7 +9,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { ICONS, Icon } from "./icons.js";
 import { ToolbarButton } from "./toolbar.js";
 import {
 	type DiagramView,
@@ -133,17 +133,17 @@ export function ZoomControls({ api }: { api: DiagramViewApi }) {
 	return (
 		<>
 			<ToolbarButton label="Zoom out" onClick={api.zoomOut}>
-				<Icon>{ICONS.zoomOut}</Icon>
+				<ZoomOut aria-hidden size={14} />
 			</ToolbarButton>
 			<ToolbarButton label="Zoom in" onClick={api.zoomIn}>
-				<Icon>{ICONS.zoomIn}</Icon>
+				<ZoomIn aria-hidden size={14} />
 			</ToolbarButton>
 			<ToolbarButton
 				disabled={api.view === INITIAL_DIAGRAM_VIEW}
 				label={`Reset zoom (${percent}%)`}
 				onClick={api.reset}
 			>
-				<Icon>{ICONS.reset}</Icon>
+				<RotateCcw aria-hidden size={14} />
 			</ToolbarButton>
 		</>
 	);
@@ -237,7 +237,7 @@ export function FullscreenDialog({
 				>
 					<ZoomControls api={api} />
 					<ToolbarButton label="Exit fullscreen" onClick={onClose}>
-						<Icon>{ICONS.exit}</Icon>
+						<Minimize2 aria-hidden size={14} />
 					</ToolbarButton>
 				</div>
 			</div>

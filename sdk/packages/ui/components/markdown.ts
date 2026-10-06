@@ -77,7 +77,7 @@ export {
 } from "./mermaid-diagram.js";
 
 /** Base-theme defaults from the palette (light); hosts with a DOM resolve the
- * live design tokens instead, see `resolveThemedMermaidConfig`. */
+ * live design tokens instead, see `readMermaidTheme`. */
 export const DEFAULT_MERMAID_CONFIG: MermaidConfig =
 	createDefaultMermaidConfig("light");
 

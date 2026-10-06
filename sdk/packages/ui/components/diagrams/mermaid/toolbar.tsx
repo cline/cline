@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
@@ -9,7 +10,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { ICONS, Icon } from "./icons.js";
 
 /** Toolbar button and the PNG/MMD download menu for the Mermaid block. */
 
@@ -112,7 +112,7 @@ export function DownloadMenu({
 				title="Download diagram"
 				type="button"
 			>
-				<Icon>{ICONS.download}</Icon>
+				<Download aria-hidden size={14} />
 			</button>
 			{open ? (
 				<div

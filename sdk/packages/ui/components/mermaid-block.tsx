@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Copy, Maximize2 } from "lucide-react";
 import type { MermaidConfig } from "mermaid";
 import {
 	type RefObject,
@@ -22,7 +23,6 @@ import {
 	svgToPngBlob,
 	waitForFonts,
 } from "./diagrams/mermaid/dom.js";
-import { ICONS, Icon } from "./diagrams/mermaid/icons.js";
 import { DownloadMenu, ToolbarButton } from "./diagrams/mermaid/toolbar.js";
 import {
 	DiagramViewport,
@@ -216,7 +216,11 @@ export function MermaidBlock({
 						label={copied ? "Copied" : "Copy diagram source"}
 						onClick={() => void copySource()}
 					>
-						<Icon>{copied ? ICONS.check : ICONS.copy}</Icon>
+						{copied ? (
+							<Check aria-hidden size={14} />
+						) : (
+							<Copy aria-hidden size={14} />
+						)}
 					</ToolbarButton>
 					<DownloadMenu
 						onMmd={downloadMmd}
@@ -229,7 +233,7 @@ export function MermaidBlock({
 						label="View fullscreen"
 						onClick={() => setFullscreen(true)}
 					>
-						<Icon>{ICONS.enter}</Icon>
+						<Maximize2 aria-hidden size={14} />
 					</ToolbarButton>
 				</div>
 			</figcaption>
