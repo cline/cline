@@ -246,7 +246,37 @@ describe("hub discovery", () => {
 			"utf8",
 		);
 
-		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+		await expect(readHubDiscovery(discoveryPath)).rejects.toThrow(
+			"Invalid Hub discovery record",
+		);
+	});
+
+	it("does not treat malformed JSON or invalid records as absent", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		const discoveryPath =
+			resolveHubOwnerContext("invalid-record").discoveryPath;
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		for (const raw of ["{ invalid json", "null", "{}", "[]"]) {
+			await writeFile(discoveryPath, raw, "utf8");
+			await expect(readHubDiscovery(discoveryPath)).rejects.toThrow(
+				"Hub discovery record",
+			);
+		}
+		await clearHubDiscovery(discoveryPath);
+	});
+
+	it("propagates discovery read errors instead of reporting absence", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		const discoveryPath = resolveHubOwnerContext(
+			"directory-read-error",
+		).discoveryPath;
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		// Opening the parent directory as a file fails on every supported OS.
+		await expect(readHubDiscovery(dirname(discoveryPath))).rejects.toThrow();
 	});
 
 	it("serializes generation cleanup with replacement publication", async () => {

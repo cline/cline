@@ -344,60 +344,66 @@ export function createInMemoryHubOwnerContext(
 	return resolveHubOwnerContext(label);
 }
 
+/** Returns undefined only when the record is absent; unreadable or invalid records throw. */
 export async function readHubDiscovery(
 	discoveryPath: string,
 ): Promise<HubServerDiscoveryRecord | undefined> {
+	let raw: string;
 	try {
-		const parsed = JSON.parse(
-			await readFile(discoveryPath, "utf8"),
-		) as Partial<HubServerDiscoveryRecord>;
-		if (
-			typeof parsed.hubId !== "string" ||
-			typeof parsed.protocolVersion !== "string" ||
-			typeof parsed.authToken !== "string" ||
-			typeof parsed.host !== "string" ||
-			typeof parsed.port !== "number" ||
-			typeof parsed.url !== "string" ||
-			typeof parsed.startedAt !== "string" ||
-			typeof parsed.updatedAt !== "string"
-		) {
-			return undefined;
-		}
-		return {
-			hubId: parsed.hubId,
-			protocolVersion: parsed.protocolVersion,
-			minClientProtocolVersion:
-				typeof parsed.minClientProtocolVersion === "string"
-					? parsed.minClientProtocolVersion
-					: undefined,
-			maxClientProtocolVersion:
-				typeof parsed.maxClientProtocolVersion === "string"
-					? parsed.maxClientProtocolVersion
-					: undefined,
-			capabilities: Array.isArray(parsed.capabilities)
-				? parsed.capabilities.filter(
-						(capability): capability is string =>
-							typeof capability === "string",
-					)
-				: undefined,
-			coreVersion:
-				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
-			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
-			buildEpochMs:
-				typeof parsed.buildEpochMs === "number"
-					? parsed.buildEpochMs
-					: undefined,
-			authToken: parsed.authToken,
-			host: parsed.host,
-			port: parsed.port,
-			url: parsed.url,
-			pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
-			startedAt: parsed.startedAt,
-			updatedAt: parsed.updatedAt,
-		};
-	} catch {
-		return undefined;
+		raw = await readFile(discoveryPath, "utf8");
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+		throw error;
 	}
+	let parsed: Partial<HubServerDiscoveryRecord>;
+	try {
+		parsed = JSON.parse(raw) as Partial<HubServerDiscoveryRecord>;
+	} catch {
+		// JSON parser errors may quote record contents, including the auth token.
+		throw new Error(`Invalid JSON in Hub discovery record: ${discoveryPath}`);
+	}
+	if (
+		!parsed ||
+		typeof parsed.hubId !== "string" ||
+		typeof parsed.protocolVersion !== "string" ||
+		typeof parsed.authToken !== "string" ||
+		typeof parsed.host !== "string" ||
+		typeof parsed.port !== "number" ||
+		typeof parsed.url !== "string" ||
+		typeof parsed.startedAt !== "string" ||
+		typeof parsed.updatedAt !== "string"
+	) {
+		throw new Error(`Invalid Hub discovery record: ${discoveryPath}`);
+	}
+	return {
+		hubId: parsed.hubId,
+		protocolVersion: parsed.protocolVersion,
+		minClientProtocolVersion:
+			typeof parsed.minClientProtocolVersion === "string"
+				? parsed.minClientProtocolVersion
+				: undefined,
+		maxClientProtocolVersion:
+			typeof parsed.maxClientProtocolVersion === "string"
+				? parsed.maxClientProtocolVersion
+				: undefined,
+		capabilities: Array.isArray(parsed.capabilities)
+			? parsed.capabilities.filter(
+					(capability): capability is string => typeof capability === "string",
+				)
+			: undefined,
+		coreVersion:
+			typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
+		buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+		buildEpochMs:
+			typeof parsed.buildEpochMs === "number" ? parsed.buildEpochMs : undefined,
+		authToken: parsed.authToken,
+		host: parsed.host,
+		port: parsed.port,
+		url: parsed.url,
+		pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
+		startedAt: parsed.startedAt,
+		updatedAt: parsed.updatedAt,
+	};
 }
 
 export async function writeHubDiscovery(

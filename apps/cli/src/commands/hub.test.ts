@@ -333,6 +333,21 @@ describe("createHubCommand", () => {
 		expect(mockClearHubDiscovery).toHaveBeenCalled();
 	});
 
+	it.each([
+		Object.assign(new Error("permission denied"), { code: "EACCES" }),
+		new Error("Invalid JSON in Hub discovery record"),
+		new Error("Invalid Hub discovery record"),
+	])("fails stop when discovery cannot be read: %s", async (error) => {
+		mockReadHubDiscovery.mockRejectedValue(error);
+		const { cmd, output, errors, exitCode } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(exitCode()).toBe(1);
+		expect(output).toEqual([]);
+		expect(errors).toEqual([error.message]);
+		expect(mockStopLocalHubServerGracefully).not.toHaveBeenCalled();
+		expect(mockClearHubDiscovery).not.toHaveBeenCalled();
+	});
+
 	it("succeeds when there is no discovery record", async () => {
 		mockReadHubDiscovery.mockResolvedValue(undefined);
 		const { cmd, output, exitCode } = createCommand();
