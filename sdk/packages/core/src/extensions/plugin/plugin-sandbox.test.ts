@@ -641,8 +641,8 @@ describe("plugin-sandbox", () => {
 				"utf8",
 			);
 
-			// Set env override well below the 4000 ms hardcoded default.
-			// If the env var isn't read, this test would block for ~4 s and
+			// Set env override well below the 60 s hardcoded default.
+			// If the env var isn't read, this test would block for ~60 s and
 			// the per-test timeout (3000 ms below) would fail it.
 			vi.stubEnv("CLINE_PLUGIN_IMPORT_TIMEOUT_MS", "150");
 			await expect(

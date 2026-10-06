@@ -31,7 +31,7 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
 	exportName?: string;
 	/**
-	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
+	 * Max wall time for plugin module imports. Defaults to 60 s; falls back
 	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
 	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
 	 * to raise the ceiling without touching code.
@@ -329,7 +329,7 @@ export async function loadSandboxedPlugins(
 	});
 	const importTimeoutMs = withTimeoutFallback(
 		options.importTimeoutMs,
-		4000,
+		60_000,
 		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
 	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
