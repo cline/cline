@@ -253,7 +253,9 @@ export function resolveCredentialError(
 	if (capabilities?.includes("oauth") || capabilities?.includes("local-auth")) {
 		return null;
 	}
-	if (config.apiKey.trim().length > 0) {
+	// Settings already counts keyless setups (local endpoints, AWS profiles,
+	// Google Cloud ADC) as connected, so don't demand a key it never asked for.
+	if (config.apiKey.trim().length > 0 || config.providerConnected) {
 		return null;
 	}
 	return `Missing API key for provider "${config.provider}". Add credentials in Settings, or switch providers.`;

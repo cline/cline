@@ -114,6 +114,18 @@ describe("resolveCredentialError", () => {
 		).toBeNull();
 	});
 
+	it("allows keyless providers the catalog reports as connected", () => {
+		expect(
+			resolveCredentialError(
+				makeConfig({
+					provider: "openai-compatible",
+					providerAuth: { providerId: "openai-compatible", capabilities: [] },
+					providerConnected: true,
+				}),
+			),
+		).toBeNull();
+	});
+
 	it.each([
 		"cline",
 		"cline-pass",

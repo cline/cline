@@ -22,6 +22,7 @@ export const ChatSessionConfigSchema = z.object({
 	environmentId: z.string().trim().min(1),
 	provider: z.string().min(1),
 	providerAuth: ProviderAuthInfoSchema.optional(),
+	providerConnected: z.boolean().optional(),
 	model: z.string().min(1),
 	mode: z.enum(["act", "plan"]).default("act"),
 	apiKey: z.string(),
