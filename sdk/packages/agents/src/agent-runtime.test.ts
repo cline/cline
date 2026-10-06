@@ -689,6 +689,31 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("shares one recovery budget between clean empty turns and reasoning-only stream errors", async () => {
+		const empty = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{ type: "finish" as const, reason: "stop" as const },
+		];
+		const died = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{
+				type: "finish" as const,
+				reason: "error" as const,
+				error: "stream dropped",
+			},
+		];
+		// Two clean empty turns and one stream error spend the three nudges;
+		// the fourth turn, another stream error, fails the run with its error.
+		const model = new ScriptedModel([empty, died, empty, died]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("stream dropped");
+		expect(model.requests).toHaveLength(4);
+	});
+
 	it("still fails a stream error once visible content was emitted", async () => {
 		const model = new ScriptedModel([
 			() => [
