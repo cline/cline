@@ -24,14 +24,6 @@ vi.mock("./cline-auth", async () => ({
 	getClineAccountId: () => identity.accountId,
 }));
 
-const beta = vi.hoisted(() => ({ enabled: true }));
-vi.mock("../feature-flags/cline-account-feature-flags", async () => ({
-	...(await vi.importActual<
-		typeof import("../feature-flags/cline-account-feature-flags")
-	>("../feature-flags/cline-account-feature-flags")),
-	isClineAccountFeatureEnabled: async () => beta.enabled,
-}));
-
 const proxy = vi.hoisted(() => ({
 	fetchConnectableToolkits: vi.fn(),
 	initiateConnection: vi.fn(),
@@ -114,7 +106,6 @@ function makeAvailable(connections: unknown[] = []): void {
 
 beforeEach(() => {
 	identity.accountId = "account-a";
-	beta.enabled = true;
 	vi.clearAllMocks();
 	__resetComposioCachesForTesting();
 	// Sensible defaults; individual tests override.
@@ -243,22 +234,26 @@ describe("account isolation", () => {
 	});
 });
 
-describe("availability gating (proxy entitlement)", () => {
-	it("reports unconfigured and hides connectors when the proxy denies access", async () => {
+describe("connector API availability", () => {
+	it.each([
+		401, 403, 404,
+	])("reports unconfigured and hides connectors when the proxy returns %i", async (status) => {
 		useTempDataDir();
 		proxy.listConnections.mockRejectedValue(
-			new ConnectorsApiError("not entitled", 403),
+			new ConnectorsApiError("unavailable", status),
 		);
-		const status = await getComposioStatus();
-		expect(status.configured).toBe(false);
+		const result = await getComposioStatus();
+		expect(result.configured).toBe(false);
 		const catalog = await listComposioToolkits();
 		expect(catalog).toEqual({ configured: false, toolkits: [] });
 	});
 
-	it("refuses to start a connection when the proxy denies access", async () => {
+	it.each([
+		401, 404,
+	])("refuses to start a connection when the proxy returns %i", async (status) => {
 		useTempDataDir();
 		proxy.listConnections.mockRejectedValue(
-			new ConnectorsApiError("sign in", 401),
+			new ConnectorsApiError("unavailable", status),
 		);
 		await expect(connectComposioToolkit("gmail")).rejects.toThrow(
 			/Sign in to your Cline account/,
@@ -283,6 +278,36 @@ describe("availability gating (proxy entitlement)", () => {
 		const status = await getComposioStatus();
 		expect(status.configured).toBe(false);
 		expect(readStateFile(dir).toolkits).toEqual({});
+	});
+
+	it("hides connectors while routes are disabled without revoking saved connections", async () => {
+		const dir = useTempDataDir();
+		expect((await getComposioStatus()).configured).toBe(true);
+		const state = {
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+			cancelledAccountIds: ["pending-cancelled"],
+		};
+		writeState(dir, state);
+		proxy.listConnections.mockRejectedValue(
+			new ConnectorsApiError("not found", 404),
+		);
+		expect(await getComposioStatus({ refresh: true })).toEqual({
+			configured: false,
+			integrations: [],
+		});
+		expect(await listComposioToolkits()).toEqual({
+			configured: false,
+			toolkits: [],
+		});
+		expect(readStateFile(dir)).toEqual(state);
+		expect(proxy.deleteConnection).not.toHaveBeenCalled();
+		makeAvailable();
+		expect((await getComposioStatus({ refresh: true })).configured).toBe(true);
 	});
 
 	it("a transient (5xx/offline) probe failure does not flip the feature off", async () => {
@@ -706,47 +731,6 @@ describe("disconnectComposioToolkit", () => {
 			status.integrations.find((e) => e.toolkit === "github")?.status,
 		).toBe("not_connected");
 		expect(readStateFile(dir).toolkits).toEqual({});
-	});
-});
-
-describe("Composio beta access", () => {
-	it("hides saved connectors and catalog without making proxy requests", async () => {
-		const dir = useTempDataDir();
-		writeState(dir, {
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		beta.enabled = false;
-		expect(await getComposioStatus({ refresh: true })).toEqual({
-			configured: false,
-			integrations: [],
-		});
-		expect(await listComposioToolkits()).toEqual({
-			configured: false,
-			toolkits: [],
-		});
-		await expect(connectComposioToolkit("gmail")).rejects.toThrow(
-			/not be enabled/,
-		);
-		expect(proxy.listConnections).not.toHaveBeenCalled();
-		expect(proxy.fetchConnectableToolkits).not.toHaveBeenCalled();
-		expect(proxy.initiateConnection).not.toHaveBeenCalled();
-	});
-
-	it("does not reuse cached availability after beta access is removed", async () => {
-		useTempDataDir();
-		await getComposioStatus();
-		proxy.listConnections.mockClear();
-		beta.enabled = false;
-		expect(await getComposioStatus()).toEqual({
-			configured: false,
-			integrations: [],
-		});
-		expect(proxy.listConnections).not.toHaveBeenCalled();
 	});
 });
 

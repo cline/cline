@@ -350,7 +350,7 @@ export function ComposioConnectorsView({
 	}
 
 	if (!configured) {
-		// The parent hides this tab when the account has no beta access.
+		// The parent hides this tab when the connectors API is unavailable.
 		return (
 			<p className="text-sm text-muted-foreground">
 				Connectors aren&apos;t available.

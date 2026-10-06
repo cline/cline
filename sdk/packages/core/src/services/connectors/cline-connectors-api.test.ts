@@ -9,24 +9,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const identity = vi.hoisted(() => ({
 	accountId: "account-a" as string | undefined,
 }));
-const beta = vi.hoisted(() => ({ enabled: true }));
-vi.mock("../feature-flags/cline-account-feature-flags", async () => ({
-	...(await vi.importActual<
-		typeof import("../feature-flags/cline-account-feature-flags")
-	>("../feature-flags/cline-account-feature-flags")),
-	isClineAccountFeatureEnabled: vi.fn(async () => beta.enabled),
-}));
-
 vi.mock("./cline-auth", () => ({
 	getClineAccountId: () => identity.accountId,
 	resolveConnectorsApiAuth: vi.fn(async () => ({
 		accountId: identity.accountId,
-		baseUrl: "https://core-api.staging.int.cline.bot",
+		baseUrl: "https://api.example.com",
 		token: "test-token",
 	})),
 }));
 
-import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
 import { resolveConnectorsApiAuth } from "./cline-auth";
 import {
 	type ConnectorsApiError,
@@ -50,7 +41,6 @@ function mockFetchOnce(status: number, body: string | null) {
 
 beforeEach(() => {
 	identity.accountId = "account-a";
-	beta.enabled = true;
 	vi.clearAllMocks();
 });
 
@@ -110,22 +100,6 @@ describe("requestConnectorsApi envelope handling", () => {
 	});
 });
 
-describe("Composio beta request gate", () => {
-	it("blocks requests without the beta flag", async () => {
-		beta.enabled = false;
-		mockFetchOnce(200, "{}");
-		await expect(listConnections()).rejects.toMatchObject({ status: 403 });
-		expect(global.fetch).not.toHaveBeenCalled();
-	});
-
-	it("allows revoking existing connections after beta access is removed", async () => {
-		beta.enabled = false;
-		mockFetchOnce(204, null);
-		await expect(deleteConnection("acct-1")).resolves.toBeUndefined();
-		expect(global.fetch).toHaveBeenCalledOnce();
-	});
-});
-
 describe("connector router contract", () => {
 	it("refuses to revoke an old account's connection with a newly signed-in account", async () => {
 		identity.accountId = "account-b";
@@ -170,8 +144,8 @@ describe("connector router contract", () => {
 		global.fetch = fetchMock as unknown as typeof fetch;
 		expect(await listConnections()).toEqual([account, second]);
 		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200",
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200&cursor=next%2F%2B%3D",
+			"https://api.example.com/api/v1/connectors/connections?limit=200",
+			"https://api.example.com/api/v1/connectors/connections?limit=200&cursor=next%2F%2B%3D",
 		]);
 		expect(fetchMock.mock.calls[0][1]).toMatchObject({
 			method: "GET",
@@ -224,7 +198,7 @@ describe("connector router contract", () => {
 		);
 		expect(await fetchConnectableToolkits()).toEqual(catalog);
 		expect(global.fetch).toHaveBeenCalledWith(
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits?limit=200",
+			"https://api.example.com/api/v1/connectors/toolkits?limit=200",
 			expect.objectContaining({ method: "GET" }),
 		);
 	});
@@ -243,7 +217,7 @@ describe("connector router contract", () => {
 		expect(await fetchConnectableToolkits()).toEqual([...first, ...last]);
 		expect(global.fetch).toHaveBeenNthCalledWith(
 			3,
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits?limit=200&cursor=last",
+			"https://api.example.com/api/v1/connectors/toolkits?limit=200&cursor=last",
 			expect.objectContaining({ method: "GET" }),
 		);
 	});
@@ -293,7 +267,7 @@ describe("connector router contract", () => {
 		mockFetchOnce(200, JSON.stringify({ success: true, data: result }));
 		expect(await initiateConnection("gmail")).toEqual(result);
 		expect(global.fetch).toHaveBeenCalledWith(
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections",
+			"https://api.example.com/api/v1/connectors/connections",
 			expect.objectContaining({
 				method: "POST",
 				body: JSON.stringify({ toolkit: "gmail" }),
@@ -319,9 +293,9 @@ describe("connector router contract", () => {
 		global.fetch = fetchMock as unknown as typeof fetch;
 		expect(await listToolkitTools("googlecalendar")).toEqual(tools);
 		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200",
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=next%2F%2B%3D",
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=last",
+			"https://api.example.com/api/v1/connectors/toolkits/googlecalendar/tools?limit=200",
+			"https://api.example.com/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=next%2F%2B%3D",
+			"https://api.example.com/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=last",
 		]);
 	});
 
@@ -384,7 +358,7 @@ describe("connector router contract", () => {
 		mockFetchOnce(204, null);
 		await deleteConnection("account/id");
 		expect(global.fetch).toHaveBeenCalledWith(
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections/account%2Fid",
+			"https://api.example.com/api/v1/connectors/connections/account%2Fid",
 			expect.objectContaining({ method: "DELETE" }),
 		);
 	});
@@ -393,7 +367,6 @@ describe("connector router contract", () => {
 describe("host-supplied connector requests", () => {
 	beforeEach(() => {
 		identity.accountId = undefined;
-		beta.enabled = false;
 		global.fetch = vi.fn() as unknown as typeof fetch;
 	});
 
@@ -402,7 +375,7 @@ describe("host-supplied connector requests", () => {
 		expect(global.fetch).not.toHaveBeenCalled();
 	});
 
-	it("discovers all pages using the host without consulting a desktop login or flag", async () => {
+	it("discovers all pages using the host without consulting a desktop login", async () => {
 		const account = {
 			id: "cloud-account",
 			toolkit: { slug: "gmail" },
@@ -429,7 +402,6 @@ describe("host-supplied connector requests", () => {
 		]);
 		expect(request.mock.calls[0][1]).toEqual({ method: "GET", headers: {} });
 		expect(resolveConnectorsApiAuth).not.toHaveBeenCalled();
-		expect(isClineAccountFeatureEnabled).not.toHaveBeenCalled();
 		expect(global.fetch).not.toHaveBeenCalled();
 	});
 

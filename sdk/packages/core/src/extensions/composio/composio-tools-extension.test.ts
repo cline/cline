@@ -13,11 +13,6 @@ import {
  * extension resolves a Cline account token. Mock the token resolution so
  * tests can drive the signed-in / signed-out cases without a real account.
  */
-const beta = vi.hoisted(() => ({ enabled: true }));
-vi.mock("../../services/feature-flags/cline-account-feature-flags", () => ({
-	isClineAccountFeatureEnabled: async () => beta.enabled,
-}));
-
 const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
 	accountId: "account-a" as string | undefined,
@@ -79,7 +74,6 @@ async function setupTools(
 }
 
 beforeEach(() => {
-	beta.enabled = true;
 	tempDataDir = mkdtempSync(join(tmpdir(), "composio-ext-test-"));
 	process.env.CLINE_DATA_DIR = tempDataDir;
 	auth.token = "cline_token_123";
@@ -139,39 +133,6 @@ describe("createComposioToolsExtension", () => {
 			toolkits: { github: { connectedAccountId: "ca_github", tools: [] } },
 		});
 		expect(await createComposioToolsExtension()).toBeUndefined();
-	});
-
-	it("does not register saved tools without beta access", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		beta.enabled = false;
-		expect(await setupTools()).toEqual([]);
-	});
-
-	it("refuses execution when beta access is removed after registration", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		const tools = await setupTools();
-		beta.enabled = false;
-		const fetchMock = vi.fn();
-		vi.stubGlobal("fetch", fetchMock);
-		expect(await tools[0].execute({})).toEqual({
-			successful: false,
-			error: "Composio connectors are not enabled for this account.",
-		});
-		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("registers one snake_case tool per stored schema", async () => {
@@ -293,7 +254,7 @@ describe("createComposioToolsExtension", () => {
 	});
 
 	it.each([
-		401, 403, 502,
+		401, 403, 404, 502,
 	])("returns structured errors on HTTP %i instead of throwing", async (status) => {
 		writeState({
 			toolkits: {
@@ -357,7 +318,6 @@ describe("host-supplied Composio tools", () => {
 	beforeEach(() => {
 		auth.accountId = undefined;
 		auth.token = undefined;
-		beta.enabled = false;
 	});
 
 	it("uses the existing API lists to register and execute without a local login or state file", async () => {

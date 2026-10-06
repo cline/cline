@@ -1,6 +1,4 @@
-import type { ComposioToolkitSlug } from "@cline/shared";
-import { type BasicLogger, FeatureFlag } from "@cline/shared";
-import { isClineAccountFeatureEnabled } from "../feature-flags/cline-account-feature-flags";
+import type { BasicLogger, ComposioToolkitSlug } from "@cline/shared";
 import {
 	type ClineAuthTelemetryContext,
 	getClineAccountId,
@@ -19,7 +17,7 @@ export type ConnectorsRequest = (
 export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
 	accountId?: string;
 	/** Omit to use the saved Cline login. Supply to use the host's existing
-	 * authenticated transport without reading local login or feature flags. */
+	 * authenticated transport without reading local login. */
 	request?: ConnectorsRequest;
 };
 
@@ -32,9 +30,8 @@ export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
  * so any client-held key (however permission-scoped) would allow executing
  * tools as other users. See the backend contract notes on each function.
  *
- * Hosts supplying a request own rollout gating for that user. The backend
- * enforces identity and connection ownership; it does not currently enforce
- * `CLINE_COMPOSIO_BETA`. Local requests retain the saved-account flag check.
+ * The backend controls connector availability through its Composio project
+ * API key and enforces identity and connection ownership for every request.
  *
  * By default, requests resolve the account bearer token using the shared
  * refresh-aware resolver. Hosts can instead supply `ctx.request`.
@@ -111,18 +108,8 @@ async function requestWithLocalLogin(
 			401,
 		);
 	}
-	// Revocation remains available for cleanup after beta access is removed.
-	if (
-		init.method !== "DELETE" &&
-		!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))
-	) {
-		throw new ConnectorsApiError(
-			"Composio connectors are not enabled for this account.",
-			403,
-		);
-	}
-	// Auth resolution and flag evaluation can yield while the user signs out
-	// or switches accounts. Never submit an old operation with the new token.
+	// Auth resolution can yield while the user signs out or switches accounts.
+	// Never submit an old operation with the new token.
 	if (getClineAccountId() !== accountId || auth.accountId !== accountId) {
 		throw new ConnectorsApiError("The signed-in Cline account changed.", 401);
 	}

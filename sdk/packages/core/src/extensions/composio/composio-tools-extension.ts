@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { AgentExtension, BasicLogger } from "@cline/shared";
-import { createTool, FeatureFlag } from "@cline/shared";
+import { createTool } from "@cline/shared";
 import {
 	type ConnectorsRequest,
 	type ConnectorToolSchema,
@@ -11,7 +11,6 @@ import {
 	resolveComposioToolsStatePath,
 	type StoredComposioTool,
 } from "../../services/connectors/composio-tools";
-import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 
 /**
@@ -84,12 +83,6 @@ export async function createComposioToolsExtension(
 		if (!accountId) return undefined;
 		const state = loadComposioState(accountId);
 		if (!state?.toolkits) return undefined;
-		if (
-			!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))
-		) {
-			return undefined;
-		}
-		if (getAccountId() !== accountId) return undefined;
 		toolkits = Object.entries(state.toolkits)
 			.filter(([, toolkit]) => toolkit?.connectedAccountId)
 			.map(([slug, toolkit]) => [slug, toolkit?.tools ?? []]);

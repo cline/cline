@@ -97,7 +97,7 @@ function connectorFilter() {
 }
 
 describe("Marketplace directory", () => {
-	it("hides connectors and does not fetch their catalog without beta access", async () => {
+	it("hides connectors and does not fetch their catalog when the connectors API is unavailable", async () => {
 		mocks.configured = false;
 		await render();
 		expect(connectorFilter()).toBeUndefined();
