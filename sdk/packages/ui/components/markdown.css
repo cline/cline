@@ -219,3 +219,255 @@
 	border-radius: 0.5rem;
 	background: var(--card);
 }
+
+/*
+ * Owned Mermaid block (mermaid-block.tsx). A single quiet card: filename
+ * header with icon buttons, then the diagram. Colors are the app's semantic
+ * tokens, so the block follows light/dark and the selected accent.
+ */
+:is(.markdown, .cline-markdown) .cline-mermaid {
+	margin-block: 1rem;
+	overflow: hidden;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	background: var(--card);
+}
+
+.cline-mermaid__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	min-height: 2rem;
+	padding: 0.25rem 0.375rem 0.25rem 0.75rem;
+	border-bottom: 1px solid var(--border);
+	color: var(--muted-foreground);
+}
+
+.cline-mermaid__filename {
+	min-width: 0;
+	overflow: hidden;
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cline-mermaid__actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 0.125rem;
+}
+
+.cline-mermaid__button,
+.cline-mermaid__retry {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	transition:
+		background-color 120ms ease,
+		color 120ms ease;
+}
+
+.cline-mermaid__button {
+	width: 1.5rem;
+	height: 1.5rem;
+}
+
+.cline-mermaid__button:hover:not(:disabled),
+.cline-mermaid__retry:hover {
+	background: var(--accent);
+	color: var(--foreground);
+}
+
+.cline-mermaid__button:disabled {
+	cursor: default;
+	opacity: 0.4;
+}
+
+.cline-mermaid__button:focus-visible,
+.cline-mermaid__retry:focus-visible,
+.cline-mermaid__menu-item:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: -1px;
+}
+
+.cline-mermaid__menu-root {
+	position: relative;
+	display: inline-flex;
+}
+
+.cline-mermaid__menu {
+	position: absolute;
+	top: calc(100% + 0.25rem);
+	right: 0;
+	z-index: 20;
+	display: flex;
+	min-width: 11rem;
+	flex-direction: column;
+	padding: 0.25rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	background: var(--popover);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+	color: var(--popover-foreground);
+}
+
+.cline-mermaid__menu-item {
+	display: block;
+	padding: 0.375rem 0.5rem;
+	border: 0;
+	border-radius: var(--radius-sm);
+	background: transparent;
+	color: inherit;
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	text-align: left;
+	cursor: pointer;
+}
+
+.cline-mermaid__menu-item:hover:not(:disabled),
+.cline-mermaid__menu-item:focus-visible {
+	background: var(--accent);
+	color: var(--accent-foreground);
+}
+
+.cline-mermaid__menu-item:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.cline-mermaid__viewport {
+	position: relative;
+	overflow: hidden;
+	padding: 0.75rem;
+	touch-action: pan-y;
+}
+
+.cline-mermaid__viewport[data-pannable] {
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+.cline-mermaid__viewport[data-pannable]:active {
+	cursor: grabbing;
+}
+
+.cline-mermaid__canvas {
+	display: flex;
+	justify-content: center;
+	transform-origin: 0 0;
+}
+
+.cline-mermaid__canvas > svg {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.cline-mermaid__skeleton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	min-height: 8rem;
+	color: var(--muted-foreground);
+	font-size: var(--text-xs);
+}
+
+.cline-mermaid__spinner {
+	width: 0.875rem;
+	height: 0.875rem;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 9999px;
+	animation: cline-mermaid-spin 0.8s linear infinite;
+}
+
+@keyframes cline-mermaid-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-mermaid__spinner {
+		animation: none;
+	}
+}
+
+.cline-mermaid__error {
+	padding: 0.75rem;
+	color: var(--destructive);
+	font-size: var(--text-xs);
+}
+
+.cline-mermaid__error p {
+	margin: 0 0 0.5rem;
+}
+
+.cline-mermaid .cline-mermaid__error pre {
+	max-height: 16rem;
+	margin: 0 0 0.5rem;
+	overflow: auto;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius-md);
+	background: var(--muted);
+	color: var(--foreground);
+	white-space: pre;
+}
+
+.cline-mermaid__retry {
+	padding: 0.25rem 0.5rem;
+	border: 1px solid var(--border);
+	color: var(--foreground);
+	font-size: var(--text-xs);
+}
+
+.cline-mermaid__notice {
+	display: block;
+	margin: 0;
+	padding: 0.375rem 0.75rem;
+	border-top: 1px solid var(--border);
+	color: var(--muted-foreground);
+	font-size: var(--text-xs);
+}
+
+.cline-mermaid__dialog {
+	width: 100vw;
+	max-width: none;
+	height: 100vh;
+	max-height: none;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: var(--card);
+	color: var(--foreground);
+}
+
+.cline-mermaid__dialog[open] {
+	display: flex;
+	flex-direction: column;
+}
+
+.cline-mermaid__dialog::backdrop {
+	background: rgb(0 0 0 / 0.6);
+}
+
+.cline-mermaid__dialog .cline-mermaid__viewport {
+	flex: 1;
+	padding: 1.5rem;
+}
+
+.cline-mermaid__dialog .cline-mermaid__canvas {
+	height: 100%;
+	align-items: center;
+}
