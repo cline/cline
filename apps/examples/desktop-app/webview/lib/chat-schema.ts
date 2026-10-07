@@ -10,6 +10,7 @@ export const ProviderAuthInfoSchema = z.object({
 	localCli: z
 		.object({ command: z.string(), docsUrl: z.string().optional() })
 		.optional(),
+	apiKeyOptional: z.boolean().optional(),
 }) satisfies z.ZodType<ProviderAuthInfo>;
 
 export const ChatSessionConfigSchema = z.object({
@@ -22,8 +23,6 @@ export const ChatSessionConfigSchema = z.object({
 	environmentId: z.string().trim().min(1),
 	provider: z.string().min(1),
 	providerAuth: ProviderAuthInfoSchema.optional(),
-	/** Host-computed readiness from the provider catalog (`Provider.configured`). */
-	providerConfigured: z.boolean().optional(),
 	model: z.string().min(1),
 	mode: z.enum(["act", "plan"]).default("act"),
 	apiKey: z.string(),

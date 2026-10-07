@@ -253,13 +253,13 @@ export function resolveCredentialError(
 	if (capabilities?.includes("oauth") || capabilities?.includes("local-auth")) {
 		return null;
 	}
-	if (config.apiKey.trim().length > 0) {
+	// Local inference servers and cloud-credential providers declare the key
+	// optional in their provider metadata; the endpoint's own auth error is
+	// authoritative for them.
+	if (auth.apiKeyOptional) {
 		return null;
 	}
-	// Keyless setups (a local OpenAI-compatible endpoint, Ollama, LM Studio)
-	// never have an API key. The host's readiness check already accepts them
-	// via base URL + model, so defer to it rather than demanding a key.
-	if (config.providerConfigured) {
+	if (config.apiKey.trim().length > 0) {
 		return null;
 	}
 	return `Missing API key for provider "${config.provider}". Add credentials in Settings, or switch providers.`;
