@@ -3771,6 +3771,44 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("carries afterTool result metadata onto the tool message", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "meta",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: {
+				afterTool: ({ result }) => ({
+					result: { ...result, metadata: { recorded: { sha256: "abc" } } },
+				}),
+			},
+		});
+
+		const result = await runtime.run("Record metadata");
+
+		const toolMessage = result.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.metadata).toEqual({ recorded: { sha256: "abc" } });
+		expect(toolMessage?.content[0]).toMatchObject({
+			type: "tool-result",
+			toolCallId: "meta",
+		});
+	});
+
 	it("injects beforeTool and afterTool appendContext into the next model request", async () => {
 		const model = new ScriptedModel([
 			() => [
