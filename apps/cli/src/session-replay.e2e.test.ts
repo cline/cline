@@ -3,6 +3,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
@@ -395,4 +396,80 @@ describe("session replay e2e", () => {
 			/model call: call 0 · completed \(tool-calls\) · \d+ms · 2 messages · 120 in \/ 15 out · match [0-9a-f]{12}/,
 		);
 	}, 180_000);
+
+	it("records model requests when the session runs in the hub", async () => {
+		const sessionsDir = path.join(root, "hub-sessions");
+		const hubEnv = {
+			...env,
+			CLINE_SESSION_BACKEND_MODE: "hub",
+			CLINE_HUB_PORT: String(await findFreePort()),
+			CLINE_SESSION_DATA_DIR: sessionsDir,
+			CLINE_DB_DATA_DIR: path.join(root, "hub-db"),
+		};
+		try {
+			const ensured = await runCli(["hub", "ensure"], {
+				cwd: workspace,
+				env: hubEnv,
+			});
+			expect(ensured.status, ensured.stderr).toBe(0);
+			// Yolo mode always runs locally, so approve tools without it.
+			const run = await runCli(
+				["--auto-approve", "true", "--record-session", "Run echo for me"],
+				{ cwd: workspace, env: hubEnv, timeoutMs: 120_000 },
+			);
+			expect(run.status, run.stderr).toBe(0);
+			const hubLocks = path.join(root, "data", "locks", "hub");
+			expect(readdirSync(hubLocks).some((name) => name.endsWith(".json"))).toBe(
+				true,
+			);
+
+			const history = await runCli(["history", "--json"], {
+				cwd: workspace,
+				env: hubEnv,
+			});
+			expect(history.status, history.stderr).toBe(0);
+			const [session] = JSON.parse(history.stdout) as Array<{
+				sessionId: string;
+			}>;
+			const sessionId = session?.sessionId ?? "";
+			expect(
+				existsSync(
+					path.join(sessionsDir, sessionId, "recording", "requests.jsonl"),
+				),
+			).toBe(true);
+
+			const exported = await runCli(
+				[
+					"session",
+					"export",
+					sessionId,
+					"--bundle",
+					path.join(root, "hub-bundle"),
+					"--json",
+				],
+				{ cwd: workspace, env: hubEnv },
+			);
+			expect(exported.status, exported.stderr).toBe(0);
+			const { recording } = JSON.parse(exported.stdout);
+			expect(recording.counts.modelCalls).toBeGreaterThanOrEqual(2);
+			expect(recording.coverage).toMatchObject({
+				assistantMessages: recording.counts.modelCalls,
+				linked: recording.counts.modelCalls,
+				unlinkedMessageIds: [],
+			});
+		} finally {
+			await runCli(["hub", "stop"], { cwd: workspace, env: hubEnv });
+		}
+	}, 240_000);
 });
+
+function findFreePort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const probe = createServer();
+		probe.once("error", reject);
+		probe.listen(0, "127.0.0.1", () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close(() => resolve(port));
+		});
+	});
+}
