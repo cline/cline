@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
 	chmodSync,
@@ -308,6 +308,177 @@ exec /bin/ps "$@"
 			expect(result.stderr).toContain("does not match requested");
 			expect(existsSync(join(root, ".cline"))).toBe(false);
 		}));
+	test("activates versioned releases through the default command across directory and PATH changes", () =>
+		fixture((root, env) => {
+			const binary = join(root, "local-cline");
+			const report = (epoch: number, build = "sdk-fixture") =>
+				`#!/bin/sh\ncase "$1" in --runtime-build-id) echo ${build} ;; --runtime-build-epoch) echo ${epoch} ;; --runtime-target) echo ${target} ;; *) echo works ;; esac\n`;
+			writeFileSync(binary, report(10));
+			chmodSync(binary, 0o755);
+			const install = [
+				script,
+				"--binary",
+				binary,
+				"--target",
+				target,
+				"--replace-existing",
+			];
+			const first = execFileSync("bash", install, {
+				env,
+				encoding: "utf8",
+			}).trim();
+			expect(first).toBe(join(root, ".local", "bin", "cline"));
+			const firstRelease = realpathSync(first);
+			expect(firstRelease).toContain(
+				"/.cline/packages/standalone/releases/local-",
+			);
+			writeFileSync(binary, report(20));
+			execFileSync("bash", install, {
+				env: { ...env, CLINE_INSTALL_BUILD_EPOCH_MS: "20" },
+			});
+			const secondRelease = realpathSync(first);
+			expect(secondRelease).not.toBe(firstRelease);
+			expect(existsSync(firstRelease)).toBe(true);
+			const config = readFileSync(join(root, ".zshrc"), "utf8");
+			expect(config.match(/# Cline/g)).toHaveLength(1);
+			const output = execFileSync(
+				"bash",
+				["-c", 'source "$HOME/.zshrc"; cd /; cline'],
+				{
+					env: { ...env, PATH: "/usr/bin:/bin" },
+					encoding: "utf8",
+				},
+			);
+			expect(output.trim()).toBe("works");
+			writeFileSync(binary, report(10));
+			const downgrade = spawnSync("bash", install, { env, encoding: "utf8" });
+			expect(downgrade.status).not.toBe(0);
+			expect(downgrade.stderr).toContain("no downgrade");
+			expect(realpathSync(first)).toBe(secondRelease);
+			writeFileSync(binary, report(30, "wrong-sdk"));
+			const mismatch = spawnSync("bash", install, {
+				env: {
+					...env,
+					CLINE_INSTALL_BUILD_EPOCH_MS: "30",
+					CLINE_INSTALL_BUILD_ID: "sdk-fixture",
+				},
+				encoding: "utf8",
+			});
+			expect(mismatch.status).not.toBe(0);
+			expect(mismatch.stderr).toContain("incompatible SDK build");
+			expect(realpathSync(first)).toBe(secondRelease);
+		}));
+	test("reuses a managed release offline and rejects activating an older cached release", () =>
+		fixture((root, env) => {
+			const binary = join(root, "native-cline");
+			const report = (epoch: number) =>
+				`#!/bin/sh\ncase "$1" in --runtime-build-id) echo sdk-fixture ;; --runtime-build-epoch) echo ${epoch} ;; --runtime-target) echo ${target} ;; esac\n`;
+			writeFileSync(binary, report(10));
+			chmodSync(binary, 0o755);
+			writeFileSync(
+				join(root, "commands", "curl"),
+				`#!/bin/bash
+set -euo pipefail
+[[ "\${FAIL_DOWNLOAD:-}" != 1 ]] || exit 22
+printf '%s\\n' "$*" >> "$TEST_ROOT/requests"
+while [[ $# -gt 0 ]]; do
+ case "$1" in -o) output="$2"; shift 2 ;; https://*) url="$1"; shift ;; *) shift ;; esac
+done
+case "$url" in
+ *.build-id) echo sdk-fixture ;;
+ *.sha256) echo "$EXPECTED_HASH runtime" > "$output" ;;
+ *) cp "$NETWORK_BINARY" "$output" ;;
+esac
+`,
+			);
+			const transport = {
+				...env,
+				NETWORK_BINARY: binary,
+				EXPECTED_HASH: createHash("sha256")
+					.update(readFileSync(binary))
+					.digest("hex"),
+			};
+			const install = [
+				script,
+				"--release",
+				release,
+				"--target",
+				target,
+				"--replace-existing",
+				"--no-modify-path",
+			];
+			const entry = execFileSync("bash", install, {
+				env: transport,
+				encoding: "utf8",
+			}).trim();
+			const requests = readFileSync(join(root, "requests"), "utf8");
+			execFileSync("bash", install, {
+				env: { ...transport, FAIL_DOWNLOAD: "1" },
+			});
+			expect(readFileSync(join(root, "requests"), "utf8")).toBe(requests);
+			writeFileSync(binary, report(20));
+			execFileSync(
+				"bash",
+				[
+					script,
+					"--binary",
+					binary,
+					"--target",
+					target,
+					"--replace-existing",
+					"--no-modify-path",
+				],
+				{ env: { ...transport, CLINE_INSTALL_BUILD_EPOCH_MS: "20" } },
+			);
+			const newer = realpathSync(entry);
+			const older = spawnSync("bash", install, {
+				env: { ...transport, FAIL_DOWNLOAD: "1" },
+				encoding: "utf8",
+			});
+			expect(older.status).not.toBe(0);
+			expect(older.stderr).toContain("no downgrade");
+			expect(realpathSync(entry)).toBe(newer);
+		}));
+
+	test("never overwrites an unrelated command or uninstalls packages without a terminal", () =>
+		fixture((root, env) => {
+			const binary = join(root, "local-cline");
+			writeFileSync(binary, "#!/bin/sh\necho 10\n");
+			chmodSync(binary, 0o755);
+			const directory = join(root, ".local", "bin");
+			mkdirSync(directory, { recursive: true });
+			const entry = join(directory, "cline");
+			writeFileSync(entry, "unrelated command");
+			const result = spawnSync(
+				"bash",
+				[script, "--binary", binary, "--target", target, "--replace-existing"],
+				{ env, encoding: "utf8" },
+			);
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain("unrelated file");
+			expect(readFileSync(entry, "utf8")).toBe("unrelated command");
+			const packageDir = join(root, "node_modules", "@cline", "cli", "bin");
+			mkdirSync(packageDir, { recursive: true });
+			const oldCli = join(packageDir, "cline");
+			writeFileSync(oldCli, "#!/bin/sh\nexit 1\n");
+			chmodSync(oldCli, 0o755);
+			const removal = join(root, "commands", "npm");
+			writeFileSync(removal, '#!/bin/sh\ntouch "$TEST_ROOT/uninstalled"\n');
+			chmodSync(removal, 0o755);
+			const conflict = spawnSync(
+				"bash",
+				[script, "--binary", binary, "--target", target],
+				{
+					env: { ...env, PATH: `${packageDir}:${env.PATH}` },
+					encoding: "utf8",
+				},
+			);
+			expect(conflict.status).not.toBe(0);
+			expect(conflict.stderr).toContain("npm uninstall -g @cline/cli");
+			expect(existsSync(join(root, "uninstalled"))).toBe(false);
+			expect(existsSync(oldCli)).toBe(true);
+		}));
+
 	test("rejects unpinned tags and unknown options", () =>
 		fixture((_root, env) => {
 			expect(
@@ -345,7 +516,7 @@ function global:Invoke-WebRequest {
 						import.meta.dir,
 						"cli-installer/install.ps1",
 					),
-					INSTALL_DIRECTORY: directory,
+					INSTALL_DIRECTORY: "runtime with spaces",
 					EXPECTED_HASH: hash,
 					CLINE_INSTALL_BUILD_EPOCH_MS: "10",
 				};
@@ -357,15 +528,23 @@ function global:Invoke-WebRequest {
 					"-File",
 					wrapper,
 				];
-				execFileSync("powershell.exe", powershellArgs, { env });
+				const installed = execFileSync("powershell.exe", powershellArgs, {
+					env,
+					cwd: root,
+					encoding: "utf8",
+				});
+				expect(installed.trim().split(/\r?\n/).at(-1)).toBe(
+					join(directory, "cline.exe"),
+				);
 				expect(readFileSync(join(directory, "cline.exe"), "utf8")).toBe(
 					content,
 				);
 				execFileSync("powershell.exe", powershellArgs, {
 					env: { ...env, FAIL_DOWNLOAD: "1" },
+					cwd: root,
 				});
 				writeFileSync(join(directory, "cline.exe"), "corrupt");
-				execFileSync("powershell.exe", powershellArgs, { env });
+				execFileSync("powershell.exe", powershellArgs, { env, cwd: root });
 				expect(readFileSync(join(directory, "cline.exe"), "utf8")).toBe(
 					content,
 				);
@@ -437,9 +616,117 @@ function global:Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $Timeo
 						},
 					},
 				);
-				expect(output.trim()).toBe(native);
+				expect(output.trim().split(/\r?\n/).at(-1)).toBe(native);
 				expect(existsSync(join(root, ".cline"))).toBe(false);
 			} finally {
+				rmSync(root, { recursive: true, force: true });
+			}
+		}, 60_000);
+	},
+);
+
+describe.skipIf(process.platform !== "win32")(
+	"PowerShell managed releases",
+	() => {
+		test("switches a relative command directory while the previous executable is running", async () => {
+			const root = mkdtempSync(join(tmpdir(), "cline-managed-windows-"));
+			let running: ReturnType<typeof spawn> | undefined;
+			try {
+				const source = join(root, "fixture.ts");
+				const binary = join(root, "fixture.exe");
+				const installer = resolve(import.meta.dir, "cli-installer/install.ps1");
+				const build = async (epoch: number) => {
+					writeFileSync(
+						source,
+						`const info = {compiled:true, buildId:"sdk-fixture", target:"x86_64-pc-windows-msvc", buildEpochMs:${epoch}, executablePath:process.execPath};
+if (process.argv[2] === "--hold") { console.log("ready"); setInterval(() => {}, 1000); }
+else if (process.argv[2] === "--runtime-info") console.log(JSON.stringify(info));
+else if (process.argv[2] === "--runtime-build-id") console.log(info.buildId);
+else if (process.argv[2] === "--runtime-build-epoch") console.log(info.buildEpochMs);`,
+					);
+					const result = await Bun.build({
+						entrypoints: [source],
+						compile: { outfile: binary },
+					});
+					expect(result.success).toBe(true);
+				};
+				const install = (epoch: number, buildId = "sdk-fixture") =>
+					spawnSync(
+						"powershell.exe",
+						[
+							"-NoProfile",
+							"-NonInteractive",
+							"-ExecutionPolicy",
+							"Bypass",
+							"-File",
+							installer,
+							"-Binary",
+							binary,
+							"-InstallDir",
+							"command dir",
+							"-Managed",
+							"-NoModifyPath",
+						],
+						{
+							cwd: root,
+							encoding: "utf8",
+							env: {
+								...process.env,
+								USERPROFILE: root,
+								CLINE_INSTALL_BUILD_EPOCH_MS: String(epoch),
+								CLINE_INSTALL_BUILD_ID: buildId,
+							},
+						},
+					);
+				await build(10);
+				const first = install(10);
+				expect(first.status, first.stderr).toBe(0);
+				const entry = join(root, "command dir", "cline.cmd");
+				expect(first.stdout.trim().split(/\r?\n/).at(-1)).toBe(entry);
+				const firstLauncher = readFileSync(entry, "utf8");
+				const activeRecord = join(root, "command dir", "cline-runtime");
+				const firstActive = readFileSync(activeRecord, "utf8");
+				const firstNative = firstActive.trim().split(/\r?\n/)[0];
+				if (!firstNative) throw new Error("Missing native path in launcher");
+				const held = spawn("cmd.exe", ["/d", "/c", entry, "--hold"], {
+					stdio: ["ignore", "pipe", "ignore"],
+				});
+				running = held;
+				await new Promise<void>((resolve, reject) => {
+					held.once("error", reject);
+					held.stdout.once("data", () => resolve());
+				});
+				await build(20);
+				const second = install(20);
+				expect(second.status, second.stderr).toBe(0);
+				expect(existsSync(firstNative)).toBe(true);
+				const active = readFileSync(activeRecord, "utf8");
+				expect(active).not.toBe(firstActive);
+				expect(readFileSync(entry, "utf8")).toBe(firstLauncher);
+				const info = JSON.parse(
+					execFileSync("cmd.exe", ["/d", "/c", entry, "--runtime-info"], {
+						encoding: "utf8",
+					}),
+				);
+				expect(info.buildEpochMs).toBe(20);
+				await build(10);
+				const downgrade = install(10);
+				expect(downgrade.status).not.toBe(0);
+				expect(downgrade.stderr).toContain("no downgrade");
+				expect(readFileSync(activeRecord, "utf8")).toBe(active);
+				await build(30);
+				const mismatch = install(30, "wrong-sdk");
+				expect(mismatch.status).not.toBe(0);
+				expect(mismatch.stderr).toContain("identity");
+				expect(readFileSync(activeRecord, "utf8")).toBe(active);
+			} finally {
+				if (running && running.exitCode === null) {
+					const closed = new Promise<void>((resolve) =>
+						running?.once("close", () => resolve()),
+					);
+					execFileSync("taskkill", ["/T", "/F", "/PID", String(running.pid)]);
+					await closed;
+				}
 				rmSync(root, { recursive: true, force: true });
 			}
 		}, 60_000);

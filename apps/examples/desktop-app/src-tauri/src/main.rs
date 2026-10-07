@@ -1574,7 +1574,11 @@ fn main() {
                 launch_cwd: launch_cwd.clone(),
                 workspace_root: workspace_root.clone(),
                 resource_dir: app.path().resource_dir()?,
-                shared_cli_dir: app.path().home_dir()?.join(".cline").join("bin"),
+                shared_cli_dir: if cfg!(windows) {
+                    app.path().home_dir()?.join(".cline").join("bin")
+                } else {
+                    app.path().home_dir()?.join(".local").join("bin")
+                },
                 remote_runtime_dir: app
                     .path()
                     .home_dir()?

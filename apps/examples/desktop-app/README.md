@@ -325,19 +325,23 @@ Before installing, desktop searches the terminal PATH and interactive login shel
 identity. A compatible existing installation is reused directly, including
 package-manager installations; the desktop does not copy its binary.
 
-Otherwise, the standalone CLI lives at `~/.cline/bin/cline` (`cline.exe` on
-Windows), shared by desktop and terminal use. Desktop installs or updates this
-single location and adds it to the user's PATH. Each update replaces the
-standalone runtime in place rather than retaining per-release host copies.
-An older desktop cannot downgrade a newer shared runtime: update desktop
-instead. Stable/beta apps with different SDK builds cannot require separate
-local CLI copies; the incompatible app must be updated to match.
+Standalone releases live under `~/.cline/packages/standalone/releases/`,
+including embedded plugin and dashboard resources. On Unix, `~/.local/bin/cline`
+links to the active release; on Windows, `~/.cline/bin/cline.cmd` launches it.
+Desktop and terminal use the same active installation. Updates validate the
+checksum, SDK identity, target, and build epoch before atomically switching the
+command. Older releases are retained for rollback and running processes; the
+installer never downgrades the active runtime automatically. A running Hub keeps
+its loaded runtime until the CLI's Hub startup flow replaces an incompatible Hub.
 
-An incompatible or unrecognizable external installation stops setup with an
-explicit update/removal instruction. Package-managed files are never overwritten
-and a second local CLI is never silently installed. Older CLIs without runtime
-identity probes must be updated or removed before consolidation. On Windows,
-close running CLI sessions and their Hub before replacing a shared executable.
+A compatible package-managed CLI is reused by default. An incompatible or
+unrecognizable external installation stops setup with an update/removal
+instruction. Interactive manual installs identify common Homebrew, npm, and Bun
+locations and offer removal through the owning package manager. Unattended
+installs never uninstall packages. To choose a standalone installation while
+keeping an existing package, use `--replace-existing` (`-ReplaceExisting` on
+Windows); the installer reports PATH conflicts. Package-owned files and unrelated
+command entry points are never overwritten. Desktop never prompts for removal.
 
 Downloads come from the exact desktop release and are SHA-256 verified. The
 workflow publishes SDK build-ID and build-epoch sidecars and independently signed macOS/Windows
@@ -387,9 +391,15 @@ bash scripts/cli-installer/install.sh --binary /path/to/cline --no-modify-path
 ./scripts/cli-installer/install.ps1 -Version 0.0.43
 ```
 
-Manual installs default to `~/.cline/bin` and add it to the user's PATH;
-desktop standalone installs use the same location and PATH setup.
-Use `--no-modify-path` for custom installations when desired.
+Manual installs add the stable command directory to the user's PATH; desktop
+uses the same directory. A standalone Unix installation stays available when a
+project switches Node versions.
+Use `--no-modify-path` to leave shell profiles untouched. Explicit `--install-dir`
+(`-InstallDir`) installs are isolated runtime caches for other machines; they do
+not create a host command entry. Add `--managed` (`-Managed`) to select versioned
+releases with a custom host command directory. The standalone Windows launcher
+does not require symlink privileges and switching it leaves running executables
+intact.
 Nightly installers remain Actions artifacts, but their runtime assets are
 published to the corresponding nightly GitHub release for durable access.
 

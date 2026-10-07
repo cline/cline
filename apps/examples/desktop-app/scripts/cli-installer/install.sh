@@ -5,10 +5,13 @@ usage() {
     cat <<'HELP'
 Cline runtime installer (no Node, Bun, or administrator access required)
 Usage: install.sh --release <desktop-tag> [options]
+Default command: ~/.local/bin/cline (versioned standalone releases)
   --version <version>       Shorthand for --release desktop-v<version>
   --target <triple>         Download for another machine (e.g. an SSH host)
-  --install-dir <directory> Default: ~/.cline/bin
+  --install-dir <directory> Explicit runtime cache directory
   --binary <path>           Install a local binary without downloading
+  --managed                Use versioned releases with a stable command entry
+  --replace-existing       Install standalone alongside an external CLI; never uninstall
   --no-modify-path          Leave shell configuration untouched
   -h, --help                Show this help
 HELP
@@ -16,7 +19,10 @@ HELP
 fail() { printf 'Cline install: %s\n' "$*" >&2; exit 1; }
 release=''
 target=''
-install_dir="$HOME/.cline/bin"
+install_dir="$HOME/.local/bin"
+managed=true
+managed_option=false
+replace_existing=false
 binary=''
 modify_path=true
 explicit_directory=false
@@ -24,6 +30,8 @@ explicit_target=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
+        --managed) managed_option=true; shift ;;
+        --replace-existing) replace_existing=true; shift ;;
         --no-modify-path) modify_path=false; shift ;;
         --release|--version|--target|--install-dir|--binary)
             [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || fail "$1 requires a value"
@@ -38,6 +46,7 @@ while [[ $# -gt 0 ]]; do
         *) fail "unknown option: $1" ;;
     esac
 done
+if [[ "$explicit_directory" == true && "$managed_option" == false ]]; then managed=false; fi
 case "$install_dir" in
     /*) ;;
     *) install_dir="$PWD/$install_dir" ;;
@@ -59,15 +68,50 @@ case "$target" in
     universal-apple-darwin|x86_64-unknown-linux-gnu|aarch64-unknown-linux-gnu) ;;
     *) fail "unsupported target: $target" ;;
 esac
-if [[ -z "$binary" ]]; then
+if [[ -n "$release" || -z "$binary" ]]; then
     [[ "$release" =~ ^desktop-(v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?|nightly-[0-9]+)$ ]] || fail 'provide an exact desktop release tag with --release or --version'
-    command -v curl >/dev/null || fail 'curl is required'
 fi
+[[ -n "$binary" ]] || command -v curl >/dev/null || fail 'curl is required'
 # Reuse a compatible terminal installation, including a package-manager
 # wrapper. Never modify package-owned files or silently add a second CLI.
 if [[ "$explicit_directory" == false ]]; then
     existing=$(command -v cline || true)
     if [[ -n "$existing" && "$existing" != "$install_dir/cline" ]]; then
+        # Resolve links only to identify package ownership; never delete their files.
+        owned="$existing"
+        for ((links=0; links<40; links++)); do
+            [[ -L "$owned" ]] || break
+            link=$(readlink "$owned")
+            case "$link" in /*) owned="$link" ;; *) owned="$(dirname "$owned")/$link" ;; esac
+        done
+        manager=''
+        case "$owned" in
+            */Cellar/cline/*) manager=brew ;;
+            */node_modules/@cline/cli/*) manager=npm ;;
+        esac
+        [[ "$owned" != "$HOME/.bun/"* ]] || manager=bun
+        if [[ -n "$manager" ]]; then
+            case "$manager" in
+                brew) removal=(brew uninstall cline) ;;
+                npm) removal=(npm uninstall -g @cline/cli) ;;
+                bun) removal=(bun remove -g @cline/cli) ;;
+            esac
+            printf 'Existing %s installation: %s. To remove it: %s\n' "$manager" "$existing" "${removal[*]}" >&2
+            if [[ "$replace_existing" == false && -t 2 && -r /dev/tty ]]; then
+                printf 'Remove this installation and install the standalone CLI? [y/N] ' >&2
+                answer=''; read -r answer </dev/tty || true
+                case "$answer" in
+                    y|Y|yes|YES)
+                        "${removal[@]}" >&2 || fail 'package-manager uninstall failed'
+                        [[ ! -e "$existing" ]] || fail 'the original CLI still exists; remove it with its owning package manager before retrying'
+                        replace_existing=true ;;
+                esac
+            fi
+        else
+            printf 'Existing CLI: %s. Remove it manually or use --replace-existing to select standalone.\n' "$existing" >&2
+        fi
+    fi
+    if [[ -n "$existing" && "$existing" != "$install_dir/cline" && "$replace_existing" == false ]]; then
         if [[ -n "$binary" ]]; then
             expected_build=$("$binary" --runtime-build-id 2>/dev/null) || fail 'local binary cannot report its SDK identity'
         else
@@ -91,9 +135,15 @@ hash_file() {
     else fail 'sha256sum or shasum is required'; fi
 }
 mkdir -p "$install_dir"
+lock_dir="$install_dir"
+if [[ "$managed" == true ]]; then
+    releases="$HOME/.cline/packages/standalone/releases"
+    mkdir -p "$releases"
+    lock_dir="$releases"
+fi
 # Serialize installs in this directory across desktop/SSH clients. Never
 # expose a partial download. Shared installs replace the previous runtime.
-lock="$install_dir/.install-lock"
+lock="$lock_dir/.install-lock"
 owner="$$ $(TZ=UTC ps -p $$ -o lstart=)"
 owner_is_stale() {
     local record="$1" pid="${1%% *}" start
@@ -138,12 +188,31 @@ cleanup() { [[ -z "$temporary" ]] || rm -rf "$temporary"; [[ "$(cat "$lock/owner
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+# A managed entry is always our symlink. Never replace an unrelated command.
+if [[ "$managed" == true && ( -e "$install_dir/cline" || -L "$install_dir/cline" ) ]]; then
+    [[ -L "$install_dir/cline" ]] || fail "refusing to replace unrelated file $install_dir/cline"
+    case "$(readlink "$install_dir/cline")" in
+        "$HOME/.cline/packages/standalone/releases/"*/cline) ;;
+        *) fail "refusing to replace unrelated link $install_dir/cline" ;;
+    esac
+fi
 cached=false
-if [[ -z "$binary" && -f "$install_dir/cline" && -f "$install_dir/cline.sha256" && -f "$install_dir/release" ]]; then
+state_dir="$install_dir"
+if [[ "$managed" == true ]]; then
+    if [[ -z "$binary" ]]; then
+        for candidate in "$releases/$release-$target-"*; do
+            [[ -f "$candidate/cline" && -f "$candidate/cline.sha256" && -f "$candidate/release" ]] || continue
+            if [[ "$(cat "$candidate/release")" == "$release/$target" && "$(hash_file "$candidate/cline")" == "$(cat "$candidate/cline.sha256")" ]]; then
+                state_dir="$candidate"; cached=true; break
+            fi
+        done
+    fi
+elif [[ -z "$binary" && -f "$install_dir/cline" && -f "$install_dir/cline.sha256" && -f "$install_dir/release" ]]; then
     if [[ "$(cat "$install_dir/release")" == "$release/$target" && "$(hash_file "$install_dir/cline")" == "$(cat "$install_dir/cline.sha256")" ]]; then cached=true; fi
 fi
 if [[ "$cached" == false ]]; then
-    temporary=$(mktemp -d "$install_dir/.download.XXXXXX")
+    if [[ "$managed" == true ]]; then temporary=$(mktemp -d "$releases/.download.XXXXXX")
+    else temporary=$(mktemp -d "$install_dir/.download.XXXXXX"); fi
     if [[ -n "$binary" ]]; then
         [[ -f "$binary" ]] || fail "binary not found: $binary"
         cp "$binary" "$temporary/cline"
@@ -160,25 +229,57 @@ if [[ "$cached" == false ]]; then
     chmod 755 "$temporary/cline"
     hash_file "$temporary/cline" > "$temporary/cline.sha256"
     printf '%s\n' "$release/$target" > "$temporary/release"
-    # Check again under the lock: another channel may have installed a newer
-    # executable after desktop's initial probe. Cross-target caches use metadata.
     expected_epoch=${CLINE_INSTALL_BUILD_EPOCH_MS:-}
     if [[ -z "$expected_epoch" ]]; then
         if [[ -n "$binary" ]]; then expected_epoch=$("$binary" --runtime-build-epoch 2>/dev/null || true)
         else expected_epoch=$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 30 --proto '=https' --proto-redir '=https' "$url.build-epoch"); fi
     fi
     [[ "$expected_epoch" =~ ^[0-9]+$ ]] || fail 'invalid runtime build epoch'
-    installed_epoch=$(cat "$install_dir/cline.build-epoch" 2>/dev/null || true)
-    if [[ -x "$install_dir/cline" ]]; then
-        actual_epoch=$(CLINE_NO_AUTO_UPDATE=1 "$install_dir/cline" --runtime-build-epoch 2>/dev/null || true)
-        [[ ! "$actual_epoch" =~ ^[0-9]+$ ]] || installed_epoch="$actual_epoch"
-    fi
-    if [[ "$installed_epoch" =~ ^[0-9]+$ ]] && (( installed_epoch > expected_epoch )); then fail 'the installed CLI is newer; no downgrade was installed'; fi
     printf '%s\n' "$expected_epoch" > "$temporary/cline.build-epoch"
-    mv -f "$temporary/cline" "$install_dir/cline"
-    mv -f "$temporary/cline.sha256" "$install_dir/cline.sha256"
-    mv -f "$temporary/release" "$install_dir/release"
-    mv -f "$temporary/cline.build-epoch" "$install_dir/cline.build-epoch"
+    state_dir="$temporary"
+fi
+# Recheck under the activation lock, even when selecting a cached release.
+expected_epoch=$(cat "$state_dir/cline.build-epoch")
+installed_epoch=$(cat "$install_dir/cline.build-epoch" 2>/dev/null || true)
+if [[ "$managed" == true && -L "$install_dir/cline" ]]; then
+    installed_epoch=$(cat "$(dirname "$(readlink "$install_dir/cline")")/cline.build-epoch" 2>/dev/null || true)
+fi
+if [[ -x "$install_dir/cline" ]]; then
+    actual_epoch=$(CLINE_NO_AUTO_UPDATE=1 "$install_dir/cline" --runtime-build-epoch 2>/dev/null || true)
+    [[ ! "$actual_epoch" =~ ^[0-9]+$ ]] || installed_epoch="$actual_epoch"
+fi
+if [[ "$installed_epoch" =~ ^[0-9]+$ ]] && (( installed_epoch > expected_epoch )); then fail 'the installed CLI is newer; no downgrade was installed'; fi
+if [[ "$managed" == true ]]; then
+    # Host installs validate identity before the active command can change.
+    expected_build=${CLINE_INSTALL_BUILD_ID:-}
+    if [[ -z "$expected_build" ]]; then
+        if [[ -n "$binary" ]]; then expected_build=$("$binary" --runtime-build-id)
+        else expected_build=$(cat "$state_dir/build-id" 2>/dev/null || true)
+            [[ -n "$expected_build" ]] || expected_build=$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 30 --proto '=https' --proto-redir '=https' "https://github.com/cline/cline/releases/download/$release/cline-runtime-$target.build-id")
+        fi
+    fi
+    [[ -n "$expected_build" && "$(CLINE_NO_AUTO_UPDATE=1 "$state_dir/cline" --runtime-build-id)" == "$expected_build" ]] || fail 'downloaded runtime has an incompatible SDK build'
+    actual_target=$(CLINE_NO_AUTO_UPDATE=1 "$state_dir/cline" --runtime-target)
+    if [[ "$actual_target" != "$target" ]]; then
+        [[ -n "$binary" && "$explicit_target" == false && "$target" == universal-apple-darwin && "$actual_target" == *-apple-darwin ]] || fail 'downloaded runtime target does not match requested target'
+    fi
+    [[ "$(CLINE_NO_AUTO_UPDATE=1 "$state_dir/cline" --runtime-build-epoch)" == "$expected_epoch" ]] || fail 'downloaded runtime build epoch does not match metadata'
+    [[ -f "$state_dir/build-id" ]] || printf '%s\n' "$expected_build" > "$state_dir/build-id"
+    selected="$releases/${release:-local}-$target-$(cat "$state_dir/cline.sha256")"
+    if [[ "$cached" == false ]]; then
+        if [[ -d "$selected" ]]; then
+            [[ -f "$selected/cline" && "$(hash_file "$selected/cline")" == "$(cat "$state_dir/cline.sha256")" ]] || fail 'existing release directory is corrupt; remove it before retrying'
+        else mv "$temporary" "$selected"; temporary=''; fi
+    fi
+    # Stage the link beside the command, so activation is an atomic rename.
+    link_dir=$(mktemp -d "$install_dir/.activate.XXXXXX")
+    ln -s "$selected/cline" "$link_dir/cline"
+    mv -f "$link_dir/cline" "$install_dir/cline"
+    rmdir "$link_dir"
+else
+    if [[ "$cached" == false ]]; then
+        for file in cline cline.sha256 release cline.build-epoch; do mv -f "$temporary/$file" "$install_dir/$file"; done
+    fi
 fi
 if [[ "$modify_path" == true ]]; then
     # Quote paths, including spaces and apostrophes, as shell literals.
@@ -195,5 +296,10 @@ if [[ "$modify_path" == true ]]; then
         if ! grep -Fxq "$line" "$config"; then printf '\n# Cline\n%s\n' "$line" >> "$config"; fi
         printf 'Open a new terminal to use cline.\n' >&2
     fi
+fi
+winner=''
+[[ "$modify_path" == false ]] || winner=$(command -v cline || true)
+if [[ -n "$winner" && "$winner" != "$install_dir/cline" ]]; then
+    printf 'PATH currently selects %s. Open a new terminal and check command -v cline.\n' "$winner" >&2
 fi
 printf '%s\n' "$install_dir/cline"

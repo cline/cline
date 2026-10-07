@@ -140,7 +140,7 @@ fn installed_candidates(shared_dir: &Path) -> Result<Vec<PathBuf>, String> {
             candidates.push(path);
         }
     }
-    candidates.push(shared_dir.join(if cfg!(windows) { "cline.exe" } else { "cline" }));
+    candidates.push(shared_dir.join(if cfg!(windows) { "cline.cmd" } else { "cline" }));
     candidates.retain(|path| path.is_file());
     candidates.dedup();
     Ok(candidates)
@@ -194,8 +194,8 @@ fn install_with_candidates(
             .map_err(|e| format!("runtime identity manifest missing: {e}"))?,
     )
     .map_err(|e| format!("invalid runtime identity manifest: {e}"))?;
-    let cli = shared_dir.join(if cfg!(windows) { "cline.exe" } else { "cline" });
-    // One shared standalone install is upgraded in place. An external install
+    let cli = shared_dir.join(if cfg!(windows) { "cline.cmd" } else { "cline" });
+    // One shared standalone command selects a versioned release. An external install
     // remains owned by its package manager: reuse it or surface incompatibility.
     for candidate in candidates {
         let actual = std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
@@ -236,7 +236,8 @@ fn install_with_candidates(
             .arg("-Target")
             .arg(host_target())
             .arg("-InstallDir")
-            .arg(shared_dir);
+            .arg(shared_dir)
+            .arg("-Managed");
     } else {
         command = Command::new("/bin/bash");
         command
@@ -246,7 +247,8 @@ fn install_with_candidates(
             .arg("--target")
             .arg(host_target())
             .arg("--install-dir")
-            .arg(shared_dir);
+            .arg(shared_dir)
+            .arg("--managed");
     }
     #[cfg(unix)]
     {
@@ -258,6 +260,7 @@ fn install_with_candidates(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     super::hide_console_window(&mut command);
+    command.env("CLINE_INSTALL_BUILD_ID", &identity.build_id);
     command.env(
         "CLINE_INSTALL_BUILD_EPOCH_MS",
         identity.build_epoch_ms.unwrap_or(0).to_string(),
