@@ -1315,16 +1315,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
-			"updateSession",
-			{
-				sessionId,
-				prompt: updates.prompt,
-				metadata: updates.metadata,
-				title: updates.title,
-			},
-		);
-		return { updated: result?.updated === true };
+		const result = await this.invokeOptionalValue<{
+			updated: boolean;
+			metadata?: SessionManifest["metadata"] | null;
+		}>("updateSession", {
+			sessionId,
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			title: updates.title,
+		});
+		const updated = result?.updated === true;
+		if (updated && result.metadata !== undefined) {
+			const active = this.sessions.get(sessionId.trim());
+			if (active) {
+				active.sessionMetadata = result.metadata ?? undefined;
+				if (active.artifacts)
+					active.artifacts.manifest.metadata = active.sessionMetadata;
+			}
+		}
+		return { updated };
 	}
 
 	async updateSessionCompactionState(
@@ -1732,6 +1741,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<AgentResult> {
+		// An abort that arrived between turns targeted a run that had already
+		// ended; only aborts issued from here on belong to this turn.
+		session.aborting = false;
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;
@@ -1932,9 +1944,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		try {
-			const runFn = shouldContinue
-				? () => session.agent.continue(prompt, userImages, userFiles)
-				: () => session.agent.run(prompt, userImages, userFiles);
+			const runFn = () => {
+				const run = shouldContinue
+					? session.agent.continue(prompt, userImages, userFiles)
+					: session.agent.run(prompt, userImages, userFiles);
+				// The agent drops abort() while it has no run in flight, so a Stop
+				// that landed during this turn's preparation (persistence, git
+				// metadata, credential sync) never reached it and the turn would
+				// run to completion behind a UI that already shows it stopped.
+				// Re-issue the abort now that the run exists.
+				if (session.aborting) {
+					session.agent.abort(new Error("Run aborted before it started"));
+				}
+				return run;
+			};
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,

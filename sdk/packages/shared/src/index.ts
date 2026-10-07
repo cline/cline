@@ -294,6 +294,7 @@ export {
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export { toPosixSeparators } from "./parse/path";
 export {
 	getDefaultShell,
 	getPowerShellEdition,
@@ -342,6 +343,11 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
@@ -486,6 +492,7 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
+export { isBunEmbeddedModulePath } from "./runtime/bun-embedded-path";
 export type { ClineClientIdentity } from "./runtime/cline-client-identity";
 export {
 	getClineClientIdentity,
@@ -523,6 +530,10 @@ export {
 	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
 export {
+	ensureLoopbackProxyBypass,
+	LOOPBACK_NO_PROXY_HOSTS,
+} from "./runtime/loopback-proxy-bypass";
+export {
 	disableCurrentDirectoryExecutableSearch,
 	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,
 } from "./runtime/windows-exe-path";
@@ -557,6 +568,7 @@ export {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,

@@ -262,13 +262,15 @@ describe("mcp client request timeout", () => {
 	it("connects a moderately slow server without a configured timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		// The old 1.5s initialize probe killed servers that needed ~2s to answer
-		// (https://github.com/cline/cline/issues/13035), so the default budget
+		// (https://github.com/cline/cline/issues/13035), and the 3s budget that
+		// replaced it still dropped `npx`/`uvx`-launched servers on Windows,
+		// where reaching initialize routinely takes 3-6s. The default budget
 		// must cover them. It deliberately stays small beyond that: initialize
 		// runs on the session.create critical path, so genuinely slow starters
 		// (e.g. JVM-based Oracle SQLcl) opt into patience with an explicit
 		// `timeout` instead of the default stalling every session.
 		const client = await factory(
-			fakeServerRegistration({ delayMs: 0, initDelayMs: 2_000 }),
+			fakeServerRegistration({ delayMs: 0, initDelayMs: 5_000 }),
 		);
 		try {
 			await client.connect();
@@ -576,7 +578,7 @@ describe("default connect budget", () => {
 		// the whole session is torn down (a hung server used to kill the CLI
 		// this way). Keep headroom for the rest of session creation.
 		expect(DEFAULT_MCP_CONNECT_TIMEOUT_MS * 2).toBeLessThanOrEqual(
-			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
+			HUB_DEFAULT_COMMAND_TIMEOUT_MS - 10_000,
 		);
 	});
 

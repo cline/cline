@@ -38,6 +38,16 @@ vi.mock("@cline/shared", async (importOriginal) => ({
 	registerDisposable: registerDisposableSpy,
 }));
 
+const { propagateAttributesSpy } = vi.hoisted(() => ({
+	propagateAttributesSpy: vi.fn(
+		async (_attributes: unknown, callback: () => unknown) => await callback(),
+	),
+}));
+
+vi.mock("@langfuse/tracing", () => ({
+	propagateAttributes: propagateAttributesSpy,
+}));
+
 vi.mock("@langfuse/otel", () => ({
 	LangfuseSpanProcessor: class MockLangfuseSpanProcessor {
 		constructor(config: unknown) {
@@ -98,8 +108,10 @@ vi.mock("@cline/shared/storage", () => ({
 
 import {
 	disposeLangfuseTelemetry,
+	readEnvTraceAttributes,
 	resetLangfuseTelemetryForTests,
 	resolveAiSdkTelemetry,
+	withLangfuseTraceAttributes,
 } from "./langfuse-telemetry";
 
 const genericConfig = {
@@ -121,6 +133,10 @@ describe("langfuse telemetry", () => {
 		vi.stubEnv("CLINE_TRACE_SAMPLE_PERCENT", "");
 		vi.stubEnv("CLINE_TRACE_RECORD_CONTENT", "");
 		vi.stubEnv("OTEL_SERVICE_NAME", "");
+		vi.stubEnv("CLINE_LANGFUSE_ALL_PROVIDERS", "");
+		vi.stubEnv("CLINE_LANGFUSE_TAGS", "");
+		vi.stubEnv("CLINE_LANGFUSE_METADATA", "");
+		vi.stubEnv("LANGFUSE_TRACING_ENVIRONMENT", "");
 	});
 
 	afterEach(() => {
@@ -532,6 +548,157 @@ describe("langfuse telemetry", () => {
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
 			expect(decision.isEnabled).toBe(false);
+		});
+	});
+	describe("BYOK providers (CLINE_LANGFUSE_ALL_PROVIDERS)", () => {
+		it("traces third-party providers through direct credentials when opted in", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_ALL_PROVIDERS", "1");
+
+			const decision = await resolveAiSdkTelemetry("openrouter");
+
+			expect(decision).toEqual({
+				isEnabled: true,
+				integrations: expect.any(Object),
+			});
+			expect(spanProcessorConfigSpy).toHaveBeenCalledWith(genericConfig);
+			expect(integrationOptionsSpy).toHaveBeenCalledWith({
+				tracer: { name: "direct-langfuse-tracer" },
+			});
+		});
+
+		it("stays disabled for third-party providers without direct credentials", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_ALL_PROVIDERS", "true");
+			delete process.env.LANGFUSE_SECRET_KEY;
+
+			await expect(resolveAiSdkTelemetry("openrouter")).resolves.toEqual({
+				isEnabled: false,
+			});
+			expect(spanProcessorConfigSpy).not.toHaveBeenCalled();
+		});
+
+		it("never routes third-party providers through the host relay", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_ALL_PROVIDERS", "yes");
+			getTracerProviderSpy.mockReturnValue({
+				getDelegate: () => ({
+					forceFlush: forceFlushSpy,
+					shutdown: shutdownSpy,
+					_clineOtlpTraceRelay: true,
+				}),
+			});
+
+			const decision = await resolveAiSdkTelemetry("openrouter", "task-a");
+
+			expect(decision.isEnabled).toBe(true);
+			expect(integrationOptionsSpy).toHaveBeenCalledWith({
+				tracer: { name: "direct-langfuse-tracer" },
+			});
+			expect(globalGetTracerSpy).not.toHaveBeenCalled();
+		});
+
+		it("ignores falsy opt-in values", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_ALL_PROVIDERS", "0");
+
+			await expect(resolveAiSdkTelemetry("openrouter")).resolves.toEqual({
+				isEnabled: false,
+			});
+		});
+
+		it("passes LANGFUSE_TRACING_ENVIRONMENT to the direct exporter", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_ALL_PROVIDERS", "1");
+			vi.stubEnv("LANGFUSE_TRACING_ENVIRONMENT", "benchmark");
+
+			await resolveAiSdkTelemetry("openrouter");
+
+			expect(spanProcessorConfigSpy).toHaveBeenCalledWith({
+				...genericConfig,
+				environment: "benchmark",
+			});
+		});
+	});
+
+	describe("env trace attributes", () => {
+		it("reads comma-separated tags and key=value metadata", () => {
+			vi.stubEnv(
+				"CLINE_LANGFUSE_TAGS",
+				" benchmark-run-1, nightly ,benchmark-run-1,",
+			);
+			vi.stubEnv(
+				"CLINE_LANGFUSE_METADATA",
+				"suite=swe-bench, commit=abc123 ,bad,=x",
+			);
+
+			expect(readEnvTraceAttributes()).toEqual({
+				tags: ["benchmark-run-1", "nightly"],
+				metadata: { suite: "swe-bench", commit: "abc123" },
+			});
+		});
+
+		it("reads JSON metadata and stringifies non-string values", () => {
+			vi.stubEnv(
+				"CLINE_LANGFUSE_METADATA",
+				JSON.stringify({ suite: "swe-bench", attempt: 2, skip: null }),
+			);
+
+			expect(readEnvTraceAttributes()).toEqual({
+				metadata: { suite: "swe-bench", attempt: "2" },
+			});
+		});
+
+		it("returns nothing for malformed JSON metadata", () => {
+			vi.stubEnv("CLINE_LANGFUSE_METADATA", "{not json");
+
+			expect(readEnvTraceAttributes()).toEqual({});
+		});
+
+		it("merges env tags and metadata under the call's own attributes", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_TAGS", "benchmark-run-1");
+			vi.stubEnv("CLINE_LANGFUSE_METADATA", "suite=swe-bench,runId=env-run");
+
+			await withLangfuseTraceAttributes(
+				true,
+				{
+					sessionId: "session-1",
+					tags: ["cli", "benchmark-run-1"],
+					metadata: { runId: "run-1" },
+				},
+				async () => "ok",
+			);
+
+			expect(propagateAttributesSpy).toHaveBeenCalledWith(
+				{
+					sessionId: "session-1",
+					tags: ["benchmark-run-1", "cli"],
+					metadata: { suite: "swe-bench", runId: "run-1" },
+				},
+				expect.any(Function),
+			);
+		});
+
+		it("propagates env-only attributes when the call supplies none", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_TAGS", "benchmark-run-1");
+
+			await withLangfuseTraceAttributes(true, {}, async () => "ok");
+
+			expect(propagateAttributesSpy).toHaveBeenCalledWith(
+				{ tags: ["benchmark-run-1"] },
+				expect.any(Function),
+			);
+		});
+
+		it("skips propagation entirely when nothing is set", async () => {
+			await expect(
+				withLangfuseTraceAttributes(true, { metadata: {} }, async () => "ok"),
+			).resolves.toBe("ok");
+
+			expect(propagateAttributesSpy).not.toHaveBeenCalled();
+		});
+
+		it("skips propagation when disabled", async () => {
+			vi.stubEnv("CLINE_LANGFUSE_TAGS", "benchmark-run-1");
+
+			await withLangfuseTraceAttributes(false, {}, async () => "ok");
+
+			expect(propagateAttributesSpy).not.toHaveBeenCalled();
 		});
 	});
 });

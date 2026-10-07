@@ -22,17 +22,10 @@ export async function createWorkspaceChatCommandHost(input: {
 	const service = createPluginCommandService({
 		cwd: input.cwd,
 		workspacePath: input.workspaceRoot?.trim() || input.cwd,
+		logger: input.logger,
 	});
-	let pluginSlashCommands: PluginSlashCommand[];
-	try {
-		pluginSlashCommands = await service.listCommands();
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		input.logger?.log(
-			`plugin command loading failed; continuing without plugin commands (${message})`,
-		);
-		return { host: chatCommandHost, pluginSlashCommands: [] };
-	}
+	// Load failures are logged by the service and yield no commands.
+	const pluginSlashCommands = await service.listCommands();
 	if (pluginSlashCommands.length === 0) {
 		await service.shutdown();
 		return { host: chatCommandHost, pluginSlashCommands: [] };

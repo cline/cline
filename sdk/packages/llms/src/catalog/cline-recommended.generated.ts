@@ -5,6 +5,18 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "anthropic/claude-sonnet-5.5",
+				name: "claude-sonnet-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
+				id: "anthropic/claude-opus-5.5",
+				name: "claude-opus-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "spacexai/grok-4.7",
 				name: "grok-4.7",
 				description: "",
@@ -17,31 +29,37 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: ["NEW"],
 			},
 			{
+				id: "openai/gpt-6.1-sol",
+				name: "gpt-6.1-sol",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "moonshotai/kimi-k3",
 				name: "kimi-k3",
 				description:
 					"Kimi K3 is Moonshot AI’s new flagship MoE model for agentic coding",
 				tags: ["NEW"],
 			},
-			{
-				id: "anthropic/claude-opus-5",
-				name: "claude-opus-5",
-				description: "",
-				tags: ["NEW"],
-			},
 		],
 		free: [
+			{
+				id: "cline-free/deepseek-v4.1-flash",
+				name: "Deepseek-v4.1-Flash",
+				description: "Fast and efficient with 1M context window ",
+				tags: [],
+			},
+			{
+				id: "stealth/space-bunny-alpha",
+				name: "space-bunny-alpha",
+				description: "Blazing-fast inference with 1M context",
+				tags: [],
+			},
 			{
 				id: "cline-free/mimo-v2.6-flash",
 				name: "Mimo V2.6 Flash",
 				description:
 					"Mixture-of-Experts architecture with 309B total parameters",
-				tags: [],
-			},
-			{
-				id: "cline-free/deepseek-v4.1-flash",
-				name: "Deepseek-v4.1-Flash",
-				description: "Fast and efficient with 1M context window ",
 				tags: [],
 			},
 			{
@@ -53,6 +71,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			},
 		],
 		clinePass: [
+			{
+				id: "cline-pass/deepseek-v4.1-flash",
+				name: "cline-pass/deepseek-v4.1-flash",
+				description: "Smarter and more efficient, with 1M context window",
+				tags: [],
+			},
 			{
 				id: "cline-pass/mimo-v2.6-flash",
 				name: "cline-pass/mimo-v2.6-flash",
@@ -72,21 +96,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.8-max",
-				name: "cline-pass/qwen3.8-max",
-				description: "Qwen's New SOTA coding model",
-				tags: [],
-			},
-			{
 				id: "cline-pass/deepseek-v4-pro",
 				name: "cline-pass/deepseek-v4-pro",
 				description: "Frontier reasoning and coding with 1M context window",
 				tags: [],
 			},
 			{
-				id: "cline-pass/deepseek-v4.1-flash",
-				name: "cline-pass/deepseek-v4.1-flash",
-				description: "Smarter and more efficient, with 1M context window",
+				id: "cline-pass/qwen3.8-max",
+				name: "cline-pass/qwen3.8-max",
+				description: "Qwen's New SOTA coding model",
 				tags: [],
 			},
 			{
@@ -109,9 +127,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
+				id: "cline-pass/qwen3.7-max",
+				name: "cline-pass/qwen3.7-max",
+				description: "Flagship agent model with 1M context window",
 				tags: [],
 			},
 			{
@@ -121,9 +139,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-max",
-				name: "cline-pass/qwen3.7-max",
-				description: "Flagship agent model with 1M context window",
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{

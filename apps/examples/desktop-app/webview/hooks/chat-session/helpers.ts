@@ -1,11 +1,8 @@
 import {
-	getProviderCollectionSync,
-	resolveProviderLocalCli,
-} from "@cline/llms/browser";
-import {
 	createSessionId,
 	type GeneratedMedia,
 	isGeneratedMedia,
+	type ProviderAuthInfo,
 } from "@cline/shared/browser";
 import type {
 	ChatMessage,
@@ -205,6 +202,16 @@ export function mapCloudRuntimeStatus(
 	}
 }
 
+function matchingProviderAuth(
+	providerId: string,
+	auth: ProviderAuthInfo | undefined,
+): ProviderAuthInfo | undefined {
+	return auth &&
+		normalizeProviderId(auth.providerId) === normalizeProviderId(providerId)
+		? auth
+		: undefined;
+}
+
 export function resolveCredentialError(
 	config: ChatSessionConfig,
 	options?: { hasActiveSession?: boolean },
@@ -238,9 +245,11 @@ export function resolveCredentialError(
 	}
 	// OAuth and local-auth providers (Claude Code, Codex CLI) keep their
 	// credentials outside the webview config and never read an API key.
-	const capabilities = getProviderCollectionSync(
-		normalizeProviderId(providerId),
-	)?.provider.capabilities;
+	const auth = matchingProviderAuth(config.provider, config.providerAuth);
+	// Missing or stale catalog facts mean auth is unknown. Let the host
+	// validate credentials instead of assuming this provider uses an API key.
+	if (!auth) return null;
+	const capabilities = auth.capabilities;
 	if (capabilities?.includes("oauth") || capabilities?.includes("local-auth")) {
 		return null;
 	}
@@ -253,19 +262,26 @@ export function resolveCredentialError(
 /**
  * Where to send the user after a credential-looking turn failure. Local-auth
  * providers (Claude Code, Codex CLI, OpenCode) borrow their login from a CLI
- * on this machine, so Settings → API Providers has nothing to fix — e.g. Claude
+ * on this machine, so Settings → Providers has nothing to fix — e.g. Claude
  * Code's "OAuth session expired and could not be refreshed" needs a fresh
  * sign-in in the `claude` CLI itself.
  */
-export function resolveCredentialFailureHint(providerId: string): string {
-	const cli = resolveProviderLocalCli(providerId);
+export function resolveCredentialFailureHint(
+	providerId: string,
+	auth?: ProviderAuthInfo,
+): string {
+	const providerAuth = matchingProviderAuth(providerId, auth);
+	const cli = providerAuth?.localCli;
 	if (cli) {
 		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
 	}
 	if (normalizeProviderId(providerId) === "cline") {
 		return "Sign in to Cline again in Settings → Account, then try again.";
 	}
-	return "Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
+	if (!providerAuth) {
+		return "Sign in again using your provider's authentication method, then try again.";
+	}
+	return "Check your model connection in Settings → Providers (or sign in with Cline), then try again.";
 }
 
 /**
@@ -283,28 +299,34 @@ export function isCredentialFailure(description: string): boolean {
 /**
  * The in-app action that fixes a credential failure for `providerId`, or null
  * when there is none to offer (local-auth providers are fixed in their CLI).
- * Cline goes to the Account page: Settings → API Providers keeps reporting a
+ * Cline goes to the Account page: Settings → Providers keeps reporting a
  * stale OAuth token as "signed in", while the Account page verifies it against
  * the API and offers to sign in again.
  */
 export function resolveCredentialFailureAction(
 	providerId: string,
+	auth?: ProviderAuthInfo,
 ): { label: string; target: "account" | "models" } | null {
-	if (resolveProviderLocalCli(providerId)) {
+	if (normalizeProviderId(providerId) === "cline") {
+		return { label: "Sign in to Cline", target: "account" };
+	}
+	const providerAuth = matchingProviderAuth(providerId, auth);
+	if (!providerAuth || providerAuth.localCli) {
 		return null;
 	}
-	return normalizeProviderId(providerId) === "cline"
-		? { label: "Sign in to Cline", target: "account" }
-		: { label: "Open API providers", target: "models" };
+	return { label: "Open API providers", target: "models" };
 }
 
-/** Message meta that makes the chat render the credential fix action. */
+/** Keep auth facts for error rendering even when there is no in-app fix action. */
 export function credentialFailureMeta(
 	providerId: string,
+	auth?: ProviderAuthInfo,
 ): ChatMessage["meta"] | undefined {
-	return resolveCredentialFailureAction(providerId)
-		? { reason: "credentials", providerId }
-		: undefined;
+	return {
+		reason: "credentials",
+		providerId,
+		providerAuth: matchingProviderAuth(providerId, auth),
+	};
 }
 
 function mapHistoryStatusToChatStatus(

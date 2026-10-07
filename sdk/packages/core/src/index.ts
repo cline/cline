@@ -523,6 +523,7 @@ export {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
+	loadRulesForSystemPromptFromRecords,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
@@ -534,6 +535,7 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
 	disableConnectorAutostart,
@@ -639,6 +641,15 @@ export {
 	uninstallMcpServer,
 } from "./services/mcp-install";
 export type {
+	PluginCommandResult,
+	PluginCommandService,
+	PluginSlashCommand,
+} from "./services/plugin-commands";
+export {
+	createPluginCommandService,
+	normalizePluginCommandName,
+} from "./services/plugin-commands";
+export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
 	PluginInstallResult,
@@ -662,15 +673,6 @@ export {
 	removePluginMcpServersFromSettings,
 	syncPluginMcpServersToSettings,
 } from "./services/plugin-mcp-settings";
-export type {
-	PluginCommandResult,
-	PluginCommandService,
-	PluginSlashCommand,
-} from "./services/plugin-commands";
-export {
-	createPluginCommandService,
-	normalizePluginCommandName,
-} from "./services/plugin-commands";
 export type {
 	ListPluginToolsResult,
 	PluginContributionSummary,
@@ -861,6 +863,7 @@ export {
 	projectSessionMessagesForDisplay,
 	type SessionDisplayMessage,
 } from "./session/display-messages";
+export { createForkSessionMetadata } from "./session/fork-metadata";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
@@ -954,6 +957,8 @@ export {
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
 	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	computePatchChanges,
