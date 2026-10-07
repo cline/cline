@@ -658,9 +658,23 @@ export async function importPluginModule(
 	// plugins). Pin `interopDefault: true` going into babel by overriding it
 	// in the transform call, while keeping `interopDefault: false` on the jiti
 	// instance so the loader sees raw exports.
+	//
+	// @babel/core also installs a process-wide `Error.prepareStackTrace` on its
+	// first transform. Under Bun that hook makes `Error.captureStackTrace`
+	// throw ("First argument must be an Error object") for the non-Error
+	// receivers some dependencies use (follow-redirects via axios), so any
+	// later `import "@cline/core"` in the same sandbox fails whenever the
+	// transform cache was cold. Restore the previous hook after each call.
 	const baseBabelTransform = loadJitiBabelTransform();
 	const babelTransform: JitiTransform | undefined = baseBabelTransform
-		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
+		? (opts) => {
+				const prepareStackTrace = Error.prepareStackTrace;
+				try {
+					return baseBabelTransform({ ...opts, interopDefault: true });
+				} finally {
+					Error.prepareStackTrace = prepareStackTrace;
+				}
+			}
 		: undefined;
 	const jiti = createJiti(pluginPath, {
 		alias: sortedAliases,
