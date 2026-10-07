@@ -10,7 +10,10 @@ const historyMocks = vi.hoisted(() => ({
 
 vi.mock("./history", () => historyMocks);
 
-import { registerHistoryCommand } from "./history-command";
+import {
+	HISTORY_PAGE_DEPRECATION,
+	registerHistoryCommand,
+} from "./history-command";
 
 function createHarness(isInteractiveTTY: boolean) {
 	const program = new Command()
@@ -80,13 +83,14 @@ describe("registerHistoryCommand", () => {
 		expect(setExitCode).toHaveBeenCalledWith(0);
 	});
 
-	it("keeps accepting --page without listing it in help", async () => {
+	it("warns that --page is ignored, hides it from help, and still lists history", async () => {
 		const { program, io, setExitCode } = createHarness(false);
 		const history = program.commands.find((cmd) => cmd.name() === "history");
 
 		await program.parseAsync(["history", "--page", "2"], { from: "user" });
 
 		expect(history?.helpInformation()).not.toContain("--page");
+		expect(io.writeErr).toHaveBeenCalledWith(HISTORY_PAGE_DEPRECATION);
 		expect(historyMocks.runHistoryList).toHaveBeenCalledWith({
 			limit: 50,
 			outputMode: "text",
