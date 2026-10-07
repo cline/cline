@@ -2,8 +2,7 @@
 // cline history - CLI tests
 //
 // Covers:
-//   - `cline history --limit X`  - pagination limit
-//   - `cline history --page N`   - page selection
+//   - `cline history --limit X`  - result limit
 //   - `cline history --config`   - custom config directory
 //   - `cline history --help`     - help page
 // ---------------------------------------------------------------------------
@@ -21,7 +20,7 @@ test.describe("cline history --help", () => {
 	});
 
 	test("shows history help page with all flags", async ({ terminal }) => {
-		await expectVisible(terminal, ["Usage:", "--limit", "--page", "--config"]);
+		await expectVisible(terminal, ["Usage:", "--limit", "--config"]);
 	});
 });
 
@@ -36,19 +35,7 @@ test.describe("cline history --limit", () => {
 		terminal,
 	}) => {
 		// The default config has 2 tasks in taskHistory.json; with limit=1
-		// we should see pagination or only 1 task entry per page
-		await expectVisible(terminal, /history|task/i);
-	});
-});
-
-test.describe("cline history --page", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["history", "--page", "1"] },
-		...TERMINAL_WIDE,
-		env: clineEnv("default"),
-	});
-
-	test("shows history for the specified page", async ({ terminal }) => {
+		// we should see only 1 task entry
 		await expectVisible(terminal, /history|task/i);
 	});
 });

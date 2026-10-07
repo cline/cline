@@ -126,6 +126,39 @@ describe("createHubCommand", () => {
 		};
 	}
 
+	it.each([
+		"ensure",
+		"start",
+		"upgrade",
+	])("accepts daemon options before or after %s", async (subcommand) => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockEnsureDetachedHubServer.mockResolvedValue({
+			url: "ws://localhost:9090/custom",
+		});
+		const options = [
+			"--cwd",
+			"/tmp/workspace",
+			"--host",
+			"localhost",
+			"--port",
+			"9090",
+			"--pathname",
+			"/custom",
+		];
+		for (const args of [
+			[...options, subcommand],
+			[subcommand, ...options],
+		]) {
+			const { cmd, exitCode } = createCommand();
+			await cmd.parseAsync(args, { from: "user" });
+			expect(exitCode()).toBe(0);
+			expect(mockEnsureDetachedHubServer).toHaveBeenLastCalledWith(
+				"/tmp/workspace",
+				{ host: "localhost", port: 9090, pathname: "/custom" },
+			);
+		}
+	});
+
 	it("sends an un-drain request with drain --off", async () => {
 		mockReadHubDiscovery.mockResolvedValue({
 			url: "ws://127.0.0.1:25463/hub",
