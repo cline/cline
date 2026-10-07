@@ -383,6 +383,30 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
 	});
 
+	it("still reports other stream error parts as error", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Partial" },
+				{ type: "error", error: new Error("Provider returned error") },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "Provider returned error",
+		});
+	});
+
 	beforeEach(() => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
