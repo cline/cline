@@ -100,11 +100,27 @@ for ((attempt=0; ; attempt++)); do
         [[ "$previous" == "$pid $(TZ=UTC ps -p "$pid" -o lstart= 2>/dev/null)" ]] || stale=true
     elif [[ -n "$(find "$lock" -prune -mmin +1 2>/dev/null)" ]]; then stale=true
     fi
-    # Only one contender can reclaim this abandoned lock directory.
-    if [[ "$stale" == true ]] && mkdir "$lock/reclaim" 2>/dev/null; then
-        abandoned="$install_dir/.abandoned-lock.$$"
-        if mv "$lock" "$abandoned" 2>/dev/null; then rm -rf "$abandoned"; fi
-        continue
+    # Claim recovery inside a specific directory, then recheck its owner.
+    # A contender that observed an older lock must never reclaim its successor.
+    if [[ "$stale" == true ]]; then
+        (
+            cd "$lock" 2>/dev/null || exit 0
+            aged=$(find . -prune -mmin +1 2>/dev/null || true)
+            mkdir reclaim 2>/dev/null || exit 0
+            current=$(cat owner 2>/dev/null || true)
+            current_pid=${current%% *}
+            abandoned=false
+            if [[ "$current_pid" =~ ^[0-9]+$ ]]; then
+                [[ "$current" == "$current_pid $(TZ=UTC ps -p "$current_pid" -o lstart= 2>/dev/null)" ]] || abandoned=true
+            elif [[ -n "$aged" ]]; then abandoned=true
+            fi
+            if [[ "$current" == "$previous" && "$abandoned" == true && "$lock" -ef . ]]; then
+                destination="$install_dir/.abandoned-lock.$$"
+                if mv "$lock" "$destination" 2>/dev/null; then rm -rf "$destination"; fi
+            else
+                rmdir reclaim 2>/dev/null || true
+            fi
+        )
     fi
     [[ $attempt -lt 240 ]] || fail "another installer holds $lock"
     sleep 0.5

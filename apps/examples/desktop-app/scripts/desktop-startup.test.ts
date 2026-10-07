@@ -157,10 +157,13 @@ test("installed CLI loads a TypeScript SDK plugin with no Node and a cold transf
 			join(directory, "smoke.ts"),
 			`
 import { createTool } from "@cline/core";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import { getAllProviders } from "@cline/llms/browser";
 import { writeFileSync } from "node:fs";
 export default {
  name: "embedded-smoke", manifest: { capabilities: ["tools"] },
  async setup(api) {
+  if (typeof CLINE_DEFAULT_MODEL_ID !== "string" || typeof getAllProviders !== "function") throw new Error("Missing browser SDK exports");
   const tool = createTool({ name: "embedded_ping", description: "Packaged SDK tool", inputSchema: { type: "object", properties: {} }, execute: async () => ({ pong: true, execPath: process.execPath, bunFlag: process.env.BUN_BE_BUN ?? null }) });
   writeFileSync(${JSON.stringify(marker)}, JSON.stringify(await tool.execute({}, {})));
   api.registerTool(tool);

@@ -59,13 +59,14 @@ async function buildResources() {
 const PLUGIN_HOST_SDK_SUBPATHS: Record<string, string[]> = {
 	shared: [
 		".",
+		"./browser",
 		"./storage",
 		"./db",
 		"./node",
 		"./automation",
 		"./remote-config",
 	],
-	llms: ["."],
+	llms: [".", "./browser"],
 	agents: ["."],
 	core: [".", "./hub", "./telemetry", "./cloud"],
 	sdk: ["."],

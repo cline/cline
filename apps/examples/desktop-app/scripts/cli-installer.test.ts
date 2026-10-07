@@ -132,7 +132,10 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			expect(result.trim()).toBe(native);
 			expect(existsSync(join(root, ".cline", "bin", "cline"))).toBe(false);
 			expect(existsSync(join(root, "requests"))).toBe(false);
-			writeFileSync(native, "#!/bin/sh\necho incompatible-sdk\n");
+			writeFileSync(
+				wrapper,
+				report.replace("echo sdk-fixture", "echo incompatible-sdk"),
+			);
 			const mismatch = spawnSync(
 				"bash",
 				[script, "--binary", native, "--target", target, "--no-modify-path"],
@@ -188,6 +191,39 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			expect(result.stderr).toContain("no downgrade");
 			expect(readFileSync(join(directory, "cline"))).toEqual(before);
 			expect(existsSync(lock)).toBe(false);
+		}));
+	test("preserves a live successor when stale-lock recovery races another installer", () =>
+		fixture((root, env) => {
+			const directory = join(root, "runtime");
+			const lock = join(directory, ".install-lock");
+			mkdirSync(lock, { recursive: true });
+			writeFileSync(join(lock, "owner"), "99999999 dead-process");
+			const owner = `${process.pid} ${execFileSync("ps", ["-p", String(process.pid), "-o", "lstart="], { env: { ...env, TZ: "UTC" }, encoding: "utf8" }).trimEnd()}`;
+			const commands = join(root, "commands");
+			writeFileSync(
+				join(commands, "ps"),
+				`#!/bin/bash
+if [[ "$*" == "-p 99999999 -o lstart=" ]]; then
+ /bin/mv "$TEST_LOCK" "$TEST_LOCK.old"
+ /bin/mkdir "$TEST_LOCK"
+ printf '%s\\n' "$TEST_OWNER" > "$TEST_LOCK/owner"
+ exit 1
+fi
+exec /bin/ps "$@"
+`,
+			);
+			// End the wait after checking recovery; the live owner must retain its lock.
+			writeFileSync(join(commands, "sleep"), "#!/bin/sh\nexit 1\n");
+			chmodSync(join(commands, "ps"), 0o755);
+			chmodSync(join(commands, "sleep"), 0o755);
+			const result = spawnSync("bash", args(directory), {
+				env: { ...env, TEST_LOCK: lock, TEST_OWNER: owner },
+				encoding: "utf8",
+			});
+			expect(result.status).not.toBe(0);
+			expect(readFileSync(join(lock, "owner"), "utf8").trimEnd()).toBe(owner);
+			expect(existsSync(join(lock, "reclaim"))).toBe(false);
+			expect(existsSync(join(directory, "cline"))).toBe(false);
 		}));
 	test("rejects an external CLI for a different requested target", () =>
 		fixture((root, env) => {
