@@ -129,10 +129,12 @@ const cline = await ClineCore.create({
       // request.input is the model's raw tool input, so check its shape first.
       const input = request.input as { commands?: unknown; files?: unknown }
 
-      // Auto-approve a fixed set of read-only commands: { commands: string[] }.
-      // Match whole commands; flags such as `git diff --output=<file>` can write files.
+      // Auto-approve a fixed set of commands that only read: { commands: string[] }.
+      // Match whole commands, because flags can change what a command does.
+      // Git can also run programs named in a repository's config (for example
+      // core.fsmonitor), so approve Git commands only in repositories you trust.
       if (request.toolName === "run_commands" && Array.isArray(input.commands)) {
-        const safeCommands = new Set(["ls", "git status", "git diff", "git log --oneline -20"])
+        const safeCommands = new Set(["ls", "git status", "git log --oneline -20"])
         if (input.commands.every((cmd) => typeof cmd === "string" && safeCommands.has(cmd.trim()))) {
           return { approved: true }
         }

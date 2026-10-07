@@ -22,7 +22,7 @@ When running through `ClineCore`, these built-ins are available:
 | `ask_question` | Ask the user for input |
 | `submit_and_exit` | Submit a final answer and stop |
 
-A session never offers both `editor` and `apply_patch`. In Act mode, GPT and Codex models, and every model on the OpenAI (`openai-native`) provider, get `apply_patch`; other models get `editor`. Plan mode offers neither.
+A session offers `editor` or `apply_patch`, never both. By default, Act mode offers `apply_patch` to GPT and Codex models and to every model on the OpenAI (`openai-native`) provider, and `editor` to other models; Plan mode offers neither. SDK callers can replace these defaults with the `toolRoutingRules` session option.
 
 <Note>
 `Agent` from `@cline/agents` does not include built-ins by default. You provide tools explicitly.
