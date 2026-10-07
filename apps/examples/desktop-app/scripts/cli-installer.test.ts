@@ -309,7 +309,7 @@ $ErrorActionPreference = 'Stop'
 function global:Get-Command {
     param($Name, $ErrorAction)
     if ($Name -eq 'cline') { [PSCustomObject]@{ Source = $env:EXISTING_CLI } }
-    else { Microsoft.PowerShell.CoreGet-Command -Name $Name -ErrorAction $ErrorAction }
+    else { Microsoft.PowerShell.Core\\Get-Command -Name $Name -ErrorAction $ErrorAction }
 }
 function global:Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec) [PSCustomObject]@{ Content = 'sdk-fixture' } }
 & $env:INSTALLER_SCRIPT -Release desktop-v0.0.43 -NoModifyPath
