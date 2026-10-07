@@ -9,6 +9,7 @@ import {
 	resolveGeneratedProviderIdForModelsDevKey,
 } from "../providers/provider-keys";
 import {
+	fetchClineModelLimits,
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
@@ -543,17 +544,19 @@ export async function fetchLiveProviderModels(
 	options: { includeClineCloudModels?: boolean } = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
-	const [providerModels, clineRecommendedPayload] = await Promise.all([
-		fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
-			() => emptyProviderModels,
-		),
-		fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
-	]);
+	const [providerModels, clineRecommendedPayload, clineModelLimits] =
+		await Promise.all([
+			fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
+				() => emptyProviderModels,
+			),
+			fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
+			fetchClineModelLimits(fetcher).catch(() => ({})),
+		]);
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
 				providerModels.openrouter ?? {},
-				options,
+				{ ...options, clineModelLimits },
 			)
 		: {};
 

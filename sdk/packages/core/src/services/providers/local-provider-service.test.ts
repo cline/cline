@@ -145,8 +145,8 @@ describe("live provider model loading", () => {
 		expect(
 			fetchMock.mock.calls.filter(([url]) => url.includes("models.dev")),
 		).toHaveLength(1);
-		// One shared models.dev request plus the Cline recommendation feed.
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// One shared models.dev request plus the Cline recommendation and model feeds.
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
 	it("keeps explicit model overrides above live metadata", async () => {
@@ -925,9 +925,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline");
 
-		// models.dev and the recommended feed populate the live catalog; the
-		// recommended feed is fetched once more for the featured-tier overlay.
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// models.dev and the Cline recommended and model feeds populate the live
+		// catalog; the recommended feed is fetched once more for the featured-tier
+		// overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
 			id: liveModelId,
 			name: "Live Cline Model",
@@ -986,10 +987,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		// models.dev, the recommended-models feed via the live catalog, and
-		// the recommended-models feed again for the featured-tier overlay
+		// models.dev, the Cline recommended and model feeds via the live catalog,
+		// and the recommended-models feed again for the featured-tier overlay
 		// (separately cached; both caches are cold here).
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -1042,7 +1043,7 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			loadLatest: true,
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(models).toContainEqual(
 			expect.objectContaining({
 				id: "cline-cloud/claude-sonnet-4.6",
@@ -1087,10 +1088,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		// models.dev, the recommended-models feed via the live catalog, and
-		// the recommended-models feed again for the featured-tier overlay
+		// models.dev, the Cline recommended and model feeds via the live catalog,
+		// and the recommended-models feed again for the featured-tier overlay
 		// (separately cached; both caches are cold here).
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);

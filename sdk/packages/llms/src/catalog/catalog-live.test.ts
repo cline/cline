@@ -590,6 +590,43 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("takes limits from the Cline catalog for recommended models missing from OpenRouter", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				free: [{ id: "stealth/bunny" }, { id: "cline-free/solar" }],
+				clinePass: [{ id: "cline-pass/unlisted" }],
+			},
+			{},
+			{
+				clineModelLimits: {
+					"stealth/bunny": {
+						contextWindow: 1_000_000,
+						maxInputTokens: 1_000_000,
+						maxTokens: 65_536,
+					},
+					"upstage/solar": { contextWindow: 524_288, maxInputTokens: 524_288 },
+				},
+			},
+		);
+
+		expect(result.cline?.["stealth/bunny"]).toMatchObject({
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+			maxTokens: 65_536,
+			capabilities: ["tools", "reasoning", "temperature"],
+		});
+		expect(result.cline?.["cline-free/solar"]).toMatchObject({
+			contextWindow: 524_288,
+			maxInputTokens: 524_288,
+			maxTokens: 8_192,
+		});
+		expect(result["cline-pass"]?.["cline-pass/unlisted"]).toMatchObject({
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			maxTokens: 8_192,
+		});
+	});
+
 	it("returns no ClinePass models when clinePass is empty or missing", () => {
 		expect(normalizeClineRecommendedProviderModels({}, {})).toEqual({});
 		expect(
@@ -1180,6 +1217,50 @@ describe("models-dev-catalog", () => {
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
+	});
+
+	it("fills recommended model limits from the Cline models endpoint", async () => {
+		const fetcher = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return { ok: true, json: async () => ({}) };
+			}
+			if (url.endsWith("/api/v1/ai/cline/models")) {
+				return {
+					ok: true,
+					json: async () => ({
+						data: [
+							{
+								id: "stealth/bunny",
+								context_length: 1_000_000,
+								top_provider: { max_completion_tokens: 65_536 },
+							},
+							{ id: "no-limits", context_length: 0 },
+						],
+					}),
+				};
+			}
+			return {
+				ok: true,
+				json: async () => ({ free: [{ id: "stealth/bunny" }] }),
+			};
+		});
+
+		const result = await fetchLiveProviderModels(
+			"https://models.dev/api.json",
+			fetcher as unknown as typeof fetch,
+		);
+
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://api.cline.bot/api/v1/ai/cline/models",
+			expect.objectContaining({
+				headers: expect.objectContaining({ "X-CLIENT-TYPE": "cline-sdk" }),
+			}),
+		);
+		expect(result.cline?.["stealth/bunny"]).toMatchObject({
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+			maxTokens: 65_536,
 		});
 	});
 

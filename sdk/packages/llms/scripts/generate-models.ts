@@ -5,6 +5,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ModelInfo } from "@cline/shared";
 import {
+	fetchClineModelLimits,
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "../src/catalog/catalog-cline-recommended";
@@ -134,11 +135,13 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	Object.assign(providerModels, modelsDevResult.providerModels);
 	providerSpecs = modelsDevResult.providerSpecs;
 
+	const clineModelLimits = await fetchClineModelLimits(fetch).catch(() => ({}));
 	Object.assign(
 		providerModels,
 		normalizeClineRecommendedProviderModels(
 			clineRecommendedPayloadResult,
 			providerModels.openrouter || {},
+			{ clineModelLimits },
 		),
 	);
 

@@ -67,10 +67,10 @@ describe("live catalog request bounds", () => {
 		vi.stubGlobal("fetch", fetchMock);
 		await getLiveModelsCatalog({ cacheTtlMs: 100 });
 		await getLiveModelsCatalog({ cacheTtlMs: 100 });
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		now.mockReturnValue(1_101);
 		await getLiveModelsCatalog({ cacheTtlMs: 100 });
-		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(fetchMock).toHaveBeenCalledTimes(6);
 	});
 });
 
@@ -273,7 +273,7 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject(
 			{
 				id: "cline-pass/live-pass-model",
@@ -419,7 +419,7 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(resolved?.knownModels?.["cline-free/live-free-model"]).toMatchObject(
 			{
 				id: "cline-free/live-free-model",
@@ -467,7 +467,7 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name).toBe(
 			"MiMo-V2.5-Pro",
 		);

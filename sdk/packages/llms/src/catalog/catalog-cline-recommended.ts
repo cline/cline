@@ -26,6 +26,11 @@ type ModelCapabilities = Pick<
 	| "pricing"
 >;
 
+export type ClineModelLimits = Pick<
+	ModelInfo,
+	"contextWindow" | "maxInputTokens" | "maxTokens"
+>;
+
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const CLINE_PROVIDER_ID = "cline";
 
@@ -45,14 +50,16 @@ const CLINE_PASS_MODEL_DEFAULTS = {
 function findORModelCapabilities(
 	entry: ClineRecommendedModelEntry,
 	openRouterModels: Record<string, ModelInfo>,
+	clineModelLimits: Record<string, ClineModelLimits>,
 ): ModelCapabilities {
-	if (!openRouterModels) {
-		return CLINE_PASS_MODEL_DEFAULTS;
-	}
-
 	const modelSlug = entry.id.split("/").at(-1) ?? entry.id;
 
-	return openRouterModels[modelSlug] || CLINE_PASS_MODEL_DEFAULTS;
+	return (
+		openRouterModels[modelSlug] ?? {
+			...CLINE_PASS_MODEL_DEFAULTS,
+			...(clineModelLimits[entry.id] ?? clineModelLimits[modelSlug]),
+		}
+	);
 }
 
 // Cline-Pass models have only the model name (and not the lab),
@@ -74,15 +81,29 @@ function buildModelsNameMap(
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
 	openRouterModels: Record<string, ModelInfo>,
-	options: { includeClineCloudModels?: boolean } = {},
+	options: {
+		includeClineCloudModels?: boolean;
+		clineModelLimits?: Record<string, ClineModelLimits>;
+	} = {},
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	const models: Record<string, ModelInfo> = {};
 	const clineModels: Record<string, ModelInfo> = {};
 	const openRouterModelsByName = buildModelsNameMap(openRouterModels);
+	// Recommended ids use Cline namespaces (cline-free/..., cline-pass/...), so
+	// also index the Cline catalog by slug; exact ids still win.
+	const clineModelLimits: Record<string, ClineModelLimits> = {};
+	for (const [id, limits] of Object.entries(options.clineModelLimits ?? {})) {
+		clineModelLimits[id.split("/").at(-1) ?? id] = limits;
+	}
+	Object.assign(clineModelLimits, options.clineModelLimits);
 
 	clinePass.forEach((entry) => {
-		const capabilities = findORModelCapabilities(entry, openRouterModelsByName);
+		const capabilities = findORModelCapabilities(
+			entry,
+			openRouterModelsByName,
+			clineModelLimits,
+		);
 
 		models[entry.id] = {
 			// We should use the OR name, unless there is not one (like when using defaults)
@@ -100,7 +121,7 @@ export function normalizeClineRecommendedProviderModels(
 	) => {
 		const capabilities =
 			openRouterModels?.[entry.id] ??
-			findORModelCapabilities(entry, openRouterModelsByName);
+			findORModelCapabilities(entry, openRouterModelsByName, clineModelLimits);
 		// The recommended-models endpoint only sends slug-like names (e.g.
 		// "deepseek-v4-flash"), so prefer the OpenRouter catalog's display name
 		// for every free entry. Without this, the free overlay overwrites the
@@ -168,6 +189,52 @@ export async function fetchClineRecommendedModelsPayload(
 	}
 
 	return (await response.json()) as ClineRecommendedModelsPayload;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isInteger(value) && value > 0
+		? value
+		: undefined;
+}
+
+/**
+ * Token limits from Cline's OpenRouter-compatible model list. Stealth and
+ * newly launched models served by Cline are often missing from models.dev.
+ */
+export async function fetchClineModelLimits(
+	fetcher: typeof fetch = fetch,
+): Promise<Record<string, ClineModelLimits>> {
+	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/models`;
+	const response = await fetcher(url, { headers: buildClineClientHeaders() });
+	if (!response.ok) {
+		throw new Error(
+			`Failed to load Cline models from ${url}: HTTP ${response.status}`,
+		);
+	}
+
+	const payload = (await response.json()) as {
+		data?: {
+			id?: unknown;
+			context_length?: unknown;
+			top_provider?: { max_completion_tokens?: unknown };
+		}[];
+	};
+	const limits: Record<string, ClineModelLimits> = {};
+	for (const model of Array.isArray(payload?.data) ? payload.data : []) {
+		const contextLength = positiveInteger(model?.context_length);
+		if (typeof model?.id !== "string" || !contextLength) {
+			continue;
+		}
+		const maxTokens = positiveInteger(
+			model.top_provider?.max_completion_tokens,
+		);
+		limits[model.id] = {
+			contextWindow: contextLength,
+			maxInputTokens: contextLength,
+			...(maxTokens ? { maxTokens } : {}),
+		};
+	}
+	return limits;
 }
 
 export async function fetchClineRecommendedProviderModels(
