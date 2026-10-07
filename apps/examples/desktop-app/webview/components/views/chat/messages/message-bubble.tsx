@@ -172,6 +172,7 @@ export const MessageBubble = memo(function MessageBubble({
 		message.content,
 		message.meta?.providerId,
 		message.meta?.providerAuth,
+		message.meta?.messageKind,
 	);
 	const credentialAction =
 		isError &&

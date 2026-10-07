@@ -1000,26 +1000,22 @@ function resolveAiSdkSystemPrompt(
 		: request.systemPrompt;
 }
 
-function mapFinishReason(
-	value: unknown,
-	sawToolCalls: boolean,
-): AgentModelFinishReason {
-	if (value === "tool-calls" || value === "tool_calls" || sawToolCalls) {
-		return "tool-calls";
+function mapFinishReason(value: unknown): AgentModelFinishReason {
+	// Consume the AI SDK unified reason; raw provider values belong in diagnostics.
+	switch (value) {
+		case "stop":
+			return "stop";
+		case "tool-calls":
+			return "tool-calls";
+		case "length":
+			return "max-tokens";
+		case "content-filter":
+			return "content-filter";
+		case "error":
+			return "error";
+		default:
+			return "unknown";
 	}
-	if (value === "length" || value === "max_tokens") {
-		return "max-tokens";
-	}
-	// Kept distinct from the `stop` fallback below: a filtered turn that
-	// produced no content must not be reported (or retried) as a transient
-	// empty response — see `AgentModelFinishReason`.
-	if (value === "content-filter" || value === "content_filter") {
-		return "content-filter";
-	}
-	if (value === "error") {
-		return "error";
-	}
-	return "stop";
 }
 
 function getUsageValue(
@@ -1486,7 +1482,6 @@ async function* emitAiSdkEvents(
 	capturedError?: { current: CapturedStreamError | undefined },
 	modelToolAdapters?: BuiltModelTools,
 ): AsyncIterable<AgentModelEvent> {
-	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
 	let requestId: string | undefined;
@@ -1654,7 +1649,6 @@ async function* emitAiSdkEvents(
 						};
 						continue;
 					}
-					sawToolCalls = true;
 					sawVisibleContent = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
@@ -1810,7 +1804,6 @@ async function* emitAiSdkEvents(
 							continue;
 						}
 					}
-					sawToolCalls = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
 						(part.id as string | undefined) ??
@@ -1848,8 +1841,7 @@ async function* emitAiSdkEvents(
 				if (part.type === "finish") {
 					finishUsage = part.usage ?? part.totalUsage;
 					finishProviderMetadata = part.providerMetadata;
-					finishReason =
-						part.finishReason ?? part.rawFinishReason ?? part.reason;
+					finishReason = part.finishReason;
 				}
 
 				if (part.type === "error") {
@@ -2001,7 +1993,7 @@ async function* emitAiSdkEvents(
 
 	yield {
 		type: "finish",
-		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
+		reason: streamError ? "error" : mapFinishReason(finishReason),
 		...(requestId ? { requestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
@@ -2303,7 +2295,10 @@ function createAiSdkProvider(
 					context,
 					messagesSystemPrompt,
 				);
-				const portableReasoning = resolvePortableReasoning(request);
+				const portableReasoning = resolvePortableReasoning(request, {
+					adapter: kind,
+					context,
+				});
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);

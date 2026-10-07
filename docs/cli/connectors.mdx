@@ -250,7 +250,10 @@ cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
 cline connect --stop
 
 # Stop a specific connector
-cline connect telegram --stop
+cline connect --stop telegram
+
+# Restart a connector, with the options you started it with
+cline connect --restart telegram -k <BOT-TOKEN>
 ```
 
 ## Hook Command Protocol
