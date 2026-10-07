@@ -316,6 +316,7 @@ describe("Hub app-server upgrades", () => {
 			await expect(approvalPromise).resolves.toEqual({
 				approved: true,
 				reason: undefined,
+				decidedBy: { kind: "client", id: "late-client" },
 			});
 		} finally {
 			await transport.stop();

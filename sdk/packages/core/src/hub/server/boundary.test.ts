@@ -497,6 +497,7 @@ describe("HubServerTransport boundaries", () => {
 			approved: false,
 			reason:
 				"Tool approval requires an interactive session, but this session is non-interactive.",
+			decidedBy: { kind: "system", detail: "non_interactive" },
 		});
 	});
 
@@ -846,6 +847,7 @@ describe("HubServerTransport boundaries", () => {
 			await expect(resultPromise).resolves.toEqual({
 				approved: true,
 				reason: "approved by user",
+				decidedBy: { kind: "client" },
 			});
 		} finally {
 			vi.useRealTimers();
@@ -904,6 +906,7 @@ describe("HubServerTransport boundaries", () => {
 		await expect(resultPromise).resolves.toEqual({
 			approved: true,
 			reason: undefined,
+			decidedBy: { kind: "client" },
 		});
 	});
 
@@ -966,6 +969,7 @@ describe("HubServerTransport boundaries", () => {
 		await expect(resultPromise).resolves.toEqual({
 			approved: false,
 			reason: "user cancelled",
+			decidedBy: { kind: "system", detail: "cancelled" },
 		});
 		expect(events).toEqual(
 			expect.arrayContaining([
