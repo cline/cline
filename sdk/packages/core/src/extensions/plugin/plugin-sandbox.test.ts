@@ -770,6 +770,34 @@ describe("plugin-sandbox", () => {
 				exists: makeExists(["/wrapper/extensions/bootstrap.js"]),
 			}),
 		).toEqual({ file: "/wrapper/extensions/bootstrap.js" });
+
+		// An explicit override wins, and lazy candidates (embedded resource
+		// extraction) are never evaluated when something earlier matched.
+		const embedded = vi.fn(() => "/home/.cline/runtime/bootstrap.js");
+		expect(
+			selectBootstrapCandidate({
+				explicitCandidate: "/opt/override/plugin-sandbox-bootstrap.js",
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, undefined, embedded],
+				exists: makeExists([
+					"/opt/override/plugin-sandbox-bootstrap.js",
+					"/home/.cline/runtime/bootstrap.js",
+				]),
+			}),
+		).toEqual({ file: "/opt/override/plugin-sandbox-bootstrap.js" });
+		expect(embedded).not.toHaveBeenCalled();
+
+		// Compiled binary with nothing on disk: the embedded resources are it.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, undefined, embedded],
+				exists: makeExists(["/home/.cline/runtime/bootstrap.js"]),
+			}),
+		).toEqual({ file: "/home/.cline/runtime/bootstrap.js" });
+		expect(embedded).toHaveBeenCalledTimes(1);
 	});
 
 	it("ignores the npm wrapper platform package bootstrap when running from source", async () => {

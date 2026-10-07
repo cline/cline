@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { pluginRuntimeDefine } from "../../../../sdk/packages/core/scripts/plugin-runtime-resources";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -53,29 +54,50 @@ const buildSidecar = async (
 	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
 	// without this the sidecar silently ships with telemetry disabled.
 	// Verify with `<binary> --telemetry-selfcheck` after building.
-	const defines = telemetryDefineArgs();
-	const optimizationArgs = minify ? ["--minify"] : [];
-	// A compiled Bun executable otherwise reads .env and bunfig.toml from its
-	// launch directory before our entrypoint runs. Remote helpers are launched
-	// from an SSH user's home directory, so that behavior can both make the
-	// helper fail on an unrelated dotenv file and leak workspace credentials
-	// into the Hub process. Packaged binaries must depend only on their explicit
-	// process environment and compiled configuration.
-	const runtimeIsolationArgs = [
-		"--no-compile-autoload-dotenv",
-		"--no-compile-autoload-bunfig",
-		// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS to
-		// intranet endpoints signed by a corporate CA (LiteLLM proxies, MITM
-		// firewalls) fails with "unable to get local issuer certificate". Bake
-		// --use-system-ca into the runtime so the sidecar and the Hub daemon it
-		// re-executes from this binary also trust the OS Keychain/cert store,
-		// matching the CLI wrapper's OS trust-anchor harvesting.
-		"--compile-exec-argv=--use-system-ca",
-	];
-	if (bunTarget) {
-		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
-	} else {
-		await $`bun build ${entrypoint} --compile ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
+	const telemetryArgs = telemetryDefineArgs();
+	const define: Record<string, string> = {};
+	for (let i = 0; i + 1 < telemetryArgs.length; i += 2) {
+		const pair = telemetryArgs[i + 1];
+		const separator = pair.indexOf("=");
+		define[pair.slice(0, separator)] = pair.slice(separator + 1);
+	}
+	const result = await Bun.build({
+		entrypoints: [entrypoint],
+		minify,
+		define: {
+			...define,
+			// Plugin sandbox resources (bootstrap, jiti transform, importable
+			// SDK) travel inside the binary and are extracted on first use, so
+			// the sidecar and the SSH remote helper load plugins without node or
+			// any files installed next to them. Too large for a CLI --define.
+			...(await pluginRuntimeDefine()),
+		},
+		compile: {
+			...(bunTarget ? { target: bunTarget as Bun.Build.CompileTarget } : {}),
+			outfile,
+			// A compiled Bun executable otherwise reads .env and bunfig.toml from
+			// its launch directory before our entrypoint runs. Remote helpers are
+			// launched from an SSH user's home directory, so that behavior can
+			// both make the helper fail on an unrelated dotenv file and leak
+			// workspace credentials into the Hub process. Packaged binaries must
+			// depend only on their explicit process environment and compiled
+			// configuration.
+			autoloadDotenv: false,
+			autoloadBunfig: false,
+			// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS
+			// to intranet endpoints signed by a corporate CA (LiteLLM proxies,
+			// MITM firewalls) fails with "unable to get local issuer
+			// certificate". Bake --use-system-ca into the runtime so the sidecar
+			// and the Hub daemon it re-executes from this binary also trust the
+			// OS Keychain/cert store, matching the CLI wrapper's OS trust-anchor
+			// harvesting.
+			execArgv: ["--use-system-ca"],
+		},
+		throw: false,
+	});
+	if (!result.success) {
+		for (const log of result.logs) console.error(log);
+		throw new Error(`Sidecar build failed for ${targetTriple}`);
 	}
 	return outfile;
 };

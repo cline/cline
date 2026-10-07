@@ -16,6 +16,7 @@ import type {
 } from "@cline/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
+import { resolveEmbeddedPluginBootstrap } from "./embedded-plugin-runtime";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
 
@@ -154,6 +155,28 @@ function getPlatformPackageName(): string {
 	return `@cline/cli-${platform}-${process.arch}`;
 }
 
+export const CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH_ENV =
+	"CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH";
+
+/**
+ * Explicit override for hosts whose layout none of the automatic candidates
+ * match (packaging experiments, tests). Child processes such as the Hub daemon
+ * inherit it.
+ */
+function resolveBootstrapFromEnv(): string | undefined {
+	const envPath = process.env[CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH_ENV]?.trim();
+	if (!envPath) {
+		return undefined;
+	}
+	if (!existsSync(envPath)) {
+		console.warn(
+			`${CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH_ENV} points to a missing file, ignoring: ${envPath}`,
+		);
+		return undefined;
+	}
+	return envPath;
+}
+
 function resolveBootstrapFromWrapper(): string | undefined {
 	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
 	if (!wrapperPath) {
@@ -201,14 +224,22 @@ function resolveBootstrapFromExecutable(): string | undefined {
  * layout. Those fallbacks exist only for compiled hosts
  * (`bun build --compile`) where import.meta points inside the binary and no
  * sibling file exists on real disk.
+ *
+ * An explicit candidate (the host's env override) is deliberate and wins
+ * over all discovery.
  */
 export function selectBootstrapCandidate(options: {
+	explicitCandidate?: string;
 	siblingCandidates: string[];
 	sourceBootstrapPath: string;
-	installedCandidates: Array<string | undefined>;
+	/** Thunks are only evaluated once every earlier candidate has missed. */
+	installedCandidates: Array<string | undefined | (() => string | undefined)>;
 	exists?: (path: string) => boolean;
 }): { file: string } | { sourcePath: string } {
 	const exists = options.exists ?? existsSync;
+	if (options.explicitCandidate && exists(options.explicitCandidate)) {
+		return { file: options.explicitCandidate };
+	}
 	for (const candidate of options.siblingCandidates) {
 		if (exists(candidate)) return { file: candidate };
 	}
@@ -216,7 +247,8 @@ export function selectBootstrapCandidate(options: {
 		return { sourcePath: options.sourceBootstrapPath };
 	}
 	for (const candidate of options.installedCandidates) {
-		if (candidate && exists(candidate)) return { file: candidate };
+		const path = typeof candidate === "function" ? candidate() : candidate;
+		if (path && exists(path)) return { file: path };
 	}
 	return { sourcePath: options.sourceBootstrapPath };
 }
@@ -236,7 +268,16 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	// In production, the main bundle is at dist/ and the bootstrap is emitted
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
+	//
+	//
+	// A compiled host with no on-disk layout at all (desktop sidecar, SSH remote
+	// helper, standalone CLI) falls back to the resources embedded in its own
+	// binary. That candidate is a thunk so extraction only happens when every
+	// other candidate, including the env override, has missed: an npm install
+	// of the CLI keeps using its real node_modules tree, and a host pointed at
+	// a bootstrap explicitly never needs a writable runtime directory.
 	const selected = selectBootstrapCandidate({
+		explicitCandidate: resolveBootstrapFromEnv(),
 		siblingCandidates: [
 			join(dir, "plugin-sandbox-bootstrap.js"),
 			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
@@ -246,6 +287,7 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		installedCandidates: [
 			resolveBootstrapFromWrapper(),
 			resolveBootstrapFromExecutable(),
+			resolveEmbeddedPluginBootstrap,
 		],
 	});
 	if ("file" in selected) {
@@ -269,8 +311,6 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		].join("\n"),
 	};
 }
-
-const BOOTSTRAP = resolveBootstrap();
 
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
@@ -319,11 +359,14 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
+	// Resolved per load rather than at import time: embedded resources are
+	// materialized on first use, and hosts may set the env override late.
+	const bootstrap = resolveBootstrap();
 	const sandbox = new SubprocessSandbox({
 		name: "plugin-sandbox",
-		...("file" in BOOTSTRAP
-			? { bootstrapFile: BOOTSTRAP.file }
-			: { bootstrapScript: BOOTSTRAP.script }),
+		...("file" in bootstrap
+			? { bootstrapFile: bootstrap.file }
+			: { bootstrapScript: bootstrap.script }),
 		idleTimeoutMs,
 		onEvent: options.onEvent,
 	});
