@@ -38,6 +38,10 @@ while [[ $# -gt 0 ]]; do
         *) fail "unknown option: $1" ;;
     esac
 done
+case "$install_dir" in
+    /*) ;;
+    *) install_dir="$PWD/$install_dir" ;;
+esac
 if [[ -z "$target" ]]; then
     arch=$(uname -m)
     case "$arch" in arm64|aarch64) arch=aarch64 ;; x86_64) ;; *) fail "unsupported architecture: $arch" ;; esac

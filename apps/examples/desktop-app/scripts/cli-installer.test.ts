@@ -7,6 +7,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -191,6 +192,29 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			expect(result.stderr).toContain("no downgrade");
 			expect(readFileSync(join(directory, "cline"))).toEqual(before);
 			expect(existsSync(lock)).toBe(false);
+		}));
+	test("recovers an abandoned lock for a relative install directory and reuses its cache offline", () =>
+		fixture((root, env) => {
+			const directory = join(root, "runtime");
+			const options = {
+				cwd: root,
+				env,
+				encoding: "utf8" as const,
+				timeout: 3000,
+			};
+			execFileSync("bash", args("runtime"), options);
+			const lock = join(directory, ".install-lock");
+			mkdirSync(lock);
+			writeFileSync(join(lock, "owner"), "99999999 dead-process");
+			const result = execFileSync("bash", args("runtime"), {
+				...options,
+				env: { ...env, FAIL_DOWNLOAD: "1" },
+			});
+			expect(realpathSync(result.trim())).toBe(
+				realpathSync(join(directory, "cline")),
+			);
+			expect(existsSync(lock)).toBe(false);
+			expect(readFileSync(join(directory, "cline"), "utf8")).toBe(content);
 		}));
 	test("preserves a live successor when stale-lock recovery races another installer", () =>
 		fixture((root, env) => {
