@@ -1,14 +1,7 @@
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { version as cliVersion } from "../../package.json";
-import {
-	formatReplayHeaderText,
-	formatReplayIterationText,
-	formatReplaySummaryText,
-	type LoadedSessionReplay,
-	loadSessionReplay,
-	replayDelayMs,
-} from "../session/replay";
+import type { LoadedSessionReplay } from "../session/replay";
 import type { CliOutputMode } from "../utils/types";
 
 type SessionCommandIo = {
@@ -198,6 +191,12 @@ async function playText(
 	input: SessionReplayCommandInput,
 	speed: number,
 ): Promise<void> {
+	const {
+		formatReplayHeaderText,
+		formatReplayIterationText,
+		formatReplaySummaryText,
+		replayDelayMs,
+	} = await import("../session/replay");
 	const color = process.stdout.isTTY === true && !process.env.NO_COLOR?.trim();
 	const options = { color, maxResultLines: TEXT_MAX_RESULT_LINES };
 	const sleep = input.sleep ?? defaultSleep;
@@ -268,6 +267,7 @@ export async function runSessionReplay(
 	let speed: number | undefined;
 	try {
 		speed = parseSpeed(input.speed);
+		const { loadSessionReplay } = await import("../session/replay");
 		replay = await loadSessionReplay({
 			bundleDir: resolve(input.bundleDir),
 			sessionId: input.sessionId,
