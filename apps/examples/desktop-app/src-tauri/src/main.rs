@@ -1023,8 +1023,8 @@ fn fit_windows_main_window_to_work_area(window: &tauri::WebviewWindow) -> Result
 
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
 /// webview/lib/app-icon.ts. Every id has a matching bundled resource at
-/// icons/app/<id>.png, plus a macOS variant at icons/app/macos/<id>.png with the transparent margin the Dock expects
-/// (artwork fills ~80% of the canvas).
+/// icons/app/<id>.png, plus a macOS variant at icons/app/macos/<id>.png with
+/// the transparent margin the Dock expects (artwork fills ~80% of the canvas).
 const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
 
 #[cfg(target_os = "macos")]

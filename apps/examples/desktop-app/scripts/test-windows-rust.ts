@@ -1,5 +1,7 @@
 if (process.platform === "win32") {
 	const tauriConfig = JSON.stringify({
+		// Unit tests do not embed a production webview build.
+		build: { frontendDist: [] },
 		bundle: {
 			// Unit tests do not package or launch generated binaries. Clear these
 			// inputs so a fresh CI checkout can compile without ignored build output.
