@@ -367,6 +367,61 @@ Escalation runbook`,
 		}
 	});
 
+	it.skipIf(process.platform === "win32").each(["rule", "workflow"] as const)(
+		"loads symlinked %s files and ignores invalid targets",
+		async (type) => {
+			const tempRoot = await mkdtemp(
+				join(tmpdir(), "core-user-instructions-symlink-files-"),
+			);
+			tempRoots.push(tempRoot);
+			const configDir = join(tempRoot, "configs");
+			const externalDir = join(tempRoot, "external");
+			await mkdir(configDir);
+			await mkdir(externalDir);
+			await writeFile(
+				join(externalDir, "source.md"),
+				"Follow linked instructions.",
+			);
+			await writeFile(
+				join(configDir, "regular.md"),
+				"Keep regular instructions.",
+			);
+			const linkedPath = join(configDir, "linked.md");
+			await symlink(join("..", "external", "source.md"), linkedPath, "file");
+			await symlink(
+				join(externalDir, "source.md"),
+				join(configDir, "ignored.json"),
+				"file",
+			);
+			await symlink(
+				join(externalDir, "missing.md"),
+				join(configDir, "broken.md"),
+				"file",
+			);
+			await symlink(externalDir, join(configDir, "directory.md"), "dir");
+			const circularPath = join(configDir, "circular.md");
+			await symlink(circularPath, circularPath, "file");
+
+			const watcher = createUserInstructionConfigWatcher({
+				skills: { directories: [] },
+				rules: { directories: type === "rule" ? [configDir] : [] },
+				workflows: { directories: type === "workflow" ? [configDir] : [] },
+			});
+			await watcher.refreshAll();
+			const records = [...watcher.getSnapshot(type).values()];
+			expect(records).toHaveLength(2);
+			expect(
+				records.find((record) => record.filePath === linkedPath)?.item
+					.instructions,
+			).toBe("Follow linked instructions.");
+			expect(
+				records.find(
+					(record) => record.filePath === join(configDir, "regular.md"),
+				)?.item.instructions,
+			).toBe("Keep regular instructions.");
+		},
+	);
+
 	it.skipIf(process.platform === "win32")(
 		"discovers skill directories through symlinks",
 		async () => {
