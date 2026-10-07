@@ -19,6 +19,8 @@ export type CloudHandoffFollowUp = {
 	unconfirmed?: boolean;
 };
 
+const activeRecoverySends = new Set<string>();
+
 function followUpPath(targetSessionId: string): string {
 	const key = createHash("sha256").update(targetSessionId).digest("hex");
 	return join(
@@ -109,6 +111,8 @@ export async function sendWithCloudHandoffFollowUp<
 	send: (lifecycle?: CloudSendLifecycle) => Promise<T>,
 	draftId?: string,
 ): Promise<T> {
+	// Concurrent prompts can send, but only one send owns the recovery copy.
+	if (activeRecoverySends.has(targetSessionId)) return await send();
 	const saved = readCloudHandoffFollowUp(targetSessionId);
 	const matches = (record: CloudHandoffFollowUp | null) =>
 		Boolean(
@@ -124,33 +128,38 @@ export async function sendWithCloudHandoffFollowUp<
 		(!matches(saved) && (saved.unconfirmed || saved.draftId !== draftId))
 	)
 		return await send();
-	if (!matches(saved))
-		saveCloudHandoffFollowUp(targetSessionId, {
-			...saved,
-			command,
-			userImages,
+	activeRecoverySends.add(targetSessionId);
+	try {
+		if (!matches(saved))
+			saveCloudHandoffFollowUp(targetSessionId, {
+				...saved,
+				command,
+				userImages,
+			});
+		const clearAccepted = () => {
+			try {
+				if (matches(readCloudHandoffFollowUp(targetSessionId)))
+					clearCloudHandoffFollowUp(targetSessionId);
+			} catch {
+				console.warn(
+					"Could not clear the confirmed cloud follow-up recovery copy.",
+				);
+			}
+		};
+		const result = await send({
+			beforeDispatch: () => {
+				const current = readCloudHandoffFollowUp(targetSessionId);
+				if (matches(current) && current)
+					saveCloudHandoffFollowUp(targetSessionId, {
+						...current,
+						unconfirmed: true,
+					});
+			},
+			onAccepted: clearAccepted,
 		});
-	const clearAccepted = () => {
-		try {
-			if (matches(readCloudHandoffFollowUp(targetSessionId)))
-				clearCloudHandoffFollowUp(targetSessionId);
-		} catch {
-			console.warn(
-				"Could not clear the confirmed cloud follow-up recovery copy.",
-			);
-		}
-	};
-	const result = await send({
-		beforeDispatch: () => {
-			const current = readCloudHandoffFollowUp(targetSessionId);
-			if (matches(current) && current)
-				saveCloudHandoffFollowUp(targetSessionId, {
-					...current,
-					unconfirmed: true,
-				});
-		},
-		onAccepted: clearAccepted,
-	});
-	if (!result.recoveredAfterDisconnect) clearAccepted();
-	return result;
+		if (!result.recoveredAfterDisconnect) clearAccepted();
+		return result;
+	} finally {
+		activeRecoverySends.delete(targetSessionId);
+	}
 }
