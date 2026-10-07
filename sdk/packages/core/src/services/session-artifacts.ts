@@ -27,6 +27,15 @@ export function unlinkIfExists(path: string | null | undefined): void {
 	}
 }
 
+/**
+ * File name of the per-session hook audit log, stored in the root session's
+ * artifacts directory. It holds the audit events of the whole session tree
+ * rooted at `rootSessionId` (subagents included), in append order.
+ */
+export function sessionHookLogFileName(rootSessionId: string): string {
+	return `${rootSessionId}.hooks.jsonl`;
+}
+
 export interface SessionArtifactPaths {
 	messagesPath: string;
 }
