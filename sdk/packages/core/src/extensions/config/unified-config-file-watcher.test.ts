@@ -1,6 +1,8 @@
 import {
 	mkdir,
 	mkdtemp,
+	realpath,
+	rename,
 	rm,
 	symlink,
 	unlink,
@@ -124,6 +126,132 @@ describe("UnifiedConfigFileWatcher", () => {
 				unsubscribe();
 			}
 		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"automatically reloads symlink chains after edits, atomic saves, deletion, recreation, and retargeting",
+		async () => {
+			const tempRoot = await realpath(
+				await mkdtemp(join(tmpdir(), "core-config-symlink-watch-")),
+			);
+			tempRoots.push(tempRoot);
+			const profilesDir = join(tempRoot, "profiles");
+			const linksDir = join(tempRoot, "links");
+			const sourceDir = join(tempRoot, "source");
+			const alternateDir = join(tempRoot, "alternate");
+			const linkedDirectory = join(tempRoot, "nested", "linked-directory");
+			for (const dir of [profilesDir, linksDir, sourceDir, alternateDir]) {
+				await mkdir(dir);
+			}
+			await mkdir(join(tempRoot, "nested"));
+			await symlink(linksDir, linkedDirectory, "dir");
+			const sourcePath = join(sourceDir, "source.profile");
+			const alternatePath = join(alternateDir, "source.profile");
+			const intermediatePath = join(linksDir, "alias.profile");
+			const linkedPath = join(profilesDir, "linked.profile");
+			await writeFile(sourcePath, "name: Linked\n\nOriginal content.");
+			await writeFile(alternatePath, "name: Linked\n\nAlternate content.");
+			await symlink(
+				join("..", "source", "source.profile"),
+				intermediatePath,
+				"file",
+			);
+			// The intermediate link's relative target must resolve against its
+			// physical parent, not against this directory alias's lexical path.
+			await symlink(join(linkedDirectory, "alias.profile"), linkedPath, "file");
+			const watcher = new UnifiedConfigFileWatcher(
+				[
+					{
+						type: "profile" as const,
+						directories: [profilesDir],
+						includeFile: (fileName) => fileName.endsWith(".profile"),
+						parseFile: (context) => parseTestProfileConfig(context.content),
+						resolveId: (config) => config.name.toLowerCase(),
+					},
+				],
+				{ debounceMs: 10 },
+			);
+			const events: Array<
+				UnifiedConfigWatcherEvent<"profile", TestProfileConfig>
+			> = [];
+			const unsubscribe = watcher.subscribe((event) => events.push(event));
+			const watchedDirectories = () =>
+				new Set(
+					(
+						Reflect.get(watcher, "watchersByDirectory") as Map<string, unknown>
+					).keys(),
+				);
+			const waitForBody = async (body: string) => {
+				await waitForEvent(
+					events,
+					(event) => event.kind === "upsert" && event.record.item.body === body,
+				);
+				expect(watcher.getSnapshot("profile").get("linked")).toMatchObject({
+					filePath: linkedPath,
+					item: { body },
+				});
+				events.length = 0;
+			};
+			try {
+				await watcher.start();
+				expect(watchedDirectories()).toEqual(
+					new Set([profilesDir, linkedDirectory, sourceDir]),
+				);
+				events.length = 0;
+				await writeFile(sourcePath, "name: Linked\n\nEdited content.");
+				await waitForBody("Edited content.");
+
+				const savedPath = join(sourceDir, "saved.profile");
+				await writeFile(savedPath, "name: Linked\n\nAtomically saved content.");
+				await rename(savedPath, sourcePath);
+				await waitForBody("Atomically saved content.");
+				await writeFile(
+					sourcePath,
+					"name: Linked\n\nEdited after atomic save.",
+				);
+				await waitForBody("Edited after atomic save.");
+
+				await unlink(sourcePath);
+				await waitForEvent(
+					events,
+					(event) => event.kind === "remove" && event.id === "linked",
+				);
+				expect(watcher.getSnapshot("profile").size).toBe(0);
+				events.length = 0;
+				await writeFile(sourcePath, "name: Linked\n\nRecreated content.");
+				await waitForBody("Recreated content.");
+
+				await unlink(intermediatePath);
+				await symlink(alternatePath, intermediatePath, "file");
+				await waitForBody("Alternate content.");
+				expect(watchedDirectories()).toEqual(
+					new Set([profilesDir, linkedDirectory, alternateDir]),
+				);
+				await writeFile(
+					alternatePath,
+					"name: Linked\n\nEdited alternate content.",
+				);
+				await waitForBody("Edited alternate content.");
+
+				await unlink(linkedPath);
+				await symlink(sourcePath, linkedPath, "file");
+				await waitForBody("Recreated content.");
+				expect(watchedDirectories()).toEqual(new Set([profilesDir, sourceDir]));
+				await writeFile(sourcePath, "name: Linked\n\nEdited direct target.");
+				await waitForBody("Edited direct target.");
+				await unlink(linkedPath);
+				await waitForEvent(
+					events,
+					(event) => event.kind === "remove" && event.id === "linked",
+				);
+				expect(watchedDirectories()).toEqual(new Set([profilesDir]));
+			} finally {
+				watcher.stop();
+				unsubscribe();
+				expect(watchedDirectories().size).toBe(0);
+			}
+		},
+		15_000,
 	);
 
 	it("emits upsert and remove events with config type", async () => {

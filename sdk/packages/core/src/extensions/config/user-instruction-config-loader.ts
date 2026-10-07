@@ -1,4 +1,4 @@
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import {
 	basename,
 	dirname,
@@ -520,8 +520,14 @@ async function discoverRulesLikeFiles(
 	}
 
 	try {
-		const entryStat = await stat(directoryPath);
-		if (entryStat.isFile()) {
+		const entryStat = await lstat(directoryPath);
+		const isFile =
+			entryStat.isFile() ||
+			(entryStat.isSymbolicLink() &&
+				!(await stat(directoryPath)
+					.then((target) => target.isDirectory())
+					.catch(() => false)));
+		if (isFile) {
 			return [
 				{
 					directoryPath: dirname(directoryPath),
@@ -540,19 +546,15 @@ async function discoverRulesLikeFiles(
 		const entries = await readdir(directoryPath, { withFileTypes: true });
 		const candidates: UnifiedConfigFileCandidate[] = [];
 		for (const entry of entries) {
-			if (!isMarkdownFile(entry.name)) {
+			if (
+				!isMarkdownFile(entry.name) ||
+				(!entry.isFile() && !entry.isSymbolicLink())
+			) {
 				continue;
 			}
 			const filePath = join(directoryPath, entry.name);
-			const isFile =
-				entry.isFile() ||
-				(entry.isSymbolicLink() &&
-					(await stat(filePath)
-						.then((target) => target.isFile())
-						.catch(() => false)));
-			if (!isFile) {
-				continue;
-			}
+			// The watcher validates symlink targets and watches their parents,
+			// including broken links whose targets may be recreated later.
 			candidates.push({
 				directoryPath,
 				fileName: entry.name,

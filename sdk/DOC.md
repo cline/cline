@@ -347,6 +347,19 @@ standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
 
+## Symlinked instruction files
+
+Rules and workflows can be symbolic links to regular files. Source paths and
+fallback names use the link's name and location, not the target's. Broken,
+circular, and non-file targets are not loaded.
+
+When started, `UnifiedConfigFileWatcher` also watches the parent directories of
+symlink targets and intermediate links. External edits, atomic saves, link
+retargeting, and target deletion/recreation automatically refresh the affected
+config types. Broken targets can recover while their parent directories exist
+and are accessible. Unused target-directory watches are removed on rediscovery;
+`stop()` closes all watches.
+
 ## Unknown model completion recovery
 
 The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. Explicit `stop`, `tool-calls`, `content-filter`, and `error` retain their meanings. The agent also treats a stream without a finish event as unknown.

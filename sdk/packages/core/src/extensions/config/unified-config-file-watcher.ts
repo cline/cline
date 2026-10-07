@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { type FSWatcher, watch } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile, readlink, realpath, stat } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
 export interface UnifiedConfigFileContext<TType extends string = string> {
 	type: TType;
@@ -89,6 +89,32 @@ function isInaccessibleDirectoryError(error: unknown): boolean {
 		isErrnoException(error) &&
 		(error.code === "EACCES" || error.code === "EPERM")
 	);
+}
+
+async function discoverSymlinkTargetDirectories(
+	filePath: string,
+): Promise<Set<string>> {
+	const directories = new Set<string>();
+	const visitedPaths = new Set<string>();
+	let currentPath = resolve(filePath);
+	while (!visitedPaths.has(currentPath)) {
+		visitedPaths.add(currentPath);
+		const target = await readlink(currentPath).catch(() => undefined);
+		if (target === undefined) {
+			break;
+		}
+		// Relative link targets resolve from the physical parent directory,
+		// which can differ from dirname(currentPath) through directory aliases.
+		const parentPath = await realpath(dirname(currentPath)).catch(() =>
+			dirname(currentPath),
+		);
+		currentPath = resolve(parentPath, target);
+		// Watch parents rather than file inodes so atomic saves and target
+		// deletion/recreation keep working. Include intermediate links so
+		// retargeting a symlink chain triggers rediscovery too.
+		directories.add(dirname(currentPath));
+	}
+	return directories;
 }
 
 export class UnifiedConfigFileWatcher<
@@ -413,6 +439,22 @@ export class UnifiedConfigFileWatcher<
 				) {
 					continue;
 				}
+				const targetDirectories =
+					await discoverSymlinkTargetDirectories(filePath);
+				if (targetDirectories.size > 0) {
+					const targetStat = await stat(filePath).catch(() => undefined);
+					if (targetStat && !targetStat.isFile()) {
+						continue;
+					}
+					for (const targetDirectory of targetDirectories) {
+						discoveredDirectories.add(targetDirectory);
+					}
+					if (!targetStat) {
+						// Keep watching a broken link's target parent so recreating
+						// the file loads it again without a manual refresh.
+						continue;
+					}
+				}
 				try {
 					const content = await readFile(filePath, "utf8");
 					const context: UnifiedConfigFileContext<TType> = {
@@ -478,13 +520,9 @@ export class UnifiedConfigFileWatcher<
 			const candidates: UnifiedConfigFileCandidate[] = [];
 			for (const entry of entries) {
 				const filePath = join(directoryPath, entry.name);
-				const isFile =
-					entry.isFile() ||
-					(entry.isSymbolicLink() &&
-						(await stat(filePath)
-							.then((target) => target.isFile())
-							.catch(() => false)));
-				if (!isFile) {
+				// Retain broken links as candidates so loadDefinition can watch
+				// their targets without trying to parse them.
+				if (!entry.isFile() && !entry.isSymbolicLink()) {
 					continue;
 				}
 				candidates.push({
