@@ -5,15 +5,25 @@ import {
 	existsSync,
 	mkdtempSync,
 	readFileSync,
-	realpathSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 const content = "#!/bin/sh\necho cline\n";
 const hash = createHash("sha256").update(content).digest("hex");
+
+function expectSameFile(reported: string, expected: string) {
+	expect(isAbsolute(reported)).toBe(true);
+	const actualFile = statSync(reported);
+	const expectedFile = statSync(expected);
+	expect({ device: actualFile.dev, inode: actualFile.ino }).toEqual({
+		device: expectedFile.dev,
+		inode: expectedFile.ino,
+	});
+}
 
 describe.skipIf(process.platform !== "win32")(
 	"PowerShell runtime installer",
@@ -59,8 +69,9 @@ function global:Invoke-WebRequest {
 					cwd: root,
 					encoding: "utf8",
 				});
-				expect(realpathSync(installed.trim().split(/\r?\n/).at(-1) ?? "")).toBe(
-					realpathSync(join(directory, "cline.exe")),
+				expectSameFile(
+					installed.trim().split(/\r?\n/).at(-1) ?? "",
+					join(directory, "cline.exe"),
 				);
 				expect(readFileSync(join(directory, "cline.exe"), "utf8")).toBe(
 					content,
@@ -213,9 +224,7 @@ else if (process.argv[2] === "--runtime-build-epoch") console.log(info.buildEpoc
 				const first = install(10);
 				expect(first.status, first.stderr).toBe(0);
 				const entry = join(root, "command dir", "cline.cmd");
-				expect(
-					realpathSync(first.stdout.trim().split(/\r?\n/).at(-1) ?? ""),
-				).toBe(realpathSync(entry));
+				expectSameFile(first.stdout.trim().split(/\r?\n/).at(-1) ?? "", entry);
 				const firstLauncher = readFileSync(entry, "utf8");
 				const activeRecord = join(root, "command dir", "cline-runtime");
 				const firstActive = readFileSync(activeRecord, "utf8");
