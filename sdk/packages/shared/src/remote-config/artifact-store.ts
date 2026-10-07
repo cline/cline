@@ -6,15 +6,6 @@ import type {
 	RemoteConfigManagedArtifactStore,
 } from "./bundle";
 
-async function pathExists(targetPath: string): Promise<boolean> {
-	try {
-		await fs.access(targetPath);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
 export class FileRemoteConfigBundleStore implements RemoteConfigBundleStore {
 	constructor(private readonly filePath: string) {}
 
@@ -54,10 +45,13 @@ export class FileSystemRemoteConfigManagedArtifactStore
 	}
 
 	async removeChildren(directoryPath: string): Promise<void> {
-		if (!(await pathExists(directoryPath))) {
-			return;
+		let entries: string[];
+		try {
+			entries = await fs.readdir(directoryPath);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+			throw error;
 		}
-		const entries = await fs.readdir(directoryPath);
 		await Promise.all(
 			entries.map((entry) =>
 				fs.rm(path.join(directoryPath, entry), {
