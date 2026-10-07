@@ -172,12 +172,15 @@ the host only manages SSH and forwards the authenticated hub connection.
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
-`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
-provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
-registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
-data to the shared helper. `listLocalProviders` includes the resulting facts in
-each `ProviderListItem.auth`, allowing browser clients to render authentication
-guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+`ProviderLocalCli`, `resolveProviderLocalCli(provider)`, and
+`resolveProviderApiKeyOptional(provider)`. The resolvers accept provider data
+(`metadata.localCliCommand` with optional `docsUrl`, and `metadata.apiKeyOptional`);
+they perform no registry lookup. Hosts resolve providers through `@cline/llms` and
+then pass that data to the shared helpers. `listLocalProviders` includes the
+resulting facts in each `ProviderListItem.auth` (`localCli`, and `apiKeyOptional`
+for local inference servers and cloud-credential providers that run without a
+key), allowing browser clients to render authentication guidance and gate sessions
+without importing the LLM catalog. `ProviderListItem.modelTools` likewise
 carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls

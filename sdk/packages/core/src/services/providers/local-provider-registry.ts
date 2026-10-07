@@ -108,6 +108,12 @@ const StoredModelsFileEnvelopeSchema = z.object({
 
 const LOADED_MODELS_REGISTRY_PATHS = new Set<string>();
 
+/**
+ * User-added providers are self-hosted OpenAI-compatible endpoints whose
+ * key the runtime never pre-flights (see `resolveProviderApiKeyOptional`).
+ */
+const CUSTOM_ENDPOINT_METADATA = { apiKeyOptional: true } as const;
+
 function titleCaseFromId(id: string): string {
 	return id
 		.split(/[-_]/)
@@ -559,6 +565,7 @@ export function registerProviderSettingsProvider(
 				toProviderCapabilities(settings.capabilities) ??
 				existingCollection?.provider.capabilities,
 			source: "file",
+			metadata: CUSTOM_ENDPOINT_METADATA,
 		},
 		models,
 	});
@@ -629,6 +636,7 @@ export function registerCustomProvider(
 			defaultModelId,
 			capabilities: toProviderCapabilities(entry.provider.capabilities),
 			source: "file",
+			metadata: CUSTOM_ENDPOINT_METADATA,
 		},
 		models: normalizedModels,
 	});
