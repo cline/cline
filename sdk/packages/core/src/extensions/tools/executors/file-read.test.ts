@@ -3,66 +3,163 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	prepareToolResultPreview,
 	prepareToolResultRecovery,
 	TOOL_RESULT_CACHE_MISS,
 	ToolResultCache,
 } from "../../../session/services/tool-result-cache";
+import { getReadFileRangeError } from "../helpers";
+import { ReadFileRequestSchema } from "../schemas";
 import { createFileReadExecutor } from "./file-read";
 
 describe("createFileReadExecutor", () => {
-	it("recovers every record from an MCP JSON envelope containing printed migration batches", async () => {
-		const records = Array.from({ length: 93 }, (_, index) => ({
-			fields: {
-				"Legacy ID": `L-${1001 + index}`,
-				Name: `Migration task ${index + 1}`,
-				Status: "In Progress",
-				"Owner Name": "Example Owner",
-				"Owner Email": "owner@example.test",
-				"Due Date": "2026-11-01",
-			},
-		}));
-		const stdout = Array.from(
-			{ length: 10 },
-			(_, index) =>
-				`=== BATCH ${index + 1} ===\n${JSON.stringify(records.slice(index * 10, index * 10 + 10), null, 2)}`,
-		).join("\n\n");
-		const { text } = prepareToolResultRecovery({
-			content: [
-				{
-					type: "text",
-					text: JSON.stringify({
-						data: { stdout, stderr: "" },
-						successful: true,
-					}),
-				},
-			],
-		});
+	it("bounds the serialized preview even when every character needs JSON escaping", async () => {
 		const cache = new ToolResultCache("session");
-		const uri = cache.store("mcp-call", text ?? "") ?? "";
+		const uri = cache.store("call", "\u0000".repeat(9000)) ?? "";
+		const context = {
+			agentId: "agent",
+			iteration: 1,
+			metadata: { toolResultCache: cache },
+		};
+		const result = await createFileReadExecutor()(
+			{ path: uri, start_offset: 0 },
+			context,
+		);
+		const preview =
+			prepareToolResultPreview([
+				{ query: `${uri}@0:6000`, result, success: true },
+			]).text ?? "";
+		expect(preview.length).toBeLessThan(8000);
+		expect(String(result)).toContain("next_offset=1000; has_more=true");
+	});
+	it.each([
+		"file",
+		"cache",
+	])("reassembles long Unicode text exactly through %s offset pages", async (source) => {
+		const original =
+			"a".repeat(5999) +
+			"😀" +
+			JSON.stringify({
+				id: 9007199254740993n.toString(),
+				text: "first\nsecond",
+				type: "image",
+				data: "asset-42",
+			}).repeat(900) +
+			"\r\nend";
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "read-offset-"));
+		const cache = new ToolResultCache("offset-session");
+		const filePath = path.join(dir, "minified.json");
+		try {
+			await fs.writeFile(filePath, original);
+			const uri =
+				source === "file" ? filePath : (cache.store("call", original) ?? "");
+			const context = {
+				agentId: "agent",
+				iteration: 1,
+				metadata: { toolResultCache: cache },
+			};
+			const reader = createFileReadExecutor();
+			let offset = 0;
+			let recovered = "";
+			for (;;) {
+				const result = String(
+					await reader({ path: uri, start_offset: offset }, context),
+				);
+				const boundary = result.indexOf("\n");
+				const header = result.slice(0, boundary);
+				const body = result.slice(boundary + 1);
+				expect(result.length).toBeLessThan(6200);
+				expect(body).toBe(original.slice(offset, offset + body.length));
+				expect(body.endsWith("\ud83d")).toBe(false);
+				recovered += body;
+				const next = Number(header.match(/next_offset=(\d+)/)?.[1]);
+				expect(next).toBe(offset + body.length);
+				if (header.includes("has_more=false")) break;
+				expect(next).toBeGreaterThan(offset);
+				offset = next;
+			}
+			expect(recovered).toBe(original);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("recovers the unchanged escaped MCP JSON envelope through cache offsets", async () => {
+		const raw =
+			'{"id":9007199254740993,"type":"image","data":"asset-42","stdout":' +
+			JSON.stringify("first\nsecond\n".repeat(3000)) +
+			"}";
+		const output = { content: [{ type: "text", text: raw }] };
+		const recovery = prepareToolResultRecovery(output).text ?? "";
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("call", recovery) ?? "";
+		const context = {
+			agentId: "agent",
+			iteration: 1,
+			metadata: { toolResultCache: cache },
+		};
+		let reconstructed = "";
+		while (reconstructed.length < recovery.length) {
+			const page = String(
+				await createFileReadExecutor()(
+					{ path: uri, start_offset: reconstructed.length },
+					context,
+				),
+			);
+			reconstructed += page.slice(page.indexOf("\n") + 1);
+		}
+		expect(reconstructed).toBe(recovery);
+		expect(reconstructed).toContain("9007199254740993");
+		expect(reconstructed).toContain("asset-42");
+		expect(output.content[0].text).toBe(raw);
+	});
+
+	it("validates offset requests and reports EOF and Unicode boundaries", async () => {
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("call", "a😀b") ?? "";
 		const context = {
 			agentId: "agent",
 			iteration: 1,
 			metadata: { toolResultCache: cache },
 		};
 		const reader = createFileReadExecutor();
-		const lines = (text ?? "").split("\n");
-		for (const record of records) {
-			const index = lines.findIndex((line) =>
-				line.includes(record.fields["Legacy ID"]),
-			);
-			expect(index).toBeGreaterThanOrEqual(0);
-			const output = String(
-				await reader(
-					{ path: uri, start_line: index + 1, end_line: index + 7 },
-					context,
-				),
-			);
-			for (const value of Object.values(record.fields))
-				expect(output).toContain(value);
-			expect(output).not.toContain("[line truncated]");
-		}
+		expect(
+			String(await reader({ path: uri, start_offset: 4 }, context)),
+		).toContain("next_offset=4; has_more=false]\n");
+		expect(
+			String(
+				await reader({ path: uri, start_offset: 1, max_chars: 2 }, context),
+			),
+		).toContain("has_more=true]\n😀");
+		await expect(
+			reader({ path: uri, start_offset: 2 }, context),
+		).rejects.toThrow("surrogate pair");
+		await expect(
+			reader({ path: uri, start_offset: 0, start_line: 1 }, context),
+		).rejects.toThrow("cannot be combined");
+		await expect(reader({ path: uri, max_chars: 2 }, context)).rejects.toThrow(
+			"requires start_offset",
+		);
+		expect(
+			ReadFileRequestSchema.safeParse({ path: uri, start_offset: -1 }).success,
+		).toBe(false);
+		expect(
+			ReadFileRequestSchema.safeParse({
+				path: uri,
+				start_offset: 0,
+				max_chars: 6001,
+			}).success,
+		).toBe(false);
+		expect(getReadFileRangeError({ path: uri, start_offset: 0 })).toBeNull();
+		const controller = new AbortController();
+		controller.abort(new Error("Cancelled offset read"));
+		await expect(
+			reader(
+				{ path: uri, start_offset: 0 },
+				{ ...context, signal: controller.signal },
+			),
+		).rejects.toThrow("Cancelled offset read");
 	});
-
 	it("recovers multiline MCP payloads serialized as YAML, including late line ranges", async () => {
 		const payload = Array.from(
 			{ length: 200 },

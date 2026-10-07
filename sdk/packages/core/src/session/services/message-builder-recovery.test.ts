@@ -26,6 +26,136 @@ function result(messages: Message[]): ToolResultContent {
 }
 
 describe("synchronous model-only recovery", () => {
+	it("keeps distinct offset pages and only replaces repeated pages as outdated", () => {
+		const messages: Message[] = [0, 1000, 0].flatMap(
+			(offset, index): Message[] => [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: `page-${index}`,
+							name: "read_files",
+							input: {
+								files: [
+									{
+										path: "/tmp/minified.js",
+										start_offset: offset,
+										max_chars: 1000,
+									},
+								],
+							},
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: `page-${index}`,
+							name: "read_files",
+							content: JSON.stringify([
+								{
+									query: `/tmp/minified.js@${offset}:1000`,
+									success: true,
+									result: `page-content-${index}`,
+								},
+							]),
+						},
+					],
+				},
+			],
+		);
+		const prepared = JSON.stringify(
+			new MessageBuilder({ minOutdatedRewriteBytes: 0 }).buildForApi(messages),
+		);
+		expect(prepared).not.toContain("page-content-0");
+		expect(prepared).toContain("page-content-1");
+		expect(prepared).toContain("page-content-2");
+	});
+	it("keeps offset pages read after a default read but invalidates them after a newer full read", () => {
+		const messages: Message[] = [null, 0, 1000].flatMap(
+			(offset, index): Message[] => [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: `read-${index}`,
+							name: "read_files",
+							input: {
+								files: [
+									{
+										path: "/tmp/minified.js",
+										...(offset == null ? {} : { start_offset: offset }),
+									},
+								],
+							},
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: `read-${index}`,
+							name: "read_files",
+							content: JSON.stringify([
+								{
+									query:
+										offset == null
+											? "/tmp/minified.js"
+											: `/tmp/minified.js@${offset}:6000`,
+									success: true,
+									result: `read-content-${index}`,
+								},
+							]),
+						},
+					],
+				},
+			],
+		);
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 0 });
+		const first = JSON.stringify(builder.buildForApi(messages));
+		expect(first).toContain("read-content-1");
+		expect(first).toContain("read-content-2");
+		messages.push(
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "latest",
+						name: "read_files",
+						input: { files: [{ path: "/tmp/minified.js" }] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "latest",
+						name: "read_files",
+						content: JSON.stringify([
+							{
+								query: "/tmp/minified.js",
+								success: true,
+								result: "latest-file",
+							},
+						]),
+					},
+				],
+			},
+		);
+		const latest = JSON.stringify(builder.buildForApi(messages));
+		expect(latest).not.toContain("read-content-1");
+		expect(latest).not.toContain("read-content-2");
+		expect(latest).toContain("latest-file");
+	});
 	it("keeps buildForApi synchronous and preserves canonical history", () => {
 		const full = "original response\n".repeat(1000);
 		const messages = history(full);

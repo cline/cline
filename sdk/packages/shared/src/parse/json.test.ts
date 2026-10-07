@@ -1,27 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	normalizeJsonLikeStringsForSchema,
-	parseJsonStream,
-	safeJsonParse,
-} from "./json";
-
-describe("safeJsonParse", () => {
-	it("applies a supplied reviver", () => {
-		expect(
-			safeJsonParse('{"count":2}', (_key, value) =>
-				typeof value === "number" ? value * 2 : value,
-			),
-		).toEqual({ count: 4 });
-	});
-
-	it("returns undefined when the reviver rejects a value", () => {
-		expect(
-			safeJsonParse('{"count":2}', () => {
-				throw new Error("Rejected value");
-			}),
-		).toBeUndefined();
-	});
-});
+import { normalizeJsonLikeStringsForSchema, parseJsonStream } from "./json";
 
 describe("parseJsonStream", () => {
 	it("repairs a bare object value into a JSON string", () => {

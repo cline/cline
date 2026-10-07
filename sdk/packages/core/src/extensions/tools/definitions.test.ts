@@ -1444,6 +1444,30 @@ describe("default run_commands tool", () => {
 });
 
 describe("default read_files tool", () => {
+	it("forwards offset pages and rejects mixed range modes without calling the executor", async () => {
+		const execute = vi.fn(async () => "page");
+		const tool = createReadFilesTool(execute);
+		const context = { agentId: "agent", iteration: 1 };
+		const request = {
+			path: "/tmp/minified.js",
+			start_offset: 6000,
+			max_chars: 3000,
+		};
+		const results = await tool.execute({ files: [request] }, context);
+		expect(results[0]).toEqual({
+			query: "/tmp/minified.js@6000:3000",
+			result: "page",
+			success: true,
+		});
+		expect(execute).toHaveBeenCalledWith(request, context);
+		execute.mockClear();
+		const invalid = await tool.execute(
+			{ files: [{ ...request, start_line: 1 }] },
+			context,
+		);
+		expect(invalid[0].success).toBe(false);
+		expect(execute).not.toHaveBeenCalled();
+	});
 	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);
@@ -1846,7 +1870,7 @@ describe("zod schema conversion", () => {
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped. Page through long files with start_line/end_line, or use start_offset/max_chars for long lines. Offset mode is mutually exclusive with line bounds and returns next_offset and has_more. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

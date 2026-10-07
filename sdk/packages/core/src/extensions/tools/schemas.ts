@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { MAX_READ_OFFSET_CHARS } from "./executors/output-limits";
 
 export const INPUT_ARG_CHAR_LIMIT = 6000;
 
@@ -46,9 +47,29 @@ export const ReadFileRequestSchema = z
 		path: AbsolutePath,
 		start_line: ReadFileLineRangeSchema.shape.start_line,
 		end_line: ReadFileLineRangeSchema.shape.end_line,
+		start_offset: z.coerce
+			.number()
+			.int()
+			.safe()
+			.nonnegative()
+			.nullable()
+			.optional()
+			.describe(
+				"Zero-based UTF-16 character offset for reading long lines without truncation. Mutually exclusive with start_line/end_line. Use next_offset from the previous result to continue.",
+			),
+		max_chars: z.coerce
+			.number()
+			.int()
+			.min(2)
+			.max(MAX_READ_OFFSET_CHARS)
+			.nullable()
+			.optional()
+			.describe(
+				"Maximum characters in an offset read (2-6000, default 6000). Requires start_offset. A page never splits a Unicode surrogate pair.",
+			),
 	})
 	.describe(
-		"A file read request with optional inclusive one-based line bounds. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
+		"A file read request with optional inclusive one-based line bounds, or start_offset/max_chars for bounded character pages. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
 	);
 
 /**
@@ -58,11 +79,13 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped. Page through long files with start_line/end_line, or use start_offset/max_chars for long lines. Offset mode is mutually exclusive with line bounds and returns next_offset and has_more. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
 
 const ReadFileRangeAliasFields = {
+	start_offset: ReadFileRequestSchema.shape.start_offset,
+	max_chars: ReadFileRequestSchema.shape.max_chars,
 	start_line: ReadFileLineRangeSchema.shape.start_line,
 	end_line: ReadFileLineRangeSchema.shape.end_line,
 };

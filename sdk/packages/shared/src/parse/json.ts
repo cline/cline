@@ -122,12 +122,9 @@ export function safeJsonStringify(input: unknown): string {
 	}
 }
 
-export function safeJsonParse<T>(
-	raw: string,
-	reviver?: Parameters<typeof JSON.parse>[1],
-): T | undefined {
+export function safeJsonParse<T>(raw: string): T | undefined {
 	try {
-		return JSON.parse(raw, reviver) as T;
+		return JSON.parse(raw) as T;
 	} catch {
 		return undefined;
 	}

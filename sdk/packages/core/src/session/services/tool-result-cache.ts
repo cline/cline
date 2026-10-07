@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type ImageContent, safeJsonParse } from "@cline/shared";
+import type { ImageContent } from "@cline/shared";
 import YAML from "yaml";
 
 export const TOOL_RESULT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
@@ -147,54 +147,19 @@ export function prepareToolResultPreview(content: unknown): {
 	};
 }
 
-/** Expand JSON text envelopes before YAML serialization so their multiline fields remain pageable. */
-function expandRecoveryJson(value: unknown, decodeText = false): unknown {
-	if (decodeText && typeof value === "string") {
-		const trimmed = value.trimStart();
-		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-			const parsed = safeJsonParse<unknown>(
-				value,
-				(_key, entry, context?: { source?: string }) => {
-					// Keep the original text if numeric decoding changes its spelling,
-					// including rounded IDs, negative zero, or overflowing exponents.
-					if (typeof entry === "number" && context?.source !== String(entry)) {
-						throw new Error("JSON number cannot be preserved in recovery");
-					}
-					return entry;
-				},
-			);
-			if (parsed !== undefined) return expandRecoveryJson(parsed);
-		}
-		return value;
-	}
-	if (Array.isArray(value))
-		return value.map((entry) => expandRecoveryJson(entry));
-	if (value !== null && typeof value === "object") {
-		const isTextBlock = "type" in value && value.type === "text";
-		return Object.fromEntries(
-			Object.entries(value).map(([key, entry]) => [
-				key,
-				expandRecoveryJson(entry, isTextBlock && key === "text"),
-			]),
-		);
-	}
-	return value;
-}
-
-/** YAML is only the readable recovery copy, not the truncation threshold or canonical output. */
+/** YAML is only the readable recovery copy, not the truncation threshold. */
 export function prepareToolResultRecovery(output: unknown): {
 	text: string | undefined;
 	images: ImageContent[];
 } {
 	const { textual, images } = splitToolResultMedia(output);
-	const recovery = expandRecoveryJson(textual, true);
 	return {
 		text:
-			typeof recovery === "string"
-				? recovery
-				: recovery === undefined
+			typeof textual === "string"
+				? textual
+				: textual === undefined
 					? undefined
-					: YAML.stringify(recovery, { blockQuote: "literal", lineWidth: 0 }),
+					: YAML.stringify(textual, { blockQuote: "literal", lineWidth: 0 }),
 		images,
 	};
 }

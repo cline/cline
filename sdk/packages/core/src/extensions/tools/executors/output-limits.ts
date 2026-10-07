@@ -46,5 +46,8 @@ export const MAX_LINE_CHARS = 2_000;
 /** Max characters returned per file read window. */
 export const MAX_READ_OUTPUT_CHARS = 48_000;
 
+/** Offset pages fit inside the model's bounded tool-result preview. */
+export const MAX_READ_OFFSET_CHARS = 6_000;
+
 /** Max characters returned per search query; beyond this the middle is elided. */
 export const MAX_SEARCH_OUTPUT_CHARS = 48_000;
