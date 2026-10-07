@@ -79,6 +79,88 @@ describe("schedule import/export execution settings", () => {
 		expect(client.close).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		{
+			extension: "json",
+			label: "disabled capabilities",
+			runtimeOptions: {
+				enableTools: false,
+				enableSpawn: false,
+				enableTeams: false,
+				autoApproveTools: false,
+			},
+		},
+		{
+			extension: "yaml",
+			label: "disabled capabilities",
+			runtimeOptions: {
+				enableTools: false,
+				enableSpawn: false,
+				enableTeams: false,
+				autoApproveTools: false,
+			},
+		},
+		{
+			extension: "json",
+			label: "mixed capabilities and additional settings",
+			runtimeOptions: {
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: true,
+				autoApproveTools: false,
+				thinking: false,
+				checkpointEnabled: false,
+				systemPrompt: "Keep the scheduled run focused.",
+			},
+		},
+		{
+			extension: "yaml",
+			label: "mixed capabilities and additional settings",
+			runtimeOptions: {
+				enableTools: false,
+				enableSpawn: true,
+				enableTeams: false,
+				autoApproveTools: true,
+				thinking: true,
+				checkpointEnabled: false,
+				systemPrompt: "Keep the scheduled run focused.",
+			},
+		},
+	])("preserves runtimeOptions with $label through a $extension round trip", async ({
+		extension,
+		runtimeOptions,
+	}) => {
+		client.getSchedule.mockResolvedValue({ ...record, runtimeOptions });
+		const path = join(directory, `schedule.${extension}`);
+		await run(["export", record.scheduleId, "--to", path]);
+		await run(["import", path]);
+
+		expect(fail).not.toHaveBeenCalled();
+		expect(io.writeErr).not.toHaveBeenCalled();
+		expect(client.createSchedule).toHaveBeenCalledTimes(1);
+		expect(client.createSchedule.mock.calls[0]?.[0].runtimeOptions).toEqual(
+			runtimeOptions,
+		);
+		expect(client.close).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		null,
+		[],
+		false,
+		"disabled",
+	])("ignores a non-object runtimeOptions value: %j", async (runtimeOptions) => {
+		const path = join(directory, "schedule.json");
+		await writeFile(path, JSON.stringify({ ...record, runtimeOptions }));
+		await run(["import", path]);
+
+		expect(fail).not.toHaveBeenCalled();
+		expect(client.createSchedule).toHaveBeenCalledTimes(1);
+		expect(
+			client.createSchedule.mock.calls[0]?.[0].runtimeOptions,
+		).toBeUndefined();
+	});
+
 	it("accepts the snake_case iteration limit from imported files", async () => {
 		const path = join(directory, "schedule.json");
 		await writeFile(
@@ -121,5 +203,6 @@ describe("schedule import/export execution settings", () => {
 		const input = client.createSchedule.mock.calls[0]?.[0];
 		expect(input.timezone).toBeUndefined();
 		expect(input.maxIterations).toBeUndefined();
+		expect(input.runtimeOptions).toBeUndefined();
 	});
 });

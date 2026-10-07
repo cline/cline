@@ -204,6 +204,12 @@ export function registerScheduleImportCommand(
 								.map((item) => (typeof item === "string" ? item.trim() : ""))
 								.filter((item) => item.length > 0)
 						: undefined,
+					runtimeOptions:
+						parsed.runtimeOptions &&
+						typeof parsed.runtimeOptions === "object" &&
+						!Array.isArray(parsed.runtimeOptions)
+							? parsed.runtimeOptions
+							: undefined,
 					metadata: mergeScheduleMetadata(
 						parsed.metadata && typeof parsed.metadata === "object"
 							? (parsed.metadata as Record<string, unknown>)
