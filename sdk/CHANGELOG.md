@@ -11,7 +11,7 @@
 - Rules: new `listEnabledRulesFromRecords` / `loadRulesForSystemPromptFromRecords` exports. The combined user-instruction service now orders rules by name, matching the single-workspace path
 - Opt-in Langfuse tracing for BYOK providers (`CLINE_LANGFUSE_ALL_PROVIDERS`), plus operator tags, metadata and environment via `CLINE_LANGFUSE_TAGS`, `CLINE_LANGFUSE_METADATA`, `LANGFUSE_TRACING_ENVIRONMENT`
 - Hook discovery telemetry handles Windows path separators
-- Refreshed the model catalog. The Cline free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Adds the Engy provider. Default models change for ai& (DeepSeek V4.1 Flash), AKI.IO, Blue Claw, CoralBricks, CrossModel (GPT-6.1 Sol), Kilo Gateway, LLM Gateway, DevPass, Mistral, NanoGPT, Requesty (Mistral Large 4), Neon (Claude Opus 5.5), OpenCode Zen, OpenRouter and Vercel AI Gateway (Nano Banana 2.1), Subconscious, and The Grid AI
+- Refreshed the model catalog. The Cline free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Adds the Engy provider. Default models change for AKI.IO, Blue Claw, CoralBricks, CrossModel (GPT-6.1 Sol), DevPass, LLM Gateway, Mistral, NanoGPT, Requesty (Mistral Large 4), Neon (Claude Opus 5.5), Subconscious, and The Grid AI
 
 ## 0.0.90
 
