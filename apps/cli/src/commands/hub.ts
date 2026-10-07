@@ -12,6 +12,7 @@ import {
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command, InvalidArgumentError } from "commander";
 import { version as cliVersion } from "../../package.json";
+import { createDashboardCommand } from "./dashboard-command";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
@@ -281,6 +282,12 @@ export function createHubCommand(
 	for (const command of hub.commands) {
 		addHubOptions(command);
 	}
+
+	hub.addCommand(
+		createDashboardCommand(io, (code) => {
+			actionExitCode = code;
+		}),
+	);
 
 	return hub;
 }

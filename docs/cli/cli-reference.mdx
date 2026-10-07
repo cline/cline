@@ -202,11 +202,36 @@ cline schedule
 
 ### `hub`
 
-Manage the local hub daemon.
+Manage the local hub daemon. Running `cline hub` without a subcommand prints help.
 
 ```bash
 cline hub
 ```
+
+#### `hub dashboard [options]`
+
+Start the Cline Hub browser dashboard to view connected clients and sessions, send messages, and restart the hub. The command opens your default browser and stays running until you press Ctrl+C.
+
+```bash
+cline hub dashboard
+cline hub dashboard --port 9090 --no-open
+cline hub dashboard --help
+```
+
+| Option | Description |
+| --- | --- |
+| `-c, --cwd <path>` | Workspace root (default: current directory). |
+| `--config <dir>` | Configuration directory. |
+| `--data-dir <dir>` | Use isolated local state and enable sandbox mode. |
+| `--host <host>` | Dashboard bind host (default: `127.0.0.1`). |
+| `--port <port>` | Dashboard HTTP/WebSocket port (default: `8787`). |
+| `--public-url <url>` | Public dashboard URL for LAN or tunnel access. |
+| `--room-secret <secret>` | Invite secret for browser access; required when binding to a non-local host. |
+| `--no-open` | Print the dashboard URL without opening a browser. |
+
+Anyone with access to the dashboard can drive sessions and restart the hub. For LAN or tunnel access, use a strong room secret and share the printed invite URL only with trusted people.
+
+The old `cline dashboard` invocation remains a hidden compatibility alias. Use `cline hub dashboard` in new scripts.
 
 ### `update [options]`
 
