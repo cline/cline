@@ -99,7 +99,7 @@ export CLINE_DIR=/path/to/custom/config
 cline "your task"
 ```
 
-Open the CLI log file (`~/.cline/data/logs/cline.log`) when troubleshooting:
+Open the CLI log file (`~/.cline/data/logs/cline.log`, or the file `CLINE_LOG_PATH` names) when troubleshooting:
 
 ```bash
 cline doctor log
@@ -117,7 +117,7 @@ cline doctor log
 | `CLINE_SANDBOX` | Enable sandbox mode |
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_HOOKS_DIR` | Additional hooks directory |
-| `CLINE_LOG_PATH` | CLI log file (default: `~/.cline/data/logs/cline.log`). `cline doctor log` always opens the default file |
+| `CLINE_LOG_PATH` | CLI log file (default: `~/.cline/data/logs/cline.log`). `cline doctor log` opens it |
 
 ### CLINE_DATA_DIR
 
