@@ -35,6 +35,7 @@ import {
 import {
 	type CallSettings,
 	generateImage,
+	InvalidResponseDataError,
 	jsonSchema,
 	NoSuchToolError,
 	stepCountIs,
@@ -1000,6 +1001,38 @@ function resolveAiSdkSystemPrompt(
 		: request.systemPrompt;
 }
 
+/**
+ * Whether a stream `error` part reports a response that ended without a
+ * `finish_reason`. The OpenAI-compatible AI SDK provider (which the `cline`
+ * and `openai-compatible` vendors are built on) surfaces a clean EOF this way
+ * rather than as an unrecognized finish reason: its stream flush enqueues an
+ * `InvalidResponseDataError` and reports the finish as `error`. The stream
+ * was cut, not rejected, so the turn is an incomplete one (`unknown`) and the
+ * runtime's continuation applies — the same outcome as a provider that sends
+ * an explicit unrecognized reason.
+ *
+ * Matched by the typed instance or the error name, and the message: the name
+ * check keeps the verdict stable when the "ai" module is only partially
+ * available (tests mock it with a subset of exports).
+ */
+function isStreamEndedWithoutFinishReason(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const { name, message } = error as { name?: unknown; message?: unknown };
+	let typed = false;
+	try {
+		typed = InvalidResponseDataError.isInstance(error);
+	} catch {
+		typed = false;
+	}
+	return (
+		(typed || name === "AI_InvalidResponseDataError") &&
+		typeof message === "string" &&
+		/ended without a finish reason/i.test(message)
+	);
+}
+
 function mapFinishReason(value: unknown): AgentModelFinishReason {
 	// Consume the AI SDK unified reason; raw provider values belong in diagnostics.
 	switch (value) {
@@ -1845,6 +1878,12 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "error") {
+					if (isStreamEndedWithoutFinishReason(part.error)) {
+						// Clean EOF: an incomplete turn, not a provider failure. Report
+						// it as an unknown finish so the runtime continues the turn.
+						finishReason = "unknown";
+						break;
+					}
 					streamError =
 						capturedError?.current ?? captureStreamError(part.error);
 					break;

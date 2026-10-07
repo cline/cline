@@ -530,6 +530,7 @@ describe("AgentRuntime", () => {
 		const model = new ScriptedModel([
 			cutoff,
 			cutoff,
+			cutoff,
 			() => [{ type: "finish", reason: "stop" }],
 		]);
 		const result = await new AgentRuntime({ model }).run("Hi");
@@ -537,11 +538,106 @@ describe("AgentRuntime", () => {
 		expect(result.error?.message).toContain(
 			"without a recognized finish reason",
 		);
-		expect(model.requests).toHaveLength(2);
+		expect(model.requests).toHaveLength(3);
 		expect(result.messages.filter((m) => m.role === "assistant")).toHaveLength(
-			2,
+			3,
 		);
-		expect(result.usage.outputTokens).toBe(10);
+		expect(result.usage.outputTokens).toBe(15);
+	});
+
+	it("continues a reasoning-only stop with the same hidden continuation", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking... cut mid-wo" },
+				{ type: "finish", reason: "stop" },
+			],
+			(request) => {
+				expect(request.messages.at(-1)).toMatchObject({
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "Previous turn ended unexpectedly. Continue from where you left off.",
+						},
+					],
+					metadata: { displayRole: "system", userRunSpan: 0 },
+				});
+				return [
+					{ type: "text-delta", text: "Here is the answer." },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Here is the answer.");
+		expect(model.requests).toHaveLength(2);
+		expect(result.messages.map((m) => m.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+	});
+
+	it("fails once repeated reasoning-only stops exhaust the continuation budget", async () => {
+		const reasoningOnly = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{ type: "finish" as const, reason: "stop" as const },
+		];
+		const model = new ScriptedModel([
+			reasoningOnly,
+			reasoningOnly,
+			reasoningOnly,
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"without a visible response or tool call",
+		);
+		expect(model.requests).toHaveLength(3);
+	});
+
+	it("shares the continuation budget between unknown finishes and reasoning-only stops", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking..." },
+				{ type: "finish", reason: "unknown" },
+			],
+			() => [
+				{ type: "reasoning-delta", text: "still thinking..." },
+				{ type: "finish", reason: "stop" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done");
+		expect(model.requests).toHaveLength(3);
+	});
+
+	it("still completes a normal stop with visible text and leaves a fully empty stop to the empty-response path", async () => {
+		const answered = await new AgentRuntime({
+			model: new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "plain answer" },
+					{ type: "finish", reason: "stop" },
+				],
+			]),
+		}).run("Hi");
+		expect(answered.status).toBe("completed");
+		expect(answered.outputText).toBe("plain answer");
+
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const empty = await new AgentRuntime({ model }).run("Hi");
+		expect(empty.status).toBe("failed");
+		expect(empty.error?.message).toBe("Model returned empty response");
+		expect(model.requests).toHaveLength(1);
 	});
 
 	it("executes completed tool calls from an unknown finish once and continues with their results", async () => {

@@ -58,6 +58,20 @@ interface PreparedModelRequest {
 	startedAt: number;
 }
 
+/**
+ * How many consecutive incomplete turns are continued before the run fails.
+ * An incomplete turn is one that ended with an `unknown` finish (stream cut
+ * before a recognized finish reason) or with a clean `stop` but nothing
+ * visible (reasoning only, no text, tool call, media, or provider tool
+ * activity). Each continuation appends a hidden user message asking the model
+ * to resume; a turn that makes a tool call is a new turn with a fresh budget.
+ */
+const INCOMPLETE_TURN_CONTINUATION_LIMIT = 2;
+const INCOMPLETE_TURN_CONTINUATION =
+	"Previous turn ended unexpectedly. Continue from where you left off.";
+const INCOMPLETE_TURN_LIMIT_MESSAGE =
+	"Model repeatedly ended without a visible response or tool call";
+
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
@@ -482,6 +496,41 @@ function usageDelta(
 
 function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
 	return request.options?.thinking === false;
+}
+
+/**
+ * Whether the turn left the user something to see: non-whitespace text, a tool
+ * call, media, or provider-executed tool activity (recorded in metadata, not
+ * content). Reasoning alone does not count — it renders as a collapsed block
+ * and carries no answer.
+ */
+function hasVisibleContent(message: AgentMessage): boolean {
+	const activities = message.metadata?.modelToolActivities;
+	return (
+		message.content.some(
+			(part: AgentMessagePart) =>
+				part.type !== "reasoning" &&
+				(part.type !== "text" || part.text.trim().length > 0),
+		) ||
+		(Array.isArray(activities) && activities.length > 0)
+	);
+}
+
+/**
+ * A `stop` with content that is reasoning only is not a completion: the model
+ * ended its turn without answering or acting. Treated like an `unknown` finish
+ * so the same continuation applies. A fully empty turn is excluded — the model
+ * layer already retried it, and the loop reports it as an empty response.
+ */
+function isReasoningOnlyStop(
+	message: AgentMessage,
+	finishReason: AgentModelFinishReason,
+): boolean {
+	return (
+		finishReason === "stop" &&
+		message.content.length > 0 &&
+		!hasVisibleContent(message)
+	);
 }
 
 function textFromMessage(message: AgentMessage | undefined): string {
@@ -913,11 +962,16 @@ export class AgentRuntime {
 					continue;
 				}
 
-				// Recovery already continued once, or external tool activity made
-				// replay unsafe. Local calls are handled below with their results.
+				// Recovery already used its continuation budget, or external tool
+				// activity made replay unsafe. Local calls are handled below with
+				// their results.
 				if (finishReason === "unknown" && toolCalls.length === 0) {
 					this.state.lastFinishReason = finishReason;
 					throw new Error("Model ended without a recognized finish reason");
+				}
+				if (isReasoningOnlyStop(message, finishReason)) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error(INCOMPLETE_TURN_LIMIT_MESSAGE);
 				}
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
@@ -1193,9 +1247,10 @@ export class AgentRuntime {
 	 * caller to handle, so this only adds
 	 * resilience and never changes behavior for a turn that would otherwise
 	 * succeed. Context-window overflow recovery and max-tokens recovery still
-	 * run inside each attempt (the latter at most once per run). An unknown
-	 * finish without tool activity is continued once from the partial history;
-	 * it is never inferred from whether the response contains visible text.
+	 * run inside each attempt (the latter at most once per run). An incomplete
+	 * turn without tool activity — an unknown finish (any content), or a clean
+	 * stop with nothing visible (reasoning only) — is continued from the
+	 * preserved partial history up to INCOMPLETE_TURN_CONTINUATION_LIMIT times.
 	 */
 	private async generateAssistantMessageWithProviderRetry(): Promise<{
 		message: AgentMessage;
@@ -1206,28 +1261,52 @@ export class AgentRuntime {
 			this.withProviderErrorRetry(() =>
 				this.generateAssistantMessageWithOverflowRecovery(),
 			);
-		const first = await issue();
-		if (first.finishReason !== "unknown" || first.interrupted) return first;
+		let turn = await issue();
+		for (
+			let continuation = 0;
+			continuation < INCOMPLETE_TURN_CONTINUATION_LIMIT &&
+			this.isContinuableIncompleteTurn(turn);
+			continuation++
+		) {
+			// The partial turn stays in history. A user-role continuation keeps
+			// role alternation valid (a trailing assistant message is prefill,
+			// which several providers reject) and matches hook-context visibility
+			// so it stays out of live and replayed transcripts.
+			await this.recordAssistantMessage(turn.message, turn.finishReason);
+			await this.addUserReminderMessage(INCOMPLETE_TURN_CONTINUATION, {
+				displayRole: "system",
+			});
+			this.resetLastError();
+			turn = await issue();
+		}
+		return turn;
+	}
 
-		// Tool activity cannot be replayed, and local tool calls must receive
-		// their results before another request. Leave those turns to the loop.
+	/**
+	 * An incomplete turn the continuation may act on: an unknown finish, or a
+	 * reasoning-only stop, that was not interrupted and carries no tool calls.
+	 * Local tool calls must receive their results before another request, and
+	 * provider-executed tool activity cannot be replayed, so those turns are
+	 * left to the loop.
+	 */
+	private isContinuableIncompleteTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}): boolean {
+		if (turn.interrupted) {
+			return false;
+		}
 		if (
-			first.message.content.some((part) => part.type === "tool-call") ||
-			this.hasModelToolActivity(first.message)
-		)
-			return first;
-
-		// An unknown terminal reason, independent of text/reasoning content,
-		// permits exactly one continuation from the preserved partial history.
-		await this.recordAssistantMessage(first.message, first.finishReason);
-		// A user-role continuation avoids treating partial history as assistant
-		// prefill. Match hook context visibility in live and replayed transcripts.
-		await this.addUserReminderMessage(
-			"Previous turn ended unexpectedly. Continue from where you left off.",
-			{ displayRole: "system" },
+			turn.finishReason !== "unknown" &&
+			!isReasoningOnlyStop(turn.message, turn.finishReason)
+		) {
+			return false;
+		}
+		return !(
+			turn.message.content.some((part) => part.type === "tool-call") ||
+			this.hasModelToolActivity(turn.message)
 		);
-		this.resetLastError();
-		return await issue();
 	}
 
 	/**

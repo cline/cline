@@ -383,6 +383,61 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
 	});
 
+	it("reports a stream that ended without a finish reason as unknown, not error", async () => {
+		// The OpenAI-compatible provider surfaces a clean EOF (no finish_reason,
+		// no [DONE]) as an error part, not as an unrecognized finish reason.
+		const eof = Object.assign(
+			new Error("Response stream ended without a finish reason."),
+			{ name: "AI_InvalidResponseDataError" },
+		);
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "reasoning-delta", text: "thinking..." },
+				{ type: "text-delta", text: "I'll start by" },
+				{ type: "error", error: eof },
+				{ type: "finish", finishReason: "error" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+			}),
+		);
+		const finish = events.at(-1);
+		expect(finish).toMatchObject({ type: "finish", reason: "unknown" });
+		expect((finish as { error?: string }).error).toBeUndefined();
+		expect(events.some((e) => e.type === "text-delta")).toBe(true);
+	});
+
+	it("still reports other stream error parts as error", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Partial" },
+				{ type: "error", error: new Error("Provider returned error") },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "Provider returned error",
+		});
+	});
+
 	beforeEach(() => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
