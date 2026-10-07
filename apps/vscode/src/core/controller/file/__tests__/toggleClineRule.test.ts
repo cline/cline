@@ -4,7 +4,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { parseYamlFrontmatter } from "@/core/context/instructions/user-instructions/frontmatter"
+import { parseYamlFrontmatter, readSdkEnabledState } from "@/core/context/instructions/user-instructions/frontmatter"
 import { HostProvider } from "@/hosts/host-provider"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { toggleClineRule } from "../toggleClineRule"
@@ -137,10 +137,9 @@ describe("toggleClineRule", () => {
 		expect(await fs.readFile(rulePath, "utf-8")).toBe(content)
 	})
 
-	it("reverts instead of reporting success when the edit leaves the rule disabled", async () => {
+	it("re-enables a rule whose legacy enabled: false value is on the next line", async () => {
 		const rulePath = path.join(workspace, ".clinerules", "split-enabled.md")
-		const content = ["---", "disabled: true", "enabled:", "  false", "---", "Body"].join("\n")
-		await fs.writeFile(rulePath, content)
+		await fs.writeFile(rulePath, ["---", "disabled: true", "enabled:", "  false", "---", "Body"].join("\n"))
 		const { controller, localToggles } = createController()
 		localToggles[rulePath] = false
 
@@ -149,10 +148,24 @@ describe("toggleClineRule", () => {
 			ToggleClineRuleRequest.create({ scope: RuleScope.LOCAL, rulePath, enabled: true }),
 		)
 
-		const onDisk = parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data
-		const sdkLoadsRule = onDisk.disabled !== true && onDisk.enabled !== false
-		expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(sdkLoadsRule)
-		expect(localToggles[rulePath]).toBe(sdkLoadsRule)
+		expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(true)
+		expect(readSdkEnabledState(await fs.readFile(rulePath, "utf-8"))).toBe(true)
+	})
+
+	it("reverts instead of reporting success when the SDK would still not load the rule as requested", async () => {
+		const rulePath = path.join(workspace, ".clinerules", "non-boolean.md")
+		const content = ["---", "disabled: [", "  true,", "]", "---", "Body"].join("\n")
+		await fs.writeFile(rulePath, content)
+		const { controller, localToggles } = createController()
+
+		const response = await toggleClineRule(
+			controller as never,
+			ToggleClineRuleRequest.create({ scope: RuleScope.LOCAL, rulePath, enabled: false }),
+		)
+
+		expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(true)
+		expect(localToggles[rulePath]).toBe(true)
+		expect(await fs.readFile(rulePath, "utf-8")).toBe(content)
 	})
 
 	it("does not write frontmatter into non-rule files that happen to live in .clinerules", async () => {

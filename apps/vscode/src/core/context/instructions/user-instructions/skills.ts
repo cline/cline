@@ -14,15 +14,9 @@ import { hasRequestedEnabledState, parseYamlFrontmatter, updateUserInstructionMa
  * skill's enabled state from the SKILL.md frontmatter `disabled` field, not from
  * the extension's UI toggle state. Toggling a skill in the VS Code sidebar must
  * therefore also write this flag so the change is reflected for the model
- * (ENG-1995). This mirrors the SDK's updateSkillMarkdownEnabledState but lives in
- * the extension and uses js-yaml (the extension's frontmatter parser).
- *
- * - enabled=false → sets `disabled: true`.
- * - enabled=true  → removes `disabled` (and a stale `enabled: false`), dropping
- *   the frontmatter block entirely if it becomes empty.
- *
- * Returns the original content unchanged when enabling a document that has no
- * frontmatter (nothing to clear).
+ * (ENG-1995). Rules and skills share one editor; see
+ * updateUserInstructionMarkdownDisabledState for what it changes and what it
+ * refuses to edit.
  */
 export function updateSkillMarkdownDisabledState(content: string, enabled: boolean): string {
 	return updateUserInstructionMarkdownDisabledState(content, enabled)

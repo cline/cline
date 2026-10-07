@@ -814,6 +814,38 @@ describe("updateSkillMarkdownDisabledState", () => {
 	})
 })
 
+describe("updateSkillMarkdownDisabledState with the shared source-range editor", () => {
+	const lines = (...parts: string[]) => parts.join("\n")
+
+	it("re-enables a skill whose legacy enabled: false value is on the next line", () => {
+		const input = lines("---", "name: s", "description: d", "disabled: true", "enabled:", "  false", "---", "Body")
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(lines("---", "name: s", "description: d", "---", "Body"))
+	})
+
+	it("leaves matching text inside the description untouched", () => {
+		const input = lines(
+			"---",
+			"name: s",
+			'description: "first',
+			"  disabled: true",
+			'  last"',
+			"disabled: true",
+			"---",
+			"Body",
+		)
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.equal(lines("---", "name: s", 'description: "first', "  disabled: true", '  last"', "---", "Body"))
+		expect(parseYamlFrontmatter(output).data.description).to.equal("first disabled: true last")
+	})
+
+	it("keeps a comment on the disabled entry", () => {
+		const input = lines("---", "name: s", "description: d", "disabled: true # paused for review", "---", "Body")
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(
+			lines("---", "name: s", "description: d", "disabled: false # paused for review", "---", "Body"),
+		)
+	})
+})
+
 describe("setSkillDisabledInFrontmatter", () => {
 	let sandbox: sinon.SinonSandbox
 	let readFileStub: sinon.SinonStub

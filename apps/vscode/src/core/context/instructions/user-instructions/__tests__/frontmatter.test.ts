@@ -1,6 +1,12 @@
 import { describe, it } from "bun:test"
 import { expect } from "chai"
-import { isFrontmatterDisabled, parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "../frontmatter"
+import { parseDocument } from "yaml"
+import {
+	isFrontmatterDisabled,
+	parseYamlFrontmatter,
+	readSdkEnabledState,
+	updateUserInstructionMarkdownDisabledState,
+} from "../frontmatter"
 
 describe("parseYamlFrontmatter", () => {
 	it("returns original content when no frontmatter", () => {
@@ -95,101 +101,155 @@ describe("updateUserInstructionMarkdownDisabledState", () => {
 	})
 })
 
+const lines = (...parts: string[]) => parts.join("\n")
+
+/** Every top-level value except the enablement flags, as the SDK parser reads it. */
+function otherValues(content: string): Record<string, unknown> {
+	const block = content.replace(/^\uFEFF/, "").match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? ""
+	const data = (parseDocument(block).toJS() ?? {}) as Record<string, unknown>
+	const { disabled: _disabled, enabled: _enabled, ...rest } = data
+	return rest
+}
+
+function bodyOf(content: string): string {
+	return parseYamlFrontmatter(content).body
+}
+
 describe("updateUserInstructionMarkdownDisabledState preserves authored frontmatter", () => {
 	it("keeps comments, key order, and quoting when disabling", () => {
-		const input = ["---", "# scope this rule", "paths:", "  - 'src/**'", 'name: "My rule"', "---", "Body"].join("\n")
-		const output = updateUserInstructionMarkdownDisabledState(input, false)
-		expect(output).to.equal(
-			["---", "# scope this rule", "paths:", "  - 'src/**'", 'name: "My rule"', "disabled: true", "---", "Body"].join("\n"),
+		const input = lines("---", "# scope this rule", "paths:", "  - 'src/**'", 'name: "My rule"', "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(
+			lines("---", "# scope this rule", "paths:", "  - 'src/**'", 'name: "My rule"', "disabled: true", "---", "Body"),
 		)
 	})
 
-	it("replaces an existing top-level disabled line instead of duplicating it", () => {
-		const input = ["---", "disabled: false # toggled", "paths:", "  - src/**", "---", "Body"].join("\n")
-		const output = updateUserInstructionMarkdownDisabledState(input, false)
-		expect(output).to.equal(["---", "disabled: true", "paths:", "  - src/**", "---", "Body"].join("\n"))
+	it("sets an existing disabled value in place, keeping its comment", () => {
+		const input = lines("---", "disabled: false # important explanation", "paths:", "  - src/**", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(
+			lines("---", "disabled: true # important explanation", "paths:", "  - src/**", "---", "Body"),
+		)
 	})
 
-	it("removes only the disabled and enabled:false lines when re-enabling", () => {
-		const input = ["---", "# keep me", "enabled: false", "paths:", "  - src/**", "disabled: true", "---", "Body"].join("\n")
+	it("keeps a commented disabled entry on re-enable and only flips its value", () => {
+		const input = lines("---", "disabled: true # important explanation", "paths:", "  - src/**", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+			lines("---", "disabled: false # important explanation", "paths:", "  - src/**", "---", "Body"),
+		)
+	})
+
+	it("keeps a comment placed before a split value", () => {
+		const input = lines("---", "disabled:", "  # why this is off", "  true", "name: x", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+			lines("---", "disabled:", "  # why this is off", "  false", "name: x", "---", "Body"),
+		)
+	})
+
+	it("keeps an indented comment that follows an inline disabled value", () => {
+		const input = lines("---", "disabled: true", "  # keep this note", "paths:", "  - src/**", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+			lines("---", "disabled: false", "  # keep this note", "paths:", "  - src/**", "---", "Body"),
+		)
+	})
+
+	it("removes uncommented disabled and enabled: false entries when re-enabling", () => {
+		const input = lines("---", "# keep me", "enabled: false", "paths:", "  - src/**", "disabled: true", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
+			lines("---", "# keep me", "paths:", "  - src/**", "---", "Body"),
+		)
+	})
+
+	it("removes a legacy enabled: false whose value is on the next line", () => {
+		const input = lines("---", "disabled: true", "enabled:", "  false", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal("Body")
+	})
+
+	it("leaves matching text inside other values untouched", () => {
+		const input = lines("---", 'description: "first', "  disabled: true", '  last"', "disabled: true", "---", "Body")
 		const output = updateUserInstructionMarkdownDisabledState(input, true)
-		expect(output).to.equal(["---", "# keep me", "paths:", "  - src/**", "---", "Body"].join("\n"))
+		expect(output).to.equal(lines("---", 'description: "first', "  disabled: true", '  last"', "---", "Body"))
+		expect(otherValues(output)).to.deep.equal(otherValues(input))
+	})
+
+	it("refuses frontmatter the SDK parser rejects instead of editing it", () => {
+		const input = lines("---", 'description: "first', "disabled: true", 'last"', "disabled: true", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(input)
+		const duplicate = lines("---", "disabled: true", "disabled: false", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(duplicate, true)).to.equal(duplicate)
+	})
+
+	it("refuses a non-boolean flag, which makes the SDK reject the file", () => {
+		const flow = lines("---", "disabled: [", "  true,", "]", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(flow, false)).to.equal(flow)
+		expect(updateUserInstructionMarkdownDisabledState(flow, true)).to.equal(flow)
+		const block = lines("---", "disabled: |", "  multi", "  line", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(block, false)).to.equal(block)
 	})
 
 	it("does not touch a nested disabled key", () => {
-		const input = ["---", "meta:", "  disabled: true", "---", "Body"].join("\n")
-		const output = updateUserInstructionMarkdownDisabledState(input, false)
-		expect(output).to.equal(["---", "meta:", "  disabled: true", "disabled: true", "---", "Body"].join("\n"))
-		expect(parseYamlFrontmatter(output).data.disabled).to.equal(true)
+		const input = lines("---", "meta:", "  disabled: true", "---", "Body")
+		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(
+			lines("---", "meta:", "  disabled: true", "disabled: true", "---", "Body"),
+		)
 	})
 
-	it("preserves CRLF line endings", () => {
-		const input = "---\r\npaths:\r\n  - src/**\r\n---\r\nBody\r\n"
-		const output = updateUserInstructionMarkdownDisabledState(input, false)
-		expect(output).to.equal("---\r\npaths:\r\n  - src/**\r\ndisabled: true\r\n---\r\nBody\r\n")
-		expect(updateUserInstructionMarkdownDisabledState("Body\r\n", false)).to.equal("---\r\ndisabled: true\r\n---\r\nBody\r\n")
-	})
-
-	it("preserves a UTF-8 BOM", () => {
-		const input = "﻿Follow this rule"
-		const disabled = updateUserInstructionMarkdownDisabledState(input, false)
-		expect(disabled).to.equal("﻿---\ndisabled: true\n---\nFollow this rule")
-		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
-	})
-
-	it("removes enabled: false in any boolean spelling YAML accepts", () => {
+	it("recognizes quoted keys and uppercase booleans", () => {
+		expect(updateUserInstructionMarkdownDisabledState(lines("---", '"disabled": true', "---", "Body"), true)).to.equal("Body")
+		expect(
+			updateUserInstructionMarkdownDisabledState(lines("---", "'disabled': false", "name: x", "---", "Body"), false),
+		).to.equal(lines("---", "'disabled': true", "name: x", "---", "Body"))
 		for (const spelling of ["False", "FALSE"]) {
-			const input = ["---", `enabled: ${spelling}`, "paths:", "  - src/**", "---", "Body"].join("\n")
+			const input = lines("---", `enabled: ${spelling}`, "paths:", "  - src/**", "---", "Body")
 			expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
-				["---", "paths:", "  - src/**", "---", "Body"].join("\n"),
+				lines("---", "paths:", "  - src/**", "---", "Body"),
 			)
 		}
 	})
 
-	it("keeps an indented comment that follows an inline disabled value", () => {
-		const input = ["---", "disabled: true", "  # keep this note", "paths:", "  - src/**", "---", "Body"].join("\n")
-		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
-			["---", "  # keep this note", "paths:", "  - src/**", "---", "Body"].join("\n"),
-		)
-		const enabled = ["---", "disabled: false", "  # keep this note", "---", "Body"].join("\n")
-		expect(updateUserInstructionMarkdownDisabledState(enabled, false)).to.equal(
-			["---", "disabled: true", "  # keep this note", "---", "Body"].join("\n"),
-		)
+	it("preserves CRLF line endings", () => {
+		const input = "---\r\npaths:\r\n  - src/**\r\n---\r\nBody\r\n"
+		const disabled = updateUserInstructionMarkdownDisabledState(input, false)
+		expect(disabled).to.equal("---\r\npaths:\r\n  - src/**\r\ndisabled: true\r\n---\r\nBody\r\n")
+		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
+		expect(updateUserInstructionMarkdownDisabledState("Body\r\n", false)).to.equal("---\r\ndisabled: true\r\n---\r\nBody\r\n")
 	})
 
-	it("replaces and removes a disabled value that spans several lines", () => {
-		const input = ["---", "disabled: [", "  true,", "]", "paths:", "  - src/**", "---", "Body"].join("\n")
-		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(
-			["---", "disabled: true", "paths:", "  - src/**", "---", "Body"].join("\n"),
-		)
-		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
-			["---", "paths:", "  - src/**", "---", "Body"].join("\n"),
-		)
-	})
-
-	it("recognizes quoted keys", () => {
-		const disabledQuoted = ["---", '"disabled": true', "---", "Body"].join("\n")
-		expect(updateUserInstructionMarkdownDisabledState(disabledQuoted, true)).to.equal("Body")
-		const enabledQuoted = ["---", "'disabled': false", "paths:", "  - src/**", "---", "Body"].join("\n")
-		expect(updateUserInstructionMarkdownDisabledState(enabledQuoted, false)).to.equal(
-			["---", "disabled: true", "paths:", "  - src/**", "---", "Body"].join("\n"),
-		)
+	it("preserves a UTF-8 BOM", () => {
+		const input = "\uFEFFFollow this rule"
+		const disabled = updateUserInstructionMarkdownDisabledState(input, false)
+		expect(disabled).to.equal("\uFEFF---\ndisabled: true\n---\nFollow this rule")
+		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
 	})
 
 	it("is a no-op when the document already has the requested state", () => {
-		const disabled = ["---", "disabled: true", "---", "Body"].join("\n")
+		const disabled = lines("---", "disabled: true", "---", "Body")
 		expect(updateUserInstructionMarkdownDisabledState(disabled, false)).to.equal(disabled)
 		expect(updateUserInstructionMarkdownDisabledState("Body", true)).to.equal("Body")
 	})
 
-	it("replaces a multi-line disabled value together with its continuation lines", () => {
-		const input = ["---", "disabled: |", "  multi", "  line", "paths:", "  - src/**", "---", "Body"].join("\n")
-		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(
-			["---", "disabled: true", "paths:", "  - src/**", "---", "Body"].join("\n"),
-		)
-		expect(updateUserInstructionMarkdownDisabledState(input, true)).to.equal(
-			["---", "paths:", "  - src/**", "---", "Body"].join("\n"),
-		)
+	it("never changes another value or the body, in either direction", () => {
+		const inputs = [
+			lines(
+				"---",
+				"name: n",
+				"description: |",
+				"  disabled: true",
+				"  enabled: false",
+				"paths:",
+				"  - src/**",
+				"---",
+				"Body",
+			),
+			lines("---", "# c", "disabled: false # keep", "tags: [a, b]", "---", "Body", "disabled: true"),
+			lines("---", 'title: "x: y"', "enabled:", "  # legacy", "  false", "---", "", "Body"),
+		]
+		for (const input of inputs) {
+			for (const enabled of [true, false]) {
+				const output = updateUserInstructionMarkdownDisabledState(input, enabled)
+				expect(otherValues(output), input).to.deep.equal(otherValues(input))
+				expect(bodyOf(output), input).to.equal(bodyOf(input))
+				expect(readSdkEnabledState(output), input).to.equal(enabled)
+			}
+		}
 	})
 })
 

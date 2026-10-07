@@ -1,5 +1,7 @@
+import { isDeepStrictEqual } from "node:util"
 import { stripUtf8Bom } from "@cline/shared"
 import * as yaml from "js-yaml"
+import { type Document, isMap, isScalar, parseDocument } from "yaml"
 
 export type FrontmatterParseResult = {
 	data: Record<string, unknown>
@@ -78,152 +80,162 @@ export function isFrontmatterDisabled(data: Record<string, unknown>): boolean {
 	return data.enabled === false
 }
 
+const ENABLEMENT_KEYS = ["disabled", "enabled"] as const
+
+type SourceRange = [number, number, number]
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
 /**
- * True when the document parses and its frontmatter puts it in the requested
- * state (`enabled` true means not disabled). Write paths check this on the
- * edited document before writing or reporting success, so a toggle never
- * claims a state the SDK will not load.
+ * Parse a frontmatter block with the SDK loader's YAML parser. Returns
+ * `undefined` for anything the SDK would reject: invalid YAML, duplicate keys,
+ * a non-mapping document, or a non-boolean `disabled`/`enabled`.
+ */
+function parseSdkFrontmatterBlock(block: string): { document: Document.Parsed; data: Record<string, unknown> } | undefined {
+	const document = parseDocument(block)
+	if (document.errors.length > 0 || (document.contents !== null && !isMap(document.contents))) {
+		return undefined
+	}
+	const data = asRecord(document.toJS())
+	for (const key of ENABLEMENT_KEYS) {
+		if (data[key] !== undefined && data[key] !== null && typeof data[key] !== "boolean") {
+			return undefined
+		}
+	}
+	return { document, data }
+}
+
+/**
+ * Whether the SDK loader would treat this document as enabled, or `undefined`
+ * when it would reject the frontmatter altogether.
+ */
+export function readSdkEnabledState(content: string): boolean | undefined {
+	const match = stripUtf8Bom(content).match(FRONTMATTER_REGEX)
+	if (!match) {
+		return true
+	}
+	const parsed = parseSdkFrontmatterBlock(match[1])
+	return parsed ? !isFrontmatterDisabled(parsed.data) : undefined
+}
+
+/**
+ * True when the SDK loader would load the document in the requested state.
+ * Write paths check this on the edited document before writing or reporting
+ * success, so a toggle never claims a state the SDK will not load.
  */
 export function hasRequestedEnabledState(content: string, enabled: boolean): boolean {
-	const { data, parseError } = parseYamlFrontmatter(content)
-	return !parseError && isFrontmatterDisabled(data) !== enabled
-}
-
-/** Matches a top-level `key:` line, with the key bare, double-quoted, or single-quoted. */
-function isTopLevelKeyLine(line: string, key: string): boolean {
-	return new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*:`).test(line)
-}
-
-/** Matches a top-level `enabled: false` line in any boolean spelling YAML accepts (`false`, `False`, `FALSE`). */
-function isEnabledFalseLine(line: string): boolean {
-	return /^(?:enabled|"enabled"|'enabled')\s*:\s*(?:false|False|FALSE)\s*(#.*)?$/.test(line)
-}
-
-function parsesAsYaml(text: string): boolean {
-	try {
-		yaml.load(text, { schema: yaml.JSON_SCHEMA })
-		return true
-	} catch {
-		return false
-	}
-}
-
-/**
- * Number of lines the top-level entry starting at `index` spans.
- *
- * - An inline value that is complete on its own line (`disabled: true`) is one
- *   line, so an indented comment after it belongs to the author.
- * - An inline value that continues on later lines (a flow collection or a
- *   quoted string split across lines) spans up to the first line at which the
- *   entry parses.
- * - An empty value or a block scalar (`|`, `>`) takes its indented
- *   continuation lines (nested maps, lists, block text).
- */
-function topLevelEntryLength(lines: ReadonlyArray<string>, index: number): number {
-	const value = lines[index]
-		.replace(/^[^:]*:/, "")
-		.replace(/\s+#.*$/, "")
-		.trim()
-	if (value !== "" && !/^[|>]/.test(value)) {
-		if (parsesAsYaml(lines[index])) {
-			return 1
-		}
-		for (let end = index + 1; end < lines.length; end++) {
-			if (parsesAsYaml(lines.slice(index, end + 1).join("\n"))) {
-				return end - index + 1
-			}
-		}
-		return 1
-	}
-	let length = 1
-	while (index + length < lines.length && /^\s+\S/.test(lines[index + length])) {
-		length++
-	}
-	return length
-}
-
-function removeTopLevelEntries(lines: ReadonlyArray<string>, shouldRemove: (line: string) => boolean): string[] {
-	const result: string[] = []
-	for (let index = 0; index < lines.length; ) {
-		if (shouldRemove(lines[index])) {
-			index += topLevelEntryLength(lines, index)
-			continue
-		}
-		result.push(lines[index])
-		index++
-	}
-	return result
+	return readSdkEnabledState(content) === enabled
 }
 
 /**
  * Update the `disabled` frontmatter flag shared by SDK-backed user
  * instructions (rules, skills, and workflows).
  *
- * The edit is line-based so a toggle never rewrites what the user authored:
- * YAML comments, key order, quoting, line endings, and a leading BOM all
- * survive. Only the top-level `disabled` key (and a stale `enabled: false`)
- * is touched; quoted keys (`"disabled":`) are recognized too.
+ * The frontmatter is parsed with the SDK loader's YAML parser and edited by
+ * source range, so only the characters of the top-level `disabled` or
+ * `enabled` entries change. Everything else the author wrote, including other
+ * values, comments, key order, quoting, line endings, and a UTF-8 BOM, stays
+ * byte for byte.
  *
- * - enabled=false sets `disabled: true`, replacing an existing top-level
- *   `disabled` line or appending one to the block (creating the block if the
- *   document has none).
- * - enabled=true removes the top-level `disabled` line and any `enabled: false`
- *   line, dropping the fence entirely if nothing else remains.
- * - malformed frontmatter, or an edit that would produce malformed YAML, is
- *   left untouched so a toggle cannot corrupt the document.
+ * - Disabling sets an existing `disabled` value to `true`, or appends a
+ *   `disabled: true` entry (creating the frontmatter if there is none).
+ * - Enabling removes the `disabled` entry and a legacy `enabled: false`; an
+ *   entry that carries a comment keeps its line and has its value set to
+ *   `false` (or `true` for `enabled`) instead, so the comment survives.
+ *   Frontmatter left empty is removed entirely.
+ * - A document the SDK would reject, or an edit whose result would change any
+ *   other value or not reach the requested state, is returned unchanged.
  */
 export function updateUserInstructionMarkdownDisabledState(content: string, enabled: boolean): string {
 	const bom = content.startsWith(UTF8_BOM) ? UTF8_BOM : ""
 	const text = bom ? content.slice(UTF8_BOM.length) : content
 	const eol = text.includes("\r\n") ? "\r\n" : "\n"
 
-	const { hadFrontmatter, parseError } = parseYamlFrontmatter(text)
-	if (parseError) {
-		return content
-	}
-
-	if (!hadFrontmatter) {
-		if (enabled) {
-			return content
-		}
-		return `${bom}---${eol}disabled: true${eol}---${eol}${text}`
-	}
-
 	const match = text.match(FRONTMATTER_REGEX)
 	if (!match) {
+		return enabled ? content : `${bom}---${eol}disabled: true${eol}---${eol}${text}`
+	}
+	const [, block, body] = match
+	const blockStart = text.indexOf("\n") + 1
+
+	const parsed = parseSdkFrontmatterBlock(block)
+	if (!parsed) {
 		return content
 	}
-	const [, yamlBlock, body] = match
-	const lines = yamlBlock.split(/\r?\n/)
-
-	let nextLines: string[]
-	if (enabled) {
-		nextLines = removeTopLevelEntries(lines, (line) => isTopLevelKeyLine(line, "disabled") || isEnabledFalseLine(line))
-	} else {
-		const disabledIndex = lines.findIndex((line) => isTopLevelKeyLine(line, "disabled"))
-		if (disabledIndex >= 0) {
-			nextLines = [
-				...lines.slice(0, disabledIndex),
-				"disabled: true",
-				...lines.slice(disabledIndex + topLevelEntryLength(lines, disabledIndex)),
-			]
-		} else {
-			nextLines = [...lines, "disabled: true"]
-		}
+	const before = parsed.data
+	if (isFrontmatterDisabled(before) !== enabled) {
+		return content
 	}
 
-	if (nextLines.every((line) => line.trim() === "")) {
+	const pairs = isMap(parsed.document.contents) ? parsed.document.contents.items : []
+	const rangesFor = (key: string): { key: SourceRange; value: SourceRange } | undefined => {
+		const pair = pairs.find((item) => isScalar(item.key) && item.key.value === key)
+		const keyRange = (pair?.key as { range?: SourceRange } | undefined)?.range
+		const valueRange = (pair?.value as { range?: SourceRange } | null | undefined)?.range
+		return keyRange && valueRange ? { key: keyRange, value: valueRange } : undefined
+	}
+
+	const edits: Array<{ start: number; end: number; text: string }> = []
+	const setValue = (key: string, value: string): boolean => {
+		const ranges = rangesFor(key)
+		if (!ranges) {
+			return false
+		}
+		edits.push({ start: ranges.value[0], end: ranges.value[1], text: value })
+		return true
+	}
+	const removeEntry = (key: string, fallbackValue: string): boolean => {
+		const ranges = rangesFor(key)
+		if (!ranges) {
+			return false
+		}
+		const start = ranges.key[0]
+		const end = ranges.value[2]
+		const startsLine = start === 0 || block[start - 1] === "\n"
+		if (!startsLine || block.slice(start, end).includes("#")) {
+			return setValue(key, fallbackValue)
+		}
+		edits.push({ start, end, text: "" })
+		return true
+	}
+
+	if (enabled) {
+		if (rangesFor("disabled") && before.disabled !== false && !removeEntry("disabled", "false")) {
+			return content
+		}
+		if (before.enabled === false && !removeEntry("enabled", "true")) {
+			return content
+		}
+	} else if (rangesFor("disabled")) {
+		if (!setValue("disabled", "true")) {
+			return content
+		}
+	} else {
+		edits.push({ start: block.length, end: block.length, text: `${block.length > 0 ? eol : ""}disabled: true` })
+	}
+
+	let nextBlock = block
+	for (const edit of [...edits].sort((a, b) => b.start - a.start)) {
+		nextBlock = nextBlock.slice(0, edit.start) + edit.text + nextBlock.slice(edit.end)
+	}
+	// Removing the last entry leaves the newline that ended the entry before it.
+	if (!/\r?\n$/.test(block)) {
+		nextBlock = nextBlock.replace(/\r?\n$/, "")
+	}
+	if (nextBlock.trim() === "") {
 		return `${bom}${body}`
 	}
 
-	const updated = `${bom}---${eol}${nextLines.join(eol)}${eol}---${eol}${body}`
-	if (updated === content) {
+	const after = parseSdkFrontmatterBlock(nextBlock)
+	if (!after || isFrontmatterDisabled(after.data) === enabled) {
 		return content
 	}
-	// Never write YAML the loaders would then reject.
-	const verification = parseYamlFrontmatter(updated)
-	if (verification.parseError || !verification.hadFrontmatter) {
-		return content
+	for (const key of new Set([...Object.keys(before), ...Object.keys(after.data)])) {
+		if (!(ENABLEMENT_KEYS as readonly string[]).includes(key) && !isDeepStrictEqual(before[key], after.data[key])) {
+			return content
+		}
 	}
-	return updated
+	return `${bom}${text.slice(0, blockStart)}${nextBlock}${text.slice(blockStart + block.length)}`
 }

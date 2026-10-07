@@ -7,12 +7,7 @@ import * as fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
-import {
-	hasRequestedEnabledState,
-	isFrontmatterDisabled,
-	parseYamlFrontmatter,
-	updateUserInstructionMarkdownDisabledState,
-} from "./frontmatter"
+import { hasRequestedEnabledState, readSdkEnabledState, updateUserInstructionMarkdownDisabledState } from "./frontmatter"
 
 /**
  * File types the SDK rule loader actually reads. Anything else that happens to
@@ -154,8 +149,8 @@ export async function setRuleDisabledInFrontmatter(
  * per-rule history that survives multiple windows and hand edits; a stale
  * toggle shows as on instead, which is what the SDK has been loading.
  *
- * Files outside `allowedRoots`, unreadable files, and files with malformed
- * frontmatter keep their stored toggle.
+ * Files outside `allowedRoots`, unreadable files, and files whose frontmatter
+ * the SDK would reject keep their stored toggle.
  */
 export async function syncRuleTogglesFromFrontmatter(
 	toggles: ClineRulesToggles,
@@ -173,11 +168,11 @@ export async function syncRuleTogglesFromFrontmatter(
 		} catch {
 			continue
 		}
-		const { data, parseError } = parseYamlFrontmatter(content)
-		if (parseError) {
+		const sdkEnabled = readSdkEnabledState(content)
+		if (sdkEnabled === undefined) {
 			continue
 		}
-		updated[rulePath] = !isFrontmatterDisabled(data)
+		updated[rulePath] = sdkEnabled
 	}
 	return updated
 }
