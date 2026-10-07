@@ -60,6 +60,12 @@ export async function runSessionExport(input: {
 				schemaVersion: result.manifest.schemaVersion,
 				counts: entry?.counts,
 				eventsSource: entry?.eventsSource,
+				recording: entry?.recording
+					? {
+							counts: entry.recording.counts,
+							coverage: entry.recording.coverage,
+						}
+					: null,
 				files: result.manifest.files.map((file) => file.path),
 				redaction: result.manifest.redaction,
 				warnings: result.warnings,
@@ -74,6 +80,12 @@ export async function runSessionExport(input: {
 			io.writeln(
 				`  ${entry.counts.iterations} iterations · ${entry.counts.messages} messages · ${entry.counts.events} events (${entry.eventsSource})`,
 			);
+			if (entry.recording) {
+				const { counts, coverage } = entry.recording;
+				io.writeln(
+					`  recording: ${counts.modelCalls} model calls · ${counts.decisions} decisions · ${coverage.linked}/${coverage.assistantMessages} assistant messages linked`,
+				);
+			}
 		}
 		io.writeln(
 			result.manifest.redaction.enabled

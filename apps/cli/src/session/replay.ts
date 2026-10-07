@@ -4,6 +4,8 @@ import {
 	type LoadedSessionReplaySession,
 	readSessionReplayBundle,
 	type SessionReplayIteration,
+	type SessionReplayIterationEvent,
+	type SessionReplayModelCall,
 	type SessionReplayToolCall,
 	selectSessionReplayIterations,
 } from "@cline/core";
@@ -40,6 +42,7 @@ export async function loadSessionReplay(input: {
 		sessionId,
 		transcript: session.transcript,
 		events: session.events,
+		requests: session.requests,
 	});
 	return {
 		bundle,
@@ -119,21 +122,72 @@ export function formatReplayUsage(
 	return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
+function eventOffsetLabel(iteration: SessionReplayIteration, ts: string) {
+	const start = iteration.timing.startedAt
+		? Date.parse(iteration.timing.startedAt)
+		: undefined;
+	const offset = start !== undefined ? Date.parse(ts) - start : Number.NaN;
+	return Number.isFinite(offset) ? `+${formatReplayDuration(offset)}` : ts;
+}
+
 /** Hook events with their offset from the iteration start, e.g. `+1.1s tool_call`. */
 export function formatReplayEventTimeline(
 	iteration: SessionReplayIteration,
 ): string[] {
-	const start = iteration.timing.startedAt
-		? Date.parse(iteration.timing.startedAt)
-		: undefined;
-	return iteration.events.map((event) => {
-		const offset =
-			start !== undefined ? Date.parse(event.ts) - start : Number.NaN;
-		const label = Number.isFinite(offset)
-			? `+${formatReplayDuration(offset)}`
-			: event.ts;
-		return `${label} ${event.name}${event.toolCallId ? ` ${event.toolCallId}` : ""}`;
-	});
+	return iteration.events
+		.filter((event) => event.kind === "hook")
+		.map(
+			(event) =>
+				`${eventOffsetLabel(iteration, event.ts)} ${event.name}${event.toolCallId ? ` ${event.toolCallId}` : ""}`,
+		);
+}
+
+export function replayDecisionEvents(
+	iteration: SessionReplayIteration,
+): SessionReplayIterationEvent[] {
+	return iteration.events.filter((event) => event.kind === "decision");
+}
+
+/** A recorded decision, e.g. `+1.2s approved run_commands by client (cli) after 900ms`. */
+export function formatReplayDecision(
+	iteration: SessionReplayIteration,
+	event: SessionReplayIterationEvent,
+): string {
+	return `${eventOffsetLabel(iteration, event.ts)} ${event.detail ?? event.name}`;
+}
+
+export function formatReplayDecisions(
+	iteration: SessionReplayIteration,
+): string[] {
+	return replayDecisionEvents(iteration).map((event) =>
+		formatReplayDecision(iteration, event),
+	);
+}
+
+/** A recorded model call, e.g. `call 3 · completed (tool-calls) · 1.2s · 812 in / 40 out`. */
+export function formatReplayModelCall(call: SessionReplayModelCall): string {
+	const parts = [
+		`call ${call.callIndex}${call.attempt > 0 ? ` (attempt ${call.attempt + 1})` : ""}`,
+		`${call.outcome}${call.finishReason ? ` (${call.finishReason})` : ""}`,
+		formatReplayDuration(call.durationMs),
+		`${call.messageCount} message${call.messageCount === 1 ? "" : "s"}`,
+	];
+	if (call.usage) {
+		parts.push(
+			`${call.usage.inputTokens ?? 0} in / ${call.usage.outputTokens ?? 0} out`,
+		);
+	}
+	parts.push(`match ${call.matchKey.slice(0, 12)}`);
+	if (call.error) {
+		parts.push(call.error);
+	}
+	return parts.join(" · ");
+}
+
+export function formatReplayModelCalls(
+	iteration: SessionReplayIteration,
+): string[] {
+	return (iteration.modelCalls ?? []).map(formatReplayModelCall);
 }
 
 export function formatReplayIterationTitle(
@@ -289,9 +343,15 @@ export function formatReplayIterationText(
 	for (const call of iteration.toolCalls) {
 		lines.push(...formatToolCallText(call, options));
 	}
+	for (const decision of formatReplayDecisions(iteration)) {
+		lines.push(`  ${paint(options, c.yellow, "decision")} ${decision}`);
+	}
 	const usage = formatReplayUsage(iteration);
 	if (usage) {
 		lines.push(paint(options, c.gray, `  usage: ${usage}`));
+	}
+	for (const call of formatReplayModelCalls(iteration)) {
+		lines.push(paint(options, c.gray, `  model call: ${call}`));
 	}
 	const timeline = formatReplayEventTimeline(iteration);
 	if (timeline.length > 0) {
@@ -324,6 +384,11 @@ export function formatReplayHeaderText(
 		`  started: ${entry.startedAt}${entry.endedAt ? ` · ended: ${entry.endedAt}` : ""}`,
 		`  cwd: ${entry.cwd}`,
 		`  iterations: ${range} · messages: ${entry.counts.messages} · events: ${entry.counts.events} · redaction: ${redaction}`,
+		...(entry.recording
+			? [
+					`  recording: ${entry.recording.counts.modelCalls} model calls · ${entry.recording.counts.decisions} decisions · ${entry.recording.segments.length} segment${entry.recording.segments.length === 1 ? "" : "s"}`,
+				]
+			: []),
 		`  bundle: schemaVersion ${manifest.schemaVersion} · ${manifest.producer.name} ${manifest.producer.version}`,
 	].join("\n");
 }

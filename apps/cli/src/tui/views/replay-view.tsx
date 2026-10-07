@@ -8,11 +8,14 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+	formatReplayDecision,
 	formatReplayDuration,
 	formatReplayEventTimeline,
 	formatReplayIterationTitle,
+	formatReplayModelCall,
 	formatReplayUsage,
 	type LoadedSessionReplay,
+	replayDecisionEvents,
 	replayDelayMs,
 	summarizeReplayIterations,
 } from "../../session/replay";
@@ -67,6 +70,7 @@ function ReplayIterationView(props: {
 	);
 	const usage = formatReplayUsage(iteration);
 	const timeline = formatReplayEventTimeline(iteration);
+	const decisions = replayDecisionEvents(iteration);
 	const toolTimings = iteration.toolCalls
 		.filter((call) => call.durationMs !== undefined)
 		.map(
@@ -103,7 +107,17 @@ function ReplayIterationView(props: {
 				.slice(notesAt)
 				.map((entry, offset) => renderEntry(entry, notesAt + offset))}
 			<box flexDirection="column">
+				{decisions.map((event) => (
+					<text key={`decision:${event.index}`} fg="yellow">
+						{`decision: ${formatReplayDecision(iteration, event)}`}
+					</text>
+				))}
 				{usage && <text fg="gray">{`usage: ${usage}`}</text>}
+				{(iteration.modelCalls ?? []).map((call) => (
+					<text key={`model-call:${call.callIndex}`} fg="gray">
+						{`model call: ${formatReplayModelCall(call)}`}
+					</text>
+				))}
 				{toolTimings.length > 0 && (
 					<text fg="gray">{`tool time: ${toolTimings.join(", ")}`}</text>
 				)}

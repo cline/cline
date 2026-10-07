@@ -120,6 +120,7 @@ beforeEach(async () => {
 					team: null,
 					checkpoints: [],
 					eventsSource: "none",
+					recording: null,
 				},
 				transcript: { sessionId: "sess_1", messages: MESSAGES },
 				events: [],
@@ -249,7 +250,7 @@ describe("runSessionReplay", () => {
 	it("refuses bundles with a newer schemaVersion", async () => {
 		const manifestPath = join(bundleDir, "manifest.json");
 		const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-		manifest.schemaVersion = 2;
+		manifest.schemaVersion = 3;
 		await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
 		const { io, err } = createIo();
 		const code = await runSessionReplay({
@@ -260,7 +261,7 @@ describe("runSessionReplay", () => {
 		});
 		expect(code).toBe(1);
 		expect(err).toEqual([
-			"Session replay bundle uses schemaVersion 2, but this version of Cline reads bundles up to schemaVersion 1. Upgrade Cline to read this bundle.",
+			"Session replay bundle uses schemaVersion 3, but this version of Cline reads bundles up to schemaVersion 2. Upgrade Cline to read this bundle.",
 		]);
 	});
 
@@ -303,7 +304,7 @@ describe("runSessionValidate", () => {
 			await runSessionValidate({ bundleDir, outputMode: "text", io: valid.io }),
 		).toBe(0);
 		expect(valid.out).toEqual([
-			"Valid session replay bundle (schemaVersion 1, 1 session, 3 files)",
+			"Valid session replay bundle (schemaVersion 2, 1 session, 3 files)",
 		]);
 
 		await writeFile(

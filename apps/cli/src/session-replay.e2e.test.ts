@@ -240,11 +240,15 @@ describe("session replay e2e", () => {
 		expect(exported.status, exported.stderr).toBe(0);
 		expect(JSON.parse(exported.stdout)).toMatchObject({
 			sessionId,
-			schemaVersion: 1,
+			schemaVersion: 2,
 			counts: { iterations: 2 },
 			eventsSource: "session-log",
+			recording: null,
 			redaction: { enabled: true },
 		});
+		expect(
+			existsSync(path.join(root, "sessions", sessionId, "recording")),
+		).toBe(false);
 
 		const validated = await runCli(["session", "validate", bundleDir], {
 			cwd: workspace,
@@ -294,7 +298,101 @@ describe("session replay e2e", () => {
 		});
 		expect(refused.status).toBe(1);
 		expect(refused.stderr).toContain(
-			"Session replay bundle uses schemaVersion 99, but this version of Cline reads bundles up to schemaVersion 1.",
+			"Session replay bundle uses schemaVersion 99, but this version of Cline reads bundles up to schemaVersion 2.",
+		);
+	}, 180_000);
+
+	it("records model requests with --record-session and plays them back", async () => {
+		const sessionsDir = path.join(root, "recorded-sessions");
+		const recordedEnv = {
+			...env,
+			CLINE_SESSION_DATA_DIR: sessionsDir,
+			CLINE_DB_DATA_DIR: path.join(root, "recorded-db"),
+		};
+		const run = await runCli(["-y", "--record-session", "Run echo for me"], {
+			cwd: workspace,
+			env: recordedEnv,
+		});
+		expect(run.status, run.stderr).toBe(0);
+
+		const history = await runCli(["history", "--json"], {
+			cwd: workspace,
+			env: recordedEnv,
+		});
+		expect(history.status, history.stderr).toBe(0);
+		const [session] = JSON.parse(history.stdout) as Array<{
+			sessionId: string;
+		}>;
+		const sessionId = session?.sessionId ?? "";
+		const recordingDir = path.join(sessionsDir, sessionId, "recording");
+		expect(existsSync(path.join(recordingDir, "requests.jsonl"))).toBe(true);
+
+		const bundleDir = path.join(root, "recorded-bundle");
+		const exported = await runCli(
+			["session", "export", sessionId, "--bundle", bundleDir, "--json"],
+			{ cwd: workspace, env: recordedEnv },
+		);
+		expect(exported.status, exported.stderr).toBe(0);
+		const summary = JSON.parse(exported.stdout);
+		expect(summary).toMatchObject({
+			schemaVersion: 2,
+			counts: { iterations: 2 },
+			recording: {
+				counts: { modelCalls: 2 },
+				coverage: { assistantMessages: 2, linked: 2, unlinkedMessageIds: [] },
+			},
+		});
+		expect(summary.files).toEqual(
+			expect.arrayContaining([
+				`sessions/${sessionId}/requests/requests.jsonl`,
+				`sessions/${sessionId}/requests/blobs.jsonl`,
+			]),
+		);
+		const requests = readFileSync(
+			path.join(bundleDir, "sessions", sessionId, "requests", "requests.jsonl"),
+			"utf8",
+		);
+		expect(requests).not.toContain("sk-replay-e2e");
+
+		const validated = await runCli(["session", "validate", bundleDir], {
+			cwd: workspace,
+			env: recordedEnv,
+		});
+		expect(validated.status, validated.stderr).toBe(0);
+
+		const json = await runCli(
+			["session", "replay", bundleDir, "--format", "json"],
+			{ cwd: workspace, env: recordedEnv },
+		);
+		expect(json.status, json.stderr).toBe(0);
+		const iterations = json.stdout
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+		expect(
+			iterations.map((iteration) =>
+				iteration.modelCalls.map(
+					(call: { callIndex: number; outcome: string }) =>
+						`${call.callIndex}:${call.outcome}`,
+				),
+			),
+		).toEqual([["0:completed"], ["1:completed"]]);
+		expect(
+			iterations[0].events
+				.filter((event: { kind: string }) => event.kind === "decision")
+				.map((event: { detail?: string }) => event.detail),
+		).toEqual(["immediate prompt delivered (start)"]);
+
+		const text = await runCli(["session", "replay", bundleDir], {
+			cwd: workspace,
+			env: recordedEnv,
+		});
+		expect(text.status, text.stderr).toBe(0);
+		expect(text.stdout).toContain("recording: 2 model calls");
+		expect(text.stdout).toContain("decision +");
+		expect(text.stdout).toContain("immediate prompt delivered (start)");
+		expect(text.stdout).toMatch(
+			/model call: call 0 · completed \(tool-calls\) · \d+ms · 2 messages · 120 in \/ 15 out · match [0-9a-f]{12}/,
 		);
 	}, 180_000);
 });
