@@ -1519,6 +1519,7 @@ async function* emitAiSdkEvents(
 	let finishReason: unknown;
 	let requestId: string | undefined;
 	let streamError: CapturedStreamError | undefined;
+	let endedWithoutFinishReason: string | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
 	let streamAborted = false;
@@ -1880,8 +1881,10 @@ async function* emitAiSdkEvents(
 				if (part.type === "error") {
 					if (isStreamEndedWithoutFinishReason(part.error)) {
 						// Clean EOF: an incomplete turn, not a provider failure. Report
-						// it as an unknown finish so the runtime continues the turn.
+						// it as an unknown finish so the runtime continues the turn, and
+						// keep the message so ApiHandler consumers still see a failure.
 						finishReason = "unknown";
+						endedWithoutFinishReason = (part.error as Error).message;
 						break;
 					}
 					streamError =
@@ -2034,7 +2037,7 @@ async function* emitAiSdkEvents(
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason),
 		...(requestId ? { requestId } : {}),
-		error: streamError?.message,
+		error: streamError?.message ?? endedWithoutFinishReason,
 		errorClass: streamError?.errorClass,
 		errorRetryable: streamError?.retryable,
 		errorReported: streamError?.reported,

@@ -349,7 +349,7 @@ numeric exit is reported as `exitCode`.
 
 ## Incomplete model turn recovery
 
-The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. A stream that ends without a `finish_reason` (which the OpenAI-compatible provider reports as an `InvalidResponseDataError` error part rather than a finish reason) is also reported as `unknown`, not `error`. Explicit `stop`, `tool-calls`, `content-filter`, and other errors retain their meanings. The agent also treats a stream without a finish event as unknown.
+The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. A stream that ends without a `finish_reason` (which the OpenAI-compatible provider reports as an `InvalidResponseDataError` error part rather than a finish reason) is also reported as `unknown`, not `error`; the finish keeps the provider message, so `ApiHandler` consumers still receive `done { success: false }` for it. Explicit `stop`, `tool-calls`, `content-filter`, and other errors retain their meanings. The agent also treats a stream without a finish event as unknown.
 
 A turn is incomplete when it ends with an `unknown` finish (any content), or with an explicit `stop` whose content is reasoning only: no non-whitespace text, tool call, media, or provider-executed tool activity. A fully empty `stop` is not an incomplete turn; it fails as `Model returned empty response` after the model layer's own empty-response retries.
 
