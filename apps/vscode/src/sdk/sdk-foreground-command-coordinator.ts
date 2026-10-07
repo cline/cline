@@ -10,6 +10,7 @@
  * tool call each get their own handle and log file.
  */
 
+import { RunCommandExecutionController } from "@cline/core"
 import { Logger } from "@/shared/services/Logger"
 
 export interface ForegroundCommandHandle {
@@ -27,13 +28,19 @@ export interface SdkForegroundCommandCoordinatorOptions {
 }
 
 export class SdkForegroundCommandCoordinator {
-	private readonly handles = new Set<ForegroundCommandHandle>()
+	// This controller is private to foreground executions; its routing scope
+	// does not represent an SDK session or include background executions.
+	private static readonly ROUTING_SCOPE = "vscode-foreground"
+	private readonly executions = new RunCommandExecutionController()
+	private readonly unregisterByHandle = new WeakMap<ForegroundCommandHandle, () => void>()
+	private activeHandleCount = 0
+	private nextExecutionId = 0
 
 	constructor(private readonly options: SdkForegroundCommandCoordinatorOptions = {}) {}
 
 	/** Whether any foreground command is currently awaited by a tool call. */
 	get isRunning(): boolean {
-		return this.handles.size > 0
+		return this.activeHandleCount > 0
 	}
 
 	/**
@@ -43,11 +50,33 @@ export class SdkForegroundCommandCoordinator {
 	 */
 	register(handle: ForegroundCommandHandle): () => void {
 		const wasRunning = this.isRunning
-		this.handles.add(handle)
+		if (!this.unregisterByHandle.has(handle)) {
+			const unregister = this.executions.register({
+				executionId: `foreground-${++this.nextExecutionId}`,
+				sessionId: SdkForegroundCommandCoordinator.ROUTING_SCOPE,
+				detach: () => {
+					try {
+						handle.detach()
+						return true
+					} catch (error) {
+						Logger.error("[ForegroundCommands] Failed to detach foreground command:", error)
+						return false
+					}
+				},
+			})
+			this.unregisterByHandle.set(handle, unregister)
+			this.activeHandleCount++
+		}
+		// Registration, removal and the running flag change synchronously;
+		// the caller owns removal when its waiting tool execution settles.
 		this.notifyIfChanged(wasRunning)
 		return () => {
 			const wasRunningBefore = this.isRunning
-			if (this.handles.delete(handle)) {
+			const unregister = this.unregisterByHandle.get(handle)
+			if (unregister) {
+				unregister()
+				this.unregisterByHandle.delete(handle)
+				this.activeHandleCount--
 				this.notifyIfChanged(wasRunningBefore)
 			}
 		}
@@ -58,18 +87,12 @@ export class SdkForegroundCommandCoordinator {
 	 * Each pending tool execution resolves with its partial output and log
 	 * file path; the commands keep running in their terminals.
 	 *
-	 * @returns the number of commands detached (0 when none were running).
+	 * @returns the number of detach attempts, including failed attempts.
 	 */
 	proceedWhileRunning(): number {
-		const handles = [...this.handles]
-		for (const handle of handles) {
-			try {
-				handle.detach()
-			} catch (error) {
-				Logger.error("[ForegroundCommands] Failed to detach foreground command:", error)
-			}
-		}
-		return handles.length
+		const attemptedCount = this.activeHandleCount
+		this.executions.proceedWhileRunning(SdkForegroundCommandCoordinator.ROUTING_SCOPE)
+		return attemptedCount
 	}
 
 	private notifyIfChanged(wasRunning: boolean): void {

@@ -989,6 +989,7 @@ export {
 	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
+	RunCommandExecutionController,
 	resolveCoreSelectedToolIds,
 	resolveToolClientType,
 	type ShellExecutor,
