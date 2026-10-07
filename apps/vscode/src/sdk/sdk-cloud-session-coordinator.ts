@@ -205,6 +205,8 @@ export class SdkCloudSessionCoordinator {
 	private pendingStart: AbortController | undefined
 	/** The task view the pending start installed, once it has one. */
 	private pendingStartTask: TaskProxy | undefined
+	/** A cloud task shown with a connection error that opening it again may fix. */
+	private reconnectableSessionId: string | undefined
 	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
 	private recommendedModelsWarmup: Promise<unknown> | undefined
 	private scopeTransition: Promise<void> | undefined
@@ -1018,6 +1020,11 @@ export class SdkCloudSessionCoordinator {
 
 	// ---- Reopening a task from History ----
 
+	/** Whether `taskId` is on screen because its connection failed, so opening it again may reach it. */
+	canReconnect(taskId: string): boolean {
+		return taskId === this.reconnectableSessionId
+	}
+
 	async openCloudTask(sessionId: string): Promise<HistoryItem | undefined> {
 		const lookupWasSuperseded = this.options.claimTaskViewGeneration()
 		const generationBeforeTransition = this.scopeGeneration
@@ -1107,17 +1114,20 @@ export class SdkCloudSessionCoordinator {
 			} else {
 				this.options.setTurnPhase("idle")
 			}
+			this.reconnectableSessionId = undefined
 			await this.options.postStateToWebview()
 			Logger.log(`[CloudSessions] Showing cloud task ${sessionId} (${status})`)
 		} catch (error) {
 			// The task-view claim guards error rendering as well as successful attachment.
 			if (isStale()) return historyItem
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
-			const { messages, deleted } = await this.explainConnectFailure(entry, error)
+			const { messages, deleted, retryable } = await this.explainConnectFailure(entry, error)
 			if (isStale()) return historyItem
 			const task = this.installTask(sessionId)
 			task.messageStateHandler.addMessages(messages)
-			this.options.setTurnPhase("idle")
+			this.reconnectableSessionId = retryable ? sessionId : undefined
+			// The error phase offers Retry, which reconnects (see canReconnect).
+			this.options.setTurnPhase(retryable ? "error" : "idle")
 			if (deleted) {
 				// A retained host from an earlier observation has nothing left to watch.
 				const retained = entry.host
@@ -1174,13 +1184,13 @@ export class SdkCloudSessionCoordinator {
 	private async explainConnectFailure(
 		entry: CloudSessionEntry,
 		error: unknown,
-	): Promise<{ messages: ClineMessage[]; deleted: boolean }> {
+	): Promise<{ messages: ClineMessage[]; deleted: boolean; retryable: boolean }> {
 		const probe = await this.options.cloudSessions.getStatus(entry.record.id).then(
 			(status) => (status.status?.toLowerCase() === "expired" ? ("session_expired" as const) : undefined),
 			(probeError: unknown) => (probeError instanceof CloudSessionError ? probeError.code : undefined),
 		)
 		if (probe === "session_expired") {
-			return { messages: await this.renderExpired(entry), deleted: false }
+			return { messages: await this.renderExpired(entry), deleted: false, retryable: false }
 		}
 		const notice = (say: "info" | "error", text: string): ClineMessage[] => [
 			{ ts: Date.now(), type: "say", say, text, partial: false },
@@ -1192,14 +1202,16 @@ export class SdkCloudSessionCoordinator {
 					"This cloud session was deleted, so it can no longer be opened. It has been removed from History.",
 				),
 				deleted: true,
+				retryable: false,
 			}
 		}
 		return {
 			messages: notice(
 				"error",
-				`Could not connect to this cloud session: ${error instanceof Error ? error.message : String(error)}`,
+				`Could not connect to this cloud session (${error instanceof Error ? error.message : String(error)}). It may still be running. Click Retry to reconnect.`,
 			),
 			deleted: false,
+			retryable: true,
 		}
 	}
 

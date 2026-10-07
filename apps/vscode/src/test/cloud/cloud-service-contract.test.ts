@@ -1,3 +1,5 @@
+import { createServer } from "node:http"
+import type { AddressInfo } from "node:net"
 import { afterEach, describe, expect, it } from "vitest"
 import { CloudSessionError, CloudSessionsService } from "@/services/cloud/CloudSessionsService"
 import { type LocalCloudEnvironment, startLocalCloudEnvironment } from "./local-cloud-environment"
@@ -88,6 +90,27 @@ describe("local cloud service boundary", () => {
 		expect(await service.getStatus(provisioningId!)).toEqual({ status: "provisioning" })
 		await service.deleteSession(provisioningId!)
 		expect(await service.listSessions()).toEqual([])
+	})
+
+	it("explains an unreachable control plane, but leaves a caller's cancellation alone", async () => {
+		const server = createServer()
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		const { port } = server.address() as AddressInfo
+		await new Promise((resolve) => server.close(resolve))
+		const service = new CloudSessionsService({
+			apiBaseUrl: `http://127.0.0.1:${port}`,
+			appBaseUrl: `http://127.0.0.1:${port}`,
+			getAuthToken: async () => "token",
+			getActiveOrganizationId: () => undefined,
+		})
+
+		await expect(service.listSessions()).rejects.toMatchObject({
+			code: "request_failed",
+			message:
+				"Could not reach Cline Cloud (ECONNREFUSED). Check your internet connection and proxy settings, then try again.",
+		})
+		const cancelled = new Error("cancelled by the user")
+		await expect(service.getStatus("ses-any", AbortSignal.abort(cancelled))).rejects.toBe(cancelled)
 	})
 
 	it("rejects an invalid credential", async () => {

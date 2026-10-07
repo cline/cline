@@ -1658,6 +1658,19 @@ export class Controller {
 			}
 		}
 
+		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && this.cloud.canReconnect(this.task.taskId)) {
+			// The task failed to connect when it was opened. Retry reconnects; a typed
+			// reply is delivered to the reconnected task, or refused so the composer keeps it.
+			const askResponse = this.task.taskState.askResponse
+			await this.cloud.openCloudTask(this.task.taskId)
+			if (askResponse !== "messageResponse") return
+			if (!this.task || !this.sessions.getActiveSession()) {
+				throw new Error("Could not reconnect to this cloud session.")
+			}
+			await this.task.handleWebviewAskResponse(askResponse, prompt, images, files)
+			return
+		}
+
 		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
 			// No sandbox to send to: still provisioning (only reachable through the
 			// extension API, the composer is disabled), or expired. Refusing the

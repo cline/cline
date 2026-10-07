@@ -258,9 +258,28 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.openCloudTask(withoutTaskId.id)
 
 		expect(options.getTask()?.messageStateHandler.getClineMessages().at(-1)?.text).toBe(
-			`Could not connect to this cloud session: Cloud session ${withoutTaskId.id} has no canonical task id.`,
+			`Could not connect to this cloud session (Cloud session ${withoutTaskId.id} has no canonical task id.). It may still be running. Click Retry to reconnect.`,
 		)
 		expect(connect).not.toHaveBeenCalled()
+	})
+
+	it("offers Retry for a cloud task that failed to connect, until opening it again connects", async () => {
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: { attachExistingSession: vi.fn(async () => undefined) } as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([record])
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect")
+			.mockRejectedValueOnce(new Error("Unexpected server response: 502"))
+			.mockResolvedValueOnce(host)
+
+		await coordinator.openCloudTask(record.id)
+		expect(options.setTurnPhase).toHaveBeenLastCalledWith("error")
+		expect(coordinator.canReconnect(record.id)).toBe(true)
+
+		await coordinator.openCloudTask(record.id)
+		expect(coordinator.canReconnect(record.id)).toBe(false)
+		await coordinator.dispose()
 	})
 
 	describe("expired sessions", () => {

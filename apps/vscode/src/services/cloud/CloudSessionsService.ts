@@ -77,6 +77,26 @@ function readApiError(payload: unknown, fallback: string): string {
 	return fallback
 }
 
+/**
+ * A request that got no HTTP response (offline, DNS, proxy, TLS or timeout).
+ * Fetch reports these as "fetch failed", which tells the user nothing.
+ */
+function unreachableError(error: unknown): CloudSessionError {
+	const causeCode = (error as { cause?: { code?: unknown } } | undefined)?.cause?.code
+	const detail =
+		(error as Error | undefined)?.name === "TimeoutError"
+			? "the request timed out"
+			: typeof causeCode === "string"
+				? causeCode
+				: error instanceof Error
+					? error.message
+					: String(error)
+	return new CloudSessionError(
+		"request_failed",
+		`Could not reach Cline Cloud (${detail}). Check your internet connection and proxy settings, then try again.`,
+	)
+}
+
 function trimTrailingSlash(value: string): string {
 	return value.replace(/\/+$/, "")
 }
@@ -140,16 +160,23 @@ export class CloudSessionsService {
 
 	private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
 		const token = await this.requireToken()
-		const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
-			...init,
-			signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-			headers: {
-				Accept: "application/json",
-				Authorization: `Bearer ${token}`,
-				...(init.body ? { "Content-Type": "application/json" } : {}),
-				...(init.headers as Record<string, string> | undefined),
-			},
-		})
+		let response: Response
+		try {
+			response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
+				...init,
+				signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+				headers: {
+					Accept: "application/json",
+					Authorization: `Bearer ${token}`,
+					...(init.body ? { "Content-Type": "application/json" } : {}),
+					...(init.headers as Record<string, string> | undefined),
+				},
+			})
+		} catch (error) {
+			// A caller's own cancellation is not a connectivity problem.
+			if (init.signal?.aborted && (error as Error | undefined)?.name !== "TimeoutError") throw error
+			throw unreachableError(error)
+		}
 		const payload = response.status === 204 ? undefined : await response.json().catch(() => undefined)
 		if (!response.ok) {
 			throw this.errorForResponse(response.status, payload)

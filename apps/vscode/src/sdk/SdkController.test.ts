@@ -404,7 +404,11 @@ describe("SDK remote-config coordination", () => {
 				messageTranslatorState: { clearTurnOutcome: vi.fn() },
 				messages: { appendAndEmit: vi.fn() },
 				sessions: { getActiveSession: () => undefined },
-				cloud: { isCloudSessionId: () => true, getCurrentTaskInfo: () => ({ status: "unknown" }) },
+				cloud: {
+					isCloudSessionId: () => true,
+					canReconnect: () => false,
+					getCurrentTaskInfo: () => ({ status: "unknown" }),
+				},
 				postStateToWebview: vi.fn(async () => {}),
 				initTask: vi.fn(async () => "ses-retried"),
 				followups: { askResponse: vi.fn(async () => {}) },
@@ -460,6 +464,63 @@ describe("SDK remote-config coordination", () => {
 			expect(controller.turnStateTracker.set.mock.invocationCallOrder[0]).toBeLessThan(
 				controller.postStateToWebview.mock.invocationCallOrder.at(-1)!,
 			)
+		})
+	})
+
+	describe("after a cloud task fails to connect when it is opened", () => {
+		function controllerShowingConnectFailure(reconnects: boolean) {
+			let activeSession: object | undefined
+			const controller = {
+				task: undefined as TaskProxy | undefined,
+				turnStateTracker: { set: vi.fn(), get: () => ({ phase: "error" }) },
+				messageTranslatorState: { clearTurnOutcome: vi.fn() },
+				messages: { appendAndEmit: vi.fn() },
+				sessions: { getActiveSession: () => activeSession },
+				cloud: {
+					isCloudSessionId: () => true,
+					canReconnect: (taskId: string) => !activeSession && taskId === "ses-1",
+					openCloudTask: vi.fn(async (taskId: string) => {
+						controller.task = createTaskProxy(taskId, controller.askResponse, vi.fn())
+						if (reconnects) activeSession = {}
+					}),
+				},
+				postStateToWebview: vi.fn(async () => {}),
+				followups: { askResponse: vi.fn(async () => {}) },
+				askResponse(prompt?: string, images?: string[], files?: string[]) {
+					return SdkController.prototype.askResponse.call(controller as never, prompt, images, files)
+				},
+			}
+			const failedTask = createTaskProxy("ses-1", controller.askResponse, vi.fn())
+			controller.task = failedTask
+			return { controller, failedTask }
+		}
+
+		it("reconnects when Retry is clicked", async () => {
+			const { controller, failedTask } = controllerShowingConnectFailure(true)
+			await failedTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.cloud.openCloudTask).toHaveBeenCalledWith("ses-1")
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
+			expect(controller.messages.appendAndEmit).not.toHaveBeenCalled()
+		})
+
+		it("delivers a typed reply to the task once it reconnects", async () => {
+			const { controller, failedTask } = controllerShowingConnectFailure(true)
+			await failedTask.handleWebviewAskResponse("messageResponse", "keep going")
+			expect(controller.followups.askResponse).toHaveBeenCalledWith(
+				"keep going",
+				undefined,
+				undefined,
+				"messageResponse",
+				"error",
+			)
+		})
+
+		it("refuses a typed reply while the task still cannot be reached, so the composer keeps it", async () => {
+			const { controller, failedTask } = controllerShowingConnectFailure(false)
+			await expect(failedTask.handleWebviewAskResponse("messageResponse", "keep going")).rejects.toThrow(
+				"Could not reconnect to this cloud session.",
+			)
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 		})
 	})
 
