@@ -1062,6 +1062,7 @@ export async function runCli(): Promise<void> {
 					args.retries ?? CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
+			...(args.recordSession ? { recording: { enabled: true } } : {}),
 			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,

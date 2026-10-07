@@ -88,6 +88,8 @@ export interface ParsedArgs {
 	configDir?: string;
 	hooksDir?: string;
 	worktree?: boolean;
+	/** `--record-session`: record the session for replay. */
+	recordSession?: boolean;
 	acpMode: boolean;
 	model?: string;
 	provider?: string;
