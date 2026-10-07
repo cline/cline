@@ -666,7 +666,7 @@ describe("AgentRuntime", () => {
 		"malformed",
 		"unknown-tool",
 		"failed",
-	])("fails unknown completions with %s tool calls instead of looping", async (kind) => {
+	])("returns results for unknown completions with %s tool calls so the model can retry", async (kind) => {
 		const tool = createEchoTool();
 		const execute = vi.spyOn(tool, "execute");
 		if (kind === "failed") execute.mockRejectedValue(new Error("Tool failed"));
@@ -691,13 +691,10 @@ describe("AgentRuntime", () => {
 			],
 		]);
 		const result = await new AgentRuntime({ model, tools: [tool] }).run("Hi");
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toContain(
-			"without a recognized finish reason",
-		);
-		expect(model.requests).toHaveLength(1);
-		expect(execute).toHaveBeenCalledTimes(kind === "failed" ? 1 : 0);
-		expect(result.messages.filter((m) => m.role === "tool")).toHaveLength(1);
+		expect(result.status).toBe("completed");
+		expect(model.requests).toHaveLength(4);
+		expect(execute).toHaveBeenCalledTimes(kind === "failed" ? 3 : 0);
+		expect(result.messages.filter((m) => m.role === "tool")).toHaveLength(3);
 	});
 
 	it.each([

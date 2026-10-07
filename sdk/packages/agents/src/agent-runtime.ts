@@ -979,20 +979,6 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
-				if (
-					finishReason === "unknown" &&
-					!toolMessages.some((toolMessage) =>
-						toolMessage.content.some(
-							(part) => part.type === "tool-result" && !part.isError,
-						),
-					)
-				) {
-					this.state.lastFinishReason = finishReason;
-					throw new Error(
-						"Model ended without a recognized finish reason or successful tool work",
-					);
-				}
-
 				await this.flushPendingHookContexts();
 				await this.emit({
 					type: "turn-finished",
