@@ -428,7 +428,7 @@ export class TelemetryService {
 					.showMessage({
 						type: ShowMessageType.WARNING,
 						message:
-							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+							"Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
 						options: {
 							items: ["Open Settings"],
 						},
