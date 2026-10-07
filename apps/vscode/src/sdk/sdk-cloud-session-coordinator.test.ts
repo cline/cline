@@ -145,6 +145,59 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
+	it("reports a start that fails while provisioning, and the cleanup of its sandbox", async () => {
+		const capture = vi.fn()
+		const { coordinator, cloudSessions } = makeCoordinator({ telemetry: { capture } as never })
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			throw new CloudSessionError("session_failed", "The sandbox failed to start.")
+		})
+
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBeUndefined()
+
+		expect(capture.mock.calls.map(([event]) => event)).toEqual([
+			{
+				event: "cloud_session.start",
+				properties: expect.objectContaining({
+					outcome: "failed",
+					phase: "provisioning",
+					sessionId: record.id,
+					errorCode: "session_failed",
+					durationMs: expect.any(Number),
+				}),
+			},
+			{ event: "cloud_session.cleanup", properties: { outcome: "deleted", sessionId: record.id } },
+		])
+		await coordinator.dispose()
+	})
+
+	it("reports a started cloud task with how long its sandbox took to be ready", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const capture = vi.fn()
+		const { coordinator } = makeCoordinator({
+			telemetry: { capture } as never,
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBe(record.id)
+
+		expect(capture).toHaveBeenCalledOnce()
+		expect(capture).toHaveBeenCalledWith({
+			event: "cloud_session.start",
+			properties: expect.objectContaining({
+				outcome: "started",
+				phase: undefined,
+				sessionId: record.id,
+				readyMs: expect.any(Number),
+			}),
+		})
+		await coordinator.dispose()
+	})
+
 	it("leaves a provisioning start alone when Cancel is for another task, and cancels it from its own view", async () => {
 		const { coordinator, cloudSessions, options } = makeCoordinator()
 		const named = deferred<void>()

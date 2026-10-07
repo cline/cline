@@ -120,6 +120,17 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | und
 }
 const SCOPE_DRAIN_TIMEOUT_MS = 15_000
 
+type CloudStartPhase = "configuring" | "creating" | "provisioning" | "connecting" | "starting"
+
+/** Error identity safe to log and report: never response bodies, tokens or repository names. */
+function describeCloudError(error: unknown): { errorCode?: string; httpStatus?: number } {
+	if (error === undefined) return {}
+	if (error instanceof CloudSessionError) return { errorCode: error.code, httpStatus: error.status }
+	const causeCode = (error as { cause?: { code?: unknown } } | null)?.cause?.code
+	if (typeof causeCode === "string") return { errorCode: causeCode }
+	return { errorCode: error instanceof Error ? error.name : typeof error }
+}
+
 export interface CloudTaskInput {
 	prompt: string
 	images?: string[]
@@ -257,6 +268,17 @@ export class SdkCloudSessionCoordinator {
 	/** Global state does not apply declared defaults on read; an install that never remembered anything has no key. */
 	private rememberedStatuses(): RememberedCloudStatuses {
 		return this.options.stateManager.getGlobalStateKey("cloudSessionStatuses") ?? {}
+	}
+
+	/** Logs a cloud lifecycle outcome and reports it as `cloud_session.<event>`, so failures in the field are visible. */
+	private report(
+		event: "start" | "cleanup" | "open",
+		properties: Record<string, string | number | boolean | undefined>,
+		error?: unknown,
+	): void {
+		const reported = { ...properties, ...describeCloudError(error) }
+		Logger.log(`[CloudSessions] ${event} ${JSON.stringify(reported)}`)
+		this.options.telemetry?.capture({ event: `cloud_session.${event}`, properties: reported })
 	}
 
 	private rememberStatus(record: CloudSessionRecord, status: CloudSessionStatus, observedAt: number): void {
@@ -907,6 +929,10 @@ export class SdkCloudSessionCoordinator {
 		let entry: CloudSessionEntry | undefined
 		let host: SdkSessionHost | undefined
 		let sent = false
+		let phase: CloudStartPhase = "configuring"
+		let outcome: "started" | "failed" | undefined
+		let failure: unknown
+		let readyMs: number | undefined
 		try {
 			const config = await this.options.sessionConfigBuilder.build({
 				cwd: CLOUD_WORKSPACE_ROOT,
@@ -918,14 +944,17 @@ export class SdkCloudSessionCoordinator {
 				},
 			})
 			if (isStale()) return undefined
+			phase = "creating"
 			const record = await this.options.cloudSessions.createSession(
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
 					sessionId = id
+					phase = "provisioning"
 				},
 				cancelSignal,
 			)
 			sessionId = record.id
+			readyMs = Date.now() - startedAt
 			if (isStale()) return sessionId
 			entry = this.upsertRecord(record)
 			entry.title = title
@@ -937,8 +966,10 @@ export class SdkCloudSessionCoordinator {
 			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
 			if (isStale()) return sessionId
 
+			phase = "connecting"
 			host = await this.connect(entry)
 			if (isStale()) return sessionId
+			phase = "starting"
 			const startInput: StartSessionInput = {
 				config: {
 					...config,
@@ -961,10 +992,12 @@ export class SdkCloudSessionCoordinator {
 			this.options.postStateToWebview().catch(() => {})
 			this.options.sessions.fireAndForgetSend(sdkHost, record.id, resolvedPrompt, input.images)
 			sent = true
-			Logger.log(`[CloudSessions] Cloud task started: ${record.id}`)
+			outcome = "started"
 			return record.id
 		} catch (error) {
 			if (isStale()) return sessionId
+			outcome = "failed"
+			failure = error
 			Logger.error("[CloudSessions] Failed to start cloud task:", error)
 			const detail = error instanceof Error ? error.message : String(error)
 			this.options.messages.appendAndEmit(
@@ -984,6 +1017,17 @@ export class SdkCloudSessionCoordinator {
 			await this.options.postStateToWebview().catch(() => {})
 			return undefined
 		} finally {
+			this.report(
+				"start",
+				{
+					outcome: outcome ?? (cancelSignal.aborted ? "cancelled" : "superseded"),
+					phase: outcome === "started" ? undefined : phase,
+					sessionId,
+					readyMs,
+					durationMs: Date.now() - startedAt,
+				},
+				failure,
+			)
 			if (sessionId && !sent) await this.cleanupUnusedSession(sessionId, entry, host)
 		}
 	}
@@ -1002,9 +1046,16 @@ export class SdkCloudSessionCoordinator {
 				failed = true
 			})
 		}
-		await this.options.cloudSessions.deleteSession(sessionId).catch(() => {
-			failed = true
-		})
+		let deleteError: unknown
+		const deleted = await this.options.cloudSessions.deleteSession(sessionId).then(
+			() => true,
+			(error: unknown) => {
+				deleteError = error
+				return false
+			},
+		)
+		if (!deleted) failed = true
+		this.report("cleanup", { outcome: deleted ? "deleted" : "failed", sessionId }, deleteError)
 		if (failed) {
 			// Do not log response bodies or credentials, or retry with another account.
 			const message =
@@ -1046,6 +1097,7 @@ export class SdkCloudSessionCoordinator {
 		// Pin the host so a concurrent status resolution or idle sweep does not
 		// close it between connecting and installing the task that owns it.
 		entry.pinned++
+		const openedAt = Date.now()
 		try {
 			this.options.resetMessageTranslator()
 			const status = this.statusOf(entry)
@@ -1108,12 +1160,13 @@ export class SdkCloudSessionCoordinator {
 				this.options.setTurnPhase("idle")
 			}
 			await this.options.postStateToWebview()
-			Logger.log(`[CloudSessions] Showing cloud task ${sessionId} (${status})`)
+			this.report("open", { outcome: "opened", sessionId, status: observedStatus, durationMs: Date.now() - openedAt })
 		} catch (error) {
 			// The task-view claim guards error rendering as well as successful attachment.
 			if (isStale()) return historyItem
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
 			const { messages, deleted } = await this.explainConnectFailure(entry, error)
+			this.report("open", { outcome: deleted ? "deleted" : "failed", sessionId, durationMs: Date.now() - openedAt }, error)
 			if (isStale()) return historyItem
 			const task = this.installTask(sessionId)
 			task.messageStateHandler.addMessages(messages)
