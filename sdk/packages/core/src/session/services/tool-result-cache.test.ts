@@ -8,6 +8,58 @@ import {
 } from "./tool-result-cache";
 
 describe("session memory result cache", () => {
+	it("expands JSON text containing numbers whose spelling is preserved", () => {
+		const text = '{"count":93,"ratio":0.5,"stdout":"first\\nsecond"}';
+		const recovery = prepareToolResultRecovery(text).text;
+		expect(YAML.parse(recovery ?? "")).toEqual({
+			count: 93,
+			ratio: 0.5,
+			stdout: "first\nsecond",
+		});
+		expect(recovery).toContain("stdout: |-\n");
+	});
+
+	it.each([
+		"9007199254740993",
+		"-9007199254740993",
+		"0.1234567890123456789",
+		"1e400",
+		"-0",
+	])("preserves JSON text when decoding would change a number: %s", (number) => {
+		const text = `{"id":${number},"stdout":"first\\nsecond"}`;
+		expect(prepareToolResultRecovery(text).text).toBe(text);
+		const output = { content: [{ type: "text", text }] };
+		expect(YAML.parse(prepareToolResultRecovery(output).text ?? "")).toEqual(
+			output,
+		);
+	});
+
+	it("keeps decoded image-shaped application records while splitting native images", () => {
+		const record = {
+			type: "image",
+			data: "asset-42",
+			mimeType: "image/png",
+			name: "diagram",
+		};
+		const nativeImage = {
+			type: "image",
+			data: "native-bytes",
+			mimeType: "image/png",
+		};
+		const output = {
+			content: [{ type: "text", text: JSON.stringify(record) }, nativeImage],
+		};
+		const { text, images } = prepareToolResultRecovery(output);
+		expect(YAML.parse(text ?? "").content[0].text).toEqual(record);
+		expect(text).not.toContain("native-bytes");
+		expect(images).toEqual([
+			{ type: "image", data: "native-bytes", mediaType: "image/png" },
+		]);
+		const root = prepareToolResultRecovery(JSON.stringify(record));
+		expect(YAML.parse(root.text ?? "")).toEqual(record);
+		expect(root.images).toEqual([]);
+	});
+
 	it("expands JSON text envelopes without interpreting application string fields or changing the output", () => {
 		const payload = {
 			data: { stdout: "first\nsecond\nthird", label: '{"keep":"as text"}' },

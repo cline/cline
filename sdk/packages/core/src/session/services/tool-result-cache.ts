@@ -152,7 +152,17 @@ function expandRecoveryJson(value: unknown, decodeText = false): unknown {
 	if (decodeText && typeof value === "string") {
 		const trimmed = value.trimStart();
 		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-			const parsed = safeJsonParse<unknown>(value);
+			const parsed = safeJsonParse<unknown>(
+				value,
+				(_key, entry, context?: { source?: string }) => {
+					// Keep the original text if numeric decoding changes its spelling,
+					// including rounded IDs, negative zero, or overflowing exponents.
+					if (typeof entry === "number" && context?.source !== String(entry)) {
+						throw new Error("JSON number cannot be preserved in recovery");
+					}
+					return entry;
+				},
+			);
 			if (parsed !== undefined) return expandRecoveryJson(parsed);
 		}
 		return value;
@@ -176,16 +186,15 @@ export function prepareToolResultRecovery(output: unknown): {
 	text: string | undefined;
 	images: ImageContent[];
 } {
-	const { textual, images } = splitToolResultMedia(
-		expandRecoveryJson(output, true),
-	);
+	const { textual, images } = splitToolResultMedia(output);
+	const recovery = expandRecoveryJson(textual, true);
 	return {
 		text:
-			typeof textual === "string"
-				? textual
-				: textual === undefined
+			typeof recovery === "string"
+				? recovery
+				: recovery === undefined
 					? undefined
-					: YAML.stringify(textual, { blockQuote: "literal", lineWidth: 0 }),
+					: YAML.stringify(recovery, { blockQuote: "literal", lineWidth: 0 }),
 		images,
 	};
 }
