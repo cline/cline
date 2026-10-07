@@ -10,6 +10,30 @@ import {
 	runMcpUninstallCommand,
 } from "./mcp";
 
+// Accept every prefilled wizard answer, as a user pressing Enter would.
+vi.mock("@clack/prompts", () => {
+	const log = {
+		error: vi.fn(),
+		info: vi.fn(),
+		message: vi.fn(),
+		step: vi.fn(),
+		success: vi.fn(),
+		warn: vi.fn(),
+	};
+	return {
+		intro: vi.fn(),
+		outro: vi.fn(),
+		isCancel: () => false,
+		log,
+		select: vi.fn(
+			async (opts: { initialValue?: unknown }) => opts.initialValue,
+		),
+		text: vi.fn(
+			async (opts: { initialValue?: string }) => opts.initialValue ?? "",
+		),
+	};
+});
+
 vi.mock("@cline/core", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@cline/core")>();
 	return {
@@ -191,6 +215,36 @@ describe("mcp install command", () => {
 			type: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
 		});
+	});
+
+	it("saves --header values when the wizard's prefilled answers are accepted", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cli-mcp-install-wizard-"));
+		const settingsPath = join(root, "cline_mcp_settings.json");
+		const originalSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const code = await runMcpInstallCommand({
+				name: "docs",
+				transport: "http",
+				targetArgs: ["https://example.com/mcp"],
+				headers: ["Authorization: Bearer token", "Accept: a, b"],
+				isTty: true,
+				io: { writeErr: vi.fn() },
+			});
+
+			expect(code).toBe(0);
+			const written = JSON.parse(readFileSync(settingsPath, "utf8")) as {
+				mcpServers?: Record<string, { transport?: unknown }>;
+			};
+			expect(written.mcpServers?.docs?.transport).toEqual({
+				type: "streamableHttp",
+				url: "https://example.com/mcp",
+				headers: { Authorization: "Bearer token", Accept: "a, b" },
+			});
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalSettingsPath;
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("requires a TTY because it opens the wizard", async () => {

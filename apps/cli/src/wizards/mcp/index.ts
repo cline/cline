@@ -58,6 +58,7 @@ export interface McpAddDefaults {
 	type?: McpTransport["type"];
 	command?: string;
 	url?: string;
+	headers?: Record<string, string>;
 }
 
 export interface RunMcpWizardOptions {
@@ -157,9 +158,28 @@ async function collectStdioTransport(
 	};
 }
 
+function formatHeaders(headers: Record<string, string>): string {
+	return Object.entries(headers)
+		.map(([name, value]) => `${name}: ${value}`)
+		.join(", ");
+}
+
+function parseHeaders(input: string): Record<string, string> | undefined {
+	if (!input) return undefined;
+	const headers: Record<string, string> = {};
+	for (const pair of input.split(",")) {
+		const colonIdx = pair.indexOf(":");
+		if (colonIdx > 0) {
+			headers[pair.slice(0, colonIdx).trim()] = pair.slice(colonIdx + 1).trim();
+		}
+	}
+	return headers;
+}
+
 async function collectUrlTransport(
 	type: "sse" | "streamableHttp",
 	defaultUrl?: string,
+	defaultHeaders?: Record<string, string>,
 ): Promise<UrlServerConfig | null> {
 	const url = await p.text({
 		message: "Server URL",
@@ -177,8 +197,9 @@ async function collectUrlTransport(
 	});
 	if (isCancel(url)) return null;
 
-	const authMode = await p.select({
+	const authMode = await p.select<RemoteAuthMode>({
 		message: "Authentication",
+		initialValue: defaultHeaders ? "headers" : undefined,
 		options: [
 			{
 				value: "oauth",
@@ -227,25 +248,23 @@ async function collectUrlTransport(
 		};
 	}
 
+	const defaultHeadersText = defaultHeaders
+		? formatHeaders(defaultHeaders)
+		: undefined;
 	const headersInput = await p.text({
 		message: "Headers (KEY:VALUE, comma-separated)",
 		placeholder: "leave empty for none",
+		initialValue: defaultHeadersText,
 	});
 	if (isCancel(headersInput)) return null;
 
-	let headers: Record<string, string> | undefined;
 	const headersStr = (headersInput as string).trim();
-	if (headersStr) {
-		headers = {};
-		for (const pair of headersStr.split(",")) {
-			const colonIdx = pair.indexOf(":");
-			if (colonIdx > 0) {
-				headers[pair.slice(0, colonIdx).trim()] = pair
-					.slice(colonIdx + 1)
-					.trim();
-			}
-		}
-	}
+	// Unedited prefilled headers are kept as given: a header value may contain
+	// a comma, which the comma-separated text cannot represent.
+	const headers =
+		headersStr === defaultHeadersText
+			? defaultHeaders
+			: parseHeaders(headersStr);
 
 	return {
 		transport: { type, url: (url as string).trim(), headers },
@@ -301,6 +320,7 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 		const config = await collectUrlTransport(
 			type as "sse" | "streamableHttp",
 			defaults?.url,
+			defaults?.headers,
 		);
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
