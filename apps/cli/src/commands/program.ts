@@ -61,7 +61,7 @@ export function addRootOptions(cmd: Command): Command {
 			)
 			.option("-z, --zen", "Start a session that runs in the background hub")
 			.option(
-				"--retries [value]",
+				"--retries <count>",
 				`Number of maximum consecutive mistakes (retries) before exiting (default: ${CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES})`,
 			)
 			.option(

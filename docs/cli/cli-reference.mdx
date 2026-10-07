@@ -41,7 +41,7 @@ Options:
   -m, --model <model-id>        Model to use for the session with the selected provider
   -s, --system <system-prompt>  Override the default system prompt
   -z, --zen                     Start a session that runs in the background hub
-  --retries [value]             Number of maximum consecutive mistakes (retries) before exiting (default: 3)
+  --retries <count>             Number of maximum consecutive mistakes (retries) before exiting (default: 3)
   -t, --timeout <seconds>       Optional timeout in seconds (default: 0 for no timeout)
   --acp                         Run in Agent Client Protocol (ACP) mode for editor integration
   --config <path>               Configuration directory (default: ~/.cline)
@@ -86,7 +86,7 @@ Commands:
 | `--data-dir <path>` | Use isolated local state at this directory path (default: `~/.cline/data`) |
 | `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose with `/model`, or else the provider's default |
 | `--compaction <mode>` | Context compaction mode: `agentic`, `basic` or `off` (default: `agentic`) |
-| `--retries [value]` | Maximum consecutive mistakes (retries) before exiting (default: `3`) |
+| `--retries <count>` | Maximum consecutive mistakes (retries) before exiting (default: `3`) |
 | `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |
 | `--acp` | Run in Agent Client Protocol (ACP) mode for [editor integration](/usage/acp) |
 | `-i, --tui` | Open the terminal user interface (TUI) for interactive sessions |
@@ -158,6 +158,8 @@ cline connect telegram --help    # Options for one channel
 |--------|-------------|
 | `--stop` | Stop every connector, or only the named channel's |
 | `--restart` | Restart the named channel's connector. Pass the same options you started it with |
+
+Put `--stop` and `--restart` before the channel, as in `cline connect --stop telegram`. Options after the channel go to the channel's connector.
 
 ### `mcp`
 

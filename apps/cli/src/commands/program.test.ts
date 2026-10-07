@@ -69,4 +69,12 @@ describe("root option help text", () => {
 			`before exiting (default: ${CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES})`,
 		);
 	});
+
+	it("rejects --retries without a count", () => {
+		const program = createProgram().configureOutput({ writeErr: () => {} });
+
+		expect(() => program.parse(["--retries"], { from: "user" })).toThrow(
+			/argument missing/,
+		);
+	});
 });
