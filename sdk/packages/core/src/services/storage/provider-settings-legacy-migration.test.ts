@@ -1443,6 +1443,36 @@ describe("migrateLegacyProviderSettings", () => {
 			},
 		});
 	});
+
+	it("does not fabricate a SAP AI Core provider from the default orchestration flag alone", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({
+				mode: "act",
+				actModeApiProvider: "openai",
+				openAiBaseUrl: "http://127.0.0.1:8080/v1",
+				actModeOpenAiModelId: "qwen3-coder",
+				// The extension writes this flag as a default for every user.
+				sapAiCoreUseOrchestrationMode: true,
+			}),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(Object.keys(manager.read().providers)).toEqual([
+			"openai-compatible",
+		]);
+	});
 });
 
 // =============================================================================

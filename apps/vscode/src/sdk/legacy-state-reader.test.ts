@@ -278,6 +278,22 @@ describe("readApiConversationHistory", () => {
 // ---------------------------------------------------------------------------
 
 describe("readUiMessages", () => {
+	it("loads old tasks without exposing retired progress messages or changing the saved history", () => {
+		const taskMessage = { ts: 1, type: "say", say: "task", text: "Build an API" }
+		const completionMessage = { ts: 3, type: "say", say: "completion_result", text: "Done" }
+		const messages = [
+			taskMessage,
+			{ ts: 2, type: "say", say: "task_progress", text: "- [x] Build an API" },
+			completionMessage,
+		]
+		const filePath = path.join(tempDir, "tasks", "task-1", "ui_messages.json")
+		writeJson(filePath, messages)
+		const savedHistory = fs.readFileSync(filePath, "utf-8")
+
+		expect(readUiMessages("task-1", tempDir)).toEqual([taskMessage, completionMessage])
+		expect(fs.readFileSync(filePath, "utf-8")).toBe(savedHistory)
+	})
+
 	it("returns empty array when file is missing", () => {
 		expect(readUiMessages("task-1", tempDir)).toEqual([])
 	})
