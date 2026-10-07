@@ -7,7 +7,12 @@ import * as fs from "fs/promises"
 import path from "path"
 import { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
-import { isFrontmatterDisabled, parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "./frontmatter"
+import {
+	hasRequestedEnabledState,
+	isFrontmatterDisabled,
+	parseYamlFrontmatter,
+	updateUserInstructionMarkdownDisabledState,
+} from "./frontmatter"
 
 /**
  * File types the SDK rule loader actually reads. Anything else that happens to
@@ -120,17 +125,16 @@ export async function setRuleDisabledInFrontmatter(
 	try {
 		const content = await fs.readFile(filePath, "utf-8")
 		const updated = updateUserInstructionMarkdownDisabledState(content, enabled)
-		if (updated !== content) {
-			await fs.writeFile(filePath, updated)
-			return "written"
-		}
-		// An unchanged document either already carried the requested state or
-		// could not be edited safely (malformed frontmatter); only the former is
-		// a success, otherwise the panel would claim a state the SDK never sees.
-		const { data, parseError } = parseYamlFrontmatter(content)
-		if (parseError || isFrontmatterDisabled(data) !== !enabled) {
+		// The editor returns the document unchanged when it already has the
+		// requested state and when it cannot edit it safely, and an edit can
+		// leave a disabling flag it did not recognize. Only a document that ends
+		// up in the requested state counts as written.
+		if (!hasRequestedEnabledState(updated, enabled)) {
 			Logger.warn(`Rule frontmatter at ${filePath} could not be updated; leaving the document untouched`)
 			return "failed"
+		}
+		if (updated !== content) {
+			await fs.writeFile(filePath, updated)
 		}
 		return "written"
 	} catch (error) {

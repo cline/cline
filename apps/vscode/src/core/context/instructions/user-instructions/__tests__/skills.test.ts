@@ -833,6 +833,23 @@ describe("setSkillDisabledInFrontmatter", () => {
 
 	afterEach(() => sandbox.restore())
 
+	it("does not report success when the edit leaves the skill disabled", async () => {
+		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		readFileStub
+			.withArgs(skillPath, "utf-8")
+			.resolves(["---", "name: s", "description: d", "disabled: true", "enabled:", "  false", "---", "Body"].join("\n"))
+
+		const ok = await setSkillDisabledInFrontmatter(skillPath, true)
+
+		if (ok) {
+			const written = String(writeFileStub.firstCall.args[1])
+			const data = parseYamlFrontmatter(written).data
+			expect(data.disabled !== true && data.enabled !== false).to.be.true
+		} else {
+			expect(writeFileStub.called).to.be.false
+		}
+	})
+
 	it("writes disabled: true to the SKILL.md when disabling a disk skill", async () => {
 		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
 		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "description: d", "---", "Body"].join("\n"))

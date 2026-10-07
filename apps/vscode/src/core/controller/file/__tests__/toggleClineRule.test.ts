@@ -137,6 +137,24 @@ describe("toggleClineRule", () => {
 		expect(await fs.readFile(rulePath, "utf-8")).toBe(content)
 	})
 
+	it("reverts instead of reporting success when the edit leaves the rule disabled", async () => {
+		const rulePath = path.join(workspace, ".clinerules", "split-enabled.md")
+		const content = ["---", "disabled: true", "enabled:", "  false", "---", "Body"].join("\n")
+		await fs.writeFile(rulePath, content)
+		const { controller, localToggles } = createController()
+		localToggles[rulePath] = false
+
+		const response = await toggleClineRule(
+			controller as never,
+			ToggleClineRuleRequest.create({ scope: RuleScope.LOCAL, rulePath, enabled: true }),
+		)
+
+		const onDisk = parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8")).data
+		const sdkLoadsRule = onDisk.disabled !== true && onDisk.enabled !== false
+		expect(response.localClineRulesToggles?.toggles[rulePath]).toBe(sdkLoadsRule)
+		expect(localToggles[rulePath]).toBe(sdkLoadsRule)
+	})
+
 	it("does not write frontmatter into non-rule files that happen to live in .clinerules", async () => {
 		const rulePath = path.join(workspace, ".clinerules", "notes.json")
 		await fs.writeFile(rulePath, "{}")

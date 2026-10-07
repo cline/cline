@@ -5,7 +5,7 @@ import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "./frontmatter"
+import { hasRequestedEnabledState, parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "./frontmatter"
 
 /**
  * Update the `disabled` frontmatter flag of a SKILL.md document.
@@ -39,6 +39,10 @@ export async function setSkillDisabledInFrontmatter(skillMdPath: string, enabled
 	try {
 		const content = await fs.readFile(skillMdPath, "utf-8")
 		const updated = updateSkillMarkdownDisabledState(content, enabled)
+		if (!hasRequestedEnabledState(updated, enabled)) {
+			Logger.warn(`Skill frontmatter at ${skillMdPath} could not be updated; leaving the document untouched`)
+			return false
+		}
 		if (updated !== content) {
 			await fs.writeFile(skillMdPath, updated)
 		}

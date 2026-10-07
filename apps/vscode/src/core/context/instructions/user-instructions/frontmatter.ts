@@ -78,6 +78,17 @@ export function isFrontmatterDisabled(data: Record<string, unknown>): boolean {
 	return data.enabled === false
 }
 
+/**
+ * True when the document parses and its frontmatter puts it in the requested
+ * state (`enabled` true means not disabled). Write paths check this on the
+ * edited document before writing or reporting success, so a toggle never
+ * claims a state the SDK will not load.
+ */
+export function hasRequestedEnabledState(content: string, enabled: boolean): boolean {
+	const { data, parseError } = parseYamlFrontmatter(content)
+	return !parseError && isFrontmatterDisabled(data) !== enabled
+}
+
 /** Matches a top-level `key:` line, with the key bare, double-quoted, or single-quoted. */
 function isTopLevelKeyLine(line: string, key: string): boolean {
 	return new RegExp(`^(?:${key}|"${key}"|'${key}')\\s*:`).test(line)
