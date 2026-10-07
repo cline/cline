@@ -8,9 +8,15 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HubEventEnvelope, HubTransportFrame } from "@cline/shared";
+
+import type {
+	AgentResult,
+	HubEventEnvelope,
+	HubTransportFrame,
+} from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
+import { NodeHubClient } from "../client";
 
 vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
@@ -153,6 +159,140 @@ async function commandOverSocket(
 }
 
 describe("hub event replay over the wire", () => {
+	it("recovers a one-way return-path stall while the remote run and Hub stay alive", async () => {
+		const { root, host } = stubSessionHost();
+		const runtime = host as unknown as {
+			runTurn: ReturnType<typeof vi.fn>;
+			updateSession: ReturnType<typeof vi.fn>;
+			getSession: ReturnType<typeof vi.fn>;
+		};
+		let completeRun: ((result: AgentResult) => void) | undefined;
+		runtime.runTurn.mockImplementation(
+			() =>
+				new Promise<AgentResult>((resolve) => {
+					completeRun = resolve;
+				}),
+		);
+		let pinned = false;
+		runtime.updateSession.mockImplementation(async () => {
+			pinned = true;
+			return { updated: true };
+		});
+		const originalGet = runtime.getSession.getMockImplementation() as
+			| ((id: string) => Promise<Record<string, unknown> | undefined>)
+			| undefined;
+		runtime.getSession.mockImplementation(async (id: string) => ({
+			...(await originalGet?.(id)),
+			metadata: { pinned },
+		}));
+		const server = await startHubWebSocketServer({
+			owner: createInMemoryHubOwnerContext("hub-return-path-stall"),
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			workspaceRoot: root,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			taskOptions: {
+				dbPath: join(root, "tasks.db"),
+				globalSpecsDir: join(root, "specs"),
+				watchFiles: false,
+			},
+			eventLog: { dbPath: ":memory:" },
+			runQueue: { dbPath: ":memory:" },
+			sessionHost: host,
+		});
+		servers.add(server);
+		const proxy = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+		await new Promise<void>((resolve) => proxy.once("listening", resolve));
+		const address = proxy.address();
+		if (!address || typeof address === "string")
+			throw new Error("Expected proxy TCP address");
+		let dropReturnPath = false;
+		proxy.on("connection", (downstream) => {
+			const upstream = new WebSocket(
+				server.url,
+				`cline-hub-auth.${server.authToken}`,
+			);
+			sockets.add(upstream);
+			const queued: string[] = [];
+			downstream.on("message", (data) => {
+				if (upstream.readyState === WebSocket.OPEN) upstream.send(String(data));
+				else queued.push(String(data));
+			});
+			upstream.on("open", () => {
+				for (const frame of queued) upstream.send(frame);
+			});
+			upstream.on("message", (data) => {
+				if (!dropReturnPath && downstream.readyState === WebSocket.OPEN)
+					downstream.send(String(data));
+			});
+			downstream.on("close", () => upstream.close());
+		});
+		const recover = vi.fn(async () => server.url);
+		const client = new NodeHubClient({
+			url: `ws://127.0.0.1:${address.port}/hub`,
+			authToken: server.authToken,
+			resolveReconnectUrl: recover,
+			workspaceRoot: root,
+		});
+		const events: HubEventEnvelope[] = [];
+		client.subscribe((event) => events.push(event));
+		try {
+			await client.connect();
+			await client.command("session.create", {
+				sessionConfig: { sessionId: "wire-session" },
+			});
+			const run = client.command(
+				"run.start",
+				{ prompt: "execute once" },
+				"wire-session",
+			);
+			await vi.waitFor(() =>
+				expect(events.some((event) => event.event === "run.started")).toBe(
+					true,
+				),
+			);
+			dropReturnPath = true;
+			await expect(
+				client.command(
+					"session.update",
+					{ metadata: { pinned: true } },
+					"wire-session",
+					{ timeoutMs: 50 },
+				),
+			).rejects.toMatchObject({ code: "hub_command_timeout" });
+			expect(pinned).toBe(true); // committed on the Hub despite the lost reply
+			const saved = await client.command("session.get", {}, "wire-session");
+			expect(saved.payload?.session).toMatchObject({
+				metadata: { pinned: true },
+			});
+			expect(recover).toHaveBeenCalledTimes(1);
+			expect(runtime.updateSession).toHaveBeenCalledTimes(1);
+			const result: AgentResult = {
+				text: "done",
+				finishReason: "completed",
+				toolCalls: [],
+				messages: [],
+				usage: { inputTokens: 0, outputTokens: 0 },
+				iterations: 1,
+				model: { id: "test", provider: "test" },
+				startedAt: new Date(),
+				endedAt: new Date(),
+				durationMs: 0,
+			};
+			completeRun?.(result);
+			await expect(run).resolves.toMatchObject({
+				payload: { result: JSON.parse(JSON.stringify(result)) },
+			});
+			expect(runtime.runTurn).toHaveBeenCalledTimes(1);
+		} finally {
+			client.close();
+			for (const socket of proxy.clients) socket.terminate();
+			await new Promise<void>((resolve) => proxy.close(() => resolve()));
+		}
+	});
+
 	it("replays a full run to a client that connected after the fact", async () => {
 		const { root, host } = stubSessionHost();
 		const server = await startHubWebSocketServer({

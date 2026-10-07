@@ -293,6 +293,7 @@ export async function handleSessionInput(
 					"run.failed",
 					{
 						reason: "error",
+						requestId: envelope.requestId,
 						error: error instanceof Error ? error.message : String(error),
 					},
 					sessionId,
@@ -308,6 +309,7 @@ export async function handleSessionInput(
 					terminalRunEventForReason(result.finishReason),
 					{
 						reason: result.finishReason,
+						requestId: envelope.requestId,
 						...(error ? { error } : {}),
 						result,
 						...(snapshot ? { snapshot } : {}),

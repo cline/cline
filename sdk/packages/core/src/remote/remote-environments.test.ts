@@ -199,7 +199,9 @@ describe("RemoteEnvironmentService", () => {
 		let requiredIdentity: string | undefined;
 		let helperMissing = false;
 		let uploads = 0;
+		const requestHubShutdown = vi.fn(async () => true);
 		const dependencies: Partial<RemoteEnvironmentDependencies> = {
+			requestHubShutdown,
 			runProcess: async (_executable, args, options) => {
 				const command = args.at(-1) ?? "";
 				commands.push(command);
@@ -250,6 +252,10 @@ describe("RemoteEnvironmentService", () => {
 		offline = true;
 		tunnels[0].emit("exit", 255, null);
 		await expect(service.dispose()).rejects.toThrow("Network unavailable");
+		expect(tunnels.every((tunnel) => tunnel.killed)).toBe(true);
+		expect(service.getConnection(first.id)).toBeUndefined();
+		expect(service.getConnection(second.id)).toBeUndefined();
+		expect(requestHubShutdown).toHaveBeenCalledTimes(1);
 		expect(await readdir(`${profilesPath}.cleanup`)).toHaveLength(1);
 		offline = false;
 		const restarted = createService(dependencies);
@@ -864,7 +870,8 @@ describe("RemoteEnvironmentService", () => {
 
 		tunnel.emit("exit", 255, null);
 
-		expect(service.getActive()).toBeUndefined();
+		expect(service.getActive()?.profileId).toBe(profile.id);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(onConnectionLost).toHaveBeenCalledWith(
 			expect.objectContaining({
 				profileId: profile.id,
@@ -875,6 +882,127 @@ describe("RemoteEnvironmentService", () => {
 		await service.dispose();
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 	});
+
+	it("replaces stalled forwarding once without rebooting the remote Hub", async () => {
+		const invocations: Invocation[] = [];
+		const tunnels: FakeTunnel[] = [];
+		const tunnelArgs: string[][] = [];
+		const requestHubShutdown = vi.fn(async () => true);
+		const service = createService({
+			runProcess: async (executable, args, options) => {
+				invocations.push({ executable, args, options });
+				const command = args.at(-1) ?? "";
+				if (command.includes("uname -s"))
+					return inspection("Linux", "x86_64", "/home/dev");
+				if (command.includes("--remote-hub-ensure"))
+					return success(
+						'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}',
+					);
+				return success();
+			},
+			resolveHelperBinary: async () => "/opt/cline/helper",
+			fileReadable: async () => true,
+			hashFile: async () => "0123456789abcdef",
+			reservePort: async () => 41_000 + tunnels.length,
+			spawnTunnel: (_executable, args) => {
+				tunnelArgs.push(args);
+				const tunnel = new FakeTunnel();
+				tunnels.push(tunnel);
+				return tunnel;
+			},
+			waitForTunnel: async () => undefined,
+			requestHubShutdown,
+		});
+		const profile = await service.upsert({ name: "SSM", host: "ssm-host" });
+		const initial = await service.connect(profile.id);
+		invocations.length = 0;
+		const [recovered, observer] = await Promise.all([
+			service.recoverForwarding(profile.id, initial.endpoint),
+			service.recoverForwarding(profile.id, initial.endpoint),
+		]);
+		expect(observer).toEqual(recovered);
+		expect(recovered).toMatchObject({
+			authToken: initial.authToken,
+			remoteHubUrl: initial.remoteHubUrl,
+			workspaceRoot: initial.workspaceRoot,
+			localPort: 41_001,
+		});
+		expect(tunnels).toHaveLength(2);
+		expect(tunnels[0].killed).toBe(true);
+		expect(tunnels[1].killed).toBe(false);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(
+			invocations.some(({ args }) =>
+				args.some(
+					(arg) =>
+						arg.includes("--remote-hub-ensure") ||
+						arg.includes("--remote-hub-stop"),
+				),
+			),
+		).toBe(false);
+		if (process.platform !== "win32") {
+			expect(tunnelArgs[0]).toContain("ControlMaster=auto");
+			expect(
+				tunnelArgs[0].find((arg) => arg.startsWith("ControlPath=")),
+			).not.toEqual(
+				tunnelArgs[1].find((arg) => arg.startsWith("ControlPath=")),
+			);
+			expect(
+				invocations.some(
+					({ args }) => args.includes("-O") && args.includes("exit"),
+				),
+			).toBe(true);
+		}
+		// An actual SSH exit follows the same recovery path and keeps Hub identity.
+		tunnels[1].emit("exit", 255, null);
+		const afterExit = await service.connect(profile.id);
+		expect(afterExit.authToken).toBe(initial.authToken);
+		expect(tunnels).toHaveLength(3);
+		await service.dispose();
+		expect(requestHubShutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it.skipIf(process.platform === "win32")(
+		"replaces a tested profile's SSH master after an identity edit",
+		async () => {
+			const invocations: string[][] = [];
+			const service = createService({
+				runProcess: async (_executable, args) => {
+					invocations.push(args);
+					return args.at(-1)?.includes("uname -s")
+						? inspection("Linux", "x86_64", "/home/dev")
+						: success();
+				},
+			});
+			try {
+				const profile = await service.upsert({
+					name: "SSM",
+					host: "ssm-host",
+					identityFile: "/keys/old",
+				});
+				await service.test(profile.id);
+				const oldPath = invocations[0].find((arg) =>
+					arg.startsWith("ControlPath="),
+				);
+				await service.upsert({ ...profile, name: "Renamed" });
+				await service.test(profile.id);
+				expect(invocations[1]).toContain(oldPath);
+				await service.upsert({ ...profile, identityFile: "/keys/new" });
+				const close = invocations.find((args) => args.includes("-O"));
+				expect(close).toContain(oldPath);
+				expect(close).toContain("/keys/old");
+				expect(close).toContain("exit");
+				await service.test(profile.id);
+				const next = invocations.at(-1) as string[];
+				expect(next).toContain("/keys/new");
+				expect(next.find((arg) => arg.startsWith("ControlPath="))).not.toEqual(
+					oldPath,
+				);
+			} finally {
+				await service.dispose();
+			}
+		},
+	);
 
 	it("quotes command arguments and rejects non-zero remote commands", async () => {
 		const invocations: Invocation[] = [];

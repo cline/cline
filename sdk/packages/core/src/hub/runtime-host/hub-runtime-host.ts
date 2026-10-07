@@ -585,6 +585,7 @@ function hubReplyErrorMessage(
 }
 
 export interface HubRuntimeHostOptions {
+	resolveReconnectUrl?: (failedUrl: string) => Promise<string>;
 	url: string;
 	authToken?: string;
 	clientType?: string;
@@ -788,6 +789,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveReconnectUrl: options.resolveReconnectUrl,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
@@ -2099,7 +2101,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			typeof event.payload?.capabilityName === "string"
 				? event.payload.capabilityName
 				: "";
-		if (!requestId) {
+		if (!requestId || this.activeCapabilityAbortControllers.has(requestId)) {
 			return;
 		}
 		const handler = this.sessionClientContributionHandlers

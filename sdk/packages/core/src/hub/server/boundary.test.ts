@@ -1100,6 +1100,23 @@ describe("HubServerTransport boundaries", () => {
 				? request.payload.requestId
 				: "";
 		expect(requestId).toMatch(/^capreq_/);
+		const resumedEvents: HubEventEnvelope[] = [];
+		const otherEvents: HubEventEnvelope[] = [];
+		const unsubscribeResumed = transport.subscribe(
+			"client-1",
+			(event) => resumedEvents.push(event),
+			{ sessionId },
+		);
+		const unsubscribeOther = transport.subscribe(
+			"other-client",
+			(event) => otherEvents.push(event),
+			{ sessionId },
+		);
+		await Promise.resolve();
+		expect(resumedEvents).toContainEqual(request);
+		expect(otherEvents).not.toContainEqual(request);
+		unsubscribeResumed();
+		unsubscribeOther();
 
 		await transport.handleCommand({
 			version: "v1",

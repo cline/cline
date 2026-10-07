@@ -32,6 +32,9 @@ import {
 } from "../discovery/workspace";
 
 type PendingReply = {
+	resumeRun?: boolean;
+	accepted?: boolean;
+	recoveryDeadline?: ReturnType<typeof setTimeout>;
 	resolve: (reply: HubReplyEnvelope) => void;
 	reject: (error: unknown) => void;
 };
@@ -177,6 +180,8 @@ function normalizeWebSocketConnectError(
 }
 
 export interface HubClientOptions {
+	/** Replace failed remote forwarding; called once per reconnect attempt. */
+	resolveReconnectUrl?: (failedUrl: string) => Promise<string>;
 	url: string;
 	clientId?: string;
 	clientType?: string;
@@ -331,6 +336,10 @@ export function rememberRecoverableLocalHubUrl(
 
 export class NodeHubClient {
 	private socket: WebSocketLike | undefined;
+	private refreshEndpoint = false;
+	private heartbeatTimer: ReturnType<typeof setTimeout> | undefined;
+	private transportProbe: Promise<void> | undefined;
+	private receivedReplies = 0;
 	private connectPromise: Promise<void> | undefined;
 	private readonly clientId: string;
 	private currentUrl: string;
@@ -469,12 +478,14 @@ export class NodeHubClient {
 				);
 			}
 			this.reconnectAttempt = 0;
+			this.scheduleHeartbeat();
 		});
 		const registrationPromise = this.connectPromise;
 		try {
 			await registrationPromise;
 		} catch (error) {
 			if (this.connectPromise === registrationPromise) {
+				if (this.options.resolveReconnectUrl) this.refreshEndpoint = true;
 				this.connectPromise = undefined;
 			}
 			// Clear only the socket owned by this failed registration attempt.
@@ -501,6 +512,14 @@ export class NodeHubClient {
 		authToken: string | undefined,
 		generation: number,
 	): Promise<WebSocketLike> {
+		if (this.refreshEndpoint && this.options.resolveReconnectUrl) {
+			url = new URL(await this.options.resolveReconnectUrl(this.currentUrl));
+			if (generation !== this.connectGeneration || this.closedByClient)
+				throw this.lastCloseError;
+			this.currentUrl = url.toString();
+			this.refreshEndpoint = false;
+		}
+
 		const resolveHeaders = this.options.resolveConnectionHeaders;
 		let headers: Readonly<Record<string, string>> | undefined;
 		if (resolveHeaders) {
@@ -637,7 +656,10 @@ export class NodeHubClient {
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
-			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
+			if (this.socket === socket)
+				this.handleFrame(
+					JSON.parse(decodeSocketData(data)) as HubTransportFrame,
+				);
 		});
 		socket.addEventListener("close", (event: unknown) => {
 			if (this.socket !== socket) {
@@ -647,16 +669,7 @@ export class NodeHubClient {
 				this.lastCloseError = createHubCloseError(event);
 				this.sawSocketClose = true;
 			}
-			this.registered = false;
-			for (const pending of this.pendingReplies.values()) {
-				pending.reject(this.lastCloseError);
-			}
-			this.pendingReplies.clear();
-			this.connectPromise = undefined;
-			this.socket = undefined;
-			if (!this.closedByClient && this.hasActiveSubscriptions()) {
-				this.scheduleReconnect();
-			}
+			this.resetFailedTransport(socket, this.lastCloseError);
 		});
 
 		await opened;
@@ -695,7 +708,8 @@ export class NodeHubClient {
 				if (
 					!canRecoverTransport ||
 					attempt >= 1 ||
-					!(await this.recoverLocalHubTransport(error))
+					(!(await this.recoverRemoteHubTransport(command, error)) &&
+						!(await this.recoverLocalHubTransport(error)))
 				) {
 					throw error;
 				}
@@ -710,6 +724,7 @@ export class NodeHubClient {
 		sessionId?: string,
 		options?: HubCommandOptions,
 		ensureConnected = true,
+		skipTransportProbe = false,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
@@ -725,32 +740,38 @@ export class NodeHubClient {
 			const timeout =
 				effectiveTimeoutMs === null
 					? undefined
-					: setTimeout(() => {
+					: setTimeout(async () => {
 							if (!this.pendingReplies.delete(requestId)) {
 								return;
 							}
-							reject(
-								new HubCommandError(
-									command,
-									"hub_command_timeout",
-									`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). Check hub-daemon.log for matching command.start/command.slow entries, or run 'cline doctor fix' to restart the hub.`,
-								),
+							const error = new HubCommandError(
+								command,
+								"hub_command_timeout",
+								`Hub command ${command} timed out after ${effectiveTimeoutMs}ms (hub=${this.currentUrl}, requestId=${requestId}, clientId=${this.clientId}). The command may have completed; read back state before retrying a write.`,
 							);
+							if (!skipTransportProbe && this.options.resolveReconnectUrl)
+								await this.checkTransport(10_000);
+							reject(error);
 						}, effectiveTimeoutMs);
-			this.pendingReplies.set(requestId, {
+			const pending: PendingReply = {
+				resumeRun:
+					command === "run.start" && Boolean(this.options.resolveReconnectUrl),
 				resolve: (value) => {
+					clearTimeout(pending.recoveryDeadline);
 					if (timeout) {
 						clearTimeout(timeout);
 					}
 					resolve(value);
 				},
 				reject: (error) => {
+					clearTimeout(pending.recoveryDeadline);
 					if (timeout) {
 						clearTimeout(timeout);
 					}
 					reject(error);
 				},
-			});
+			};
+			this.pendingReplies.set(requestId, pending);
 		});
 		try {
 			this.sendFrame({
@@ -786,6 +807,119 @@ export class NodeHubClient {
 			);
 		}
 		return resolved;
+	}
+
+	private async recoverRemoteHubTransport(
+		command: HubCommandEnvelope["command"],
+		error: unknown,
+	): Promise<boolean> {
+		if (
+			!this.options.resolveReconnectUrl ||
+			!(
+				error instanceof HubTransportError ||
+				(error instanceof HubCommandError &&
+					error.code === "hub_command_timeout")
+			)
+		)
+			return false;
+		// Reads and capability acknowledgements are safe to retry. Session/run
+		// writes have uncertain outcomes and must be reconciled by their caller.
+		if (
+			![
+				"client.list",
+				"session.get",
+				"session.messages",
+				"session.pending_prompts",
+				"session.list",
+				"capability.respond",
+				"capability.progress",
+			].includes(command)
+		)
+			return false;
+		try {
+			await this.connect();
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private resetFailedTransport(socket: WebSocketLike, error: Error): void {
+		if (this.socket !== socket) return;
+		this.refreshEndpoint = true;
+		this.transportProbe = undefined;
+		this.registered = false;
+		this.socket = undefined;
+		this.connectPromise = undefined;
+		this.connectGeneration += 1;
+		if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
+		this.heartbeatTimer = undefined;
+		for (const [id, pending] of this.pendingReplies) {
+			if (pending.resumeRun && pending.accepted) {
+				// Registration alone does not prove this run is still observable.
+				// Keep the bound until its reply, terminal event, or live heartbeat.
+				pending.recoveryDeadline ??= setTimeout(() => {
+					this.pendingReplies.delete(id);
+					pending.reject(error);
+				}, 60_000);
+				pending.recoveryDeadline.unref?.();
+				continue;
+			}
+			this.pendingReplies.delete(id);
+			pending.reject(error);
+		}
+		try {
+			socket.close();
+		} catch {
+			/* already closed */
+		}
+		if (!this.closedByClient && this.hasActiveSubscriptions())
+			this.scheduleReconnect();
+	}
+
+	private checkTransport(timeoutMs: number): Promise<void> {
+		if (this.transportProbe) return this.transportProbe;
+		const socket = this.socket;
+		if (!socket || !this.registered) return Promise.resolve();
+		const receivedReplies = this.receivedReplies;
+		const probe = this.commandOnce(
+			"client.list",
+			undefined,
+			undefined,
+			{ timeoutMs },
+			false,
+			true,
+		)
+			.then(() => undefined)
+			.catch((error) => {
+				// A slow probe is not evidence of transport failure while other
+				// commands are receiving replies on the same socket.
+				if (this.receivedReplies === receivedReplies)
+					this.resetFailedTransport(socket, error);
+			})
+			.finally(() => {
+				if (this.transportProbe === probe) this.transportProbe = undefined;
+			});
+		this.transportProbe = probe;
+		return probe;
+	}
+
+	private scheduleHeartbeat(): void {
+		if (
+			!this.options.resolveReconnectUrl ||
+			!this.hasActiveSubscriptions() ||
+			this.heartbeatTimer
+		)
+			return;
+		this.heartbeatTimer = setTimeout(() => {
+			this.heartbeatTimer = undefined;
+			void this.checkTransport(10_000)
+				.catch(() => undefined)
+				.finally(() => {
+					if (this.registered) this.scheduleHeartbeat();
+				});
+		}, 15_000);
+		this.heartbeatTimer.unref?.();
 	}
 
 	private async recoverLocalHubTransport(error: unknown): Promise<boolean> {
@@ -883,6 +1017,9 @@ export class NodeHubClient {
 
 	close(): void {
 		const socket = this.socket;
+		this.transportProbe = undefined;
+		if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
+		this.heartbeatTimer = undefined;
 		this.closedByClient = true;
 		// Invalidate any in-flight connection attempt.
 		this.connectGeneration += 1;
@@ -971,6 +1108,8 @@ export class NodeHubClient {
 			this.subscriptionCounts.delete(key);
 			if (!this.hasActiveSubscriptions()) {
 				this.clearReconnectTimer();
+				if (this.heartbeatTimer) clearTimeout(this.heartbeatTimer);
+				this.heartbeatTimer = undefined;
 			}
 			if (delta < 0 && this.socket?.readyState === 1) {
 				this.sendSubscriptionFrame("stream.unsubscribe", sessionId);
@@ -978,6 +1117,7 @@ export class NodeHubClient {
 			return;
 		}
 		this.subscriptionCounts.set(key, next);
+		if (this.registered) this.scheduleHeartbeat();
 		if (delta > 0 && next === 1 && this.socket?.readyState === 1) {
 			this.sendSubscriptionFrame("stream.subscribe", sessionId);
 		}
@@ -994,6 +1134,7 @@ export class NodeHubClient {
 	private handleFrame(frame: HubTransportFrame): void {
 		switch (frame.kind) {
 			case "reply": {
+				this.receivedReplies += 1;
 				const requestId = frame.envelope.requestId;
 				if (!requestId) {
 					return;
@@ -1007,6 +1148,53 @@ export class NodeHubClient {
 				return;
 			}
 			case "event": {
+				const requestId =
+					typeof frame.envelope.payload?.requestId === "string"
+						? frame.envelope.payload.requestId
+						: undefined;
+				const pending = requestId
+					? this.pendingReplies.get(requestId)
+					: undefined;
+				if (pending?.resumeRun) {
+					if (frame.envelope.event === "run.started") pending.accepted = true;
+					else if (frame.envelope.event === "run.heartbeat") {
+						clearTimeout(pending.recoveryDeadline);
+						pending.recoveryDeadline = undefined;
+					} else if (
+						["run.completed", "run.failed", "run.aborted"].includes(
+							frame.envelope.event,
+						)
+					) {
+						this.pendingReplies.delete(requestId as string);
+						const result = frame.envelope.payload?.result;
+						pending.resolve(
+							result
+								? {
+										version: "v1",
+										requestId,
+										ok: true,
+										payload: {
+											result,
+											...(frame.envelope.payload?.snapshot
+												? { snapshot: frame.envelope.payload.snapshot }
+												: {}),
+										},
+									}
+								: {
+										version: "v1",
+										requestId,
+										ok: false,
+										error: {
+											code: "run_failed",
+											message: String(
+												frame.envelope.payload?.error ?? "Remote run failed",
+											),
+										},
+									},
+						);
+					}
+				}
+
 				const sequence = frame.envelope.sequence;
 				if (typeof sequence === "number") {
 					const eventSessionKey = frame.envelope.sessionId?.trim();

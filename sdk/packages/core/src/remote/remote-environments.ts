@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants, createReadStream } from "node:fs";
+import { constants, createReadStream, mkdtempSync } from "node:fs";
 import {
 	access,
 	chmod,
@@ -13,7 +13,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
@@ -160,6 +160,7 @@ interface PendingHubCleanup {
 }
 
 interface ManagedConnection {
+	tunnelLost?: boolean;
 	cleanup: PendingHubCleanup;
 	connection: RemoteEnvironmentConnection;
 	tunnel: RemoteTunnelProcess;
@@ -190,6 +191,8 @@ export class RemoteEnvironmentService {
 	private readonly onConnectionLost?: (status: RemoteEnvironmentStatus) => void;
 	private readonly statuses = new Map<string, RemoteEnvironmentStatus>();
 	private readonly connections = new Map<string, ManagedConnection>();
+	private readonly controlPaths = new Map<string, string>();
+	private controlDirectory: string | undefined;
 	private activeProfileId: string | undefined;
 	private mutationTail: Promise<void> = Promise.resolve();
 
@@ -265,6 +268,13 @@ export class RemoteEnvironmentService {
 				profiles.push(profile);
 			}
 			await this.writeProfiles(profiles);
+			if (existing && !profilesUseSameConnection(existing, profile)) {
+				await this.closeControlMaster(
+					existing,
+					this.controlPaths.get(profile.id),
+				);
+				this.controlPaths.delete(profile.id);
+			}
 			const connected = this.connections.get(profile.id);
 			if (
 				connected &&
@@ -325,6 +335,8 @@ export class RemoteEnvironmentService {
 		await this.retryPendingCleanup(id);
 		const previousManaged = this.connections.get(id);
 		const current = previousManaged?.connection;
+		if (current && previousManaged?.tunnelLost)
+			return this.recoverForwardingProfile(id, current.endpoint);
 		if (current && profilesUseSameConnection(current.profile, profile)) {
 			this.activeProfileId = id;
 			return { ...current, profile: { ...current.profile } };
@@ -440,6 +452,104 @@ export class RemoteEnvironmentService {
 		}
 	}
 
+	/** Replace only SSH forwarding, retaining the remote Hub and its live runs. */
+	public recoverForwarding(
+		id: string,
+		failedEndpoint: string,
+	): Promise<RemoteEnvironmentConnection> {
+		return this.withMutation(() =>
+			this.recoverForwardingProfile(id, failedEndpoint),
+		);
+	}
+
+	private async recoverForwardingProfile(
+		id: string,
+		failedEndpoint: string,
+	): Promise<RemoteEnvironmentConnection> {
+		const previous = this.connections.get(id);
+		if (!previous) throw new Error(`Remote environment ${id} is disconnected`);
+		if (previous.connection.endpoint !== failedEndpoint && !previous.tunnelLost)
+			return { ...previous.connection };
+		const remoteUrl = new URL(previous.connection.remoteHubUrl);
+		const localPort = await this.dependencies.reservePort();
+		const oldControlPath = this.controlPaths.get(id);
+		const controlPath = this.newControlPath(id);
+		const tunnel = this.dependencies.spawnTunnel(
+			this.sshPath,
+			this.buildTunnelArgs(
+				previous.connection.profile,
+				localPort,
+				Number(remoteUrl.port),
+				controlPath,
+			),
+		);
+		try {
+			await this.dependencies.waitForTunnel(
+				localPort,
+				tunnel,
+				this.tunnelTimeoutMs,
+			);
+		} catch (error) {
+			tunnel.kill("SIGTERM");
+			await this.closeControlMaster(previous.connection.profile, controlPath);
+			throw error;
+		}
+		const connection = {
+			...previous.connection,
+			localPort,
+			endpoint: `ws://127.0.0.1:${localPort}${remoteUrl.pathname}`,
+			connectedAt: this.dependencies.now().toISOString(),
+		};
+		const managed: ManagedConnection = {
+			connection,
+			tunnel,
+			cleanup: previous.cleanup,
+		};
+		this.connections.set(id, managed);
+		if (controlPath) this.controlPaths.set(id, controlPath);
+		tunnel.once("exit", () =>
+			this.handleTunnelEnd(id, managed, "SSH tunnel exited"),
+		);
+		tunnel.once("error", (error) =>
+			this.handleTunnelEnd(id, managed, error.message),
+		);
+		previous.tunnel.kill("SIGTERM");
+		await this.closeControlMaster(previous.connection.profile, oldControlPath);
+		this.setStatus(id, "connected", "SSH forwarding recovered");
+		return { ...connection };
+	}
+
+	private newControlPath(id: string): string | undefined {
+		if (process.platform === "win32") return undefined;
+		this.controlDirectory ??= mkdtempSync(join(tmpdir(), "cl-ssh-"));
+		return join(
+			this.controlDirectory,
+			createHash("sha256")
+				.update(`${id}:${randomUUID()}`)
+				.digest("hex")
+				.slice(0, 12),
+		);
+	}
+
+	private async closeControlMaster(
+		profile: RemoteEnvironmentProfile,
+		path: string | undefined,
+	): Promise<void> {
+		if (!path) return;
+		await this.dependencies
+			.runProcess(
+				this.sshPath,
+				[
+					...this.buildSshArgs(profile, path),
+					"-O",
+					"exit",
+					this.destination(profile),
+				],
+				{ timeoutMs: Math.min(this.commandTimeoutMs, 2_000) },
+			)
+			.catch(() => undefined);
+	}
+
 	public disconnect(id?: string): Promise<boolean> {
 		return this.withMutation(() => this.disconnectProfile(id));
 	}
@@ -462,8 +572,32 @@ export class RemoteEnvironmentService {
 		if (this.activeProfileId === targetId) {
 			this.activeProfileId = undefined;
 		}
-		await this.stopManagedHub(managed);
-		managed.tunnel.kill("SIGTERM");
+		try {
+			if (managed.tunnelLost) {
+				try {
+					await this.execRemote(managed.cleanup.profile, {
+						command: managed.cleanup.helper,
+						args: [
+							"--remote-hub-stop",
+							"--discovery-path",
+							managed.cleanup.discoveryPath,
+						],
+					});
+				} catch (error) {
+					await this.persistPendingCleanup(managed.cleanup);
+					throw error;
+				}
+			} else {
+				await this.stopManagedHub(managed);
+			}
+		} finally {
+			managed.tunnel.kill("SIGTERM");
+			await this.closeControlMaster(
+				managed.connection.profile,
+				this.controlPaths.get(targetId),
+			);
+			this.controlPaths.delete(targetId);
+		}
 		this.setStatus(targetId, "disconnected", "Disconnected");
 		return true;
 	}
@@ -522,10 +656,41 @@ export class RemoteEnvironmentService {
 
 	public dispose(): Promise<void> {
 		return this.withMutation(async () => {
-			for (const id of [...this.connections.keys()]) {
-				await this.disconnectProfile(id);
+			const errors: unknown[] = [];
+			try {
+				for (const id of [...this.connections.keys()]) {
+					try {
+						await this.disconnectProfile(id);
+					} catch (error) {
+						errors.push(error);
+					}
+				}
+				try {
+					await this.retryPendingCleanup();
+				} catch (error) {
+					errors.push(error);
+				}
+			} finally {
+				// Inspection/branch commands can create masters without a Hub binding.
+				const profiles = await this.list();
+				for (const profile of profiles) {
+					await this.closeControlMaster(
+						profile,
+						this.controlPaths.get(profile.id),
+					);
+				}
+				this.controlPaths.clear();
+				if (this.controlDirectory) {
+					await rm(this.controlDirectory, { recursive: true, force: true });
+					this.controlDirectory = undefined;
+				}
 			}
-			await this.retryPendingCleanup();
+			if (errors.length === 1) throw errors[0];
+			if (errors.length > 1)
+				throw new AggregateError(
+					errors,
+					`Failed to dispose remote environments: ${errors.map(errorMessage).join("; ")}`,
+				);
 		});
 	}
 
@@ -700,7 +865,15 @@ export class RemoteEnvironmentService {
 		);
 	}
 
-	private buildSshArgs(profile: RemoteEnvironmentProfile): string[] {
+	private buildSshArgs(
+		profile: RemoteEnvironmentProfile,
+		controlPath?: string,
+	): string[] {
+		if (!controlPath && process.platform !== "win32") {
+			controlPath =
+				this.controlPaths.get(profile.id) ?? this.newControlPath(profile.id);
+			if (controlPath) this.controlPaths.set(profile.id, controlPath);
+		}
 		const args = [
 			"-o",
 			"BatchMode=yes",
@@ -709,6 +882,15 @@ export class RemoteEnvironmentService {
 			"-o",
 			"StrictHostKeyChecking=yes",
 		];
+		if (controlPath)
+			args.push(
+				"-o",
+				"ControlMaster=auto",
+				"-o",
+				"ControlPersist=60",
+				"-o",
+				`ControlPath=${controlPath}`,
+			);
 		if (profile.port) {
 			args.push("-p", String(profile.port));
 		}
@@ -725,9 +907,10 @@ export class RemoteEnvironmentService {
 		profile: RemoteEnvironmentProfile,
 		localPort: number,
 		remotePort: number,
+		controlPath?: string,
 	): string[] {
 		return [
-			...this.buildSshArgs(profile),
+			...this.buildSshArgs(profile, controlPath),
 			"-N",
 			"-o",
 			"ExitOnForwardFailure=yes",
@@ -788,21 +971,10 @@ export class RemoteEnvironmentService {
 		if (this.connections.get(id) !== managed) {
 			return;
 		}
-		this.connections.delete(id);
-		if (this.activeProfileId === id) {
-			this.activeProfileId = undefined;
-		}
-		// Persist before retrying: network loss can outlive this client process.
-		void this.withMutation(async () => {
-			await this.persistPendingCleanup(managed.cleanup);
-			await this.retryPendingCleanup(id);
-		}).catch((error) =>
-			this.setStatus(
-				id,
-				"error",
-				`${message}; remote Hub cleanup pending: ${errorMessage(error)}`,
-			),
-		);
+		managed.tunnelLost = true;
+		// Losing a tunnel does not mean its remote Hub died. Preserve the
+		// connection identity for recovery; shutdown belongs to disconnect.
+
 		const status = this.setStatus(id, "error", message);
 		this.onConnectionLost?.(status);
 	}

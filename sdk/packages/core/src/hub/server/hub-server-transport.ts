@@ -101,9 +101,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -1127,7 +1127,16 @@ export class HubServerTransport implements NativeHubTransport {
 		this.listeners.set(clientId, current);
 		// Re-issue pending approvals so a (re)connecting client can answer a
 		// request raised while it was away instead of leaving the turn parked.
-		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
+		const pending = [
+			...pendingApprovalEvents(this.ctx, options?.sessionId),
+			...[...this.ctx.pendingCapabilityRequests.values()].flatMap((request) =>
+				request.targetClientId === clientId &&
+				(!options?.sessionId || request.sessionId === options.sessionId) &&
+				request.requestedEvent
+					? [request.requestedEvent]
+					: [],
+			),
+		];
 		if (pending.length > 0) {
 			queueMicrotask(() => {
 				const listeners = this.listeners.get(clientId);

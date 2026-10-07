@@ -1407,6 +1407,17 @@ export async function connectRemoteSessionRuntime(
 ): Promise<SessionRuntimeBinding> {
 	const environmentId = connection.profile.id;
 	const existing = ctx.runtimeBindings.get(environmentId);
+	const resolveReconnectUrl = async (failedUrl: string): Promise<string> => {
+		if (!ctx.remoteEnvironments)
+			throw new Error("Remote environment service is unavailable");
+		const recovered = await ctx.remoteEnvironments.recoverForwarding(
+			environmentId,
+			failedUrl,
+		);
+		const binding = ctx.runtimeBindings.get(environmentId);
+		if (binding?.kind === "ssh") binding.remote = recovered;
+		return recovered.endpoint;
+	};
 	const sessionManager = await ClineCore.create({
 		clientName: "cline-code",
 		backendMode: "remote",
@@ -1418,6 +1429,7 @@ export async function connectRemoteSessionRuntime(
 		remote: {
 			endpoint: connection.endpoint,
 			authToken: connection.authToken,
+			resolveReconnectUrl,
 			workspaceRoot: connection.workspaceRoot,
 			cwd: connection.workspaceRoot,
 			clientType: "code-sidecar-ssh",
@@ -1433,6 +1445,7 @@ export async function connectRemoteSessionRuntime(
 		hubClient = new NodeHubClient({
 			url: connection.endpoint,
 			authToken: connection.authToken,
+			resolveReconnectUrl,
 			clientType: "code-sidecar-ssh-observer",
 			displayName: `Code App observer (${connection.profile.name})`,
 			workspaceRoot: connection.workspaceRoot,

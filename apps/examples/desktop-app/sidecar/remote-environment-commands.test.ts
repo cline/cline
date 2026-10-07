@@ -368,6 +368,7 @@ describe("remote environment command routing", () => {
 				remote: {
 					endpoint: connection.endpoint,
 					authToken: connection.authToken,
+					resolveReconnectUrl: expect.any(Function),
 					workspaceRoot: connection.workspaceRoot,
 					cwd: connection.workspaceRoot,
 					clientType: "code-sidecar-ssh",
@@ -378,6 +379,7 @@ describe("remote environment command routing", () => {
 		expect(hubClientConstructorMock).toHaveBeenCalledWith({
 			url: connection.endpoint,
 			authToken: connection.authToken,
+			resolveReconnectUrl: expect.any(Function),
 			clientType: "code-sidecar-ssh-observer",
 			displayName: "Code App observer (Build box)",
 			workspaceRoot: connection.workspaceRoot,
@@ -626,6 +628,90 @@ describe("remote environment command routing", () => {
 				},
 			},
 		});
+	});
+
+	it("coalesces branch polling, backs off outside a repository, and keeps enumeration explicit", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const fake = createFakeService();
+			const ctx = createSidecarContext("/local/project");
+			ctx.remoteEnvironments = fake.service;
+			ctx.runtimeBindings.set(
+				profile.id,
+				createExistingRemoteBinding(profile.id),
+			);
+			const args = { environmentId: profile.id, cwd: "/home/alice" };
+			fake.run.mockRejectedValue(new Error("not a git repository"));
+			await Promise.all([
+				handleCommand(ctx, "get_git_branch", args),
+				handleCommand(ctx, "get_git_branch", args),
+			]);
+			expect(fake.run).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(5_000);
+			await handleCommand(ctx, "get_git_branch", args);
+			expect(fake.run).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(55_000);
+			fake.run.mockResolvedValue({ stdout: "main\n", stderr: "", exitCode: 0 });
+			await expect(
+				handleCommand(ctx, "get_git_branch", args),
+			).resolves.toMatchObject({ branch: "main" });
+			expect(fake.run).toHaveBeenCalledTimes(2);
+			await handleCommand(ctx, "list_git_branches", args);
+			expect(fake.run).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					args: ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+				}),
+			);
+			await handleCommand(ctx, "checkout_git_branch", {
+				...args,
+				branch: "feature",
+			});
+			fake.run.mockResolvedValue({
+				stdout: "feature\n",
+				stderr: "",
+				exitCode: 0,
+			});
+			await expect(
+				handleCommand(ctx, "get_git_branch", args),
+			).resolves.toMatchObject({ branch: "feature" });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		true,
+		false,
+	])("reconciles a lost metadata reply only when the requested patch committed (%s)", async (committed) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/local/project");
+		const binding = createExistingRemoteBinding(profile.id);
+		const error = Object.assign(new Error("lost reply"), {
+			code: "hub_command_timeout",
+		});
+		const get = vi
+			.fn()
+			.mockResolvedValueOnce({ metadata: { pinned: false, unrelated: "old" } })
+			.mockResolvedValueOnce({
+				metadata: { pinned: committed, unrelated: "new" },
+			});
+		const update = vi.fn().mockRejectedValue(error);
+		Object.assign(binding.sessionManager, { get, update });
+		ctx.runtimeBindings.set(profile.id, binding);
+		const outcome = handleCommand(ctx, "update_chat_session_metadata", {
+			environmentId: profile.id,
+			sessionId: "session-1",
+			metadata: { pinned: true },
+		});
+		if (committed)
+			await expect(outcome).resolves.toMatchObject({ pinned: true });
+		else await expect(outcome).rejects.toBe(error);
+		expect(update).toHaveBeenCalledTimes(1);
+		expect(get).toHaveBeenCalledTimes(2);
 	});
 
 	it("routes remote workspace browsing and operations to the explicitly selected directory", async () => {
