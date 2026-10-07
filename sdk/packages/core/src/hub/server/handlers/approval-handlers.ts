@@ -3,6 +3,7 @@ import type {
 	HubEventEnvelope,
 	HubReplyEnvelope,
 	ToolApprovalRequest,
+	ToolApprovalResult,
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import { errorReply, type HubTransportContext, okReply } from "./context";
@@ -10,7 +11,7 @@ import { errorReply, type HubTransportContext, okReply } from "./context";
 export async function requestToolApproval(
 	ctx: HubTransportContext,
 	request: ToolApprovalRequest,
-): Promise<{ approved: boolean; reason?: string }> {
+): Promise<ToolApprovalResult> {
 	const approvalId = createSessionId("approval_");
 	const sessionId = request.sessionId;
 	const state = ctx.sessionState.get(sessionId);
@@ -19,6 +20,7 @@ export async function requestToolApproval(
 			approved: false,
 			reason:
 				"Tool approval requires an interactive session, but this session is non-interactive.",
+			decidedBy: { kind: "system", detail: "non_interactive" },
 		};
 	}
 	let session:
@@ -85,7 +87,7 @@ export function pendingApprovalEvents(
 export function resolvePendingApproval(
 	ctx: HubTransportContext,
 	approvalId: string,
-	result: { approved: boolean; reason?: string },
+	result: ToolApprovalResult,
 ): { sessionId: string } | undefined {
 	const pending = ctx.pendingApprovals.get(approvalId);
 	if (!pending) {
@@ -107,7 +109,11 @@ export function cancelPendingApprovals(
 			continue;
 		}
 		ctx.pendingApprovals.delete(approvalId);
-		pending.resolve({ approved: false, reason });
+		pending.resolve({
+			approved: false,
+			reason,
+			decidedBy: { kind: "system", detail: "cancelled" },
+		});
 		ctx.publish(
 			ctx.buildEvent(
 				"approval.resolved",
@@ -151,6 +157,10 @@ export async function handleApprovalRespond(
 	const resolved = resolvePendingApproval(ctx, approvalId, {
 		approved,
 		reason,
+		decidedBy: {
+			kind: "client",
+			...(envelope.clientId ? { id: envelope.clientId } : {}),
+		},
 	});
 	if (!resolved) {
 		return errorReply(

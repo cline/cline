@@ -9,6 +9,7 @@ import type {
 	ITelemetryService,
 	JsonValue,
 	SessionParticipant,
+	ToolApprovalResult,
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
@@ -30,7 +31,7 @@ import {
 
 export type PendingApproval = {
 	sessionId: string;
-	resolve: (result: { approved: boolean; reason?: string }) => void;
+	resolve: (result: ToolApprovalResult) => void;
 	/**
 	 * The `approval.requested` event as originally published. Pending
 	 * approvals survive client disconnects, so a (re)subscribing client is

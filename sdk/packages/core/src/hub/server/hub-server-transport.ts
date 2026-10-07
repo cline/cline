@@ -101,9 +101,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -718,6 +718,7 @@ export class HubServerTransport implements NativeHubTransport {
 			resolvePendingApproval(this.ctx, approvalId, {
 				approved: false,
 				reason: "Hub shutting down before approval was resolved.",
+				decidedBy: { kind: "system", detail: "hub_shutdown" },
 			});
 		}
 		cancelPendingCapabilityRequests(
