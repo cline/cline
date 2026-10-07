@@ -1118,6 +1118,7 @@ export type {
 	CoreCompactionStrategy,
 	CoreCompactionSummarizerConfig,
 	CoreModelConfig,
+	CoreRecordingConfig,
 	CoreRuntimeFeatures,
 	CoreSessionConfig,
 } from "./types/config";

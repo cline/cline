@@ -236,6 +236,20 @@ export interface CoreCheckpointConfig {
 		| undefined;
 }
 
+/**
+ * Session replay recording. When enabled the session additionally writes
+ * per-model-call request records, decision events and tool environment facts
+ * under `<session-dir>/recording/`; nothing else it writes changes.
+ */
+export interface CoreRecordingConfig {
+	/**
+	 * Record this session. When unset, `CLINE_RECORD_SESSIONS=1` in the
+	 * executing host's environment (e.g. a hub daemon) turns recording on;
+	 * an explicit `false` overrides that.
+	 */
+	enabled?: boolean;
+}
+
 export interface CoreSessionConfig
 	extends CoreModelConfig,
 		CoreRuntimeFeatures,
@@ -280,6 +294,7 @@ export interface CoreSessionConfig
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;
 	checkpoint?: CoreCheckpointConfig;
+	recording?: CoreRecordingConfig;
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

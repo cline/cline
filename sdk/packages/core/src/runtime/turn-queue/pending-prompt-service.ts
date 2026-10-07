@@ -230,6 +230,18 @@ export class PendingPromptsController {
 			return { sessionId: input.sessionId, prompts: [], updated: false };
 		}
 		const result = this.service.update(session, input);
+		if (result.updated && result.prompt) {
+			session.recorder?.recordDecision("prompt_updated", {
+				refs: { promptId: result.prompt.id },
+				payload: {
+					delivery: result.prompt.delivery,
+					...(input.mode ? { mode: input.mode } : {}),
+					...(input.prompt !== undefined
+						? { prompt: result.prompt.prompt }
+						: {}),
+				},
+			});
+		}
 		this.emitPrompts(session);
 		if (
 			result.updated &&
@@ -248,6 +260,12 @@ export class PendingPromptsController {
 			return { sessionId: input.sessionId, prompts: [], removed: false };
 		}
 		const result = this.service.delete(session, input);
+		if (result.removed && result.prompt) {
+			session.recorder?.recordDecision("prompt_deleted", {
+				refs: { promptId: result.prompt.id },
+				payload: { delivery: result.prompt.delivery },
+			});
+		}
 		this.emitPrompts(session);
 		this.scheduleDrain(input.sessionId, session);
 		return result;
@@ -271,7 +289,30 @@ export class PendingPromptsController {
 		// silently dropped, and queued prompts stay editable/deletable before
 		// they auto-run. scheduleDrain/drain still refuse to run while the
 		// abort is settling.
+		const merged = session.pendingPrompts.some(
+			(queued) => queued.prompt === entry.prompt,
+		);
 		this.service.enqueue(session, entry);
+		const queued = session.pendingPrompts.find(
+			(candidate) => candidate.prompt === entry.prompt,
+		);
+		if (session.recorder && queued) {
+			session.recorder.recordDecision("prompt_enqueued", {
+				refs: { promptId: queued.id },
+				payload: {
+					delivery: queued.delivery,
+					...(queued.delivery !== entry.delivery
+						? { requestedDelivery: entry.delivery }
+						: {}),
+					...(entry.mode ? { mode: entry.mode } : {}),
+					prompt: entry.prompt,
+					attachmentCount:
+						(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
+					...(merged ? { merged: true } : {}),
+					aborting: session.aborting,
+				},
+			});
+		}
 		this.emitPrompts(session);
 		if (entry.delivery === "steer" && !session.aborting) {
 			session.agent.notifyPendingUserMessage();
@@ -284,6 +325,19 @@ export class PendingPromptsController {
 		if (!session) return undefined;
 		const { entry: steer } = this.service.consumeSteer(session);
 		if (!steer) return undefined;
+		const recorder = session.recorder;
+		if (recorder) {
+			const { runId, iteration } = recorder.currentPosition();
+			const agentId = session.agent.getAgentId();
+			const mode = steer.mode ?? session.config.mode;
+			recorder.noteMode(mode, "steer", { agentId, iteration });
+			recorder.recordDecision("prompt_delivered", {
+				agentId,
+				iteration,
+				refs: { promptId: steer.id, ...(runId ? { runId } : {}) },
+				payload: { delivery: "steer", ...(mode ? { mode } : {}) },
+			});
+		}
 		this.emitPrompts(session);
 		this.emitSubmitted(session, steer);
 		return steer;
@@ -296,6 +350,11 @@ export class PendingPromptsController {
 	 */
 	discardQueue(session: ActiveSession): void {
 		if (session.pendingPrompts.length === 0) return;
+		session.recorder?.recordDecision("prompt_queue_discarded", {
+			payload: {
+				promptIds: session.pendingPrompts.map((entry) => entry.id),
+			},
+		});
 		this.service.clear(session);
 		this.emitPrompts(session);
 	}
@@ -335,6 +394,15 @@ export class PendingPromptsController {
 		}
 		const { entry: next } = this.service.shiftNext(session);
 		if (!next) return;
+		session.recorder?.recordDecision("prompt_delivered", {
+			agentId: session.agent.getAgentId(),
+			refs: { promptId: next.id },
+			payload: {
+				delivery: "queue",
+				...(next.delivery === "steer" ? { requestedDelivery: "steer" } : {}),
+				...(next.mode ? { mode: next.mode } : {}),
+			},
+		});
 		this.emitPrompts(session);
 		this.emitSubmitted(session, next);
 		session.drainingPendingPrompts = true;
