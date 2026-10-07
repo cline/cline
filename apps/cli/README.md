@@ -291,6 +291,23 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
 
+## Hub dashboard
+
+Run `cline hub` to list hub subcommands. To start the browser dashboard:
+
+```sh
+cline hub dashboard
+```
+
+The dashboard opens in your default browser and stays running until you press Ctrl+C. Use `--no-open` to print the URL without opening a browser, or `--port` to change the dashboard's HTTP/WebSocket port (default: `8787`):
+
+```sh
+cline hub dashboard --port 9090 --no-open
+cline hub dashboard --help
+```
+
+Dashboard options also include `--cwd`, `--config`, `--data-dir`, `--host`, `--public-url`, and `--room-secret`. For LAN or tunnel access, see the [Cline Hub configuration and security guidance](../cline-hub/README.md). The old `cline dashboard` invocation remains a hidden compatibility alias; use `cline hub dashboard` in new scripts.
+
 ## Zen mode
 
 `--zen` (alias `-z`) runs a task in the background hub daemon and exits the CLI immediately. It is intended for long-running tasks you want to fire off and walk away from.
