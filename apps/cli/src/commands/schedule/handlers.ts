@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
-	addAutonomousOptions,
 	addDeliveryOptions,
 	addSharedOptions,
 	emitJsonOrText,
@@ -72,11 +71,14 @@ export function registerScheduleCommands(
 		.option("--tags <list>", "Comma-separated tags")
 		.option("--timeout <seconds>", "Timeout in seconds");
 	addDeliveryOptions(createCmd);
-	addAutonomousOptions(createCmd);
 	addSharedOptions(createCmd);
 	createCmd.action(
 		action(async (name: string) => {
 			const opts = createCmd.opts();
+			const metadata = mergeScheduleMetadata(
+				parseJsonObjectFlag(opts.metadataJson),
+				opts,
+			);
 			const address = resolveAddress(opts.address);
 			const ensured = await ensureSchedulerHub(address, opts.workspace, io);
 			if (!ensured.ok) {
@@ -88,10 +90,6 @@ export function registerScheduleCommands(
 			}
 			const client = ensured.client;
 			try {
-				const metadata = mergeScheduleMetadata(
-					parseJsonObjectFlag(opts.metadataJson),
-					opts,
-				);
 				const modelSelection = resolveScheduleModelSelection({
 					provider: opts.provider,
 					model: opts.model,

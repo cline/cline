@@ -367,6 +367,205 @@ describe("runScheduleCommand create", () => {
 			}),
 		);
 	});
+
+	it("rejects a delivery with no thread before contacting the hub", async () => {
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Daily summary",
+				"--cron",
+				"0 9 * * *",
+				"--prompt",
+				"Summarize yesterday",
+				"--workspace",
+				"/tmp/workspace",
+				"--delivery-adapter",
+				"telegram",
+				"--delivery-bot",
+				"my_bot",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
+		]);
+		expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it("rejects a delivery thread with no adapter", async () => {
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Daily summary",
+				"--cron",
+				"0 9 * * *",
+				"--prompt",
+				"Summarize yesterday",
+				"--workspace",
+				"/tmp/workspace",
+				"--delivery-thread",
+				"telegram:123456789",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			"schedule delivery needs --delivery-adapter <name>, such as telegram or slack",
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["--autonomous"],
+		["--no-autonomous"],
+		["--idle-timeout", "60"],
+		["--poll-interval", "5"],
+		["--delivery-channel", "C123"],
+	])("rejects %s, which no schedule run reads", async (...flag: string[]) => {
+		await expect(
+			runScheduleCommand(
+				[
+					"create",
+					"Health check",
+					"--cron",
+					"0 */6 * * *",
+					"--prompt",
+					"Run tests",
+					"--workspace",
+					"/tmp/workspace",
+					...flag,
+				],
+				{ writeln: () => {}, writeErr: () => {} },
+			),
+		).rejects.toThrow(`unknown option '${flag[0]}'`);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+});
+
+describe("runScheduleCommand update", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("adds a bot to an existing delivery and keeps its thread", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockHubClientCommand.mockImplementation(async (command: string) =>
+			command === "schedule.get"
+				? {
+						ok: true,
+						payload: {
+							schedule: {
+								scheduleId: "sched_1",
+								metadata: {
+									delivery: {
+										adapter: "telegram",
+										threadId: "telegram:123456789",
+									},
+								},
+							},
+						},
+					}
+				: { ok: true, payload: { schedule: { scheduleId: "sched_1" } } },
+		);
+
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"update",
+				"sched_1",
+				"--delivery-bot",
+				"my_bot",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(errors).toEqual([]);
+		expect(code).toBe(0);
+		expect(mockHubClientCommand).toHaveBeenCalledWith(
+			"schedule.update",
+			expect.objectContaining({
+				metadata: {
+					delivery: {
+						adapter: "telegram",
+						threadId: "telegram:123456789",
+						userName: "my_bot",
+					},
+				},
+			}),
+		);
+	});
+
+	it("rejects a bot for a schedule that has no delivery thread", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockHubClientCommand.mockImplementation(async (command: string) =>
+			command === "schedule.get"
+				? {
+						ok: true,
+						payload: { schedule: { scheduleId: "sched_1", metadata: {} } },
+					}
+				: { ok: true, payload: { schedule: { scheduleId: "sched_1" } } },
+		);
+
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"update",
+				"sched_1",
+				"--delivery-adapter",
+				"telegram",
+				"--delivery-bot",
+				"my_bot",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalledWith(
+			"schedule.update",
+			expect.anything(),
+		);
+	});
 });
 
 describe("runScheduleCommand import", () => {

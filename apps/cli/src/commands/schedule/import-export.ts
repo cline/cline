@@ -3,7 +3,6 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
-	addAutonomousOptions,
 	addDeliveryOptions,
 	addSharedOptions,
 	emitJsonOrText,
@@ -197,12 +196,10 @@ export function registerScheduleImportCommand(
 								.map((item) => (typeof item === "string" ? item.trim() : ""))
 								.filter((item) => item.length > 0)
 						: undefined,
-					metadata: mergeScheduleMetadata(
+					metadata:
 						parsed.metadata && typeof parsed.metadata === "object"
 							? (parsed.metadata as Record<string, unknown>)
 							: undefined,
-						opts,
-					),
 				});
 				if (!created) {
 					io.writeErr("failed to import schedule");
@@ -246,7 +243,6 @@ export function registerScheduleUpdateCommand(
 		.option("--timeout <n>", "New timeout in seconds")
 		.option("--workspace <path>", "New workspace root");
 	addDeliveryOptions(updateCmd);
-	addAutonomousOptions(updateCmd);
 	addSharedOptions(updateCmd);
 	updateCmd.action(
 		action(async (scheduleId: string) => {

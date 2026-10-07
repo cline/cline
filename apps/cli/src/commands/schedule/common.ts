@@ -36,20 +36,37 @@ export function toPositiveInt(
 	return parsed;
 }
 
-export function mergeScheduleDeliveryMetadata(
+type ScheduleDeliveryOptions = {
+	deliveryAdapter?: string;
+	deliveryThread?: string;
+	deliveryBot?: string;
+};
+
+export function hasMetadataPatchOpts(
+	opts: ScheduleDeliveryOptions & { metadataJson?: string },
+): boolean {
+	return (
+		!!opts.metadataJson ||
+		!!opts.deliveryAdapter ||
+		!!opts.deliveryThread ||
+		!!opts.deliveryBot
+	);
+}
+
+/**
+ * Merges the delivery flags into `metadata.delivery`. Connectors deliver a
+ * scheduled result only to a chat they can find from `threadId`,
+ * `bindingKey` or `participantKey`, so a delivery without any of them is
+ * rejected here instead of being saved and never delivered.
+ */
+export function mergeScheduleMetadata(
 	base: Record<string, unknown> | undefined,
-	delivery: {
-		deliveryAdapter?: string;
-		deliveryThread?: string;
-		deliveryChannel?: string;
-		deliveryBot?: string;
-	},
+	delivery: ScheduleDeliveryOptions,
 ): Record<string, unknown> | undefined {
 	const adapter = delivery.deliveryAdapter?.trim();
 	const threadId = delivery.deliveryThread?.trim();
-	const channelId = delivery.deliveryChannel?.trim();
 	const userName = delivery.deliveryBot?.trim();
-	if (!adapter && !threadId && !channelId && !userName) {
+	if (!adapter && !threadId && !userName) {
 		return base;
 	}
 	const next = { ...(base ?? {}) };
@@ -59,88 +76,35 @@ export function mergeScheduleDeliveryMetadata(
 		!Array.isArray(next.delivery)
 			? (next.delivery as Record<string, unknown>)
 			: {};
-	next.delivery = {
+	const merged: Record<string, unknown> = {
 		...existingDelivery,
 		...(adapter ? { adapter } : {}),
 		...(threadId ? { threadId } : {}),
-		...(channelId ? { channelId } : {}),
 		...(userName ? { userName } : {}),
 	};
-	return next;
-}
-
-export function mergeScheduleAutonomousMetadata(
-	base: Record<string, unknown> | undefined,
-	autonomous: {
-		autonomous?: true;
-		noAutonomous?: true;
-		idleTimeout?: string;
-		pollInterval?: string;
-	},
-): Record<string, unknown> | undefined {
-	const autonomousEnabled = !!autonomous.autonomous;
-	const autonomousDisabled = !!autonomous.noAutonomous;
-	const idleTimeoutSeconds = autonomous.idleTimeout;
-	const pollIntervalSeconds = autonomous.pollInterval;
-	if (
-		!autonomousEnabled &&
-		!autonomousDisabled &&
-		!idleTimeoutSeconds &&
-		!pollIntervalSeconds
-	) {
-		return base;
+	if (!hasDeliveryTarget(merged)) {
+		throw new Error(
+			"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
+		);
 	}
-	const next = { ...(base ?? {}) };
-	const existingAutonomous =
-		next.autonomous &&
-		typeof next.autonomous === "object" &&
-		!Array.isArray(next.autonomous)
-			? (next.autonomous as Record<string, unknown>)
-			: {};
-	next.autonomous = {
-		...existingAutonomous,
-		...(autonomousEnabled ? { enabled: true } : {}),
-		...(autonomousDisabled ? { enabled: false } : {}),
-		...(idleTimeoutSeconds
-			? { idleTimeoutSeconds: toPositiveInt(idleTimeoutSeconds, 60) }
-			: {}),
-		...(pollIntervalSeconds
-			? { pollIntervalSeconds: toPositiveInt(pollIntervalSeconds, 5) }
-			: {}),
-	};
+	if (!hasNonEmptyString(merged.adapter)) {
+		throw new Error(
+			"schedule delivery needs --delivery-adapter <name>, such as telegram or slack",
+		);
+	}
+	next.delivery = merged;
 	return next;
 }
 
-export function hasMetadataPatchOpts(opts: Record<string, unknown>): boolean {
-	return (
-		!!opts.metadataJson ||
-		!!opts.deliveryAdapter ||
-		!!opts.deliveryThread ||
-		!!opts.deliveryChannel ||
-		!!opts.deliveryBot ||
-		!!opts.autonomous ||
-		!!opts.noAutonomous ||
-		!!opts.idleTimeout ||
-		!!opts.pollInterval
-	);
+function hasNonEmptyString(value: unknown): boolean {
+	return typeof value === "string" && value.trim().length > 0;
 }
 
-export function mergeScheduleMetadata(
-	base: Record<string, unknown> | undefined,
-	opts: {
-		deliveryAdapter?: string;
-		deliveryThread?: string;
-		deliveryChannel?: string;
-		deliveryBot?: string;
-		autonomous?: true;
-		noAutonomous?: true;
-		idleTimeout?: string;
-		pollInterval?: string;
-	},
-): Record<string, unknown> | undefined {
-	return mergeScheduleAutonomousMetadata(
-		mergeScheduleDeliveryMetadata(base, opts),
-		opts,
+function hasDeliveryTarget(delivery: Record<string, unknown>): boolean {
+	return (
+		hasNonEmptyString(delivery.threadId) ||
+		hasNonEmptyString(delivery.bindingKey) ||
+		hasNonEmptyString(delivery.participantKey)
 	);
 }
 
@@ -195,16 +159,16 @@ export function addSharedOptions(cmd: Command): Command {
 
 export function addDeliveryOptions(cmd: Command): Command {
 	return cmd
-		.option("--delivery-adapter <name>", "Delivery adapter name")
-		.option("--delivery-bot <name>", "Delivery bot user name")
-		.option("--delivery-channel <id>", "Delivery channel ID")
-		.option("--delivery-thread <id>", "Delivery thread ID");
-}
-
-export function addAutonomousOptions(cmd: Command): Command {
-	return cmd
-		.option("--autonomous", "Enable autonomous mode")
-		.option("--no-autonomous", "Disable autonomous mode")
-		.option("--idle-timeout <seconds>", "Autonomous idle timeout in seconds")
-		.option("--poll-interval <seconds>", "Autonomous poll interval in seconds");
+		.option(
+			"--delivery-adapter <name>",
+			"Connector that posts each run's result, such as telegram",
+		)
+		.option(
+			"--delivery-bot <name>",
+			"Only this bot posts the result, when several are running",
+		)
+		.option(
+			"--delivery-thread <id>",
+			"Chat to post the result to; /whereami in the chat shows it",
+		);
 }
