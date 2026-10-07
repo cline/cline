@@ -259,12 +259,17 @@ export async function runAgenticCompaction(options: {
 		});
 	} catch (error) {
 		// Endpoints with mandatory reasoning reject the summarizer's explicit
-		// disable, so retry with the provider's default reasoning.
+		// disable (e.g. "Reasoning is mandatory for this endpoint and cannot be
+		// disabled."), so retry those with the provider's default reasoning.
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		if (!/reasoning|thinking/i.test(errorMessage)) {
+			throw error;
+		}
 		options.logger?.log(
-			"Agentic compaction summarizer failed with reasoning disabled; retrying with provider default reasoning",
+			"Agentic compaction summarizer rejected disabled reasoning; retrying with provider default reasoning",
 			{
 				severity: "warn",
-				errorMessage: error instanceof Error ? error.message : String(error),
+				errorMessage,
 				summarizerProviderId: summarizerProviderConfig.providerId,
 				summarizerModelId: summarizerProviderConfig.modelId,
 			},

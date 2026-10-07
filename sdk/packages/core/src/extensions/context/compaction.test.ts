@@ -2465,6 +2465,63 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
+	it("does not retry the summarizer for errors unrelated to reasoning", async () => {
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		createHandlerMock.mockReturnValueOnce({
+			createMessage: vi.fn(() => {
+				throw new Error("429 Too Many Requests");
+			}),
+		});
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "primary-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger,
+		});
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "primary-model",
+				provider: "anthropic",
+				info: { id: "primary-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agentic compaction failed; falling back to basic compaction",
+			expect.objectContaining({ errorMessage: "429 Too Many Requests" }),
+		);
+	});
+
 	it("budgets agentic summary input against the configured summarizer context window", async () => {
 		let summaryRequest = "";
 		createHandlerMock.mockReturnValue({
