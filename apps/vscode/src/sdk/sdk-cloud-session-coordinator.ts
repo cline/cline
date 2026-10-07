@@ -121,7 +121,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | und
 }
 const SCOPE_DRAIN_TIMEOUT_MS = 15_000
 const ABANDONED_STARTS_RECHECK_MS = 10_000
-const ABANDONED_START_INSPECT_TIMEOUT_MS = 10_000
 
 export interface CloudTaskInput {
 	prompt: string
@@ -224,9 +223,6 @@ export class SdkCloudSessionCoordinator {
 	private readonly journal: PendingStartJournal | undefined
 	private abandonedStartsRecovery: Promise<void> | undefined
 	private abandonedStartsRecheck: ReturnType<typeof setTimeout> | undefined
-	private abandonedStartsRecheckScheduled = false
-	/** Abandoned sandboxes this extension host already tried to settle; later attempts belong to the next host. */
-	private readonly abandonedStartsAttempted = new Set<string>()
 
 	constructor(private readonly options: SdkCloudSessionCoordinatorOptions) {
 		this.journal = options.pendingStartsDir ? new PendingStartJournal(options.pendingStartsDir) : undefined
@@ -320,29 +316,25 @@ export class SdkCloudSessionCoordinator {
 		if (liveOwners) this.scheduleAbandonedStartsRecheck()
 		const account = this.options.getAccountScope?.()
 		const endpoint = this.options.cloudSessions.apiBaseUrl
-		const isOurs = (pending: PendingStartRecord) =>
-			pending.account === account && pending.endpoint === endpoint && !this.abandonedStartsAttempted.has(pending.sessionId)
-		if (!journals.some((journal) => journal.records.some(isOurs))) return
-		let records: CloudSessionRecord[]
-		try {
-			records = await this.options.cloudSessions.listSessions()
-		} catch (error) {
-			Logger.warn("[CloudSessions] Failed to list cloud sessions for abandoned-start recovery:", error)
-			return
-		}
 		let deleted = false
 		for (const journal of journals) {
 			const unresolved: PendingStartRecord[] = []
 			for (const pending of journal.records) {
-				if (!isOurs(pending) || !isCurrent()) {
+				if (pending.account !== account || pending.endpoint !== endpoint || !isCurrent()) {
 					unresolved.push(pending)
 					continue
 				}
-				this.abandonedStartsAttempted.add(pending.sessionId)
-				const record = records.find((candidate) => candidate.id === pending.sessionId)
-				const outcome = await this.recoverAbandonedStart(pending.sessionId, record, isCurrent)
-				if (outcome === "unresolved") unresolved.push(pending)
-				if (outcome === "deleted") deleted = true
+				// A record is dropped before the first prompt is sent, so its sandbox holds no user work.
+				// Only a confirmed deletion settles it; anything else is retried later.
+				try {
+					await this.options.cloudSessions.deleteSession(pending.sessionId)
+					deleted = true
+				} catch (error) {
+					if (!(error instanceof CloudSessionError && error.code === "session_not_found")) {
+						Logger.warn(`[CloudSessions] Failed to delete abandoned cloud session ${pending.sessionId}:`, error)
+						unresolved.push(pending)
+					}
+				}
 			}
 			journal.settle(unresolved)
 		}
@@ -353,62 +345,8 @@ export class SdkCloudSessionCoordinator {
 		}
 	}
 
-	/**
-	 * One abandoned start. It is settled without a DELETE when this account no
-	 * longer lists it, or when its sandbox has taken a turn: the host can exit
-	 * after the sandbox accepted the first turn but before recording that, and
-	 * such a sandbox is the user's task, not an orphan. The saved transcript is
-	 * empty until the first turn's iteration ends, so a running turn is told
-	 * apart by the Hub session's status. Anything the control plane did not
-	 * confirm stays recorded for a later attempt.
-	 */
-	private async recoverAbandonedStart(
-		sessionId: string,
-		record: CloudSessionRecord | undefined,
-		isCurrent: () => boolean,
-	): Promise<"settled" | "deleted" | "unresolved"> {
-		if (!record || isCloudSessionExpired(record)) return "settled"
-		const status = record.status?.toLowerCase()
-		const taskId = record.metadata.taskId?.trim()
-		if (status !== "provisioning" && status !== "pending" && status !== "failed" && taskId) {
-			const tookTurn = async () => {
-				const host = await CloudSessionHost.connect({
-					outerSessionId: sessionId,
-					taskId,
-					socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
-					getAuthToken: this.options.getAuthToken,
-					telemetry: this.options.telemetry,
-				})
-				try {
-					return host.status !== "idle" || (await host.readMessages(sessionId)).length > 0
-				} finally {
-					// Detaching waits on the sandbox; recovery holds the account scope and must not.
-					void host.dispose("abandonedStartCheck").catch(() => undefined)
-				}
-			}
-			try {
-				const inspected = await withTimeout(tookTurn(), ABANDONED_START_INSPECT_TIMEOUT_MS)
-				if (inspected === undefined) return "unresolved"
-				if (inspected) return "settled"
-			} catch (error) {
-				Logger.warn(`[CloudSessions] Could not inspect abandoned cloud session ${sessionId}:`, error)
-				return "unresolved"
-			}
-		}
-		if (!isCurrent()) return "unresolved"
-		try {
-			await this.options.cloudSessions.deleteSession(sessionId)
-			return "deleted"
-		} catch (error) {
-			if (error instanceof CloudSessionError && error.code === "session_not_found") return "settled"
-			Logger.warn(`[CloudSessions] Failed to delete abandoned cloud session ${sessionId}:`, error)
-			return "unresolved"
-		}
-	}
-
 	private scheduleAbandonedStartsRecheck(): void {
-		if (this.abandonedStartsRecheckScheduled) return
-		this.abandonedStartsRecheckScheduled = true
+		if (this.abandonedStartsRecheck) return
 		this.abandonedStartsRecheck = setTimeout(() => {
 			this.abandonedStartsRecheck = undefined
 			void this.recoverAbandonedStarts()
@@ -419,7 +357,6 @@ export class SdkCloudSessionCoordinator {
 	private cancelAbandonedStartsRecheck(): void {
 		clearTimeout(this.abandonedStartsRecheck)
 		this.abandonedStartsRecheck = undefined
-		this.abandonedStartsRecheckScheduled = false
 	}
 
 	/** Drops remembered statuses for sessions the account's list no longer contains. */
@@ -1096,8 +1033,7 @@ export class SdkCloudSessionCoordinator {
 			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
 			if (isStale()) return sessionId
 
-			const cloudHost = await this.connect(entry)
-			host = cloudHost
+			host = await this.connect(entry)
 			if (isStale()) return sessionId
 			const startInput: StartSessionInput = {
 				config: {
@@ -1119,10 +1055,10 @@ export class SdkCloudSessionCoordinator {
 			const { sdkHost } = await this.options.sessions.startNewSession(startInput, host, () => !isStale())
 			if (isStale()) return sessionId
 			this.options.postStateToWebview().catch(() => {})
+			// From here the sandbox may hold the user's work, so recovery must never delete it.
+			this.forgetPendingStart(record.id)
 			this.options.sessions.fireAndForgetSend(sdkHost, record.id, resolvedPrompt, input.images)
 			sent = true
-			// Until the sandbox starts the turn, the prompt exists only in this process.
-			void cloudHost.whenTurnAccepted().then(() => this.forgetPendingStart(record.id))
 			Logger.log(`[CloudSessions] Cloud task started: ${record.id}`)
 			return record.id
 		} catch (error) {

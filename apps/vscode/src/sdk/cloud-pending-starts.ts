@@ -3,7 +3,7 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import path from "node:path"
 import { Logger } from "@/shared/services/Logger"
 
-/** A sandbox a cloud start created whose first turn the sandbox has not yet accepted. */
+/** A sandbox a cloud start created and has not yet sent the first prompt to. */
 export interface PendingStartRecord {
 	sessionId: string
 	/** Account scope (user and organization) the start ran under; only that scope may settle the record. */
@@ -25,7 +25,8 @@ function isProcessAlive(pid: number): boolean {
 		process.kill(pid, 0)
 		return true
 	} catch (error) {
-		return (error as NodeJS.ErrnoException).code === "EPERM"
+		// EPERM means the process exists but belongs to someone else; only ESRCH proves it is gone.
+		return (error as NodeJS.ErrnoException).code !== "ESRCH"
 	}
 }
 
@@ -46,13 +47,19 @@ export class PendingStartJournal {
 
 	constructor(private readonly dir: string) {}
 
+	/** Throws when the record cannot be written, so the start fails and cleans up while it still can. */
 	add(record: PendingStartRecord): void {
 		this.records.set(record.sessionId, record)
 		this.write()
 	}
 
 	remove(sessionId: string): void {
-		if (this.records.delete(sessionId)) this.write()
+		if (!this.records.delete(sessionId)) return
+		try {
+			this.write()
+		} catch (error) {
+			Logger.warn("[CloudSessions] Failed to update pending cloud starts:", error)
+		}
 	}
 
 	/**
@@ -100,15 +107,11 @@ export class PendingStartJournal {
 
 	private write(): void {
 		const file = path.join(this.dir, this.fileName)
-		try {
-			if (this.records.size === 0) {
-				rmSync(file, { force: true })
-				return
-			}
-			mkdirSync(this.dir, { recursive: true })
-			writeFileSync(file, JSON.stringify([...this.records.values()]))
-		} catch (error) {
-			Logger.warn("[CloudSessions] Failed to record pending cloud starts:", error)
+		if (this.records.size === 0) {
+			rmSync(file, { force: true })
+			return
 		}
+		mkdirSync(this.dir, { recursive: true })
+		writeFileSync(file, JSON.stringify([...this.records.values()]))
 	}
 }
