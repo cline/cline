@@ -211,7 +211,7 @@ async function readTextWindow(
 
 			let line = rawLine;
 			if (line.length > MAX_LINE_CHARS) {
-				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated] (use start_offset to read the complete text)`;
+				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated] (use start_offset to page through the remaining text)`;
 			}
 
 			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
