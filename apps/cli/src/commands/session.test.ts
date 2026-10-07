@@ -44,7 +44,12 @@ const MESSAGES: MessageWithMetadata[] = [
 	{
 		role: "user",
 		content: [
-			{ type: "tool_result", tool_use_id: "call_1", content: "a.txt\nb.txt" },
+			{
+				type: "tool_result",
+				tool_use_id: "call_1",
+				name: "run_commands",
+				content: "a.txt\nb.txt",
+			},
 		],
 		ts: T0 + 1_500,
 	},
