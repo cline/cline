@@ -20,6 +20,7 @@ import {
 	installPlugin,
 	isOfficialPluginSlug,
 	parsePluginSource,
+	resolveOfficialPluginsArchiveUrl,
 	resolvePluginPackageManager,
 } from "./plugin-install";
 
@@ -81,10 +82,7 @@ describe("plugin install service", () => {
 		rmSync(root, { recursive: true, force: true });
 	});
 
-	function runGitCommand(cwd: string, args: string[]): void {
-		execFileSync("git", args, { cwd, stdio: "ignore" });
-	}
-
+	/** A local checkout of the collection; copied without git. */
 	async function createOfficialPluginsRepo(
 		plugins: Record<string, Record<string, string>>,
 	): Promise<string> {
@@ -96,12 +94,33 @@ describe("plugin install service", () => {
 				await writeFile(join(pluginRoot, filename), content, "utf8");
 			}
 		}
-		runGitCommand(repo, ["init"]);
-		runGitCommand(repo, ["config", "user.email", "test@example.com"]);
-		runGitCommand(repo, ["config", "user.name", "Cline Test"]);
-		runGitCommand(repo, ["add", "."]);
-		runGitCommand(repo, ["commit", "-m", "seed plugins"]);
 		return repo;
+	}
+
+	/** The same collection as GitHub's codeload tarball, served by a fetch stub. */
+	async function stubOfficialPluginsArchive(
+		plugins: Record<string, Record<string, string>>,
+	): Promise<ReturnType<typeof vi.fn<FetchCall>>> {
+		const parent = mkdtempSync(join(root, "archive-src-"));
+		for (const [slug, files] of Object.entries(plugins)) {
+			const pluginRoot = join(parent, "plugins-HEAD", "plugins", slug);
+			await mkdir(pluginRoot, { recursive: true });
+			for (const [filename, content] of Object.entries(files)) {
+				await writeFile(join(pluginRoot, filename), content, "utf8");
+			}
+		}
+		const archivePath = join(root, "plugins-HEAD.tar.gz");
+		execFileSync("tar", ["-czf", archivePath, "-C", parent, "plugins-HEAD"]);
+		const fetchMock = vi.fn<FetchCall>(async (input) => {
+			expect(String(input)).toBe(
+				"https://codeload.github.com/cline/plugins/tar.gz/HEAD",
+			);
+			return new Response(readFileSync(archivePath), {
+				headers: { "content-type": "application/x-gzip" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		return fetchMock;
 	}
 
 	it("parses marketplace plugin sources the same way the CLI command expects", () => {
@@ -210,6 +229,67 @@ describe("plugin install service", () => {
 		);
 	});
 
+	it("installs an official plugin from the GitHub tarball without git", async () => {
+		const fetchMock = await stubOfficialPluginsArchive({
+			"web-search": {
+				"index.ts":
+					"export default { name: 'tarball-web-search', manifest: { capabilities: ['tools'] } };",
+			},
+			"other-plugin": {
+				"index.ts":
+					"export default { name: 'other-plugin', manifest: { capabilities: ['tools'] } };",
+			},
+		});
+
+		const result = await installPlugin({
+			source: "web-search",
+			cwd: workspace,
+			officialPluginsRepo: "https://github.com/cline/plugins.git",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result.installPath).toContain(
+			join(workspace, ".cline", "plugins", "_installed", "official"),
+		);
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"tarball-web-search",
+		);
+		expect(existsSync(join(result.installPath, "repo"))).toBe(false);
+		expect(
+			existsSync(join(result.installPath, "package", "other-plugin")),
+		).toBe(false);
+	});
+
+	it("reports a missing slug from the GitHub tarball", async () => {
+		await stubOfficialPluginsArchive({
+			"web-search": { "index.ts": "export default { name: 'x' };" },
+		});
+		await expect(
+			installPlugin({
+				source: "does-not-exist",
+				cwd: workspace,
+				officialPluginsRepo: "https://github.com/cline/plugins",
+			}),
+		).rejects.toThrow(
+			/"does-not-exist" was not found at plugins\/does-not-exist/,
+		);
+	});
+
+	it("maps GitHub collection URLs to codeload tarballs and leaves other hosts to git", () => {
+		expect(
+			resolveOfficialPluginsArchiveUrl("https://github.com/cline/plugins.git"),
+		).toBe("https://codeload.github.com/cline/plugins/tar.gz/HEAD");
+		expect(
+			resolveOfficialPluginsArchiveUrl("https://github.com/acme/collection/"),
+		).toBe("https://codeload.github.com/acme/collection/tar.gz/HEAD");
+		expect(
+			resolveOfficialPluginsArchiveUrl(
+				"https://gitlab.com/acme/collection.git",
+			),
+		).toBeUndefined();
+		expect(resolveOfficialPluginsArchiveUrl("/tmp/collection")).toBeUndefined();
+	});
+
 	it("installs an official plugin that depends only on @cline/* without a package manager", async () => {
 		const officialPluginsRepo = await createOfficialPluginsRepo({
 			linear: {
@@ -237,10 +317,7 @@ describe("plugin install service", () => {
 			"official-linear",
 		);
 		const manifest = JSON.parse(
-			readFileSync(
-				join(result.installPath, "package", "package.json"),
-				"utf8",
-			),
+			readFileSync(join(result.installPath, "package", "package.json"), "utf8"),
 		) as Record<string, unknown>;
 		expect(manifest.optionalDependencies).toBeUndefined();
 		expect(manifest.peerDependencies).toBeUndefined();

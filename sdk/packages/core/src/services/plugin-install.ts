@@ -29,6 +29,7 @@ import {
 	type PluginMcpSettingsSyncResult,
 	syncPluginMcpServersToSettings,
 } from "./plugin-mcp-settings";
+import { extractTarGz } from "./tar-archive";
 
 export interface PluginInstallOptions {
 	source: string;
@@ -100,6 +101,8 @@ const PACKAGE_DIRECTORY_NAME = "package";
 const OFFICIAL_PLUGINS_REPO = "https://github.com/cline/plugins.git";
 const REMOTE_PLUGIN_FETCH_TIMEOUT_MS = 30_000;
 const REMOTE_PLUGIN_MAX_BYTES = 10 * 1024 * 1024;
+// The whole official collection as one tarball (currently well under 1 MB).
+const OFFICIAL_PLUGINS_ARCHIVE_MAX_BYTES = 50 * 1024 * 1024;
 const HOST_PROVIDED_SDK_PREFIX = "@cline/";
 const DEPENDENCY_FIELDS = [
 	"dependencies",
@@ -174,6 +177,24 @@ export function isOfficialPluginSlug(source: string): boolean {
 
 function resolveOfficialPluginsRepo(override: string | undefined): string {
 	return override?.trim() || OFFICIAL_PLUGINS_REPO;
+}
+
+/**
+ * GitHub serves any ref of a repository as a tarball over plain HTTPS, so the
+ * official collection can be fetched without git on the machine (a fresh Mac
+ * would otherwise get the Xcode Command Line Tools prompt). Other hosts fall
+ * back to `git clone`.
+ */
+export function resolveOfficialPluginsArchiveUrl(
+	repo: string,
+): string | undefined {
+	const match =
+		/^https?:\/\/(?:www\.)?github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(
+			repo.trim(),
+		);
+	return match
+		? `https://codeload.github.com/${match[1]}/${match[2]}/tar.gz/HEAD`
+		: undefined;
 }
 
 function parseNpmSpec(spec: string): { name: string } {
@@ -883,46 +904,121 @@ async function installGitPackage(
 	return packageRoot;
 }
 
+function officialPluginNotFoundError(slug: string, repo: string): Error {
+	return new Error(
+		`Official Cline plugin "${slug}" was not found at plugins/${slug} in ${repo}`,
+	);
+}
+
+function isExcludedPackageEntry(name: string): boolean {
+	return name === ".git" || name === "node_modules";
+}
+
+/** Download the collection tarball and extract just `plugins/<slug>/`. */
+async function extractOfficialPluginFromArchive(
+	slug: string,
+	archiveUrl: string,
+	packageRoot: string,
+): Promise<number> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => {
+		controller.abort();
+	}, REMOTE_PLUGIN_FETCH_TIMEOUT_MS);
+	let archive: Buffer;
+	try {
+		const response = await fetch(archiveUrl, { signal: controller.signal });
+		if (!response.ok) {
+			const suffix = response.statusText ? ` ${response.statusText}` : "";
+			throw new Error(
+				`Failed to download the official plugin collection from ${archiveUrl}: ${response.status}${suffix}`,
+			);
+		}
+		archive = await readRemotePluginBody(
+			response,
+			archiveUrl,
+			OFFICIAL_PLUGINS_ARCHIVE_MAX_BYTES,
+		);
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error(
+				`Timed out downloading the official plugin collection from ${archiveUrl} after ${REMOTE_PLUGIN_FETCH_TIMEOUT_MS}ms`,
+			);
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+	// Entries look like "<repo>-<ref>/plugins/<slug>/index.ts".
+	const marker = `/plugins/${slug}/`;
+	return extractTarGz(archive, {
+		into: packageRoot,
+		select: (archivePath) => {
+			const start = archivePath.indexOf(marker);
+			if (start === -1 || archivePath.indexOf("/") !== start) {
+				return undefined;
+			}
+			const relative = archivePath.slice(start + marker.length);
+			const segments = relative.split("/");
+			return relative && !segments.some(isExcludedPackageEntry)
+				? relative
+				: undefined;
+		},
+	});
+}
+
 async function installOfficialPlugin(
 	parsed: Extract<ParsedPluginSource, { type: "official" }>,
 	stagingRoot: string,
 	manager: PluginPackageManager,
 	officialPluginsRepo: string,
 ): Promise<string> {
-	const repoRoot = join(stagingRoot, "repo");
-	await runCommand("git", [
-		"clone",
-		"--filter=blob:none",
-		"--depth",
-		"1",
-		"--",
-		officialPluginsRepo,
-		repoRoot,
-	]);
-
-	const sourceRoot = join(repoRoot, "plugins", parsed.slug);
-	if (!existsSync(sourceRoot) || !statSync(sourceRoot).isDirectory()) {
-		throw new Error(
-			`Official Cline plugin "${parsed.slug}" was not found at plugins/${parsed.slug} in ${officialPluginsRepo}`,
-		);
-	}
-
 	const packageRoot = join(stagingRoot, PACKAGE_DIRECTORY_NAME);
-	await cp(sourceRoot, packageRoot, {
-		recursive: true,
-		filter: (sourcePath) => {
-			const name = basename(sourcePath);
-			return name !== ".git" && name !== "node_modules";
-		},
-	});
-	rmSync(repoRoot, { recursive: true, force: true });
+	const archiveUrl = resolveOfficialPluginsArchiveUrl(officialPluginsRepo);
+	if (archiveUrl) {
+		const written = await extractOfficialPluginFromArchive(
+			parsed.slug,
+			archiveUrl,
+			packageRoot,
+		);
+		if (written === 0) {
+			throw officialPluginNotFoundError(parsed.slug, officialPluginsRepo);
+		}
+	} else {
+		// A local checkout of the collection is copied as is; any other git
+		// remote is cloned.
+		let collectionRoot = officialPluginsRepo;
+		if (
+			!existsSync(collectionRoot) ||
+			!statSync(collectionRoot).isDirectory()
+		) {
+			collectionRoot = join(stagingRoot, "repo");
+			await runCommand("git", [
+				"clone",
+				"--filter=blob:none",
+				"--depth",
+				"1",
+				"--",
+				officialPluginsRepo,
+				collectionRoot,
+			]);
+		}
+		const sourceRoot = join(collectionRoot, "plugins", parsed.slug);
+		if (!existsSync(sourceRoot) || !statSync(sourceRoot).isDirectory()) {
+			throw officialPluginNotFoundError(parsed.slug, officialPluginsRepo);
+		}
+		await cp(sourceRoot, packageRoot, {
+			recursive: true,
+			filter: (sourcePath) => !isExcludedPackageEntry(basename(sourcePath)),
+		});
+		rmSync(join(stagingRoot, "repo"), { recursive: true, force: true });
+	}
 	await installPackageDependencies(packageRoot, manager);
 	return packageRoot;
 }
 
-function remotePluginSizeLimitError(url: string): Error {
+function remotePluginSizeLimitError(url: string, maxBytes: number): Error {
 	return new Error(
-		`Remote plugin file from ${url} exceeds the ${REMOTE_PLUGIN_MAX_BYTES} byte limit`,
+		`Remote plugin file from ${url} exceeds the ${maxBytes} byte limit`,
 	);
 }
 
@@ -941,16 +1037,17 @@ function getContentLength(response: Response): number | undefined {
 async function readRemotePluginBody(
 	response: Response,
 	url: string,
+	maxBytes = REMOTE_PLUGIN_MAX_BYTES,
 ): Promise<Buffer> {
 	const contentLength = getContentLength(response);
-	if (contentLength !== undefined && contentLength > REMOTE_PLUGIN_MAX_BYTES) {
-		throw remotePluginSizeLimitError(url);
+	if (contentLength !== undefined && contentLength > maxBytes) {
+		throw remotePluginSizeLimitError(url, maxBytes);
 	}
 
 	if (!response.body) {
-		const body = Buffer.from(await response.text(), "utf8");
-		if (body.byteLength > REMOTE_PLUGIN_MAX_BYTES) {
-			throw remotePluginSizeLimitError(url);
+		const body = Buffer.from(await response.arrayBuffer());
+		if (body.byteLength > maxBytes) {
+			throw remotePluginSizeLimitError(url, maxBytes);
 		}
 		return body;
 	}
@@ -966,9 +1063,9 @@ async function readRemotePluginBody(
 			}
 			const chunk = Buffer.from(value);
 			received += chunk.byteLength;
-			if (received > REMOTE_PLUGIN_MAX_BYTES) {
+			if (received > maxBytes) {
 				await reader.cancel().catch(() => undefined);
-				throw remotePluginSizeLimitError(url);
+				throw remotePluginSizeLimitError(url, maxBytes);
 			}
 			chunks.push(chunk);
 		}
