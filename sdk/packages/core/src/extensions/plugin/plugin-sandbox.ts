@@ -232,7 +232,8 @@ export function selectBootstrapCandidate(options: {
 	explicitCandidate?: string;
 	siblingCandidates: string[];
 	sourceBootstrapPath: string;
-	installedCandidates: Array<string | undefined>;
+	/** Thunks are only evaluated once every earlier candidate has missed. */
+	installedCandidates: Array<string | undefined | (() => string | undefined)>;
 	exists?: (path: string) => boolean;
 }): { file: string } | { sourcePath: string } {
 	const exists = options.exists ?? existsSync;
@@ -246,7 +247,8 @@ export function selectBootstrapCandidate(options: {
 		return { sourcePath: options.sourceBootstrapPath };
 	}
 	for (const candidate of options.installedCandidates) {
-		if (candidate && exists(candidate)) return { file: candidate };
+		const path = typeof candidate === "function" ? candidate() : candidate;
+		if (path && exists(path)) return { file: path };
 	}
 	return { sourcePath: options.sourceBootstrapPath };
 }
@@ -267,17 +269,13 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
 	//
+	//
 	// A compiled host with no on-disk layout at all (desktop sidecar, SSH remote
 	// helper, standalone CLI) falls back to the resources embedded in its own
-	// binary. Only materialize those when nothing else matched: an npm install
-	// of the CLI should keep using its real node_modules tree.
-	const installedCandidates = [
-		resolveBootstrapFromWrapper(),
-		resolveBootstrapFromExecutable(),
-	];
-	if (!installedCandidates.some(Boolean)) {
-		installedCandidates.push(resolveEmbeddedPluginBootstrap());
-	}
+	// binary. That candidate is a thunk so extraction only happens when every
+	// other candidate, including the env override, has missed: an npm install
+	// of the CLI keeps using its real node_modules tree, and a host pointed at
+	// a bootstrap explicitly never needs a writable runtime directory.
 	const selected = selectBootstrapCandidate({
 		explicitCandidate: resolveBootstrapFromEnv(),
 		siblingCandidates: [
@@ -286,7 +284,11 @@ function resolveBootstrap(): { file: string } | { script: string } {
 			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
 		],
 		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
-		installedCandidates,
+		installedCandidates: [
+			resolveBootstrapFromWrapper(),
+			resolveBootstrapFromExecutable(),
+			resolveEmbeddedPluginBootstrap,
+		],
 	});
 	if ("file" in selected) {
 		return selected;
