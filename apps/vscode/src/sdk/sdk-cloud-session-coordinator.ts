@@ -221,6 +221,8 @@ export class SdkCloudSessionCoordinator {
 	private startGeneration = 0
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
 	private pendingStart: AbortController | undefined
+	/** The task view the pending start installed, once it has one. */
+	private pendingStartTask: TaskProxy | undefined
 	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
 	private recommendedModelsWarmup: Promise<unknown> | undefined
 	private scopeTransition: Promise<void> | undefined
@@ -912,6 +914,7 @@ export class SdkCloudSessionCoordinator {
 		const startGeneration = ++this.startGeneration
 		const pendingStart = new AbortController()
 		this.pendingStart = pendingStart
+		this.pendingStartTask = undefined
 		// Snapshot the model now, before any await: it is what the composer was
 		// showing when the user submitted.
 		const modelId = this.nextCloudModelId()
@@ -930,6 +933,7 @@ export class SdkCloudSessionCoordinator {
 			} finally {
 				if (this.pendingStart === pendingStart) {
 					this.pendingStart = undefined
+					this.pendingStartTask = undefined
 					// The failure path posts state while the start is still pending;
 					// re-post so the composer no longer sees "provisioning".
 					this.options.postStateToWebview().catch(() => {})
@@ -949,9 +953,20 @@ export class SdkCloudSessionCoordinator {
 			return false
 		}
 		this.pendingStart = undefined
+		this.pendingStartTask = undefined
 		this.startGeneration++
 		pendingStart.abort(new Error("Cloud task cancelled while provisioning"))
 		return true
+	}
+
+	/**
+	 * Cancels the pending start when `displayedTask` is its view, or when no task
+	 * is shown yet because the start has not installed one. A Cancel on any other
+	 * task belongs to that task, even while a start the user left is still settling.
+	 */
+	cancelPendingStartFor(displayedTask: TaskProxy | undefined): boolean {
+		if (displayedTask && displayedTask !== this.pendingStartTask) return false
+		return this.cancelPendingStart()
 	}
 
 	private async startCloudTaskInScope(
@@ -971,6 +986,7 @@ export class SdkCloudSessionCoordinator {
 		const startedAt = Date.now()
 		const provisionalId = `${CLOUD_PROVISIONING_ID_PREFIX}${startedAt}`
 		const task = this.installTask(provisionalId)
+		this.pendingStartTask = task
 		const title = input.prompt.trim().split("\n")[0]?.trim().slice(0, 120) || input.prompt.trim()
 		const repoLabel = input.repoUrl.replace(/^https:\/\/github\.com\//, "")
 
