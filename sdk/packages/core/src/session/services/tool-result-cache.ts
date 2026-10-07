@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ImageContent } from "@cline/shared";
+import { type ImageContent, safeJsonParse } from "@cline/shared";
 import YAML from "yaml";
 
 export const TOOL_RESULT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
@@ -152,11 +152,8 @@ function expandRecoveryJson(value: unknown, decodeText = false): unknown {
 	if (decodeText && typeof value === "string") {
 		const trimmed = value.trimStart();
 		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-			try {
-				return expandRecoveryJson(JSON.parse(value));
-			} catch {
-				// Non-JSON text remains verbatim; recovery does not interpret prose.
-			}
+			const parsed = safeJsonParse<unknown>(value);
+			if (parsed !== undefined) return expandRecoveryJson(parsed);
 		}
 		return value;
 	}
