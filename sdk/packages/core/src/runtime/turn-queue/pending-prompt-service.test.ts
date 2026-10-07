@@ -289,4 +289,104 @@ describe("PendingPromptService", () => {
 			),
 		).toBe(true);
 	});
+
+	it("records queue decisions when the session is recorded", async () => {
+		const recordDecision = vi.fn();
+		const noteMode = vi.fn();
+		let canStartRun = false;
+		const session = {
+			sessionId: "session",
+			pendingPrompts: [],
+			aborting: false,
+			drainingPendingPrompts: false,
+			config: { mode: "act" },
+			agent: {
+				canStartRun: () => canStartRun,
+				notifyPendingUserMessage: vi.fn(),
+				getAgentId: () => "agent_1",
+			},
+			recorder: {
+				recordDecision,
+				noteMode,
+				currentPosition: () => ({ runId: "run_1", iteration: 4 }),
+			},
+		} as unknown as ActiveSession;
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: vi.fn(),
+			send: vi.fn().mockResolvedValue(undefined),
+		});
+
+		controller.enqueue("session", { prompt: "steer me", delivery: "steer" });
+		const steerId = controller.list("session")[0]?.id;
+		controller.consumeSteer("session");
+		controller.enqueue("session", { prompt: "later", delivery: "queue" });
+		controller.enqueue("session", {
+			prompt: "later",
+			delivery: "queue",
+			userFiles: ["a.txt"],
+		});
+		const laterId = controller.list("session")[0]?.id ?? "";
+		controller.update({ sessionId: "session", promptId: laterId, prompt: "x" });
+		controller.delete({ sessionId: "session", promptId: laterId });
+		controller.enqueue("session", { prompt: "one", delivery: "queue" });
+		controller.discardQueue(session);
+		controller.enqueue("session", {
+			prompt: "two",
+			delivery: "queue",
+			mode: "plan",
+		});
+		canStartRun = true;
+		await controller.drain("session");
+
+		const calls = recordDecision.mock.calls.map(([name, input]) => [
+			name,
+			input,
+		]);
+		expect(calls.map(([name]) => name)).toEqual([
+			"prompt_enqueued",
+			"prompt_delivered",
+			"prompt_enqueued",
+			"prompt_enqueued",
+			"prompt_updated",
+			"prompt_deleted",
+			"prompt_enqueued",
+			"prompt_queue_discarded",
+			"prompt_enqueued",
+			"prompt_delivered",
+		]);
+		expect(calls[0]?.[1]).toEqual({
+			refs: { promptId: steerId },
+			payload: {
+				delivery: "steer",
+				prompt: "steer me",
+				attachmentCount: 0,
+				aborting: false,
+			},
+		});
+		expect(noteMode).toHaveBeenCalledWith("act", "steer", {
+			agentId: "agent_1",
+			iteration: 4,
+		});
+		expect(calls[1]?.[1]).toEqual({
+			agentId: "agent_1",
+			iteration: 4,
+			refs: { promptId: steerId, runId: "run_1" },
+			payload: { delivery: "steer", mode: "act" },
+		});
+		expect(calls[3]?.[1]).toMatchObject({
+			payload: { merged: true, attachmentCount: 1 },
+		});
+		expect(calls[4]?.[1]).toMatchObject({
+			refs: { promptId: laterId },
+			payload: { delivery: "queue", prompt: "x" },
+		});
+		expect(calls[7]?.[1]).toMatchObject({
+			payload: { promptIds: [expect.any(String)] },
+		});
+		expect(calls[9]?.[1]).toMatchObject({
+			agentId: "agent_1",
+			payload: { delivery: "queue", mode: "plan" },
+		});
+	});
 });
