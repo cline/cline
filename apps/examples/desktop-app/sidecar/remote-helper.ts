@@ -8,6 +8,7 @@ import {
 	remoteHelperBinaryFilename,
 } from "@cline/core";
 import { resolveDesktopCliPath } from "./cli-runtime";
+import { desktopRuntimeInstallers } from "./runtime-installer";
 
 const execFileAsync = promisify(execFile);
 function isUniversalMacCli(path: string): boolean {
@@ -98,7 +99,7 @@ export async function resolveDesktopRemoteHelper(
 			options.runInstaller ??
 			(async (script, release, triple, directory) => {
 				const windows = platform === "win32";
-				await execFileAsync(
+				await desktopRuntimeInstallers.run(
 					windows ? "powershell.exe" : "/bin/bash",
 					windows
 						? [
@@ -126,7 +127,7 @@ export async function resolveDesktopRemoteHelper(
 								directory,
 								"--no-modify-path",
 							],
-					{ env, timeout: 600_000, windowsHide: true },
+					env,
 				);
 			});
 		await run(
