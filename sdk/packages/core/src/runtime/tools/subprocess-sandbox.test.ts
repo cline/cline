@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
 	CLINE_JS_RUNTIME_PATH_ENV,
+	isCompiledBunExecutable,
 	resolveSubprocessRuntimeExecutable,
 	SubprocessSandbox,
 } from "./subprocess-sandbox";
@@ -49,6 +50,40 @@ describe("SubprocessSandbox runtime resolution", () => {
 				env: {},
 			}),
 		).toBe("node");
+	});
+
+	it("re-executes a compiled Bun host as its own sandbox runtime", () => {
+		const selfExecPath = "/Applications/Cline.app/Contents/MacOS/code-sidecar";
+		const realExecPath = process.execPath;
+		vi.stubGlobal("Bun", (globalThis as { Bun?: unknown }).Bun ?? {});
+		process.execPath = selfExecPath;
+		try {
+			expect(isCompiledBunExecutable(selfExecPath)).toBe(true);
+			// Some other compiled binary on disk is not this process.
+			expect(isCompiledBunExecutable("/usr/local/bin/cline")).toBe(false);
+			expect(
+				resolveSubprocessRuntimeExecutable({ execPath: selfExecPath, env: {} }),
+			).toBe(selfExecPath);
+			// Explicit runtimes still win over self-exec.
+			expect(
+				resolveSubprocessRuntimeExecutable({
+					execPath: selfExecPath,
+					env: { NODE: "/opt/node/bin/node" },
+				}),
+			).toBe("/opt/node/bin/node");
+		} finally {
+			process.execPath = realExecPath;
+			vi.unstubAllGlobals();
+		}
+		// Without an embedded Bun runtime the same path cannot be BUN_BE_BUN'd.
+		if (typeof (globalThis as { Bun?: unknown }).Bun === "undefined") {
+			process.execPath = selfExecPath;
+			try {
+				expect(isCompiledBunExecutable(selfExecPath)).toBe(false);
+			} finally {
+				process.execPath = realExecPath;
+			}
+		}
 	});
 
 	it("allows an explicit helper runtime override", () => {

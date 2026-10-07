@@ -100,6 +100,14 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
+export type {
+	EmbeddedPluginRuntimeRegistry,
+	PluginRuntimeResources,
+} from "./extensions/plugin-runtime";
+export {
+	getEmbeddedPluginRuntimeRegistry,
+	registerEmbeddedPluginRuntime,
+} from "./extensions/plugin-runtime";
 export {
 	FEATURE_FLAGS,
 	FeatureFlag,
