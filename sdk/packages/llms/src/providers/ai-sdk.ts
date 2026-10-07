@@ -1481,6 +1481,7 @@ async function* emitAiSdkEvents(
 	pricingValue?: unknown,
 	capturedError?: { current: CapturedStreamError | undefined },
 	modelToolAdapters?: BuiltModelTools,
+	repairedToolCallInputs?: Map<string, string>,
 ): AsyncIterable<AgentModelEvent> {
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
@@ -1658,6 +1659,8 @@ async function* emitAiSdkEvents(
 					const input = (part.input ?? part.args ?? {}) as unknown;
 					const inputText =
 						typeof input === "string" ? input : JSON.stringify(input);
+					const thoughtMetadata = extractGoogleThoughtMetadata(part);
+					const repairedInputText = repairedToolCallInputs?.get(toolCallId);
 					yield {
 						type: "tool-call-delta",
 						toolCallId,
@@ -1665,7 +1668,12 @@ async function* emitAiSdkEvents(
 						input: typeof input === "string" ? undefined : input,
 						inputText,
 						metadata: buildToolCallMetadata({
-							metadata: extractGoogleThoughtMetadata(part),
+							metadata:
+								repairedInputText === undefined
+									? thoughtMetadata
+									: mergeToolCallMetadata(thoughtMetadata, {
+											repairedInputText,
+										}),
 							request,
 							context,
 						}),
@@ -2131,6 +2139,11 @@ function createAiSdkProvider(
 			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
+			// Raw argument text of every tool call repairMalformedToolCall had to
+			// rewrite, keyed by tool-call ID. The runtime uses it to tell a model
+			// that merely omitted closing brackets from one whose output was cut
+			// off mid-call, which only the turn's finish reason can decide.
+			const repairedToolCallInputs = new Map<string, string>();
 			try {
 				const provider = await createProviderModule(
 					kind,
@@ -2329,7 +2342,19 @@ function createAiSdkProvider(
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
 							maxRetries: MODEL_REQUEST_MAX_RETRIES,
-							experimental_repairToolCall: repairMalformedToolCall as never,
+							experimental_repairToolCall: (async (input: {
+								toolCall: RepairableToolCall;
+								error: unknown;
+							}) => {
+								const repaired = await repairMalformedToolCall(input);
+								if (repaired) {
+									repairedToolCallInputs.set(
+										input.toolCall.toolCallId,
+										input.toolCall.input,
+									);
+								}
+								return repaired;
+							}) as never,
 							telemetry: {
 								...aiSdkTelemetry,
 								functionId: "cline-agent-turn",
@@ -2402,6 +2427,7 @@ function createAiSdkProvider(
 					context.model.metadata?.pricing,
 					capturedError,
 					modelToolAdapters,
+					repairedToolCallInputs,
 				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);

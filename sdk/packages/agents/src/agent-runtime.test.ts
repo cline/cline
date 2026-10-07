@@ -831,6 +831,175 @@ describe("AgentRuntime", () => {
 		expect(JSON.stringify(nudge)).toContain("output-token limit");
 	});
 
+	it.each([
+		{
+			label: "closed up by the model layer's repair",
+			delta: {
+				input: { text: [] },
+				inputText: '{"text":[]}',
+				metadata: { repairedInputText: '{"text":[' },
+			},
+		},
+		{
+			label: "cut mid-token",
+			delta: { inputText: '{"text":' },
+		},
+		{
+			label: "empty",
+			delta: { inputText: "" },
+		},
+	])("skips a tool call whose arguments were $label at the output-token limit and nudges instead of executing it", async ({
+		delta,
+	}) => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking..." },
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					...delta,
+				},
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, tools: [tool] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(execute).not.toHaveBeenCalled();
+		const toolMessage = result.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.content[0]).toMatchObject({
+			type: "tool-result",
+			toolCallId: "call_1",
+			isError: true,
+		});
+		expect(JSON.stringify(toolMessage?.content[0])).toContain(
+			"cut off because the response reached the model's output-token limit",
+		);
+		// The retry carries both the error result and the concision nudge.
+		const retry = JSON.stringify(model.requests[1]?.messages);
+		expect(retry).toContain("output-token limit");
+		expect(retry).toContain("cut off because it reached");
+		expect(model.requests).toHaveLength(2);
+	});
+
+	it("executes complete tool calls from a max-tokens turn and skips only the cut-off one", async () => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"first"}',
+				},
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_2",
+					toolName: "echo",
+					inputText: '{"text":',
+				},
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, tools: [tool] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute.mock.calls[0]?.[0]).toEqual({ text: "first" });
+		const toolResults = result.messages
+			.filter((message) => message.role === "tool")
+			.flatMap((message) => message.content);
+		expect(toolResults).toEqual([
+			expect.objectContaining({ toolCallId: "call_1", isError: undefined }),
+			expect.objectContaining({ toolCallId: "call_2", isError: true }),
+		]);
+		expect(JSON.stringify(toolResults[1])).toContain("output-token limit");
+	});
+
+	it("recovers a turn whose only tool call was cut off with a forced compaction and one retry", async () => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					input: { text: [] },
+					inputText: '{"text":[]}',
+					metadata: { repairedInputText: '{"text":[' },
+				},
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, tools: [tool], prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(execute).not.toHaveBeenCalled();
+		expect(model.requests).toHaveLength(2);
+		expect(model.requests[1]?.messages).toEqual(compactedMessages);
+		// The truncated tool-call turn is replaced, not persisted.
+		expect(
+			result.messages.filter((message) => message.role === "assistant"),
+		).toHaveLength(1);
+	});
+
+	it("fails once repeated cut-off tool calls exhaust recovery", async () => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const cutoff = () => [
+			{
+				type: "tool-call-delta" as const,
+				toolCallId: "call_1",
+				toolName: "echo",
+				inputText: '{"text":',
+			},
+			{ type: "finish" as const, reason: "max-tokens" as const },
+		];
+		// Initial attempt + 3 nudged retries all cut off = 4 requests, then fail.
+		const model = new ScriptedModel([cutoff, cutoff, cutoff, cutoff]);
+		const runtime = new AgentRuntime({ model, tools: [tool] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		expect(execute).not.toHaveBeenCalled();
+		expect(model.requests).toHaveLength(4);
+	});
+
 	it("fails once repeated output-token-limit cut-offs exhaust recovery", async () => {
 		const cutoff = () => [
 			{ type: "reasoning-delta" as const, text: "thinking..." },
