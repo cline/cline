@@ -15,6 +15,7 @@ import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { pluginRuntimeDefine } from "../../../sdk/packages/core/scripts/plugin-runtime-resources";
 import {
 	parseBuildOptions,
 	shouldInstallNativeVariants,
@@ -223,6 +224,10 @@ async function buildCompiledBinary(input: {
 			// Inline telemetry/OTEL env vars at build time so the compiled
 			// binary ships with production telemetry configuration baked in.
 			...buildInlinedEnvDefines(),
+			// Plugin sandbox resources for installs with no node_modules next to
+			// the binary (standalone installs, SSH uploads). An npm install keeps
+			// using its real node_modules tree; see plugin-sandbox.ts.
+			...(await pluginRuntimeDefine()),
 		},
 		throw: false,
 	});

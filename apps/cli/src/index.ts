@@ -8,6 +8,8 @@ import {
 	disposeAll,
 	ensureLoopbackProxyBypass,
 	initVcr,
+	type PluginRuntimeResources,
+	registerEmbeddedPluginRuntime,
 	setConnectorCliLaunchSpec,
 } from "@cline/shared";
 import { logCliProcessError } from "./logging/errors";
@@ -29,6 +31,12 @@ disableCurrentDirectoryExecutableSearch();
 
 // Before any personality probes the local hub over 127.0.0.1.
 ensureLoopbackProxyBypass();
+
+// Plugin sandbox resources baked into the compiled binary (script/build.ts),
+// used when no node_modules tree exists next to it: standalone installs and
+// SSH uploads. An npm install keeps resolving its real node_modules.
+declare const CLINE_PLUGIN_RUNTIME_RESOURCES: PluginRuntimeResources;
+registerEmbeddedPluginRuntime(() => CLINE_PLUGIN_RUNTIME_RESOURCES);
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.

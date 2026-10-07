@@ -14,6 +14,8 @@ import {
 	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
 	ensureLoopbackProxyBypass,
+	type PluginRuntimeResources,
+	registerEmbeddedPluginRuntime,
 	setClineClientIdentity,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
@@ -30,6 +32,12 @@ import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
+
+// Plugin sandbox resources baked into this binary by build-sidecar-bin.ts, so
+// the sidecar, the Hub daemon it re-executes, and the SSH remote helper load
+// plugins without node or any files installed next to the executable.
+declare const CLINE_PLUGIN_RUNTIME_RESOURCES: PluginRuntimeResources;
+registerEmbeddedPluginRuntime(() => CLINE_PLUGIN_RUNTIME_RESOURCES);
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 let activeObservability:
