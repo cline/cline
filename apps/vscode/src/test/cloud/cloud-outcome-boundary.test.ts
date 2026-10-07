@@ -95,6 +95,7 @@ describe("cloud outcome → History and notifications through a real Hub", () =>
 			},
 			clearTask: async () => {
 				task = undefined
+				return () => false
 			},
 			claimTaskViewGeneration: () => () => false,
 			getAuthToken: async () => environment?.accessToken,

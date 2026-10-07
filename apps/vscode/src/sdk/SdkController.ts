@@ -706,7 +706,7 @@ export class Controller {
 			onCancelTask: () => this.cancelTask(),
 			clearTask: async () => {
 				this.pendingStartRetry = undefined
-				await this.taskControl.clearTask()
+				return this.taskControl.clearTask()
 			},
 			onStartFailed: (task, input) => this.offerCloudStartRetry(task, input),
 			claimTaskViewGeneration: () => this.taskControl.claimTaskViewGeneration(),

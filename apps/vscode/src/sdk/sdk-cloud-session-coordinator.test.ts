@@ -9,11 +9,14 @@ import { ClineEnv } from "@/config"
 import { resetClineRecommendedModelsCacheForTests } from "@/core/controller/models/refreshClineRecommendedModels"
 import { HostProvider } from "@/hosts/host-provider"
 import { CloudSessionError, type CloudSessionRecord, type CreateCloudSessionInput } from "@/services/cloud/CloudSessionsService"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
+import { SdkTaskHistory } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 
@@ -97,7 +100,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		},
 		onAskResponse: vi.fn(async () => undefined),
 		onCancelTask: vi.fn(async () => undefined),
-		clearTask: vi.fn(async () => undefined),
+		clearTask: vi.fn(async () => () => false),
 		onStartFailed: vi.fn(),
 		claimTaskViewGeneration: () => () => false,
 		requestToolApproval: vi.fn(),
@@ -148,6 +151,270 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			host,
 			expect.any(Function),
 		)
+		await coordinator.dispose()
+	})
+
+	it("keeps a provisioning start running when its own sandbox is opened from History", async () => {
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		const recorded = () =>
+			readdirSync(pendingStartsDir).flatMap((name) => JSON.parse(readFileSync(path.join(pendingStartsDir, name), "utf8")))
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let viewGeneration = 0
+		const { coordinator, cloudSessions } = makeCoordinator({
+			pendingStartsDir,
+			getAccountScope: () => "user:",
+			claimTaskViewGeneration: () => {
+				const claimed = ++viewGeneration
+				return () => claimed !== viewGeneration
+			},
+			clearTask: async () => {
+				const claimed = ++viewGeneration
+				return () => claimed !== viewGeneration
+			},
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(() => expect(recorded()).toEqual([])),
+			} as never,
+		})
+		const provisioned = deferred<void>()
+		const named = deferred<void>()
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			named.resolve()
+			await provisioned.promise
+			return record
+		})
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "provisioning" }])
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await named.promise
+		expect(await coordinator.listHistoryRecords()).toEqual([])
+		const provisionalId = coordinator.getCurrentTaskInfo()!.sessionId
+		expect(await coordinator.openCloudTask(provisionalId)).toMatchObject({ id: provisionalId })
+		expect(await coordinator.openCloudTask(record.id)).toMatchObject({ id: record.id })
+		expect(recorded()).toEqual([{ sessionId: record.id, account: "user:" }])
+		provisioned.resolve()
+
+		expect(await start).toBe(record.id)
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
+	})
+
+	it("returns to a provisioning start over a History selection that is still loading", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let viewGeneration = 0
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			claimTaskViewGeneration: () => {
+				const claimed = ++viewGeneration
+				return () => claimed !== viewGeneration
+			},
+			clearTask: async () => {
+				const claimed = ++viewGeneration
+				return () => claimed !== viewGeneration
+			},
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		const provisioned = deferred<void>()
+		const named = deferred<void>()
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			named.resolve()
+			await provisioned.promise
+			return record
+		})
+		const other = { ...record, id: "ses-other", metadata: { ...record.metadata, taskId: "tsk-other" } }
+		const otherListed = deferred<CloudSessionRecord[]>()
+		cloudSessions.listSessions.mockReturnValueOnce(otherListed.promise)
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await named.promise
+		const startView = options.getTask()
+		const openOther = coordinator.openCloudTask(other.id)
+		expect(await coordinator.openCloudTask(startView!.taskId)).toMatchObject({ id: startView!.taskId })
+		provisioned.resolve()
+		otherListed.resolve([other, record])
+
+		expect(await openOther).toBeUndefined()
+		expect(await start).toBe(record.id)
+		expect(options.getTask()).toBe(startView)
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
+	})
+
+	it("keeps a provisioning start selected again while another open waits on the task transition", async () => {
+		const startHost = {
+			status: "idle",
+			readMessages: async () => [],
+			dispose: async () => {},
+		} as unknown as CloudSessionHost
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(startHost)
+		let task: TaskProxy | undefined
+		let transitionGate: Promise<void> | undefined
+		const runTaskTransition = vi.fn(async (operation: () => Promise<void>) => {
+			await transitionGate
+			return operation()
+		})
+		const taskControl = new SdkTaskControlCoordinator({
+			sessions: { endActiveSession: vi.fn(async () => undefined) },
+			interactions: { clearPending: vi.fn() },
+			messages: { cancelPendingSave: vi.fn() },
+			getTask: () => task,
+			setTask: (next: TaskProxy | undefined) => {
+				task = next
+			},
+			resetMessageTranslator: vi.fn(),
+			clearTaskSettings: vi.fn(async () => undefined),
+			rebuilds: { runTaskTransition },
+		} as unknown as SdkTaskControlCoordinatorOptions)
+		const { coordinator, cloudSessions } = makeCoordinator({
+			getTask: () => task,
+			setTask: (next: TaskProxy | undefined) => {
+				task = next
+			},
+			clearTask: () => taskControl.clearTask(),
+			claimTaskViewGeneration: () => taskControl.claimTaskViewGeneration(),
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: startHost, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		const provisioned = deferred<void>()
+		const named = deferred<void>()
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			named.resolve()
+			await provisioned.promise
+			return record
+		})
+		const other = { ...record, id: "ses-other", metadata: { ...record.metadata, taskId: "tsk-other" } }
+		cloudSessions.listSessions.mockResolvedValue([other, record])
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await named.promise
+		const startView = task!
+		const transition = deferred<void>()
+		transitionGate = transition.promise
+		runTaskTransition.mockClear()
+		const openOther = coordinator.openCloudTask(other.id)
+		await vi.waitFor(() => expect(runTaskTransition).toHaveBeenCalled())
+		expect(await coordinator.openCloudTask(startView.taskId)).toMatchObject({ id: startView.taskId })
+		transitionGate = undefined
+		transition.resolve()
+		await openOther
+		provisioned.resolve()
+
+		expect(await start).toBe(record.id)
+		expect(task).toBe(startView)
+		expect(connect).not.toHaveBeenCalledWith(expect.objectContaining({ outerSessionId: other.id }))
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
+	})
+
+	it("lists the started sandbox in a cached History once its start settles", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const hubStarted = deferred<void>()
+		const startNewSession = vi.fn(async () => {
+			await hubStarted.promise
+			return { sdkHost: host, startResult: { sessionId: record.id } }
+		})
+		let history!: SdkTaskHistory
+		const { coordinator, cloudSessions } = makeCoordinator({
+			invalidateHistoryCache: () => history.invalidateCache(),
+			sessions: { startNewSession, fireAndForgetSend: vi.fn() } as never,
+		})
+		history = new SdkTaskHistory({
+			mcpHub: {} as McpHub,
+			sessions: { getActiveSession: () => ({ sdkHost: { listHistory: async () => [] } }) } as never,
+			cloud: {
+				isCloudSessionId: (id) => coordinator.isCloudSessionId(id),
+				list: () => coordinator.listHistoryRecords(),
+				find: (id) => coordinator.findHistoryRecord(id),
+				delete: (id) => coordinator.deleteSession(id),
+			},
+		})
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			return record
+		})
+		cloudSessions.listSessions.mockResolvedValue([record])
+		const listedIds = async () => (await history.listHistory({ hydrate: false })).map((item) => item.sessionId)
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await vi.waitFor(() => expect(startNewSession).toHaveBeenCalled())
+		expect(await listedIds()).not.toContain(record.id)
+		hubStarted.resolve()
+		await start
+
+		expect(await listedIds()).toContain(record.id)
+		await history.dispose()
+		await coordinator.dispose()
+	})
+
+	it("lists the started sandbox when its start settles while a History listing reads usage", async () => {
+		const startHost = {
+			status: "idle",
+			readMessages: async () => [],
+			dispose: async () => {},
+		} as unknown as CloudSessionHost
+		const usage = deferred<undefined>()
+		const otherHost = {
+			status: "running",
+			readMessages: async () => [],
+			dispose: async () => {},
+			getAccumulatedUsage: vi.fn(() => usage.promise),
+		} as unknown as CloudSessionHost
+		const other = { ...record, id: "ses-other", metadata: { ...record.metadata, taskId: "tsk-other" } }
+		vi.spyOn(CloudSessionHost, "connect").mockImplementation(async ({ outerSessionId }) =>
+			outerSessionId === other.id ? otherHost : startHost,
+		)
+		const hubStarted = deferred<void>()
+		const startNewSession = vi.fn(async () => {
+			await hubStarted.promise
+			return { sdkHost: startHost, startResult: { sessionId: record.id } }
+		})
+		let history!: SdkTaskHistory
+		const { coordinator, cloudSessions } = makeCoordinator({
+			invalidateHistoryCache: () => history.invalidateCache(),
+			sessions: { startNewSession, fireAndForgetSend: vi.fn() } as never,
+		})
+		history = new SdkTaskHistory({
+			mcpHub: {} as McpHub,
+			sessions: { getActiveSession: () => ({ sdkHost: { listHistory: async () => [] } }) } as never,
+			cloud: {
+				isCloudSessionId: (id) => coordinator.isCloudSessionId(id),
+				list: () => coordinator.listHistoryRecords(),
+				find: (id) => coordinator.findHistoryRecord(id),
+				delete: (id) => coordinator.deleteSession(id),
+			},
+		})
+		cloudSessions.listSessions.mockResolvedValue([other])
+		await coordinator.listHistoryRecords()
+		await coordinator.resolveStatuses([other.id])
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			return record
+		})
+		cloudSessions.listSessions.mockResolvedValue([record, other])
+		const listedIds = async () => (await history.listHistory({ hydrate: false })).map((item) => item.sessionId)
+
+		const start = coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()
+		await vi.waitFor(() => expect(startNewSession).toHaveBeenCalled())
+		const listing = listedIds()
+		await vi.waitFor(() => expect(otherHost.getAccumulatedUsage).toHaveBeenCalled())
+		hubStarted.resolve()
+		await start
+		usage.resolve(undefined)
+		await listing
+
+		expect(await listedIds()).toContain(record.id)
+		await history.dispose()
 		await coordinator.dispose()
 	})
 
@@ -867,7 +1134,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 	})
 
 	it("omits old rows immediately while task teardown posts History", async () => {
-		const clearing = deferred<void>()
+		const clearing = deferred<() => boolean>()
 		const { coordinator, cloudSessions, options } = makeCoordinator()
 		cloudSessions.listSessions.mockResolvedValue([record])
 		await coordinator.listHistoryRecords()
@@ -876,7 +1143,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		const switching = coordinator.reset()
 		expect(await coordinator.listHistoryRecords()).toEqual([])
 		expect(await coordinator.findHistoryRecord(record.id)).toBeUndefined()
-		clearing.resolve()
+		clearing.resolve(() => false)
 		await switching
 	})
 
@@ -957,6 +1224,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		const { coordinator, cloudSessions, options } = makeCoordinator({
 			sessions,
 			claimTaskViewGeneration: () => () => superseded,
+			clearTask: async () => () => superseded,
 		})
 		cloudSessions.listSessions.mockResolvedValue([record])
 		const successor = createTaskProxy("newer-local-task", vi.fn(), vi.fn())
@@ -988,7 +1256,10 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			entered.resolve()
 			return connection.promise
 		})
-		const { coordinator, cloudSessions, options } = makeCoordinator({ claimTaskViewGeneration: () => () => stale })
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			claimTaskViewGeneration: () => () => stale,
+			clearTask: async () => () => stale,
+		})
 		cloudSessions.listSessions.mockResolvedValue([record])
 		const opening = coordinator.openCloudTask(record.id)
 		await entered.promise
@@ -1037,7 +1308,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 	it("clears a displayed cloud task before disposing its old-scope host", async () => {
 		const dispose = vi.fn(async () => undefined)
-		const clearTask = vi.fn(async () => undefined)
+		const clearTask = vi.fn(async () => () => false)
 		const { coordinator } = makeCoordinator({
 			getTask: () => ({ taskId: record.id }) as never,
 			clearTask,
@@ -1055,7 +1326,10 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 	})
 
 	it("does not provision when the task view was already superseded", async () => {
-		const { coordinator, cloudSessions } = makeCoordinator({ claimTaskViewGeneration: () => () => true })
+		const { coordinator, cloudSessions } = makeCoordinator({
+			claimTaskViewGeneration: () => () => true,
+			clearTask: async () => () => true,
+		})
 
 		const result = await coordinator.beginCloudTask({
 			prompt: "test",
