@@ -217,6 +217,9 @@ class StdioMcpClient implements McpServerClient {
 	private framedParser = new FramedMessageParser();
 	private newlineParser = new NewlineMessageParser();
 	private stderrBuffer = "";
+	// Set when a write to the current child's stdin failed; see spawnProcess.
+	private stdinFailure: string | undefined;
+	private stdinFailureTimer: ReturnType<typeof setTimeout> | undefined;
 	private connected = false;
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
@@ -304,6 +307,7 @@ class StdioMcpClient implements McpServerClient {
 		this.connected = false;
 		this.process = undefined;
 		this.processClose = undefined;
+		this.clearStdinFailureTimer();
 		this.failAllPending(
 			new Error(`Disconnected from MCP server "${this.registration.name}".`),
 		);
@@ -407,6 +411,8 @@ class StdioMcpClient implements McpServerClient {
 		this.framedParser = new FramedMessageParser();
 		this.newlineParser = new NewlineMessageParser();
 		this.stderrBuffer = "";
+		this.stdinFailure = undefined;
+		this.clearStdinFailureTimer();
 		this.protocolMode = protocolMode;
 
 		const platformOptions =
@@ -448,18 +454,50 @@ class StdioMcpClient implements McpServerClient {
 				new Error(`MCP process error: ${toErrorMessage(error)}`),
 			);
 		});
+		// A server that dies or closes stdin while a request is still being
+		// written fails that write asynchronously on the stdin stream. Without
+		// a listener Node raises it as an uncaught exception on the host
+		// process. Either way the connection is dead: nothing holds the pipe's
+		// read end any more, so no further request can reach the server.
+		// A server on its way out gets the graceful window to exit, so the
+		// "exit" handler reports its own code and stderr. One still running
+		// after that fails the pending requests here and is shut down with the
+		// same SIGTERM -> SIGKILL escalation as disconnect().
+		child.stdin.on("error", (error) => {
+			if (this.process !== child) {
+				return;
+			}
+			this.stdinFailure ??= toErrorMessage(error);
+			if (this.stdinFailureTimer !== undefined) {
+				return;
+			}
+			this.stdinFailureTimer = setTimeout(() => {
+				this.stdinFailureTimer = undefined;
+				if (this.process !== child) {
+					return;
+				}
+				this.failAllPending(
+					new Error(
+						`MCP server "${this.registration.name}" stopped reading its input before the request was fully delivered (${this.stdinFailure}) and did not exit.`,
+					),
+				);
+				void this.disconnect().catch(() => {});
+			}, STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS);
+			this.stdinFailureTimer.unref();
+		});
 		child.once("exit", (code, signal) => {
 			if (this.process !== child) {
 				return;
 			}
 			this.connected = false;
 			this.process = undefined;
+			this.clearStdinFailureTimer();
 			const suffix = this.stderrBuffer.trim()
 				? ` stderr: ${this.stderrBuffer.trim()}`
 				: "";
 			this.failAllPending(
 				new Error(
-					`MCP process exited for "${this.registration.name}" (code=${code ?? "null"}, signal=${signal ?? "null"}).${suffix}`,
+					`MCP process exited for "${this.registration.name}" (code=${code ?? "null"}, signal=${signal ?? "null"}).${suffix}${this.describeStdinFailure()}`,
 				),
 			);
 		});
@@ -590,8 +628,22 @@ class StdioMcpClient implements McpServerClient {
 
 	private createTimeoutError(method: string, timeoutMs: number): Error {
 		return new Error(
-			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method),
+			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method) +
+				this.describeStdinFailure(),
 		);
+	}
+
+	private clearStdinFailureTimer(): void {
+		if (this.stdinFailureTimer !== undefined) {
+			clearTimeout(this.stdinFailureTimer);
+			this.stdinFailureTimer = undefined;
+		}
+	}
+
+	private describeStdinFailure(): string {
+		return this.stdinFailure === undefined
+			? ""
+			: ` The server stopped reading its input before the request was fully delivered (${this.stdinFailure}).`;
 	}
 
 	private notify(method: string, params?: Record<string, unknown>): void {
