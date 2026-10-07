@@ -29,10 +29,16 @@ export function createEphemeralCacheControl() {
  * alias only; the SDK reads that alias for every provider name, so no
  * request-body passthrough is lost. Every other target keeps its raw id so
  * the native and community vendor packages see the buckets they expect.
+ *
+ * The alias must be computed exactly like the SDK's `toCamelCase`, which only
+ * folds `-`/`_` followed by a lowercase letter: for an id such as `gw-2` the
+ * SDK reads only `gw-2`, so `toProviderOptionsKey`'s `gw2` would be ignored.
  */
 export function toProviderOptionsBucket(providerId: string): string {
 	return inferProviderOptionsTarget(providerId) === "openai-compatible"
-		? toProviderOptionsKey(providerId)
+		? providerId.replace(/[_-]([a-z])/g, (_match, char: string) =>
+				char.toUpperCase(),
+			)
 		: providerId;
 }
 

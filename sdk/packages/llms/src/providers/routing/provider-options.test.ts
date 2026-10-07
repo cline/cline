@@ -14,7 +14,7 @@ import {
 	type ProviderOptionsPatch,
 } from "./provider-options";
 import { inferProviderOptionsTarget } from "./provider-options-types";
-import { toProviderOptionsKey } from "./utils";
+import { toProviderOptionsBucket } from "./utils";
 
 type RequestOverrides = Partial<GatewayStreamRequest> & {
 	providerId: string;
@@ -303,13 +303,13 @@ function runCases(cases: ReadonlyArray<Case>) {
 				...context,
 			}),
 		);
-		const providerOptionsKey = toProviderOptionsKey(request.providerId);
+		const providerBucket = toProviderOptionsBucket(request.providerId);
 		if (
 			inferProviderOptionsTarget(request.providerId) === "openai-compatible" &&
-			providerOptionsKey !== request.providerId
+			providerBucket !== request.providerId
 		) {
 			expect(result).not.toHaveProperty(request.providerId);
-			expect(result[providerOptionsKey]).toBeDefined();
+			expect(result[providerBucket]).toBeDefined();
 		}
 		if (resolvePortableReasoning(gatewayRequest)) {
 			for (const bucket of Object.values(result)) {
@@ -1222,6 +1222,15 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{ bucket: "vercelAiGateway", has: { reasoning: { exclude: true } } },
 			],
+		},
+		{
+			name: "custom gw-2 GLM thinking-disabled -> reasoning.exclude in the raw bucket the AI SDK reads",
+			request: {
+				providerId: "gw-2",
+				modelId: "z-ai/glm-4.7",
+				reasoning: { enabled: false },
+			},
+			expect: [{ bucket: "gw-2", has: { reasoning: { exclude: true } } }],
 		},
 		{
 			name: "cline GLM thinking-disabled -> routed reasoning only, no thinking leak",
