@@ -92,7 +92,6 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
-	canRestoreRejectedCloudPrompt,
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
 	shouldPreserveCloudComposer,
@@ -2654,13 +2653,11 @@ function ChatThreadPane({
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping, but only if this pane still owns the unchanged draft.
-			if (
-				!promptTaken &&
-				(!isCloudSession ||
-					canRestoreRejectedCloudPrompt(restoredFollowUpId, savedFollowUp)) &&
-				restorePrompt(trimmed)
-			) {
-				if (savedFollowUp?.draftId === restoredFollowUpId)
+			if (!promptTaken && restorePrompt(trimmed)) {
+				if (
+					savedFollowUp === undefined ||
+					savedFollowUp?.draftId === restoredFollowUpId
+				)
 					restoredFollowUpIdRef.current = restoredFollowUpId;
 				handleAttachFiles(toSend);
 			}

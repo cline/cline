@@ -3255,7 +3255,9 @@ describe("useChatSession", () => {
 
 		let taken: boolean | undefined;
 		await act(async () => {
-			taken = await current.sendPrompt("Rebase the branch");
+			taken = await current.sendPrompt("Rebase the branch", [], {
+				handoffFollowUpId: "restored-draft",
+			});
 		});
 
 		expect(taken).toBe(expectedTaken);
@@ -3266,6 +3268,11 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.findLast((message) => message.role === "error")?.content,
 		).toContain("Token refresh failed: 401");
+		const sendCall = invokeMock.mock.calls.find(
+			([command, args]) =>
+				command === "chat_session_command" && args?.request?.action === "send",
+		);
+		expect(sendCall?.[1]?.request?.handoffFollowUpId).toBe("restored-draft");
 	});
 
 	it("publishes the first user message before cold session startup resolves", async () => {
