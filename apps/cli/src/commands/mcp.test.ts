@@ -29,7 +29,15 @@ vi.mock("@clack/prompts", () => {
 			async (opts: { initialValue?: unknown }) => opts.initialValue,
 		),
 		text: vi.fn(
-			async (opts: { initialValue?: string }) => opts.initialValue ?? "",
+			async (opts: {
+				initialValue?: string;
+				validate?: (value: string) => string | undefined;
+			}) => {
+				const value = opts.initialValue ?? "";
+				const error = opts.validate?.(value);
+				if (error) throw new Error(`prompt rejected "${value}": ${error}`);
+				return value;
+			},
 		),
 	};
 });
@@ -220,8 +228,7 @@ describe("mcp install command", () => {
 	it("saves --header values when the wizard's prefilled answers are accepted", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cli-mcp-install-wizard-"));
 		const settingsPath = join(root, "cline_mcp_settings.json");
-		const originalSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
-		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		vi.stubEnv("CLINE_MCP_SETTINGS_PATH", settingsPath);
 		try {
 			const code = await runMcpInstallCommand({
 				name: "docs",
@@ -242,7 +249,7 @@ describe("mcp install command", () => {
 				headers: { Authorization: "Bearer token", Accept: "a, b" },
 			});
 		} finally {
-			process.env.CLINE_MCP_SETTINGS_PATH = originalSettingsPath;
+			vi.unstubAllEnvs();
 			rmSync(root, { recursive: true, force: true });
 		}
 	});

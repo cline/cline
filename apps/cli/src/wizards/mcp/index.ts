@@ -1,4 +1,5 @@
 import * as p from "@clack/prompts";
+import { parseMcpHeaders } from "@cline/core";
 import { authorizeMcpServerOAuthWithBrowser as authorizeOAuth } from "./oauth";
 import {
 	addServer,
@@ -158,20 +159,43 @@ async function collectStdioTransport(
 	};
 }
 
-function formatHeaders(headers: Record<string, string>): string {
-	return Object.entries(headers)
-		.map(([name, value]) => `${name}: ${value}`)
-		.join(", ");
+function validateHeader(value: string | undefined): string | undefined {
+	const header = value?.trim();
+	if (!header) return undefined;
+	try {
+		parseMcpHeaders([header]);
+		return undefined;
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
 }
 
-function parseHeaders(input: string): Record<string, string> | undefined {
-	if (!input) return undefined;
-	const headers: Record<string, string> = {};
-	for (const pair of input.split(",")) {
-		const colonIdx = pair.indexOf(":");
-		if (colonIdx > 0) {
-			headers[pair.slice(0, colonIdx).trim()] = pair.slice(colonIdx + 1).trim();
-		}
+/**
+ * Ask for one header per prompt, parsed exactly as `cline mcp add --header`
+ * parses each flag. Returns null when the user cancels.
+ */
+async function collectHeaders(
+	defaults: Record<string, string> | undefined,
+): Promise<Record<string, string> | undefined | null> {
+	const prefilled = Object.entries(defaults ?? {}).map(
+		([name, value]) => `${name}: ${value}`,
+	);
+	const entered: string[] = [];
+	for (;;) {
+		const input = await p.text({
+			message: entered.length === 0 ? "Header (Name: value)" : "Another header",
+			placeholder: "leave empty to finish",
+			initialValue: prefilled[entered.length],
+			validate: validateHeader,
+		});
+		if (isCancel(input)) return null;
+		const header = (input as string).trim();
+		if (!header) break;
+		entered.push(header);
+	}
+	const { headers, warnings } = parseMcpHeaders(entered);
+	for (const warning of warnings) {
+		p.log.warn(warning);
 	}
 	return headers;
 }
@@ -248,23 +272,8 @@ async function collectUrlTransport(
 		};
 	}
 
-	const defaultHeadersText = defaultHeaders
-		? formatHeaders(defaultHeaders)
-		: undefined;
-	const headersInput = await p.text({
-		message: "Headers (KEY:VALUE, comma-separated)",
-		placeholder: "leave empty for none",
-		initialValue: defaultHeadersText,
-	});
-	if (isCancel(headersInput)) return null;
-
-	const headersStr = (headersInput as string).trim();
-	// Unedited prefilled headers are kept as given: a header value may contain
-	// a comma, which the comma-separated text cannot represent.
-	const headers =
-		headersStr === defaultHeadersText
-			? defaultHeaders
-			: parseHeaders(headersStr);
+	const headers = await collectHeaders(defaultHeaders);
+	if (headers === null) return null;
 
 	return {
 		transport: { type, url: (url as string).trim(), headers },
