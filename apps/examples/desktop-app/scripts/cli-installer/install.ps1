@@ -8,6 +8,12 @@ param(
     [switch]$NoModifyPath
 )
 $ErrorActionPreference = 'Stop'
+function Get-RuntimeChecksum([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($sha256.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $stream.Dispose(); $sha256.Dispose() }
+}
 if ($Version) { $Release = "desktop-v$($Version.TrimStart('v'))" }
 # Desktop currently publishes x64 Windows runtimes (also usable under ARM64 emulation).
 if (-not $Target) { $Target = 'x86_64-pc-windows-msvc' }
@@ -51,7 +57,7 @@ try {
     $releasePath = Join-Path $InstallDir 'release'
     $cached = -not $Binary -and (Test-Path $destination) -and (Test-Path $checksumPath) -and (Test-Path $releasePath)
     if ($cached) {
-        $cached = (Get-Content $releasePath -Raw).Trim() -eq "$Release/$Target" -and (Get-FileHash $destination -Algorithm SHA256).Hash -eq (Get-Content $checksumPath -Raw).Trim()
+        $cached = (Get-Content $releasePath -Raw).Trim() -eq "$Release/$Target" -and (Get-RuntimeChecksum $destination) -eq (Get-Content $checksumPath -Raw).Trim()
     }
     if (-not $cached) {
         $temporary = Join-Path $InstallDir ([Guid]::NewGuid().ToString())
@@ -68,7 +74,7 @@ try {
                 $expected = ((Get-Content (Join-Path $temporary 'checksum') -Raw).Trim() -split '\s+')[0]
                 if ($expected -notmatch '^[a-fA-F0-9]{64}$') { throw 'Invalid release checksum' }
                 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $download -TimeoutSec 180
-                if ((Get-FileHash $download -Algorithm SHA256).Hash -ne $expected) { throw 'Runtime checksum mismatch' }
+                if ((Get-RuntimeChecksum $download) -ne $expected) { throw 'Runtime checksum mismatch' }
             }
             $expectedEpoch = $env:CLINE_INSTALL_BUILD_EPOCH_MS
             if (-not $expectedEpoch) {
@@ -85,7 +91,7 @@ try {
             # One shared runtime is upgraded in place. Windows refuses replacement
             # while it is running; close its sessions and Hub before retrying.
             Move-Item -Force $download $destination
-            (Get-FileHash $destination -Algorithm SHA256).Hash | Set-Content $checksumPath
+            (Get-RuntimeChecksum $destination) | Set-Content $checksumPath
             "$Release/$Target" | Set-Content $releasePath
             "$expectedEpoch" | Set-Content $epochPath
         } finally { Remove-Item -Recurse -Force $temporary }

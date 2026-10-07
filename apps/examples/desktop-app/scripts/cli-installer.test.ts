@@ -284,7 +284,7 @@ function global:Invoke-WebRequest {
 			} finally {
 				rmSync(root, { recursive: true, force: true });
 			}
-		});
+		}, 60_000);
 	},
 );
 
@@ -306,7 +306,11 @@ describe.skipIf(process.platform !== "win32")(
 					wrapper,
 					`
 $ErrorActionPreference = 'Stop'
-function global:Get-Command { param($Name, $ErrorAction) [PSCustomObject]@{ Source = $env:EXISTING_CLI } }
+function global:Get-Command {
+    param($Name, $ErrorAction)
+    if ($Name -eq 'cline') { [PSCustomObject]@{ Source = $env:EXISTING_CLI } }
+    else { Microsoft.PowerShell.CoreGet-Command -Name $Name -ErrorAction $ErrorAction }
+}
 function global:Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec) [PSCustomObject]@{ Content = 'sdk-fixture' } }
 & $env:INSTALLER_SCRIPT -Release desktop-v0.0.43 -NoModifyPath
 `,
@@ -340,6 +344,6 @@ function global:Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $Timeo
 			} finally {
 				rmSync(root, { recursive: true, force: true });
 			}
-		});
+		}, 60_000);
 	},
 );
