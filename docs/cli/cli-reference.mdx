@@ -261,7 +261,7 @@ cline hub ensure     # Start the hub if it isn't running and print its URL
 cline hub start      # Same as ensure
 cline hub stop       # Stop the hub and the sessions running in it
 cline hub drain      # Refuse new work while accepted runs finish (--off lifts it)
-cline hub upgrade    # Drain, wait for the hub to go idle, then restart it
+cline hub upgrade    # Drain the hub and restart it; does not wait for --zen or scheduled tasks
 cline hub dashboard  # Open the hub dashboard in a browser
 ```
 

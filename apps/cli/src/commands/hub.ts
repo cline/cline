@@ -209,7 +209,7 @@ export function createHubCommand(
 	hub
 		.command("upgrade")
 		.description(
-			"Drain, wait for the hub to go idle, stop it, and start a fresh one",
+			"Drain the hub and restart it; does not wait for --zen or scheduled tasks",
 		)
 		.option(
 			"--wait <seconds>",
