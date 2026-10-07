@@ -538,6 +538,20 @@ export {
 	disableCurrentDirectoryExecutableSearch,
 	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,
 } from "./runtime/windows-exe-path";
+export {
+	isSensitiveKey,
+	matchSensitiveKey,
+	type RedactSensitiveDataOptions,
+	redactSensitiveData,
+	SENSITIVE_DATA_REDACTED_VALUE,
+	SENSITIVE_KEY_SUFFIXES,
+	SENSITIVE_KEYS_EXACT,
+	SENSITIVE_VALUE_PATTERNS,
+	type SensitiveDataRedaction,
+	type SensitiveKeyRule,
+	type SensitiveValuePattern,
+	sanitizeSensitiveString,
+} from "./sensitive-data";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
