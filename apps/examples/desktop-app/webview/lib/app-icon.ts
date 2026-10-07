@@ -42,16 +42,16 @@ export function appIconAssetPath(icon: AppIconId): string {
 	return `/app-icons/${icon}.png`;
 }
 
-export function appIconSurface(
-	userAgent: string,
-): "Dock" | "system tray and, after restart, the taskbar" | "desktop" {
-	if (/Windows/i.test(userAgent))
-		return "system tray and, after restart, the taskbar";
+export function appIconSurface(userAgent: string): "Dock" | "desktop" | null {
+	// Windows shell surfaces cannot reliably follow a runtime icon selection.
+	if (/Windows/i.test(userAgent)) return null;
 	if (/(Macintosh|Mac OS X)/i.test(userAgent)) return "Dock";
 	return "desktop";
 }
 
 export function readStoredAppIcon(): AppIconId {
+	// On Windows, ignore saved choices at launch and leave the bundled icon alone.
+	if (appIconSurface(navigator.userAgent) === null) return DEFAULT_APP_ICON;
 	try {
 		const stored = window.localStorage.getItem(APP_ICON_STORAGE_KEY);
 		if (isRetiredAppIconId(stored)) {
@@ -79,7 +79,7 @@ function applyFavicon(icon: AppIconId): void {
  * Applies the icon to whatever this runtime can control: native shell surfaces
  * through `set_app_icon`, and the favicon in browser dev mode.
  */
-export async function applyAppIcon(icon: AppIconId): Promise<void> {
+async function applyAppIcon(icon: AppIconId): Promise<void> {
 	if (isTauriAvailable()) {
 		await desktopClient.invoke("set_app_icon", { icon });
 	}
@@ -93,6 +93,7 @@ function queueAppIconUpdate(update: () => Promise<void>): Promise<void> {
 }
 
 export function setStoredAppIcon(icon: AppIconId): Promise<void> {
+	if (appIconSurface(navigator.userAgent) === null) return Promise.resolve();
 	return queueAppIconUpdate(async () => {
 		await applyAppIcon(icon);
 		try {

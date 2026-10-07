@@ -7,6 +7,7 @@ import {
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
+import { APP_ICON_STORAGE_KEY } from "@/lib/app-icon";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -52,6 +53,44 @@ beforeEach(() => {
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
+	vi.restoreAllMocks();
+});
+
+describe("SettingsView app icon", () => {
+	it.each([
+		["Windows NT 10.0", false],
+		["Macintosh; Intel Mac OS X 10_15_7", true],
+		["X11; Linux x86_64", true],
+	])("shows the icon picker only on supported platforms: %s", async (userAgent, visible) => {
+		vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "chip");
+
+		await act(async () => {
+			root.render(
+				<SettingsView onNavigateSection={vi.fn()} section="General" />,
+			);
+		});
+
+		expect(container.textContent?.includes("App icon")).toBe(visible);
+		const chipButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Chip"]',
+		);
+		expect(chipButton !== null).toBe(visible);
+		expect(
+			container.querySelector('[aria-label="Increase font size"]'),
+		).not.toBeNull();
+		if (visible) {
+			expect(chipButton?.getAttribute("aria-pressed")).toBe("true");
+			await act(async () => {
+				container
+					.querySelector<HTMLButtonElement>('button[aria-label="Classic"]')
+					?.click();
+			});
+			expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("classic");
+		} else {
+			expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("chip");
+		}
+	});
 });
 
 describe("SettingsView font size", () => {

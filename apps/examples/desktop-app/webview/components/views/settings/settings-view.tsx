@@ -690,9 +690,8 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
 	});
-	const [appIconLocation, setAppIconLocation] = useState<
-		"Dock" | "system tray and, after restart, the taskbar" | "desktop"
-	>("desktop");
+	const [appIconLocation, setAppIconLocation] =
+		useState<ReturnType<typeof appIconSurface>>(null);
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	const appIconRequestRef = useRef(0);
@@ -1075,54 +1074,58 @@ function GeneralSettingsContent({
 						))}
 					</div>
 				</div>
-				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">App icon</p>
-						<p className="text-sm text-muted-foreground">
-							Pick the icon Cline shows in the {appIconLocation}.
-						</p>
-						{appIconError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to change app icon: {appIconError}
+				{appIconLocation !== null && (
+					<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								App icon
 							</p>
-						) : null}
-					</div>
-					<div className="flex shrink-0 items-start gap-2.5">
-						{APP_ICONS.map((icon) => (
-							<button
-								aria-label={icon.label}
-								aria-pressed={appIcon === icon.id}
-								className="group flex flex-col items-center gap-2"
-								key={icon.id}
-								onClick={() => void updateAppIcon(icon.id)}
-								type="button"
-							>
-								<img
-									alt=""
-									className={cn(
-										"size-14 rounded-2xl transition-transform group-hover:scale-105",
-										appIcon === icon.id &&
-											"ring-2 ring-ring ring-offset-2 ring-offset-background",
-									)}
-									draggable={false}
-									height={112}
-									src={appIconAssetPath(icon.id)}
-									width={112}
-								/>
-								<span
-									className={cn(
-										"text-xs",
-										appIcon === icon.id
-											? "font-medium text-foreground"
-											: "text-muted-foreground",
-									)}
+							<p className="text-sm text-muted-foreground">
+								Pick the icon Cline shows in the {appIconLocation}.
+							</p>
+							{appIconError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to change app icon: {appIconError}
+								</p>
+							) : null}
+						</div>
+						<div className="flex shrink-0 items-start gap-2.5">
+							{APP_ICONS.map((icon) => (
+								<button
+									aria-label={icon.label}
+									aria-pressed={appIcon === icon.id}
+									className="group flex flex-col items-center gap-2"
+									key={icon.id}
+									onClick={() => void updateAppIcon(icon.id)}
+									type="button"
 								>
-									{icon.label}
-								</span>
-							</button>
-						))}
+									<img
+										alt=""
+										className={cn(
+											"size-14 rounded-2xl transition-transform group-hover:scale-105",
+											appIcon === icon.id &&
+												"ring-2 ring-ring ring-offset-2 ring-offset-background",
+										)}
+										draggable={false}
+										height={112}
+										src={appIconAssetPath(icon.id)}
+										width={112}
+									/>
+									<span
+										className={cn(
+											"text-xs",
+											appIcon === icon.id
+												? "font-medium text-foreground"
+												: "text-muted-foreground",
+										)}
+									>
+										{icon.label}
+									</span>
+								</button>
+							))}
+						</div>
 					</div>
-				</div>
+				)}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
