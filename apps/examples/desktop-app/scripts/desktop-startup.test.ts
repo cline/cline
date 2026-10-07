@@ -210,6 +210,84 @@ export default {
 	}
 }, 120000);
 
+test("standalone CLI serves the dashboard and its assets without external files or Node", async () => {
+	const cli = await resolveCliBinary();
+	const root = mkdtempSync(join(tmpdir(), "cline-standalone-dashboard-"));
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(
+			([key]) =>
+				!/^(CLINE_|BUN_BE_BUN|NODE_PATH|HOST$|PORT$|ROOM_SECRET$|PUBLIC_URL$)/.test(
+					key,
+				),
+		),
+	);
+	const port = await reserveLoopbackPort();
+	const isolatedEnv = {
+		...env,
+		HOME: root,
+		USERPROFILE: root,
+		CLINE_DIR: join(root, ".cline"),
+		CLINE_HUB_DISCOVERY_PATH: join(root, "hub.json"),
+		CLINE_HUB_PORT: String(await reserveLoopbackPort()),
+		CLINE_NO_AUTO_UPDATE: "1",
+		PATH: root,
+	};
+	const child = Bun.spawn(
+		[
+			cli,
+			"dashboard",
+			"--no-open",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			String(port),
+			"--cwd",
+			root,
+		],
+		{ cwd: root, env: isolatedEnv, stdout: "ignore", stderr: "pipe" },
+	);
+	try {
+		const url = `http://127.0.0.1:${port}`;
+		let response: Response | undefined;
+		const deadline = Date.now() + 20000;
+		while (Date.now() < deadline) {
+			try {
+				response = await fetch(url);
+				if (response.status === 200) break;
+			} catch {}
+			if (child.exitCode !== null)
+				throw new Error(await new Response(child.stderr).text());
+			await Bun.sleep(100);
+		}
+		expect(response?.status).toBe(200);
+		if (!response) throw new Error("Dashboard did not start");
+		const html = await response.text();
+		expect(html).toContain("<html");
+		const assets = [
+			...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
+		].map((match) => match[1]);
+		expect(assets.length).toBeGreaterThan(0);
+		for (const asset of assets) {
+			if (!asset) throw new Error("Missing dashboard asset URL");
+			const resource = await fetch(new URL(asset, url));
+			expect(resource.status).toBe(200);
+			expect(resource.headers.get("content-type")).toMatch(
+				asset.endsWith(".css") ? /text\/css/ : /(?:javascript|ecmascript)/,
+			);
+			expect((await resource.arrayBuffer()).byteLength).toBeGreaterThan(0);
+		}
+	} finally {
+		child.kill("SIGTERM");
+		await child.exited;
+		spawnSync(cli, ["hub", "stop"], {
+			cwd: root,
+			env: isolatedEnv,
+			timeout: 10000,
+		});
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);
+
 test("the shipped CLI and backend report telemetry without starting a hub", async () => {
 	const cli = await resolveCliBinary();
 	const bundle = resolveBackendBundle();

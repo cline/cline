@@ -21,14 +21,18 @@ interface HubCommandIo {
 }
 
 interface HubOptions {
- cwd: string;
- host?: string;
- port?: number;
- pathname?: string;
+	cwd: string;
+	host?: string;
+	port?: number;
+	pathname?: string;
 }
 
 function addHubOptions(command: Command, defaultCwd?: string): Command {
- return command.option("--cwd <path>", "Workspace root", defaultCwd).option("--host <host>", "Hub host").option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10)).option("--pathname <path>", "Hub websocket path");
+	return command
+		.option("--cwd <path>", "Workspace root", defaultCwd)
+		.option("--host <host>", "Hub host")
+		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
+		.option("--pathname <path>", "Hub websocket path");
 }
 
 interface HubEnsureCommandOptions extends Partial<HubOptions> {
@@ -115,14 +119,15 @@ export function createHubCommand(
 	const hub = new Command("hub")
 		.description("Manage the local hub daemon")
 		.exitOverride()
-.enablePositionalOptions()
-		.hook("preAction", () => {
+		.enablePositionalOptions()
+		.hook("preAction", (_command, actionCommand) => {
 			// Every subcommand resolves its owner record from this env var, so a
 			// dedicated record (SSH remote hubs) is honored by ensure, status,
 			// and stop alike, and by the daemon the ensure spawns.
-			const discoveryPath = hub
-				.opts<{ discoveryPath?: string }>()
-				.discoveryPath?.trim();
+			const discoveryPath = (
+				actionCommand.opts<{ discoveryPath?: string }>().discoveryPath ??
+				hub.opts<{ discoveryPath?: string }>().discoveryPath
+			)?.trim();
 			if (discoveryPath) {
 				process.env[HUB_DISCOVERY_PATH_ENV] = discoveryPath;
 			}
@@ -139,10 +144,13 @@ export function createHubCommand(
 			"Use a dedicated hub discovery record instead of the default one",
 		);
 
-	const resolveOptions = (options: Partial<HubOptions>): HubOptions => ({ ...hub.opts<HubOptions>(), ...options });
+	const resolveOptions = (options: Partial<HubOptions>): HubOptions => ({
+		...hub.opts<HubOptions>(),
+		...options,
+	});
 
-const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
- const opts = resolveOptions(cmdOptions);
+	const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
+		const opts = resolveOptions(cmdOptions);
 		const result = await ensureDetachedHubServer(opts.cwd, {
 			host: opts.host,
 			port: opts.port,
@@ -338,6 +346,10 @@ const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
 	// Keep daemon options accepted before or after existing subcommands.
 	for (const command of hub.commands) {
 		addHubOptions(command);
+		command.option(
+			"--discovery-path <path>",
+			"Use a dedicated hub discovery record instead of the default one",
+		);
 	}
 
 	hub.addCommand(

@@ -67,7 +67,7 @@ const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
 }));
 const hubCommandMocks = vi.hoisted(() => ({
-	createHubCommand: vi.fn(() => ({ parseAsync: vi.fn(async () => {}) })),
+	createHubCommand: vi.fn<typeof import("./commands/hub").createHubCommand>(),
 }));
 const connectMocks = vi.hoisted(() => ({
 	formatAdapterList: vi.fn(() => ""),
@@ -184,6 +184,9 @@ vi.mock("@cline/core", async () => {
 	>("../../../sdk/packages/core/src/services/global-settings");
 	return {
 		readGlobalSettings,
+		ensureDetachedHubServer: vi.fn(async () => ({
+			url: "ws://127.0.0.1:1234/hub",
+		})),
 		setSdkLogger: vi.fn(),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createUserInstructionConfigService: vi.fn(() => ({
@@ -221,7 +224,12 @@ vi.mock("./runtime/prompt", () => ({
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
-vi.mock("./commands/hub", () => hubCommandMocks);
+vi.mock("./commands/hub", async () => {
+	const actual =
+		await vi.importActual<typeof import("./commands/hub")>("./commands/hub");
+	hubCommandMocks.createHubCommand.mockImplementation(actual.createHubCommand);
+	return hubCommandMocks;
+});
 vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);

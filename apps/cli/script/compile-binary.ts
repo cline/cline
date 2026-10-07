@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { buildDashboardRuntimeResources } from "./dashboard-runtime";
 import { buildPluginRuntimeResources } from "./plugin-runtime";
 
 const cliDir = resolve(import.meta.dir, "..");
@@ -96,6 +97,7 @@ export async function compileCliBinary(
 	input: CompileCliBinaryOptions,
 ): Promise<void> {
 	const pluginResources = await buildPluginRuntimeResources();
+	const dashboardResources = await buildDashboardRuntimeResources();
 	const parserWorker = findOpenTuiParserWorker();
 	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
 	const bunfsRoot = targetOs === "windows" ? "B:/~BUN/root/" : "/$bunfs/root/";
@@ -137,6 +139,7 @@ export async function compileCliBinary(
 			define: {
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
 				CLINE_PLUGIN_RUNTIME_RESOURCES: JSON.stringify(pluginResources),
+				CLINE_DASHBOARD_RUNTIME_RESOURCES: JSON.stringify(dashboardResources),
 				CLINE_CLI_COMPILE_TARGET: JSON.stringify(input.bunTarget),
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveEmbeddedDashboard } from "../utils/embedded-dashboard";
 import { configureSandboxEnvironment } from "../utils/helpers";
 import open from "../utils/open";
 import { c } from "../utils/output";
@@ -109,7 +110,10 @@ function resolveDefaultWebviewDistDir(): string | undefined {
 		join(dirname(process.execPath), "../cline-hub/webview"),
 	];
 
-	return candidates.find((candidate) => existsSync(candidate));
+	return (
+		candidates.find((candidate) => existsSync(join(candidate, "index.html"))) ??
+		resolveEmbeddedDashboard()
+	);
 }
 
 function resolveInstalledPlatformPackageWebviewCandidates(): string[] {

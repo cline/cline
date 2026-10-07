@@ -43,6 +43,13 @@ export async function resolveDesktopRemoteHelper(
 ): Promise<string | undefined> {
 	const env = options.env ?? process.env;
 	if (env.CLINE_REMOTE_HELPER_BINARY) return env.CLINE_REMOTE_HELPER_BINARY;
+	if (env.CLINE_REMOTE_HELPER_DIRECTORY) {
+		const path = join(
+			env.CLINE_REMOTE_HELPER_DIRECTORY,
+			remoteHelperBinaryFilename(target),
+		);
+		if (existsSync(path)) return path;
+	}
 	const platform = options.platform ?? process.platform;
 	const arch = options.arch ?? process.arch;
 	const cli = resolveDesktopCliPath(env);
@@ -142,13 +149,6 @@ export async function resolveDesktopRemoteHelper(
 		(arch === target.arch || (platform === "darwin" && isUniversalMacCli(cli)))
 	)
 		return cli;
-	if (env.CLINE_REMOTE_HELPER_DIRECTORY) {
-		const path = join(
-			env.CLINE_REMOTE_HELPER_DIRECTORY,
-			remoteHelperBinaryFilename(target),
-		);
-		if (existsSync(path)) return path;
-	}
 	if (
 		cli &&
 		platform === "darwin" &&

@@ -9,6 +9,7 @@ import {
 	readFileSync,
 	realpathSync,
 	rmSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -215,6 +216,43 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			);
 			expect(existsSync(lock)).toBe(false);
 			expect(readFileSync(join(directory, "cline"), "utf8")).toBe(content);
+		}));
+	test("recovers interrupted claims including nested and ownerless recovery directories", () =>
+		fixture((root, env) => {
+			const directory = join(root, "runtime");
+			const lock = join(directory, ".install-lock");
+			const claim = join(lock, "reclaim");
+			const nested = join(claim, "reclaim");
+			mkdirSync(nested, { recursive: true });
+			writeFileSync(join(lock, "owner"), "99999999 dead-process");
+			writeFileSync(join(claim, "owner"), "99999998 dead-process");
+			const old = new Date(Date.now() - 3600000);
+			utimesSync(nested, old, old);
+			execFileSync("bash", args(directory), { env, timeout: 3000 });
+			expect(existsSync(lock)).toBe(false);
+			expect(readFileSync(join(directory, "cline"), "utf8")).toBe(content);
+		}));
+	test("preserves a live recovery claim while its parent owner is dead", () =>
+		fixture((root, env) => {
+			const directory = join(root, "runtime");
+			const lock = join(directory, ".install-lock");
+			const claim = join(lock, "reclaim");
+			mkdirSync(claim, { recursive: true });
+			writeFileSync(join(lock, "owner"), "99999999 dead-process");
+			const owner = `${process.pid} ${execFileSync("ps", ["-p", String(process.pid), "-o", "lstart="], { env: { ...env, TZ: "UTC" }, encoding: "utf8" }).trimEnd()}`;
+			writeFileSync(join(claim, "owner"), owner);
+			const sleep = join(root, "commands", "sleep");
+			writeFileSync(sleep, "#!/bin/sh\nexit 1\n");
+			chmodSync(sleep, 0o755);
+			const result = spawnSync("bash", args(directory), {
+				env,
+				timeout: 3000,
+				encoding: "utf8",
+			});
+			expect(existsSync(claim), result.stderr).toBe(true);
+			expect(result.status).not.toBe(0);
+			expect(readFileSync(join(claim, "owner"), "utf8")).toBe(owner);
+			expect(existsSync(join(directory, "cline"))).toBe(false);
 		}));
 	test("preserves a live successor when stale-lock recovery races another installer", () =>
 		fixture((root, env) => {

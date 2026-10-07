@@ -4,6 +4,35 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
 
+it("honors a local helper directory before packaged installers even offline", async () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-local-helper-"));
+	try {
+		const helper = join(root, "cline-aarch64-unknown-linux-gnu");
+		writeFileSync(helper, "local runtime");
+		const runInstaller = vi.fn(async () => {
+			throw new Error("offline");
+		});
+		await expect(
+			resolveDesktopRemoteHelper(
+				{ platform: "linux", arch: "arm64" },
+				{
+					platform: "darwin",
+					arch: "arm64",
+					env: {
+						CLINE_REMOTE_HELPER_DIRECTORY: root,
+						CLINE_DESKTOP_INSTALLER_DIRECTORY: "/missing/installer",
+						CLINE_DESKTOP_RUNTIME_DIRECTORY: "/missing/cache",
+					},
+					runInstaller,
+				},
+			),
+		).resolves.toBe(helper);
+		expect(runInstaller).not.toHaveBeenCalled();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 it("downloads only the requested SSH target from the desktop's exact release", async () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-runtime-"));
 	try {

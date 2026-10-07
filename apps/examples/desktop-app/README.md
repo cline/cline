@@ -361,8 +361,16 @@ builds keep their support files isolated. Plugin subprocesses use the CLI's own
 embedded runtime. Desktop preserves certificate settings reported by an existing
 package-manager wrapper when launching its backend and Hub.
 
+The standalone CLI also embeds the built dashboard, including JavaScript, CSS,
+fonts, and images. `cline dashboard` extracts those files into
+`~/.cline/runtime/dashboard/<content-hash>` when no installed dashboard assets
+are available, so the single executable serves the dashboard offline.
+
 Installers recheck build age while holding the install lock. Unix locks record
-the owner's PID and start time so interrupted installs can recover. Quitting
+the owner's PID and start time so interrupted installs can recover.
+Recovery claims record their owners too; abandoned nested claims are recovered
+without removing a live contender's claim. Relative installation directories
+are made absolute before lock acquisition. Quitting
 desktop cancels pending installation without waiting for the download.
 
 For a standalone terminal install from a desktop release:

@@ -95,37 +95,41 @@ mkdir -p "$install_dir"
 # expose a partial download. Shared installs replace the previous runtime.
 lock="$install_dir/.install-lock"
 owner="$$ $(TZ=UTC ps -p $$ -o lstart=)"
+owner_is_stale() {
+    local record="$1" pid="${1%% *}" start
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        start=$(TZ=UTC ps -p "$pid" -o lstart= 2>/dev/null | awk '{$1=$1; print}')
+        [[ "$(printf '%s\n' "$record" | awk '{$1=$1; print}')" != "$pid $start" ]]
+    else
+        [[ -n "$2" ]]
+    fi
+}
+# Recovery claims use the same owner protocol as the main lock. A dead claim
+# is recovered through its own child claim, so interruption at any depth never
+# leaves an unrecoverable directory or permits removing a live contender.
+recover_lock() (
+    local path="$1" expected="$2" current aged destination
+    cd "$path" 2>/dev/null || exit 0
+    aged=$(find . -prune -mmin +1 2>/dev/null || true)
+    current=$(cat owner 2>/dev/null || true)
+    [[ "$current" == "$expected" ]] && owner_is_stale "$current" "$aged" || exit 0
+    if ! mkdir reclaim 2>/dev/null; then
+        recover_lock "$path/reclaim" "$(cat reclaim/owner 2>/dev/null || true)"
+        mkdir reclaim 2>/dev/null || exit 0
+    fi
+    printf '%s\n' "$owner" > reclaim/owner
+    trap 'if [[ "$path" -ef . && "$(cat reclaim/owner 2>/dev/null || true)" == "$owner" ]]; then rm -rf reclaim; fi' EXIT
+    current=$(cat owner 2>/dev/null || true)
+    if [[ "$current" == "$expected" && "$path" -ef . ]] && owner_is_stale "$current" "$aged"; then
+        destination="${path}.abandoned.$$"
+        if mv "$path" "$destination" 2>/dev/null; then rm -rf "$destination"; fi
+    fi
+)
 for ((attempt=0; ; attempt++)); do
     if mkdir "$lock" 2>/dev/null; then printf '%s\n' "$owner" > "$lock/owner"; break; fi
     previous=$(cat "$lock/owner" 2>/dev/null || true)
-    pid=${previous%% *}
-    stale=false
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        [[ "$previous" == "$pid $(TZ=UTC ps -p "$pid" -o lstart= 2>/dev/null)" ]] || stale=true
-    elif [[ -n "$(find "$lock" -prune -mmin +1 2>/dev/null)" ]]; then stale=true
-    fi
-    # Claim recovery inside a specific directory, then recheck its owner.
-    # A contender that observed an older lock must never reclaim its successor.
-    if [[ "$stale" == true ]]; then
-        (
-            cd "$lock" 2>/dev/null || exit 0
-            aged=$(find . -prune -mmin +1 2>/dev/null || true)
-            mkdir reclaim 2>/dev/null || exit 0
-            current=$(cat owner 2>/dev/null || true)
-            current_pid=${current%% *}
-            abandoned=false
-            if [[ "$current_pid" =~ ^[0-9]+$ ]]; then
-                [[ "$current" == "$current_pid $(TZ=UTC ps -p "$current_pid" -o lstart= 2>/dev/null)" ]] || abandoned=true
-            elif [[ -n "$aged" ]]; then abandoned=true
-            fi
-            if [[ "$current" == "$previous" && "$abandoned" == true && "$lock" -ef . ]]; then
-                destination="$install_dir/.abandoned-lock.$$"
-                if mv "$lock" "$destination" 2>/dev/null; then rm -rf "$destination"; fi
-            else
-                rmdir reclaim 2>/dev/null || true
-            fi
-        )
-    fi
+    aged=$(find "$lock" -prune -mmin +1 2>/dev/null || true)
+    if owner_is_stale "$previous" "$aged"; then recover_lock "$lock" "$previous"; fi
     [[ $attempt -lt 240 ]] || fail "another installer holds $lock"
     sleep 0.5
 done
