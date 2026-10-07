@@ -3,8 +3,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
+import { registerEmbeddedPluginRuntime } from "@cline/shared";
+import { setClineDir } from "@cline/shared/storage";
 import { expect, it } from "vitest";
-import { materializePluginRuntime } from "./embedded-plugin-runtime";
+import {
+	materializePluginRuntime,
+	resolveEmbeddedPluginBootstrap,
+} from "./embedded-plugin-runtime";
 
 function pack(content: string) {
 	const json = JSON.stringify({
@@ -50,5 +55,42 @@ it("rejects payloads whose hash does not match", () => {
 		).toThrow("Invalid embedded plugin runtime");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("resolves through the registry and re-extracts a cleared runtime directory", () => {
+	const clineDir = mkdtempSync(join(tmpdir(), "cline-embedded-registry-"));
+	const previousClineDir = process.env.CLINE_DIR;
+	setClineDir(clineDir);
+	try {
+		// Nothing registered, or a thunk that throws (no build-time define).
+		registerEmbeddedPluginRuntime(() => {
+			throw new ReferenceError("CLINE_PLUGIN_RUNTIME_RESOURCES is not defined");
+		});
+		expect(resolveEmbeddedPluginBootstrap()).toBeUndefined();
+
+		const resources = pack("registered build");
+		registerEmbeddedPluginRuntime(() => resources);
+		const path = resolveEmbeddedPluginBootstrap();
+		expect(path).toBe(
+			join(
+				clineDir,
+				"runtime",
+				"plugin-sandbox",
+				resources.hash,
+				"plugin-sandbox-bootstrap.js",
+			),
+		);
+		expect(readFileSync(path ?? "", "utf8")).toBe("registered build");
+
+		rmSync(join(clineDir, "runtime"), { recursive: true, force: true });
+		expect(resolveEmbeddedPluginBootstrap()).toBe(path);
+		expect(readFileSync(path ?? "", "utf8")).toBe("registered build");
+	} finally {
+		registerEmbeddedPluginRuntime(() => {
+			throw new ReferenceError("unregistered");
+		});
+		if (previousClineDir) setClineDir(previousClineDir);
+		rmSync(clineDir, { recursive: true, force: true });
 	}
 });
