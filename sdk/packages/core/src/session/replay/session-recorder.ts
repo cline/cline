@@ -206,6 +206,19 @@ export function recordedMessageContentSha256(message: {
 }
 
 /**
+ * A request message as stored in a `message` blob. The runtime rebuilds
+ * request messages with fresh ids and timestamps for every model call and
+ * neither reaches the provider, so both are dropped; otherwise no message
+ * would deduplicate across calls.
+ */
+export function recordedRequestMessage(
+	message: AgentModelRequest["messages"][number],
+): Record<string, unknown> {
+	const { id: _id, createdAt: _createdAt, ...stable } = message;
+	return stable;
+}
+
+/**
  * The key phase-3 replay pairs a live request with a recorded one by. Built
  * from content hashes only, so message ids, timestamps and metadata (all of
  * which differ between runs) do not affect it.
@@ -679,7 +692,11 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 		const messageSha256s = request.messages.map((message) => {
 			const contentSha256 = recordedMessageContentSha256(message);
 			contentSha256s.push(contentSha256);
-			return this.putBlob("message", message, contentSha256);
+			return this.putBlob(
+				"message",
+				recordedRequestMessage(message),
+				contentSha256,
+			);
 		});
 		const options = request.options ? toJsonSafe(request.options) : null;
 		const compactionState = this.getCompactionState?.();

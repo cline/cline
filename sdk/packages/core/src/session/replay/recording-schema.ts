@@ -132,7 +132,10 @@ export const SessionRecordedModelCallSchema = z.object({
 		systemPromptSha256: Sha256Schema.nullable(),
 		toolsSha256: Sha256Schema,
 		modelToolsSha256: Sha256Schema.nullable(),
-		/** Request messages in order; each names a `message` blob. */
+		/**
+		 * Request messages in order; each names a `message` blob holding the
+		 * message without its per-request `id` and `createdAt`.
+		 */
 		messageSha256s: z.array(Sha256Schema),
 		options: z.record(z.string(), z.unknown()).nullable(),
 		/** Connection settings in force; never carries credentials or header values. */
