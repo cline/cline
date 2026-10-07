@@ -574,6 +574,8 @@ describe("plugin install command", () => {
 					cline: {
 						plugins: [{ paths: ["./index.ts"], capabilities: ["tools"] }],
 					},
+					// A third-party dependency so staging still runs the package manager.
+					dependencies: { yaml: "^2.8.1" },
 				},
 				null,
 				2,
