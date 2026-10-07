@@ -460,9 +460,16 @@ describe("AgentRuntime", () => {
 				expect(
 					request.messages.filter((message) => message.role === "assistant"),
 				).toHaveLength(1);
-				expect(JSON.stringify(request.messages)).not.toContain(
-					"last response was cut off",
-				);
+				expect(request.messages.at(-1)).toMatchObject({
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "Previous turn ended unexpectedly. Continue from where you left off.",
+						},
+					],
+					metadata: { displayRole: "system", userRunSpan: 0 },
+				});
 				return [
 					{ type: "text-delta", text: "Finished" },
 					{ type: "finish", reason: "stop" },
@@ -494,12 +501,22 @@ describe("AgentRuntime", () => {
 		expect(result.messages.map((message) => message.role)).toEqual([
 			"user",
 			"assistant",
+			"user",
 			"assistant",
 		]);
-		expect(JSON.stringify(result.messages)).not.toContain(
-			"last response was cut off",
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "message-added",
+				message: expect.objectContaining({
+					metadata: { displayRole: "system", userRunSpan: 0 },
+				}),
+			}),
 		);
-		expect(JSON.stringify(events)).not.toContain("last response was cut off");
+		expect(
+			result.messages
+				.filter((message) => message.metadata?.displayRole !== "system")
+				.map((message) => message.role),
+		).toEqual(["user", "assistant", "assistant"]);
 		await runtime.continue("New question");
 		expect(model.requests).toHaveLength(3);
 	});
@@ -614,6 +631,7 @@ describe("AgentRuntime", () => {
 		expect(result.messages.map((message) => message.role)).toEqual([
 			"user",
 			"assistant",
+			"user",
 			"user",
 			"assistant",
 		]);

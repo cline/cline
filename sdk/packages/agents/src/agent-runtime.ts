@@ -767,8 +767,12 @@ export class AgentRuntime {
 		].filter((message): message is string => Boolean(message));
 	}
 
-	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
+	private async addUserReminderMessage(
+		text: string,
+		metadata: AgentMessage["metadata"] = {},
+	): Promise<AgentMessage> {
 		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			...metadata,
 			userRunSpan: 0,
 		});
 		this.state.messages.push(reminderMessage);
@@ -1216,6 +1220,12 @@ export class AgentRuntime {
 		// An unknown terminal reason, independent of text/reasoning content,
 		// permits exactly one continuation from the preserved partial history.
 		await this.recordAssistantMessage(first.message, first.finishReason);
+		// A user-role continuation avoids treating partial history as assistant
+		// prefill. Match hook context visibility in live and replayed transcripts.
+		await this.addUserReminderMessage(
+			"Previous turn ended unexpectedly. Continue from where you left off.",
+			{ displayRole: "system" },
+		);
 		this.resetLastError();
 		return await issue();
 	}
