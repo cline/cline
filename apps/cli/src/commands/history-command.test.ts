@@ -80,6 +80,21 @@ describe("registerHistoryCommand", () => {
 		expect(setExitCode).toHaveBeenCalledWith(0);
 	});
 
+	it("keeps accepting --page without listing it in help", async () => {
+		const { program, io, setExitCode } = createHarness(false);
+		const history = program.commands.find((cmd) => cmd.name() === "history");
+
+		await program.parseAsync(["history", "--page", "2"], { from: "user" });
+
+		expect(history?.helpInformation()).not.toContain("--page");
+		expect(historyMocks.runHistoryList).toHaveBeenCalledWith({
+			limit: 50,
+			outputMode: "text",
+			io,
+		});
+		expect(setExitCode).toHaveBeenCalledWith(0);
+	});
+
 	it("returns an error when delete is missing --session-id", async () => {
 		const { program, io, setExitCode } = createHarness(false);
 

@@ -5,6 +5,7 @@ import {
 	setHomeDir,
 } from "@cline/shared/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES } from "../runtime/defaults";
 import { createProgram } from "./program";
 
 /** Render an absolute path under `home` the way help text does: `~/...`. */
@@ -56,6 +57,16 @@ describe("root option help text", () => {
 		);
 		expect(help).toContain(
 			`Use isolated local state at this directory path (default: ${dataDirDefault})`,
+		);
+	});
+
+	it("reports the --retries default that runs use", () => {
+		const help = createProgram()
+			.configureHelp({ helpWidth: 500 })
+			.helpInformation();
+
+		expect(help).toContain(
+			`before exiting (default: ${CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES})`,
 		);
 	});
 });

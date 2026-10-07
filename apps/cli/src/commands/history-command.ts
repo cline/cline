@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { type Command, Option } from "commander";
 import type { TuiStartupTarget } from "../tui/types";
 import type { CliOutputMode } from "../utils/types";
 import {
@@ -42,7 +42,14 @@ export function registerHistoryCommand({
 		.description("List session history or manage saved sessions")
 		.option("--json", "Output as JSON")
 		.option("--limit <count>", "Maximum number of sessions to show", "50")
-		.option("--page <number>", "Page number for paginated results")
+		// Still accepted so existing scripts keep working, but hidden: history
+		// lists only the newest --limit sessions and has no pages to select.
+		.addOption(
+			new Option(
+				"--page <number>",
+				"Page number for paginated results",
+			).hideHelp(),
+		)
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();

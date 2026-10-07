@@ -16,7 +16,7 @@ cline [options] [command] [prompt]
 
 ## Help Menu
 
-This is the output of `cline --help` in CLI 3.0.68. Run it to see the options in your version.
+This is the output of `cline --help`. Run it to see the options in your version.
 
 ```text
 Usage: cline [options] [command] [prompt]
@@ -32,16 +32,16 @@ Options:
   --json                        Output messages as JSON instead of styled text
   --auto-approve <boolean>      Set tool auto-approval for all tools (default: true)
   -c, --cwd <path>              Working directory
-  --thinking <level>            Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted leaves provider default.
+  --thinking <level>            Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level saved in the TUI, or the provider default.
   --compaction <mode>           Context compaction mode: agentic|basic|off (default: agentic)
   -i, --tui                     Open the terminal user interface (TUI) for interactive sessions
   --id <session-id>             Resume an existing session by ID
   -P, --provider <id>           Provider id (default: cline)
-  -k, --key <api-key>           API key override for this run
+  -k, --key <api-key>           API key for this run, also saved as the provider's key
   -m, --model <model-id>        Model to use for the session with the selected provider
   -s, --system <system-prompt>  Override the default system prompt
   -z, --zen                     Start a session that runs in the background hub
-  --retries [value]             Number of maximum consecutive mistakes (retries) before exiting (default: 6)
+  --retries [value]             Number of maximum consecutive mistakes (retries) before exiting (default: 3)
   -t, --timeout <seconds>       Optional timeout in seconds (default: 0 for no timeout)
   --acp                         Run in Agent Client Protocol (ACP) mode for editor integration
   --config <path>               Configuration directory (default: ~/.cline)
@@ -70,8 +70,6 @@ Commands:
   version                       Show Cline CLI version number
   kanban                        Run the kanban app
 ```
-
-The help text gives the wrong default for `--retries`: without the flag, the CLI stops after 3 consecutive mistakes, not 6.
 
 ## Global Options
 

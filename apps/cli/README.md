@@ -250,7 +250,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `-s, --system <prompt>` | Override the system prompt |
 | `-P, --provider <id>` | Provider id (default: `cline`) |
 | `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-4.6`) |
-| `-k, --key <api-key>` | API key override for this run |
+| `-k, --key <api-key>` | API key for this run, also saved as the provider's key |
 | `-p, --plan` | Run in plan mode (default is act mode) |
 | `-i, --tui` | Interactive TUI multi-turn mode |
 | `-t, --timeout <seconds>` | Optional run timeout in seconds |
@@ -258,7 +258,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `--config <path>` | Configuration directory (used for CLI home resolution) |
 | `--hooks-dir <path>` | Additional hooks directory hint for runtime hook injection |
 | `--acp` | ACP (Agent Client Protocol) mode |
-| `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level; thinking is off when the flag is omitted. |
+| `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level. Without the flag, the CLI uses the level saved in the TUI, or the provider default. |
 | `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `agentic`; use `basic` for local truncation or `off` to disable. |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
