@@ -1870,7 +1870,7 @@ describe("zod schema conversion", () => {
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped. Page through long files with start_line/end_line, or use start_offset/max_chars for long lines. Offset mode is mutually exclusive with line bounds and returns next_offset and has_more. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Files to read. Each entry must include path and any bounds in the same object; never provide bounds as a separate entry.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

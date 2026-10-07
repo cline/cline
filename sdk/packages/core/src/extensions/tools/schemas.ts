@@ -55,7 +55,7 @@ export const ReadFileRequestSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"Zero-based UTF-16 character offset for reading long lines without truncation. Mutually exclusive with start_line/end_line. Use next_offset from the previous result to continue.",
+				"Zero-based UTF-16 character offset. Continue with next_offset while has_more is true.",
 			),
 		max_chars: z.coerce
 			.number()
@@ -65,11 +65,11 @@ export const ReadFileRequestSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"Maximum characters in an offset read (2-6000, default 6000). Requires start_offset. A page never splits a Unicode surrogate pair.",
+				"Maximum characters per offset page (default 6000). Requires start_offset.",
 			),
 	})
 	.describe(
-		"A file read request with optional inclusive one-based line bounds, or start_offset/max_chars for bounded character pages. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
+		"A file read request. Include path and any bounds in the same object.",
 	);
 
 /**
@@ -79,7 +79,7 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped. Page through long files with start_line/end_line, or use start_offset/max_chars for long lines. Offset mode is mutually exclusive with line bounds and returns next_offset and has_more. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Files to read. Each entry must include path and any bounds in the same object; never provide bounds as a separate entry.",
 		),
 });
 
