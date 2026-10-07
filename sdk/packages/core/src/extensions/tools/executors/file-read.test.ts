@@ -10,6 +10,59 @@ import {
 import { createFileReadExecutor } from "./file-read";
 
 describe("createFileReadExecutor", () => {
+	it("recovers every record from an MCP JSON envelope containing printed migration batches", async () => {
+		const records = Array.from({ length: 93 }, (_, index) => ({
+			fields: {
+				"Legacy ID": `L-${1001 + index}`,
+				Name: `Migration task ${index + 1}`,
+				Status: "In Progress",
+				"Owner Name": "Example Owner",
+				"Owner Email": "owner@example.test",
+				"Due Date": "2026-11-01",
+			},
+		}));
+		const stdout = Array.from(
+			{ length: 10 },
+			(_, index) =>
+				`=== BATCH ${index + 1} ===\n${JSON.stringify(records.slice(index * 10, index * 10 + 10), null, 2)}`,
+		).join("\n\n");
+		const { text } = prepareToolResultRecovery({
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify({
+						data: { stdout, stderr: "" },
+						successful: true,
+					}),
+				},
+			],
+		});
+		const cache = new ToolResultCache("session");
+		const uri = cache.store("mcp-call", text ?? "") ?? "";
+		const context = {
+			agentId: "agent",
+			iteration: 1,
+			metadata: { toolResultCache: cache },
+		};
+		const reader = createFileReadExecutor();
+		const lines = (text ?? "").split("\n");
+		for (const record of records) {
+			const index = lines.findIndex((line) =>
+				line.includes(record.fields["Legacy ID"]),
+			);
+			expect(index).toBeGreaterThanOrEqual(0);
+			const output = String(
+				await reader(
+					{ path: uri, start_line: index + 1, end_line: index + 7 },
+					context,
+				),
+			);
+			for (const value of Object.values(record.fields))
+				expect(output).toContain(value);
+			expect(output).not.toContain("[line truncated]");
+		}
+	});
+
 	it("recovers multiline MCP payloads serialized as YAML, including late line ranges", async () => {
 		const payload = Array.from(
 			{ length: 200 },

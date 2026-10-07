@@ -8,6 +8,43 @@ import {
 } from "./tool-result-cache";
 
 describe("session memory result cache", () => {
+	it("expands JSON text envelopes without interpreting application string fields or changing the output", () => {
+		const payload = {
+			data: { stdout: "first\nsecond\nthird", label: '{"keep":"as text"}' },
+		};
+		const output = {
+			content: [{ type: "text", text: JSON.stringify(payload) }],
+			isError: false,
+		};
+		const original = JSON.stringify(output);
+		const { text } = prepareToolResultRecovery(output);
+		expect(YAML.parse(text ?? "")).toEqual({
+			content: [{ type: "text", text: payload }],
+			isError: false,
+		});
+		expect(text).toContain("stdout: |-\n");
+		expect(text).not.toContain("first\\nsecond");
+		expect(JSON.stringify(output)).toBe(original);
+		expect(prepareToolResultPreview(output).text).toBe(
+			JSON.stringify(output, null, 2),
+		);
+		expect(prepareToolResultRecovery(JSON.stringify(output)).text).toBe(text);
+	});
+
+	it.each([
+		"{not JSON}",
+		"[not JSON]",
+		'"a JSON string"',
+		"42",
+		"plain text",
+	])("keeps non-container or invalid JSON text unchanged: %s", (text) => {
+		expect(prepareToolResultRecovery(text).text).toBe(text);
+		const output = { content: [{ type: "text", text }] };
+		expect(YAML.parse(prepareToolResultRecovery(output).text ?? "")).toEqual(
+			output,
+		);
+	});
+
 	it("preserves structured fields and multiline text in YAML while leaving strings unchanged", () => {
 		const output = {
 			content: [{ type: "text", text: "first\nsecond\nthird" }],

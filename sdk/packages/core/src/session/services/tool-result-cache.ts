@@ -147,12 +147,41 @@ export function prepareToolResultPreview(content: unknown): {
 	};
 }
 
-/** YAML is only the readable recovery copy, not the truncation threshold. */
+/** Expand JSON text envelopes before YAML serialization so their multiline fields remain pageable. */
+function expandRecoveryJson(value: unknown, decodeText = false): unknown {
+	if (decodeText && typeof value === "string") {
+		const trimmed = value.trimStart();
+		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+			try {
+				return expandRecoveryJson(JSON.parse(value));
+			} catch {
+				// Non-JSON text remains verbatim; recovery does not interpret prose.
+			}
+		}
+		return value;
+	}
+	if (Array.isArray(value))
+		return value.map((entry) => expandRecoveryJson(entry));
+	if (value !== null && typeof value === "object") {
+		const isTextBlock = "type" in value && value.type === "text";
+		return Object.fromEntries(
+			Object.entries(value).map(([key, entry]) => [
+				key,
+				expandRecoveryJson(entry, isTextBlock && key === "text"),
+			]),
+		);
+	}
+	return value;
+}
+
+/** YAML is only the readable recovery copy, not the truncation threshold or canonical output. */
 export function prepareToolResultRecovery(output: unknown): {
 	text: string | undefined;
 	images: ImageContent[];
 } {
-	const { textual, images } = splitToolResultMedia(output);
+	const { textual, images } = splitToolResultMedia(
+		expandRecoveryJson(output, true),
+	);
 	return {
 		text:
 			typeof textual === "string"
