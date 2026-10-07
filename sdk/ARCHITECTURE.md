@@ -657,6 +657,39 @@ Lower layers should not depend on optional feature packages.
 
 For remote config, that means shared owns the reusable bundle/materialization/blob primitives and core owns only the session-oriented wrapper exported to apps.
 
+## Hub-Owned Status Hub
+
+Status Hub records what agents report about current work and its history.
+`@cline/shared` owns browser-safe schemas and typed `status.board`,
+`status.query`, and `status.summary` commands. The Hub transport owns a
+`StatusService` and its dedicated `status.db` SQLite store. The database follows
+`CLINE_DIR`/`CLINE_DATA_DIR`; `CLINE_STATUS_DB_PATH` or `statusDbPath` overrides
+its location for isolated hosts and tests. No Drive runtime is required.
+
+The Hub injects `report_status` and its prompt guidance into hosted sessions.
+Only the tool publishes reports: session and agent identity come from its
+trusted execution context, and the workspace comes from the session record.
+There is no client-facing publish command. Existing tool enablement and
+approval policies apply. Each `(sessionId, subject)` has one current report;
+append-only history uses a transactionally assigned monotonic sequence for
+paging. Independent chats can reuse a subject without superseding each other.
+
+Board returns current reports ordered by attention. Query returns history,
+with optional state, agent, session, workspace, text, and tag filters and a
+bounded keyset cursor. Summary counts all current reports independently of
+paging. Search uses FTS5 when available and escaped LIKE otherwise.
+`status.updated` broadcasts committed reports through the ordinary Hub event
+stream. The desktop observer forwards those events even for chats that are
+not currently attached; the Board and Changelog read from the same local Hub.
+
+Session end closes unfinished queued/running/blocked reports as cancelled,
+recording why without claiming success. Already terminal reports are preserved.
+Before a newly constructed local runtime starts, orphaned reports from a
+previous Hub instance close the same way. Supplied runtime hosts may already
+hold live sessions, so their startup does not run that sweep. An unavailable
+status database disables reporting and returns an explicit read error without
+preventing the Hub from serving chats.
+
 ## Hub-Owned Agenda Task Queue
 
 Agenda tasks are durable proposals for future work. They are intentionally

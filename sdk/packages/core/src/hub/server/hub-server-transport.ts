@@ -38,6 +38,11 @@ import {
 	type CoreSettingsType,
 } from "../../settings";
 import {
+	createReportStatusTool,
+	createStatusPromptExtension,
+} from "../../status/report-status-tool";
+import { StatusService } from "../../status/status-service";
+import {
 	AgendaTaskManager,
 	type AgendaTaskRuntimeResult,
 	createTasksPromptExtension,
@@ -68,6 +73,7 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	errorReply,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
@@ -101,9 +107,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -254,6 +260,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly tasks: AgendaTaskManager;
 	private readonly taskCommands: HubAgendaTaskCommandService;
+	private readonly status?: StatusService;
+	private readonly unsubscribeSessionEvents?: () => void;
+	private statusInitializationError?: string;
 	private readonly sessionTools: AgentTool[] = [];
 	private readonly sessionExtensions: AgentExtension[] = [];
 	private readonly settings: CoreSettingsService;
@@ -280,6 +289,27 @@ export class HubServerTransport implements NativeHubTransport {
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		try {
+			this.status = new StatusService(
+				options.statusDbPath ??
+					(process.env.NODE_ENV === "test" ? ":memory:" : undefined),
+			);
+			this.status.subscribe((update) =>
+				this.publish(
+					buildHubEvent("status.updated", { update }, update.sessionId),
+				),
+			);
+			this.sessionTools.push(
+				createReportStatusTool(this.status, (sessionId) =>
+					this.sessionHost.getSession(sessionId),
+				),
+			);
+			this.sessionExtensions.push(createStatusPromptExtension());
+		} catch (error) {
+			this.statusInitializationError =
+				error instanceof Error ? error.message : String(error);
+			logHubBoundaryError("Status Hub is unavailable", error);
+		}
 		this.sessionSearch = new SessionHistorySearchService(
 			this.sessionHost,
 			options.sessionSearchOptions ??
@@ -449,27 +479,39 @@ export class HubServerTransport implements NativeHubTransport {
 				telemetry: options.telemetry,
 			});
 		}
-		this.sessionHost.subscribe((event: CoreSessionEvent) => {
-			void projectSessionEvent(this.ctx, event).catch((error) => {
-				logHubBoundaryError("session event handling failed", error);
-				captureSdkError(this.options.telemetry, {
-					component: "core",
-					operation: "hub.session_event_project",
-					error,
-					severity: "error",
-					handled: true,
-					context: {
-						eventType: event.type,
-						sessionId: event.payload.sessionId,
-					},
+		this.unsubscribeSessionEvents = this.sessionHost.subscribe(
+			(event: CoreSessionEvent) => {
+				if (event.type === "ended") {
+					try {
+						this.status?.closeSession(
+							event.payload.sessionId,
+							event.payload.reason,
+						);
+					} catch (error) {
+						logHubBoundaryError("Status Hub session close failed", error);
+					}
+				}
+				void projectSessionEvent(this.ctx, event).catch((error) => {
+					logHubBoundaryError("session event handling failed", error);
+					captureSdkError(this.options.telemetry, {
+						component: "core",
+						operation: "hub.session_event_project",
+						error,
+						severity: "error",
+						handled: true,
+						context: {
+							eventType: event.type,
+							sessionId: event.payload.sessionId,
+						},
+					});
 				});
-			});
-			if (event.type === "ended") {
-				void this.sessionSearch.refreshNow().catch((error) => {
-					logHubBoundaryError("session search indexing failed", error);
-				});
-			}
-		});
+				if (event.type === "ended") {
+					void this.sessionSearch.refreshNow().catch((error) => {
+						logHubBoundaryError("session search indexing failed", error);
+					});
+				}
+			},
+		);
 	}
 
 	private async startAgendaTaskSession(
@@ -627,6 +669,15 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async start(): Promise<void> {
+		// A newly constructed local runtime has no resident sessions yet.
+		// Supplied hosts may already be running work; leave their reports intact.
+		if (!this.options.sessionHost) {
+			try {
+				this.status?.closeOrphanedReports();
+			} catch (error) {
+				logHubBoundaryError("Status Hub restart recovery failed", error);
+			}
+		}
 		this.sessionSearch.start();
 		await this.tasks.start();
 		await this.schedules.start();
@@ -728,6 +779,8 @@ export class HubServerTransport implements NativeHubTransport {
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
+		this.unsubscribeSessionEvents?.();
+		this.status?.close();
 		await this.schedules.dispose();
 		if (this.cronService) {
 			try {
@@ -791,6 +844,30 @@ export class HubServerTransport implements NativeHubTransport {
 			return await this.taskCommands.handleCommand(envelope, authority);
 		}
 		switch (envelope.command) {
+			case "status.board":
+			case "status.query":
+			case "status.summary":
+				if (!this.status)
+					return errorReply(
+						envelope,
+						"status_unavailable",
+						this.statusInitializationError ?? "Status Hub is unavailable.",
+					);
+				try {
+					const result =
+						envelope.command === "status.board"
+							? this.status.board(envelope.payload)
+							: envelope.command === "status.query"
+								? this.status.query(envelope.payload)
+								: this.status.summary();
+					return okReply(envelope, { ...result });
+				} catch (error) {
+					return errorReply(
+						envelope,
+						"status_query_failed",
+						error instanceof Error ? error.message : String(error),
+					);
+				}
 			case "client.register": {
 				const reply = handleClientRegister(this.ctx, envelope);
 				this.tasks.notifyAutomationReadinessChanged();

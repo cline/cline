@@ -1519,6 +1519,52 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(hubCommandMock).not.toHaveBeenCalled();
 	});
 
+	it("forwards status reads and updates from chats that are not attached", async () => {
+		const {
+			createSidecarContext,
+			handleHubLiveEvent,
+			initializeSessionManager,
+		} = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		ctx.wsClients.add({ send: vi.fn() } as never);
+		const updates = [
+			{ subject: "tests", state: "running", sessionId: "other-chat" },
+		];
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { updates, hasMore: false, nextCursor: null },
+		});
+		expect(await handleCommand(ctx, "status.board", { limit: 50 })).toEqual({
+			updates,
+			hasMore: false,
+			nextCursor: null,
+		});
+		expect(hubCommandMock).toHaveBeenCalledWith("status.board", { limit: 50 });
+		handleHubLiveEvent(ctx, {
+			event: "status.updated",
+			sessionId: "other-chat",
+			payload: { update: updates[0] },
+		});
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "status.updated",
+					payload: expect.objectContaining({ update: updates[0] }),
+				},
+			},
+		]);
+		hubCommandMock.mockResolvedValue({
+			ok: false,
+			error: { message: "Status Hub is unavailable" },
+		});
+		await expect(handleCommand(ctx, "status.query", {})).rejects.toThrow(
+			"Status Hub is unavailable",
+		);
+	});
+
 	it("forwards Hub task events that do not have a session", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"

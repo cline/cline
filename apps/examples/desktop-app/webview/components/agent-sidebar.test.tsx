@@ -193,6 +193,33 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("places Status Hub below Schedule and Customize and selects its view", async () => {
+		const setView = vi.fn();
+		await act(async () =>
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([], vi.fn())}
+						setView={setView}
+						settingsSection="General"
+						view="status-hub"
+					/>
+				</SidebarProvider>,
+			),
+		);
+		const actions = container.querySelector('[aria-label="Sidebar actions"]');
+		expect(
+			[...(actions?.querySelectorAll("button") ?? [])].map((button) =>
+				button.getAttribute("aria-label"),
+			),
+		).toEqual(["New", "Schedule", "Customize", "Status Hub"]);
+		const status = actions?.querySelector('[aria-label="Status Hub"]');
+		expect(status?.getAttribute("aria-current")).toBe("page");
+		await click(status as Element);
+		expect(setView).toHaveBeenCalledWith("status-hub");
+	});
 	it("preserves row context-menu rename focus, Escape, and Enter through the shared row", async () => {
 		const thread = makeThread("alpha", 1);
 		const history = makeSessionHistory([thread], vi.fn());
@@ -1200,7 +1227,7 @@ describe("AgentSidebar session organization", () => {
 		expect(onNavigateForward).toHaveBeenCalledOnce();
 	});
 
-	it("stacks New, Schedule, and Customize as full-width rows below the logo", async () => {
+	it("stacks Session, Schedule, Customize, and Status Hub below the logo", async () => {
 		const onHome = vi.fn();
 		const onSettingsSectionChange = vi.fn();
 		await act(async () => {
@@ -1236,6 +1263,7 @@ describe("AgentSidebar session organization", () => {
 			"Session",
 			"Schedule",
 			"Customize",
+			"Status Hub",
 		]);
 		for (const row of rows) {
 			expect(row.className).toContain("w-full");

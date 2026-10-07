@@ -1,0 +1,726 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { parseStatusQuery, STATUS_TAG_FACET_LIMIT } from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { SqliteStatusStore } from "./sqlite-status-store";
+
+let dir: string;
+let store: SqliteStatusStore;
+
+function publish(overrides: Record<string, unknown> = {}) {
+	return store.publish({
+		subject: "migration/auth",
+		state: "running",
+		headline: "Rewriting the token exchange",
+		source: "test",
+		...overrides,
+	} as Parameters<SqliteStatusStore["publish"]>[0]);
+}
+
+beforeEach(() => {
+	dir = mkdtempSync(join(tmpdir(), "cline-status-"));
+	store = new SqliteStatusStore(join(dir, "status.db"));
+});
+
+afterEach(() => {
+	store.close();
+	rmSync(dir, { recursive: true, force: true });
+});
+
+describe("SqliteStatusStore", () => {
+	it("assigns strictly increasing seq", () => {
+		const a = publish();
+		const b = publish({ subject: "migration/db" });
+		const c = publish({ subject: "migration/auth", state: "blocked" });
+		expect(a.seq).toBe(1);
+		expect(b.seq).toBe(2);
+		expect(c.seq).toBe(3);
+	});
+
+	it("keeps exactly one current row per subject and supersedes the rest", () => {
+		publish({ headline: "first" });
+		publish({ headline: "second" });
+		const third = publish({ headline: "third", state: "blocked" });
+
+		const current = store.current("migration/auth");
+		expect(current?.headline).toBe("third");
+		expect(current?.state).toBe("blocked");
+		expect(current?.supersededAt).toBeNull();
+
+		const history = store.query(
+			parseStatusQuery({ subject: "migration/auth", limit: 10 }),
+		);
+		expect(history.updates).toHaveLength(3);
+		expect(history.updates[0]?.seq).toBe(third.seq);
+		const superseded = history.updates.filter((u) => u.supersededAt !== null);
+		expect(superseded).toHaveLength(2);
+	});
+
+	it("returns undefined for an unknown subject", () => {
+		expect(store.current("nope")).toBeUndefined();
+	});
+
+	it("paginates by keyset without overlapping or dropping rows", () => {
+		for (let i = 0; i < 25; i += 1) {
+			publish({ subject: `task/${i}`, headline: `step ${i}` });
+		}
+
+		const seen: number[] = [];
+		let cursor: number | null | undefined;
+		let pages = 0;
+		do {
+			const page = store.query(
+				parseStatusQuery({ limit: 10, ...(cursor != null ? { cursor } : {}) }),
+			);
+			seen.push(...page.updates.map((u) => u.seq));
+			cursor = page.nextCursor;
+			pages += 1;
+		} while (cursor != null && pages < 10);
+
+		expect(pages).toBe(3);
+		expect(seen).toHaveLength(25);
+		expect(new Set(seen).size).toBe(25);
+		// Newest first, strictly descending.
+		expect(seen).toEqual([...seen].sort((a, b) => b - a));
+	});
+
+	it("reports hasMore and nextCursor only while rows remain", () => {
+		for (let i = 0; i < 3; i += 1) {
+			publish({ subject: `task/${i}` });
+		}
+		const full = store.query(parseStatusQuery({ limit: 10 }));
+		expect(full.hasMore).toBe(false);
+		expect(full.nextCursor).toBeNull();
+
+		const partial = store.query(parseStatusQuery({ limit: 2 }));
+		expect(partial.hasMore).toBe(true);
+		expect(partial.nextCursor).toBe(partial.updates.at(-1)?.seq);
+	});
+
+	it("filters the board to live rows only", () => {
+		publish({ subject: "a", headline: "old" });
+		publish({ subject: "a", headline: "new" });
+		publish({ subject: "b", headline: "only" });
+
+		const board = store.query(
+			parseStatusQuery({ currentOnly: true, limit: 10 }),
+		);
+		expect(board.updates).toHaveLength(2);
+		expect(board.updates.map((u) => u.headline).sort()).toEqual([
+			"new",
+			"only",
+		]);
+	});
+
+	it("filters by state, agent, session and subject prefix", () => {
+		publish({ subject: "migration/a", state: "blocked", agentId: "adam" });
+		publish({ subject: "migration/b", state: "running", agentId: "riley" });
+		publish({ subject: "other/c", state: "blocked", sessionId: "s1" });
+
+		const blocked = store.query(
+			parseStatusQuery({ state: ["blocked"], currentOnly: true, limit: 10 }),
+		);
+		expect(blocked.updates).toHaveLength(2);
+
+		const rooms = store.query(
+			parseStatusQuery({ subjectPrefix: "migration/", limit: 10 }),
+		);
+		expect(rooms.updates).toHaveLength(2);
+
+		const byAgent = store.query(
+			parseStatusQuery({ agentId: "adam", limit: 10 }),
+		);
+		expect(byAgent.updates).toHaveLength(1);
+
+		const bySession = store.query(
+			parseStatusQuery({ sessionId: "s1", limit: 10 }),
+		);
+		expect(bySession.updates).toHaveLength(1);
+	});
+
+	it("searches text on whichever backend the runtime provides", () => {
+		publish({ subject: "x", headline: "Blocked on missing credentials" });
+		publish({
+			subject: "y",
+			headline: "Tests green",
+			detail: "all 40 passing",
+		});
+
+		const hit = store.query(
+			parseStatusQuery({ text: "credentials", limit: 10 }),
+		);
+		expect(hit.updates).toHaveLength(1);
+		expect(hit.updates[0]?.subject).toBe("x");
+
+		const inDetail = store.query(
+			parseStatusQuery({ text: "passing", limit: 10 }),
+		);
+		expect(inDetail.updates).toHaveLength(1);
+		expect(inDetail.updates[0]?.subject).toBe("y");
+	});
+
+	it("round-trips tags, metadata and progress", () => {
+		const saved = publish({
+			tags: ["auth", "p0"],
+			metadata: { attempt: 2, note: "retrying" },
+			progress: 0.5,
+		});
+		const read = store.current(saved.subject);
+		expect(read?.tags).toEqual(["auth", "p0"]);
+		expect(read?.metadata).toEqual({ attempt: 2, note: "retrying" });
+		expect(read?.progress).toBe(0.5);
+	});
+
+	it("filters to rows carrying a tag", () => {
+		publish({ subject: "a", tags: ["auth", "p0"] });
+		publish({ subject: "b", tags: ["docs"] });
+		publish({ subject: "c", tags: [] });
+
+		const page = store.query(parseStatusQuery({ tags: ["auth"], limit: 10 }));
+		expect(page.updates.map((u) => u.subject)).toEqual(["a"]);
+	});
+
+	it("narrows with each extra tag rather than widening", () => {
+		publish({ subject: "a", tags: ["auth", "p0"] });
+		publish({ subject: "b", tags: ["auth"] });
+		publish({ subject: "c", tags: ["p0"] });
+
+		expect(
+			store
+				.query(parseStatusQuery({ tags: ["auth"], limit: 10 }))
+				.updates.map((u) => u.subject)
+				.sort(),
+		).toEqual(["a", "b"]);
+		// AND, not OR: adding `p0` must drop `b`, not add `c`.
+		expect(
+			store
+				.query(parseStatusQuery({ tags: ["auth", "p0"], limit: 10 }))
+				.updates.map((u) => u.subject),
+		).toEqual(["a"]);
+	});
+
+	it("returns nothing for a tag no row carries", () => {
+		publish({ subject: "a", tags: ["auth"] });
+		expect(
+			store.query(parseStatusQuery({ tags: ["nope"], limit: 10 })).updates,
+		).toHaveLength(0);
+	});
+
+	it("matches a tag exactly rather than as a substring of another tag", () => {
+		publish({ subject: "a", tags: ["auth"] });
+		publish({ subject: "b", tags: ["authz"] });
+
+		expect(
+			store
+				.query(parseStatusQuery({ tags: ["auth"], limit: 10 }))
+				.updates.map((u) => u.subject),
+		).toEqual(["a"]);
+	});
+
+	it("survives a legacy row whose tags_json was never written", () => {
+		publish({ subject: "a", tags: ["auth"] });
+		// Rows predating the always-stringify publish path, and any row inserted
+		// by something other than publish, leave the nullable column NULL.
+		// json_each over NULL raises rather than yielding no rows, which would
+		// take the whole query down instead of excluding the row.
+		store.query(parseStatusQuery({ limit: 10 }));
+		const raw = store as unknown as {
+			db: { exec: (sql: string) => void };
+		};
+		raw.db.exec(
+			"UPDATE status_updates SET tags_json = NULL WHERE subject='a';",
+		);
+		publish({ subject: "b", tags: ["auth"] });
+
+		expect(() =>
+			store.query(parseStatusQuery({ tags: ["auth"], limit: 10 })),
+		).not.toThrow();
+		expect(
+			store
+				.query(parseStatusQuery({ tags: ["auth"], limit: 10 }))
+				.updates.map((u) => u.subject),
+		).toEqual(["b"]);
+	});
+
+	it("combines the tag filter with the other filters", () => {
+		publish({ subject: "a", state: "blocked", tags: ["auth"] });
+		publish({ subject: "b", state: "running", tags: ["auth"] });
+
+		expect(
+			store
+				.query(
+					parseStatusQuery({ tags: ["auth"], state: ["blocked"], limit: 10 }),
+				)
+				.updates.map((u) => u.subject),
+		).toEqual(["a"]);
+	});
+
+	it("prunes superseded history but never the current row", () => {
+		publish({ headline: "one" });
+		publish({ headline: "two" });
+		publish({ headline: "three" });
+
+		const deleted = store.prune({ keepPerSubject: 1 });
+		expect(deleted).toBe(1);
+
+		const remaining = store.query(
+			parseStatusQuery({ subject: "migration/auth", limit: 10 }),
+		);
+		expect(remaining.updates).toHaveLength(2);
+		expect(store.current("migration/auth")?.headline).toBe("three");
+	});
+
+	it("tracks latestSeq and live subjects", () => {
+		publish({ subject: "a" });
+		publish({ subject: "b" });
+		publish({ subject: "a" });
+		expect(store.latestSeq()).toBe(3);
+		expect(store.subjects().sort()).toEqual(["a", "b"]);
+	});
+
+	it("rejects an invalid state at the schema boundary", () => {
+		expect(() => publish({ state: "exploded" as never })).toThrow();
+	});
+
+	it("orders by attention, not recency, when asked", () => {
+		publish({ subject: "a", state: "done" });
+		publish({ subject: "b", state: "blocked" });
+		publish({ subject: "c", state: "running" });
+		publish({ subject: "d", state: "failed" });
+		// `a` (done) is oldest, `d` (failed) newest. Recency would lead with d.
+		const board = store.query(
+			parseStatusQuery({ currentOnly: true, orderBy: "attention", limit: 10 }),
+		);
+		expect(board.updates.map((u) => u.state)).toEqual([
+			"blocked",
+			"failed",
+			"running",
+			"done",
+		]);
+	});
+
+	it("pages attention order across bands without dropping rows", () => {
+		// Publish oldest-first within each band so that a bare `seq < cursor`
+		// cursor would exclude the later bands entirely: every `running` row
+		// carries a higher seq than every `blocked` row.
+		const expected: string[] = [];
+		for (const state of ["blocked", "failed", "running", "done"]) {
+			for (let i = 0; i < 3; i += 1) {
+				const subject = `${state}/${i}`;
+				publish({ subject, state });
+				expected.push(subject);
+			}
+		}
+		// Within a band the order is seq DESC, so each band reverses.
+		const bandOrdered = expected.flatMap((_, i) =>
+			i % 3 === 0 ? expected.slice(i, i + 3).reverse() : [],
+		);
+
+		const seen: string[] = [];
+		let cursor: number | null = null;
+		for (let page = 0; page < 20; page += 1) {
+			const result = store.query(
+				parseStatusQuery({
+					currentOnly: true,
+					orderBy: "attention",
+					limit: 2,
+					...(cursor == null ? {} : { cursor }),
+				}),
+			);
+			seen.push(...result.updates.map((u) => u.subject));
+			if (!result.hasMore) break;
+			cursor = result.nextCursor;
+		}
+
+		expect(seen).toEqual(bandOrdered);
+		expect(new Set(seen).size).toBe(12);
+	});
+
+	it("paginates attention order across bands without dropping rows", () => {
+		// High-seq failed row sorts after low-seq blocked rows. A seq-only
+		// cursor from page 1 would skip it entirely.
+		publish({ subject: "blocked-1", state: "blocked" });
+		publish({ subject: "blocked-2", state: "blocked" });
+		publish({ subject: "failed-high", state: "failed" });
+
+		const page1 = store.query(
+			parseStatusQuery({
+				currentOnly: true,
+				orderBy: "attention",
+				limit: 2,
+			}),
+		);
+		expect(page1.updates.map((u) => u.subject)).toEqual([
+			"blocked-2",
+			"blocked-1",
+		]);
+		expect(page1.hasMore).toBe(true);
+		expect(page1.nextCursor).toBe(page1.updates.at(-1)?.seq);
+
+		const page2 = store.query(
+			parseStatusQuery({
+				currentOnly: true,
+				orderBy: "attention",
+				limit: 2,
+				cursor: page1.nextCursor!,
+			}),
+		);
+		expect(page2.updates.map((u) => u.subject)).toEqual(["failed-high"]);
+		expect(page2.hasMore).toBe(false);
+	});
+
+	it("still leads with recency by default", () => {
+		publish({ subject: "a", state: "blocked" });
+		publish({ subject: "b", state: "done" });
+		const page = store.query(parseStatusQuery({ limit: 10 }));
+		expect(page.updates[0]?.subject).toBe("b");
+	});
+
+	it("reports history count per subject only when asked", () => {
+		publish({ subject: "x" });
+		publish({ subject: "x" });
+		publish({ subject: "x" });
+		publish({ subject: "y" });
+
+		const without = store.query(
+			parseStatusQuery({ currentOnly: true, limit: 10 }),
+		);
+		expect(without.updates.every((u) => u.historyCount === undefined)).toBe(
+			true,
+		);
+
+		const withCount = store.query(
+			parseStatusQuery({
+				currentOnly: true,
+				includeHistoryCount: true,
+				limit: 10,
+			}),
+		);
+		const x = withCount.updates.find((u) => u.subject === "x");
+		const y = withCount.updates.find((u) => u.subject === "y");
+		expect(x?.historyCount).toBe(3);
+		expect(y?.historyCount).toBe(1);
+	});
+
+	it("carries the previous state so a changelog reads as a transition", () => {
+		publish({ subject: "x", state: "queued" });
+		publish({ subject: "x", state: "running" });
+		publish({ subject: "x", state: "blocked" });
+
+		const history = store.query(parseStatusQuery({ subject: "x", limit: 10 }));
+		// Newest first: blocked <- running <- queued.
+		expect(history.updates[0]?.previousState).toBe("running");
+		expect(history.updates[1]?.previousState).toBe("queued");
+		// The first update for a subject has nothing before it.
+		expect(history.updates[2]?.previousState).toBeUndefined();
+	});
+
+	it("summarizes live rows across the whole table, not a page", () => {
+		for (let i = 0; i < 60; i += 1) {
+			publish({
+				subject: `t/${i}`,
+				state: i % 3 === 0 ? "blocked" : "running",
+				agentId: i % 2 === 0 ? "adam" : "riley",
+				agentName: i % 2 === 0 ? "Adam" : "Riley",
+			});
+		}
+		// Supersede one subject so the live count differs from the row count.
+		publish({
+			subject: "t/0",
+			state: "done",
+			agentId: "adam",
+			agentName: "Adam",
+		});
+
+		const summary = store.summary();
+		expect(summary.total).toBe(60);
+		expect(summary.byState.blocked).toBe(19);
+		expect(summary.byState.done).toBe(1);
+		expect(summary.byState.blocked + summary.byState.running + 1).toBe(60);
+
+		const adam = summary.byAgent.find((a) => a.agentId === "adam");
+		expect(adam?.agentName).toBe("Adam");
+		expect(adam?.total).toBe(30);
+		expect(summary.lastUpdatedAt).not.toBeNull();
+
+		// A single page cannot see all 60, which is exactly why the summary
+		// is computed server-side rather than counted from rows on screen.
+		const page = store.query(
+			parseStatusQuery({ currentOnly: true, limit: 10 }),
+		);
+		expect(page.updates).toHaveLength(10);
+	}, 20_000);
+
+	it("summarizes an empty store without throwing", () => {
+		const summary = store.summary();
+		expect(summary.total).toBe(0);
+		expect(summary.byAgent).toEqual([]);
+		expect(summary.lastUpdatedAt).toBeNull();
+	});
+
+	describe("tag facets", () => {
+		/** 12 `fix`, 5 of them also `drive`, plus 3 `docs` and 2 untagged. */
+		function seedTagged() {
+			for (let i = 0; i < 12; i += 1) {
+				publish({
+					subject: `fix/${i}`,
+					tags: i < 5 ? ["fix", "drive"] : ["fix"],
+				});
+			}
+			for (let i = 0; i < 3; i += 1) {
+				publish({ subject: `docs/${i}`, tags: ["docs"] });
+			}
+			publish({ subject: "bare/1" });
+			publish({ subject: "bare/2", tags: [] });
+		}
+
+		it("counts the whole matching set, not the page", () => {
+			seedTagged();
+			// A page of 4 against 17 rows: page-scoped counting cannot reach 12.
+			const page = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 4 }),
+			);
+
+			expect(page.updates).toHaveLength(4);
+			expect(page.total).toBe(17);
+			expect(page.tagFacets).toEqual([
+				{ tag: "fix", count: 12 },
+				{ tag: "drive", count: 5 },
+				{ tag: "docs", count: 3 },
+			]);
+		});
+
+		it("does not move as the cursor pages through the set", () => {
+			seedTagged();
+			const first = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 4 }),
+			);
+			const second = store.query(
+				parseStatusQuery({
+					includeFacets: true,
+					limit: 4,
+					cursor: first.nextCursor ?? undefined,
+				}),
+			);
+
+			// The chips sit above the list; they describe the set, not the
+			// remainder of the log from wherever the cursor stopped.
+			expect(second.total).toBe(first.total);
+			expect(second.tagFacets).toEqual(first.tagFacets);
+		});
+
+		it("counts a tag exactly as many rows as filtering on it returns", () => {
+			seedTagged();
+			const unfiltered = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 4 }),
+			);
+
+			for (const facet of unfiltered.tagFacets ?? []) {
+				const clicked = store.query(
+					parseStatusQuery({
+						tags: [facet.tag],
+						includeFacets: true,
+						limit: 200,
+					}),
+				);
+				expect(clicked.updates).toHaveLength(facet.count);
+				expect(clicked.total).toBe(facet.count);
+			}
+		});
+
+		it("narrows to the pair's count once a tag is selected", () => {
+			seedTagged();
+			const underFix = store.query(
+				parseStatusQuery({ tags: ["fix"], includeFacets: true, limit: 4 }),
+			);
+
+			// Every row in the set carries the selected tag, so its chip is the
+			// set total — the same number the results counter shows.
+			expect(underFix.total).toBe(12);
+			expect(underFix.tagFacets).toEqual([
+				{ tag: "fix", count: 12 },
+				{ tag: "drive", count: 5 },
+			]);
+			// `docs` never co-occurs with `fix`, so it offers no chip at all.
+			expect(underFix.tagFacets?.some((facet) => facet.tag === "docs")).toBe(
+				false,
+			);
+
+			const both = store.query(
+				parseStatusQuery({ tags: ["fix", "drive"], limit: 200 }),
+			);
+			expect(both.updates).toHaveLength(5);
+		});
+
+		it("composes the counts with the other filters", () => {
+			seedTagged();
+			publish({ subject: "fix/blocked", state: "blocked", tags: ["fix"] });
+
+			const blocked = store.query(
+				parseStatusQuery({
+					state: ["blocked"],
+					includeFacets: true,
+					limit: 4,
+				}),
+			);
+			expect(blocked.total).toBe(1);
+			expect(blocked.tagFacets).toEqual([{ tag: "fix", count: 1 }]);
+		});
+
+		it("survives a legacy NULL tags column", () => {
+			// `json_each` over NULL raises rather than yielding nothing, which
+			// would take the count query down with it.
+			publish({ subject: "legacy" });
+			const raw = store as unknown as {
+				db: { exec: (sql: string) => void };
+			};
+			raw.db.exec("UPDATE status_updates SET tags_json = NULL;");
+
+			const page = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 10 }),
+			);
+			expect(page.total).toBe(1);
+			expect(page.tagFacets).toEqual([]);
+		});
+
+		it("counts a row once even if it repeats a tag", () => {
+			publish({ subject: "dup", tags: ["fix", "fix"] });
+
+			const page = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 10 }),
+			);
+			// The chip promises rows, not tag occurrences.
+			expect(page.tagFacets).toEqual([{ tag: "fix", count: 1 }]);
+		});
+
+		it("stays absent unless the query asked for it", () => {
+			seedTagged();
+			const page = store.query(parseStatusQuery({ limit: 4 }));
+			expect(page.total).toBeUndefined();
+			expect(page.tagFacets).toBeUndefined();
+		});
+
+		it("caps how many chips one page can carry", () => {
+			const tags = Array.from(
+				{ length: 60 },
+				(_, i) => `t${String(i).padStart(2, "0")}`,
+			);
+			publish({ subject: "wide", tags });
+
+			const page = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 10 }),
+			);
+			expect(page.tagFacets).toHaveLength(STATUS_TAG_FACET_LIMIT);
+			// `total` still describes the set, so the counter stays honest even
+			// where the chip row had to be truncated.
+			expect(page.total).toBe(1);
+		});
+
+		it("never truncates away the tag the view is filtering on", () => {
+			// Every tag here ties at count 1, so `ORDER BY n DESC, tag ASC` would
+			// drop `zzz` off the end of the cap — and the chip the user just
+			// clicked would render at zero beside "1 result".
+			const tags = Array.from(
+				{ length: 60 },
+				(_, i) => `t${String(i).padStart(2, "0")}`,
+			);
+			publish({ subject: "wide", tags: [...tags, "zzz"] });
+
+			const page = store.query(
+				parseStatusQuery({ tags: ["zzz"], includeFacets: true, limit: 10 }),
+			);
+			expect(page.total).toBe(1);
+			const selected = page.tagFacets?.find((facet) => facet.tag === "zzz");
+			expect(selected).toEqual({ tag: "zzz", count: 1 });
+			expect(selected?.count).toBe(page.total);
+		});
+
+		it("survives a tags column holding text that is not JSON", () => {
+			// The facet aggregate runs on every page now, not only tag-filtered
+			// ones, so a junk value here would take every page load down.
+			publish({ subject: "legacy" });
+			const raw = store as unknown as {
+				db: { exec: (sql: string) => void };
+			};
+			raw.db.exec("UPDATE status_updates SET tags_json = 'not json';");
+
+			const page = store.query(
+				parseStatusQuery({ includeFacets: true, limit: 10 }),
+			);
+			expect(page.total).toBe(1);
+			expect(page.tagFacets).toEqual([]);
+		});
+
+		it("reports an empty set without throwing", () => {
+			const page = store.query(
+				parseStatusQuery({ tags: ["nope"], includeFacets: true, limit: 10 }),
+			);
+			expect(page.total).toBe(0);
+			expect(page.tagFacets).toEqual([]);
+		});
+	});
+});
+
+/**
+ * The published SDK runs on Node, where `node:sqlite` has no FTS5 (measured:
+ * "no such module: fts5" on Node 22.14). These run the LIKE path explicitly so
+ * it is covered even when CI happens to run under Bun.
+ */
+describe("SqliteStatusStore text search on the LIKE fallback", () => {
+	let likeDir: string;
+	let likeStore: SqliteStatusStore;
+
+	beforeEach(() => {
+		likeDir = mkdtempSync(join(tmpdir(), "cline-status-like-"));
+		likeStore = new SqliteStatusStore(join(likeDir, "status.db"), {
+			disableFts: true,
+		});
+	});
+
+	afterEach(() => {
+		likeStore.close();
+		rmSync(likeDir, { recursive: true, force: true });
+	});
+
+	function publishLike(overrides: Record<string, unknown> = {}) {
+		return likeStore.publish({
+			subject: "s",
+			state: "running",
+			headline: "headline",
+			source: "test",
+			...overrides,
+		} as Parameters<SqliteStatusStore["publish"]>[0]);
+	}
+
+	it("reports that it is not FTS-backed", () => {
+		expect(likeStore.ftsAvailable).toBe(false);
+	});
+
+	it("matches headline and detail", () => {
+		publishLike({ subject: "x", headline: "Blocked on missing credentials" });
+		publishLike({ subject: "y", headline: "green", detail: "all 40 passing" });
+
+		expect(
+			likeStore.query(parseStatusQuery({ text: "credentials", limit: 10 }))
+				.updates,
+		).toHaveLength(1);
+		expect(
+			likeStore.query(parseStatusQuery({ text: "passing", limit: 10 })).updates,
+		).toHaveLength(1);
+	});
+
+	it("treats LIKE wildcards as literals, not as match-everything", () => {
+		publishLike({ subject: "x", headline: "plain headline" });
+		publishLike({ subject: "y", headline: "100% coverage" });
+
+		// `%` alone must not match every row.
+		expect(
+			likeStore.query(parseStatusQuery({ text: "%", limit: 10 })).updates,
+		).toHaveLength(1);
+		// `_` must not act as a single-character wildcard.
+		expect(
+			likeStore.query(parseStatusQuery({ text: "_", limit: 10 })).updates,
+		).toHaveLength(0);
+	});
+});
