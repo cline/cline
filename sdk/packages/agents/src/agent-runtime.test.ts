@@ -619,6 +619,68 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(3);
 	});
 
+	it("does not continue a degenerate partial turn that collapsed into repeated characters", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "reasoning-delta",
+					text: "Let me plan the change. ".repeat(200),
+				},
+				{ type: "reasoning-delta", text: ")".repeat(50_000) },
+				{ type: "finish", reason: "unknown" },
+			],
+			() => [
+				{ type: "text-delta", text: "should not be requested" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("looks degenerate");
+		expect(model.requests).toHaveLength(1);
+		expect(result.messages.filter((m) => m.role === "assistant")).toHaveLength(
+			1,
+		);
+	});
+
+	it("does not continue a partial turn that overran any plausible output limit", async () => {
+		const varied = "The quick brown fox jumps over the lazy dog 0123456789. ";
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "reasoning-delta",
+					text: varied.repeat(Math.ceil(400_001 / varied.length)),
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("looks degenerate");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("still continues a long but coherent cut-off turn", async () => {
+		const varied = "Considering the migration path and its edge cases. ";
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "reasoning-delta",
+					text: varied.repeat(Math.ceil(220_000 / varied.length)),
+				},
+				{ type: "finish", reason: "unknown" },
+			],
+			() => [
+				{ type: "text-delta", text: "resumed" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("resumed");
+		expect(model.requests).toHaveLength(2);
+	});
+
 	it("still completes a normal stop with visible text and leaves a fully empty stop to the empty-response path", async () => {
 		const answered = await new AgentRuntime({
 			model: new ScriptedModel([

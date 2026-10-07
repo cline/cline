@@ -71,6 +71,22 @@ const INCOMPLETE_TURN_CONTINUATION =
 	"Previous turn ended unexpectedly. Continue from where you left off.";
 const INCOMPLETE_TURN_LIMIT_MESSAGE =
 	"Model repeatedly ended without a visible response or tool call";
+/**
+ * Guards against continuing a partial turn that is broken rather than cut
+ * off. A model stuck in a repetition loop (one reported case: ~966k chars of
+ * reasoning ending in ~704k consecutive `)`) runs until the output-token
+ * limit and the stream ends without a finish reason — the same wire shape as
+ * a connection drop, but feeding it back and asking the model to continue
+ * only buys another round of the same output. Two cheap signals: the partial
+ * content is implausibly large for a coherent turn (the longest legitimately
+ * cut turns in the traces were ~213k chars of reasoning; the cap sits well
+ * above that and well below the pathology), or its tail is a single repeated
+ * character or two. Such turns fail immediately with a specific error.
+ */
+const MAX_CONTINUABLE_PARTIAL_CHARS = 400_000;
+const DEGENERATE_TAIL_CHARS = 2_000;
+const DEGENERATE_TURN_MESSAGE =
+	"Model output ended incomplete and looks degenerate (repeated characters or an output-limit overrun); not continuing it";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
@@ -533,6 +549,28 @@ function isReasoningOnlyStop(
 	);
 }
 
+/**
+ * Whether a partial turn looks degenerate rather than merely cut off: see
+ * MAX_CONTINUABLE_PARTIAL_CHARS. Only text and reasoning are inspected;
+ * whitespace is ignored for the repetition check so padded output cannot
+ * disguise a loop.
+ */
+function isDegeneratePartialTurn(message: AgentMessage): boolean {
+	const text = message.content
+		.map((part: AgentMessagePart) =>
+			part.type === "text" || part.type === "reasoning" ? part.text : "",
+		)
+		.join("");
+	if (text.length > MAX_CONTINUABLE_PARTIAL_CHARS) {
+		return true;
+	}
+	if (text.length < DEGENERATE_TAIL_CHARS) {
+		return false;
+	}
+	const tail = text.slice(-DEGENERATE_TAIL_CHARS).replace(/\s+/g, "");
+	return tail.length >= DEGENERATE_TAIL_CHARS / 2 && new Set(tail).size <= 2;
+}
+
 function textFromMessage(message: AgentMessage | undefined): string {
 	if (!message) {
 		return "";
@@ -962,6 +1000,18 @@ export class AgentRuntime {
 					continue;
 				}
 
+				// A broken partial turn is never continued; name the reason instead
+				// of reporting it as an exhausted continuation budget.
+				if (
+					toolCalls.length === 0 &&
+					(finishReason === "unknown" ||
+						isReasoningOnlyStop(message, finishReason)) &&
+					isDegeneratePartialTurn(message)
+				) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error(DEGENERATE_TURN_MESSAGE);
+				}
+
 				// Recovery already used its continuation budget, or external tool
 				// activity made replay unsafe. Local calls are handled below with
 				// their results.
@@ -1284,7 +1334,8 @@ export class AgentRuntime {
 
 	/**
 	 * An incomplete turn the continuation may act on: an unknown finish, or a
-	 * reasoning-only stop, that was not interrupted and carries no tool calls.
+	 * reasoning-only stop, that was not interrupted, does not look degenerate,
+	 * and carries no tool calls.
 	 * Local tool calls must receive their results before another request, and
 	 * provider-executed tool activity cannot be replayed, so those turns are
 	 * left to the loop.
@@ -1301,6 +1352,9 @@ export class AgentRuntime {
 			turn.finishReason !== "unknown" &&
 			!isReasoningOnlyStop(turn.message, turn.finishReason)
 		) {
+			return false;
+		}
+		if (isDegeneratePartialTurn(turn.message)) {
 			return false;
 		}
 		return !(
