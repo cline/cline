@@ -567,7 +567,13 @@ fn spawn_desktop_backend_process(
         if cfg!(windows) {
             command.env(
                 "CLINE_REMOTE_HELPER_DIRECTORY",
-                context.resource_dir.join("bin").join("remote-helpers"),
+                std::env::var_os("CLINE_REMOTE_HELPER_DIRECTORY").unwrap_or_else(|| {
+                    context
+                        .resource_dir
+                        .join("bin")
+                        .join("remote-helpers")
+                        .into_os_string()
+                }),
             );
         } else {
             command
