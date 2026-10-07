@@ -13,13 +13,25 @@ import {
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command, InvalidArgumentError } from "commander";
 import { version as cliVersion } from "../../package.json";
+import { createDashboardCommand } from "./dashboard-command";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 }
 
-interface HubEnsureCommandOptions {
+interface HubOptions {
+ cwd: string;
+ host?: string;
+ port?: number;
+ pathname?: string;
+}
+
+function addHubOptions(command: Command, defaultCwd?: string): Command {
+ return command.option("--cwd <path>", "Workspace root", defaultCwd).option("--host <host>", "Hub host").option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10)).option("--pathname <path>", "Hub websocket path");
+}
+
+interface HubEnsureCommandOptions extends Partial<HubOptions> {
 	json?: boolean;
 	allowPortFallback?: boolean;
 	connectors?: boolean;
@@ -103,6 +115,7 @@ export function createHubCommand(
 	const hub = new Command("hub")
 		.description("Manage the local hub daemon")
 		.exitOverride()
+.enablePositionalOptions()
 		.hook("preAction", () => {
 			// Every subcommand resolves its owner record from this env var, so a
 			// dedicated record (SSH remote hubs) is honored by ensure, status,
@@ -126,13 +139,10 @@ export function createHubCommand(
 			"Use a dedicated hub discovery record instead of the default one",
 		);
 
-	const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
-		const opts = hub.opts<{
-			cwd: string;
-			host?: string;
-			port?: number;
-			pathname?: string;
-		}>();
+	const resolveOptions = (options: Partial<HubOptions>): HubOptions => ({ ...hub.opts<HubOptions>(), ...options });
+
+const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
+ const opts = resolveOptions(cmdOptions);
 		const result = await ensureDetachedHubServer(opts.cwd, {
 			host: opts.host,
 			port: opts.port,
@@ -263,13 +273,8 @@ export function createHubCommand(
 			120,
 		)
 		.action(
-			action(async (cmdOptions: { wait: number }) => {
-				const opts = hub.opts<{
-					cwd: string;
-					host?: string;
-					port?: number;
-					pathname?: string;
-				}>();
+			action(async (cmdOptions: Partial<HubOptions> & { wait: number }) => {
+				const opts = resolveOptions(cmdOptions);
 				const owner = resolveCliHubOwnerContext();
 				const discovery = await readHubDiscovery(owner.discoveryPath);
 				if (discovery?.url) {
@@ -329,6 +334,17 @@ export function createHubCommand(
 				io.writeln(JSON.stringify({ upgraded: true, url }));
 			}),
 		);
+
+	// Keep daemon options accepted before or after existing subcommands.
+	for (const command of hub.commands) {
+		addHubOptions(command);
+	}
+
+	hub.addCommand(
+		createDashboardCommand(io, (code) => {
+			actionExitCode = code;
+		}),
+	);
 
 	return hub;
 }
