@@ -205,10 +205,9 @@ Use `--cacert $NODE_EXTRA_CA_CERTS` to specify a certificate if necessary.
 Next, check the logs for messages confirming your proxy configuration and any
 network-related errors:
 
-- **CLI**: `~/.cline/data/logs/cline.log`, which `cline doctor log` opens. If
-  you set `CLINE_LOG_PATH`, the CLI logs to that file instead, but
-  `cline doctor log` still opens the default one, so open your file directly.
-  If the hub is involved, also check `~/.cline/data/logs/hub-daemon.log`.
+- **CLI**: `~/.cline/data/logs/cline.log`, or the file `CLINE_LOG_PATH` names.
+  `cline doctor log` opens it. If the hub is involved, also check
+  `~/.cline/data/logs/hub-daemon.log`.
 - **JetBrains IDEs**: `~/.cline/cline-core-service.log`. Cline's process for
   every open project writes to this one file.
 
