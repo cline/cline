@@ -24,6 +24,7 @@ import {
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 } from "../extensions/mcp";
+import { isCompiledBunExecutable } from "../runtime/tools/subprocess-sandbox";
 import {
 	type PluginMcpSettingsSyncResult,
 	syncPluginMcpServersToSettings,
@@ -92,6 +93,7 @@ interface PluginPackageManifest {
 	optionalDependencies?: Record<string, string>;
 	peerDependencies?: Record<string, string>;
 	peerDependenciesMeta?: Record<string, unknown>;
+	scripts?: Record<string, string>;
 }
 
 const INSTALLS_DIRECTORY_NAME = "_installed";
@@ -530,13 +532,13 @@ function getWrapperPackageName(
 async function runCommand(
 	command: string,
 	args: string[],
-	options: { cwd?: string } = {},
+	options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
 ): Promise<void> {
 	await new Promise<void>((resolvePromise, reject) => {
 		const child = spawn(command, args, {
 			cwd: options.cwd,
 			stdio: ["ignore", "ignore", "pipe"],
-			env: process.env,
+			env: options.env ?? process.env,
 			// Prevent a console window from flashing on Windows.
 			windowsHide: true,
 		});
@@ -746,10 +748,82 @@ async function writeWrapperManifest(
 	return entryPaths;
 }
 
+/**
+ * The package manager that installs a plugin's third-party dependencies.
+ * `CLINE_NPM_COMMAND` or the `npmCommand` option names an npm-compatible
+ * command. Otherwise a compiled Bun host (desktop sidecar, standalone CLI)
+ * uses the full package manager it already carries, itself as `bun`, so
+ * marketplace installs work on machines with no Node or npm.
+ */
+export interface PluginPackageManager {
+	command: string;
+	kind: "npm" | "bun";
+}
+
+export function resolvePluginPackageManager(
+	npmCommand?: string,
+): PluginPackageManager {
+	const configured =
+		npmCommand?.trim() || process.env.CLINE_NPM_COMMAND?.trim();
+	if (configured) {
+		return { command: configured, kind: "npm" };
+	}
+	if (isCompiledBunExecutable(process.execPath)) {
+		return { command: process.execPath, kind: "bun" };
+	}
+	return { command: "npm", kind: "npm" };
+}
+
+// Lifecycle scripts run for npm; bun refuses them for untrusted packages
+// (and prints which ones it skipped), which is the safer default here.
+const NPM_INSTALL_FLAGS = [
+	"--omit=dev",
+	"--omit=peer",
+	"--legacy-peer-deps",
+	"--no-audit",
+	"--no-fund",
+	"--package-lock=false",
+];
+const BUN_INSTALL_FLAGS = ["--production", "--omit=peer", "--no-summary"];
+
+async function runPackageManager(
+	manager: PluginPackageManager,
+	args: string[],
+	cwd: string,
+): Promise<void> {
+	if (manager.kind === "bun") {
+		await runCommand(manager.command, [...args, ...BUN_INSTALL_FLAGS], {
+			cwd,
+			env: { ...process.env, BUN_BE_BUN: "1" },
+		});
+		return;
+	}
+	await runCommand(manager.command, [...args, ...NPM_INSTALL_FLAGS], { cwd });
+}
+
+// Lifecycle scripts `install` runs for the package itself.
+const INSTALL_LIFECYCLE_SCRIPTS = [
+	"preinstall",
+	"install",
+	"postinstall",
+	"prepare",
+];
+
+/** Whether `install` would do anything for this package. */
+function needsPackageInstall(packageRoot: string): boolean {
+	const manifest = readPackageManifest(packageRoot);
+	// Installs omit dev and peer dependencies, so only these two fields matter.
+	return (
+		[manifest?.dependencies, manifest?.optionalDependencies].some(
+			(dependencies) => !!dependencies && Object.keys(dependencies).length > 0,
+		) || INSTALL_LIFECYCLE_SCRIPTS.some((name) => !!manifest?.scripts?.[name])
+	);
+}
+
 async function installNpmPackage(
 	parsed: Extract<ParsedPluginSource, { type: "npm" }>,
 	stagingRoot: string,
-	npmCommand: string,
+	manager: PluginPackageManager,
 ): Promise<string> {
 	const packageRoot = join(stagingRoot, PACKAGE_DIRECTORY_NAME);
 	await mkdir(packageRoot, { recursive: true });
@@ -758,49 +832,38 @@ async function installNpmPackage(
 		JSON.stringify({ name: "cline-plugin-install", private: true }, null, 2),
 		"utf8",
 	);
-	await runCommand(npmCommand, [
-		"install",
-		parsed.spec,
-		"--prefix",
+	await runPackageManager(
+		manager,
+		manager.kind === "bun"
+			? ["add", parsed.spec]
+			: ["install", parsed.spec, "--prefix", packageRoot],
 		packageRoot,
-		"--omit=dev",
-		"--omit=peer",
-		"--legacy-peer-deps",
-		"--no-audit",
-		"--no-fund",
-		"--package-lock=false",
-	]);
+	);
 	removeInstalledHostProvidedSdkDependencies(packageRoot, parsed.name);
 	return join(packageRoot, "node_modules", parsed.name);
 }
 
 async function installPackageDependencies(
 	packageRoot: string,
-	npmCommand: string,
+	manager: PluginPackageManager,
 ): Promise<void> {
 	if (!existsSync(join(packageRoot, "package.json"))) {
 		return;
 	}
 	await removeHostProvidedSdkDependencies(packageRoot);
-	await runCommand(
-		npmCommand,
-		[
-			"install",
-			"--omit=dev",
-			"--omit=peer",
-			"--legacy-peer-deps",
-			"--no-audit",
-			"--no-fund",
-			"--package-lock=false",
-		],
-		{ cwd: packageRoot },
-	);
+	// Most official plugins depend only on @cline/*, which the host provides;
+	// once those are stripped there is nothing to install and no reason to
+	// require a package manager on the machine.
+	if (!needsPackageInstall(packageRoot)) {
+		return;
+	}
+	await runPackageManager(manager, ["install"], packageRoot);
 }
 
 async function installGitPackage(
 	parsed: Extract<ParsedPluginSource, { type: "git" }>,
 	stagingRoot: string,
-	npmCommand: string,
+	manager: PluginPackageManager,
 ): Promise<string> {
 	if (parsed.ref?.startsWith("-")) {
 		throw new Error(`Invalid git ref "${parsed.ref}".`);
@@ -828,14 +891,14 @@ async function installGitPackage(
 			cwd: packageRoot,
 		});
 	}
-	await installPackageDependencies(packageRoot, npmCommand);
+	await installPackageDependencies(packageRoot, manager);
 	return packageRoot;
 }
 
 async function installOfficialPlugin(
 	parsed: Extract<ParsedPluginSource, { type: "official" }>,
 	stagingRoot: string,
-	npmCommand: string,
+	manager: PluginPackageManager,
 	officialPluginsRepo: string,
 ): Promise<string> {
 	const repoRoot = join(stagingRoot, "repo");
@@ -865,7 +928,7 @@ async function installOfficialPlugin(
 		},
 	});
 	rmSync(repoRoot, { recursive: true, force: true });
-	await installPackageDependencies(packageRoot, npmCommand);
+	await installPackageDependencies(packageRoot, manager);
 	return packageRoot;
 }
 
@@ -963,7 +1026,7 @@ async function installLocalPackage(
 	parsed: Extract<ParsedPluginSource, { type: "local" }>,
 	stagingRoot: string,
 	cwd: string,
-	npmCommand: string,
+	manager: PluginPackageManager,
 ): Promise<string> {
 	const absolutePath = resolve(cwd, resolveHomePath(parsed.path));
 	if (!existsSync(absolutePath)) {
@@ -992,7 +1055,7 @@ async function installLocalPackage(
 			return name !== ".git" && name !== "node_modules";
 		},
 	});
-	await installPackageDependencies(packageRoot, npmCommand);
+	await installPackageDependencies(packageRoot, manager);
 	return packageRoot;
 }
 
@@ -1136,8 +1199,7 @@ export async function installPlugin(
 		stagingParent,
 		`${Date.now()}-${process.pid}-${hashSource(`${source}:${Math.random()}`)}`,
 	);
-	const npmCommand =
-		options.npmCommand ?? (process.env.CLINE_NPM_COMMAND?.trim() || "npm");
+	const manager = resolvePluginPackageManager(options.npmCommand);
 
 	const force = options.force === true;
 	assertCanInstall(installPath, force);
@@ -1146,14 +1208,14 @@ export async function installPlugin(
 	let packageRoot: string;
 	try {
 		if (parsed.type === "npm") {
-			packageRoot = await installNpmPackage(parsed, stagingRoot, npmCommand);
+			packageRoot = await installNpmPackage(parsed, stagingRoot, manager);
 		} else if (parsed.type === "git") {
-			packageRoot = await installGitPackage(parsed, stagingRoot, npmCommand);
+			packageRoot = await installGitPackage(parsed, stagingRoot, manager);
 		} else if (parsed.type === "official") {
 			packageRoot = await installOfficialPlugin(
 				parsed,
 				stagingRoot,
-				npmCommand,
+				manager,
 				officialPluginsRepo,
 			);
 		} else if (parsed.type === "remote") {
@@ -1163,7 +1225,7 @@ export async function installPlugin(
 				parsed,
 				stagingRoot,
 				cwd,
-				npmCommand,
+				manager,
 			);
 		}
 

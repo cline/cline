@@ -20,6 +20,7 @@ import {
 	installPlugin,
 	isOfficialPluginSlug,
 	parsePluginSource,
+	resolvePluginPackageManager,
 } from "./plugin-install";
 
 type FetchCall = (
@@ -207,6 +208,185 @@ describe("plugin install service", () => {
 		expect(resolvePluginConfigSearchPaths(workspace)[0]).toBe(
 			join(workspace, ".cline", "plugins"),
 		);
+	});
+
+	it("installs an official plugin that depends only on @cline/* without a package manager", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			linear: {
+				"package.json": JSON.stringify({
+					name: "linear",
+					cline: { plugins: ["./index.ts"] },
+					peerDependencies: { "@cline/core": "*" },
+					optionalDependencies: { "@cline/shared": "*" },
+					devDependencies: { typescript: "^5" },
+				}),
+				"index.ts":
+					"export default { name: 'official-linear', manifest: { capabilities: ['tools'] } };",
+			},
+		});
+
+		const result = await installPlugin({
+			source: "linear",
+			cwd: workspace,
+			officialPluginsRepo,
+			// Would fail with ENOENT if the installer still shelled out.
+			npmCommand: join(root, "no-such-package-manager"),
+		});
+
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"official-linear",
+		);
+		const manifest = JSON.parse(
+			readFileSync(join(result.installPath, "package", "package.json"), "utf8"),
+		) as Record<string, unknown>;
+		expect(manifest.optionalDependencies).toBeUndefined();
+		expect(manifest.peerDependencies).toBeUndefined();
+	});
+
+	it("still runs the package manager when third-party dependencies remain", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			"agents-squad": {
+				"package.json": JSON.stringify({
+					name: "agents-squad",
+					cline: { plugins: ["./index.ts"] },
+					dependencies: { "@cline/core": "*", yaml: "^2" },
+				}),
+				"index.ts": "export default { name: 'squad' };",
+			},
+		});
+
+		await expect(
+			installPlugin({
+				source: "agents-squad",
+				cwd: workspace,
+				officialPluginsRepo,
+				npmCommand: join(root, "no-such-package-manager"),
+			}),
+		).rejects.toThrow(/ENOENT/);
+	});
+
+	it("still runs the package manager for dependency-free plugins with install scripts", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			generated: {
+				"package.json": JSON.stringify({
+					name: "generated",
+					cline: { plugins: ["./index.ts"] },
+					scripts: { postinstall: "node generate.js" },
+				}),
+				"index.ts": "export default { name: 'generated' };",
+			},
+		});
+
+		await expect(
+			installPlugin({
+				source: "generated",
+				cwd: workspace,
+				officialPluginsRepo,
+				npmCommand: join(root, "no-such-package-manager"),
+			}),
+		).rejects.toThrow(/ENOENT/);
+	});
+
+	it("installs through a compiled Bun host's own binary with BUN_BE_BUN", async () => {
+		// A fake compiled host: a script standing in for process.execPath that
+		// records how it was invoked as the package manager.
+		const logPath = join(root, "bun-install.log");
+		const fakeHost = join(root, "code-sidecar");
+		writeFileSync(
+			fakeHost,
+			[
+				"#!/bin/sh",
+				`printf 'cwd=%s\nargs=%s\nBUN_BE_BUN=%s\n' "$PWD" "$*" "$BUN_BE_BUN" >> "${logPath}"`,
+				"exit 0",
+			].join("\n"),
+			{ encoding: "utf8", mode: 0o755 },
+		);
+		const source = join(root, "needs-yaml");
+		await mkdir(source, { recursive: true });
+		await writeFile(
+			join(source, "package.json"),
+			JSON.stringify({
+				name: "needs-yaml",
+				cline: { plugins: ["./index.ts"] },
+				dependencies: { "@cline/core": "*", yaml: "^2" },
+			}),
+			"utf8",
+		);
+		await writeFile(join(source, "index.ts"), "export default { name: 'y' };");
+
+		const realExecPath = process.execPath;
+		const previousCommand = process.env.CLINE_NPM_COMMAND;
+		delete process.env.CLINE_NPM_COMMAND;
+		vi.stubGlobal("Bun", (globalThis as { Bun?: unknown }).Bun ?? {});
+		process.execPath = fakeHost;
+		try {
+			const result = await installPlugin({ source, cwd: workspace });
+			const log = readFileSync(logPath, "utf8");
+			// Dependencies install in the staging package before the atomic move.
+			expect(log).toMatch(
+				new RegExp(
+					`cwd=${join(workspace, ".cline", "plugins", "_installed", ".tmp")}/[^/]+/package\n`,
+				),
+			);
+			expect(existsSync(join(result.installPath, "package", "index.ts"))).toBe(
+				true,
+			);
+			expect(log).toContain(
+				"args=install --production --omit=peer --no-summary",
+			);
+			expect(log).toContain("BUN_BE_BUN=1");
+
+			writeFileSync(logPath, "");
+			await expect(
+				installPlugin({ source: "npm:published@1.2.3", cwd: workspace }),
+			).rejects.toThrow(/No plugin entry files/);
+			expect(readFileSync(logPath, "utf8")).toContain(
+				"args=add published@1.2.3 --production --omit=peer --no-summary",
+			);
+		} finally {
+			process.execPath = realExecPath;
+			if (previousCommand === undefined) {
+				delete process.env.CLINE_NPM_COMMAND;
+			} else {
+				process.env.CLINE_NPM_COMMAND = previousCommand;
+			}
+		}
+	});
+
+	it("uses a compiled Bun host as its own package manager", () => {
+		const realExecPath = process.execPath;
+		const previousCommand = process.env.CLINE_NPM_COMMAND;
+		delete process.env.CLINE_NPM_COMMAND;
+		vi.stubGlobal("Bun", (globalThis as { Bun?: unknown }).Bun ?? {});
+		process.execPath = "/Applications/Cline.app/Contents/MacOS/code-sidecar";
+		try {
+			expect(resolvePluginPackageManager()).toEqual({
+				command: process.execPath,
+				kind: "bun",
+			});
+			expect(resolvePluginPackageManager("pnpm")).toEqual({
+				command: "pnpm",
+				kind: "npm",
+			});
+			process.env.CLINE_NPM_COMMAND = "/opt/npm";
+			expect(resolvePluginPackageManager()).toEqual({
+				command: "/opt/npm",
+				kind: "npm",
+			});
+			delete process.env.CLINE_NPM_COMMAND;
+			process.execPath = "/usr/local/bin/node";
+			expect(resolvePluginPackageManager()).toEqual({
+				command: "npm",
+				kind: "npm",
+			});
+		} finally {
+			process.execPath = realExecPath;
+			if (previousCommand === undefined) {
+				delete process.env.CLINE_NPM_COMMAND;
+			} else {
+				process.env.CLINE_NPM_COMMAND = previousCommand;
+			}
+		}
 	});
 
 	it("syncs MCP servers declared by installed plugins", async () => {
