@@ -52,6 +52,7 @@ import type { ClineExtensionContext } from "@/shared/cline"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { resolveDataDirFromEnv } from "@/shared/storage/storage-context"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
@@ -679,13 +680,14 @@ export class Controller {
 			getAuthToken: () => this.authService.getAuthToken(),
 			getActiveOrganizationId: () => this.authService.getActiveOrganizationId(),
 		})
+		const getAccountScope = () => {
+			const userId = this.authService.getInfo().user?.uid
+			return userId ? `${userId}:${this.authService.getActiveOrganizationId() ?? ""}` : undefined
+		}
 		this.cloudTaskTarget = new SdkCloudTaskTarget({
 			cloudSessions: this.cloudSessions,
 			stateManager: this.stateManager,
-			getAccountScope: () => {
-				const userId = this.authService.getInfo().user?.uid
-				return userId ? `${userId}:${this.authService.getActiveOrganizationId() ?? ""}` : undefined
-			},
+			getAccountScope,
 			getWorkspaceRoot: () => this.lastKnownWorkspaceRoot,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -719,6 +721,8 @@ export class Controller {
 			invalidateHistoryCache: () => this.taskHistory.invalidateCache(),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			telemetry: this.sdkTelemetry.telemetry,
+			pendingStartsDir: path.join(resolveDataDirFromEnv(), "cloud-pending-starts"),
+			getAccountScope,
 		})
 		// Every account change, whichever path requests it, tears down the
 		// previous account's cloud task and connections first and holds cloud
