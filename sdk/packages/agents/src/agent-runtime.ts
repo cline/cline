@@ -1573,6 +1573,7 @@ export class AgentRuntime {
 				error,
 			});
 			await this.recordAssistantMessage(first.message, first.finishReason);
+			await this.recordTruncatedToolResults(first.message);
 			throw error;
 		}
 		// `retried` states only that the compaction and retry ran — it makes no
@@ -1587,6 +1588,7 @@ export class AgentRuntime {
 		// ended the retry, exactly as the loop would have for that finish.
 		if (retry.finishReason === "aborted") {
 			await this.recordAssistantMessage(first.message, first.finishReason);
+			await this.recordTruncatedToolResults(first.message);
 			throw this.normalizeAbortError();
 		}
 		if (
@@ -1594,6 +1596,7 @@ export class AgentRuntime {
 			!retry.message.content.some((part) => part.type === "tool-call")
 		) {
 			await this.recordAssistantMessage(first.message, first.finishReason);
+			await this.recordTruncatedToolResults(first.message);
 			// An errored retry that still produced output — text, or a
 			// provider-executed tool that has already run — is observable work,
 			// not a discardable draft: keep it alongside the truncated turn so the
@@ -1619,6 +1622,37 @@ export class AgentRuntime {
 			return first;
 		}
 		return retry;
+	}
+
+	/**
+	 * Pair a truncated turn's cut-off tool calls with their error results before
+	 * the run fails on that turn. The calls never execute — prepareToolExecution
+	 * skips them on their parse error — but a transcript that ends in unanswered
+	 * tool calls is rejected by providers that require matching results once the
+	 * run is continued. An already-aborted run keeps the abort's own semantics,
+	 * where in-flight calls are left unanswered too.
+	 */
+	private async recordTruncatedToolResults(
+		message: AgentMessage,
+	): Promise<void> {
+		if (this.abortController?.signal.aborted) {
+			return;
+		}
+		const truncatedToolCalls = message.content.filter(
+			(part): part is AgentToolCallPart =>
+				part.type === "tool-call" && isTruncatedToolCall(part),
+		);
+		if (truncatedToolCalls.length === 0) {
+			return;
+		}
+		for (const toolMessage of await this.executeToolCalls(truncatedToolCalls)) {
+			this.state.messages.push(toolMessage);
+			await this.emit({
+				type: "message-added",
+				snapshot: this.snapshot(),
+				message: toolMessage,
+			});
+		}
 	}
 
 	/** Append an assistant turn to the transcript and announce it. */

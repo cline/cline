@@ -976,6 +976,50 @@ describe("AgentRuntime", () => {
 		).toHaveLength(1);
 	});
 
+	it("pairs a cut-off tool call with its error result when the compacted retry throws", async () => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":',
+				},
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) => {
+				if (context.overflowRecovery) {
+					throw new Error("prepareTurn exploded");
+				}
+				return undefined;
+			},
+		);
+		const runtime = new AgentRuntime({ model, tools: [tool], prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("prepareTurn exploded");
+		expect(execute).not.toHaveBeenCalled();
+		// The failed run's transcript still pairs the cut-off call with a result,
+		// so continuing it later does not replay an unanswered tool call.
+		const [assistant, toolMessage] = result.messages.slice(-2);
+		expect(assistant?.role).toBe("assistant");
+		expect(assistant?.content).toContainEqual(
+			expect.objectContaining({ type: "tool-call", toolCallId: "call_1" }),
+		);
+		expect(toolMessage?.role).toBe("tool");
+		expect(toolMessage?.content[0]).toMatchObject({
+			type: "tool-result",
+			toolCallId: "call_1",
+			isError: true,
+		});
+	});
+
 	it("fails once repeated cut-off tool calls exhaust recovery", async () => {
 		const tool = createEchoTool();
 		const execute = vi.spyOn(tool, "execute");
