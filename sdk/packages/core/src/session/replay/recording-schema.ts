@@ -132,9 +132,24 @@ export const SessionRecordedModelCallSchema = z.object({
 		systemPromptSha256: Sha256Schema.nullable(),
 		toolsSha256: Sha256Schema,
 		modelToolsSha256: Sha256Schema.nullable(),
+		/** Number of messages in the request. */
+		messageCount: z.number().int().nonnegative(),
 		/**
-		 * Request messages in order; each names a `message` blob holding the
-		 * message without its per-request `id` and `createdAt`.
+		 * The request's first `count` messages are the first `count` messages
+		 * of the earlier call `callIndex`. Null when nothing is shared with the
+		 * previous call (first call of a host start, or after compaction).
+		 * Resolve with {@link resolveRecordedRequestMessages}.
+		 */
+		messagePrefix: z
+			.object({
+				callIndex: z.number().int().nonnegative(),
+				count: z.number().int().positive(),
+			})
+			.nullable(),
+		/**
+		 * The request's messages after `messagePrefix`, in order; each names a
+		 * `message` blob holding the message without its per-request `id` and
+		 * `createdAt`.
 		 */
 		messageSha256s: z.array(Sha256Schema),
 		options: z.record(z.string(), z.unknown()).nullable(),
@@ -161,6 +176,45 @@ export const SessionRecordedModelCallSchema = z.object({
 export type SessionRecordedModelCall = z.infer<
 	typeof SessionRecordedModelCallSchema
 >;
+
+/**
+ * Full message blob list of every request, keyed by call index, following
+ * each record's `messagePrefix`. Records whose prefix names a missing call
+ * or overruns it are reported in `errors` and left out.
+ */
+export function resolveRecordedRequestMessages(
+	records: readonly Pick<SessionRecordedModelCall, "callIndex" | "request">[],
+): { messages: Map<number, string[]>; errors: string[] } {
+	const messages = new Map<number, string[]>();
+	const errors: string[] = [];
+	const sorted = [...records].sort((a, b) => a.callIndex - b.callIndex);
+	for (const record of sorted) {
+		const { messagePrefix, messageSha256s, messageCount } = record.request;
+		let prefix: string[] = [];
+		if (messagePrefix) {
+			const base =
+				messagePrefix.callIndex < record.callIndex
+					? messages.get(messagePrefix.callIndex)
+					: undefined;
+			if (!base || base.length < messagePrefix.count) {
+				errors.push(
+					`model call ${record.callIndex} shares ${messagePrefix.count} messages with call ${messagePrefix.callIndex}, which ${base ? `has only ${base.length}` : "is not an earlier recorded call"}`,
+				);
+				continue;
+			}
+			prefix = base.slice(0, messagePrefix.count);
+		}
+		const resolved = [...prefix, ...messageSha256s];
+		if (resolved.length !== messageCount) {
+			errors.push(
+				`model call ${record.callIndex} resolves to ${resolved.length} messages but records messageCount ${messageCount}`,
+			);
+			continue;
+		}
+		messages.set(record.callIndex, resolved);
+	}
+	return { messages, errors };
+}
 
 export const SESSION_RECORDED_EVENT_KINDS = ["decision", "runtime"] as const;
 

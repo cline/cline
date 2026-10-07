@@ -32,6 +32,7 @@ import {
 	sessionReplayFileMediaType,
 } from "./bundle-schema";
 import {
+	resolveRecordedRequestMessages,
 	type SessionRecordedModelCall,
 	SessionRecordedModelCallSchema,
 } from "./recording-schema";
@@ -705,6 +706,9 @@ function validateRecording(input: {
 			list.push(record);
 			recordsByMessageId.set(record.response.messageId, list);
 		}
+	}
+	for (const error of resolveRecordedRequestMessages(requests).errors) {
+		errors.push(`${requestPath}: ${error}`);
 	}
 
 	const preRecording = recording.segments[0]?.initialMessageCount ?? 0;

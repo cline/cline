@@ -16,6 +16,7 @@ import { ClineCore } from "../../ClineCore";
 import { exportSessionReplayBundle } from "./bundle-export";
 import { readSessionReplayBundle } from "./bundle-io";
 import { buildSessionReplayIterations } from "./bundle-iterations";
+import { resolveRecordedRequestMessages } from "./recording-schema";
 import { TOOL_ENVIRONMENT_METADATA_KEY } from "./tool-environment";
 
 const STEER_TEXT = "Also note the steer arrived.";
@@ -338,12 +339,25 @@ describe("session recording e2e", () => {
 				expect(JSON.stringify(record)).not.toContain("sk-recording-e2e");
 				expect(record.response.usage).toMatchObject({ outputTokens: 10 });
 			}
-			// Each request carries the whole conversation so far: request N+1
-			// starts with every message of request N.
-			for (let index = 1; index < requests.length; index += 1) {
-				const previous = requests[index - 1]?.request.messageSha256s ?? [];
-				const current = requests[index]?.request.messageSha256s ?? [];
-				expect(current.slice(0, previous.length)).toEqual(previous);
+			// Each request carries the whole conversation so far, so request
+			// N+1 is stored as "request N plus what it added".
+			const requestMessages = resolveRecordedRequestMessages(requests);
+			expect(requestMessages.errors).toEqual([]);
+			for (const record of requests.slice(1)) {
+				const previous =
+					requestMessages.messages.get(record.callIndex - 1) ?? [];
+				expect(record.request.messagePrefix).toEqual({
+					callIndex: record.callIndex - 1,
+					count: previous.length,
+				});
+				expect(
+					requestMessages.messages
+						.get(record.callIndex)
+						?.slice(0, previous.length),
+				).toEqual(previous);
+			}
+			for (const shas of requestMessages.messages.values()) {
+				for (const sha of shas) expect(blobs.has(sha)).toBe(true);
 			}
 			const steerBlob = [...blobs.values()].find(
 				(blob) =>
@@ -352,6 +366,7 @@ describe("session recording e2e", () => {
 			);
 			expect(steerBlob).toBeDefined();
 			expect(requests[2]?.request.messageSha256s).toContain(steerBlob?.sha256);
+			expect(requestMessages.messages.get(1)).not.toContain(steerBlob?.sha256);
 
 			// Decisions: approval requested/resolved with attribution, the
 			// steer enqueued and delivered mid-run, the start prompt delivered.

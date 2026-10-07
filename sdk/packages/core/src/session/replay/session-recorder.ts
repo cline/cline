@@ -100,7 +100,11 @@ export interface SessionRecorderStats {
 	blobs: number;
 	blobsDeduplicated: number;
 	bytes: { requests: number; blobs: number; events: number; header: number };
-	/** Sum of the full serialized request sizes: what a per-request body capture would store. */
+	/**
+	 * Sum of every request's serialized parts (system prompt, tools, messages,
+	 * options) before deduplication: roughly what capturing each request body
+	 * would store.
+	 */
 	fullRequestBytes: number;
 	/** Synchronous time spent hashing and serializing records. */
 	recordMs: number;
@@ -132,6 +136,12 @@ interface PendingModelCall {
 }
 
 type WriteTarget = "requests" | "blobs" | "events";
+
+interface HashedRequestMessage {
+	sha256: string;
+	contentSha256: string;
+	bytes: number;
+}
 
 function sha256Hex(text: string): string {
 	return createHash("sha256").update(text, "utf8").digest("hex");
@@ -219,6 +229,27 @@ export function recordedRequestMessage(
 }
 
 /**
+ * The two serializations a request message is hashed by, built from one
+ * `JSON.stringify` of its content (the bulk of a long conversation):
+ * `JSON.stringify([role, content])` and
+ * `JSON.stringify(recordedRequestMessage(message))`.
+ */
+function serializeRequestMessage(
+	message: AgentModelRequest["messages"][number],
+): { contentJson: string; blobJson: string } {
+	const { id: _id, createdAt: _createdAt, role, content, ...rest } = message;
+	const roleJson = JSON.stringify(role);
+	const contentPart = JSON.stringify(content);
+	const restJson = JSON.stringify(rest);
+	return {
+		contentJson: `[${roleJson},${contentPart}]`,
+		blobJson: `{"role":${roleJson},"content":${contentPart}${
+			restJson === "{}" ? "}" : `,${restJson.slice(1)}`
+		}`,
+	};
+}
+
+/**
  * The key phase-3 replay pairs a live request with a recorded one by. Built
  * from content hashes only, so message ids, timestamps and metadata (all of
  * which differ between runs) do not affect it.
@@ -272,6 +303,16 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 	private currentRunId: string | null = null;
 	private currentIteration = 0;
 	private pendingCall: PendingModelCall | undefined;
+	/**
+	 * Hashes of the last request's messages by serialized blob. Requests
+	 * repeat almost every message of the one before, so this skips nearly
+	 * all hashing while holding one request's worth of strings.
+	 */
+	private previousMessageHashes = new Map<string, HashedRequestMessage>();
+	/** Message list of the last request, which the next one is stored against. */
+	private previousRequestMessages:
+		| { callIndex: number; sha256s: string[] }
+		| undefined;
 	private readonly preImages = new Map<
 		string,
 		Promise<ToolEnvironmentFileFact[]>
@@ -532,13 +573,17 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 		this.closed = true;
 	}
 
-	private putBlob(
+	private putBlob(kind: SessionRecordingBlobKind, value: unknown): string {
+		return this.putBlobJson(kind, JSON.stringify(value ?? null));
+	}
+
+	private putBlobJson(
 		kind: SessionRecordingBlobKind,
-		value: unknown,
+		json: string,
 		contentSha256?: string,
 	): string {
-		const json = JSON.stringify(value ?? null);
 		const sha256 = sha256Hex(json);
+		this.statsState.fullRequestBytes += Buffer.byteLength(json, "utf8");
 		if (this.knownBlobs.has(sha256)) {
 			this.statsState.blobsDeduplicated += 1;
 			return sha256;
@@ -689,15 +734,43 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 				? this.putBlob("model-tools", toJsonSafe(request.modelTools))
 				: null;
 		const contentSha256s: string[] = [];
+		const hashed = new Map<string, HashedRequestMessage>();
 		const messageSha256s = request.messages.map((message) => {
-			const contentSha256 = recordedMessageContentSha256(message);
+			const { contentJson, blobJson } = serializeRequestMessage(message);
+			const known = this.previousMessageHashes.get(blobJson);
+			if (known) {
+				hashed.set(blobJson, known);
+				contentSha256s.push(known.contentSha256);
+				this.statsState.fullRequestBytes += known.bytes;
+				this.statsState.blobsDeduplicated += 1;
+				return known.sha256;
+			}
+			const contentSha256 = sha256Hex(contentJson);
 			contentSha256s.push(contentSha256);
-			return this.putBlob(
-				"message",
-				recordedRequestMessage(message),
+			const sha256 = this.putBlobJson("message", blobJson, contentSha256);
+			hashed.set(blobJson, {
+				sha256,
 				contentSha256,
-			);
+				bytes: Buffer.byteLength(blobJson, "utf8"),
+			});
+			return sha256;
 		});
+		this.previousMessageHashes = hashed;
+		const previous = this.previousRequestMessages;
+		let shared = 0;
+		if (previous) {
+			const limit = Math.min(previous.sha256s.length, messageSha256s.length);
+			while (
+				shared < limit &&
+				previous.sha256s[shared] === messageSha256s[shared]
+			) {
+				shared += 1;
+			}
+		}
+		this.previousRequestMessages = {
+			callIndex: this.callIndex,
+			sha256s: messageSha256s,
+		};
 		const options = request.options ? toJsonSafe(request.options) : null;
 		const compactionState = this.getCompactionState?.();
 		const record: PendingModelCall["record"] = {
@@ -724,7 +797,12 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 				systemPromptSha256,
 				toolsSha256,
 				modelToolsSha256,
-				messageSha256s,
+				messageCount: messageSha256s.length,
+				messagePrefix:
+					previous && shared > 0
+						? { callIndex: previous.callIndex, count: shared }
+						: null,
+				messageSha256s: messageSha256s.slice(shared),
 				options,
 				provider: { ...provider },
 			},
@@ -740,15 +818,12 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 			},
 		};
 		this.callIndex += 1;
-		this.statsState.fullRequestBytes += Buffer.byteLength(
-			JSON.stringify({
-				systemPrompt: request.systemPrompt,
-				tools: request.tools,
-				messages: request.messages,
-				options,
-			}),
-			"utf8",
-		);
+		if (options) {
+			this.statsState.fullRequestBytes += Buffer.byteLength(
+				JSON.stringify(options),
+				"utf8",
+			);
+		}
 		this.statsState.recordMs += performance.now() - started;
 		return { record, startedMs };
 	}

@@ -452,7 +452,7 @@ function summarizeModelCall(
 		finishReason: record.response.finishReason,
 		durationMs: record.durationMs,
 		matchKey: record.request.matchKey,
-		messageCount: record.request.messageSha256s.length,
+		messageCount: record.request.messageCount,
 		...(record.response.messageId
 			? { messageId: record.response.messageId }
 			: {}),

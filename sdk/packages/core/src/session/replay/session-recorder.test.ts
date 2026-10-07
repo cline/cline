@@ -18,11 +18,12 @@ import type {
 	AgentRuntimeEvent,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type {
-	SessionRecordedBlob,
-	SessionRecordedEvent,
-	SessionRecordedModelCall,
-	SessionRecordingHeader,
+import {
+	resolveRecordedRequestMessages,
+	type SessionRecordedBlob,
+	type SessionRecordedEvent,
+	type SessionRecordedModelCall,
+	type SessionRecordingHeader,
 } from "./recording-schema";
 import {
 	computeRecordedRequestMatchKey,
@@ -116,6 +117,34 @@ describe("resolveSessionRecording", () => {
 	});
 });
 
+describe("resolveRecordedRequestMessages", () => {
+	const record = (
+		callIndex: number,
+		messageCount: number,
+		messagePrefix: { callIndex: number; count: number } | null,
+		messageSha256s: string[],
+	) =>
+		({
+			callIndex,
+			request: { messageCount, messagePrefix, messageSha256s },
+		}) as unknown as SessionRecordedModelCall;
+
+	it("reports prefixes that name a missing call or overrun it", () => {
+		const { messages, errors } = resolveRecordedRequestMessages([
+			record(0, 1, null, ["a"]),
+			record(1, 3, { callIndex: 0, count: 2 }, ["b"]),
+			record(2, 2, { callIndex: 5, count: 1 }, ["c"]),
+			record(3, 4, { callIndex: 0, count: 1 }, ["d"]),
+		]);
+		expect([...messages.keys()]).toEqual([0]);
+		expect(errors).toEqual([
+			"model call 1 shares 2 messages with call 0, which has only 1",
+			"model call 2 shares 1 messages with call 5, which is not an earlier recorded call",
+			"model call 3 resolves to 2 messages but records messageCount 4",
+		]);
+	});
+});
+
 describe("SessionRecorder", () => {
 	let root: string;
 	let dir: string;
@@ -198,10 +227,17 @@ describe("SessionRecorder", () => {
 				await recorder
 					.wrapModel(model(new Error("rate limited")), PROVIDER)
 					.stream(
-						request([sameContent, text("user", "more")], {
-							runId: "run_1",
-							iteration: 2,
-						}),
+						request(
+							[
+								sameContent,
+								{
+									...text("tool", "more"),
+									metadata: { kind: "note", nested: { a: [1, "two"] } },
+									modelInfo: { id: "m", provider: "p" },
+								},
+							],
+							{ runId: "run_1", iteration: 2 },
+						),
 					),
 			),
 		).rejects.toThrow("rate limited");
@@ -248,12 +284,21 @@ describe("SessionRecorder", () => {
 			"system-prompt",
 			"tools",
 		]);
-		expect(second?.request.messageSha256s[0]).toBe(
-			first?.request.messageSha256s[0],
-		);
-		const promptBlob = blobs.find(
-			(blob) => blob.sha256 === first?.request.messageSha256s[0],
-		);
+		// The second request only names what it adds to the first.
+		expect(first?.request).toMatchObject({
+			messageCount: 1,
+			messagePrefix: null,
+		});
+		expect(second?.request).toMatchObject({
+			messageCount: 2,
+			messagePrefix: { callIndex: 0, count: 1 },
+		});
+		expect(second?.request.messageSha256s).toHaveLength(1);
+		const resolved = resolveRecordedRequestMessages(records);
+		expect(resolved.errors).toEqual([]);
+		const [promptSha] = resolved.messages.get(0) ?? [];
+		expect(resolved.messages.get(1)?.[0]).toBe(promptSha);
+		const promptBlob = blobs.find((blob) => blob.sha256 === promptSha);
 		expect(promptBlob?.value).toEqual({
 			role: "user",
 			content: [{ type: "text", text: "hello" }],
@@ -266,6 +311,21 @@ describe("SessionRecorder", () => {
 				createHash("sha256").update(JSON.stringify(blob.value)).digest("hex"),
 			);
 		}
+		const noteBlob = blobs.find(
+			(blob) => blob.sha256 === second?.request.messageSha256s[0],
+		);
+		expect(noteBlob?.value).toEqual({
+			role: "tool",
+			content: [{ type: "text", text: "more" }],
+			metadata: { kind: "note", nested: { a: [1, "two"] } },
+			modelInfo: { id: "m", provider: "p" },
+		});
+		expect(noteBlob?.contentSha256).toBe(
+			recordedMessageContentSha256({
+				role: "tool",
+				content: [{ type: "text", text: "more" }],
+			}),
+		);
 		expect(first?.request.matchKey).toBe(
 			computeRecordedRequestMatchKey({
 				systemPromptSha256: first?.request.systemPromptSha256 ?? null,
@@ -301,6 +361,48 @@ describe("SessionRecorder", () => {
 		expect(stats.modelCalls).toBe(2);
 		expect(stats.blobsDeduplicated).toBe(3);
 		expect(stats.fullRequestBytes).toBeGreaterThan(0);
+	});
+
+	it("stores each request against the previous one until the history diverges", async () => {
+		const recorder = await open();
+		recorder.startSegment({ leadAgentId: "agent_1", initialMessageCount: 0 });
+		const wrapped = recorder.wrapModel(
+			model([{ type: "finish", reason: "stop" }]),
+			PROVIDER,
+		);
+		const [a, b, c, summary, d] = ["a", "b", "c", "summary", "d"].map((value) =>
+			text("user", value),
+		) as [AgentMessage, AgentMessage, AgentMessage, AgentMessage, AgentMessage];
+		for (const messages of [
+			[a, b],
+			[a, b, c],
+			[a, b, c],
+			[summary],
+			[summary, d],
+		]) {
+			await drain(await wrapped.stream(request(messages)));
+		}
+		await recorder.close();
+		const records = readLines<SessionRecordedModelCall>(
+			join(dir, "requests.jsonl"),
+		);
+		expect(
+			records.map((record) => [
+				record.request.messagePrefix,
+				record.request.messageSha256s.length,
+				record.request.messageCount,
+			]),
+		).toEqual([
+			[null, 2, 2],
+			[{ callIndex: 0, count: 2 }, 1, 3],
+			[{ callIndex: 1, count: 3 }, 0, 3],
+			[null, 1, 1],
+			[{ callIndex: 3, count: 1 }, 1, 2],
+		]);
+		const { messages, errors } = resolveRecordedRequestMessages(records);
+		expect(errors).toEqual([]);
+		expect(messages.get(2)).toEqual(messages.get(1));
+		expect(messages.get(4)?.[0]).toBe(messages.get(3)?.[0]);
 	});
 
 	it("counts attempts per run and iteration and flushes unlinked calls", async () => {

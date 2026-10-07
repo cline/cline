@@ -85,6 +85,7 @@ export {
 	sessionReplaySessionDir,
 } from "./bundle-schema";
 export {
+	resolveRecordedRequestMessages,
 	SESSION_RECORDED_EVENT_KINDS,
 	SESSION_RECORDED_MODEL_CALL_OUTCOMES,
 	SESSION_RECORDING_BLOB_KINDS,

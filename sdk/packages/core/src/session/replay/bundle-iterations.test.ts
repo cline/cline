@@ -182,6 +182,8 @@ function recordedCall(
 			systemPromptSha256: null,
 			toolsSha256: "b".repeat(64),
 			modelToolsSha256: null,
+			messageCount: 1,
+			messagePrefix: null,
 			messageSha256s: ["c".repeat(64)],
 			options: null,
 			provider: {},
