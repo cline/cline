@@ -149,7 +149,7 @@ describe("desktopAppReducer", () => {
 		const attachment = new File(["png-bytes"], "screenshot.png", {
 			type: "image/png",
 		});
-		let state = createDesktopAppState("welcome", settingsSection);
+		let state = createDesktopAppState("welcome", settingsSection, "local");
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("handoff-target"),
