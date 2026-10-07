@@ -45,7 +45,7 @@ Edit your MCP config file and add either:
 
 ### CLI MCP wizard
 
-From CLI, run:
+Run this in your terminal:
 
 ```bash
 cline mcp
@@ -58,10 +58,21 @@ The wizard supports:
 | List servers | Show configured servers and enabled/disabled status |
 | Add server | Create a new MCP server entry |
 | Edit server | Modify an existing server |
-| Enable/Disable | Toggle a server without deleting it |
+| Enable/disable server | Toggle a server without deleting it |
+| Authorize OAuth | Run or rerun browser authorization for a remote server |
 | Delete server | Remove a server permanently |
 
 When adding a server, the CLI prompts for server name, transport type, command/args (for stdio), or URL/headers (for remote transports).
+
+To add or remove a server from a script, skip the menu:
+
+```bash
+cline mcp add files --yes -- npx -y @modelcontextprotocol/server-filesystem .
+cline mcp add docs https://example.com/mcp --transport http --header "Authorization: Bearer TOKEN" --yes
+cline mcp remove docs
+```
+
+Without `--yes`, `cline mcp add` opens the add wizard with those fields filled in.
 
 ## Configuration examples
 
@@ -139,7 +150,7 @@ In MCP settings you can:
 
 MCP also works in Cline CLI. Configure servers in CLI MCP settings and use the same server definitions.
 
-You can also list servers non-interactively:
+To list servers without the wizard:
 
 ```bash
 cline config mcp

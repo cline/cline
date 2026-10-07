@@ -16,7 +16,10 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
-import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import {
+	CLI_DEFAULT_CHECKPOINT_CONFIG,
+	CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES,
+} from "./runtime/defaults";
 import type { TuiStartupTarget } from "./tui/types";
 import { filterChatModels } from "./utils/chat-models";
 import { registerClineClientIdentity } from "./utils/cline-client-identity";
@@ -1045,7 +1048,8 @@ export async function runCli(): Promise<void> {
 				mode: effectiveMode,
 			}),
 			execution: {
-				maxConsecutiveMistakes: args.retries ?? 3,
+				maxConsecutiveMistakes:
+					args.retries ?? CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
 			compaction: buildCliCompactionConfig(effectiveCompactionMode),
