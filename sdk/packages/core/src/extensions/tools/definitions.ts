@@ -65,6 +65,7 @@ import type {
 	DefaultToolsConfig,
 	EditorExecutor,
 	FileReadExecutor,
+	FileReadToolResult,
 	SearchExecutor,
 	ShellExecutor,
 	SkillsExecutorWithMetadata,
@@ -268,10 +269,10 @@ async function executeShellCommands(
 export function createReadFilesTool(
 	executor: FileReadExecutor,
 	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
-): AgentTool<ReadFilesInput, ToolOperationResult[]> {
+): AgentTool<ReadFilesInput, FileReadToolResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
 
-	return createTool<ReadFilesInput, ToolOperationResult[]>({
+	return createTool<ReadFilesInput, FileReadToolResult[]>({
 		name: "read_files",
 		description:
 			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
@@ -320,10 +321,11 @@ export function createReadFilesTool(
 			}
 
 			return Promise.all(
-				requests.map(async (request): Promise<ToolOperationResult> => {
+				requests.map(async (request): Promise<FileReadToolResult> => {
 					const rangeError = getReadFileRangeError(request);
 					if (rangeError) {
 						return {
+							...request,
 							query: formatReadFileQuery(request),
 							result: "",
 							error: `Invalid file range: ${rangeError}`,
@@ -338,6 +340,7 @@ export function createReadFilesTool(
 							`File read timed out after ${timeoutMs}ms`,
 						);
 						return {
+							...request,
 							query: formatReadFileQuery(request),
 							result: content,
 							success: true,
@@ -345,6 +348,7 @@ export function createReadFilesTool(
 					} catch (error) {
 						const msg = formatError(error);
 						return {
+							...request,
 							query: formatReadFileQuery(request),
 							result: "",
 							error: `Error reading file: ${msg}`,

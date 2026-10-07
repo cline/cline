@@ -37,6 +37,11 @@ export interface ToolOperationResult {
 	duration?: number;
 }
 
+/** File identity and bounds are metadata; query is only a display label. */
+export interface FileReadToolResult
+	extends ToolOperationResult,
+		ReadFileRequest {}
+
 export type FileReadResultContent = string | Array<TextContent | ImageContent>;
 
 // =============================================================================

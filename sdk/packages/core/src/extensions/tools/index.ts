@@ -121,6 +121,7 @@ export type {
 	DefaultToolsConfig,
 	EditorExecutor,
 	FileReadExecutor,
+	FileReadToolResult,
 	SearchExecutor,
 	ShellExecutor,
 	SkillsExecutor,

@@ -898,9 +898,6 @@ export class MessageBuilder {
 				endLine: this.extractLineNumber(record.end_line),
 			};
 		}
-		if (typeof record.query === "string" && record.query.length > 0) {
-			return this.parseReadQuery(record.query);
-		}
 		return undefined;
 	}
 
@@ -918,32 +915,6 @@ export class MessageBuilder {
 		return typeof value === "number" && Number.isInteger(value) ? value : null;
 	}
 
-	private parseReadQuery(query: string): ReadLocator {
-		const offset = /^(.*)@(\d+)$/.exec(query);
-		if (offset)
-			return {
-				path: offset[1],
-				startOffset: Number(offset[2]),
-				startLine: null,
-				endLine: null,
-			};
-		const match = /^(.*):(\d+)-(EOF|\d+)$/.exec(query);
-		if (!match) {
-			return {
-				path: query,
-				startOffset: null,
-				startLine: null,
-				endLine: null,
-			};
-		}
-		return {
-			path: match[1],
-			startOffset: null,
-			startLine: Number(match[2]),
-			endLine: match[3] === "EOF" ? null : Number(match[3]),
-		};
-	}
-
 	private dedupeReadLocators(locators: ReadLocator[]): ReadLocator[] {
 		const unique = new Map<string, ReadLocator>();
 		for (const locator of locators) {
@@ -954,11 +925,15 @@ export class MessageBuilder {
 
 	private toReadLocatorKey(locator: ReadLocator): string {
 		if (locator.startOffset != null)
-			return `${locator.path}@${locator.startOffset}`;
-		if (this.isFullFileRead(locator)) {
-			return locator.path;
-		}
-		return `${locator.path}:${locator.startLine ?? 1}-${locator.endLine ?? "EOF"}`;
+			return JSON.stringify([locator.path, "offset", locator.startOffset]);
+		if (this.isFullFileRead(locator))
+			return JSON.stringify([locator.path, "full"]);
+		return JSON.stringify([
+			locator.path,
+			"lines",
+			locator.startLine ?? 1,
+			locator.endLine ?? "EOF",
+		]);
 	}
 
 	private isFullFileRead(locator: ReadLocator): boolean {

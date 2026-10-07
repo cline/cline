@@ -1454,6 +1454,8 @@ describe("default read_files tool", () => {
 		};
 		const results = await tool.execute({ files: [request] }, context);
 		expect(results[0]).toEqual({
+			path: "/tmp/minified.js",
+			start_offset: 6000,
 			query: "/tmp/minified.js@6000",
 			result: "page",
 			success: true,
@@ -1490,6 +1492,9 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
+				path: "/tmp/example.ts",
+				start_line: 3,
+				end_line: 5,
 				query: "/tmp/example.ts:3-5",
 				result: "selected lines",
 				success: true,
@@ -1726,6 +1731,9 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
+				path: "/tmp/example.ts",
+				start_line: null,
+				end_line: null,
 				query: "/tmp/example.ts",
 				result: "full file",
 				success: true,
@@ -1778,11 +1786,17 @@ describe("default read_files tool", () => {
 
 		expect(result).toEqual([
 			{
+				path: "/tmp/valid-a.ts",
+				start_line: 1,
+				end_line: 2,
 				query: "/tmp/valid-a.ts:1-2",
 				result: "content for /tmp/valid-a.ts",
 				success: true,
 			},
 			{
+				path: "/tmp/reversed.ts",
+				start_line: 5,
+				end_line: 3,
 				query: "/tmp/reversed.ts:5-3",
 				result: "",
 				error:
@@ -1790,6 +1804,7 @@ describe("default read_files tool", () => {
 				success: false,
 			},
 			{
+				path: "/tmp/valid-b.ts",
 				query: "/tmp/valid-b.ts",
 				result: "content for /tmp/valid-b.ts",
 				success: true,
