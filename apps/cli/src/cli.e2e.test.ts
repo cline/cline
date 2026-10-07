@@ -258,6 +258,16 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).toContain('unknown command "nonesuch"');
 	});
 
+	it("prints hub help when no subcommand is provided", () => {
+		const result = runCli(["hub"], {
+			env: createIsolatedEnv({ CLINE_RUN_AS_HUB_DAEMON: undefined }),
+		});
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).toContain("Usage: hub [options] [command]");
+		expect(asText(result.stdout)).toContain("status");
+		expect(asText(result.stderr)).toBe("");
+	});
+
 	it("returns an error for interactive auth when no TTY is available", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));
