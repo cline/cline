@@ -1,5 +1,18 @@
 # Cline SDK Changelog
 
+## 0.0.91
+
+- Responses that end with a missing or unrecognized finish reason are no longer treated as successful completions. `AgentModelFinishReason` gains `unknown` (the AI SDK adapter maps unified `other` and missing reasons to it instead of `stop`). Without tool activity, the agent keeps the partial response and continues once with a hidden user message; a second unknown finish fails the run. Queued user messages are now consumed at every request boundary, including the first iteration
+- Stdio MCP servers get a 10s default initialize budget (was 3s). `npx`/`uvx` launchers through cmd.exe on Windows routinely took 3-6s and were silently dropped from the session. An explicit `timeout` still overrides it
+- The Anthropic provider sends the server-side refusal `fallbacks` option only to `api.anthropic.com`. Custom endpoints such as Azure AI Foundry rejected it with a 400. New `isOfficialAnthropicEndpoint` helper
+- The portable reasoning level for the `cline` and `openai-compatible` adapters snaps to the model's advertised effort levels. Kimi K3 (low/high/max) was sent `medium` and `minimal`, which it rejects
+- OpenAI-compatible providers (generic, `vercel-ai-gateway`, user-defined ids) write `providerOptions` under the camelCase alias only, which stops the per-chunk `providerOptions key 'openai-compatible'` deprecation warning from `@ai-sdk/openai-compatible`
+- New `apiKeyOptional` provider fact (`GatewayProviderMetadata.apiKeyOptional`, `resolveProviderApiKeyOptional`, `ProviderListItem.auth.apiKeyOptional`), declared on openai-compatible, ollama, lmstudio, litellm, vertex, bedrock, and user-added endpoints from `providers.json`/`models.json`
+- Rules: new `listEnabledRulesFromRecords` / `loadRulesForSystemPromptFromRecords` exports. The combined user-instruction service now orders rules by name, matching the single-workspace path
+- Opt-in Langfuse tracing for BYOK providers (`CLINE_LANGFUSE_ALL_PROVIDERS`), plus operator tags, metadata and environment via `CLINE_LANGFUSE_TAGS`, `CLINE_LANGFUSE_METADATA`, `LANGFUSE_TRACING_ENVIRONMENT`
+- Hook discovery telemetry handles Windows path separators
+- Refreshed the model catalog. The Cline free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Adds the Engy provider. Default models change for AKI.IO, Blue Claw, CoralBricks, CrossModel (GPT-6.1 Sol), DevPass, LLM Gateway, Mistral, NanoGPT, Requesty (Mistral Large 4), Neon (Claude Opus 5.5), Subconscious, and The Grid AI
+
 ## 0.0.90
 
 - Agent teams no longer slow down as a session runs or while a teammate is streaming. Every streamed chunk and 2-second heartbeat used to re-save the whole team state, including every finished teammate's full transcript (one local `teams.db` reached 1.66 GB, with a single run row rewritten ~339k times). Stream chunks and heartbeats now go to live UIs only and are never persisted, only changed entities are written (batched into one transaction every ~300 ms), run records keep a summary instead of the transcript, and `team_events` is capped per team (2000 rows, 30 days). SQLite team storage moves to schema v2 with a one-time migration that compacts existing data; `SqliteTeamStore.vacuum()` returns the freed space when called explicitly. Failed team writes are retried instead of dropped

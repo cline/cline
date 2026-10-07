@@ -121,9 +121,7 @@ git diff | cline "explain these changes" | cline "write a commit message"
 
 ### Restrict command execution
 
-```bash
-export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *", "sudo *"]}'
-```
+The CLI has no allow or deny list for shell commands. To block commands, use a `PreToolUse` hook that cancels `run_commands` calls you don't allow, like the [.clineignore hook](/customization/clineignore#enforcing-clineignore-with-a-hook).
 
 ### Include images in tasks
 

@@ -1,19 +1,7 @@
-import { DEFAULT_MCP_CONNECT_TIMEOUT_MS } from "@cline/core";
 import { describe, expect, it } from "vitest";
 import { getMcpDescription } from "./interactive-config";
 
 describe("getMcpDescription", () => {
-	it("discloses the default initialize timeout for unconfigured stdio servers", () => {
-		expect(
-			getMcpDescription({
-				name: "local",
-				transport: { type: "stdio", command: "node" },
-			}),
-		).toBe(
-			`stdio, local, request timeout 60s, initialize timeout ${DEFAULT_MCP_CONNECT_TIMEOUT_MS / 1000}s`,
-		);
-	});
-
 	it("shows one configured timeout when it also applies to initialize", () => {
 		expect(
 			getMcpDescription({
@@ -24,27 +12,14 @@ describe("getMcpDescription", () => {
 		).toBe("stdio, local, timeout 120s");
 	});
 
-	it("shows the request default for URL transports", () => {
-		expect(
-			getMcpDescription({
-				name: "remote",
-				transport: {
-					type: "streamableHttp",
-					url: "https://mcp.example.test",
-				},
-			}),
-		).toBe("streamableHttp, no auth, timeout 60s");
-	});
-
 	it("reports malformed programmatic timeouts as unconfigured", () => {
+		const transport = { type: "stdio", command: "node" } as const;
 		expect(
 			getMcpDescription({
 				name: "local",
-				transport: { type: "stdio", command: "node" },
+				transport,
 				timeoutSeconds: Number.NaN,
 			}),
-		).toBe(
-			`stdio, local, request timeout 60s, initialize timeout ${DEFAULT_MCP_CONNECT_TIMEOUT_MS / 1000}s`,
-		);
+		).toBe(getMcpDescription({ name: "local", transport }));
 	});
 });

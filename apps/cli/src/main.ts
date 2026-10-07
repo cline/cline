@@ -612,6 +612,11 @@ export async function runCli(): Promise<void> {
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
 			const hubCmd = await createHubRuntimeCommand();
+			if (cmd.args.length === 0) {
+				hubCmd.outputHelp();
+				ctx.exitCode = 0;
+				return;
+			}
 			await hubCmd.parseAsync(cmd.args, { from: "user" });
 		});
 

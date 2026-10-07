@@ -237,29 +237,19 @@ cline kanban
 
 | Variable | Description |
 |----------|-------------|
-| `CLINE_DATA_DIR` | Custom configuration directory (replaces `~/.cline/data/`) |
-| `CLINE_HUB_ADDRESS` | Override hub address (default: `127.0.0.1:25463`) |
+| `CLINE_DIR` | Custom configuration directory (replaces `~/.cline/`), like `--config` |
+| `CLINE_DATA_DIR` | Custom data directory (replaces `~/.cline/data/`) |
+| `CLINE_HUB_PORT` | Port of the local hub (default: `25463`) |
+| `CLINE_HUB_ADDRESS` | Hub address for `cline schedule` commands, like their `--address` option |
 | `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_SANDBOX` | Enable sandbox mode |
 | `CLINE_HOOKS_DIR` | Additional hooks directory |
+| `CLINE_LOG_PATH` | CLI log file (default: `~/.cline/data/logs/cline.log`). `cline doctor log` opens it |
 | `CLINE_BUILD_ENV` | Set to `development` for debug features |
 | `CLINE_DEBUG_PORT_BASE` | Base port for Node.js inspector |
-| `CLINE_COMMAND_PERMISSIONS` | JSON policy restricting shell commands (see below) |
 
-### CLINE_COMMAND_PERMISSIONS
-
-Restrict which shell commands the agent can execute:
-
-```bash
-export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *", "sudo *"]}'
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `allow` | `string[]` | Glob patterns for allowed commands. If set, only matching commands are permitted. |
-| `deny` | `string[]` | Glob patterns for denied commands. Deny rules always take precedence. |
-| `allowRedirects` | `boolean` | Whether to allow shell redirects (`>`, `>>`, `<`). Default: `false`. |
+The CLI has no allow or deny list for shell commands. To block commands, use a `PreToolUse` hook that cancels `run_commands` calls you don't allow. [.clineignore](/customization/clineignore#enforcing-clineignore-with-a-hook) shows a hook that blocks tool calls this way.
 
 ## JSON Output Format
 
@@ -286,12 +276,19 @@ When using `--json`, each message is a JSON object on its own line:
   data/
     settings/
       providers.json             # API keys and provider config
-      rules/                     # Global rules
-      skills/                    # Global skills
+      global-settings.json       # Global settings
+      cline_mcp_settings.json    # MCP server config (override with CLINE_MCP_SETTINGS_PATH)
     teams/                       # Team state
-    sessions/                    # Session database (SQLite)
+    sessions/                    # One folder of messages per session
+    db/
+      sessions.db                # Session index (SQLite)
     logs/
+      cline.log                  # CLI log (open with `cline doctor log`)
       hub-daemon.log             # Hub logs
+  rules/                         # Global rules
+  skills/                        # Global skills
+  hooks/                         # Global hooks
+  agents/                        # Global agent definitions
   plugins/                       # Global plugins
     _installed/                  # Managed by `cline plugin install`
 
@@ -299,7 +296,8 @@ When using `--json`, each message is a JSON object on its own line:
   rules/                         # Project rules
   skills/                        # Project skills
   hooks/                         # Lifecycle hooks
+  agents/                        # Project agent definitions
   plugins/                       # Project plugins
-  mcp.json                       # MCP server config
-  agents.yaml                    # Agent definitions
 ```
+
+[Config](/getting-started/config#configuration-directory-layout) lists every location Cline reads.

@@ -321,6 +321,68 @@ function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 }
 
 describe("sdk-gateway", () => {
+	it.each([
+		["unknown", "unknown"],
+		["other", "unknown"],
+		["unexpected", "unknown"],
+		["aborted", "unknown"],
+		[undefined, "unknown"],
+		["stop", "stop"],
+		["length", "max-tokens"],
+		["tool-calls", "tool-calls"],
+		["content-filter", "content-filter"],
+		["error", "error"],
+	])("preserves finish reason %s as %s", async (finishReason, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Partial" },
+				{ type: "finish", finishReason },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
+	});
+
+	it.each([
+		["stop", "stop"],
+		["unknown", "unknown"],
+		["length", "max-tokens"],
+		["content-filter", "content-filter"],
+		["error", "error"],
+	])("preserves %s as %s when a tool was streamed", async (finishReason, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "echo-1",
+					toolName: "echo",
+					input: {},
+				},
+				{ type: "finish", finishReason },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
+	});
+
 	beforeEach(() => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
@@ -3444,6 +3506,7 @@ describe("sdk-gateway", () => {
 			fullStream: makeStreamParts([
 				{
 					type: "finish",
+					finishReason: "stop",
 					usage: {
 						prompt_tokens: 9125,
 						completion_tokens: 96,

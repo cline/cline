@@ -25,21 +25,21 @@ The Cline CLI uses standard HTTP proxy environment variables. Configure these be
 ```cmd
 set https_proxy=http://proxy.company.com:8080
 set http_proxy=http://proxy.company.com:8080
-cline start
+cline
 ```
 
 **Windows (PowerShell)**
 ```powershell
 $env:https_proxy="http://proxy.company.com:8080"
 $env:http_proxy="http://proxy.company.com:8080"
-cline start
+cline
 ```
 
 **macOS/Linux**
 ```bash
 export https_proxy=http://proxy.company.com:8080
 export http_proxy=http://proxy.company.com:8080
-cline start
+cline
 ```
 
 ### Proxy with Authentication
@@ -76,13 +76,13 @@ If your proxy uses a custom CA certificate:
 **Windows**
 ```cmd
 set NODE_EXTRA_CA_CERTS=C:\path\to\ca-certificate.crt
-cline start
+cline
 ```
 
 **macOS/Linux**
 ```bash
 export NODE_EXTRA_CA_CERTS=/path/to/ca-certificate.pem
-cline start
+cline
 ```
 
 ### Permanent Configuration
@@ -202,8 +202,14 @@ curl.exe -vv https://api.anthropic.com
 
 Use `--cacert $NODE_EXTRA_CA_CERTS` to specify a certificate if necessary.
 
-Next, check ~/.cline/cline-core-service.log (CLI, JetBrains) for log messages
-confirming your proxy configuration and any network-related errors.
+Next, check the logs for messages confirming your proxy configuration and any
+network-related errors:
+
+- **CLI**: `~/.cline/data/logs/cline.log`, or the file `CLINE_LOG_PATH` names.
+  `cline doctor log` opens it. If the hub is involved, also check
+  `~/.cline/data/logs/hub-daemon.log`.
+- **JetBrains IDEs**: `~/.cline/cline-core-service.log`. Cline's process for
+  every open project writes to this one file.
 
 ## Common Proxy Patterns
 

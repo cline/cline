@@ -286,7 +286,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline schedule <command>` - Create and manage scheduled runs
 - `cline doctor` - Inspect local CLI health and stale processes
 - `cline doctor fix` - Kill stale local RPC listeners and old CLI processes
-- `cline doctor log` - Open the CLI runtime log file
+- `cline doctor log` - Open the CLI runtime log file (`CLINE_LOG_PATH` when set)
 - `cline hook` - Handle a hook payload from stdin
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
