@@ -2615,15 +2615,19 @@ export class AgentRuntime {
 			}
 		}
 
-		const message = createMessage("tool", [
-			{
-				type: "tool-result",
-				toolCallId: prepared.toolCall.toolCallId,
-				toolName: prepared.toolCall.toolName,
-				output: result.output,
-				isError: result.isError,
-			},
-		]);
+		const message = createMessage(
+			"tool",
+			[
+				{
+					type: "tool-result",
+					toolCallId: prepared.toolCall.toolCallId,
+					toolName: prepared.toolCall.toolName,
+					output: result.output,
+					isError: result.isError,
+				},
+			],
+			result.metadata,
+		);
 
 		await this.emit({
 			type: "tool-finished",
