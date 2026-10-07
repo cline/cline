@@ -1086,6 +1086,25 @@ jobs:
           CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-${{ matrix.target }}
         run: bun test scripts/desktop-startup.test.ts
 
+      # Run the SSH remote helper this runner's arch ships the way the desktop
+      # does over SSH: start a Hub on a dedicated discovery record, then stop
+      # it. Desktop 0.0.38-0.0.44 shipped UPX-packed helpers that passed every
+      # other check but crashed here with "Invalid character: '\0'".
+      - name: Smoke-test the bundled SSH remote helper
+        working-directory: apps/examples/desktop-app
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          HELPER="$PWD/src-tauri/bin/remote-helpers/cline-remote-helper-${TARGET}"
+          WORK="$(mktemp -d)"
+          OUTPUT=$(HOME="$WORK" timeout 60 "$HELPER" --remote-hub-ensure --cwd "$WORK" --discovery-path "$WORK/hub.json")
+          printf '%s\n' "$OUTPUT" | grep -q '"url":"ws://127.0.0.1:' || {
+            echo "Remote helper did not report a Hub URL: $OUTPUT"
+            exit 1
+          }
+          HOME="$WORK" timeout 60 "$HELPER" --remote-hub-stop --discovery-path "$WORK/hub.json"
+          echo "Remote helper started and stopped an isolated Hub."
+
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
         env:
