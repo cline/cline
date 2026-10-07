@@ -16,24 +16,21 @@ import { fileURLToPath } from "node:url";
 
 let compiledBinaryDir: string | undefined;
 let compiledBinary: string | undefined;
+let compiledCli: string | undefined;
 
-function resolveSidecarBinary(): string {
-	if (process.env.CLINE_TEST_SIDECAR_BIN) {
-		return resolve(process.env.CLINE_TEST_SIDECAR_BIN);
-	}
-	if (compiledBinary) {
-		return compiledBinary;
-	}
-	compiledBinaryDir = mkdtempSync(join(tmpdir(), "cline-desktop-startup-bin-"));
+function compile(name: string, entrypoint: string): string {
+	compiledBinaryDir ??= mkdtempSync(
+		join(tmpdir(), "cline-desktop-startup-bin-"),
+	);
 	const binary = join(
 		compiledBinaryDir,
-		process.platform === "win32" ? "sidecar.exe" : "sidecar",
+		process.platform === "win32" ? `${name}.exe` : name,
 	);
 	const build = spawnSync(
 		process.execPath,
 		[
 			"build",
-			fileURLToPath(new URL("../sidecar/index.ts", import.meta.url)),
+			fileURLToPath(new URL(entrypoint, import.meta.url)),
 			"--compile",
 			"--no-compile-autoload-dotenv",
 			"--no-compile-autoload-bunfig",
@@ -41,11 +38,31 @@ function resolveSidecarBinary(): string {
 			"--outfile",
 			binary,
 		],
-		{ cwd: compiledBinaryDir, encoding: "utf8", timeout: 60_000 },
+		{ cwd: compiledBinaryDir, encoding: "utf8", timeout: 120_000 },
 	);
 	expect(build.status, build.stderr || String(build.error)).toBe(0);
-	compiledBinary = binary;
 	return binary;
+}
+
+function resolveSidecarBinary(): string {
+	if (process.env.CLINE_TEST_SIDECAR_BIN) {
+		return resolve(process.env.CLINE_TEST_SIDECAR_BIN);
+	}
+	compiledBinary ??= compile("sidecar", "../sidecar/index.ts");
+	return compiledBinary;
+}
+
+/**
+ * The CLI that hosts the Hub daemon. Compiled from the same sources as the
+ * sidecar above so both carry the same SDK build id — the mixed-build-identity
+ * case this test exists to catch.
+ */
+function resolveCliBinary(): string {
+	if (process.env.CLINE_TEST_CLI_BIN) {
+		return resolve(process.env.CLINE_TEST_CLI_BIN);
+	}
+	compiledCli ??= compile("cline", "../../../cli/src/index.ts");
+	return compiledCli;
 }
 
 afterAll(() => {
@@ -76,6 +93,7 @@ async function runStartupScenario(
 	let hubPid: number | undefined;
 	try {
 		const binary = resolveSidecarBinary();
+		const cli = resolveCliBinary();
 
 		const env = Object.fromEntries(
 			Object.entries(process.env).filter(
@@ -88,14 +106,26 @@ async function runStartupScenario(
 			CLINE_DIR: root,
 			CLINE_DATA_DIR: join(root, "data"),
 			CLINE_HUB_DISCOVERY_PATH: discoveryPath,
+			// The desktop app hosts no Hub daemon of its own; the CLI does.
+			CLINE_HUB_LAUNCHER_BINARY: cli,
 			...extraEnv,
 		});
-		// Bootstrap on an OS-assigned port using the same executable. Pin the
-		// desktop to that port so this test cannot touch a developer's real Hub,
-		// even if a regression makes it reject its own discovery record.
+		// Bootstrap on an OS-assigned port using the CLI that will host the Hub.
+		// Pin the desktop to that port so this test cannot touch a developer's
+		// real Hub, even if a regression makes it reject its own discovery record.
 		const bootstrap = spawnSync(
-			binary,
-			["--remote-hub-ensure", "--discovery-path", discoveryPath, "--cwd", root],
+			cli,
+			[
+				"hub",
+				"--cwd",
+				root,
+				"--port",
+				"0",
+				"ensure",
+				"--discovery-path",
+				discoveryPath,
+				"--allow-port-fallback",
+			],
 			{ cwd: root, env, encoding: "utf8", timeout: 20_000 },
 		);
 		expect(bootstrap.status, bootstrap.stderr || String(bootstrap.error)).toBe(

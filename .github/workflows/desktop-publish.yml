@@ -498,6 +498,7 @@ jobs:
         working-directory: apps/examples/desktop-app
         env:
           CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-universal-apple-darwin
+          CLINE_TEST_CLI_BIN: src-tauri/bin/cline-universal-apple-darwin
         run: bun test scripts/desktop-startup.test.ts
 
       - name: Collect artifacts
@@ -632,7 +633,7 @@ jobs:
       # with the same runtimes from npm (@oven/bun-<target>, byte-identical to
       # the zip payload) and the build never enters the broken path. The macOS
       # job does not need this; the extractor works there.
-      - name: Seed Bun cache with Linux remote-helper runtimes
+      - name: Seed Bun cache with Linux remote-CLI runtimes
         shell: bash
         run: |
           BUN_VERSION="$(bun --version)"
@@ -832,6 +833,7 @@ jobs:
         working-directory: apps/examples/desktop-app
         env:
           CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe
+          CLINE_TEST_CLI_BIN: src-tauri/bin/cline-x86_64-pc-windows-msvc.exe
         run: bun test scripts/desktop-startup.test.ts
 
       - name: Collect artifacts
@@ -1096,6 +1098,7 @@ jobs:
         working-directory: apps/examples/desktop-app
         env:
           CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-${{ matrix.target }}
+          CLINE_TEST_CLI_BIN: src-tauri/bin/cline-${{ matrix.target }}
         run: bun test scripts/desktop-startup.test.ts
 
       - name: Collect artifacts

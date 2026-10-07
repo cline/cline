@@ -152,24 +152,24 @@ The service stores host metadata at
 `~/.cline/data/settings/remote-environments.json` with mode `0600`. It stores an
 identity-file path, never private-key contents. On first connect it uploads a
 content-addressed, branch-matched, self-contained Hub helper under
-`~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
-random local loopback port. Linux x64 and arm64 helpers are bundled by
-`bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
-supported. A macOS desktop reaches macOS SSH hosts with its own signed
-universal sidecar, which runs the same helper entrypoint; Windows and Linux
-desktops need a locally built darwin helper passed through
-`CLINE_REMOTE_HELPER_BINARY`. The helper includes its own runtime and is UPX-compressed at
-build time (about 27 MB instead of 115 MB per helper; install `upx` locally to
-match the packaged size). It is copied once per matching desktop build and cached, with no
-`apt`, `npm`, root access,
-global CLI install, or public Hub port. Disconnecting stops the desktop-owned
-remote Hub but leaves the helper cached for a faster reconnect. The helper
-imports the remote login-shell `PATH`, so user-installed Git, GitHub CLI, and
-MCP executables remain visible.
+`~/.cline/remote/`, starts the Hub there with `cline hub ensure` bound to remote
+loopback, and forwards it to a random local loopback port. Linux x64 and arm64
+CLIs are bundled by `bun run build:sidecar:bin`; 32-bit Raspberry Pi operating
+systems are not supported. A macOS desktop reaches macOS SSH hosts with the
+signed universal CLI it already ships; Windows and Linux desktops need a locally
+built darwin CLI passed through `CLINE_REMOTE_HELPER_BINARY`. The CLI includes
+its own runtime and is UPX-compressed at build time (about 27 MB instead of
+115 MB each; install `upx` locally to match the packaged size). It is copied once
+per matching desktop build and cached, with no `apt`, `npm`, root access, global
+CLI install, or public Hub port. Disconnecting stops the desktop-owned remote Hub
+(`cline hub stop --discovery-path ...`) but leaves the binary cached for a faster
+reconnect. `cline hub ensure --login-shell-path` imports the remote login-shell
+`PATH`, so user-installed Git, GitHub CLI, and MCP executables remain visible.
 
 Each service instance uses its own discovery record, so an existing Cline CLI/Hub on the
 same account is neither replaced nor stopped. Both Hub processes can coexist
-while the desktop is connected; this isolation keeps the remote helper separate from the default CLI Hub.
+while the desktop is connected; this isolation keeps the desktop-owned remote Hub
+separate from the default CLI Hub.
 
 The desktop currently leaves file attachments and opening a remote file in a local
 editor disabled. Text, images, file mentions/search, Git branch operations,
@@ -237,8 +237,8 @@ sudo dnf install ./Cline_<version>_aarch64.rpm   # Fedora / RHEL (arm64)
 ```
 
 The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
-sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
-`/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
+sidecar is `/usr/bin/code-sidecar`, the Cline CLI that hosts the Hub is
+`/usr/bin/cline`, and the bundled SSH remote CLIs live in `/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
 GNOME with the AppIndicator extension); without one the app still runs but the
 tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
 Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
@@ -321,7 +321,8 @@ Desktop transport envelope:
 ## Key Files
 
 - [`src-tauri/src/main.rs`](./src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
-- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar and Hub-daemon entry dispatch
+- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar (desktop backend)
+- [`sidecar/hub-launcher.ts`](./sidecar/hub-launcher.ts) - locates the bundled Cline CLI that hosts the Hub daemon
 - [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - shared-Hub chat session adapter
 - [`webview/lib/desktop-client.ts`](./webview/lib/desktop-client.ts) - typed desktop websocket client
 - [`webview/hooks/use-chat-session.ts`](./webview/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions

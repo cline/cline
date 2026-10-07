@@ -14,6 +14,7 @@ sidecar does not own a private agent runtime Hub.
 ```
 sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
+├── hub-launcher.ts       # Finds the bundled Cline CLI that hosts the Hub daemon
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
@@ -82,9 +83,14 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
-the desktop start the same detached Hub when no CLI process has started it yet.
-Startup discovery and locking ensure concurrent clients converge on one Hub.
+The sidecar hosts no Hub daemon of its own. It points Core at the Cline CLI
+bundled with the app (`sidecar/hub-launcher.ts` sets
+`CLINE_HUB_LAUNCHER_BINARY`), and Core spawns the detached Hub from that binary
+when no other client has started one yet. The CLI is self-contained, so no Bun
+or Node runtime is required on the user's machine. It must be built from the
+same checkout as the app: the Hub build id fingerprints the SDK sources, so a
+daemon from a different build would be treated as a foreign Hub. Startup
+discovery and locking ensure concurrent clients converge on one Hub.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards

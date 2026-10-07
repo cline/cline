@@ -118,7 +118,7 @@ or changed keys are rejected before inspection, upload, or execution.
 import { ClineCore, RemoteEnvironmentService } from "@cline/core";
 
 const environments = new RemoteEnvironmentService({
-  helperBinaryDirectory: "/opt/my-client/remote-helpers",
+  helperBinaryDirectory: "/opt/my-client/remote-clis",
   onStatusChange: (status) => console.log(status),
 });
 const profile = await environments.upsert({ name: "Build host", host: "builder" });
@@ -159,15 +159,18 @@ configuration variables are `CLINE_REMOTE_HELPER_BINARY`,
 `CLINE_REMOTE_HELPER_DIRECTORY`, `CLINE_SSH_PATH`, and
 `CLINE_SSH_KNOWN_HOSTS_FILE`.
 
-Clients package a matching self-contained helper using the
-`@cline/core/remote/helper-entry` executable entrypoint, compiled with Bun for the remote OS and
-architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
-filename (`cline-remote-helper-<target-triple>`). Linux and macOS on x64/arm64
-are supported. Helpers must include the same SDK build as the client; missing
-helpers produce an explicit error, without installing a runtime from the network.
-The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
-and the core detached-daemon sentinel. Agent tools and persistence run remotely;
-the host only manages SSH and forwards the authenticated hub connection.
+Clients package a matching self-contained **Cline CLI** binary for the remote OS
+and architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
+filename (`cline-<target-triple>`). Linux and macOS on x64/arm64 are supported.
+The bundled CLI must be built from the same SDK checkout as the client, because
+the Hub build id fingerprints the SDK sources; a missing binary produces an
+explicit error, without installing a runtime from the network.
+
+The service starts the remote Hub with `cline hub ensure` and stops it with
+`cline hub stop --discovery-path <path>`, so no bespoke remote protocol is
+involved — the same command a user could run over SSH by hand. Agent tools and
+persistence run remotely; the host only manages SSH and forwards the
+authenticated hub connection.
 
 ### Provider authentication metadata for host UIs
 
