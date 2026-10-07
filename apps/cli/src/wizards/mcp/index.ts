@@ -1,4 +1,5 @@
 import * as p from "@clack/prompts";
+import { parseMcpHeaders } from "@cline/core";
 import { authorizeMcpServerOAuthWithBrowser as authorizeOAuth } from "./oauth";
 import {
 	addServer,
@@ -58,6 +59,7 @@ export interface McpAddDefaults {
 	type?: McpTransport["type"];
 	command?: string;
 	url?: string;
+	headers?: Record<string, string>;
 }
 
 export interface RunMcpWizardOptions {
@@ -157,9 +159,63 @@ async function collectStdioTransport(
 	};
 }
 
+function validateHeader(value: string | undefined): string | undefined {
+	const header = value?.trim();
+	if (!header) return undefined;
+	try {
+		parseMcpHeaders([header]);
+		return undefined;
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+}
+
+function warnIfPlaceholder(header: string): void {
+	for (const warning of parseMcpHeaders([header]).warnings) {
+		p.log.warn(warning);
+	}
+}
+
+/**
+ * Ask for one header per prompt, parsed exactly as `cline mcp add --header`
+ * parses each flag. Prefilled headers come first, and clearing one drops only
+ * that header. Returns null when the user cancels.
+ */
+async function collectHeaders(
+	defaults: Record<string, string> | undefined,
+): Promise<Record<string, string> | undefined | null> {
+	const prefilled = Object.entries(defaults ?? {}).map(
+		([name, value]) => `${name}: ${value}`,
+	);
+	const entered: string[] = [];
+	for (let index = 0; ; index++) {
+		const initialValue = prefilled[index];
+		// Warn before the prompt, while the user can still edit the value.
+		if (initialValue) warnIfPlaceholder(initialValue);
+		const input = await p.text({
+			message: entered.length === 0 ? "Header (Name: value)" : "Another header",
+			placeholder: initialValue
+				? "leave empty to drop this header"
+				: "leave empty to finish",
+			initialValue,
+			validate: validateHeader,
+		});
+		if (isCancel(input)) return null;
+		const header = (input as string).trim();
+		if (!header) {
+			if (index < prefilled.length) continue;
+			break;
+		}
+		if (header !== initialValue) warnIfPlaceholder(header);
+		entered.push(header);
+	}
+	return parseMcpHeaders(entered).headers;
+}
+
 async function collectUrlTransport(
 	type: "sse" | "streamableHttp",
 	defaultUrl?: string,
+	defaultHeaders?: Record<string, string>,
 ): Promise<UrlServerConfig | null> {
 	const url = await p.text({
 		message: "Server URL",
@@ -177,8 +233,9 @@ async function collectUrlTransport(
 	});
 	if (isCancel(url)) return null;
 
-	const authMode = await p.select({
+	const authMode = await p.select<RemoteAuthMode>({
 		message: "Authentication",
+		initialValue: defaultHeaders ? "headers" : undefined,
 		options: [
 			{
 				value: "oauth",
@@ -227,25 +284,8 @@ async function collectUrlTransport(
 		};
 	}
 
-	const headersInput = await p.text({
-		message: "Headers (KEY:VALUE, comma-separated)",
-		placeholder: "leave empty for none",
-	});
-	if (isCancel(headersInput)) return null;
-
-	let headers: Record<string, string> | undefined;
-	const headersStr = (headersInput as string).trim();
-	if (headersStr) {
-		headers = {};
-		for (const pair of headersStr.split(",")) {
-			const colonIdx = pair.indexOf(":");
-			if (colonIdx > 0) {
-				headers[pair.slice(0, colonIdx).trim()] = pair
-					.slice(colonIdx + 1)
-					.trim();
-			}
-		}
-	}
+	const headers = await collectHeaders(defaultHeaders);
+	if (headers === null) return null;
 
 	return {
 		transport: { type, url: (url as string).trim(), headers },
@@ -301,6 +341,7 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 		const config = await collectUrlTransport(
 			type as "sse" | "streamableHttp",
 			defaults?.url,
+			defaults?.headers,
 		);
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
