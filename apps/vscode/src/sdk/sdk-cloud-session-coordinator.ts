@@ -121,6 +121,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | und
 }
 const SCOPE_DRAIN_TIMEOUT_MS = 15_000
 const ABANDONED_STARTS_RECHECK_MS = 10_000
+const ABANDONED_START_INSPECT_TIMEOUT_MS = 10_000
 
 export interface CloudTaskInput {
 	prompt: string
@@ -354,10 +355,12 @@ export class SdkCloudSessionCoordinator {
 
 	/**
 	 * One abandoned start. It is settled without a DELETE when this account no
-	 * longer lists it, or when its sandbox already holds a conversation: the host
-	 * can exit after the sandbox accepted the first turn but before recording
-	 * that, and such a sandbox is the user's task, not an orphan. Anything the
-	 * control plane did not confirm stays recorded for a later attempt.
+	 * longer lists it, or when its sandbox has taken a turn: the host can exit
+	 * after the sandbox accepted the first turn but before recording that, and
+	 * such a sandbox is the user's task, not an orphan. The saved transcript is
+	 * empty until the first turn's iteration ends, so a running turn is told
+	 * apart by the Hub session's status. Anything the control plane did not
+	 * confirm stays recorded for a later attempt.
 	 */
 	private async recoverAbandonedStart(
 		sessionId: string,
@@ -368,21 +371,28 @@ export class SdkCloudSessionCoordinator {
 		const status = record.status?.toLowerCase()
 		const taskId = record.metadata.taskId?.trim()
 		if (status !== "provisioning" && status !== "pending" && status !== "failed" && taskId) {
-			let host: CloudSessionHost | undefined
-			try {
-				host = await CloudSessionHost.connect({
+			const tookTurn = async () => {
+				const host = await CloudSessionHost.connect({
 					outerSessionId: sessionId,
 					taskId,
 					socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
 					getAuthToken: this.options.getAuthToken,
 					telemetry: this.options.telemetry,
 				})
-				if ((await host.readMessages(sessionId)).length > 0) return "settled"
+				try {
+					return host.status !== "idle" || (await host.readMessages(sessionId)).length > 0
+				} finally {
+					// Detaching waits on the sandbox; recovery holds the account scope and must not.
+					void host.dispose("abandonedStartCheck").catch(() => undefined)
+				}
+			}
+			try {
+				const inspected = await withTimeout(tookTurn(), ABANDONED_START_INSPECT_TIMEOUT_MS)
+				if (inspected === undefined) return "unresolved"
+				if (inspected) return "settled"
 			} catch (error) {
 				Logger.warn(`[CloudSessions] Could not inspect abandoned cloud session ${sessionId}:`, error)
 				return "unresolved"
-			} finally {
-				await host?.dispose("abandonedStartCheck").catch(() => undefined)
 			}
 		}
 		if (!isCurrent()) return "unresolved"
@@ -1402,7 +1412,6 @@ export class SdkCloudSessionCoordinator {
 	async dispose(): Promise<void> {
 		this.disposed = true
 		this.cancelAbandonedStartsRecheck()
-		this.journal?.stop()
 		if (this.pollTimer) {
 			clearInterval(this.pollTimer)
 			this.pollTimer = undefined

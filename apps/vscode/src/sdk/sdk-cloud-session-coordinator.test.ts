@@ -217,14 +217,19 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		rmSync(pendingStartsDir, { recursive: true, force: true })
 	})
 
-	it("keeps an abandoned sandbox whose first turn reached it before its host exited", async () => {
+	it.each([
+		{ state: "has a saved conversation", status: "idle", messages: [{ role: "user", content: "test" }], kept: true },
+		{ state: "is still running its first turn", status: "running", messages: [], kept: true },
+		{ state: "never took a turn", status: "idle", messages: [], kept: false },
+	])("recovers an abandoned sandbox that $state", async ({ status, messages, kept }) => {
 		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
 		writeFileSync(
 			path.join(pendingStartsDir, `${EXITED_PID}-${randomUUID()}.json`),
 			JSON.stringify([{ sessionId: record.id, account: "user:" }]),
 		)
 		const host = {
-			readMessages: vi.fn(async () => [{ role: "user", content: "test" }]),
+			status,
+			readMessages: vi.fn(async () => messages),
 			dispose: vi.fn(async () => {}),
 		} as unknown as CloudSessionHost
 		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
@@ -235,7 +240,35 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 		await vi.waitFor(() => expect(readdirSync(pendingStartsDir)).toEqual([]))
 		expect(connect).toHaveBeenCalledWith(expect.objectContaining({ outerSessionId: record.id, taskId: "tsk-stale" }))
+		if (kept) expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		else expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
+	})
+
+	it("gives up on an abandoned sandbox that does not answer, without holding up an account switch", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		const journal = path.join(pendingStartsDir, `${EXITED_PID}-${randomUUID()}.json`)
+		writeFileSync(journal, JSON.stringify([{ sessionId: record.id, account: "user:" }]))
+		const silentHost = {
+			status: "idle",
+			readMessages: () => new Promise(() => {}),
+			dispose: () => new Promise(() => {}),
+		} as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(silentHost)
+		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir, getAccountScope: () => "user:" })
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "active" }])
+		const changeScope = vi.fn(async () => undefined)
+
+		await coordinator.listHistoryRecords()
+		const switching = coordinator.reset(changeScope)
+		await vi.advanceTimersByTimeAsync(10_000)
+		await switching
+
+		expect(changeScope).toHaveBeenCalledOnce()
 		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		expect(JSON.parse(readFileSync(journal, "utf8"))).toEqual([{ sessionId: record.id, account: "user:" }])
 		await coordinator.dispose()
 		rmSync(pendingStartsDir, { recursive: true, force: true })
 	})

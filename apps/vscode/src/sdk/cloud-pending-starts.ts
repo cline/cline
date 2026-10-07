@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { Logger } from "@/shared/services/Logger"
 
@@ -19,9 +19,6 @@ export interface AbandonedJournal {
 }
 
 const JOURNAL_FILE = /^(\d+)-([0-9a-f-]+)\.json$/
-const HEARTBEAT_MS = 20_000
-/** A journal not refreshed for this long belongs to a host that is gone, even if its pid is in use again. */
-export const JOURNAL_STALE_MS = 60_000
 
 function isProcessAlive(pid: number): boolean {
 	try {
@@ -39,19 +36,15 @@ function isProcessAlive(pid: number): boolean {
  *
  * Each extension-host lifetime writes its own file, `<pid>-<lifetime id>.json`,
  * so concurrent windows never overwrite each other's records and a later host
- * that is given the same pid never mistakes an old file for its own. The file
- * is refreshed while it has records, so a live pid on a stale file reads as a
- * pid reused by an unrelated process.
+ * that is given the same pid never mistakes an old file for its own. A file
+ * whose pid is alive is never taken: the owner may only be paused, and a pid
+ * reused by another process only delays recovery until that process exits.
  */
 export class PendingStartJournal {
 	private readonly fileName = `${process.pid}-${randomUUID()}.json`
 	private readonly records = new Map<string, PendingStartRecord>()
-	private heartbeat: NodeJS.Timeout | undefined
 
-	constructor(
-		private readonly dir: string,
-		private readonly now: () => number = Date.now,
-	) {}
+	constructor(private readonly dir: string) {}
 
 	add(record: PendingStartRecord): void {
 		this.records.set(record.sessionId, record)
@@ -62,16 +55,10 @@ export class PendingStartJournal {
 		if (this.records.delete(sessionId)) this.write()
 	}
 
-	/** Stops refreshing the file but keeps it, so the next extension host can recover what is left. */
-	stop(): void {
-		clearInterval(this.heartbeat)
-		this.heartbeat = undefined
-	}
-
 	/**
-	 * Journals whose host lifetime has ended: its process exited, it is an
-	 * earlier lifetime of this process's pid, or it stopped being refreshed.
-	 * `liveOwners` is set when a journal was skipped because its host still runs.
+	 * Journals whose host lifetime has ended: its process exited, or it is an
+	 * earlier lifetime of this process's pid. `liveOwners` is set when a journal
+	 * was skipped because its process is still running.
 	 */
 	abandoned(): { journals: AbandonedJournal[]; liveOwners: boolean } {
 		let names: string[]
@@ -87,7 +74,7 @@ export class PendingStartJournal {
 			if (!match || name === this.fileName) continue
 			const file = path.join(this.dir, name)
 			const pid = Number(match[1])
-			if (pid !== process.pid && isProcessAlive(pid) && !this.isStale(file)) {
+			if (pid !== process.pid && isProcessAlive(pid)) {
 				liveOwners = true
 				continue
 			}
@@ -111,33 +98,15 @@ export class PendingStartJournal {
 		return { journals, liveOwners }
 	}
 
-	private isStale(file: string): boolean {
-		try {
-			return this.now() - statSync(file).mtimeMs > JOURNAL_STALE_MS
-		} catch {
-			return false
-		}
-	}
-
 	private write(): void {
 		const file = path.join(this.dir, this.fileName)
 		try {
 			if (this.records.size === 0) {
-				this.stop()
 				rmSync(file, { force: true })
 				return
 			}
 			mkdirSync(this.dir, { recursive: true })
 			writeFileSync(file, JSON.stringify([...this.records.values()]))
-			if (!this.heartbeat) {
-				this.heartbeat = setInterval(() => {
-					const time = new Date(this.now())
-					try {
-						utimesSync(file, time, time)
-					} catch {}
-				}, HEARTBEAT_MS)
-				this.heartbeat.unref?.()
-			}
 		} catch (error) {
 			Logger.warn("[CloudSessions] Failed to record pending cloud starts:", error)
 		}
