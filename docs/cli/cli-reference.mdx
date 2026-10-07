@@ -334,9 +334,9 @@ cline kanban
 
 The CLI has no allow or deny list for shell commands. To block commands, use a `PreToolUse` hook that cancels `run_commands` calls you don't allow. [.clineignore](/customization/clineignore#enforcing-clineignore-with-a-hook) shows a hook that blocks tool calls this way.
 
-## JSON Output Format
+## JSON Output for Agent Runs
 
-With `--json`, the CLI prints one JSON object per line. Every line has a `type` and a `ts` (an ISO 8601 timestamp):
+When you give Cline a task with `--json`, the CLI prints one JSON object per line. Every line has a `type` and a `ts` (an ISO 8601 timestamp). Other commands print their own JSON shapes: for example, `cline history --json` prints one array of sessions, and `cline config <target> --json` prints that target's entries.
 
 ```json
 {"ts":"2026-10-07T04:49:43.041Z","type":"agent_event","event":{"type":"done","reason":"completed","text":"Hello!","iterations":1}}
