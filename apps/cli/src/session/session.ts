@@ -1,6 +1,7 @@
 import type {
 	AgentConfig,
 	BasicLogger,
+	ExportSessionReplayBundleResult,
 	RuntimeCapabilities,
 	RuntimeHostMode,
 	SessionHistoryRecord,
@@ -8,6 +9,7 @@ import type {
 } from "@cline/core";
 import {
 	ClineCore,
+	exportSessionReplayBundle,
 	listSessionHistoryFromBackend,
 	resolveSessionBackend,
 } from "@cline/core";
@@ -170,6 +172,31 @@ export async function handleSessionHookEvent(
 		async (core) => {
 			await core.ingestHookEvent(payload);
 		},
+		{ forceLocalBackend: true },
+	);
+}
+
+export async function exportSessionReplay(input: {
+	sessionId: string;
+	bundleDir: string;
+	redact: boolean;
+	overwrite: boolean;
+	hostVersion?: string;
+}): Promise<ExportSessionReplayBundleResult> {
+	return await withCliCore(
+		async (core) =>
+			await exportSessionReplayBundle({
+				sessionId: input.sessionId,
+				outputDir: input.bundleDir,
+				source: {
+					getSession: core.get,
+					readMessages: core.readMessages,
+					readSessionCompactionState: core.readSessionCompactionState,
+				},
+				redact: input.redact,
+				overwrite: input.overwrite,
+				producer: { host: "cline-cli", hostVersion: input.hostVersion },
+			}),
 		{ forceLocalBackend: true },
 	);
 }
