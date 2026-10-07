@@ -12,13 +12,17 @@ When running through `ClineCore`, these built-ins are available:
 
 | Tool | Description |
 |------|-------------|
-| `bash` | Execute shell commands |
-| `editor` | View and edit files |
-| `read_files` | Batch read multiple files |
-| `apply_patch` | Apply unified diffs to files |
-| `search` | Ripgrep-powered codebase search |
-| `fetch_web` | HTTP requests with HTML-to-markdown conversion |
+| `read_files` | Read one or more files |
+| `search_codebase` | Search the workspace |
+| `run_commands` | Execute shell commands |
+| `fetch_web_content` | Fetch web content |
+| `apply_patch` | Apply patch/diff edits |
+| `editor` | Edit files |
+| `skills` | Invoke configured skills |
 | `ask_question` | Ask the user for input |
+| `submit_and_exit` | Submit a final answer and stop |
+
+A session offers `editor` or `apply_patch`, never both. By default, Act mode offers `apply_patch` to GPT and Codex models and to every model on the OpenAI (`openai-native`) provider, and `editor` to other models; Plan mode offers neither. SDK callers can replace these defaults with the `toolRoutingRules` session option.
 
 <Note>
 `Agent` from `@cline/agents` does not include built-ins by default. You provide tools explicitly.
@@ -26,16 +30,18 @@ When running through `ClineCore`, these built-ins are available:
 
 ## Tool Categories
 
-- **Codebase operations**: `editor`, `read_files`, `apply_patch`, `search`
-- **Execution**: `bash`
-- **External retrieval**: `fetch_web`
+- **Codebase operations**: `read_files`, `search_codebase`, `editor`, `apply_patch`
+- **Execution**: `run_commands`
+- **External retrieval**: `fetch_web_content`
+- **Skills**: `skills`
 - **Human-in-the-loop controls**: `ask_question`
+- **Completion**: `submit_and_exit`
 
 ## Approval and Policy Controls
 
 Cline can run tools with approval or auto-approval, depending on settings/policies. Typical patterns:
 
-- Require approval for risky tools (for example `bash`, write/edit operations)
+- Require approval for risky tools (for example `run_commands`, write/edit operations)
 - Auto-approve low-risk tools (for example read/search operations)
 - Disable specific tools entirely when needed
 
@@ -68,7 +74,7 @@ See:
 
 ## Legacy Tool Names vs Current Runtime Tools
 
-Some older docs/examples reference XML-style names like `read_file`, `replace_in_file`, or `execute_command`. Current SDK/ClineCore runtime uses the built-in tool names listed above (`read_files`, `apply_patch`, `bash`, etc.).
+Some older docs/examples reference XML-style names like `read_file`, `replace_in_file`, `execute_command`, or `use_skill`. Current SDK/ClineCore runtime uses the built-in tool names listed above (`read_files`, `apply_patch`, `run_commands`, `skills`, etc.).
 
 ## Related
 

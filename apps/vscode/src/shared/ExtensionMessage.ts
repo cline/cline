@@ -257,7 +257,6 @@ export type ClineSay =
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
-	| "task_progress"
 	| "hook_status"
 	| "hook_output_stream"
 	| "subagent"

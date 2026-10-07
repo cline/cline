@@ -795,6 +795,8 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-4o",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
+		// Self-hosted endpoints (vLLM, llama.cpp, LM Studio) run without a key.
+		metadata: { apiKeyOptional: true },
 	},
 	cline,
 	clinePass,
@@ -879,6 +881,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["LITELLM_API_KEY"],
 		defaults: { baseUrl: "http://localhost:4000/v1" },
+		metadata: { apiKeyOptional: true },
 	},
 	{
 		id: "vercel-ai-gateway",
@@ -1080,6 +1083,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsFactory: () => ({}),
 		defaults: { baseUrl: "http://localhost:11434" },
 		modelsSourceUrl: "http://localhost:11434/api/tags",
+		metadata: { apiKeyOptional: true },
 	},
 	{
 		id: "lmstudio",
@@ -1091,6 +1095,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsProviderId: "lmstudio",
 		defaults: { baseUrl: "http://localhost:1234/v1" },
 		modelsSourceUrl: "http://localhost:1234/v1/models",
+		metadata: { apiKeyOptional: true },
 	},
 	{
 		id: "oca",
@@ -1260,7 +1265,8 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		],
 		modelsFactory: buildVertexModels,
 		configFields: VERTEX_CONFIG_FIELDS,
-		metadata: ANTHROPIC_ROUTING_METADATA,
+		// Application Default Credentials cover the no-key case.
+		metadata: { ...ANTHROPIC_ROUTING_METADATA, apiKeyOptional: true },
 	},
 	{
 		id: "bedrock",
@@ -1279,7 +1285,8 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		],
 		modelsProviderId: "bedrock",
 		configFields: BEDROCK_CONFIG_FIELDS,
-		metadata: BEDROCK_ROUTING_METADATA,
+		// The AWS profile / default credential chain covers the no-key case.
+		metadata: { ...BEDROCK_ROUTING_METADATA, apiKeyOptional: true },
 	},
 	{
 		id: "mistral",

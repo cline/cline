@@ -136,7 +136,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aiand",
-		defaultModelId: "qwen/qwen3.8-27b",
+		defaultModelId: "deepseek-ai/deepseek-v4.1-flash",
 		apiKeyEnv: ["AIAND_API_KEY"],
 		docsUrl: "https://docs.aiand.com/",
 		defaults: {
@@ -189,7 +189,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aki-io",
-		defaultModelId: "glm5.3-754b",
+		defaultModelId: "deepseek-v4.1-flash-552b",
 		apiKeyEnv: ["AKI_IO_API_KEY"],
 		docsUrl: "https://aki.io/docs/",
 		defaults: {
@@ -459,7 +459,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "blueclaw",
-		defaultModelId: "Qwen3.6-27B",
+		defaultModelId: "Qwen3.8-27B",
 		apiKeyEnv: ["BLUECLAW_API_KEY"],
 		docsUrl: "https://blueclaw.network",
 		defaults: {
@@ -583,7 +583,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "coralbricks",
-		defaultModelId: "deepseek-v4.1-flash-fast-fp4",
+		defaultModelId: "deepseek-v4.1-flash-fast",
 		apiKeyEnv: ["CORAL_API_KEY"],
 		docsUrl: "https://www.coralbricks.ai/docs",
 		defaults: {
@@ -625,7 +625,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "crossmodel",
-		defaultModelId: "anthropic/claude-sonnet-5-5",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["CROSSMODEL_API_KEY"],
 		docsUrl: "https://www.crossmodel.ai/docs",
 		defaults: {
@@ -786,6 +786,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://docs.empiriolabs.ai",
 		defaults: {
 			baseUrl: "https://api.empiriolabs.ai/v1",
+		},
+	},
+	{
+		id: "engy",
+		name: "engy",
+		description: "engy model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "engy",
+		defaultModelId: "deepseek-v4.1-flash",
+		apiKeyEnv: ["ENGY_API_KEY"],
+		docsUrl: "https://engy.ai/pricing",
+		defaults: {
+			baseUrl: "https://api.engy.ai/v1",
 		},
 	},
 	{
@@ -1218,7 +1232,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "apodex/apodex-1.1-mini:free",
+		defaultModelId: "mistralai/mistral-large-4-0",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1331,7 +1345,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway",
-		defaultModelId: "gpt-6.1-sol",
+		defaultModelId: "mistral-large-4",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1343,9 +1357,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "LLM Gateway",
 		description: "LLM Gateway model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
+		capabilities: ["tools", "prompt-cache", "reasoning"],
 		modelsProviderId: "llmgateway-providers",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "mistral/mistral-large-4",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1543,7 +1557,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "mistral",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "mistral",
-		defaultModelId: "zai-glm-5-3",
+		defaultModelId: "mistral-large-4",
 		apiKeyEnv: ["MISTRAL_API_KEY"],
 		docsUrl: "https://docs.mistral.ai/getting-started/models/",
 	},
@@ -1691,9 +1705,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "NanoGPT",
 		description: "NanoGPT model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "prompt-cache", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "unbiased/pareto-26.10-preview",
+		defaultModelId: "mistralai/mistral-large-4",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1735,7 +1749,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "neon",
-		defaultModelId: "claude-fable-5-1",
+		defaultModelId: "claude-opus-5-5",
 		apiKeyEnv: ["NEON_AI_GATEWAY_BASE_URL", "NEON_AI_GATEWAY_TOKEN"],
 		docsUrl: "https://neon.com/docs",
 		defaults: {
@@ -1874,7 +1888,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "fledge-alpha-free",
+		defaultModelId: "exo-free",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1916,7 +1930,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "apodex/apodex-1.1-mini:free",
+		defaultModelId: "google/gemini-nano-banana-2.1",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2111,9 +2125,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Requesty",
 		description: "Requesty model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
+		capabilities: ["tools", "prompt-cache", "reasoning"],
 		modelsProviderId: "requesty",
-		defaultModelId: "gpt-6.1-sol",
+		defaultModelId: "mistral-large-4",
 		apiKeyEnv: ["REQUESTY_API_KEY"],
 		docsUrl: "https://requesty.ai/solution/llm-routing/models",
 		defaults: {
@@ -2369,7 +2383,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "subconscious",
-		defaultModelId: "subconscious/glm-5.2",
+		defaultModelId: "subconscious/deepseek-v4.1-flash-marathon",
 		apiKeyEnv: ["SUBCONSCIOUS_API_KEY"],
 		docsUrl: "https://docs.subconscious.dev",
 		defaults: {
@@ -2481,7 +2495,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "the-grid-ai",
-		defaultModelId: "agent-max",
+		defaultModelId: "bytedance-pro-latest",
 		apiKeyEnv: ["THEGRID_API_KEY"],
 		docsUrl: "https://thegrid.ai/docs",
 		defaults: {
@@ -2659,7 +2673,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "inclusionai/ling-3.1-flash",
+		defaultModelId: "google/gemini-nano-banana-2.1",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",

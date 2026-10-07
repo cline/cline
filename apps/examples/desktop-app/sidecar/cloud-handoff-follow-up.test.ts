@@ -368,6 +368,46 @@ it.each([
 	expect(readCloudHandoffFollowUp("target")).toEqual(saved);
 });
 
+it("preserves A recovery while an edited B dispatches during A pending", async () => {
+	const saved = {
+		draftId: "draft",
+		sourceSessionId: "source",
+		command: "A",
+		userImages: ["a-image"],
+	};
+	saveCloudHandoffFollowUp("target", saved);
+	let releaseA!: () => void;
+	const gateA = new Promise<void>((resolve) => (releaseA = resolve));
+	const sendA = sendWithCloudHandoffFollowUp(
+		"target",
+		"A",
+		saved.userImages,
+		async (lifecycle) => {
+			await gateA;
+			lifecycle?.beforeDispatch?.();
+			throw new Error("A transport failure");
+		},
+		saved.draftId,
+	);
+	await Promise.resolve();
+	// B is an edited dispatch reusing the restored draft identity. It must not
+	// overwrite A's pending recovery, even though it is allowed to dispatch.
+	const sendB = sendWithCloudHandoffFollowUp(
+		"target",
+		"B",
+		["b-image"],
+		async () => ({ ok: true as const }),
+		saved.draftId,
+	);
+	await expect(sendB).resolves.toMatchObject({ ok: true });
+	releaseA();
+	await expect(sendA).rejects.toThrow("A transport failure");
+	expect(readCloudHandoffFollowUp("target")).toEqual({
+		...saved,
+		unconfirmed: true,
+	});
+});
+
 it("leaves ordinary cloud sends without a recovery copy unchanged", async () => {
 	const send = vi.fn(async () => ({ ok: true as const }));
 	await expect(
