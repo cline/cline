@@ -118,10 +118,14 @@ describe("ClineError", () => {
 			const withStatus = (status: number, message = `Request failed with status code ${status}`) =>
 				new ClineError({ message, status }, "qwen3-coder", "openai-compatible")
 
-			it("classifies 401, 403 and 407 as Auth", () => {
-				for (const status of [401, 403, 407]) {
+			it("classifies 401 and 403 as Auth", () => {
+				for (const status of [401, 403]) {
 					ClineError.getErrorType(withStatus(status))!.should.equal(ClineErrorType.Auth)
 				}
+			})
+
+			it("leaves 407 on the generic row: the proxy rejected credentials, not the provider", () => {
+				;(ClineError.getErrorType(withStatus(407)) === undefined).should.be.true()
 			})
 
 			it("classifies 402 as Balance, not Auth", () => {
@@ -164,6 +168,18 @@ describe("ClineError", () => {
 
 			it("keeps message-based auth detection for status-less errors", () => {
 				ClineError.getErrorType(new ClineError("Invalid API key"))!.should.equal(ClineErrorType.Auth)
+			})
+
+			it("keeps message-based auth detection for statuses outside the dedicated sets", () => {
+				// Gemini answers an invalid key with HTTP 400, not 401; only the
+				// wording identifies it as a credential problem.
+				const err = new ClineError(
+					{ message: "API key not valid. Please pass a valid API key.", status: 400 },
+					"gemini-2.5-pro",
+					"gemini",
+				)
+
+				ClineError.getErrorType(err)!.should.equal(ClineErrorType.Auth)
 			})
 
 			it("classifies a serialized 404 payload parsed by the webview as NotFound", () => {

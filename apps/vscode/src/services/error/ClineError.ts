@@ -34,8 +34,10 @@ export const MODEL_NOT_FOUND_GUIDANCE =
 	"The model may be retired or unavailable on your account, or the model ID or base URL may be wrong. Check the model ID and base URL in API Configuration settings, or switch to a different model, then retry."
 
 // Status families with a dedicated UI. Everything else in 4xx stays on the
-// generic row, which shows the real status and message.
-const AUTH_STATUSES = new Set([401, 403, 407])
+// generic row, which shows the real status and message. 407 is deliberately
+// not Auth: it is the proxy rejecting credentials, not the provider, and the
+// sign-in card would point the user at the wrong account.
+const AUTH_STATUSES = new Set([401, 403])
 const PAYMENT_REQUIRED_STATUS = 402
 const NOT_FOUND_STATUSES = new Set([404, 405, 410])
 
@@ -251,7 +253,9 @@ export class ClineError extends Error {
 		// The HTTP status is the provider's own verdict and decides first. Only
 		// genuine credential rejections are Auth: labelling every 4xx that way
 		// sent users with a wrong model id or base URL (a 404) to the sign-in
-		// prompt instead of showing them the real answer.
+		// prompt instead of showing them the real answer. Statuses outside
+		// these sets fall through to the wording checks below on purpose:
+		// Gemini rejects a bad key with a 400, and only the message says so.
 		if (status !== undefined) {
 			if (AUTH_STATUSES.has(status)) {
 				return ClineErrorType.Auth
