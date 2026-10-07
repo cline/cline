@@ -289,8 +289,13 @@ export class SdkCloudSessionCoordinator {
 		})
 	}
 
+	/** After a confirmed deletion; a record left behind only makes a later host see a 404. */
 	private forgetPendingStart(sessionId: string): void {
-		this.journal?.remove(sessionId)
+		try {
+			this.journal?.remove(sessionId)
+		} catch (error) {
+			Logger.warn("[CloudSessions] Failed to update pending cloud starts:", error)
+		}
 	}
 
 	/**
@@ -1056,7 +1061,8 @@ export class SdkCloudSessionCoordinator {
 			if (isStale()) return sessionId
 			this.options.postStateToWebview().catch(() => {})
 			// From here the sandbox may hold the user's work, so recovery must never delete it.
-			this.forgetPendingStart(record.id)
+			// Throws if the record cannot be dropped; the start then fails and deletes the sandbox.
+			this.journal?.remove(record.id)
 			this.options.sessions.fireAndForgetSend(sdkHost, record.id, resolvedPrompt, input.images)
 			sent = true
 			Logger.log(`[CloudSessions] Cloud task started: ${record.id}`)

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import path from "node:path"
 import * as sdkCore from "@cline/core"
@@ -204,6 +204,38 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(options.onStartFailed).toHaveBeenCalled()
 		await coordinator.dispose()
 		rmSync(parent, { recursive: true, force: true })
+	})
+
+	it("does not send the first prompt when the sandbox's record cannot be dropped", async () => {
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const fireAndForgetSend = vi.fn()
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			pendingStartsDir,
+			getAccountScope: () => "user:",
+			sessions: {
+				startNewSession: vi.fn(async () => {
+					const [journal] = readdirSync(pendingStartsDir)
+					rmSync(path.join(pendingStartsDir, journal))
+					mkdirSync(path.join(pendingStartsDir, journal))
+					return { sdkHost: host, startResult: { sessionId: record.id } }
+				}),
+				fireAndForgetSend,
+				endActiveSessionIfHost: vi.fn(async () => undefined),
+			} as never,
+		})
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			return record
+		})
+
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBeUndefined()
+		expect(fireAndForgetSend).not.toHaveBeenCalled()
+		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
+		expect(options.onStartFailed).toHaveBeenCalled()
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
 	})
 
 	it("settles an abandoned sandbox only when the control plane confirms it, for the account that started it", async () => {

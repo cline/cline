@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { Logger } from "@/shared/services/Logger"
 
 /** A sandbox a cloud start created and has not yet sent the first prompt to. */
 export interface PendingStartRecord {
@@ -53,13 +52,9 @@ export class PendingStartJournal {
 		this.write()
 	}
 
+	/** Throws when the record cannot be dropped, so a start never sends its prompt while recovery could still delete it. */
 	remove(sessionId: string): void {
-		if (!this.records.delete(sessionId)) return
-		try {
-			this.write()
-		} catch (error) {
-			Logger.warn("[CloudSessions] Failed to update pending cloud starts:", error)
-		}
+		if (this.records.delete(sessionId)) this.write()
 	}
 
 	/**
