@@ -72,7 +72,9 @@ function ReplayIterationView(props: {
 		.map(
 			(call) => `${call.name} ${formatReplayDuration(call.durationMs ?? 0)}`,
 		);
-	const promptCount = entries.findIndex((entry) => entry.kind !== "user");
+	const promptCount = entries.findIndex(
+		(entry) => entry.kind !== "user" && entry.kind !== "user_submitted",
+	);
 	const notesAt = promptCount < 0 ? entries.length : promptCount;
 	const renderEntry = (entry: ChatEntry, index: number) => {
 		const mode = entry.mode ?? "act";
@@ -212,7 +214,7 @@ export function ReplayView(props: {
 
 	return (
 		<box flexDirection="column" flexGrow={1}>
-			<box flexDirection="column" paddingX={1}>
+			<box flexDirection="column" paddingX={1} flexShrink={0}>
 				<text fg={theme.accents.act}>
 					{`Session replay · ${entry.sessionId}${entry.title ? ` · ${entry.title}` : ""}`}
 				</text>
@@ -239,7 +241,7 @@ export function ReplayView(props: {
 					)}
 				</box>
 			</scrollbox>
-			<box flexDirection="row" paddingX={1} gap={2}>
+			<box flexDirection="row" paddingX={1} gap={2} flexShrink={0}>
 				<text fg={theme.accents.act}>{`${position} · ${state}`}</text>
 				<text fg="gray">
 					space pause · →/n next · ←/p back · e end · ↑↓ PgUp/PgDn scroll · q
