@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { buildPluginRuntimeResources } from "./plugin-runtime";
 
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
@@ -94,6 +95,7 @@ export interface CompileCliBinaryOptions {
 export async function compileCliBinary(
 	input: CompileCliBinaryOptions,
 ): Promise<void> {
+	const pluginResources = await buildPluginRuntimeResources();
 	const parserWorker = findOpenTuiParserWorker();
 	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
 	const bunfsRoot = targetOs === "windows" ? "B:/~BUN/root/" : "/$bunfs/root/";
@@ -127,13 +129,15 @@ export async function compileCliBinary(
 			compile: {
 				target: input.bunTarget,
 				outfile: tmpOutfile,
-				...(input.execArgv?.length ? { execArgv: input.execArgv } : {}),
+				execArgv: [...new Set(["--use-system-ca", ...(input.execArgv ?? [])])],
 				...(autoload ? {} : { autoloadDotenv: false, autoloadBunfig: false }),
 			},
 			minify: true,
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
+				CLINE_PLUGIN_RUNTIME_RESOURCES: JSON.stringify(pluginResources),
+				CLINE_CLI_COMPILE_TARGET: JSON.stringify(input.bunTarget),
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.
 				...buildInlinedEnvDefines(),

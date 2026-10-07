@@ -1181,7 +1181,7 @@ jobs:
           bun-version: "1.4.2"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist/desktop
           merge-multiple: true
@@ -1262,7 +1262,7 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
           target_commitish: ${{ needs.validate.outputs.ref }}
@@ -1428,13 +1428,13 @@ jobs:
           fi
 
       - name: Download runtime artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: dist/desktop
           merge-multiple: true
 
       - name: Publish nightly runtime assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           tag_name: ${{ steps.changes.outputs.tag }}
           name: Cline desktop nightly runtime ${{ needs.validate.outputs.version }}

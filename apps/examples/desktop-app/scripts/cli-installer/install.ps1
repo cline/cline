@@ -28,6 +28,7 @@ if (-not $PSBoundParameters.ContainsKey('InstallDir')) {
             $info = (& $existing.Source --runtime-info | Out-String | ConvertFrom-Json)
         } catch { throw "Update or remove the existing CLI at $($existing.Source) before installing; no second copy was installed" }
         finally { $env:CLINE_NO_AUTO_UPDATE = $previousAutoUpdate }
+        if ($info.target -ne $Target) { throw "Existing CLI target $($info.target) does not match requested $Target; use -InstallDir for a different machine" }
         if (-not $info.compiled -or -not $expectedBuild -or $info.buildId -ne $expectedBuild) {
             throw "Existing CLI at $($existing.Source) has an incompatible SDK build; update or remove it before installing"
         }
@@ -69,11 +70,24 @@ try {
                 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $download -TimeoutSec 180
                 if ((Get-FileHash $download -Algorithm SHA256).Hash -ne $expected) { throw 'Runtime checksum mismatch' }
             }
+            $expectedEpoch = $env:CLINE_INSTALL_BUILD_EPOCH_MS
+            if (-not $expectedEpoch) {
+                if ($Binary) { $expectedEpoch = (& $Binary --runtime-build-epoch | Out-String).Trim() }
+                else { $expectedEpoch = (Invoke-WebRequest -UseBasicParsing -Uri "$url.build-epoch" -TimeoutSec 30).Content.Trim() }
+            }
+            if ($expectedEpoch -notmatch '^\d+$') { throw 'Invalid runtime build epoch' }
+            $epochPath = "$destination.build-epoch"
+            $installedEpoch = if (Test-Path $epochPath) { (Get-Content $epochPath -Raw).Trim() } else { '0' }
+            if ($Target -like '*windows*' -and (Test-Path $destination)) {
+                try { $actualEpoch = (& $destination --runtime-build-epoch | Out-String).Trim(); if ($actualEpoch -match '^\d+$') { $installedEpoch = $actualEpoch } } catch { }
+            }
+            if ($installedEpoch -match '^\d+$' -and [long]$installedEpoch -gt [long]$expectedEpoch) { throw 'The installed CLI is newer; no downgrade was installed' }
             # One shared runtime is upgraded in place. Windows refuses replacement
             # while it is running; close its sessions and Hub before retrying.
             Move-Item -Force $download $destination
             (Get-FileHash $destination -Algorithm SHA256).Hash | Set-Content $checksumPath
             "$Release/$Target" | Set-Content $releasePath
+            "$expectedEpoch" | Set-Content $epochPath
         } finally { Remove-Item -Recurse -Force $temporary }
     }
 } finally { if ($lock) { $lock.Dispose() } }

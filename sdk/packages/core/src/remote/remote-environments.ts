@@ -4,7 +4,9 @@ import { constants, createReadStream } from "node:fs";
 import {
 	access,
 	chmod,
+	copyFile,
 	mkdir,
+	mkdtemp,
 	open,
 	readdir,
 	readFile,
@@ -13,7 +15,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
@@ -124,6 +126,9 @@ export interface RemoteEnvironmentDependencies {
 	): Promise<void>;
 	reservePort(): Promise<number>;
 	hashFile(path: string): Promise<string>;
+	snapshotHelper(
+		path: string,
+	): Promise<{ path: string; dispose(): Promise<void> }>;
 	resolveHelperBinary(target: RemoteHelperTarget): Promise<string | undefined>;
 	fileReadable(path: string): Promise<boolean>;
 	requestHubShutdown(url: string, authToken?: string): Promise<boolean>;
@@ -532,22 +537,27 @@ export class RemoteEnvironmentService {
 			);
 		}
 
-		const hash = await this.dependencies.hashFile(localHelper);
-		const remoteDirectory = joinRemote(
-			inspection.home,
-			REMOTE_HELPER_DIRECTORY,
-		);
-		const remoteHelper = joinRemote(
-			remoteDirectory,
-			`cline-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
-		);
-		await this.installHelper(
-			profile,
-			localHelper,
-			remoteDirectory,
-			remoteHelper,
-		);
-		return remoteHelper;
+		const snapshot = await this.dependencies.snapshotHelper(localHelper);
+		try {
+			const hash = await this.dependencies.hashFile(snapshot.path);
+			const remoteDirectory = joinRemote(
+				inspection.home,
+				REMOTE_HELPER_DIRECTORY,
+			);
+			const remoteHelper = joinRemote(
+				remoteDirectory,
+				`cline-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
+			);
+			await this.installHelper(
+				profile,
+				snapshot.path,
+				remoteDirectory,
+				remoteHelper,
+			);
+			return remoteHelper;
+		} finally {
+			await snapshot.dispose();
+		}
 	}
 
 	private async installHelper(
@@ -939,6 +949,7 @@ function createDefaultDependencies(
 		waitForTunnel,
 		reservePort,
 		hashFile,
+		snapshotHelper,
 		resolveHelperBinary: async (target) => {
 			if (configuredHelper) {
 				return configuredHelper;
@@ -1225,6 +1236,23 @@ async function canConnect(port: number): Promise<boolean> {
 		socket.once("error", () => finish(false));
 		socket.once("timeout", () => finish(false));
 	});
+}
+
+export async function snapshotHelper(
+	path: string,
+): Promise<{ path: string; dispose(): Promise<void> }> {
+	const directory = await mkdtemp(join(tmpdir(), "cline-ssh-runtime-"));
+	const snapshot = join(directory, "cline");
+	try {
+		await copyFile(path, snapshot);
+	} catch (error) {
+		await rm(directory, { recursive: true, force: true });
+		throw error;
+	}
+	return {
+		path: snapshot,
+		dispose: () => rm(directory, { recursive: true, force: true }),
+	};
 }
 
 async function hashFile(path: string): Promise<string> {

@@ -21,3 +21,7 @@ const identity = JSON.parse(
 if (typeof identity.buildId !== "string" || !identity.buildId.trim())
 	throw new Error("Missing runtime SDK build identity");
 writeFileSync(`${output}.build-id`, `${identity.buildId}\n`);
+
+if (!Number.isSafeInteger(identity.buildEpochMs) || identity.buildEpochMs <= 0)
+	throw new Error("Missing runtime build epoch");
+writeFileSync(`${output}.build-epoch`, `${identity.buildEpochMs}\n`);

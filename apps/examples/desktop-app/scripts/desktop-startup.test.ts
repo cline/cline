@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
 	closeSync,
+	mkdirSync,
 	mkdtempSync,
 	openSync,
 	readFileSync,
@@ -143,7 +144,68 @@ test("installed CLI exposes SDK identity and its native path without starting a 
 		expect(probe.status).toBe(0);
 		expect(probe.stdout.trim()).toBe(expected);
 	}
-});
+}, 120_000);
+
+test("installed CLI loads a TypeScript SDK plugin with no Node and a cold transform cache", async () => {
+	const cli = await resolveCliBinary();
+	const root = mkdtempSync(join(tmpdir(), "cline-plugin-installed-"));
+	try {
+		const directory = join(root, ".cline", "plugins");
+		mkdirSync(directory, { recursive: true });
+		const marker = join(root, "plugin-result.json");
+		writeFileSync(
+			join(directory, "smoke.ts"),
+			`
+import { createTool } from "@cline/core";
+import { writeFileSync } from "node:fs";
+export default {
+ name: "embedded-smoke", manifest: { capabilities: ["tools"] },
+ async setup(api) {
+  const tool = createTool({ name: "embedded_ping", description: "Packaged SDK tool", inputSchema: { type: "object", properties: {} }, execute: async () => ({ pong: true, execPath: process.execPath, bunFlag: process.env.BUN_BE_BUN ?? null }) });
+  writeFileSync(${JSON.stringify(marker)}, JSON.stringify(await tool.execute({}, {})));
+  api.registerTool(tool);
+ }
+};
+`,
+		);
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) =>
+					!/^(CLINE_|BUN_BE_BUN|NODE_PATH|npm_node_execpath|NODE$|BUN_EXEC_PATH)/.test(
+						key,
+					),
+			),
+		);
+		const result = spawnSync(cli, ["config", "tools", "--json"], {
+			cwd: root,
+			encoding: "utf8",
+			timeout: 30000,
+			env: {
+				...env,
+				HOME: root,
+				USERPROFILE: root,
+				CLINE_DIR: join(root, ".cline"),
+				PATH: root,
+				JITI_FS_CACHE: "false",
+				TMPDIR: root,
+				CLINE_NO_AUTO_UPDATE: "1",
+			},
+		});
+		expect(result.status, result.stderr || String(result.error)).toBe(0);
+		expect(
+			JSON.parse(result.stdout).some(
+				(tool: { name: string }) => tool.name === "embedded_ping",
+			),
+		).toBe(true);
+		expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({
+			pong: true,
+			execPath: realpathSync(cli),
+			bunFlag: null,
+		});
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);
 
 test("the shipped CLI and backend report telemetry without starting a hub", async () => {
 	const cli = await resolveCliBinary();

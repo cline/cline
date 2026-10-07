@@ -9,7 +9,7 @@ import { telemetryDefineArgs } from "./telemetry-define-args";
 
 // Build the release CLI separately from the app resources. The app ships
 // the backend JS and installer scripts; first launch downloads this release's
-// CLI into a versioned per-user cache. Local development uses the build output.
+// CLI into the shared per-user installation. Local development uses the build output.
 
 const APP_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));

@@ -343,6 +343,7 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
+    startup: Mutex<()>,
     shutting_down: AtomicBool,
 }
 
@@ -473,12 +474,15 @@ fn desktop_app_bin_dir(context: &AppContext) -> PathBuf {
         .join("bin")
 }
 
-fn resolve_desktop_cli_path(context: &AppContext) -> Result<Option<PathBuf>, String> {
+fn resolve_desktop_cli_path(
+    context: &AppContext,
+    cancelled: &AtomicBool,
+) -> Result<Option<cli_runtime::InstalledRuntime>, String> {
     if let Some(path) = non_empty_env_path("CLINE_DESKTOP_CLI_BIN") {
         if !path.is_file() {
             return Err(format!("CLI override not found: {}", path.display()));
         }
-        return Ok(Some(path));
+        return Ok(Some(cli_runtime::InstalledRuntime::direct(path)));
     }
     if cfg!(debug_assertions) {
         let target = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or(cli_runtime::host_target());
@@ -488,11 +492,12 @@ fn resolve_desktop_cli_path(context: &AppContext) -> Result<Option<PathBuf>, Str
             .map(|target| {
                 desktop_app_bin_dir(context).join(format!("cline-cli-{target}{extension}"))
             })
-            .find(|path| path.is_file()));
+            .find(|path| path.is_file())
+            .map(cli_runtime::InstalledRuntime::direct));
     }
     let installer_dir = context.resource_dir.join("bin").join("cli-installer");
     let release = cli_runtime::release_tag(&installer_dir)?;
-    cli_runtime::install(&installer_dir, &context.shared_cli_dir, &release).map(Some)
+    cli_runtime::install(&installer_dir, &context.shared_cli_dir, &release, cancelled).map(Some)
 }
 
 fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
@@ -516,8 +521,11 @@ fn resolve_desktop_backend_bundle_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.is_file())
 }
 
-fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
-    let cli_path = resolve_desktop_cli_path(context)?;
+fn spawn_desktop_backend_process(
+    context: &AppContext,
+    runtime: Option<cli_runtime::InstalledRuntime>,
+) -> Result<Child, String> {
+    let cli_path = runtime.as_ref().map(|runtime| &runtime.executable_path);
     let script_path = if cfg!(debug_assertions) {
         resolve_desktop_backend_script_path(context)
     } else {
@@ -566,6 +574,9 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
     if let Some(cli_path) = cli_path.as_ref() {
         command.env("CLINE_DESKTOP_CLI_PATH", cli_path);
     }
+    if let Some(runtime) = runtime.as_ref() {
+        command.envs(&runtime.launch_env);
+    }
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -580,7 +591,28 @@ fn ensure_desktop_backend_started(
     state: &Arc<DesktopBackendState>,
     context: &AppContext,
 ) -> Result<(), String> {
-    ensure_desktop_backend_started_with(state, || spawn_desktop_backend_process(context))
+    // Serialize preparation separately: quit never waits for downloads or shell probes.
+    let _startup = state
+        .startup
+        .lock()
+        .map_err(|_| "failed to lock backend startup")?;
+    if state.is_shutting_down() {
+        return Ok(());
+    }
+    {
+        let mut process = state
+            .process
+            .lock()
+            .map_err(|_| "failed to lock backend process")?;
+        if process
+            .as_mut()
+            .is_some_and(|child| matches!(child.try_wait(), Ok(None)))
+        {
+            return Ok(());
+        }
+    }
+    let runtime = resolve_desktop_cli_path(context, &state.shutting_down)?;
+    ensure_desktop_backend_started_with(state, || spawn_desktop_backend_process(context, runtime))
 }
 
 fn ensure_desktop_backend_started_with(

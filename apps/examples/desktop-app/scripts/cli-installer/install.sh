@@ -20,6 +20,7 @@ install_dir="$HOME/.cline/bin"
 binary=''
 modify_path=true
 explicit_directory=false
+explicit_target=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -29,7 +30,7 @@ while [[ $# -gt 0 ]]; do
             case "$1" in
                 --release) release="$2" ;;
                 --version) release="desktop-v${2#v}" ;;
-                --target) target="$2" ;;
+                --target) target="$2"; explicit_target=true ;;
                 --install-dir) install_dir="$2"; explicit_directory=true ;;
                 --binary) binary="$2" ;;
             esac
@@ -68,6 +69,10 @@ if [[ "$explicit_directory" == false ]]; then
         else
             expected_build=$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 30 --proto '=https' --proto-redir '=https' "https://github.com/cline/cline/releases/download/$release/cline-runtime-$target.build-id")
         fi
+        installed_target=$(CLINE_NO_AUTO_UPDATE=1 "$existing" --runtime-target 2>/dev/null) || fail 'installed CLI cannot report its target'
+        if [[ "$installed_target" != "$target" ]]; then
+            [[ "$explicit_target" == false && "$target" == universal-apple-darwin && "$installed_target" == *-apple-darwin ]] || fail "existing CLI target $installed_target does not match requested $target; use --install-dir for a different machine"
+        fi
         installed_build=$(CLINE_NO_AUTO_UPDATE=1 "$existing" --runtime-build-id 2>/dev/null) || fail "update or remove the existing CLI at $existing before installing; no second copy was installed"
         [[ -n "$expected_build" && "$installed_build" == "$expected_build" ]] || fail "the existing CLI at $existing has an incompatible SDK build; update or remove it before installing"
         installed_path=$(CLINE_NO_AUTO_UPDATE=1 "$existing" --runtime-path 2>/dev/null) || fail 'installed CLI could not report its native executable'
@@ -85,14 +90,30 @@ mkdir -p "$install_dir"
 # Serialize installs in this directory across desktop/SSH clients. Never
 # expose a partial download. Shared installs replace the previous runtime.
 lock="$install_dir/.install-lock"
+owner="$$ $(TZ=UTC ps -p $$ -o lstart=)"
 for ((attempt=0; ; attempt++)); do
-    if mkdir "$lock" 2>/dev/null; then break; fi
-    [[ $attempt -lt 240 ]] || fail "another installer holds $lock; remove it if that installer has exited"
+    if mkdir "$lock" 2>/dev/null; then printf '%s\n' "$owner" > "$lock/owner"; break; fi
+    previous=$(cat "$lock/owner" 2>/dev/null || true)
+    pid=${previous%% *}
+    stale=false
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        [[ "$previous" == "$pid $(TZ=UTC ps -p "$pid" -o lstart= 2>/dev/null)" ]] || stale=true
+    elif [[ -n "$(find "$lock" -prune -mmin +1 2>/dev/null)" ]]; then stale=true
+    fi
+    # Only one contender can reclaim this abandoned lock directory.
+    if [[ "$stale" == true ]] && mkdir "$lock/reclaim" 2>/dev/null; then
+        abandoned="$install_dir/.abandoned-lock.$$"
+        if mv "$lock" "$abandoned" 2>/dev/null; then rm -rf "$abandoned"; fi
+        continue
+    fi
+    [[ $attempt -lt 240 ]] || fail "another installer holds $lock"
     sleep 0.5
 done
 temporary=''
-cleanup() { [[ -z "$temporary" ]] || rm -rf "$temporary"; rmdir "$lock"; }
+cleanup() { [[ -z "$temporary" ]] || rm -rf "$temporary"; [[ "$(cat "$lock/owner" 2>/dev/null || true)" != "$owner" ]] || rm -rf "$lock"; }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cached=false
 if [[ -z "$binary" && -f "$install_dir/cline" && -f "$install_dir/cline.sha256" && -f "$install_dir/release" ]]; then
     if [[ "$(cat "$install_dir/release")" == "$release/$target" && "$(hash_file "$install_dir/cline")" == "$(cat "$install_dir/cline.sha256")" ]]; then cached=true; fi
@@ -115,9 +136,25 @@ if [[ "$cached" == false ]]; then
     chmod 755 "$temporary/cline"
     hash_file "$temporary/cline" > "$temporary/cline.sha256"
     printf '%s\n' "$release/$target" > "$temporary/release"
+    # Check again under the lock: another channel may have installed a newer
+    # executable after desktop's initial probe. Cross-target caches use metadata.
+    expected_epoch=${CLINE_INSTALL_BUILD_EPOCH_MS:-}
+    if [[ -z "$expected_epoch" ]]; then
+        if [[ -n "$binary" ]]; then expected_epoch=$("$binary" --runtime-build-epoch 2>/dev/null || true)
+        else expected_epoch=$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 30 --proto '=https' --proto-redir '=https' "$url.build-epoch"); fi
+    fi
+    [[ "$expected_epoch" =~ ^[0-9]+$ ]] || fail 'invalid runtime build epoch'
+    installed_epoch=$(cat "$install_dir/cline.build-epoch" 2>/dev/null || true)
+    if [[ -x "$install_dir/cline" ]]; then
+        actual_epoch=$(CLINE_NO_AUTO_UPDATE=1 "$install_dir/cline" --runtime-build-epoch 2>/dev/null || true)
+        [[ ! "$actual_epoch" =~ ^[0-9]+$ ]] || installed_epoch="$actual_epoch"
+    fi
+    if [[ "$installed_epoch" =~ ^[0-9]+$ ]] && (( installed_epoch > expected_epoch )); then fail 'the installed CLI is newer; no downgrade was installed'; fi
+    printf '%s\n' "$expected_epoch" > "$temporary/cline.build-epoch"
     mv -f "$temporary/cline" "$install_dir/cline"
     mv -f "$temporary/cline.sha256" "$install_dir/cline.sha256"
     mv -f "$temporary/release" "$install_dir/release"
+    mv -f "$temporary/cline.build-epoch" "$install_dir/cline.build-epoch"
 fi
 if [[ "$modify_path" == true ]]; then
     # Quote paths, including spaces and apostrophes, as shell literals.

@@ -320,7 +320,7 @@ Desktop transport envelope:
 
 The desktop bundle contains installer scripts, backend JS, and manifests
 identifying its release and SDK build. It contains no CLI executables.
-Before installing, desktop searches the terminal PATH and login shell for
+Before installing, desktop searches the terminal PATH and interactive login shell for
 `cline`, then probes `--runtime-info` to find its native executable and SDK
 identity. A compatible existing installation is reused directly, including
 package-manager installations; the desktop does not copy its binary.
@@ -340,7 +340,7 @@ identity probes must be updated or removed before consolidation. On Windows,
 close running CLI sessions and their Hub before replacing a shared executable.
 
 Downloads come from the exact desktop release and are SHA-256 verified. The
-workflow publishes SDK build-ID sidecars and independently signed macOS/Windows
+workflow publishes SDK build-ID and build-epoch sidecars and independently signed macOS/Windows
 executables. Cached installs work offline. Initial installs and incompatible
 standalone updates require internet access, Bash/curl on Unix or PowerShell on
 Windows. Linux requires glibc; x64 binaries use Bun's baseline runtime.
@@ -349,7 +349,21 @@ SSH connections reuse the shared host CLI when it supports the remote target.
 Other architectures/platforms require their own executable, cached once per
 target at `~/.cline/remote-runtimes/<target>/cline` and updated in place. They are
 uploaded to the remote host using its content-addressed CLI staging mechanism.
+Linux x64 reuse requires a baseline CPU build; architecture alone is insufficient.
+Hashing and uploading use the same temporary snapshot to avoid races with updates.
 Development builds use locally compiled binaries and explicit SSH overrides.
+
+Each compiled CLI embeds its plugin sandbox bootstrap, jiti transform, and SDK
+runtime modules. They are extracted on first plugin use into
+`~/.cline/runtime/plugin-sandbox/<content-hash>`, so downloaded and SSH-uploaded
+executables support SDK plugins without Node or additional downloads. Different
+builds keep their support files isolated. Plugin subprocesses use the CLI's own
+embedded runtime. Desktop preserves certificate settings reported by an existing
+package-manager wrapper when launching its backend and Hub.
+
+Installers recheck build age while holding the install lock. Unix locks record
+the owner's PID and start time so interrupted installs can recover. Quitting
+desktop cancels pending installation without waiting for the download.
 
 For a standalone terminal install from a desktop release:
 

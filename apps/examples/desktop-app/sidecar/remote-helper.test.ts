@@ -49,6 +49,7 @@ it("uses a local CLI for a matching development SSH host", async () => {
 			{
 				platform: "linux",
 				arch: "x64",
+				probeRuntime: async () => ({ cpuBaseline: true }),
 				env: { CLINE_DESKTOP_CLI_PATH: "/dev/cline" },
 			},
 		),
@@ -59,6 +60,7 @@ it("uses a local CLI for a matching development SSH host", async () => {
 			{
 				platform: "linux",
 				arch: "x64",
+				probeRuntime: async () => ({ cpuBaseline: true }),
 				env: { CLINE_DESKTOP_CLI_PATH: "/dev/cline" },
 			},
 		),
@@ -111,6 +113,36 @@ it("reuses the shared host CLI for SSH without downloading a second copy", async
 			),
 		).resolves.toBe(cli);
 		expect(runInstaller).not.toHaveBeenCalled();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("downloads a baseline Linux x64 runtime instead of reusing a non-baseline CLI", async () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-baseline-"));
+	try {
+		writeFileSync(join(root, "release.txt"), "desktop-v0.0.43\n");
+		const directory = join(root, "cache", "x86_64-unknown-linux-gnu");
+		const runInstaller = vi.fn(async () => {
+			mkdirSync(directory, { recursive: true });
+			writeFileSync(join(directory, "cline"), "baseline");
+		});
+		const result = await resolveDesktopRemoteHelper(
+			{ platform: "linux", arch: "x64" },
+			{
+				platform: "linux",
+				arch: "x64",
+				probeRuntime: async () => ({ cpuBaseline: false }),
+				runInstaller,
+				env: {
+					CLINE_DESKTOP_CLI_PATH: "/external/non-baseline",
+					CLINE_DESKTOP_INSTALLER_DIRECTORY: root,
+					CLINE_DESKTOP_RUNTIME_DIRECTORY: join(root, "cache"),
+				},
+			},
+		);
+		expect(result).toBe(join(directory, "cline"));
+		expect(runInstaller).toHaveBeenCalledTimes(1);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

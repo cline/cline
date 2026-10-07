@@ -35,6 +35,10 @@ ensureLoopbackProxyBypass();
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (process.argv.includes("--runtime-target")) {
+	process.stdout.write(`${getCliRuntimeInfo().target}\n`);
+} else if (process.argv.includes("--runtime-build-epoch")) {
+	process.stdout.write(`${getCliRuntimeInfo().buildEpochMs ?? 0}\n`);
 } else if (process.argv.includes("--runtime-path")) {
 	const info = getCliRuntimeInfo();
 	if (!info.compiled) process.exitCode = 1;

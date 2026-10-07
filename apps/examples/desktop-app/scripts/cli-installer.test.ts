@@ -37,6 +37,7 @@ function fixture(run: (root: string, env: NodeJS.ProcessEnv) => void) {
 			PATH: `${commands}:${process.env.PATH}`,
 			TEST_ROOT: root,
 			EXPECTED_HASH: hash,
+			CLINE_INSTALL_BUILD_EPOCH_MS: "10",
 		});
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -117,7 +118,7 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 	test("reuses an existing native CLI through its wrapper without copying it", () =>
 		fixture((root, env) => {
 			const native = join(root, "existing native CLI");
-			const report = `#!/bin/sh\ncase "$1" in --runtime-build-id) echo sdk-fixture ;; --runtime-path) printf '%s\\n' '${native}' ;; *) exit 1 ;; esac\n`;
+			const report = `#!/bin/sh\ncase "$1" in --runtime-target) echo x86_64-unknown-linux-gnu ;; --runtime-build-id) echo sdk-fixture ;; --runtime-path) printf '%s\\n' '${native}' ;; *) exit 1 ;; esac\n`;
 			writeFileSync(native, report);
 			chmodSync(native, 0o755);
 			const wrapper = join(root, "commands", "cline");
@@ -125,7 +126,7 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			chmodSync(wrapper, 0o755);
 			const result = execFileSync(
 				"bash",
-				[script, "--binary", native, "--no-modify-path"],
+				[script, "--binary", native, "--target", target, "--no-modify-path"],
 				{ env, encoding: "utf8" },
 			);
 			expect(result.trim()).toBe(native);
@@ -134,7 +135,7 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			writeFileSync(native, "#!/bin/sh\necho incompatible-sdk\n");
 			const mismatch = spawnSync(
 				"bash",
-				[script, "--binary", native, "--no-modify-path"],
+				[script, "--binary", native, "--target", target, "--no-modify-path"],
 				{ env, encoding: "utf8" },
 			);
 			expect(mismatch.status).not.toBe(0);
@@ -146,7 +147,7 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			const native = join(root, "commands", "cline");
 			writeFileSync(
 				native,
-				`#!/bin/sh\ncase "$1" in --runtime-build-id) echo sdk-fixture ;; --runtime-path) printf '%s\\n' '${native}' ;; *) exit 1 ;; esac\n`,
+				`#!/bin/sh\ncase "$1" in --runtime-target) echo x86_64-unknown-linux-gnu ;; --runtime-build-id) echo sdk-fixture ;; --runtime-path) printf '%s\\n' '${native}' ;; *) exit 1 ;; esac\n`,
 			);
 			chmodSync(native, 0o755);
 			const result = execFileSync(
@@ -161,6 +162,52 @@ describe.skipIf(process.platform === "win32")("Bash runtime installer", () => {
 			expect(
 				readFileSync(join(root, "requests"), "utf8").trim().split("\n"),
 			).toHaveLength(1);
+			expect(existsSync(join(root, ".cline"))).toBe(false);
+		}));
+	test("recovers an abandoned install lock and blocks a downgrade under the lock", () =>
+		fixture((root, env) => {
+			const directory = join(root, "runtime");
+			const lock = join(directory, ".install-lock");
+			mkdirSync(lock, { recursive: true });
+			writeFileSync(join(lock, "owner"), "99999999 dead-process");
+			execFileSync("bash", args(directory), { env });
+			expect(existsSync(lock)).toBe(false);
+			const before = readFileSync(join(directory, "cline"));
+			writeFileSync(join(directory, "cline.build-epoch"), "20");
+			const result = spawnSync(
+				"bash",
+				[
+					...args(directory).slice(0, -1),
+					"--binary",
+					join(directory, "cline"),
+					"--no-modify-path",
+				],
+				{ env, encoding: "utf8" },
+			);
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain("no downgrade");
+			expect(readFileSync(join(directory, "cline"))).toEqual(before);
+			expect(existsSync(lock)).toBe(false);
+		}));
+	test("rejects an external CLI for a different requested target", () =>
+		fixture((root, env) => {
+			const existing = join(root, "commands", "cline");
+			writeFileSync(existing, "#!/bin/sh\necho x86_64-unknown-linux-gnu\n");
+			chmodSync(existing, 0o755);
+			const result = spawnSync(
+				"bash",
+				[
+					script,
+					"--release",
+					release,
+					"--target",
+					"aarch64-unknown-linux-gnu",
+					"--no-modify-path",
+				],
+				{ env, encoding: "utf8" },
+			);
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain("does not match requested");
 			expect(existsSync(join(root, ".cline"))).toBe(false);
 		}));
 	test("rejects unpinned tags and unknown options", () =>
@@ -202,6 +249,7 @@ function global:Invoke-WebRequest {
 					),
 					INSTALL_DIRECTORY: directory,
 					EXPECTED_HASH: hash,
+					CLINE_INSTALL_BUILD_EPOCH_MS: "10",
 				};
 				const powershellArgs = [
 					"-NoProfile",
@@ -251,7 +299,7 @@ describe.skipIf(process.platform !== "win32")(
 				const existing = join(root, "existing-cline.ps1");
 				writeFileSync(
 					existing,
-					"@{ buildId = 'sdk-fixture'; compiled = $true; executablePath = $env:NATIVE_CLI } | ConvertTo-Json -Compress",
+					"@{ buildId = 'sdk-fixture'; compiled = $true; target = 'x86_64-pc-windows-msvc'; executablePath = $env:NATIVE_CLI } | ConvertTo-Json -Compress",
 				);
 				const wrapper = join(root, "consolidate.ps1");
 				writeFileSync(

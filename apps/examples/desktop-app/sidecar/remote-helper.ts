@@ -32,6 +32,7 @@ export async function resolveDesktopRemoteHelper(
 		env?: NodeJS.ProcessEnv;
 		platform?: NodeJS.Platform;
 		arch?: string;
+		probeRuntime?: (path: string) => Promise<{ cpuBaseline?: boolean }>;
 		runInstaller?: (
 			script: string,
 			release: string,
@@ -45,6 +46,26 @@ export async function resolveDesktopRemoteHelper(
 	const platform = options.platform ?? process.platform;
 	const arch = options.arch ?? process.arch;
 	const cli = resolveDesktopCliPath(env);
+	let portableCpu = target.platform !== "linux" || target.arch !== "x64";
+	if (!portableCpu && cli && platform === "linux" && arch === "x64") {
+		try {
+			const info = options.probeRuntime
+				? await options.probeRuntime(cli)
+				: JSON.parse(
+						(
+							await execFileAsync(cli, ["--runtime-info"], {
+								env: {
+									...env,
+									BUN_BE_BUN: undefined,
+									CLINE_NO_AUTO_UPDATE: "1",
+								},
+								timeout: 5000,
+							})
+						).stdout,
+					);
+			portableCpu = info.cpuBaseline === true;
+		} catch {}
+	}
 	const installerDir = env.CLINE_DESKTOP_INSTALLER_DIRECTORY;
 	const runtimeDir = env.CLINE_DESKTOP_RUNTIME_DIRECTORY;
 	if (installerDir && runtimeDir) {
@@ -59,6 +80,7 @@ export async function resolveDesktopRemoteHelper(
 		// for an SSH target that this same executable can run on.
 		if (
 			cli &&
+			portableCpu &&
 			platform === target.platform &&
 			(arch === target.arch ||
 				(platform === "darwin" && isUniversalMacCli(cli)))
@@ -115,6 +137,7 @@ export async function resolveDesktopRemoteHelper(
 	// can be supplied explicitly without depending on release infrastructure.
 	if (
 		cli &&
+		portableCpu &&
 		platform === target.platform &&
 		(arch === target.arch || (platform === "darwin" && isUniversalMacCli(cli)))
 	)

@@ -58,12 +58,30 @@
 			"deb": {
 				"files": {
 					"/usr/share/metainfo": "linux/metainfo/stable"
-				}
+				},
+				"depends": [
+					"bash",
+					"curl",
+					"coreutils",
+					"grep",
+					"gawk",
+					"findutils",
+					"procps"
+				]
 			},
 			"rpm": {
 				"files": {
 					"/usr/share/metainfo": "linux/metainfo/stable"
-				}
+				},
+				"depends": [
+					"bash",
+					"curl",
+					"coreutils",
+					"grep",
+					"gawk",
+					"findutils",
+					"procps-ng"
+				]
 			}
 		},
 		"macOS": {
