@@ -64,6 +64,9 @@ export function* readTarEntries(archive: Buffer): Generator<TarEntry> {
 		const size = readOctal(header, 124, 12);
 		const typeflag = String.fromCharCode(header[156] ?? 0);
 		const dataEnd = offset + size;
+		if (!Number.isFinite(size) || size < 0 || dataEnd > archive.length) {
+			throw new Error("Truncated or malformed tar archive");
+		}
 		const data = archive.subarray(offset, dataEnd);
 		offset = dataEnd + ((BLOCK - (size % BLOCK)) % BLOCK);
 
@@ -117,10 +120,15 @@ export function extractTarGz(
 	options: {
 		into: string;
 		select: (archivePath: string) => string | undefined;
+		/** Cap on the decompressed archive; gzip can expand far beyond its download size. */
+		maxExtractedBytes?: number;
 	},
 ): number {
 	let written = 0;
-	for (const entry of readTarEntries(gunzipSync(archive))) {
+	const tar = gunzipSync(archive, {
+		maxOutputLength: options.maxExtractedBytes,
+	});
+	for (const entry of readTarEntries(tar)) {
 		if (entry.type !== "file") {
 			continue;
 		}

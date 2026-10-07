@@ -90,7 +90,9 @@ describe("tar-archive", () => {
 			expect(readFileSync(join(into, "skills", "SKILL.md"), "utf8")).toBe(
 				"# skill\n",
 			);
-			expect(statSync(join(into, "run.sh")).mode & 0o111).not.toBe(0);
+			if (process.platform !== "win32") {
+				expect(statSync(join(into, "run.sh")).mode & 0o111).not.toBe(0);
+			}
 			expect(existsSync(join(into, "link.ts"))).toBe(false);
 			expect(existsSync(join(into, "other"))).toBe(false);
 		});
@@ -126,6 +128,28 @@ describe("tar-archive", () => {
 		expect(entries).toHaveLength(1);
 		expect(entries[0]?.path).toBe(longPath);
 		expect(entries[0]?.data.toString()).toBe("abc");
+	});
+
+	it("rejects entries whose declared size runs past the archive", () => {
+		const header = Buffer.alloc(512);
+		header.write("truncated.txt", 0);
+		header.write("0000644\0", 100);
+		header.write("00000010000\0", 124); // 4096 bytes declared
+		header.write("0", 156);
+		const archive = Buffer.concat([header, Buffer.from("only a little")]);
+		expect(() => [...readTarEntries(archive)]).toThrow(/Truncated/);
+	});
+
+	it("bounds decompressed size", () => {
+		const big = gzipSync(Buffer.alloc(4 * 1024 * 1024));
+		expect(big.length).toBeLessThan(16 * 1024);
+		expect(() =>
+			extractTarGz(big, {
+				into: makeRoot(),
+				select: () => undefined,
+				maxExtractedBytes: 1024 * 1024,
+			}),
+		).toThrow();
 	});
 
 	it("refuses destinations that escape the extraction root", () => {

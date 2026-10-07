@@ -275,6 +275,34 @@ describe("plugin install service", () => {
 		);
 	});
 
+	it("falls back to git for a GitHub collection the tarball endpoint will not serve", async () => {
+		const fetchMock = vi.fn<FetchCall>(
+			async () => new Response("", { status: 404 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		// No git credentials here, so the fallback clone fails; what matters is
+		// that it was attempted against the configured repository.
+		const previousPrompt = process.env.GIT_TERMINAL_PROMPT;
+		process.env.GIT_TERMINAL_PROMPT = "0";
+		try {
+			await expect(
+				installPlugin({
+					source: "web-search",
+					cwd: workspace,
+					officialPluginsRepo: "https://github.com/acme/private-plugins.git",
+				}),
+			).rejects.toThrow(/git clone .*acme\/private-plugins/);
+		} finally {
+			if (previousPrompt === undefined) {
+				delete process.env.GIT_TERMINAL_PROMPT;
+			} else {
+				process.env.GIT_TERMINAL_PROMPT = previousPrompt;
+			}
+		}
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
 	it("maps GitHub collection URLs to codeload tarballs and leaves other hosts to git", () => {
 		expect(
 			resolveOfficialPluginsArchiveUrl("https://github.com/cline/plugins.git"),

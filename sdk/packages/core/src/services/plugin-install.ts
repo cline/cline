@@ -941,9 +941,14 @@ async function extractOfficialPluginFromArchive(
 		const response = await fetch(archiveUrl, { signal: controller.signal });
 		if (!response.ok) {
 			const suffix = response.statusText ? ` ${response.statusText}` : "";
-			throw new Error(
+			const error = new Error(
 				`Failed to download the official plugin collection from ${archiveUrl}: ${response.status}${suffix}`,
 			);
+			// GitHub answers 404 for private repositories without credentials.
+			if ([401, 403, 404].includes(response.status)) {
+				error.name = "OfficialPluginsArchiveUnavailable";
+			}
+			throw error;
 		}
 		archive = await readRemotePluginBody(
 			response,
@@ -964,6 +969,7 @@ async function extractOfficialPluginFromArchive(
 	const marker = `/plugins/${slug}/`;
 	return extractTarGz(archive, {
 		into: packageRoot,
+		maxExtractedBytes: OFFICIAL_PLUGINS_ARCHIVE_MAX_BYTES * 4,
 		select: (archivePath) => {
 			const start = archivePath.indexOf(marker);
 			if (start === -1 || archivePath.indexOf("/") !== start) {
@@ -986,16 +992,30 @@ async function installOfficialPlugin(
 ): Promise<string> {
 	const packageRoot = join(stagingRoot, PACKAGE_DIRECTORY_NAME);
 	const archiveUrl = resolveOfficialPluginsArchiveUrl(officialPluginsRepo);
+	let useArchive = archiveUrl !== undefined;
 	if (archiveUrl) {
-		const written = await extractOfficialPluginFromArchive(
-			parsed.slug,
-			archiveUrl,
-			packageRoot,
-		);
-		if (written === 0) {
-			throw officialPluginNotFoundError(parsed.slug, officialPluginsRepo);
+		try {
+			const written = await extractOfficialPluginFromArchive(
+				parsed.slug,
+				archiveUrl,
+				packageRoot,
+			);
+			if (written === 0) {
+				throw officialPluginNotFoundError(parsed.slug, officialPluginsRepo);
+			}
+		} catch (error) {
+			// A custom collection in a private GitHub repository is not served
+			// anonymously; git's credential helper still knows how to reach it.
+			if (
+				!(error instanceof Error) ||
+				error.name !== "OfficialPluginsArchiveUnavailable"
+			) {
+				throw error;
+			}
+			useArchive = false;
 		}
-	} else {
+	}
+	if (!useArchive) {
 		// A local checkout of the collection is copied as is; any other git
 		// remote is cloned.
 		let collectionRoot = officialPluginsRepo;
