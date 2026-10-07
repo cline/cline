@@ -61,7 +61,7 @@ if [[ -z "$target" ]]; then
                 fail 'Linux runtime requires glibc; musl/Alpine is not supported'
             fi
             target="$arch-unknown-linux-gnu" ;;
-        *) fail 'use install.ps1 on Windows' ;;
+        *) fail 'this installer supports macOS and Linux only' ;;
     esac
 fi
 case "$target" in
@@ -87,14 +87,14 @@ if [[ "$explicit_directory" == false ]]; then
         manager=''
         case "$owned" in
             */Cellar/cline/*) manager=brew ;;
-            */node_modules/@cline/cli/*) manager=npm ;;
+            */node_modules/cline/*) manager=npm ;;
         esac
         [[ "$owned" != "$HOME/.bun/"* ]] || manager=bun
         if [[ -n "$manager" ]]; then
             case "$manager" in
                 brew) removal=(brew uninstall cline) ;;
-                npm) removal=(npm uninstall -g @cline/cli) ;;
-                bun) removal=(bun remove -g @cline/cli) ;;
+                npm) removal=(npm uninstall -g cline) ;;
+                bun) removal=(bun remove -g cline) ;;
             esac
             printf 'Existing %s installation: %s. To remove it: %s\n' "$manager" "$existing" "${removal[*]}" >&2
             if [[ "$replace_existing" == false && -t 2 && -r /dev/tty ]]; then
@@ -201,14 +201,15 @@ state_dir="$install_dir"
 if [[ "$managed" == true ]]; then
     if [[ -z "$binary" ]]; then
         for candidate in "$releases/$release-$target-"*; do
-            [[ -f "$candidate/cline" && -f "$candidate/cline.sha256" && -f "$candidate/release" ]] || continue
+            [[ -f "$candidate/cline" && -f "$candidate/cline.sha256" && -f "$candidate/release" && -f "$candidate/cline.build-epoch" ]] || continue
+            [[ "$(cat "$candidate/cline.build-epoch")" =~ ^[0-9]+$ ]] || continue
             if [[ "$(cat "$candidate/release")" == "$release/$target" && "$(hash_file "$candidate/cline")" == "$(cat "$candidate/cline.sha256")" ]]; then
                 state_dir="$candidate"; cached=true; break
             fi
         done
     fi
-elif [[ -z "$binary" && -f "$install_dir/cline" && -f "$install_dir/cline.sha256" && -f "$install_dir/release" ]]; then
-    if [[ "$(cat "$install_dir/release")" == "$release/$target" && "$(hash_file "$install_dir/cline")" == "$(cat "$install_dir/cline.sha256")" ]]; then cached=true; fi
+elif [[ -z "$binary" && -f "$install_dir/cline" && -f "$install_dir/cline.sha256" && -f "$install_dir/release" && -f "$install_dir/cline.build-epoch" ]]; then
+    if [[ "$(cat "$install_dir/release")" == "$release/$target" && "$(hash_file "$install_dir/cline")" == "$(cat "$install_dir/cline.sha256")" && "$(cat "$install_dir/cline.build-epoch")" =~ ^[0-9]+$ ]]; then cached=true; fi
 fi
 if [[ "$cached" == false ]]; then
     if [[ "$managed" == true ]]; then temporary=$(mktemp -d "$releases/.download.XXXXXX")
@@ -269,6 +270,8 @@ if [[ "$managed" == true ]]; then
     if [[ "$cached" == false ]]; then
         if [[ -d "$selected" ]]; then
             [[ -f "$selected/cline" && "$(hash_file "$selected/cline")" == "$(cat "$state_dir/cline.sha256")" ]] || fail 'existing release directory is corrupt; remove it before retrying'
+            # Repair interrupted metadata publication without changing running bytes.
+            for file in cline.sha256 cline.build-epoch release build-id; do mv -f "$state_dir/$file" "$selected/$file"; done
         else mv "$temporary" "$selected"; temporary=''; fi
     fi
     # Stage the link beside the command, so activation is an atomic rename.
@@ -278,7 +281,7 @@ if [[ "$managed" == true ]]; then
     rmdir "$link_dir"
 else
     if [[ "$cached" == false ]]; then
-        for file in cline cline.sha256 release cline.build-epoch; do mv -f "$temporary/$file" "$install_dir/$file"; done
+        for file in cline.sha256 cline.build-epoch release cline; do mv -f "$temporary/$file" "$install_dir/$file"; done
     fi
 fi
 if [[ "$modify_path" == true ]]; then

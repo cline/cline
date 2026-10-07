@@ -49,37 +49,27 @@ async function resolveCliBinary(): Promise<string> {
 		const installerDir = fileURLToPath(
 			new URL("./cli-installer/", import.meta.url),
 		);
-		const windows = process.platform === "win32";
+		if (process.platform === "win32") {
+			compiledCli = outfile;
+			return outfile;
+		}
 		const installed = spawnSync(
-			windows ? "powershell.exe" : "/bin/bash",
-			windows
-				? [
-						"-NoProfile",
-						"-NonInteractive",
-						"-ExecutionPolicy",
-						"Bypass",
-						"-File",
-						join(installerDir, "install.ps1"),
-						"-Binary",
-						outfile,
-						"-InstallDir",
-						installDir,
-						"-NoModifyPath",
-					]
-				: [
-						join(installerDir, "install.sh"),
-						"--binary",
-						outfile,
-						"--install-dir",
-						installDir,
-						"--no-modify-path",
-					],
+			"/bin/bash",
+			[
+				join(installerDir, "install.sh"),
+				"--binary",
+				outfile,
+				"--install-dir",
+				installDir,
+				"--no-modify-path",
+			],
 			{ encoding: "utf8", timeout: 30_000 },
 		);
+
 		expect(installed.status, installed.stderr || String(installed.error)).toBe(
 			0,
 		);
-		compiledCli = join(installDir, windows ? "cline.exe" : "cline");
+		compiledCli = join(installDir, "cline");
 	}
 	return compiledCli;
 }

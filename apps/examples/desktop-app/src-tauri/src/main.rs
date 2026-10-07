@@ -495,9 +495,20 @@ fn resolve_desktop_cli_path(
             .find(|path| path.is_file())
             .map(cli_runtime::InstalledRuntime::direct));
     }
-    let installer_dir = context.resource_dir.join("bin").join("cli-installer");
-    let release = cli_runtime::release_tag(&installer_dir)?;
-    cli_runtime::install(&installer_dir, &context.shared_cli_dir, &release, cancelled).map(Some)
+    #[cfg(windows)]
+    {
+        let path = context.resource_dir.join("cline-cli.exe");
+        if !path.is_file() {
+            return Err(format!("Bundled Windows CLI not found: {}", path.display()));
+        }
+        return Ok(Some(cli_runtime::InstalledRuntime::direct(path)));
+    }
+    #[cfg(not(windows))]
+    {
+        let installer_dir = context.resource_dir.join("bin").join("cli-installer");
+        let release = cli_runtime::release_tag(&installer_dir)?;
+        cli_runtime::install(&installer_dir, &context.shared_cli_dir, &release, cancelled).map(Some)
+    }
 }
 
 fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
@@ -552,15 +563,24 @@ fn spawn_desktop_backend_process(
         }
         command
             .env("BUN_BE_BUN", "1")
-            .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root)
-            .env(
-                "CLINE_DESKTOP_RUNTIME_DIRECTORY",
-                &context.remote_runtime_dir,
-            )
-            .env(
-                "CLINE_DESKTOP_INSTALLER_DIRECTORY",
-                context.resource_dir.join("bin").join("cli-installer"),
+            .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root);
+        if cfg!(windows) {
+            command.env(
+                "CLINE_REMOTE_HELPER_DIRECTORY",
+                context.resource_dir.join("bin").join("remote-helpers"),
             );
+        } else {
+            command
+                .env(
+                    "CLINE_DESKTOP_RUNTIME_DIRECTORY",
+                    &context.remote_runtime_dir,
+                )
+                .env(
+                    "CLINE_DESKTOP_INSTALLER_DIRECTORY",
+                    context.resource_dir.join("bin").join("cli-installer"),
+                );
+        }
+
         command
     } else {
         return Err(format!(

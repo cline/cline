@@ -51,7 +51,7 @@ it("downloads only the requested SSH target from the desktop's exact release", a
 			resolveDesktopRemoteHelper(
 				{ platform: "linux", arch: "arm64" },
 				{
-					platform: "win32",
+					platform: "darwin",
 					env: {
 						CLINE_DESKTOP_INSTALLER_DIRECTORY: installerDir,
 						CLINE_DESKTOP_RUNTIME_DIRECTORY: join(root, "cache"),
@@ -61,7 +61,7 @@ it("downloads only the requested SSH target from the desktop's exact release", a
 			),
 		).resolves.toBe(join(directory, "cline"));
 		expect(runInstaller).toHaveBeenCalledWith(
-			join(installerDir, "install.ps1"),
+			join(installerDir, "install.sh"),
 			"desktop-v0.0.43-beta.1",
 			"aarch64-unknown-linux-gnu",
 			directory,

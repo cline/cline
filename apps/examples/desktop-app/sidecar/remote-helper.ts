@@ -98,44 +98,26 @@ export async function resolveDesktopRemoteHelper(
 		const run =
 			options.runInstaller ??
 			(async (script, release, triple, directory) => {
-				const windows = platform === "win32";
+				if (platform === "win32")
+					throw new Error(
+						"Standalone SSH downloads are not available on Windows; supply a local runtime directory",
+					);
 				await desktopRuntimeInstallers.run(
-					windows ? "powershell.exe" : "/bin/bash",
-					windows
-						? [
-								"-NoProfile",
-								"-NonInteractive",
-								"-ExecutionPolicy",
-								"Bypass",
-								"-File",
-								script,
-								"-Release",
-								release,
-								"-Target",
-								triple,
-								"-InstallDir",
-								directory,
-								"-NoModifyPath",
-							]
-						: [
-								script,
-								"--release",
-								release,
-								"--target",
-								triple,
-								"--install-dir",
-								directory,
-								"--no-modify-path",
-							],
+					"/bin/bash",
+					[
+						script,
+						"--release",
+						release,
+						"--target",
+						triple,
+						"--install-dir",
+						directory,
+						"--no-modify-path",
+					],
 					env,
 				);
 			});
-		await run(
-			join(installerDir, platform === "win32" ? "install.ps1" : "install.sh"),
-			release,
-			triple,
-			directory,
-		);
+		await run(join(installerDir, "install.sh"), release, triple, directory);
 		const installed = join(directory, "cline");
 		if (!existsSync(installed))
 			throw new Error(`CLI installer did not create ${installed}`);

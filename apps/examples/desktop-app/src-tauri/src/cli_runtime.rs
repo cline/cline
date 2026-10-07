@@ -219,37 +219,16 @@ fn install_with_candidates(
             }
         }
     }
-    let mut command;
-    if cfg!(windows) {
-        command = Command::new("powershell.exe");
-        command
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-            ])
-            .arg(installer_dir.join("install.ps1"))
-            .arg("-Release")
-            .arg(release)
-            .arg("-Target")
-            .arg(host_target())
-            .arg("-InstallDir")
-            .arg(shared_dir)
-            .arg("-Managed");
-    } else {
-        command = Command::new("/bin/bash");
-        command
-            .arg(installer_dir.join("install.sh"))
-            .arg("--release")
-            .arg(release)
-            .arg("--target")
-            .arg(host_target())
-            .arg("--install-dir")
-            .arg(shared_dir)
-            .arg("--managed");
-    }
+    let mut command = Command::new("/bin/bash");
+    command
+        .arg(installer_dir.join("install.sh"))
+        .arg("--release")
+        .arg(release)
+        .arg("--target")
+        .arg(host_target())
+        .arg("--install-dir")
+        .arg(shared_dir)
+        .arg("--managed");
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;

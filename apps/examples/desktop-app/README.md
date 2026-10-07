@@ -318,17 +318,18 @@ Desktop transport envelope:
 
 ## CLI runtime installation
 
-The desktop bundle contains installer scripts, backend JS, and manifests
-identifying its release and SDK build. It contains no CLI executables.
+The macOS and Linux desktop bundles contain installer scripts, backend JS, and
+manifests identifying their release and SDK build. They contain no CLI executables.
 Before installing, desktop searches the terminal PATH and interactive login shell for
 `cline`, then probes `--runtime-info` to find its native executable and SDK
 identity. A compatible existing installation is reused directly, including
 package-manager installations; the desktop does not copy its binary.
 
 Standalone releases live under `~/.cline/packages/standalone/releases/`,
-including embedded plugin and dashboard resources. On Unix, `~/.local/bin/cline`
-links to the active release; on Windows, `~/.cline/bin/cline.cmd` launches it.
-Desktop and terminal use the same active installation. Updates validate the
+including embedded plugin and dashboard resources. On macOS and Linux,
+`~/.local/bin/cline` links to the active release. Windows continues to bundle its
+CLI and Linux SSH runtimes; its standalone installer is a separate follow-up.
+On macOS and Linux, desktop and terminal use the same active installation. Updates validate the
 checksum, SDK identity, target, and build epoch before atomically switching the
 command. Older releases are retained for rollback and running processes; the
 installer never downgrades the active runtime automatically. A running Hub keeps
@@ -339,15 +340,15 @@ unrecognizable external installation stops setup with an update/removal
 instruction. Interactive manual installs identify common Homebrew, npm, and Bun
 locations and offer removal through the owning package manager. Unattended
 installs never uninstall packages. To choose a standalone installation while
-keeping an existing package, use `--replace-existing` (`-ReplaceExisting` on
-Windows); the installer reports PATH conflicts. Package-owned files and unrelated
+keeping an existing package, use `--replace-existing`; the installer reports
+PATH conflicts. Package-owned files and unrelated
 command entry points are never overwritten. Desktop never prompts for removal.
 
 Downloads come from the exact desktop release and are SHA-256 verified. The
 workflow publishes SDK build-ID and build-epoch sidecars and independently signed macOS/Windows
 executables. Cached installs work offline. Initial installs and incompatible
-standalone updates require internet access, Bash/curl on Unix or PowerShell on
-Windows. Linux requires glibc; x64 binaries use Bun's baseline runtime.
+standalone updates require internet access and Bash/curl on macOS and Linux.
+Linux requires glibc; x64 binaries use Bun's baseline runtime.
 
 SSH connections reuse the shared host CLI when it supports the remote target.
 Other architectures/platforms require their own executable, cached once per
@@ -387,19 +388,15 @@ bash scripts/cli-installer/install.sh --release desktop-v0.0.43-beta.1
 bash scripts/cli-installer/install.sh --binary /path/to/cline --no-modify-path
 ```
 
-```powershell
-./scripts/cli-installer/install.ps1 -Version 0.0.43
-```
+
 
 Manual installs add the stable command directory to the user's PATH; desktop
 uses the same directory. A standalone Unix installation stays available when a
 project switches Node versions.
 Use `--no-modify-path` to leave shell profiles untouched. Explicit `--install-dir`
 (`-InstallDir`) installs are isolated runtime caches for other machines; they do
-not create a host command entry. Add `--managed` (`-Managed`) to select versioned
-releases with a custom host command directory. The standalone Windows launcher
-does not require symlink privileges and switching it leaves running executables
-intact.
+not create a host command entry. Add `--managed` to select versioned
+releases with a custom host command directory. Windows standalone installation is reviewed separately.
 Nightly installers remain Actions artifacts, but their runtime assets are
 published to the corresponding nightly GitHub release for durable access.
 

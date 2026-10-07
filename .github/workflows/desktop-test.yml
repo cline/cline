@@ -102,6 +102,3 @@ jobs:
 
       - name: Test install and uninstall process cleanup
         run: bun run test:windows-installer
-
-      - name: Test Windows CLI runtime installer
-        run: bun test scripts/cli-installer.test.ts

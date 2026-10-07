@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import {
@@ -107,10 +107,14 @@ const main = async () => {
 	process.chdir(APP_ROOT);
 	const targetTriple = await resolveTargetTriple();
 	await $`mkdir -p ${BIN_DIR}/desktop-backend`;
-	if (targetTriple === "universal-apple-darwin") {
+	if (
+		targetTriple === "universal-apple-darwin" ||
+		targetTriple.includes("windows")
+	) {
 		await installOpenTuiNativeVariants();
 	}
 	const installerDir = `${BIN_DIR}/cli-installer`;
+	rmSync(installerDir, { recursive: true, force: true });
 	mkdirSync(installerDir, { recursive: true });
 	cpSync("scripts/cli-installer", installerDir, { recursive: true });
 	const { version } = JSON.parse(readFileSync("package.json", "utf8"));
@@ -129,6 +133,18 @@ const main = async () => {
 		await buildUniversalMacCli();
 	} else {
 		await compileDesktopCli(targetTriple);
+		// Windows keeps bundled runtimes until its standalone installer lands.
+		if (targetTriple.includes("windows")) {
+			for (const target of [
+				"x86_64-unknown-linux-gnu",
+				"aarch64-unknown-linux-gnu",
+			]) {
+				await compileDesktopCli(
+					target,
+					`${BIN_DIR}/remote-helpers/cline-${target}`,
+				);
+			}
+		}
 	}
 };
 
