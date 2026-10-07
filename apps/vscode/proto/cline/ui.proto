@@ -65,7 +65,8 @@ enum ClineSay {
   CHECKPOINT_CREATED = 24;
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
-  TASK_PROGRESS = 27;
+  reserved 27;
+  reserved "TASK_PROGRESS";
   reserved 28; // was ERROR_RETRY (legacy auto-retry, removed)
   HOOK_STATUS = 30;
   HOOK_OUTPUT_STREAM = 31;

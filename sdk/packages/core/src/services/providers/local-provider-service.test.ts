@@ -2777,8 +2777,34 @@ describe("listLocalProviders", () => {
 			expect(
 				providers.find((p) => p.id === "anthropic")?.auth.localCli,
 			).toBeUndefined();
+			// Keyless-capable providers declare it; everyone else requires a key.
+			for (const id of ["openai-compatible", "ollama", "lmstudio"]) {
+				expect(providers.find((p) => p.id === id)?.auth.apiKeyOptional).toBe(
+					true,
+				);
+			}
+			expect(
+				providers.find((p) => p.id === "anthropic")?.auth.apiKeyOptional,
+			).toBeUndefined();
 		} finally {
 			LlmsModels.unregisterProvider("custom-auth-cli");
+		}
+	});
+
+	it("declares user-added endpoints keyless-capable", async () => {
+		await addLocalProvider(manager, {
+			providerId: "keyless-endpoint",
+			name: "Keyless Endpoint",
+			baseUrl: "http://localhost:8000/v1",
+			models: ["local-model"],
+		});
+		try {
+			const { providers } = await listLocalProviders(manager);
+			expect(
+				providers.find((p) => p.id === "keyless-endpoint")?.auth.apiKeyOptional,
+			).toBe(true);
+		} finally {
+			LlmsModels.unregisterProvider("keyless-endpoint");
 		}
 	});
 

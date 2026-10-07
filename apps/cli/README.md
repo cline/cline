@@ -286,10 +286,27 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline schedule <command>` - Create and manage scheduled runs
 - `cline doctor` - Inspect local CLI health and stale processes
 - `cline doctor fix` - Kill stale local RPC listeners and old CLI processes
-- `cline doctor log` - Open the CLI runtime log file
+- `cline doctor log` - Open the CLI runtime log file (`CLINE_LOG_PATH` when set)
 - `cline hook` - Handle a hook payload from stdin
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
+
+## Hub dashboard
+
+Run `cline hub` to list hub subcommands. To start the browser dashboard:
+
+```sh
+cline hub dashboard
+```
+
+The dashboard opens in your default browser and stays running until you press Ctrl+C. Use `--no-open` to print the URL without opening a browser, or `--port` to change the dashboard's HTTP/WebSocket port (default: `8787`):
+
+```sh
+cline hub dashboard --port 9090 --no-open
+cline hub dashboard --help
+```
+
+Dashboard options also include `--cwd`, `--config`, `--data-dir`, `--host`, `--public-url`, and `--room-secret`. For LAN or tunnel access, see the [Cline Hub configuration and security guidance](../cline-hub/README.md). The old `cline dashboard` invocation remains a hidden compatibility alias; use `cline hub dashboard` in new scripts.
 
 ## Zen mode
 

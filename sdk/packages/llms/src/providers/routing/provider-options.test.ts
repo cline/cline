@@ -143,6 +143,69 @@ describe("Anthropic server-side refusal fallbacks", () => {
 	});
 
 	it.each([
+		"https://api.anthropic.com/v1",
+		"https://api.anthropic.com/v1/",
+	])("enables refusal fallbacks for the official endpoint %s", (baseUrl) => {
+		const selection = { providerId: "anthropic", modelId: "claude-fable-5" };
+		const context = makeContext(selection);
+		context.config.baseUrl = baseUrl;
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			context,
+		);
+		expect(options.anthropic).toMatchObject({ fallbacks: "default" });
+	});
+
+	it.each([
+		"https://example.services.ai.azure.com/anthropic/v1",
+		"https://example.services.ai.azure.com/anthropic",
+		"https://example.services.ai.azure.com",
+		"https://api.anthropic.com.example.com/v1",
+	])("omits official-only refusal fallbacks for custom endpoint %s", (baseUrl) => {
+		const selection = { providerId: "anthropic", modelId: "claude-fable-5" };
+		const context = makeContext(selection);
+		context.config.baseUrl = baseUrl;
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			context,
+		);
+		for (const bucket of Object.values(options)) {
+			expect(bucket).not.toHaveProperty("fallbacks");
+		}
+	});
+
+	it("changes nothing but fallbacks for a custom endpoint", () => {
+		// A thinking budget stays in provider options; effort-only requests
+		// travel through the AI SDK's top-level reasoning setting instead.
+		const selection = { providerId: "anthropic", modelId: "claude-sonnet-4-5" };
+		const request = makeRequest({
+			...selection,
+			reasoning: { enabled: true, budgetTokens: 2048 },
+		});
+		const makeAnthropicContext = () =>
+			makeContext({
+				...selection,
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024),
+			});
+		const customContext = makeAnthropicContext();
+		customContext.config.baseUrl =
+			"https://example.services.ai.azure.com/anthropic";
+
+		const official = composeAiSdkProviderOptions(
+			request,
+			makeAnthropicContext(),
+		);
+		const custom = composeAiSdkProviderOptions(request, customContext);
+
+		const { fallbacks, ...officialAnthropic } = official.anthropic ?? {};
+		expect(fallbacks).toBe("default");
+		// Thinking must still be routed, or the comparison below is vacuous.
+		expect(officialAnthropic).toHaveProperty("thinking.type", "enabled");
+		expect(custom).toEqual({ ...official, anthropic: officialAnthropic });
+	});
+
+	it.each([
 		"openrouter",
 		"cline",
 		"cline-pass",

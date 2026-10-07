@@ -5,6 +5,7 @@ import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
+import { createDashboardCommand } from "./commands/dashboard-command";
 import { registerHistoryCommand } from "./commands/history-command";
 import {
 	CommanderError,
@@ -607,47 +608,21 @@ export async function runCli(): Promise<void> {
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
 			const hubCmd = await createHubRuntimeCommand();
+			if (cmd.args.length === 0) {
+				hubCmd.outputHelp();
+				ctx.exitCode = 0;
+				return;
+			}
 			await hubCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
-	const dashboardCmd = program
-		.command("dashboard")
-		.description("Start the Cline Hub dashboard and open it in a browser")
-		.option("--config <dir>", "configuration directory")
-		.option("-c, --cwd <path>", "Workspace root", process.cwd())
-		.option(
-			"--data-dir <dir>",
-			"Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)",
-		)
-		.option("--host <host>", "Dashboard bind host")
-		.option("--port <port>", "Dashboard HTTP/WebSocket port")
-		.option("--public-url <url>", "Public dashboard URL")
-		.option("--room-secret <secret>", "Invite secret for browser access")
-		.option("--no-open", "Start the dashboard without opening a browser")
-		.action(async () => {
-			const opts = dashboardCmd.opts<{
-				config?: string;
-				cwd?: string;
-				dataDir?: string;
-				host?: string;
-				port?: string;
-				publicUrl?: string;
-				roomSecret?: string;
-				open?: boolean;
-			}>();
-			const { runDashboardCommand } = await import("./commands/dashboard");
-			ctx.exitCode = await runDashboardCommand({
-				configDir: opts.config,
-				cwd: opts.cwd,
-				dataDir: opts.dataDir,
-				host: opts.host,
-				port: opts.port,
-				publicUrl: opts.publicUrl,
-				roomSecret: opts.roomSecret,
-				openBrowser: opts.open !== false,
-				io,
-			});
-		});
+	// Keep the old invocation working without advertising it in root help.
+	program.addCommand(
+		createDashboardCommand(io, (code) => {
+			ctx.exitCode = code;
+		}),
+		{ hidden: true },
+	);
 
 	const updateCmd = program
 		.command("update")
