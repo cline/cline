@@ -32,7 +32,7 @@ Options:
   --json                        Output messages as JSON instead of styled text
   --auto-approve <boolean>      Set tool auto-approval for all tools (default: true)
   -c, --cwd <path>              Working directory
-  --thinking <level>            Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level saved in the TUI, or the provider default.
+  --thinking <level>            Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level last chosen with /model, or the provider default.
   --compaction <mode>           Context compaction mode: agentic|basic|off (default: agentic)
   -i, --tui                     Open the terminal user interface (TUI) for interactive sessions
   --id <session-id>             Resume an existing session by ID
@@ -85,7 +85,7 @@ Commands:
 | `-c, --cwd <path>` | Working directory |
 | `--config <path>` | Configuration directory (default: `~/.cline`) |
 | `--data-dir <path>` | Use isolated local state at this directory path (default: `~/.cline/data`) |
-| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose in the TUI, or else the provider's default |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose with `/model`, or else the provider's default |
 | `--compaction <mode>` | Context compaction mode: `agentic`, `basic` or `off` (default: `agentic`) |
 | `--retries [value]` | Maximum consecutive mistakes (retries) before exiting (default: `3`) |
 | `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |

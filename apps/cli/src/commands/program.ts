@@ -38,7 +38,7 @@ export function addRootOptions(cmd: Command): Command {
 			.option("-c, --cwd <path>", "Working directory")
 			.option(
 				"--thinking <level>",
-				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level saved in the TUI, or the provider default.",
+				"Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level last chosen with /model, or the provider default.",
 			)
 			.option("--compaction <mode>", CLI_COMPACTION_MODE_OPTION_DESCRIPTION)
 			.option(
