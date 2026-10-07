@@ -101,7 +101,7 @@ Source of truth: [CLI Reference](/cli/cli-reference)
 | `--config <dir>` | Use config directory |
 | `--data-dir <dir>` | Use isolated local state |
 | `--json` | Output newline-delimited JSON messages |
-| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`; without the flag, the provider's default applies |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose in the TUI, or else the provider's default |
 | `-t, --timeout <seconds>` | Set task timeout |
 
 ## Automation Patterns
@@ -139,7 +139,7 @@ cline --timeout 600 "run full test suite"
 
 ## JSON Output Schema
 
-With `--json`, each line is a JSON object with a `type`. Agent events arrive as `agent_event` lines, and a `run_result` line holds the final `text` when the run finishes. The [CLI Reference](/cli/cli-reference#json-output-format) lists every line type.
+With `--json`, each line is a JSON object with a `type`. Agent events arrive as `agent_event` lines, and a `run_result` line holds the final `text` when the run finishes. The [CLI Reference](/cli/cli-reference#json-output-format) describes the line types.
 
 ## Next Steps
 

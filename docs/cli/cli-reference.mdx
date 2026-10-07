@@ -71,6 +71,8 @@ Commands:
   kanban                        Run the kanban app
 ```
 
+The help text gives the wrong default for `--retries`: without the flag, the CLI stops after 3 consecutive mistakes, not 6.
+
 ## Global Options
 
 | Option | Description |
@@ -85,9 +87,9 @@ Commands:
 | `-c, --cwd <path>` | Working directory |
 | `--config <path>` | Configuration directory (default: `~/.cline`) |
 | `--data-dir <path>` | Use isolated local state at this directory path (default: `~/.cline/data`) |
-| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`; without the flag, the provider's default applies |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose in the TUI, or else the provider's default |
 | `--compaction <mode>` | Context compaction mode: `agentic`, `basic` or `off` (default: `agentic`) |
-| `--retries [value]` | Maximum consecutive mistakes (retries) before exiting (default: `6`) |
+| `--retries [value]` | Maximum consecutive mistakes (retries) before exiting (default: `3`) |
 | `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |
 | `--acp` | Run in Agent Client Protocol (ACP) mode for [editor integration](/usage/acp) |
 | `-i, --tui` | Open the terminal user interface (TUI) for interactive sessions |
@@ -120,7 +122,7 @@ Configure authentication with an AI provider. Without options, `cline auth` open
 
 ```bash
 cline auth
-cline auth -p anthropic -k "$ANTHROPIC_API_KEY" -m claude-sonnet-4-6
+cline auth -p anthropic -k "$ANTHROPIC_API_KEY" -m claude-sonnet-5-5
 ```
 
 | Option | Description |
@@ -133,7 +135,7 @@ cline auth -p anthropic -k "$ANTHROPIC_API_KEY" -m claude-sonnet-4-6
 
 ### `config [options] [target]`
 
-In a terminal, `cline config` opens the configuration view. Name a target to print one part of the configuration instead: `workflows`, `rules`, `skills`, `agents`, `plugins`, `hooks`, `mcp` or `tools`.
+`cline config` opens the configuration view in your terminal. To print one part of the configuration instead, for example in a script, name a target: `workflows`, `rules`, `skills`, `agents`, `plugins`, `hooks`, `mcp` or `tools`.
 
 ```bash
 cline config
@@ -162,7 +164,7 @@ cline connect telegram --help    # Options for one channel
 
 ### `mcp`
 
-Manage MCP servers. In a terminal, `cline mcp` opens a menu to list, add, edit, enable or disable, authorize and delete servers. See [MCP](/mcp/mcp-overview).
+Manage MCP servers. `cline mcp` opens a menu in your terminal to list, add, edit, enable or disable, authorize and delete servers. See [MCP](/mcp/mcp-overview).
 
 ```bash
 cline mcp
@@ -185,7 +187,7 @@ cline doctor log    # Open the CLI log file
 
 ### `history|h [options]`
 
-List session history or manage saved sessions. In a terminal, `cline history` opens a session picker; otherwise it prints the list.
+List session history or manage saved sessions. `cline history` opens a session picker in your terminal. When its output goes to a script or a file, it prints the list instead.
 
 ```bash
 cline history
@@ -197,8 +199,7 @@ cline history delete --session-id <session-id>
 | Option or command | Description |
 |--------|-------------|
 | `--json` | Print the sessions as JSON |
-| `--limit <count>` | Maximum number of sessions to show (default: `50`) |
-| `--page <number>` | Page of results to show |
+| `--limit <count>` | Maximum number of sessions to show, newest first (default: `50`) |
 | `export <session-id>` | Export a session as a standalone HTML file (`-o, --output <path>` names the file) |
 | `delete --session-id <id>` | Delete a session from history |
 | `update --session-id <id>` | Change a session's `--title`, `--prompt` or `--metadata <json>` |
@@ -347,10 +348,10 @@ With `--json`, the CLI prints one JSON object per line. Every line has a `type` 
 | `agent_event` | An event from the agent, in `event`. `event.type` is one of the [agent events](/sdk/reference/events#agentevent): `content_start`, `content_update`, `content_end`, `iteration_start`, `iteration_end`, `usage`, `notice`, `done` or `error` |
 | `hook_event` | A lifecycle hook ran (`hookEventName`, `agentId`, `taskId`) |
 | `team_event` | An event from an [agent team](/cli/agent-teams), in `event` |
-| `run_result` | The run finished: `finishReason`, `iterations`, `usage`, `durationMs`, `model` and the final `text` |
-| `run_aborted` | Follows `run_result` when the run was stopped (`reason`, `message`) |
+| `run_result` | The run finished: `finishReason`, `iterations`, `usage`, `durationMs`, `model` and the final `text`. A stopped run has `finishReason` `aborted` |
+| `run_aborted` | Follows `run_result` when you or another client stopped the run (`reason`, `message`) |
 
-Errors are printed to stderr as `{"type":"error","message":...}`.
+Errors, including a `--timeout` that stops the run, are printed to stderr as `{"type":"error","message":...}`. Other line types can appear, such as `run_start` with `--verbose`, so have scripts skip types they don't use.
 
 To print only the final answer:
 
