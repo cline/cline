@@ -170,9 +170,16 @@ function validateHeader(value: string | undefined): string | undefined {
 	}
 }
 
+function warnIfPlaceholder(header: string): void {
+	for (const warning of parseMcpHeaders([header]).warnings) {
+		p.log.warn(warning);
+	}
+}
+
 /**
  * Ask for one header per prompt, parsed exactly as `cline mcp add --header`
- * parses each flag. Returns null when the user cancels.
+ * parses each flag. Prefilled headers come first, and clearing one drops only
+ * that header. Returns null when the user cancels.
  */
 async function collectHeaders(
 	defaults: Record<string, string> | undefined,
@@ -181,23 +188,28 @@ async function collectHeaders(
 		([name, value]) => `${name}: ${value}`,
 	);
 	const entered: string[] = [];
-	for (;;) {
+	for (let index = 0; ; index++) {
+		const initialValue = prefilled[index];
+		// Warn before the prompt, while the user can still edit the value.
+		if (initialValue) warnIfPlaceholder(initialValue);
 		const input = await p.text({
 			message: entered.length === 0 ? "Header (Name: value)" : "Another header",
-			placeholder: "leave empty to finish",
-			initialValue: prefilled[entered.length],
+			placeholder: initialValue
+				? "leave empty to drop this header"
+				: "leave empty to finish",
+			initialValue,
 			validate: validateHeader,
 		});
 		if (isCancel(input)) return null;
 		const header = (input as string).trim();
-		if (!header) break;
+		if (!header) {
+			if (index < prefilled.length) continue;
+			break;
+		}
+		if (header !== initialValue) warnIfPlaceholder(header);
 		entered.push(header);
 	}
-	const { headers, warnings } = parseMcpHeaders(entered);
-	for (const warning of warnings) {
-		p.log.warn(warning);
-	}
-	return headers;
+	return parseMcpHeaders(entered).headers;
 }
 
 async function collectUrlTransport(
