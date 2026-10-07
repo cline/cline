@@ -56,23 +56,12 @@ Team state persists across sessions:
   mission-log.json     # Team activity history
 ```
 
-Resume a team's work in a new session:
-
-```bash
-cline --team-name auth-sprint "Continue -- pick up incomplete tasks"
-```
-
 ## Via CLI
 
+Start a prompt with `/team` to start a team, and resume the session with `cline --id <session-id>` to continue its work. [Agent Teams](/cli/agent-teams) has the details.
+
 ```bash
-# Start a new team
-cline --team-name auth-sprint "Plan and implement user auth with tests"
-
-# Resume work
-cline --team-name auth-sprint "What's the status? Continue with unfinished tasks."
-
-# Different team for a different workstream
-cline --team-name perf-sprint "Profile the API endpoints and optimize the slowest 3"
+cline "/team Plan and implement user auth with tests"
 ```
 
 ## Sub-Agents vs Teams
