@@ -18,6 +18,21 @@ interface HubCommandIo {
 	writeErr: (text: string) => void;
 }
 
+interface HubOptions {
+	cwd: string;
+	host?: string;
+	port?: number;
+	pathname?: string;
+}
+
+function addHubOptions(command: Command, defaultCwd?: string): Command {
+	return command
+		.option("--cwd <path>", "Workspace root", defaultCwd)
+		.option("--host <host>", "Hub host")
+		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
+		.option("--pathname <path>", "Hub websocket path");
+}
+
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
@@ -88,22 +103,20 @@ export function createHubCommand(
 	const hub = new Command("hub")
 		.description("Manage the local hub daemon")
 		.exitOverride()
+		// Subcommands may use the same flag names for different services.
+		.enablePositionalOptions()
 		.hook("postAction", () => {
 			setExitCode(actionExitCode);
-		})
-		.option("--cwd <path>", "Workspace root", process.cwd())
-		.option("--host <host>", "Hub host")
-		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
-		.option("--pathname <path>", "Hub websocket path");
+		});
+	addHubOptions(hub, process.cwd());
+	const resolveOptions = (options: Partial<HubOptions>): HubOptions => ({
+		...hub.opts<HubOptions>(),
+		...options,
+	});
 
 	hub.command("ensure").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
+		action(async (options: Partial<HubOptions>) => {
+			const opts = resolveOptions(options);
 			const { url } = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
@@ -114,13 +127,8 @@ export function createHubCommand(
 	);
 
 	hub.command("start").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
+		action(async (options: Partial<HubOptions>) => {
+			const opts = resolveOptions(options);
 			const { url } = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
@@ -155,8 +163,8 @@ export function createHubCommand(
 	);
 
 	hub.command("stop").action(
-		action(async () => {
-			const opts = hub.opts<{ cwd: string }>();
+		action(async (options: Partial<HubOptions>) => {
+			const opts = resolveOptions(options);
 			const stopped = await stopHubServer(opts.cwd);
 			io.writeln(JSON.stringify({ stopped }));
 		}),
@@ -209,13 +217,8 @@ export function createHubCommand(
 			120,
 		)
 		.action(
-			action(async (cmdOptions: { wait: number }) => {
-				const opts = hub.opts<{
-					cwd: string;
-					host?: string;
-					port?: number;
-					pathname?: string;
-				}>();
+			action(async (cmdOptions: Partial<HubOptions> & { wait: number }) => {
+				const opts = resolveOptions(cmdOptions);
 				const owner = resolveCliHubOwnerContext();
 				const discovery = await readHubDiscovery(owner.discoveryPath);
 				if (discovery?.url) {
@@ -273,6 +276,11 @@ export function createHubCommand(
 				io.writeln(JSON.stringify({ upgraded: true, url }));
 			}),
 		);
+
+	// Keep daemon options accepted before or after existing subcommands.
+	for (const command of hub.commands) {
+		addHubOptions(command);
+	}
 
 	return hub;
 }
