@@ -26,9 +26,8 @@ describe("createFileReadExecutor", () => {
 			context,
 		);
 		const preview =
-			prepareToolResultPreview([
-				{ query: `${uri}@0:6000`, result, success: true },
-			]).text ?? "";
+			prepareToolResultPreview([{ query: `${uri}@0`, result, success: true }])
+				.text ?? "";
 		expect(preview.length).toBeLessThan(8000);
 		expect(String(result)).toContain("next_offset=1000; has_more=true");
 	});
@@ -127,28 +126,16 @@ describe("createFileReadExecutor", () => {
 			String(await reader({ path: uri, start_offset: 4 }, context)),
 		).toContain("next_offset=4; has_more=false]\n");
 		expect(
-			String(
-				await reader({ path: uri, start_offset: 1, max_chars: 2 }, context),
-			),
-		).toContain("has_more=true]\n😀");
+			String(await reader({ path: uri, start_offset: 1 }, context)),
+		).toContain("has_more=false]\n😀b");
 		await expect(
 			reader({ path: uri, start_offset: 2 }, context),
 		).rejects.toThrow("surrogate pair");
 		await expect(
 			reader({ path: uri, start_offset: 0, start_line: 1 }, context),
 		).rejects.toThrow("cannot be combined");
-		await expect(reader({ path: uri, max_chars: 2 }, context)).rejects.toThrow(
-			"requires start_offset",
-		);
 		expect(
 			ReadFileRequestSchema.safeParse({ path: uri, start_offset: -1 }).success,
-		).toBe(false);
-		expect(
-			ReadFileRequestSchema.safeParse({
-				path: uri,
-				start_offset: 0,
-				max_chars: 6001,
-			}).success,
 		).toBe(false);
 		expect(getReadFileRangeError({ path: uri, start_offset: 0 })).toBeNull();
 		const controller = new AbortController();

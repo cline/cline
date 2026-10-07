@@ -41,7 +41,6 @@ describe("synchronous model-only recovery", () => {
 									{
 										path: "/tmp/minified.js",
 										start_offset: offset,
-										max_chars: 1000,
 									},
 								],
 							},
@@ -57,7 +56,7 @@ describe("synchronous model-only recovery", () => {
 							name: "read_files",
 							content: JSON.stringify([
 								{
-									query: `/tmp/minified.js@${offset}:1000`,
+									query: `/tmp/minified.js@${offset}`,
 									success: true,
 									result: `page-content-${index}`,
 								},
@@ -107,7 +106,7 @@ describe("synchronous model-only recovery", () => {
 									query:
 										offset == null
 											? "/tmp/minified.js"
-											: `/tmp/minified.js@${offset}:6000`,
+											: `/tmp/minified.js@${offset}`,
 									success: true,
 									result: `read-content-${index}`,
 								},

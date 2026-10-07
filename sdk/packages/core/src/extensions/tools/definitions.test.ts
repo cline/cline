@@ -1451,11 +1451,10 @@ describe("default read_files tool", () => {
 		const request = {
 			path: "/tmp/minified.js",
 			start_offset: 6000,
-			max_chars: 3000,
 		};
 		const results = await tool.execute({ files: [request] }, context);
 		expect(results[0]).toEqual({
-			query: "/tmp/minified.js@6000:3000",
+			query: "/tmp/minified.js@6000",
 			result: "page",
 			success: true,
 		});

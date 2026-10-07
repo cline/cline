@@ -24,7 +24,6 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
-import { MAX_READ_OFFSET_CHARS } from "../../extensions/tools/executors/output-limits";
 import { prepareToolResultPreview } from "./tool-result-cache";
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
@@ -64,7 +63,6 @@ const TRUNCATE_ASSISTANT_TOOL_MARKUP_MARKER = (n: number) =>
 
 interface ReadLocator {
 	startOffset: number | null;
-	maxChars: number | null;
 	path: string;
 	startLine: number | null;
 	endLine: number | null;
@@ -531,7 +529,6 @@ export class MessageBuilder {
 						this.toReadLocatorKey({
 							path: entry.path,
 							startOffset: null,
-							maxChars: null,
 							startLine: null,
 							endLine: null,
 						}),
@@ -811,7 +808,6 @@ export class MessageBuilder {
 					locators.push({
 						path: value,
 						startOffset: null,
-						maxChars: null,
 						startLine: null,
 						endLine: null,
 					});
@@ -881,7 +877,6 @@ export class MessageBuilder {
 		return {
 			path,
 			startOffset: this.extractLineNumber(record.start_offset),
-			maxChars: this.extractLineNumber(record.max_chars),
 			startLine: this.extractLineNumber(record.start_line),
 			endLine: this.extractLineNumber(record.end_line),
 		};
@@ -899,7 +894,6 @@ export class MessageBuilder {
 			return {
 				path,
 				startOffset: this.extractLineNumber(record.start_offset),
-				maxChars: this.extractLineNumber(record.max_chars),
 				startLine: this.extractLineNumber(record.start_line),
 				endLine: this.extractLineNumber(record.end_line),
 			};
@@ -925,12 +919,11 @@ export class MessageBuilder {
 	}
 
 	private parseReadQuery(query: string): ReadLocator {
-		const offset = /^(.*)@(\d+):(\d+)$/.exec(query);
+		const offset = /^(.*)@(\d+)$/.exec(query);
 		if (offset)
 			return {
 				path: offset[1],
 				startOffset: Number(offset[2]),
-				maxChars: Number(offset[3]),
 				startLine: null,
 				endLine: null,
 			};
@@ -939,7 +932,6 @@ export class MessageBuilder {
 			return {
 				path: query,
 				startOffset: null,
-				maxChars: null,
 				startLine: null,
 				endLine: null,
 			};
@@ -947,7 +939,6 @@ export class MessageBuilder {
 		return {
 			path: match[1],
 			startOffset: null,
-			maxChars: null,
 			startLine: Number(match[2]),
 			endLine: match[3] === "EOF" ? null : Number(match[3]),
 		};
@@ -963,7 +954,7 @@ export class MessageBuilder {
 
 	private toReadLocatorKey(locator: ReadLocator): string {
 		if (locator.startOffset != null)
-			return `${locator.path}@${locator.startOffset}:${locator.maxChars ?? MAX_READ_OFFSET_CHARS}`;
+			return `${locator.path}@${locator.startOffset}`;
 		if (this.isFullFileRead(locator)) {
 			return locator.path;
 		}

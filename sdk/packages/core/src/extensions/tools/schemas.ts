@@ -6,7 +6,6 @@
  */
 
 import { z } from "zod";
-import { MAX_READ_OFFSET_CHARS } from "./executors/output-limits";
 
 export const INPUT_ARG_CHAR_LIMIT = 6000;
 
@@ -57,16 +56,6 @@ export const ReadFileRequestSchema = z
 			.describe(
 				"Zero-based UTF-16 character offset. Continue with next_offset while has_more is true.",
 			),
-		max_chars: z.coerce
-			.number()
-			.int()
-			.min(2)
-			.max(MAX_READ_OFFSET_CHARS)
-			.nullable()
-			.optional()
-			.describe(
-				"Maximum characters per offset page (default 6000). Requires start_offset.",
-			),
 	})
 	.describe(
 		"A file read request. Include path and any bounds in the same object.",
@@ -85,7 +74,6 @@ export const ReadFilesInputSchema = z.object({
 
 const ReadFileRangeAliasFields = {
 	start_offset: ReadFileRequestSchema.shape.start_offset,
-	max_chars: ReadFileRequestSchema.shape.max_chars,
 	start_line: ReadFileLineRangeSchema.shape.start_line,
 	end_line: ReadFileLineRangeSchema.shape.end_line,
 };

@@ -85,21 +85,13 @@ function getAbortError(signal: AbortSignal): Error {
 async function readOffsetWindow(
 	stream: Readable,
 	startOffset: number,
-	maxChars: number,
 	signal?: AbortSignal,
 ): Promise<string> {
-	if (
-		!Number.isSafeInteger(startOffset) ||
-		startOffset < 0 ||
-		!Number.isSafeInteger(maxChars) ||
-		maxChars < 2
-	) {
+	if (!Number.isSafeInteger(startOffset) || startOffset < 0) {
 		stream.destroy();
-		throw new Error(
-			"start_offset must be a nonnegative safe integer and max_chars must be at least 2",
-		);
+		throw new Error("start_offset must be a nonnegative safe integer");
 	}
-	const limit = Math.min(maxChars, MAX_READ_OFFSET_CHARS);
+	const limit = MAX_READ_OFFSET_CHARS;
 	const abortHandler = () =>
 		stream.destroy(signal ? getAbortError(signal) : undefined);
 	let scanned = 0;
@@ -283,23 +275,12 @@ export function createFileReadExecutor(
 	};
 
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
-		const {
-			path: filePath,
-			start_line,
-			end_line,
-			start_offset,
-			max_chars,
-		} = request;
+		const { path: filePath, start_line, end_line, start_offset } = request;
 		const rangeError = getReadFileRangeError(request);
 		if (rangeError) throw new Error(rangeError);
 		const readWindow = (stream: Readable) =>
 			start_offset != null
-				? readOffsetWindow(
-						stream,
-						start_offset,
-						max_chars ?? MAX_READ_OFFSET_CHARS,
-						context.signal,
-					)
+				? readOffsetWindow(stream, start_offset, context.signal)
 				: readTextWindow(
 						stream,
 						includeLineNumbers,
