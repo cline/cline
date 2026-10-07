@@ -250,11 +250,37 @@ export async function runAgenticCompaction(options: {
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 		triggerTokens: options.context.budget.request.triggerTokens,
 	});
-	const summaryResult = await generateSummary({
-		providerConfig: summarizerProviderConfig,
-		request: summaryRequest,
-		logger: options.logger,
-	});
+	let summaryResult: SummaryGenerationResult;
+	try {
+		summaryResult = await generateSummary({
+			providerConfig: summarizerProviderConfig,
+			request: summaryRequest,
+			logger: options.logger,
+		});
+	} catch (error) {
+		// Endpoints with mandatory reasoning reject the summarizer's explicit
+		// disable, so retry with the provider's default reasoning.
+		options.logger?.log(
+			"Agentic compaction summarizer failed with reasoning disabled; retrying with provider default reasoning",
+			{
+				severity: "warn",
+				errorMessage: error instanceof Error ? error.message : String(error),
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+			},
+		);
+		const {
+			thinking: _thinking,
+			reasoningEffort: _reasoningEffort,
+			thinkingBudgetTokens: _thinkingBudgetTokens,
+			...providerDefaultReasoningConfig
+		} = summarizerProviderConfig;
+		summaryResult = await generateSummary({
+			providerConfig: providerDefaultReasoningConfig,
+			request: summaryRequest,
+			logger: options.logger,
+		});
+	}
 	const rawSummary = summaryResult.text;
 	if (!rawSummary) {
 		options.logger?.log(

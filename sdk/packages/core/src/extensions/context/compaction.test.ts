@@ -2386,6 +2386,85 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
+	it("retries the summarizer with provider default reasoning when the endpoint rejects the disable", async () => {
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		createHandlerMock
+			.mockReturnValueOnce({
+				createMessage: vi.fn(() => {
+					throw new Error(
+						"Reasoning is mandatory for this endpoint and cannot be disabled.",
+					);
+				}),
+			})
+			.mockReturnValueOnce({
+				createMessage: vi.fn(() =>
+					streamChunks([
+						{ type: "text", id: "summary-retry", text: "## Goal\nSummarized" },
+						{ type: "done", id: "summary-retry", success: true },
+					]),
+				),
+			});
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "cline",
+			modelId: "stealth/reasoning-model",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "stealth/reasoning-model",
+				reasoningEffort: "high",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "stealth/reasoning-model",
+				provider: "cline",
+				info: { id: "stealth/reasoning-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledTimes(2);
+		expect(createHandlerMock.mock.calls[0]?.[0]).toMatchObject({
+			thinking: false,
+		});
+		const retryConfig = createHandlerMock.mock.calls[1]?.[0];
+		expect(retryConfig).not.toHaveProperty("thinking");
+		expect(retryConfig).not.toHaveProperty("reasoningEffort");
+		expect(retryConfig).not.toHaveProperty("thinkingBudgetTokens");
+		expect(result?.messages[0]).toMatchObject({
+			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+		});
+		expect(logger.log).not.toHaveBeenCalledWith(
+			"Agentic compaction failed; falling back to basic compaction",
+			expect.anything(),
+		);
+	});
+
 	it("budgets agentic summary input against the configured summarizer context window", async () => {
 		let summaryRequest = "";
 		createHandlerMock.mockReturnValue({
