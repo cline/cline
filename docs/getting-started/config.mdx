@@ -21,10 +21,11 @@ Cline stores shared configuration across a few well-known locations. The primary
       global-settings.json     # Global settings
       cline_mcp_settings.json  # MCP settings
     teams/                     # Team state
-    sessions/                  # Session data
-    db/                        # SQLite databases (for example cron.db)
-    workflows/                 # Global workflows
+    sessions/                  # One folder of messages per session
+    db/                        # SQLite databases (sessions.db, cron.db, ...)
+    logs/                      # CLI and hub logs
   rules/                       # Global rules
+  workflows/                   # Global workflows
   hooks/                       # Global hooks
   skills/                      # Global skills
   agents/                      # Global agent definitions
@@ -47,19 +48,19 @@ Project-level configuration lives in `.cline/` at your repository root:
 ```text
 .cline/
   rules/                       # Project rules
+  workflows/                   # Project workflows
   skills/                      # Project skills
   hooks/                       # Lifecycle hooks
   agents/                      # Project agent definitions
   plugins/                     # Project plugins
-  cron/                        # Workspace cron specs
 ```
 
 Notes:
 
 - Global provider settings, global settings, and MCP settings are stored under `~/.cline/data/settings/`.
-- Global workflows resolve from `~/.cline/data/workflows/`.
-- Global rules, hooks, skills, agents, plugins, and cron specs resolve directly under `~/.cline/`.
+- Global rules, workflows, hooks, skills, agents, plugins, and cron specs resolve directly under `~/.cline/`.
 - Rules, hooks, plugins, and workflows may also be discovered from `~/Documents/Cline/` for compatibility.
+- In a project, Cline also reads the older `.clinerules/` layout (rules, plus its `workflows/`, `skills/` and `hooks/` folders), `AGENTS.md` at the project root, and skills in `.agents/skills/`. Globally, it also reads `~/.agents/AGENTS.md` and skills in `~/.agents/skills/`.
 
 ## What Goes Where?
 
@@ -94,27 +95,29 @@ cline --config /path/to/custom/config "your task"
 Or via environment variable:
 
 ```bash
-export CLINE_DATA_DIR=/custom/path/to/cline
+export CLINE_DIR=/path/to/custom/config
 cline "your task"
 ```
 
-View CLI logs when troubleshooting:
+Open the CLI log file (`~/.cline/data/logs/cline.log`) when troubleshooting:
 
 ```bash
-cline dev log
+cline doctor log
 ```
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
+| `CLINE_DIR` | Custom configuration directory (replaces `~/.cline/`), like `--config` |
 | `CLINE_DATA_DIR` | Custom data directory (replaces `~/.cline/data/`) |
-| `CLINE_HUB_ADDRESS` | Override hub address (default: `127.0.0.1:25463`) |
+| `CLINE_HUB_PORT` | Port of the local hub (default: `25463`) |
+| `CLINE_HUB_ADDRESS` | Hub address for `cline schedule` commands, like their `--address` option |
 | `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
 | `CLINE_SANDBOX` | Enable sandbox mode |
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_HOOKS_DIR` | Additional hooks directory |
-| `CLINE_COMMAND_PERMISSIONS` | JSON policy restricting shell commands |
+| `CLINE_LOG_PATH` | CLI log file (default: `~/.cline/data/logs/cline.log`). `cline doctor log` always opens the default file |
 
 ### CLINE_DATA_DIR
 
@@ -123,33 +126,8 @@ export CLINE_DATA_DIR=/custom/path/to/cline
 cline "your task"
 ```
 
-### CLINE_COMMAND_PERMISSIONS
-
-Restrict which shell commands Cline can execute:
-
-```bash
-export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *"]}'
-```
-
-Format:
-
-```json
-{
-  "allow": ["pattern1", "pattern2"],
-  "deny": ["pattern3"],
-  "allowRedirects": true
-}
-```
-
-Rules:
-
-- `deny` overrides `allow`
-- If `allow` is set, commands not matching `allow` are denied
-- `allowRedirects` controls shell redirects (`>`, `>>`, `<`), default `false`
-
 ## Related Docs
 
-- [CLI Configuration](/cli/configuration)
 - [Rules](/customization/cline-rules)
 - [Skills](/customization/skills)
 - [Hooks](/customization/hooks)
