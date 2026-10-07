@@ -44,6 +44,7 @@ export function fixtureMessages(): MessageWithMetadata[] {
 				{
 					type: "tool_result",
 					tool_use_id: "call_1",
+					name: "run_commands",
 					content: "a.txt\nb.txt",
 				},
 			],

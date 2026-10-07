@@ -4,6 +4,7 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { projectSessionMessagesForDisplay } from "../display-messages";
+import { isUserRunMessage } from "../user-run-messages";
 import type {
 	SessionReplayEvent,
 	SessionReplayTranscriptFile,
@@ -46,6 +47,11 @@ export interface SessionReplayIteration {
 	sessionId: string;
 	/** User prompt submitted right before this iteration, if any. */
 	prompt?: { text: string; ts?: string };
+	/**
+	 * User-role messages the runtime injected before this iteration
+	 * (completion reminders, recovery notices). They are not user turns.
+	 */
+	injected?: Array<{ text: string; ts?: string }>;
 	/** Absent when the transcript ends with a prompt the model never answered. */
 	assistant?: {
 		text: string;
@@ -311,7 +317,7 @@ export function buildSessionReplayIterations(input: {
 			group.assistantIndex !== undefined
 				? messages[group.assistantIndex]
 				: undefined;
-		const promptMessages = messages
+		const userMessages = messages
 			.slice(group.start, group.assistantIndex ?? group.end)
 			.filter(
 				(message) =>
@@ -320,10 +326,18 @@ export function buildSessionReplayIterations(input: {
 					message.metadata?.displayOnly !== true &&
 					!NON_CONVERSATIONAL_DISPLAY_ROLES.has(displayRole(message) ?? ""),
 			);
+		const promptMessages = userMessages.filter(isUserRunMessage);
 		const promptText = promptMessages
 			.map((message) => formatDisplayUserInput(textOf(message.content)))
 			.filter((text) => text.trim().length > 0)
 			.join("\n");
+		const injected = userMessages
+			.filter((message) => !isUserRunMessage(message))
+			.flatMap((message) => {
+				const text = formatDisplayUserInput(textOf(message.content));
+				const ts = isoFromMs(message.ts);
+				return text.trim() ? [{ text, ...(ts ? { ts } : {}) }] : [];
+			});
 		if (promptText || groupIndex === 0) {
 			turn += 1;
 		}
@@ -343,6 +357,7 @@ export function buildSessionReplayIterations(input: {
 						},
 					}
 				: {}),
+			...(injected.length > 0 ? { injected } : {}),
 			...(assistantMessage
 				? {
 						assistant: {

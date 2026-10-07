@@ -120,6 +120,26 @@ describe("buildSessionReplayIterations", () => {
 		expect(iterations[2]?.assistant).toBeUndefined();
 	});
 
+	it("separates runtime-injected user messages from prompts", () => {
+		const [first, ...rest] = fixtureMessages();
+		const messages: MessageWithMetadata[] = [
+			first as MessageWithMetadata,
+			{
+				role: "user",
+				content: "[SYSTEM] This run is not complete until you call submit.",
+				metadata: { userRunSpan: 0 },
+			},
+			...rest,
+		];
+		const [iteration] = buildSessionReplayIterations({
+			transcript: { sessionId: FIXTURE_SESSION_ID, messages },
+		});
+		expect(iteration?.prompt?.text).toBe("List the files");
+		expect(iteration?.injected).toEqual([
+			{ text: "[SYSTEM] This run is not complete until you call submit." },
+		]);
+	});
+
 	it("does not start iterations for display-only assistant messages", () => {
 		const messages: MessageWithMetadata[] = [
 			...fixtureMessages(),
