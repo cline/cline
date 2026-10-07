@@ -9,6 +9,7 @@ import type {
 	SessionReplayEvent,
 	SessionReplayTranscriptFile,
 } from "./bundle-schema";
+import type { SessionRecordedModelCall } from "./recording-schema";
 
 export interface SessionReplayToolCall {
 	id: string;
@@ -33,6 +34,29 @@ export interface SessionReplayIterationEvent {
 	name: string;
 	toolCallId?: string;
 	iteration?: number;
+	/** Recording order; present for recorded events and hook lines. */
+	seq?: number;
+	refs?: Record<string, string | number>;
+	/** One-line description of a decision or runtime event, when known. */
+	detail?: string;
+}
+
+/** A recorded model request/response, summarized for playback. */
+export interface SessionReplayModelCall {
+	callIndex: number;
+	seq: number;
+	runId: string | null;
+	/** The agent's iteration number within its run. */
+	iteration: number;
+	attempt: number;
+	outcome: SessionRecordedModelCall["response"]["outcome"];
+	finishReason: string | null;
+	durationMs: number;
+	matchKey: string;
+	messageCount: number;
+	messageId?: string;
+	error?: string;
+	usage?: { inputTokens?: number; outputTokens?: number };
 }
 
 /**
@@ -77,6 +101,12 @@ export interface SessionReplayIteration {
 		toolMs?: number;
 	};
 	events: SessionReplayIterationEvent[];
+	/**
+	 * Recorded model calls behind this iteration: the one that produced its
+	 * assistant message, preceded by any failed or discarded attempts.
+	 * Absent when no recorded call belongs to it.
+	 */
+	modelCalls?: SessionReplayModelCall[];
 	/** Transcript message indices covered by this iteration: [start, end). */
 	messageRange: { start: number; end: number };
 }
@@ -281,9 +311,118 @@ function collectToolCalls(
 	return calls;
 }
 
+function str(value: unknown): string | undefined {
+	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function num(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
+}
+
+function quote(text: string, max = 60): string {
+	const line = text.replace(/\s+/g, " ").trim();
+	return `"${line.length > max ? `${line.slice(0, max - 1)}…` : line}"`;
+}
+
+function describeDecider(value: unknown): string {
+	if (!value || typeof value !== "object") {
+		return "unknown";
+	}
+	const decider = value as Record<string, unknown>;
+	const kind = str(decider.kind) ?? "unknown";
+	const detail = str(decider.detail);
+	return detail ? `${kind} (${detail})` : kind;
+}
+
+/**
+ * One-line description of a recorded decision or runtime event, e.g.
+ * `approved run_commands by client (cli) after 1200ms`. Undefined for events
+ * without a known shape (hook events, unknown names).
+ */
+export function describeSessionReplayEvent(
+	event: Pick<SessionReplayEvent, "kind" | "name" | "payload" | "refs">,
+): string | undefined {
+	const p = event.payload;
+	if (event.kind === "decision") {
+		switch (event.name) {
+			case "approval_requested":
+				return `approval requested for ${str(p.toolName) ?? "tool"}`;
+			case "approval_resolved": {
+				const wait = num(p.waitMs);
+				const reason = str(p.reason);
+				return [
+					`${p.approved === true ? "approved" : "denied"} ${str(p.toolName) ?? "tool"}`,
+					`by ${describeDecider(p.decidedBy)}`,
+					...(wait !== undefined ? [`after ${Math.round(wait)}ms`] : []),
+				]
+					.join(" ")
+					.concat(reason ? `: ${reason}` : "");
+			}
+			case "prompt_enqueued": {
+				const delivery = str(p.delivery) ?? "queue";
+				const flags = [
+					p.merged === true ? "merged" : undefined,
+					p.aborting === true ? "while aborting" : undefined,
+				].filter(Boolean);
+				const prompt = str(p.prompt);
+				return `${delivery} prompt queued${flags.length > 0 ? ` (${flags.join(", ")})` : ""}${prompt ? `: ${quote(prompt)}` : ""}`;
+			}
+			case "prompt_delivered": {
+				const delivery = str(p.delivery) ?? "immediate";
+				const notes = [
+					str(p.source),
+					str(p.requestedDelivery)
+						? `requested ${str(p.requestedDelivery)}`
+						: undefined,
+					str(p.mode),
+				].filter(Boolean);
+				return `${delivery} prompt delivered${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
+			}
+			case "prompt_updated":
+				return `queued prompt updated${str(p.delivery) ? ` (${str(p.delivery)})` : ""}`;
+			case "prompt_deleted":
+				return "queued prompt deleted";
+			case "prompt_queue_discarded": {
+				const count = Array.isArray(p.promptIds) ? p.promptIds.length : 0;
+				return `${count} queued prompt${count === 1 ? "" : "s"} discarded`;
+			}
+			case "mode_switched":
+				return `mode ${str(p.from) ?? "?"} → ${str(p.to) ?? "?"}${str(p.source) ? ` (${str(p.source)})` : ""}`;
+			case "abort_requested":
+				return `abort requested${str(p.source) ? ` by ${str(p.source)}` : ""}${str(p.reason) ? `: ${str(p.reason)}` : ""}`;
+			case "mistake_limit_resolved":
+				return `mistake limit ${num(p.consecutiveMistakes) ?? "?"}/${num(p.maxConsecutiveMistakes) ?? "?"}: ${str(p.action) ?? "unknown"}`;
+			default:
+				return undefined;
+		}
+	}
+	if (event.kind === "runtime") {
+		switch (event.name) {
+			case "model_finished": {
+				const duration = num(p.durationMs);
+				return `model call ${event.refs?.modelCallIndex ?? "?"} ${str(p.outcome) ?? "finished"}${str(p.finishReason) ? ` (${str(p.finishReason)})` : ""}${duration !== undefined ? ` in ${Math.round(duration)}ms` : ""}`;
+			}
+			case "tool_started":
+				return `${str(p.toolName) ?? "tool"} started`;
+			case "tool_finished":
+				return `${str(p.toolName) ?? "tool"} ${p.isError === true ? "failed" : "finished"}`;
+			case "run_finished":
+				return `run ${str(p.status) ?? "finished"}`;
+			case "run_failed":
+				return `run failed${str(p.error) ? `: ${str(p.error)}` : ""}`;
+			default:
+				return undefined;
+		}
+	}
+	return undefined;
+}
+
 function summarizeEvent(
 	event: SessionReplayEvent,
 ): SessionReplayIterationEvent {
+	const detail = describeSessionReplayEvent(event);
 	return {
 		index: event.index,
 		ts: event.ts,
@@ -291,18 +430,100 @@ function summarizeEvent(
 		name: event.name,
 		...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
 		...(event.iteration !== undefined ? { iteration: event.iteration } : {}),
+		...(event.seq !== undefined ? { seq: event.seq } : {}),
+		...(event.refs ? { refs: event.refs } : {}),
+		...(detail ? { detail } : {}),
+	};
+}
+
+function summarizeModelCall(
+	record: SessionRecordedModelCall,
+): SessionReplayModelCall {
+	const usage = record.response.usage ?? {};
+	const inputTokens = num(usage.inputTokens);
+	const outputTokens = num(usage.outputTokens);
+	return {
+		callIndex: record.callIndex,
+		seq: record.seq,
+		runId: record.runId,
+		iteration: record.iteration,
+		attempt: record.attempt,
+		outcome: record.response.outcome,
+		finishReason: record.response.finishReason,
+		durationMs: record.durationMs,
+		matchKey: record.request.matchKey,
+		messageCount: record.request.messageSha256s.length,
+		...(record.response.messageId
+			? { messageId: record.response.messageId }
+			: {}),
+		...(record.response.error ? { error: record.response.error } : {}),
+		...(inputTokens !== undefined || outputTokens !== undefined
+			? {
+					usage: {
+						...(inputTokens !== undefined ? { inputTokens } : {}),
+						...(outputTokens !== undefined ? { outputTokens } : {}),
+					},
+				}
+			: {}),
 	};
 }
 
 /**
- * Projects a session's transcript into iterations. Hook events are attached
- * by tool call id when they carry one and by timestamp otherwise; timing uses
- * message timestamps and event timestamps, whichever are present.
+ * Hands each recorded model call to an iteration: the call that produced an
+ * iteration's assistant message, plus the unlinked calls (errors, retried
+ * attempts) recorded before it. Calls after the last linked one go to the
+ * last iteration. Returns the record seq that closes each iteration.
+ */
+function attachModelCalls(
+	iterations: readonly SessionReplayIteration[],
+	requests: readonly SessionRecordedModelCall[],
+): Map<SessionReplayIteration, number> {
+	const closingSeq = new Map<SessionReplayIteration, number>();
+	const byMessageId = new Map<string, SessionReplayIteration>();
+	for (const iteration of iterations) {
+		if (iteration.assistant?.messageId) {
+			byMessageId.set(iteration.assistant.messageId, iteration);
+		}
+	}
+	const sorted = [...requests].sort((a, b) => a.callIndex - b.callIndex);
+	let pending: SessionRecordedModelCall[] = [];
+	for (const record of sorted) {
+		const target = record.response.messageId
+			? byMessageId.get(record.response.messageId)
+			: undefined;
+		if (!target) {
+			pending.push(record);
+			continue;
+		}
+		target.modelCalls = [
+			...(target.modelCalls ?? []),
+			...[...pending, record].map(summarizeModelCall),
+		];
+		closingSeq.set(target, record.seq);
+		pending = [];
+	}
+	const last = iterations.at(-1);
+	if (last && pending.length > 0) {
+		last.modelCalls = [
+			...(last.modelCalls ?? []),
+			...pending.map(summarizeModelCall),
+		];
+	}
+	return closingSeq;
+}
+
+/**
+ * Projects a session's transcript into iterations. Events are attached by
+ * tool call id when they carry one; otherwise by `seq` against the recorded
+ * model calls when the session was recorded, and by timestamp as a last
+ * resort. Timing uses message timestamps and event timestamps, whichever are
+ * present.
  */
 export function buildSessionReplayIterations(input: {
 	sessionId?: string;
 	transcript: SessionReplayTranscriptFile;
 	events?: readonly SessionReplayEvent[];
+	requests?: readonly SessionRecordedModelCall[];
 }): SessionReplayIteration[] {
 	const messages = input.transcript.messages;
 	const sessionId = input.sessionId ?? input.transcript.sessionId;
@@ -411,12 +632,23 @@ export function buildSessionReplayIterations(input: {
 			iterationByToolCall.set(call.id, iteration);
 		}
 	}
+	// An event recorded before an iteration's model call finished belongs to
+	// that iteration (start prompt, steer delivery, turn start).
+	const seqBoundaries = [
+		...attachModelCalls(iterations, input.requests ?? []).entries(),
+	].sort((a, b) => a[1] - b[1]);
 	const eventTimes = new Map<SessionReplayIteration, number[]>();
 	for (const event of events) {
 		const eventMs = msFromIso(event.ts);
 		let target = event.toolCallId
 			? iterationByToolCall.get(event.toolCallId)
 			: undefined;
+		if (!target && event.seq !== undefined && seqBoundaries.length > 0) {
+			const seq = event.seq;
+			target =
+				seqBoundaries.find(([, closing]) => closing >= seq)?.[0] ??
+				iterations.at(-1);
+		}
 		if (!target && eventMs !== undefined) {
 			const position = messageTimes.findIndex(
 				(times) => times !== undefined && times.max >= eventMs,

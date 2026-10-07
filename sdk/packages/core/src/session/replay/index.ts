@@ -22,9 +22,11 @@ export {
 } from "./bundle-io";
 export {
 	buildSessionReplayIterations,
+	describeSessionReplayEvent,
 	type SessionReplayIteration,
 	type SessionReplayIterationEvent,
 	type SessionReplayIterationRange,
+	type SessionReplayModelCall,
 	type SessionReplayToolCall,
 	selectSessionReplayIterations,
 } from "./bundle-iterations";
