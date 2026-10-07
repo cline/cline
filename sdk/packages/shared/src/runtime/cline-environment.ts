@@ -105,3 +105,14 @@ export function getClineEnvironmentConfig(
 
 	return applyConfigOverrides(config, readProcessEnv());
 }
+
+/**
+ * Root of the Cline API, for appending `/api/v1/...` routes. The `cline`
+ * provider's `baseUrl` setting is the inference endpoint (`<root>/api/v1`,
+ * which the provider settings form pre-fills), so reduce it to the root.
+ */
+export function resolveClineApiBaseUrl(providerBaseUrl?: string): string {
+	return (providerBaseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl)
+		.replace(/\/+$/, "")
+		.replace(/\/api\/v1$/, "");
+}

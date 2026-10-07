@@ -6,7 +6,7 @@ import {
 	RuntimeOAuthTokenManager,
 } from "@cline/core";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import { resolveClineApiBaseUrl } from "@cline/shared";
 
 /**
  * Shared Cline-account auth for the sidecar: one refresh-aware OAuth manager
@@ -85,12 +85,8 @@ export function getClineAccountId(): string | undefined {
 /** Base URL of the Cline API (https://api.cline.bot in production), honoring
  * a per-provider baseUrl override and the environment config. */
 export function getClineApiBaseUrl(): string {
-	const override = new ProviderSettingsManager()
-		.getProviderSettings("cline")
-		?.baseUrl?.trim();
-	return (override || getClineEnvironmentConfig().apiBaseUrl).replace(
-		/\/+$/,
-		"",
+	return resolveClineApiBaseUrl(
+		new ProviderSettingsManager().getProviderSettings("cline")?.baseUrl,
 	);
 }
 

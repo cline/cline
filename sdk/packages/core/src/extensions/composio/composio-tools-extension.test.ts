@@ -271,6 +271,30 @@ describe("createComposioToolsExtension", () => {
 		expect(result).toEqual({ successful: true, data: { messageId: "msg_1" } });
 	});
 
+	it("does not double the API prefix when the saved baseUrl is the inference endpoint", async () => {
+		auth.baseUrl = "https://api.cline.bot/api/v1";
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		const fetchMock = vi.fn(
+			async (_url: string) =>
+				new Response(JSON.stringify({ successful: true })),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const tools = await setupTools();
+		await tools[0].execute({});
+
+		expect(fetchMock.mock.calls[0]?.[0]).toBe(
+			"https://api.cline.bot/api/v1/connectors/tools/GMAIL_SEND_EMAIL/execute",
+		);
+	});
+
 	it("returns a structured auth error when there is no signed-in account", async () => {
 		writeState({
 			toolkits: {

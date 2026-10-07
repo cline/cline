@@ -2,11 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentExtension, BasicLogger } from "@cline/shared";
-import {
-	createTool,
-	FeatureFlag,
-	getClineEnvironmentConfig,
-} from "@cline/shared";
+import { createTool, FeatureFlag, resolveClineApiBaseUrl } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
 	OAuthReauthRequiredError,
@@ -113,10 +109,9 @@ async function resolveConnectorsAuth(
 	if (!token || getAccountId() !== accountId) {
 		return undefined;
 	}
-	const settings = manager.getProviderSettings("cline");
-	const baseUrl = (
-		settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl
-	).replace(/\/+$/, "");
+	const baseUrl = resolveClineApiBaseUrl(
+		manager.getProviderSettings("cline")?.baseUrl,
+	);
 	return { baseUrl, token };
 }
 

@@ -5,6 +5,7 @@ import {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineApiBaseUrl,
 	resolveClineEnvironment,
 } from "./cline-environment";
 
@@ -116,6 +117,30 @@ describe("getClineEnvironmentConfig", () => {
 		vi.stubGlobal("process", undefined);
 
 		expect(getClineEnvironmentConfig()).toBe(CLINE_ENVIRONMENTS.production);
+	});
+});
+
+describe("resolveClineApiBaseUrl", () => {
+	it("falls back to the environment API base URL", () => {
+		expect(resolveClineApiBaseUrl()).toBe("https://api.cline.bot");
+		expect(resolveClineApiBaseUrl("  ")).toBe("https://api.cline.bot");
+	});
+
+	it("reduces the provider's inference baseUrl to the API root", () => {
+		expect(resolveClineApiBaseUrl("https://api.cline.bot/api/v1")).toBe(
+			"https://api.cline.bot",
+		);
+		expect(
+			resolveClineApiBaseUrl(
+				" https://core-api.staging.int.cline.bot/api/v1/ ",
+			),
+		).toBe("https://core-api.staging.int.cline.bot");
+	});
+
+	it("keeps an override that is already the API root", () => {
+		expect(resolveClineApiBaseUrl("http://localhost:7777/")).toBe(
+			"http://localhost:7777",
+		);
 	});
 });
 

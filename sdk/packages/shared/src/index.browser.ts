@@ -446,6 +446,7 @@ export {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineApiBaseUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
 export type {
