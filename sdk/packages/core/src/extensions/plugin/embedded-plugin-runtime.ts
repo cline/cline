@@ -32,6 +32,10 @@ export function resolveEmbeddedPluginBootstrap(): string | undefined {
 	} catch {
 		return undefined;
 	}
+	// Re-extract if the runtime directory was cleared while this process ran.
+	if (registry.bootstrapPath && !existsSync(registry.bootstrapPath)) {
+		registry.bootstrapPath = undefined;
+	}
 	registry.bootstrapPath ??= materializePluginRuntime(
 		resources,
 		join(resolveClineDir(), "runtime", "plugin-sandbox"),

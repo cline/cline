@@ -632,6 +632,31 @@ Design implications:
   state belongs in persistent storage
 - a sandbox must never outlive its owning hub process
 
+The sandbox subprocess needs three things on real disk: a JavaScript runtime,
+`plugin-sandbox-bootstrap.js`, and an importable copy of the public `@cline/*`
+packages for plugin imports to resolve against. A source run and an npm
+install have all three (the host's `bun`/`node`, the sibling or
+`CLINE_WRAPPER_PATH` bootstrap, the installed `node_modules`). A
+`bun build --compile` host (desktop sidecar, SSH remote helper, standalone CLI)
+has none, so:
+
+- the runtime is the host binary itself, re-executed with `BUN_BE_BUN=1`; the
+  bootstrap deletes that flag before plugin code runs
+- the host build packs the bootstrap, jiti's transform, and a bundled SDK into
+  a `CLINE_PLUGIN_RUNTIME_RESOURCES` define
+  (`packages/core/scripts/plugin-runtime-resources.ts`), and the host
+  entrypoint hands it to core once via `registerEmbeddedPluginRuntime` from
+  `@cline/shared`
+- core extracts those files to `~/.cline/runtime/plugin-sandbox/<content-hash>/`
+  on first plugin load
+
+Bootstrap discovery order: `CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH`, a sibling
+compiled bootstrap, the source `.ts` bootstrap, the npm wrapper layout, the
+executable layout, and only then the embedded resources. Extraction happens
+only when everything earlier missed, so an npm install never touches the
+runtime directory and a host pointed at a bootstrap explicitly needs no
+writable cache.
+
 ## Architectural Constraints
 
 ### Keep `agents` Stateless

@@ -94,6 +94,7 @@ interface PluginPackageManifest {
 	optionalDependencies?: Record<string, string>;
 	peerDependencies?: Record<string, string>;
 	peerDependenciesMeta?: Record<string, unknown>;
+	scripts?: Record<string, string>;
 }
 
 const INSTALLS_DIRECTORY_NAME = "_installed";
@@ -821,11 +822,22 @@ async function runPackageManager(
 	await runCommand(manager.command, [...args, ...NPM_INSTALL_FLAGS], { cwd });
 }
 
-function hasRuntimeDependencies(packageRoot: string): boolean {
+// Lifecycle scripts `install` runs for the package itself.
+const INSTALL_LIFECYCLE_SCRIPTS = [
+	"preinstall",
+	"install",
+	"postinstall",
+	"prepare",
+];
+
+/** Whether `install` would do anything for this package. */
+function needsPackageInstall(packageRoot: string): boolean {
 	const manifest = readPackageManifest(packageRoot);
 	// Installs omit dev and peer dependencies, so only these two fields matter.
-	return [manifest?.dependencies, manifest?.optionalDependencies].some(
-		(dependencies) => !!dependencies && Object.keys(dependencies).length > 0,
+	return (
+		[manifest?.dependencies, manifest?.optionalDependencies].some(
+			(dependencies) => !!dependencies && Object.keys(dependencies).length > 0,
+		) || INSTALL_LIFECYCLE_SCRIPTS.some((name) => !!manifest?.scripts?.[name])
 	);
 }
 
@@ -863,7 +875,7 @@ async function installPackageDependencies(
 	// Most official plugins depend only on @cline/*, which the host provides;
 	// once those are stripped there is nothing to install and no reason to
 	// require a package manager on the machine.
-	if (!hasRuntimeDependencies(packageRoot)) {
+	if (!needsPackageInstall(packageRoot)) {
 		return;
 	}
 	await runPackageManager(manager, ["install"], packageRoot);
