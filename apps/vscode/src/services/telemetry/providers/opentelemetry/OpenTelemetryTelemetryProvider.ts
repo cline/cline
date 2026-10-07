@@ -10,6 +10,7 @@ import {
 	getHostTelemetryLevel,
 	isHostTelemetryEnabled,
 	isTelemetryExportAllowed,
+	passesHostTelemetryLevel,
 } from "../../telemetry-policy"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 
@@ -81,16 +82,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public log(event: string, properties?: TelemetryProperties): void {
-		const level = this.getEffectiveLevel()
-		if (!this.isEnabled() || level === "off") {
+		// Collectors that bypass user settings ignore the host level too.
+		if (!this.isEnabled() || !(this.bypassUserSettings || passesHostTelemetryLevel(event))) {
 			return
-		}
-
-		// Filter events based on telemetry level
-		if (level === "error") {
-			if (!event.includes("error")) {
-				return
-			}
 		}
 
 		// Record log event (primary path)

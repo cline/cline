@@ -11,6 +11,7 @@ export type {
 export {
 	OpenTelemetryAdapter,
 	type OpenTelemetryAdapterOptions,
+	type TelemetryEnabledContext,
 	type TelemetryLoggerProviderLike,
 	type TelemetryMeterProviderLike,
 } from "./OpenTelemetryAdapter";

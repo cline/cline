@@ -109,6 +109,25 @@ export function getHostTelemetryLevel(): HostTelemetryLevel {
 	return state.level
 }
 
+/**
+ * Whether an ordinary event passes the host's telemetry level. VS Code's
+ * `telemetry.telemetryLevel` has `all`, `error`, `crash` and `off`; the host
+ * bridge reports `off` as telemetry disabled (see {@link isHostTelemetryEnabled})
+ * and `error`/`crash` are collapsed to error-only reporting, which keeps the
+ * events whose name carries "error". Metrics are not level-filtered.
+ */
+export function passesHostTelemetryLevel(event: string): boolean {
+	switch (state.level) {
+		case "off":
+			return false
+		case "error":
+		case "crash":
+			return event.includes("error")
+		default:
+			return true
+	}
+}
+
 /** Whether the user's Cline telemetry setting allows telemetry. */
 export function isUserTelemetryOptedIn(): boolean {
 	return StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"

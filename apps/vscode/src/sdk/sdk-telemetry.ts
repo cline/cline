@@ -19,6 +19,7 @@ import {
 	ensureTelemetryPolicyInitialized,
 	isHostTelemetryEnabled,
 	isTelemetryExportAllowed,
+	passesHostTelemetryLevel,
 } from "@/services/telemetry/telemetry-policy"
 import { Logger } from "@/shared/services/Logger"
 
@@ -79,7 +80,12 @@ function createSharedStackTelemetryHandle(metadataOverrides: Partial<TelemetryMe
 				metadata,
 				meterProvider: client.meterProvider,
 				loggerProvider: client.loggerProvider,
-				enabled: () => isTelemetryExportAllowed(bypassUserSettings),
+				// Same rule as the classic providers: events also pass the host
+				// telemetry level unless the destination bypasses user settings;
+				// metrics are not level-filtered.
+				enabled: (context) =>
+					isTelemetryExportAllowed(bypassUserSettings) &&
+					(bypassUserSettings || context?.event === undefined || passesHostTelemetryLevel(context.event)),
 				// The shared clients are owned by the process-wide registry
 				// (disposed during extension teardown), not this handle.
 				ownsProviders: false,
