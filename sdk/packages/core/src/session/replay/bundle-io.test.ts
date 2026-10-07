@@ -46,6 +46,7 @@ function sessionEntry(
 		team: null,
 		checkpoints: [],
 		eventsSource: "none",
+		recording: null,
 		...overrides,
 	};
 }
@@ -88,7 +89,7 @@ describe("session replay bundle io", () => {
 	it("writes the manifest last with counts and file integrity data", async () => {
 		const dir = await writeBundle();
 		const loaded = await readSessionReplayBundle(dir);
-		expect(loaded.sourceSchemaVersion).toBe(1);
+		expect(loaded.sourceSchemaVersion).toBe(2);
 		expect(loaded.manifest.sessions[0]?.counts).toEqual({
 			messages: 4,
 			iterations: 2,
@@ -196,14 +197,29 @@ describe("session replay bundle io", () => {
 	it("refuses bundles with a newer schemaVersion", async () => {
 		const dir = await writeBundle();
 		await editJson(join(dir, "manifest.json"), (manifest) => {
-			manifest.schemaVersion = 2;
+			manifest.schemaVersion = 3;
 		});
 		await expect(validateSessionReplayBundle(dir)).rejects.toBeInstanceOf(
 			SessionReplayBundleVersionError,
 		);
 		await expect(readSessionReplayBundle(dir)).rejects.toThrow(
-			"Session replay bundle uses schemaVersion 2, but this version of Cline reads bundles up to schemaVersion 1. Upgrade Cline to read this bundle.",
+			"Session replay bundle uses schemaVersion 3, but this version of Cline reads bundles up to schemaVersion 2. Upgrade Cline to read this bundle.",
 		);
+	});
+
+	it("reads a version 1 bundle through the 1 → 2 migration", async () => {
+		const dir = await writeBundle();
+		await editJson(join(dir, "manifest.json"), (manifest) => {
+			manifest.schemaVersion = 1;
+			for (const session of manifest.sessions as Record<string, unknown>[]) {
+				delete session.recording;
+			}
+		});
+		const loaded = await readSessionReplayBundle(dir);
+		expect(loaded.sourceSchemaVersion).toBe(1);
+		expect(loaded.manifest.schemaVersion).toBe(2);
+		expect(loaded.sessions[0]?.entry.recording).toBeNull();
+		expect(loaded.sessions[0]?.requests).toEqual([]);
 	});
 
 	it("validates event lines against the session they are filed under", async () => {

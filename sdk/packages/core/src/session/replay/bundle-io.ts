@@ -23,18 +23,27 @@ import {
 	type SessionReplayFileKind,
 	type SessionReplayRedactionReport,
 	SessionReplayRedactionReportSchema,
+	type SessionReplayRequestBlob,
+	SessionReplayRequestBlobSchema,
 	type SessionReplaySessionEntry,
 	type SessionReplayTranscriptFile,
 	SessionReplayTranscriptFileSchema,
 	sessionReplayBundlePaths,
 	sessionReplayFileMediaType,
 } from "./bundle-schema";
+import {
+	type SessionRecordedModelCall,
+	SessionRecordedModelCallSchema,
+} from "./recording-schema";
 
 export interface SessionReplayBundleSessionInput {
 	entry: Omit<SessionReplaySessionEntry, "counts">;
 	transcript: SessionReplayTranscriptFile;
 	events: SessionReplayEvent[];
 	compaction?: SessionCompactionState;
+	/** Request records and blobs; written when `entry.recording` is set. */
+	requests?: SessionRecordedModelCall[];
+	blobs?: SessionReplayRequestBlob[];
 }
 
 export interface WriteSessionReplayBundleInput {
@@ -60,6 +69,10 @@ export interface LoadedSessionReplaySession {
 	transcript: SessionReplayTranscriptFile;
 	events: SessionReplayEvent[];
 	compaction?: SessionCompactionState;
+	/** Request records in `callIndex` order; empty for unrecorded sessions. */
+	requests: SessionRecordedModelCall[];
+	/** Request blobs by sha256. */
+	blobs: Map<string, SessionReplayRequestBlob>;
 }
 
 export interface LoadedSessionReplayBundle {
@@ -188,6 +201,22 @@ export async function writeSessionReplayBundle(
 				"compaction",
 				serializeJson(session.compaction),
 				{ sessionId },
+			);
+		}
+		if (session.entry.recording) {
+			const blobs = session.blobs ?? [];
+			const requests = session.requests ?? [];
+			await writeFileEntry(
+				sessionReplayBundlePaths.requestBlobs(sessionId),
+				"request-blobs",
+				serializeJsonl(blobs),
+				{ sessionId, entries: blobs.length },
+			);
+			await writeFileEntry(
+				sessionReplayBundlePaths.requests(sessionId),
+				"request",
+				serializeJsonl(requests),
+				{ sessionId, entries: requests.length },
 			);
 		}
 		sessions.push({
@@ -497,15 +526,236 @@ async function inspectSessionReplayBundle(
 			}
 		}
 
+		const parseJsonl = <T>(
+			file: SessionReplayFileEntry | undefined,
+			schema: {
+				safeParse(value: unknown):
+					| { success: true; data: T }
+					| {
+							success: false;
+							error: {
+								issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>;
+							};
+					  };
+			},
+		): T[] => {
+			if (!file || !contentsByPath.has(file.path)) return [];
+			const out: T[] = [];
+			const lines = (contentsByPath.get(file.path) ?? "")
+				.split("\n")
+				.filter((line) => line.trim().length > 0);
+			for (const [lineIndex, line] of lines.entries()) {
+				let raw: unknown;
+				try {
+					raw = JSON.parse(line);
+				} catch {
+					errors.push(`${file.path}:${lineIndex + 1}: invalid JSON`);
+					continue;
+				}
+				const parsed = schema.safeParse(raw);
+				if (parsed.success) {
+					out.push(parsed.data);
+				} else {
+					errors.push(
+						...formatZodIssues(`${file.path}:${lineIndex + 1}`, parsed.error),
+					);
+				}
+			}
+			return out;
+		};
+
+		const requestFiles = byKind("request");
+		const blobFiles = byKind("request-blobs");
+		if (requestFiles.length > 1 || blobFiles.length > 1) {
+			errors.push(
+				`session ${entry.sessionId}: expected at most one request and one request-blobs file`,
+			);
+		}
+		if (entry.recording && (!requestFiles[0] || !blobFiles[0])) {
+			errors.push(
+				`session ${entry.sessionId}: recorded session is missing its request or request-blobs file`,
+			);
+		}
+		if (!entry.recording && (requestFiles[0] || blobFiles[0])) {
+			errors.push(
+				`session ${entry.sessionId}: request files present but sessions[].recording is null`,
+			);
+		}
+		const requests = parseJsonl(
+			requestFiles[0],
+			SessionRecordedModelCallSchema,
+		);
+		const blobs = new Map<string, SessionReplayRequestBlob>();
+		for (const blob of parseJsonl(
+			blobFiles[0],
+			SessionReplayRequestBlobSchema,
+		)) {
+			if (blobs.has(blob.sha256)) {
+				errors.push(`${blobFiles[0]?.path}: duplicate blob ${blob.sha256}`);
+			}
+			if (
+				!blob.redacted &&
+				sha256(JSON.stringify(blob.value)) !== blob.sha256
+			) {
+				errors.push(
+					`${blobFiles[0]?.path}: blob ${blob.sha256} does not match its value`,
+				);
+			}
+			blobs.set(blob.sha256, blob);
+		}
+		if (entry.recording) {
+			validateRecording({
+				entry,
+				transcript: transcript.data,
+				events,
+				requests,
+				blobs,
+				requestPath: requestFiles[0]?.path ?? "requests",
+				errors,
+				warnings,
+			});
+		}
+		requests.sort((left, right) => left.callIndex - right.callIndex);
+
 		inspection.sessions.push({
 			entry,
 			transcript: transcript.data,
 			events,
 			...(compaction ? { compaction } : {}),
+			requests,
+			blobs,
 		});
 	}
 
 	return inspection;
+}
+
+/**
+ * Cross-file checks for a recorded session: request records name existing
+ * blobs, ordering keys are unique, each record has its `model_finished`
+ * event, and every assistant message written while recording maps to
+ * exactly one record.
+ */
+function validateRecording(input: {
+	entry: SessionReplaySessionEntry;
+	transcript: SessionReplayTranscriptFile;
+	events: readonly SessionReplayEvent[];
+	requests: readonly SessionRecordedModelCall[];
+	blobs: ReadonlyMap<string, SessionReplayRequestBlob>;
+	requestPath: string;
+	errors: string[];
+	warnings: string[];
+}): void {
+	const { entry, requests, blobs, requestPath, errors, warnings } = input;
+	const recording = entry.recording;
+	if (!recording) return;
+	if (recording.counts.modelCalls !== requests.length) {
+		errors.push(
+			`session ${entry.sessionId}: recording.counts.modelCalls is ${recording.counts.modelCalls}, found ${requests.length} records`,
+		);
+	}
+	const eventSeqs = new Set<number>();
+	const modelFinished = new Map<number, SessionReplayEvent>();
+	for (const event of input.events) {
+		if (event.seq !== undefined) {
+			if (eventSeqs.has(event.seq)) {
+				errors.push(
+					`session ${entry.sessionId}: duplicate event seq ${event.seq}`,
+				);
+			}
+			eventSeqs.add(event.seq);
+		}
+		if (event.kind === "runtime" && event.name === "model_finished") {
+			const callIndex = event.refs?.modelCallIndex;
+			if (typeof callIndex === "number") modelFinished.set(callIndex, event);
+		}
+	}
+	const callIndexes = new Set<number>();
+	const recordsByMessageId = new Map<string, SessionRecordedModelCall[]>();
+	for (const record of requests) {
+		const label = `${requestPath} callIndex ${record.callIndex}`;
+		if (record.sessionId !== entry.sessionId) {
+			errors.push(`${label}: belongs to session ${record.sessionId}`);
+		}
+		if (callIndexes.has(record.callIndex)) {
+			errors.push(`${label}: duplicate callIndex`);
+		}
+		callIndexes.add(record.callIndex);
+		const refs = [
+			record.request.systemPromptSha256,
+			record.request.toolsSha256,
+			record.request.modelToolsSha256,
+			...record.request.messageSha256s,
+		];
+		for (const ref of refs) {
+			if (ref && !blobs.has(ref)) {
+				errors.push(`${label}: references missing blob ${ref}`);
+			}
+		}
+		const finished = modelFinished.get(record.callIndex);
+		if (!finished) {
+			warnings.push(`${label}: no model_finished event`);
+		} else if (finished.seq !== record.seq) {
+			errors.push(
+				`${label}: seq ${record.seq} does not match its model_finished event (${finished.seq})`,
+			);
+		}
+		if (record.response.messageId) {
+			const list = recordsByMessageId.get(record.response.messageId) ?? [];
+			list.push(record);
+			recordsByMessageId.set(record.response.messageId, list);
+		}
+	}
+
+	const preRecording = recording.segments[0]?.initialMessageCount ?? 0;
+	for (const [index, message] of input.transcript.messages.entries()) {
+		if (message.role !== "assistant" || index < preRecording || !message.id) {
+			continue;
+		}
+		const records = recordsByMessageId.get(message.id) ?? [];
+		if (records.length > 1) {
+			errors.push(
+				`session ${entry.sessionId}: assistant message ${message.id} is claimed by ${records.length} request records`,
+			);
+		}
+	}
+	if (recording.coverage.unlinkedMessageIds.length > 0) {
+		warnings.push(
+			`session ${entry.sessionId}: ${recording.coverage.unlinkedMessageIds.length} assistant message(s) written while recording have no request record`,
+		);
+	}
+}
+
+/**
+ * Maps the transcript's assistant messages onto request records by message
+ * id. Used by the exporter to fill `sessions[].recording.coverage`.
+ */
+export function computeSessionRecordingCoverage(input: {
+	transcript: SessionReplayTranscriptFile;
+	requests: readonly SessionRecordedModelCall[];
+	initialMessageCount: number;
+}): NonNullable<SessionReplaySessionEntry["recording"]>["coverage"] {
+	const recorded = new Set(
+		input.requests
+			.map((record) => record.response.messageId)
+			.filter((id): id is string => typeof id === "string"),
+	);
+	let assistantMessages = 0;
+	let preRecording = 0;
+	let linked = 0;
+	const unlinkedMessageIds: string[] = [];
+	for (const [index, message] of input.transcript.messages.entries()) {
+		if (message.role !== "assistant") continue;
+		assistantMessages += 1;
+		if (index < input.initialMessageCount) {
+			preRecording += 1;
+		} else if (message.id && recorded.has(message.id)) {
+			linked += 1;
+		} else {
+			unlinkedMessageIds.push(message.id ?? `#${index}`);
+		}
+	}
+	return { assistantMessages, preRecording, linked, unlinkedMessageIds };
 }
 
 /**

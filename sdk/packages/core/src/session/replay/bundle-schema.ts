@@ -1,9 +1,13 @@
 import { type MessageWithMetadata, SESSION_STATUS_VALUES } from "@cline/shared";
 import { z } from "zod";
 import { SessionCompactionStateSchema } from "../models/session-compaction";
+import {
+	SessionRecordedBlobSchema,
+	SessionRecordingSegmentSchema,
+} from "./recording-schema";
 
 /**
- * Session replay bundle format, schema version 1.
+ * Session replay bundle format, schema version 2.
  *
  * A bundle is a self-describing directory:
  *
@@ -15,16 +19,21 @@ import { SessionCompactionStateSchema } from "../models/session-compaction";
  *     transcript.json                 SessionReplayTranscriptFile
  *     events.jsonl                    one SessionReplayEvent per line
  *     compaction.json                 SessionCompactionState (optional)
- *     requests/                       reserved: per-iteration provider records
+ *     requests/requests.jsonl         one SessionRecordedModelCall per model call (recorded sessions)
+ *     requests/blobs.jsonl            one SessionReplayRequestBlob per distinct request part (recorded sessions)
  * ```
  *
  * Readers must locate files through `manifest.files`, not by deriving paths.
  * The manifest lists every session of the bundle as a flat array linked by
  * `parentSessionId`, so one bundle can carry a whole team/subagent tree.
+ *
+ * Version 2 adds recordings: `sessions[].recording`, the `request` and
+ * `request-blobs` files, `runtime` and `decision` events, and `seq`/`refs` on
+ * events. Version 1 bundles migrate with `recording: null`.
  */
 
 export const SESSION_REPLAY_BUNDLE_FORMAT = "cline.session-replay-bundle";
-export const SESSION_REPLAY_BUNDLE_SCHEMA_VERSION = 1;
+export const SESSION_REPLAY_BUNDLE_SCHEMA_VERSION = 2;
 export const SESSION_REPLAY_MANIFEST_FILE = "manifest.json";
 export const SESSION_REPLAY_REDACTION_FILE = "redaction.json";
 
@@ -33,8 +42,11 @@ export const SESSION_REPLAY_FILE_KINDS = [
 	"events",
 	"compaction",
 	"redaction-report",
-	// Reserved for later schema versions; no v1 writer emits these.
+	/** Per-model-call request/response records (ndjson). */
 	"request",
+	/** Content-addressed request parts the records point at (ndjson). */
+	"request-blobs",
+	// Reserved for later schema versions; no writer emits these yet.
 	"cassette",
 	"environment",
 ] as const;
@@ -42,9 +54,10 @@ export type SessionReplayFileKind = (typeof SESSION_REPLAY_FILE_KINDS)[number];
 
 export const SESSION_REPLAY_EVENT_KINDS = [
 	"hook",
-	// Reserved for recorded human/host decisions (approvals, mode switches,
-	// pending-prompt delivery, aborts). No v1 writer emits these.
+	/** Human or host decisions: approvals, mode switches, prompt delivery, aborts. */
 	"decision",
+	/** Lead-agent runtime milestones: runs, turns, model calls, tool start/finish. */
+	"runtime",
 ] as const;
 export type SessionReplayEventKind =
 	(typeof SESSION_REPLAY_EVENT_KINDS)[number];
@@ -89,6 +102,32 @@ export type SessionReplayFileEntry = z.infer<
 	typeof SessionReplayFileEntrySchema
 >;
 
+export const SessionReplaySessionRecordingSchema = z.object({
+	/** `SESSION_RECORDING_VERSION` of the recording the bundle was built from. */
+	version: z.number().int().positive(),
+	/** One entry per host start that recorded; env values are redacted. */
+	segments: z.array(SessionRecordingSegmentSchema).min(1),
+	counts: z.object({
+		modelCalls: z.number().int().nonnegative(),
+		blobs: z.number().int().nonnegative(),
+		decisions: z.number().int().nonnegative(),
+		runtimeEvents: z.number().int().nonnegative(),
+	}),
+	/**
+	 * How the transcript's assistant messages map onto request records.
+	 * Messages from before the first segment are not expected to have one.
+	 */
+	coverage: z.object({
+		assistantMessages: z.number().int().nonnegative(),
+		preRecording: z.number().int().nonnegative(),
+		linked: z.number().int().nonnegative(),
+		unlinkedMessageIds: z.array(z.string()),
+	}),
+});
+export type SessionReplaySessionRecording = z.infer<
+	typeof SessionReplaySessionRecordingSchema
+>;
+
 export const SessionReplayCheckpointRefSchema = z.object({
 	ref: z.string().min(1),
 	kind: z.enum(["stash", "commit"]).optional(),
@@ -130,6 +169,8 @@ export const SessionReplaySessionEntrySchema = z.object({
 		iterations: z.number().int().nonnegative(),
 		events: z.number().int().nonnegative(),
 	}),
+	/** The session's recording, or null when it was not recorded. */
+	recording: SessionReplaySessionRecordingSchema.nullable(),
 });
 export type SessionReplaySessionEntry = z.infer<
 	typeof SessionReplaySessionEntrySchema
@@ -191,11 +232,14 @@ export type SessionReplayTranscriptFile = z.infer<
 export const SessionReplayEventSchema = z.object({
 	/** Position in this events file, assigned at export (0-based). */
 	index: z.number().int().nonnegative(),
-	/** Reserved: recorded monotonic per-session sequence number. */
+	/**
+	 * Per-session ordering key assigned while the session was recorded;
+	 * shared with request records. Absent on events from unrecorded periods.
+	 */
 	seq: z.number().int().nonnegative().optional(),
 	ts: z.string().min(1),
 	kind: z.enum(SESSION_REPLAY_EVENT_KINDS),
-	/** Hook name (`tool_call`, `agent_end`, ...) or decision type. */
+	/** Hook name (`tool_call`, `agent_end`, ...), decision or runtime event name. */
 	name: z.string().min(1),
 	sessionId: z.string().min(1),
 	agentId: z.string().nullable().optional(),
@@ -203,6 +247,8 @@ export const SessionReplayEventSchema = z.object({
 	/** Runtime iteration number within its run, when the source carried one. */
 	iteration: z.number().int().nonnegative().optional(),
 	toolCallId: z.string().min(1).optional(),
+	/** Correlation ids (runId, messageId, promptId, modelCallIndex); not redacted. */
+	refs: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 	/** The source record, after redaction. */
 	payload: z.record(z.string(), z.unknown()),
 });
@@ -243,7 +289,8 @@ const MEDIA_TYPES: Record<
 	events: "application/x-ndjson",
 	compaction: "application/json",
 	"redaction-report": "application/json",
-	request: "application/json",
+	request: "application/x-ndjson",
+	"request-blobs": "application/x-ndjson",
 	cassette: "application/json",
 	environment: "application/json",
 };
@@ -266,7 +313,23 @@ export const sessionReplayBundlePaths = {
 		`${sessionReplaySessionDir(sessionId)}/events.jsonl`,
 	compaction: (sessionId: string) =>
 		`${sessionReplaySessionDir(sessionId)}/compaction.json`,
-	/** Reserved directory for per-iteration provider request records. */
 	requestsDir: (sessionId: string) =>
 		`${sessionReplaySessionDir(sessionId)}/requests`,
+	requests: (sessionId: string) =>
+		`${sessionReplaySessionDir(sessionId)}/requests/requests.jsonl`,
+	requestBlobs: (sessionId: string) =>
+		`${sessionReplaySessionDir(sessionId)}/requests/blobs.jsonl`,
 } as const;
+
+/**
+ * A recorded request part. `sha256` is the recording-time hash of `value`;
+ * when export redaction changed `value` (message metadata), `redacted` is set
+ * and the hash no longer verifies, but references and `contentSha256` (which
+ * covers role and content only) still hold.
+ */
+export const SessionReplayRequestBlobSchema = SessionRecordedBlobSchema.extend({
+	redacted: z.literal(true).optional(),
+});
+export type SessionReplayRequestBlob = z.infer<
+	typeof SessionReplayRequestBlobSchema
+>;
