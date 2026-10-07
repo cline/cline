@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
+	const registerProvider = vi.fn();
 	return {
 		createAgentModel,
-		createGateway: vi.fn(() => ({ createAgentModel })),
+		registerProvider,
+		createGateway: vi.fn(() => ({ createAgentModel, registerProvider })),
 		// Registry helpers used by createAgentModelFromConfig. Default to "no
 		// registered handler" so existing tests exercise the gateway path.
 		hasRegisteredHandler: vi.fn(() => false),
@@ -13,26 +15,34 @@ const gatewayMock = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@cline/llms", async (importOriginal) => ({
-	createGateway: gatewayMock.createGateway,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
-	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
-	createHandlerAsync: gatewayMock.createHandlerAsync,
-	normalizeProviderId: (id: string) => id,
-	// Capability translation is the behaviour under test in the gateway model
-	// assertions below, so use the real translator rather than a stub that
-	// would re-implement (and could disagree with) it.
-	toGatewayModelCapabilities: (
-		await importOriginal<typeof import("@cline/llms")>()
-	).toGatewayModelCapabilities,
-}));
+vi.mock("@cline/llms", async (importOriginal) => {
+	const original = await importOriginal<typeof import("@cline/llms")>();
+	return {
+		createGateway: gatewayMock.createGateway,
+		MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+		hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
+		createHandlerAsync: gatewayMock.createHandlerAsync,
+		normalizeProviderId: (id: string) => id,
+		// Capability translation is the behaviour under test in the gateway model
+		// assertions below, so use the real translator rather than a stub that
+		// would re-implement (and could disagree with) it.
+		toGatewayModelCapabilities: original.toGatewayModelCapabilities,
+		// The catalog→gateway bridge is behaviour under test: it must resolve a
+		// registration for custom (file-backed) providers from the real model
+		// catalog and skip builtins, so use the real implementation.
+		resolveGatewayProviderRegistrationSync:
+			original.resolveGatewayProviderRegistrationSync,
+	};
+});
 
 describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {
 		gatewayMock.createAgentModel.mockReset();
+		gatewayMock.registerProvider.mockReset();
 		gatewayMock.createGateway.mockClear();
 		gatewayMock.createGateway.mockImplementation(() => ({
 			createAgentModel: gatewayMock.createAgentModel,
+			registerProvider: gatewayMock.registerProvider,
 		}));
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
@@ -723,5 +733,77 @@ describe("createAgentModelFromConfig", () => {
 			// drain
 		}
 		expect(gatewayMock.createHandlerAsync).toHaveBeenCalledTimes(1);
+	});
+
+	it("bridges a catalog-registered custom provider into the gateway (cline/cline#14180)", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const llms =
+			await vi.importActual<typeof import("@cline/llms")>("@cline/llms");
+
+		// Simulate what Add Provider persists to models.json and loads into the
+		// model catalog at startup (ensureCustomProvidersLoaded / registerCustomProvider).
+		llms.registerProvider({
+			provider: {
+				id: "seloratest",
+				name: "Selora",
+				protocol: "openai-chat",
+				client: "openai-compatible",
+				baseUrl: "https://api.selora.example/v1",
+				defaultModelId: "gpt-6-astra",
+				source: "file",
+			},
+			models: {
+				"gpt-6-astra": { id: "gpt-6-astra", name: "gpt-6-astra" },
+			},
+		});
+
+		try {
+			const model = {} as AgentModel;
+			gatewayMock.createAgentModel.mockReturnValue(model);
+
+			const result = createAgentModelFromConfig(
+				{
+					providerId: "seloratest",
+					modelId: "gpt-6-astra",
+					apiKey: "key",
+					baseUrl: "https://api.selora.example/v1",
+					systemPrompt: "",
+					tools: [],
+				},
+				undefined,
+			);
+
+			expect(result).toBe(model);
+			expect(gatewayMock.registerProvider).toHaveBeenCalledTimes(1);
+			const registration = gatewayMock.registerProvider.mock
+				.calls[0][0] as import("@cline/shared").GatewayProviderRegistration;
+			expect(registration.manifest.id).toBe("seloratest");
+			expect(registration.manifest.models.map((m) => m.id)).toContain(
+				"gpt-6-astra",
+			);
+			expect(registration.defaults?.baseUrl).toBe(
+				"https://api.selora.example/v1",
+			);
+			expect(typeof registration.createProvider).toBe("function");
+		} finally {
+			llms.unregisterProvider("seloratest");
+		}
+	});
+
+	it("does not re-register builtin providers with the gateway", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.registerProvider).not.toHaveBeenCalled();
 	});
 });

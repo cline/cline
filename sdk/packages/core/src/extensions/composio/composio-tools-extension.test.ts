@@ -45,6 +45,7 @@ import {
 
 type RegisteredTool = {
 	name: string;
+	resultPolicy?: "cache-oversized";
 	description: string;
 	inputSchema: Record<string, unknown>;
 	retryable?: boolean;
@@ -202,6 +203,9 @@ describe("createComposioToolsExtension", () => {
 			"gmail_fetch_emails",
 			"gmail_send_email",
 		]);
+		expect(tools.every((tool) => tool.resultPolicy === "cache-oversized")).toBe(
+			true,
+		);
 		expect(tools.find((t) => t.name === "gmail_send_email")?.retryable).toBe(
 			false,
 		);

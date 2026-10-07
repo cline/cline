@@ -1,6 +1,9 @@
 "use client";
 
-import { formatDisplayUserInput } from "@cline/shared/browser";
+import {
+	formatDisplayUserInput,
+	type ProviderAuthInfo,
+} from "@cline/shared/browser";
 import {
 	createElement,
 	useCallback,
@@ -58,7 +61,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
-import { formatRunError } from "@/lib/run-error";
+import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -630,6 +633,7 @@ export function useChatSession(environmentId: string) {
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const providerIdRef = useRef(config.provider);
+	const providerAuthRef = useRef(config.providerAuth);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -703,7 +707,8 @@ export function useChatSession(environmentId: string) {
 	}, [messages]);
 	useEffect(() => {
 		providerIdRef.current = config.provider;
-	}, [config.provider]);
+		providerAuthRef.current = config.providerAuth;
+	}, [config.provider, config.providerAuth]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -869,9 +874,9 @@ export function useChatSession(environmentId: string) {
 				return;
 			}
 			setErrorState(
-				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				`${message} ${resolveCredentialFailureHint(providerId, providerAuthRef.current)}`,
 				sid,
-				credentialFailureMeta(providerId),
+				credentialFailureMeta(providerId, providerAuthRef.current),
 			);
 		},
 		[setErrorState],
@@ -893,6 +898,7 @@ export function useChatSession(environmentId: string) {
 			detail: string,
 			ownedGeneration?: number,
 			ownedProviderId?: string,
+			ownedProviderAuth?: ProviderAuthInfo,
 		) => {
 			const generation = ownedGeneration ?? failureTurnGenerationRef.current;
 			const isCurrentTurn =
@@ -906,10 +912,18 @@ export function useChatSession(environmentId: string) {
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
 			const providerId = ownedProviderId ?? providerIdRef.current;
-			const content = formatRunError(description, providerId);
+			// Use the auth facts captured with the submitted provider; the current
+			// selection may have changed since the turn started.
+			const providerAuth =
+				ownedProviderId === undefined
+					? providerAuthRef.current
+					: ownedProviderAuth;
+			const content = formatRunError(description, providerId, providerAuth);
 			const meta = {
 				providerId,
-				...(looksCredentialRelated ? credentialFailureMeta(providerId) : {}),
+				...(looksCredentialRelated
+					? credentialFailureMeta(providerId, providerAuth)
+					: {}),
 			};
 			const shown = shownTurnFailureRef.current;
 			if (shown && shown.sid === sid && shown.generation === generation) {
@@ -1985,6 +1999,16 @@ export function useChatSession(environmentId: string) {
 					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);
+					// The sidecar is re-creating the session on a restarted hub;
+					// hold the turn open with a status instead of an error.
+					const hubReconnect = (
+						parsed.metadata as { hubReconnect?: unknown } | undefined
+					)?.hubReconnect;
+					if (hubReconnect === "started") {
+						setActivityLabel("Reconnecting to Cline Hub...");
+					} else if (hubReconnect === "finished") {
+						setActivityLabel(null);
+					}
 					if (summaryActivity) {
 						setActivityLabel(
 							summaryActivity.phase === "started"
@@ -3132,7 +3156,11 @@ export function useChatSession(environmentId: string) {
 				// rendered as an assistant bubble (canonical rehydration would
 				// silently wipe it, leaving the user with a blank chat).
 				const isErrorResult = result?.finishReason === "error";
-				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
+				// A hub-restart notice is shown as its own bubble below.
+				const assistantText =
+					isErrorResult || result?.hubInterrupted
+						? ""
+						: (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -3476,6 +3504,7 @@ export function useChatSession(environmentId: string) {
 						runError || toolError?.trim() || "",
 						failureGenerationAtSubmission,
 						parsed.provider,
+						parsed.providerAuth,
 					);
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
@@ -3490,6 +3519,19 @@ export function useChatSession(environmentId: string) {
 						promptTaken = withdrawPrompt();
 					}
 				} else if (result?.finishReason === "aborted") {
+					// Canonical history keeps a trailing error-role bubble until a
+					// saved error replaces it, so the resend notice is not wiped
+					// when the rebuilt session's history is applied.
+					if (result.hubInterrupted && !newerTurnOwnsStatus) {
+						setMessages((prev) =>
+							sliceMessages([
+								...prev,
+								makeErrorChatMessage(activeSessionId, result.text, {
+									messageKind: HUB_INTERRUPTED_MESSAGE_KIND,
+								}),
+							]),
+						);
+					}
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus("cancelled");
@@ -3770,14 +3812,18 @@ export function useChatSession(environmentId: string) {
 			const leavingTaskWorktree = isTaskWorktreePath(
 				prev.workspaceRoot || prev.cwd || "",
 			);
+			const switchingTarget = prev.executionTarget !== initial.executionTarget;
 			return {
 				...prev,
 				sessionId: undefined,
+				executionTarget: initial.executionTarget,
+				repoUrl: undefined,
+				branch: undefined,
 				provider: initial.provider,
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
-				...(leavingTaskWorktree
+				...(switchingTarget || leavingTaskWorktree
 					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
 					: {}),
 			};

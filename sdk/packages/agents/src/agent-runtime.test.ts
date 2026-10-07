@@ -439,6 +439,342 @@ describe("AgentRuntime", () => {
 		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
 	});
 
+	it.each([
+		"partial-text",
+		"reasoning",
+		"empty",
+		"missing-finish",
+	])("continues %s unknown completion once without changing the system prompt", async (content) => {
+		const first: AgentModelEvent[] =
+			content === "partial-text"
+				? [{ type: "text-delta", text: "Partial response" }]
+				: content === "empty"
+					? []
+					: [{ type: "reasoning-delta", text: "Thinking" }];
+		if (content !== "missing-finish")
+			first.push({ type: "finish", reason: "unknown" });
+		const model = new ScriptedModel([
+			() => first,
+			(request) => {
+				expect(request.systemPrompt).toBe("Base system instructions");
+				expect(
+					request.messages.filter((message) => message.role === "assistant"),
+				).toHaveLength(1);
+				expect(request.messages.at(-1)).toMatchObject({
+					role: "user",
+					content: [
+						{
+							type: "text",
+							text: "Previous turn ended unexpectedly. Continue from where you left off.",
+						},
+					],
+					metadata: { displayRole: "system", userRunSpan: 0 },
+				});
+				return [
+					{ type: "text-delta", text: "Finished" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+			(request) => {
+				expect(request.systemPrompt).toBe("Base system instructions");
+				return [
+					{ type: "text-delta", text: "Next answer" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			systemPrompt: "Base system instructions",
+		});
+		const events: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			events.push(event);
+		});
+		const result = await runtime.run("Hi");
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Finished");
+		expect(model.requests).toHaveLength(2);
+		expect(
+			events.filter((event) => event.type === "turn-finished"),
+		).toHaveLength(1);
+		expect(result.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "message-added",
+				message: expect.objectContaining({
+					metadata: { displayRole: "system", userRunSpan: 0 },
+				}),
+			}),
+		);
+		expect(
+			result.messages
+				.filter((message) => message.metadata?.displayRole !== "system")
+				.map((message) => message.role),
+		).toEqual(["user", "assistant", "assistant"]);
+		await runtime.continue("New question");
+		expect(model.requests).toHaveLength(3);
+	});
+
+	it("bounds repeated unknown completions and preserves their usage and partial responses", async () => {
+		const cutoff = () => [
+			{ type: "text-delta" as const, text: "Partial" },
+			{ type: "usage" as const, usage: { outputTokens: 5 } },
+			{ type: "finish" as const, reason: "unknown" as const },
+		];
+		const model = new ScriptedModel([
+			cutoff,
+			cutoff,
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"without a recognized finish reason",
+		);
+		expect(model.requests).toHaveLength(2);
+		expect(result.messages.filter((m) => m.role === "assistant")).toHaveLength(
+			2,
+		);
+		expect(result.usage.outputTokens).toBe(10);
+	});
+
+	it("executes completed tool calls from an unknown finish once and continues with their results", async () => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "echo-1",
+					toolName: "echo",
+					input: { text: "hello" },
+				},
+				{ type: "finish", reason: "unknown" },
+			],
+			(request) => {
+				expect(request.systemPrompt).toBeUndefined();
+				expect(
+					request.messages.some((m) =>
+						m.content.some((p) => p.type === "tool-result"),
+					),
+				).toBe(true);
+				return [
+					{ type: "text-delta", text: "Done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const result = await new AgentRuntime({ model, tools: [tool] }).run("Hi");
+		expect(result.status).toBe("completed");
+		expect(execute).toHaveBeenCalledOnce();
+	});
+
+	it("reads steering queued while an unknown first-iteration response is published", async () => {
+		let pending: string | undefined;
+		const prepareTurn = vi.fn(
+			(context: { messages: readonly AgentMessage[] }) => ({
+				messages: context.messages.slice(),
+			}),
+		);
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "Planning an action" },
+				{ type: "finish", reason: "unknown" },
+			],
+			(request) => {
+				expect(request.messages.at(-1)).toMatchObject({
+					role: "user",
+					content: [{ type: "text", text: "Stop changing files; report only" }],
+				});
+				return [
+					{ type: "text-delta", text: "Report only" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [tool],
+			prepareTurn,
+			consumePendingUserMessage: () => {
+				const message = pending;
+				pending = undefined;
+				return message;
+			},
+		});
+		runtime.subscribe((event) => {
+			if (
+				event.type === "assistant-message" &&
+				event.finishReason === "unknown"
+			) {
+				pending = "Stop changing files; report only";
+				runtime.notifyPendingUserMessage();
+			}
+		});
+		const result = await runtime.run("Change files");
+		expect(result.status).toBe("completed");
+		expect(result.iterations).toBe(1);
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].messages.at(-1)).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "Stop changing files; report only" }],
+		});
+		expect(execute).not.toHaveBeenCalled();
+		expect(result.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"user",
+			"assistant",
+		]);
+	});
+
+	it("does not replay an unknown turn that already ran a provider tool", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-result",
+					toolCallId: "external-1",
+					toolName: "write_file",
+					execution: "provider",
+					output: "written",
+				},
+				{ type: "finish", reason: "unknown" },
+			],
+			() => [
+				{ type: "text-delta", text: "Should not replay" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(model.requests).toHaveLength(1);
+		expect(result.messages.at(-1)?.metadata?.modelToolActivities).toHaveLength(
+			1,
+		);
+	});
+
+	it.each([
+		"malformed",
+		"unknown-tool",
+		"failed",
+	])("fails unknown completions with %s tool calls instead of looping", async (kind) => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		if (kind === "failed") execute.mockRejectedValue(new Error("Tool failed"));
+		const cutoff = (): AgentModelEvent[] => [
+			{
+				type: "tool-call-delta",
+				toolCallId: "echo-1",
+				toolName: kind === "unknown-tool" ? "missing" : "echo",
+				...(kind === "malformed"
+					? { inputText: '{"text":' }
+					: { input: { text: "hello" } }),
+			},
+			{ type: "finish", reason: "unknown" },
+		];
+		const model = new ScriptedModel([
+			cutoff,
+			cutoff,
+			cutoff,
+			() => [
+				{ type: "text-delta", text: "Should not reach this request" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const result = await new AgentRuntime({ model, tools: [tool] }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"without a recognized finish reason",
+		);
+		expect(model.requests).toHaveLength(1);
+		expect(execute).toHaveBeenCalledTimes(kind === "failed" ? 1 : 0);
+		expect(result.messages.filter((m) => m.role === "tool")).toHaveLength(1);
+	});
+
+	it.each([
+		"provider",
+		"context-overflow",
+	])("continues unknown output without prompt changes through %s recovery", async (kind) => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "reasoning-delta", text: "Unfinished" },
+					{ type: "finish", reason: "unknown" },
+				],
+				() => [
+					{
+						type: "finish",
+						reason: "error",
+						errorRetryable: kind === "provider",
+						error:
+							kind === "provider"
+								? "Upstream returned HTTP 429"
+								: "Context window exceeded",
+						...(kind === "context-overflow"
+							? { errorClass: "context_window_exceeded" as const }
+							: {}),
+					},
+				],
+				() => [
+					{ type: "text-delta", text: "Done" },
+					{ type: "finish", reason: "stop" },
+				],
+				() => [
+					{ type: "text-delta", text: "Next answer" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({
+				model,
+				systemPrompt: "Base instructions",
+				prepareTurn: async (context) =>
+					context.overflowRecovery
+						? {
+								messages: [
+									{
+										role: "user",
+										content: [{ type: "text", text: "Compacted context" }],
+									},
+								],
+							}
+						: undefined,
+			});
+			const running = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await running;
+			expect(result.status).toBe("completed");
+			expect(model.requests).toHaveLength(3);
+			for (const request of model.requests.slice(1)) {
+				expect(request.systemPrompt).toBe("Base instructions");
+			}
+			await runtime.continue("Another question");
+			expect(model.requests[3]?.systemPrompt).toBe("Base instructions");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		"error",
+		"content-filter",
+		"aborted",
+	] as const)("does not run unknown-finish continuation for %s", async (reason) => {
+		const model = new ScriptedModel([() => [{ type: "finish", reason }]]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).not.toBe("completed");
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it.each<{ content: string; events: AgentModelEvent[] }>([
 		{
 			content: "reasoning",
@@ -1908,7 +2244,10 @@ describe("AgentRuntime", () => {
 	});
 
 	it("injects a pending user message after tool results and before the next model request", async () => {
-		const consumePendingUserMessage = vi.fn(() => "steer now");
+		const consumePendingUserMessage = vi
+			.fn()
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce("steer now");
 		const model = new ScriptedModel([
 			() => [
 				{
@@ -1958,7 +2297,7 @@ describe("AgentRuntime", () => {
 
 		const result = await runtime.run("Start");
 
-		expect(consumePendingUserMessage).toHaveBeenCalledTimes(1);
+		expect(consumePendingUserMessage).toHaveBeenCalledTimes(2);
 		expect(model.requests).toHaveLength(2);
 		expect(result.status).toBe("completed");
 		expect(result.messages.map((message) => message.role)).toEqual([
@@ -1987,7 +2326,10 @@ describe("AgentRuntime", () => {
 	});
 
 	it("injects pending user messages before prepareTurn projects the provider request", async () => {
-		const consumePendingUserMessage = vi.fn(() => "steer before prepare");
+		const consumePendingUserMessage = vi
+			.fn()
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce("steer before prepare");
 		const prepareTurn = vi.fn(
 			(context: { messages: readonly AgentMessage[] }) => ({
 				messages: context.messages.slice(),
@@ -2025,7 +2367,7 @@ describe("AgentRuntime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(prepareTurn).toHaveBeenCalledTimes(2);
-		expect(consumePendingUserMessage).toHaveBeenCalledTimes(1);
+		expect(consumePendingUserMessage).toHaveBeenCalledTimes(2);
 		expect(result.messages.map((message) => message.role)).toEqual([
 			"user",
 			"assistant",
@@ -2041,7 +2383,10 @@ describe("AgentRuntime", () => {
 	});
 
 	it("lets prepareTurn project tool results after pending user input is added", async () => {
-		const consumePendingUserMessage = vi.fn(() => "latest steering");
+		const consumePendingUserMessage = vi
+			.fn()
+			.mockReturnValueOnce(undefined)
+			.mockReturnValueOnce("latest steering");
 		const hugeToolOutput = "x".repeat(100_000);
 		const prepareTurn = vi.fn(
 			(context: { messages: readonly AgentMessage[] }) => {
@@ -4323,6 +4668,272 @@ describe("AgentRuntime sdk.error reporting", () => {
 			operation: "agent.run",
 			handled: false,
 			error_message: "Model returned empty response",
+			// Several unrelated upstream causes reach the user through this
+			// one message; without the finish reason on the event they are
+			// indistinguishable in the warehouse.
+			finishReason: "stop",
+		});
+	});
+
+	it("tells the user a filtered turn will not succeed on retry", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "content-filter" }],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("blocked by a content filter");
+		expect(result.error?.message).not.toBe("Model returned empty response");
+	});
+
+	it("does not attribute a failed turn to the previous turn's finish reason", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// Turn 1 finishes normally with "tool-calls"; turn 2 dies in the
+		// gateway before the stream reports any finish reason. Carrying turn
+		// 1's reason onto turn 2's failure would put a confident, wrong cause
+		// on the event — worse than reporting none at all.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => {
+				throw new Error("gateway exploded");
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [createEchoTool()],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty(
+			"finishReason",
+			"tool-calls",
+		);
+	});
+
+	it("does not attribute a turn that fails during setup to the previous turn", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// Same stale-attribution hazard, but the second turn dies before the
+		// stream is ever opened. The reset has to precede the fallible setup
+		// (pending input, prepareTurn, beforeModel hooks, stream open), not
+		// just the stream loop.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		let turns = 0;
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [createEchoTool()],
+			hooks: {
+				beforeModel: async () => {
+					turns += 1;
+					if (turns > 1) {
+						throw new Error("beforeModel exploded");
+					}
+					return undefined;
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty(
+			"finishReason",
+			"tool-calls",
+		);
+	});
+
+	it("does not attribute a turn that fails on turn-started to the previous turn", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// The earliest failure a turn can have: `emit` does not isolate
+		// listener/onEvent errors, so a throw while handling `turn-started`
+		// fails the run before any of the turn's own work begins. The reset
+		// has to sit at the turn boundary to cover even this.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		let starts = 0;
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [createEchoTool()],
+			hooks: {
+				onEvent: async (event) => {
+					if (event.type !== "turn-started") {
+						return;
+					}
+					starts += 1;
+					if (starts > 1) {
+						throw new Error("listener exploded");
+					}
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty(
+			"finishReason",
+			"tool-calls",
+		);
+	});
+
+	it("does not attribute a failed recovery attempt to the overflow attempt", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// Overflow recovery runs a second attempt inside a single turn, so the
+		// turn-boundary reset alone cannot cover it. The first attempt finishes
+		// with "error" (the overflow); the recovery attempt then dies in
+		// prepareTurn, before it can report a reason of its own.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) => {
+				if (context.overflowRecovery) {
+					throw new Error("compaction exploded");
+				}
+				return undefined;
+			},
+		);
+		const runtime = new AgentRuntime({ model, telemetry, prepareTurn });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		// The overflow is still reported — via error_class, which is where it
+		// belongs — but it must not masquerade as this failure's finish reason.
+		expect(events[0]?.properties).not.toHaveProperty("finishReason", "error");
+	});
+
+	it("does not attribute a recovery-notice listener failure to the overflow attempt", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// The overflow attempt finishes with "error"; a listener then throws
+		// while handling the recovery status notice, before the retry attempt
+		// exists. The failure is the listener's, not the superseded attempt's.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			prepareTurn,
+			hooks: {
+				onEvent: async (event) => {
+					if (event.type === "status-notice") {
+						throw new Error("notice listener exploded");
+					}
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty("finishReason", "error");
+	});
+
+	it("does not attribute an afterModel hook failure to the completed turn", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// The model turn completes normally with "stop"; the afterModel hook
+		// then throws. The turn's own finish reason is not the cause of this
+		// failure and must not be reported as one.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			hooks: {
+				afterModel: async () => {
+					throw new Error("afterModel exploded");
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty("finishReason", "stop");
+	});
+
+	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "content-filter" }],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			operation: "agent.run",
+			finishReason: "content-filter",
 		});
 	});
 });

@@ -606,7 +606,7 @@ describe("useMessageHandlers — send routing", () => {
 		const failedConversation: ClineMessage[] = [
 			{ ts: 1, type: "say", say: "task", text: "task" },
 			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
-			{ ts: 3, type: "say", say: "task_progress", text: "bookkeeping" },
+			{ ts: 3, type: "say", say: "subagent_usage", text: "bookkeeping" },
 		]
 		let resolveAskResponse: () => void = () => {}
 		askResponse.mockImplementationOnce(

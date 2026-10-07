@@ -172,6 +172,8 @@ export interface AgentToolDefinition {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** Core may cache oversized output for bounded model recovery. Original output is retained. */
+	resultPolicy?: "cache-oversized";
 	lifecycle?: {
 		/**
 		 * Whether a successful call to this tool completes the current run.
@@ -270,10 +272,25 @@ export interface AgentRuntimePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+/**
+ * Why a model turn stopped producing output.
+ *
+ * `content-filter` is distinct from `stop` because the two need opposite
+ * handling when the turn produced nothing: a `stop` with no content is a
+ * transient upstream flake worth retrying, while a filtered turn will
+ * reproduce on every attempt. Collapsing them (as this union did before)
+ * left both surfacing as "Model returned empty response", which tells a
+ * user to retry something that cannot succeed.
+ *
+ * Missing or unrecognized provider finish reasons normalize to `unknown`: the
+ * response may be cut off and must not be treated as successful completion.
+ */
 export type AgentModelFinishReason =
+	| "unknown"
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"
+	| "content-filter"
 	| "aborted"
 	| "error";
 
