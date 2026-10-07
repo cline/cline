@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { randomUUID } from "node:crypto"
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import path from "node:path"
 import * as sdkCore from "@cline/core"
@@ -33,6 +34,8 @@ function deferred<T>() {
 	return { promise, resolve, reject }
 }
 
+const EXITED_PID = 2_147_483_646
+
 const record: CloudSessionRecord = {
 	id: "ses-stale",
 	status: "active",
@@ -62,7 +65,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 			async (_input: CreateCloudSessionInput, _onProvisioning?: (sessionId: string) => void, _signal?: AbortSignal) =>
 				record,
 		),
-		deleteSession: vi.fn(async () => undefined),
+		deleteSession: vi.fn(async (_sessionId: string) => undefined),
 		renameSession: vi.fn(async () => undefined),
 		getStatus: vi.fn(async (): Promise<{ status?: string }> => ({ status: "ready" })),
 		getHistory: vi.fn(async (): Promise<unknown[] | null> => []),
@@ -114,7 +117,12 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 
 describe("SdkCloudSessionCoordinator ownership", () => {
 	it("starts the sandbox in Act with the Act-mode Cline model while the local UI is in Plan mode", async () => {
-		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		const host = {
+			status: "idle",
+			readMessages: async () => [],
+			dispose: async () => {},
+			whenTurnAccepted: async () => {},
+		} as unknown as CloudSessionHost
 		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
 		const startNewSession = vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } }))
 		const fireAndForgetSend = vi.fn()
@@ -148,14 +156,19 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
-	it("records a provisioning sandbox for this extension host until its task has started", async () => {
+	it("keeps a provisioning sandbox recorded until the sandbox accepts its first turn", async () => {
 		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
-		const pendingFile = path.join(pendingStartsDir, `${process.pid}.json`)
-		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		const accepted = deferred<void>()
+		const host = {
+			status: "idle",
+			readMessages: async () => [],
+			dispose: async () => {},
+			whenTurnAccepted: () => accepted.promise,
+		} as unknown as CloudSessionHost
 		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
-		let recordedWhileProvisioning: unknown
 		const { coordinator, cloudSessions } = makeCoordinator({
 			pendingStartsDir,
+			getAccountScope: () => "user:",
 			sessions: {
 				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
 				fireAndForgetSend: vi.fn(),
@@ -163,31 +176,125 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		})
 		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
 			onProvisioning?.(record.id)
-			recordedWhileProvisioning = JSON.parse(readFileSync(pendingFile, "utf8"))
 			return record
 		})
+		const recorded = () =>
+			readdirSync(pendingStartsDir).flatMap((name) => JSON.parse(readFileSync(path.join(pendingStartsDir, name), "utf8")))
 
 		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBe(record.id)
-
-		expect(recordedWhileProvisioning).toEqual([record.id])
-		expect(existsSync(pendingFile)).toBe(false)
+		expect(recorded()).toEqual([{ sessionId: record.id, account: "user:" }])
+		accepted.resolve()
+		await vi.waitFor(() => expect(recorded()).toEqual([]))
 		await coordinator.dispose()
 		rmSync(pendingStartsDir, { recursive: true, force: true })
 	})
 
-	it("deletes sandboxes a terminated extension host left provisioning, but not a live window's", async () => {
+	it("settles an abandoned sandbox only when the control plane confirms it, for the account that started it", async () => {
 		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
-		const exitedPid = 2_147_483_646
-		writeFileSync(path.join(pendingStartsDir, `${exitedPid}.json`), JSON.stringify(["ses-abandoned"]))
-		writeFileSync(path.join(pendingStartsDir, `${process.ppid}.json`), JSON.stringify(["ses-other-window"]))
-		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir })
+		const journal = path.join(pendingStartsDir, `${EXITED_PID}-${randomUUID()}.json`)
+		const pending = ["ses-deleted", "ses-gone", "ses-unauthorized", "ses-unavailable"].map((sessionId) => ({
+			sessionId,
+			account: "user:",
+		}))
+		const otherAccount = { sessionId: "ses-other-account", account: "user:org" }
+		writeFileSync(journal, JSON.stringify([...pending, otherAccount]))
+		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir, getAccountScope: () => "user:" })
+		cloudSessions.listSessions.mockResolvedValue(
+			pending.map(({ sessionId }) => ({ ...record, id: sessionId, status: "provisioning" })),
+		)
+		cloudSessions.deleteSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "ses-gone") throw new CloudSessionError("session_not_found", "gone", undefined, 404)
+			if (sessionId === "ses-unauthorized") throw new CloudSessionError("authentication_required", "no", undefined, 401)
+			if (sessionId === "ses-unavailable") throw new CloudSessionError("request_failed", "down", undefined, 503)
+		})
 
 		await coordinator.listHistoryRecords()
 
-		expect(cloudSessions.deleteSession).toHaveBeenCalledTimes(1)
-		expect(cloudSessions.deleteSession).toHaveBeenCalledWith("ses-abandoned")
-		expect(readdirSync(pendingStartsDir)).toEqual([`${process.ppid}.json`])
+		await vi.waitFor(() => expect(cloudSessions.deleteSession).toHaveBeenCalledTimes(4))
+		await vi.waitFor(() => expect(JSON.parse(readFileSync(journal, "utf8"))).toEqual([pending[2], pending[3], otherAccount]))
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalledWith("ses-other-account")
 		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
+	})
+
+	it("keeps an abandoned sandbox whose first turn reached it before its host exited", async () => {
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		writeFileSync(
+			path.join(pendingStartsDir, `${EXITED_PID}-${randomUUID()}.json`),
+			JSON.stringify([{ sessionId: record.id, account: "user:" }]),
+		)
+		const host = {
+			readMessages: vi.fn(async () => [{ role: "user", content: "test" }]),
+			dispose: vi.fn(async () => {}),
+		} as unknown as CloudSessionHost
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir, getAccountScope: () => "user:" })
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, status: "active" }])
+
+		await coordinator.listHistoryRecords()
+
+		await vi.waitFor(() => expect(readdirSync(pendingStartsDir)).toEqual([]))
+		expect(connect).toHaveBeenCalledWith(expect.objectContaining({ outerSessionId: record.id, taskId: "tsk-stale" }))
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
+	})
+
+	it("finishes an abandoned-sandbox DELETE before an account switch and sends no more for the old account", async () => {
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		writeFileSync(
+			path.join(pendingStartsDir, `${EXITED_PID}-${randomUUID()}.json`),
+			JSON.stringify([
+				{ sessionId: "ses-first", account: "user:" },
+				{ sessionId: "ses-second", account: "user:" },
+			]),
+		)
+		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir, getAccountScope: () => "user:" })
+		cloudSessions.listSessions.mockResolvedValue(
+			["ses-first", "ses-second"].map((id) => ({ ...record, id, status: "provisioning" })),
+		)
+		const firstDelete = deferred<void>()
+		const events: string[] = []
+		cloudSessions.deleteSession.mockImplementation(async (sessionId: string) => {
+			events.push(`delete ${sessionId}`)
+			await firstDelete.promise
+			events.push(`deleted ${sessionId}`)
+		})
+
+		await coordinator.listHistoryRecords()
+		await vi.waitFor(() => expect(events).toEqual(["delete ses-first"]))
+		const switching = coordinator.reset(async () => {
+			events.push("account changed")
+		})
+		await new Promise((resolve) => setTimeout(resolve, 50))
+		firstDelete.resolve()
+		await switching
+
+		expect(events).toEqual(["delete ses-first", "deleted ses-first", "account changed"])
+		await coordinator.dispose()
+		rmSync(pendingStartsDir, { recursive: true, force: true })
+	})
+
+	it("cancels the abandoned-sandbox recheck when it is disposed", async () => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+		const pendingStartsDir = mkdtempSync(path.join(os.tmpdir(), "cloud-pending-"))
+		writeFileSync(
+			path.join(pendingStartsDir, `${process.ppid}-${randomUUID()}.json`),
+			JSON.stringify([{ sessionId: "ses-live-window", account: "user:" }]),
+		)
+		const { coordinator, cloudSessions } = makeCoordinator({ pendingStartsDir, getAccountScope: () => "user:" })
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, id: "ses-abandoned", status: "provisioning" }])
+
+		await coordinator.listHistoryRecords()
+		writeFileSync(
+			path.join(pendingStartsDir, `${EXITED_PID}-${randomUUID()}.json`),
+			JSON.stringify([{ sessionId: "ses-abandoned", account: "user:" }]),
+		)
+		await coordinator.dispose()
+		expect(vi.getTimerCount()).toBe(0)
+		await vi.advanceTimersByTimeAsync(60_000)
+
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
 		rmSync(pendingStartsDir, { recursive: true, force: true })
 	})
 
@@ -222,7 +329,12 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		>)
 		const fetched = deferred<Awaited<ReturnType<typeof sdkCore.fetchClineRecommendedModels>>>()
 		vi.spyOn(sdkCore, "fetchClineRecommendedModels").mockReturnValue(fetched.promise)
-		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		const host = {
+			status: "idle",
+			readMessages: async () => [],
+			dispose: async () => {},
+			whenTurnAccepted: async () => {},
+		} as unknown as CloudSessionHost
 		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
 		const { coordinator, cloudSessions, options } = makeCoordinator({
 			stateManager: {

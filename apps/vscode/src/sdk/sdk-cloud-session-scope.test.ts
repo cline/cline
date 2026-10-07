@@ -95,6 +95,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		dispose: vi.fn(async () => {}),
 		subscribe: () => () => {},
 		send: vi.fn(async () => {}),
+		whenTurnAccepted: async () => {},
 	} as unknown as CloudSessionHost
 	vi.spyOn(CloudSessionHost, "connect").mockImplementation(async () => {
 		await wait("connect")

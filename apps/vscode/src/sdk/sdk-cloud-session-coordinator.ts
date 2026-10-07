@@ -13,8 +13,6 @@
 //      shape) so History, the home screen and the running-now strip list cloud
 //      tasks next to local ones.
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import path from "node:path"
 import type { ITelemetryService, SessionAccumulatedUsage, SessionHistoryRecord, StartSessionInput } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
@@ -46,6 +44,7 @@ import {
 } from "@/services/cloud/CloudSessionsService"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { Logger } from "@/shared/services/Logger"
+import { PendingStartJournal, type PendingStartRecord } from "./cloud-pending-starts"
 import { CloudSessionHost } from "./cloud-session-host"
 import type { MessageIdMinter } from "./message-id-minter"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -123,15 +122,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | und
 const SCOPE_DRAIN_TIMEOUT_MS = 15_000
 const ABANDONED_STARTS_RECHECK_MS = 10_000
 
-function isProcessAlive(pid: number): boolean {
-	try {
-		process.kill(pid, 0)
-		return true
-	} catch (error) {
-		return (error as NodeJS.ErrnoException).code === "EPERM"
-	}
-}
-
 export interface CloudTaskInput {
 	prompt: string
 	images?: string[]
@@ -187,6 +177,8 @@ export interface SdkCloudSessionCoordinatorOptions {
 	 * a later host can delete them if this one exits first. Off when unset.
 	 */
 	pendingStartsDir?: string
+	/** Identity of the active account (user and organization), so recovery acts only for the account that started a sandbox. */
+	getAccountScope?: () => string | undefined
 }
 
 interface CloudSessionEntry {
@@ -228,11 +220,16 @@ export class SdkCloudSessionCoordinator {
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
-	/** Sandboxes this extension host created whose task has not started and that it has not deleted. */
-	private readonly pendingStartIds = new Set<string>()
+	private readonly journal: PendingStartJournal | undefined
+	private abandonedStartsRecovery: Promise<void> | undefined
+	private abandonedStartsRecheck: ReturnType<typeof setTimeout> | undefined
 	private abandonedStartsRecheckScheduled = false
+	/** Abandoned sandboxes this extension host already tried to settle; later attempts belong to the next host. */
+	private readonly abandonedStartsAttempted = new Set<string>()
 
-	constructor(private readonly options: SdkCloudSessionCoordinatorOptions) {}
+	constructor(private readonly options: SdkCloudSessionCoordinatorOptions) {
+		this.journal = options.pendingStartsDir ? new PendingStartJournal(options.pendingStartsDir) : undefined
+	}
 
 	isCloudSessionId(id: string): boolean {
 		return isCloudSessionId(id)
@@ -288,92 +285,131 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	private rememberPendingStart(sessionId: string): void {
-		this.pendingStartIds.add(sessionId)
-		this.writePendingStarts()
+		this.journal?.add({
+			sessionId,
+			account: this.options.getAccountScope?.(),
+			endpoint: this.options.cloudSessions.apiBaseUrl,
+		})
 	}
 
 	private forgetPendingStart(sessionId: string): void {
-		if (this.pendingStartIds.delete(sessionId)) this.writePendingStarts()
+		this.journal?.remove(sessionId)
 	}
 
-	private writePendingStarts(): void {
-		const dir = this.options.pendingStartsDir
-		if (!dir) return
-		const file = path.join(dir, `${process.pid}.json`)
+	/**
+	 * Settles sandboxes left by starts that a reload, quit or crash interrupted,
+	 * as one scope operation of the account that started them: an account change
+	 * waits for a DELETE in flight and stops the rest, and nothing runs after
+	 * disposal. Records of another account or endpoint wait for that scope.
+	 */
+	private recoverAbandonedStarts(): Promise<void> {
+		if (!this.journal || this.disposed || this.scopeTransition) return Promise.resolve()
+		this.abandonedStartsRecovery ??= this.trackScopeOperation(() => this.recoverAbandonedStartsInScope()).finally(() => {
+			this.abandonedStartsRecovery = undefined
+		})
+		return this.abandonedStartsRecovery
+	}
+
+	private async recoverAbandonedStartsInScope(): Promise<void> {
+		const generation = this.scopeGeneration
+		const isCurrent = () => !this.disposed && generation === this.scopeGeneration
+		if (!this.journal || !isCurrent()) return
+		const { journals, liveOwners } = this.journal.abandoned()
+		// After a reload the old extension host can still be exiting; look again shortly.
+		if (liveOwners) this.scheduleAbandonedStartsRecheck()
+		const account = this.options.getAccountScope?.()
+		const endpoint = this.options.cloudSessions.apiBaseUrl
+		const isOurs = (pending: PendingStartRecord) =>
+			pending.account === account && pending.endpoint === endpoint && !this.abandonedStartsAttempted.has(pending.sessionId)
+		if (!journals.some((journal) => journal.records.some(isOurs))) return
+		let records: CloudSessionRecord[]
 		try {
-			if (this.pendingStartIds.size === 0) {
-				rmSync(file, { force: true })
-				return
-			}
-			mkdirSync(dir, { recursive: true })
-			writeFileSync(file, JSON.stringify([...this.pendingStartIds]))
+			records = await this.options.cloudSessions.listSessions()
 		} catch (error) {
-			Logger.warn("[CloudSessions] Failed to record pending cloud starts:", error)
+			Logger.warn("[CloudSessions] Failed to list cloud sessions for abandoned-start recovery:", error)
+			return
+		}
+		let deleted = false
+		for (const journal of journals) {
+			const unresolved: PendingStartRecord[] = []
+			for (const pending of journal.records) {
+				if (!isOurs(pending) || !isCurrent()) {
+					unresolved.push(pending)
+					continue
+				}
+				this.abandonedStartsAttempted.add(pending.sessionId)
+				const record = records.find((candidate) => candidate.id === pending.sessionId)
+				const outcome = await this.recoverAbandonedStart(pending.sessionId, record, isCurrent)
+				if (outcome === "unresolved") unresolved.push(pending)
+				if (outcome === "deleted") deleted = true
+			}
+			journal.settle(unresolved)
+		}
+		if (deleted && isCurrent()) {
+			this.listFetchedAt = 0
+			this.options.invalidateHistoryCache()
+			void this.options.postStateToWebview().catch(() => {})
 		}
 	}
 
 	/**
-	 * Deletes sandboxes left by starts that a reload, quit or crash interrupted.
-	 * A terminating extension host cannot reach the network (VS Code's fetch
-	 * resolves proxies through the window it is detaching from), so that cleanup
-	 * runs from the next extension host instead. Starts owned by a live extension
-	 * host are left alone; after a reload the old host can still be exiting, so
-	 * those are checked once more a little later.
+	 * One abandoned start. It is settled without a DELETE when this account no
+	 * longer lists it, or when its sandbox already holds a conversation: the host
+	 * can exit after the sandbox accepted the first turn but before recording
+	 * that, and such a sandbox is the user's task, not an orphan. Anything the
+	 * control plane did not confirm stays recorded for a later attempt.
 	 */
-	private async deleteAbandonedStarts(): Promise<boolean> {
-		const dir = this.options.pendingStartsDir
-		if (!dir) return false
-		let files: string[]
+	private async recoverAbandonedStart(
+		sessionId: string,
+		record: CloudSessionRecord | undefined,
+		isCurrent: () => boolean,
+	): Promise<"settled" | "deleted" | "unresolved"> {
+		if (!record || isCloudSessionExpired(record)) return "settled"
+		const status = record.status?.toLowerCase()
+		const taskId = record.metadata.taskId?.trim()
+		if (status !== "provisioning" && status !== "pending" && status !== "failed" && taskId) {
+			let host: CloudSessionHost | undefined
+			try {
+				host = await CloudSessionHost.connect({
+					outerSessionId: sessionId,
+					taskId,
+					socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
+					getAuthToken: this.options.getAuthToken,
+					telemetry: this.options.telemetry,
+				})
+				if ((await host.readMessages(sessionId)).length > 0) return "settled"
+			} catch (error) {
+				Logger.warn(`[CloudSessions] Could not inspect abandoned cloud session ${sessionId}:`, error)
+				return "unresolved"
+			} finally {
+				await host?.dispose("abandonedStartCheck").catch(() => undefined)
+			}
+		}
+		if (!isCurrent()) return "unresolved"
 		try {
-			files = readdirSync(dir)
-		} catch {
-			return false
+			await this.options.cloudSessions.deleteSession(sessionId)
+			return "deleted"
+		} catch (error) {
+			if (error instanceof CloudSessionError && error.code === "session_not_found") return "settled"
+			Logger.warn(`[CloudSessions] Failed to delete abandoned cloud session ${sessionId}:`, error)
+			return "unresolved"
 		}
-		let deleted = false
-		for (const name of files) {
-			const pid = Number.parseInt(name, 10)
-			if (!Number.isSafeInteger(pid) || pid === process.pid) continue
-			if (isProcessAlive(pid)) {
-				this.scheduleAbandonedStartsRecheck()
-				continue
-			}
-			const file = path.join(dir, name)
-			let sessionIds: string[] = []
-			try {
-				sessionIds = JSON.parse(readFileSync(file, "utf8"))
-			} catch {}
-			const remaining: string[] = []
-			for (const sessionId of sessionIds) {
-				try {
-					await this.options.cloudSessions.deleteSession(sessionId)
-					deleted = true
-				} catch (error) {
-					// Retry only when the control plane did not answer; "gone" or "not this account's" is final.
-					if (!(error instanceof CloudSessionError)) remaining.push(sessionId)
-					Logger.warn(`[CloudSessions] Failed to delete abandoned cloud session ${sessionId}:`, error)
-				}
-			}
-			try {
-				if (remaining.length > 0) writeFileSync(file, JSON.stringify(remaining))
-				else rmSync(file, { force: true })
-			} catch {}
-		}
-		return deleted
 	}
 
 	private scheduleAbandonedStartsRecheck(): void {
 		if (this.abandonedStartsRecheckScheduled) return
 		this.abandonedStartsRecheckScheduled = true
-		globalThis
-			.setTimeout(() => {
-				void this.deleteAbandonedStarts().then((deleted) => {
-					if (!deleted || this.disposed) return
-					this.listFetchedAt = 0
-					this.options.invalidateHistoryCache()
-					void this.options.postStateToWebview().catch(() => {})
-				})
-			}, ABANDONED_STARTS_RECHECK_MS)
-			.unref?.()
+		this.abandonedStartsRecheck = setTimeout(() => {
+			this.abandonedStartsRecheck = undefined
+			void this.recoverAbandonedStarts()
+		}, ABANDONED_STARTS_RECHECK_MS)
+		this.abandonedStartsRecheck.unref?.()
+	}
+
+	private cancelAbandonedStartsRecheck(): void {
+		clearTimeout(this.abandonedStartsRecheck)
+		this.abandonedStartsRecheck = undefined
+		this.abandonedStartsRecheckScheduled = false
 	}
 
 	/** Drops remembered statuses for sessions the account's list no longer contains. */
@@ -570,7 +606,7 @@ export class SdkCloudSessionCoordinator {
 		let listPromise!: Promise<void>
 		listPromise = (async () => {
 			try {
-				await this.deleteAbandonedStarts()
+				void this.recoverAbandonedStarts()
 				const records = await this.options.cloudSessions.listSessions()
 				if (generation !== this.scopeGeneration || this.disposed) {
 					return
@@ -646,6 +682,7 @@ export class SdkCloudSessionCoordinator {
 	async reset(changeScope?: () => Promise<void>): Promise<void> {
 		this.scopeGeneration++
 		this.statusResolutionAttempts.clear()
+		this.cancelAbandonedStartsRecheck()
 		const previousTransition = this.scopeTransition
 		const transition = (async () => {
 			await previousTransition
@@ -1049,7 +1086,8 @@ export class SdkCloudSessionCoordinator {
 			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
 			if (isStale()) return sessionId
 
-			host = await this.connect(entry)
+			const cloudHost = await this.connect(entry)
+			host = cloudHost
 			if (isStale()) return sessionId
 			const startInput: StartSessionInput = {
 				config: {
@@ -1073,7 +1111,8 @@ export class SdkCloudSessionCoordinator {
 			this.options.postStateToWebview().catch(() => {})
 			this.options.sessions.fireAndForgetSend(sdkHost, record.id, resolvedPrompt, input.images)
 			sent = true
-			this.forgetPendingStart(record.id)
+			// Until the sandbox starts the turn, the prompt exists only in this process.
+			void cloudHost.whenTurnAccepted().then(() => this.forgetPendingStart(record.id))
 			Logger.log(`[CloudSessions] Cloud task started: ${record.id}`)
 			return record.id
 		} catch (error) {
@@ -1117,7 +1156,11 @@ export class SdkCloudSessionCoordinator {
 		}
 		await this.options.cloudSessions.deleteSession(sessionId).then(
 			() => this.forgetPendingStart(sessionId),
-			() => {
+			(error: unknown) => {
+				if (error instanceof CloudSessionError && error.code === "session_not_found") {
+					this.forgetPendingStart(sessionId)
+					return
+				}
 				failed = true
 			},
 		)
@@ -1358,6 +1401,8 @@ export class SdkCloudSessionCoordinator {
 
 	async dispose(): Promise<void> {
 		this.disposed = true
+		this.cancelAbandonedStartsRecheck()
+		this.journal?.stop()
 		if (this.pollTimer) {
 			clearInterval(this.pollTimer)
 			this.pollTimer = undefined

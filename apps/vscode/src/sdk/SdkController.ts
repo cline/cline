@@ -680,13 +680,14 @@ export class Controller {
 			getAuthToken: () => this.authService.getAuthToken(),
 			getActiveOrganizationId: () => this.authService.getActiveOrganizationId(),
 		})
+		const getAccountScope = () => {
+			const userId = this.authService.getInfo().user?.uid
+			return userId ? `${userId}:${this.authService.getActiveOrganizationId() ?? ""}` : undefined
+		}
 		this.cloudTaskTarget = new SdkCloudTaskTarget({
 			cloudSessions: this.cloudSessions,
 			stateManager: this.stateManager,
-			getAccountScope: () => {
-				const userId = this.authService.getInfo().user?.uid
-				return userId ? `${userId}:${this.authService.getActiveOrganizationId() ?? ""}` : undefined
-			},
+			getAccountScope,
 			getWorkspaceRoot: () => this.lastKnownWorkspaceRoot,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -721,6 +722,7 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			telemetry: this.sdkTelemetry.telemetry,
 			pendingStartsDir: path.join(resolveDataDirFromEnv(), "cloud-pending-starts"),
+			getAccountScope,
 		})
 		// Every account change, whichever path requests it, tears down the
 		// previous account's cloud task and connections first and holds cloud

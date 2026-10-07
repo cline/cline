@@ -110,6 +110,9 @@ export class CloudSessionHost implements SdkSessionHost {
 	private readonly statusUnsubscribe: () => void
 	private disposed = false
 	private statusObservation = {}
+	/** Set from a send until the sandbox shows it has started the turn. */
+	private awaitingTurnAcceptance = false
+	private turnAccepted: { promise: Promise<void>; resolve: () => void } | undefined
 
 	private constructor(
 		private readonly options: CloudSessionHostOptions,
@@ -159,6 +162,27 @@ export class CloudSessionHost implements SdkSessionHost {
 		return this.agentStatus
 	}
 
+	/**
+	 * Resolves once the sandbox has started a turn this host sent, i.e. the
+	 * prompt now lives in the sandbox rather than only in this process.
+	 */
+	whenTurnAccepted(): Promise<void> {
+		if (!this.turnAccepted) {
+			let resolve!: () => void
+			const promise = new Promise<void>((done) => {
+				resolve = done
+			})
+			this.turnAccepted = { promise, resolve }
+		}
+		return this.turnAccepted.promise
+	}
+
+	private acceptTurn(): void {
+		this.awaitingTurnAcceptance = false
+		void this.whenTurnAccepted()
+		this.turnAccepted?.resolve()
+	}
+
 	get sessionModelId(): string | undefined {
 		return this.modelId
 	}
@@ -204,6 +228,15 @@ export class CloudSessionHost implements SdkSessionHost {
 			return
 		}
 		this.statusObservation = {}
+		if (
+			this.awaitingTurnAcceptance &&
+			(event.type === "session_snapshot" ||
+				event.type === "agent_event" ||
+				event.type === "chunk" ||
+				(event.type === "status" && mapAgentStatus(event.payload.status) === "running"))
+		) {
+			this.acceptTurn()
+		}
 		if (event.type === "status") {
 			const mapped = mapAgentStatus(event.payload.status)
 			// "idle" is the resting state after any turn; keep the more specific
@@ -293,8 +326,9 @@ export class CloudSessionHost implements SdkSessionHost {
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const sessionId = this.toInner(input.sessionId)
 		this.setStatus("running")
+		this.awaitingTurnAcceptance = true
 		try {
-			return await this.host.runTurn({
+			const result = await this.host.runTurn({
 				...input,
 				sessionId,
 				// The sandbox runtime was built for Act; every turn must say the same.
@@ -302,7 +336,10 @@ export class CloudSessionHost implements SdkSessionHost {
 				// Local file paths mean nothing inside the sandbox; images travel as data URLs.
 				userFiles: undefined,
 			})
+			this.acceptTurn()
+			return result
 		} catch (error) {
+			this.awaitingTurnAcceptance = false
 			// A rejected RPC proves only that this client stopped observing the turn;
 			// the sandbox may still be running after a transport loss.
 			if (!this.disposed && (this.agentStatus === "running" || this.agentStatus === "idle")) {
