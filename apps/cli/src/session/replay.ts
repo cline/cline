@@ -268,6 +268,9 @@ export function formatReplayIterationText(
 			indent(iteration.prompt.text, `${paint(options, c.cyan, "❯")} `),
 		);
 	}
+	for (const note of iteration.injected ?? []) {
+		lines.push(paint(options, c.dim, indent(note.text, "  system: ")));
+	}
 	if (iteration.assistant?.reasoning) {
 		lines.push(
 			paint(

@@ -1,5 +1,9 @@
 import "opentui-spinner/react";
-import type { SessionReplayIteration } from "@cline/core";
+import {
+	isUserRunMessage,
+	type MessageWithMetadata,
+	type SessionReplayIteration,
+} from "@cline/core";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +20,7 @@ import { formatUsd } from "../../utils/output";
 import { ChatEntryView } from "../components/chat-entry";
 import { useTheme } from "../hooks/use-theme";
 import { getThemeModeAccent } from "../themes";
+import type { ChatEntry } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 
 /** Shortest pause between iterations in timed playback, at speed 1. */
@@ -34,6 +39,17 @@ export function replayStepDelayMs(
 	);
 }
 
+/** Runtime-injected user-role messages; shown as system notes, not prompts. */
+function isInjectedUserMessage(message: MessageWithMetadata): boolean {
+	if (message.role !== "user" || isUserRunMessage(message)) {
+		return false;
+	}
+	return (
+		typeof message.content === "string" ||
+		!message.content.some((block) => block.type === "tool_result")
+	);
+}
+
 function ReplayIterationView(props: {
 	replay: LoadedSessionReplay;
 	iteration: SessionReplayIteration;
@@ -43,10 +59,9 @@ function ReplayIterationView(props: {
 	const entries = useMemo(
 		() =>
 			hydrateSessionMessages(
-				replay.session.transcript.messages.slice(
-					iteration.messageRange.start,
-					iteration.messageRange.end,
-				),
+				replay.session.transcript.messages
+					.slice(iteration.messageRange.start, iteration.messageRange.end)
+					.filter((message) => !isInjectedUserMessage(message)),
 			),
 		[replay, iteration],
 	);
@@ -57,24 +72,34 @@ function ReplayIterationView(props: {
 		.map(
 			(call) => `${call.name} ${formatReplayDuration(call.durationMs ?? 0)}`,
 		);
+	const promptCount = entries.findIndex((entry) => entry.kind !== "user");
+	const notesAt = promptCount < 0 ? entries.length : promptCount;
+	const renderEntry = (entry: ChatEntry, index: number) => {
+		const mode = entry.mode ?? "act";
+		return (
+			<ChatEntryView
+				key={`${iteration.index}:${index}:${entry.kind}`}
+				entry={entry}
+				accent={getThemeModeAccent(theme, mode)}
+				mode={mode === "plan" ? "plan" : "act"}
+				theme={theme}
+			/>
+		);
+	};
 	return (
 		<box flexDirection="column" gap={1}>
 			<text fg={theme.accents.act}>
 				{`── ${formatReplayIterationTitle(iteration, replay.total)} ──`}
 			</text>
-			{entries.map((entry, index) => {
-				const mode = entry.mode ?? "act";
-				return (
-					<ChatEntryView
-						// biome-ignore lint/suspicious/noArrayIndexKey: entries of a recorded iteration never reorder
-						key={`${iteration.index}:${index}:${entry.kind}`}
-						entry={entry}
-						accent={getThemeModeAccent(theme, mode)}
-						mode={mode === "plan" ? "plan" : "act"}
-						theme={theme}
-					/>
-				);
-			})}
+			{entries.slice(0, notesAt).map(renderEntry)}
+			{(iteration.injected ?? []).map((note) => (
+				<text key={`note:${note.ts ?? ""}:${note.text}`} fg="gray">
+					{`system: ${note.text}`}
+				</text>
+			))}
+			{entries
+				.slice(notesAt)
+				.map((entry, offset) => renderEntry(entry, notesAt + offset))}
 			<box flexDirection="column">
 				{usage && <text fg="gray">{`usage: ${usage}`}</text>}
 				{toolTimings.length > 0 && (
