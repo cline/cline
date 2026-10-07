@@ -121,35 +121,44 @@ describe("remote config telemetry ownership", () => {
 })
 
 describe("TelemetryProviderFactory ownership", () => {
+	// Factory-built providers wrap the process's shared OTel clients, which the
+	// SDK telemetry adapters export through as well. The client registry owns
+	// those clients and shuts them down last in tearDown, so — unlike the
+	// remote-config provider above, which owns a private client — a factory
+	// provider must never dispose the client it was built on: that would cut
+	// the SDK pipeline's exporter out from under it.
 	beforeEach(() => {
 		sinon.stub(TelemetryProviderFactory, "getDefaultConfigs").returns([
 			{
 				type: "opentelemetry",
-				config: remoteConfigToOtelConfig(config) as never,
-				bypassUserSettings: true,
+				client: {
+					id: "runtime-env",
+					client: client as never,
+					config: remoteConfigToOtelConfig(config) as never,
+					bypassUserSettings: true,
+				},
 			},
 		])
 	})
 
-	it("retains trace-only clients until the wrapper is disposed", async () => {
+	it("leaves the shared client alive when the wrapper is disposed", async () => {
 		const [provider] = await TelemetryProviderFactory.createProviders()
 		expect(provider).toBeInstanceOf(OpenTelemetryTelemetryProvider)
-		expect(client.dispose).not.toHaveBeenCalled()
 		await provider.dispose()
-		expect(client.dispose).toHaveBeenCalledTimes(1)
+		expect(client.dispose).not.toHaveBeenCalled()
 	})
 
-	it("disposes clients when initialization fails", async () => {
+	it("leaves the shared client alive when initialization fails", async () => {
 		sinon.stub(OpenTelemetryTelemetryProvider.prototype, "initialize").rejects(new Error("init failed"))
 		const [provider] = await TelemetryProviderFactory.createProviders()
 		expect(provider).toBeInstanceOf(NoOpTelemetryProvider)
-		expect(client.dispose).toHaveBeenCalledTimes(1)
+		expect(client.dispose).not.toHaveBeenCalled()
 	})
 
-	it("disposes clients with no available signals", async () => {
+	it("falls back to no-op without disposing a shared client that has no signals", async () => {
 		client.tracerProvider = null
 		const [provider] = await TelemetryProviderFactory.createProviders()
 		expect(provider).toBeInstanceOf(NoOpTelemetryProvider)
-		expect(client.dispose).toHaveBeenCalledTimes(1)
+		expect(client.dispose).not.toHaveBeenCalled()
 	})
 })
