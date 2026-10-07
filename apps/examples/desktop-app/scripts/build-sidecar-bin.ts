@@ -179,7 +179,14 @@ const buildPluginSandboxBootstrap = async (): Promise<void> => {
 // reasonably `import` is here; process entrypoints (hub daemon, remote helper)
 // and optional peer boundaries are not.
 const PLUGIN_HOST_SDK_SUBPATHS: Record<string, string[]> = {
-	shared: [".", "./storage", "./db", "./node", "./automation"],
+	shared: [
+		".",
+		"./storage",
+		"./db",
+		"./node",
+		"./automation",
+		"./remote-config",
+	],
 	llms: ["."],
 	agents: ["."],
 	core: [".", "./hub", "./telemetry", "./cloud"],

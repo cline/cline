@@ -96,11 +96,18 @@ function isRuntimeExecutable(value: string | undefined): boolean {
  * when spawned with `BUN_BE_BUN=1`, so packaged hosts (the desktop sidecar, a
  * compiled CLI) need neither node nor bun installed on the user's machine.
  */
-export function isCompiledBunExecutable(execPath: string | undefined): boolean {
+export function isCompiledBunExecutable(
+	execPath: string | undefined,
+	host: { isBunRuntime?: boolean; selfExecPath?: string } = {},
+): boolean {
+	const isBunRuntime =
+		host.isBunRuntime ??
+		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
+	const selfExecPath = host.selfExecPath ?? process.execPath;
 	return (
-		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined" &&
+		isBunRuntime &&
 		!!execPath &&
-		execPath === process.execPath &&
+		execPath === selfExecPath &&
 		!isRuntimeExecutable(execPath)
 	);
 }
@@ -110,6 +117,8 @@ export function resolveSubprocessRuntimeExecutable(
 		env?: NodeJS.ProcessEnv;
 		execPath?: string;
 		runtimeExecutable?: string;
+		/** Host facts for tests; defaults to the running process. */
+		host?: { isBunRuntime?: boolean; selfExecPath?: string };
 	} = {},
 ): string {
 	const env = options.env ?? process.env;
@@ -135,7 +144,7 @@ export function resolveSubprocessRuntimeExecutable(
 		}
 	}
 
-	if (isCompiledBunExecutable(execPath)) {
+	if (isCompiledBunExecutable(execPath, options.host)) {
 		return execPath;
 	}
 
