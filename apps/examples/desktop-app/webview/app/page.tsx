@@ -979,15 +979,13 @@ export default function Home() {
 													: null
 											}
 											historySession={activeThread.historySession}
-											liveHistorySession={sessionHistory.sessions.find(
-												(session) =>
-													session.sessionId ===
-														(activeThread.historySession?.sessionId ??
-															activeThread.sessionId) &&
-													(session.environmentId ??
-														LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
-														activeThread.environmentId,
-											)}
+											liveHistorySession={
+												activeHistorySessionId
+													? sessionHistory.sessionById.get(
+															activeHistorySessionId,
+														)
+													: undefined
+											}
 											initialPromptDraft={activeThread.initialPromptDraft}
 											promptDrafts={promptDrafts}
 											knownWorkspacePaths={historyWorkspacePaths}
