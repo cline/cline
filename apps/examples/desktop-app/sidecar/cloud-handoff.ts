@@ -57,6 +57,7 @@ import { readSessionMetadata } from "./session-data/common";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
+	SessionRuntimeBinding,
 	SidecarContext,
 } from "./types";
 
@@ -1061,10 +1062,10 @@ export function beginSessionMetadataUpdate(
 export async function assertSessionDeleteAllowedDuringHandoff(
 	ctx: SidecarContext,
 	sessionId: string,
+	binding: SessionRuntimeBinding,
 ): Promise<() => void> {
 	const release = beginActiveSessionDelete(ctx, sessionId);
 	try {
-		const binding = getSessionRuntimeBinding(ctx);
 		let metadata: JsonRecord | undefined;
 		try {
 			const persisted = await binding.sessionManager.get(sessionId);
