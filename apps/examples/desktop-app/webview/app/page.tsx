@@ -2626,8 +2626,10 @@ function ChatThreadPane({
 				if (
 					savedFollowUp === undefined ||
 					savedFollowUp?.draftId === restoredFollowUpId
-				)
+				) {
 					draftRef.current.handoffFollowUpId = restoredFollowUpId;
+					draftRef.current.lastRestoredFollowUpId = restoredFollowUpId;
+				}
 				handleAttachFiles(toSend);
 			}
 		},
