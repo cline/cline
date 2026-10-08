@@ -20,6 +20,22 @@ type PackedManifest = {
 const root = join(import.meta.dir, "..");
 const packagesDir = join(root, "packages");
 
+const PUBLISH_SHAPE_REQUIRED_EXPORTS: Record<
+	string,
+	Array<{ path: string; label: string }>
+> = {
+	"@cline/core": [{ path: "ClineCore?.create", label: "ClineCore.create" }],
+	"@cline/replay": [
+		{ path: "exportSessionReplayBundle", label: "exportSessionReplayBundle" },
+		{ path: "readSessionReplayBundle", label: "readSessionReplayBundle" },
+		{ path: "createSessionReplaySource", label: "createSessionReplaySource" },
+		{
+			path: "compareSessionReplaySessions",
+			label: "compareSessionReplaySessions",
+		},
+	],
+};
+
 async function runCommandOrThrow(
 	cmd: string[],
 	options: {
@@ -274,7 +290,8 @@ async function main(): Promise<number> {
 
 		console.log("\n--- Verifying publish-only package invariants ---");
 		for (const pkg of published) {
-			if (pkg.name !== "@cline/core") {
+			const requiredExports = PUBLISH_SHAPE_REQUIRED_EXPORTS[pkg.name];
+			if (!requiredExports) {
 				continue;
 			}
 
@@ -282,20 +299,20 @@ async function main(): Promise<number> {
 			await writeFile(
 				testFile,
 				[
-					`import { readFileSync } from "node:fs";`,
-					`import { join } from "node:path";`,
 					`try {`,
-					`  const root = await import("@cline/core");`,
-					`  if (typeof root.ClineCore?.create !== "function") {`,
-					`    console.error("  FAIL @cline/core: root export is missing ClineCore.create");`,
-					`    process.exit(1);`,
-					`  }`,
+					`  const root = await import(${JSON.stringify(pkg.name)});`,
+					...requiredExports.flatMap(({ path, label }) => [
+						`  if (typeof root.${path} !== "function") {`,
+						`    console.error(${JSON.stringify(`  FAIL ${pkg.name}: root export is missing ${label}`)});`,
+						`    process.exit(1);`,
+						`  }`,
+					]),
 					`} catch (error) {`,
 					`  const message = error instanceof Error ? error.message : String(error);`,
-					`  console.error("  FAIL @cline/core: published runtime shape is invalid:", message);`,
+					`  console.error(${JSON.stringify(`  FAIL ${pkg.name}: published runtime shape is invalid:`)}, message);`,
 					`  process.exit(1);`,
 					`}`,
-					`console.log("  OK @cline/core publish shape");`,
+					`console.log(${JSON.stringify(`  OK ${pkg.name} publish shape`)});`,
 				].join("\n"),
 			);
 			try {

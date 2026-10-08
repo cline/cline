@@ -30,6 +30,7 @@
 			],
 			"@cline/llms": ["./packages/llms/src/index.ts"],
 			"@cline/llms/browser": ["./packages/llms/src/index.browser.ts"],
+			"@cline/replay": ["./packages/replay/src/index.ts"],
 			"@cline/sdk": ["./packages/sdk/src/index.ts"],
 			"@cline/shared": ["./packages/shared/src/index.ts"],
 			"@cline/shared/automation": ["./packages/shared/src/automation/index.ts"],

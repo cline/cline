@@ -54,6 +54,7 @@
       },
       "devDependencies": {
         "@cline/core": "workspace:*",
+        "@cline/replay": "workspace:*",
         "@cline/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
         "@types/bun": "^1.4.2",
@@ -737,6 +738,14 @@
         "ai-sdk-provider-codex-cli",
       ],
     },
+    "sdk/packages/replay": {
+      "name": "@cline/replay",
+      "version": "0.0.91",
+      "dependencies": {
+        "@cline/core": "workspace:*",
+        "@cline/shared": "workspace:*",
+      },
+    },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
       "version": "0.0.91",
@@ -1113,6 +1122,8 @@
     "@cline/llms": ["@cline/llms@workspace:sdk/packages/llms"],
 
     "@cline/menubar": ["@cline/menubar@workspace:apps/examples/menubar"],
+
+    "@cline/replay": ["@cline/replay@workspace:sdk/packages/replay"],
 
     "@cline/sdk": ["@cline/sdk@workspace:sdk/packages/sdk"],
 
