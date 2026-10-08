@@ -1,9 +1,11 @@
 import { type Command, Option } from "commander";
 import type { CliOutputMode } from "../utils/types";
 import {
+	runSessionDiff,
 	runSessionExport,
 	runSessionReplay,
 	runSessionValidate,
+	SESSION_DIFF_FORMATS,
 	SESSION_REPLAY_FORMATS,
 	SESSION_REPLAY_MODES,
 } from "./session";
@@ -29,7 +31,7 @@ export function registerSessionCommand({
 }: RegisterSessionCommandOptions): void {
 	const sessionCmd = program
 		.command("session")
-		.description("Export and replay recorded sessions")
+		.description("Export, replay and compare recorded sessions")
 		.option("--json", "Output as JSON")
 		.action(() => {
 			sessionCmd.outputHelp();
@@ -116,6 +118,41 @@ export function registerSessionCommand({
 					sessionId: opts.session,
 					io,
 					isInteractiveTTY: isInteractiveTTY(),
+				}),
+			);
+		});
+
+	const diffCmd = sessionCmd
+		.command("diff <recorded> <live>")
+		.description(
+			"Compare two replay bundles of the same task iteration by iteration and report the first divergence (exit 0: none, 1: diverged, 2: error)",
+		)
+		.option(
+			"--ignore <kinds>",
+			'Comma-separated divergence kinds that do not count, e.g. "assistant-text" or "request" (all request kinds)',
+		)
+		.option("--lenient", "Report divergences without failing (exit 0)")
+		.addOption(
+			new Option("--format <format>", "Output format (default: text)").choices([
+				...SESSION_DIFF_FORMATS,
+			]),
+		)
+		.option("--json", "Output as JSON (same as --format json)")
+		.action(async (recorded: string, live: string) => {
+			const opts = diffCmd.opts<{
+				ignore?: string;
+				lenient?: boolean;
+				format?: string;
+			}>();
+			setExitCode(
+				await runSessionDiff({
+					recordedDir: recorded,
+					liveDir: live,
+					ignore: opts.ignore,
+					lenient: opts.lenient === true,
+					format: opts.format,
+					outputMode: outputMode(diffCmd),
+					io,
 				}),
 			);
 		});
