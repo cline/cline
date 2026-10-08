@@ -1,5 +1,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/vazirmatn";
 @import "tailwindcss";
 @import "../theme/index.css";
 @import "../components.css";

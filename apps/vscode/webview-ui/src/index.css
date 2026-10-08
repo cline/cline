@@ -1,10 +1,15 @@
 /* Import external CSS files */
 @import url("../../node_modules/@vscode/codicons/dist/codicon.css");
 @import url("../node_modules/@fontsource-variable/geist-mono/index.css");
+/* Vazirmatn covers Persian/Arabic (and Urdu, Hebrew-adjacent ranges) so RTL
+ * prose renders in a font designed for it instead of a Latin fallback. */
+@import url("../node_modules/@fontsource-variable/vazirmatn/index.css");
 
 /* Tailwind CSS */
 @import "tailwindcss";
 @import "./theme.css";
+/* Direction (RTL) support: shared with the desktop app so both stay aligned. */
+@import "@cline/ui/theme/direction.css";
 @plugin "tailwindcss-animate";
 @custom-variant dark (&:is(.dark *));
 

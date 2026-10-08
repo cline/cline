@@ -1,0 +1,107 @@
+/*
+ * Direction (RTL) support.
+ *
+ * Consumed by every Cline web surface (VS Code webview, desktop app, hub) so a
+ * document whose root carries `dir="rtl"` mirrors correctly without disturbing
+ * the light/dark component theming.
+ *
+ * Contract:
+ * - Direction is decided by the host and set on <html> before first paint
+ *   (`document.documentElement.dir`). The default stays LTR, so existing users
+ *   see no change at all.
+ * - Components mirror through CSS logical properties. The rules below cover the
+ *   remaining physical values plus content that must never mirror (code, paths,
+ *   diffs, terminals).
+ * - Prose opts into `unicode-bidi: plaintext`, which lets every block choose its
+ *   own base direction from its first strong character. That is what makes a
+ *   Persian reply that starts with an English identifier read in the right
+ *   visual order, and it keeps a pure-English reply left aligned.
+ */
+
+/*
+ * Vazirmatn first for RTL documents: Persian/Arabic glyphs are designed for it,
+ * while Latin runs still fall through to the consumer font because it is listed
+ * second. Fonts that are not installed simply lose the glyph race and fall
+ * through, so this is safe on machines without Vazirmatn.
+ *
+ * Only the shared token is set here. Hosts that wire their own font family (the
+ * VS Code webview resolves `--font-base` and <body> from the editor theme)
+ * override it in their own stylesheet.
+ */
+[dir="rtl"] {
+	--font-sans:
+		"Vazirmatn Variable", "Inter Variable", ui-sans-serif, system-ui,
+		-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+/*
+ * Code-like content is direction-neutral data: keep it LTR and isolated so a
+ * path, command, diff, or terminal line never gets reordered or mirrored.
+ * `text-align: start` resolves to the left because the direction is LTR here.
+ */
+[dir="rtl"] :is(pre, code, kbd, samp) {
+	direction: ltr;
+	text-align: start;
+	unicode-bidi: isolate;
+}
+
+/* Opt-in hooks for content that must stay LTR even outside code elements. */
+[dir="rtl"] [data-cline-ltr] {
+	direction: ltr;
+	text-align: start;
+	unicode-bidi: isolate;
+}
+
+/* Opt-in hook for arbitrary text that should auto-detect its own direction. */
+[data-cline-bidi-plaintext] {
+	unicode-bidi: plaintext;
+}
+
+/*
+ * Prose surfaces: pick a base direction per block instead of inheriting the
+ * document direction, so mixed replies align per paragraph rather than per
+ * message. This is deliberately NOT scoped to `dir="rtl"`: a Persian paragraph
+ * inside an English UI needs the same treatment as one inside an RTL UI, which
+ * is what discussion #14047 asks for.
+ *
+ * `text-align: start` resolves against each block's own direction, so an
+ * English-only paragraph stays left aligned even when the document is RTL.
+ */
+:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
+	:is(
+		p,
+		li,
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6,
+		dt,
+		dd,
+		blockquote,
+		td,
+		th,
+		figcaption,
+		summary
+	) {
+	unicode-bidi: plaintext;
+	text-align: start;
+}
+
+/* List markers and cell alignment follow the start edge in both directions. */
+:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
+	:is(ol, ul) {
+	padding-inline-start: 1.25rem;
+	padding-inline-end: 0;
+}
+
+:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
+	:is(th, td) {
+	text-align: start;
+}
+
+/* Inline icons that encode reading order (back/next chevrons, arrows, undo). */
+[dir="rtl"] [data-cline-mirror-icon="true"] {
+	transform: scaleX(-1);
+}
