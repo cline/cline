@@ -335,14 +335,20 @@ async function loadConfiguredMcpTools(options: {
 				);
 			}
 		}
-		if (previous.length > 0 || next.length > 0) {
-			applyToolsChange(previous, next);
-		}
-		flushInFlight = false;
-		// A notification that landed mid-flush re-queues here instead of
-		// being lost until the next one.
-		if (changedServers.size > 0) {
-			void flushChangedMcpTools();
+		try {
+			if (previous.length > 0 || next.length > 0) {
+				applyToolsChange(previous, next);
+			}
+		} finally {
+			// The sink is host-provided; never let a throw from it leave
+			// `flushInFlight` stuck (which would silence every later refresh)
+			// or escape as an unhandled rejection.
+			flushInFlight = false;
+			// A notification that landed mid-flush re-queues here instead of
+			// being lost until the next one.
+			if (changedServers.size > 0) {
+				void flushChangedMcpTools();
+			}
 		}
 	};
 
