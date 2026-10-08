@@ -226,6 +226,8 @@ Supported commands:
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
 | `search_workspace_files` | `getFileIndex` |
+| `list_workspace_files` | `getFileIndex` (local workspaces; capped at 20,000 paths) |
+| `read_workspace_file` | `fs` read confined to the workspace (1 MB cap, binary detection) |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |

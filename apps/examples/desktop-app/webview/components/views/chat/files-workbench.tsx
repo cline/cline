@@ -391,6 +391,15 @@ export function FilesWorkbench({
 										: "text-muted-foreground hover:text-foreground",
 								)}
 								key={path}
+								ref={
+									path === activePath
+										? (node) =>
+												node?.scrollIntoView({
+													block: "nearest",
+													inline: "nearest",
+												})
+										: undefined
+								}
 							>
 								<button
 									className="flex items-center gap-1.5"
