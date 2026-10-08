@@ -56,15 +56,22 @@ describe("isProviderConfigured", () => {
 		expect(isProviderConfigured(tuiConfig("openrouter"))).toBe(true);
 	});
 
-	it("does not take Bedrock's AWS_REGION for an API key", () => {
-		const env = { AWS_REGION: "us-east-1" };
-		expect(hasProviderApiKeyInEnv("bedrock", env)).toBe(false);
-		expect(isProviderConfigured(tuiConfig("bedrock"), env)).toBe(false);
+	it("configures OpenRouter from OPENROUTER_API_KEY", () => {
 		expect(
-			hasProviderApiKeyInEnv("bedrock", {
-				...env,
-				AWS_BEARER_TOKEN_BEDROCK: "bedrock-token",
+			isProviderConfigured(tuiConfig("openrouter"), {
+				OPENROUTER_API_KEY: "sk-or-test",
 			}),
 		).toBe(true);
+	});
+
+	it("keeps onboarding for providers with several environment variables", () => {
+		expect(
+			isProviderConfigured(tuiConfig("bedrock"), { AWS_REGION: "us-east-1" }),
+		).toBe(false);
+		expect(
+			isProviderConfigured(tuiConfig("vertex"), {
+				GOOGLE_CLOUD_PROJECT: "my-project",
+			}),
+		).toBe(false);
 	});
 });
