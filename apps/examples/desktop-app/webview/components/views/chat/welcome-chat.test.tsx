@@ -156,6 +156,42 @@ async function clickButton(
 }
 
 describe("WelcomeScreen", () => {
+	it("lets cloud users cancel an abandoned sign-in and start again", async () => {
+		let finishCancel!: () => void;
+		invokeMock.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login")
+				return await new Promise(() => {});
+			if (command === "cancel_provider_oauth_login")
+				return await new Promise<void>((resolve) => {
+					finishCancel = resolve;
+				});
+			return {};
+		});
+		await renderWelcomeScreen({
+			workspaceRoot: "",
+			workspaces: [],
+			executionTarget: "cloud",
+			cloudAgentsEnabled: true,
+		});
+		await clickButton("Sign in with Cline");
+		expect(container.textContent).toContain("Waiting for browser");
+		await clickButton("Cancel");
+		const cancelling = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Cancelling…",
+		);
+		expect(cancelling?.disabled).toBe(true);
+		expect(invokeMock).toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		await act(async () => finishCancel());
+		await clickButton("Sign in with Cline");
+		expect(
+			invokeMock.mock.calls.filter(
+				([command]) => command === "run_provider_oauth_login",
+			),
+		).toHaveLength(2);
+	});
+
 	it.each([
 		"none",
 		"retry",

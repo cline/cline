@@ -10,7 +10,7 @@ const { invoke, openExternalUrl } = vi.hoisted(() => ({
 	openExternalUrl: vi.fn(),
 }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	openExternalUrl,
 }));
 
@@ -87,6 +87,29 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
+	it("offers cancellation while browser sign-in is pending", async () => {
+		invoke.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login")
+				return await new Promise(() => {});
+			return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
+		});
+		await act(async () => root.render(<AccountView />));
+		const button = (label: string) => {
+			const found = Array.from(container.querySelectorAll("button")).find(
+				(button) => button.textContent === label,
+			);
+			if (!found) throw new Error(`Missing button: ${label}`);
+			return found;
+		};
+		await act(async () => button("Sign in").click());
+		expect(button("Signing in").disabled).toBe(true);
+		await act(async () => button("Cancel").click());
+		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		expect(button("Sign in").disabled).toBe(false);
+	});
+
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {
 		invoke.mockResolvedValue({
 			signedIn: false,

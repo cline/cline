@@ -25,10 +25,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -180,10 +180,15 @@ export function AccountView() {
 	// definitive auth error from older sidecars), tracked separately from
 	// failures so it renders the sign-in prompt instead of an error card.
 	const [signedOut, setSignedOut] = useState(false);
-	const [accountActionPending, setAccountActionPending] = useState<
-		"sign-in" | "sign-out" | null
-	>(null);
-	const deviceUserCode = useOAuthUserCode(accountActionPending === "sign-in");
+	const [signingOut, setSigningOut] = useState(false);
+	const {
+		signIn: startSignIn,
+		cancelSignIn,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn();
+	const deviceUserCode = useOAuthUserCode(signingIn);
 	// Organization id being switched to, "" while switching to the personal
 	// account, null when no switch is in flight.
 	const [switchTargetId, setSwitchTargetId] = useState<string | null>(null);
@@ -278,33 +283,13 @@ export function AccountView() {
 	}, [loadOverview]);
 
 	const signIn = async () => {
-		setAccountActionPending("sign-in");
 		setOverviewError(null);
-		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				// The browser round-trip routinely outlives the default command
-				// deadline; the sidecar bounds the flow by device-code expiry.
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
-			await loadOverview();
-			setActiveTab("overview");
-		} catch (err) {
-			const message = normalizeAccountViewError(err).message;
-			setOverviewError(message);
-			resetAccountData();
-		} finally {
-			// The login may have persisted credentials; drop the short-lived
-			// catalog cache so consumers reload them.
-			invalidateProviderCatalogCache();
-			setAccountActionPending(null);
-			void refreshAccount();
-		}
+		if (await startSignIn()) setActiveTab("overview");
+		await loadOverview();
 	};
 
 	const signOut = async () => {
-		setAccountActionPending("sign-out");
+		setSigningOut(true);
 		try {
 			await desktopClient.invoke("save_provider_settings", {
 				provider: "cline",
@@ -326,7 +311,7 @@ export function AccountView() {
 			setOverviewError(message);
 		} finally {
 			invalidateProviderCatalogCache();
-			setAccountActionPending(null);
+			setSigningOut(false);
 			void refreshAccount();
 		}
 	};
@@ -489,17 +474,27 @@ export function AccountView() {
 				<div className="flex flex-wrap items-center justify-center gap-2">
 					<button
 						type="button"
-						disabled={accountActionPending !== null}
+						disabled={signingIn || signingOut}
 						onClick={() => void signIn()}
 						className="flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
 					>
-						{accountActionPending === "sign-in" ? (
+						{signingIn ? (
 							<Loader2 className="h-4 w-4 animate-spin" />
 						) : (
 							<LogIn className="h-4 w-4" />
 						)}
-						{accountActionPending === "sign-in" ? "Signing in" : "Sign in"}
+						{signingIn ? "Signing in" : "Sign in"}
 					</button>
+					{signingIn && (
+						<button
+							type="button"
+							disabled={cancelling}
+							onClick={() => void cancelSignIn()}
+							className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium hover:bg-surface-hover disabled:opacity-60"
+						>
+							{cancelling ? "Cancelling…" : "Cancel"}
+						</button>
+					)}
 					<button
 						type="button"
 						onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
@@ -509,7 +504,12 @@ export function AccountView() {
 						<ExternalLink className="h-4 w-4" />
 					</button>
 				</div>
-				{accountActionPending === "sign-in" && deviceUserCode ? (
+				{signInError && (
+					<p role="alert" className="text-sm text-destructive">
+						{signInError}
+					</p>
+				)}
+				{signingIn && deviceUserCode ? (
 					<p className="text-sm text-muted-foreground">
 						Confirm this code in your browser:{" "}
 						<span className="font-mono font-medium text-foreground">
@@ -576,16 +576,16 @@ export function AccountView() {
 					user ? (
 						<button
 							type="button"
-							disabled={accountActionPending !== null}
+							disabled={signingIn || signingOut}
 							onClick={() => void signOut()}
 							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>
-							{accountActionPending === "sign-out" ? (
+							{signingOut ? (
 								<Loader2 className="size-4 animate-spin" />
 							) : (
 								<LogOut className="size-4" />
 							)}
-							{accountActionPending === "sign-out" ? "Signing Out" : "Sign Out"}
+							{signingOut ? "Signing Out" : "Sign Out"}
 						</button>
 					) : undefined
 				}
