@@ -319,7 +319,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "anthropic",
-		defaultModelId: "claude-sonnet-5-5",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		docsUrl: "https://docs.anthropic.com/en/docs/about-claude/models",
 	},
@@ -414,7 +414,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "bedrock",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "bedrock",
-		defaultModelId: "global.openai.gpt-6.1-sol",
+		defaultModelId: "anthropic.claude-haiku-5-5",
 		apiKeyEnv: [
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",
@@ -597,7 +597,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cortecs",
-		defaultModelId: "gpt-6.1-sol",
+		defaultModelId: "mistral-large-4-0",
 		apiKeyEnv: ["CORTECS_API_KEY"],
 		docsUrl: "https://api.cortecs.ai/v1/models",
 		defaults: {
@@ -767,7 +767,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "edenai",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "anthropic/claude-haiku-5-5",
 		apiKeyEnv: ["EDENAI_API_KEY"],
 		docsUrl: "https://docs.edenai.co",
 		defaults: {
@@ -909,7 +909,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "github-copilot",
-		defaultModelId: "gpt-6.1-sol",
+		defaultModelId: "claude-haiku-5.5",
 		apiKeyEnv: ["GITHUB_TOKEN"],
 		docsUrl: "https://docs.github.com/en/copilot",
 		defaults: {
@@ -1232,7 +1232,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "mistralai/mistral-large-4-0",
+		defaultModelId: "anthropic/claude-haiku-5.5",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1345,7 +1345,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway",
-		defaultModelId: "mistral-large-4",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1357,9 +1357,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "LLM Gateway",
 		description: "LLM Gateway model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "prompt-cache", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway-providers",
-		defaultModelId: "mistral/mistral-large-4",
+		defaultModelId: "anthropic/claude-haiku-5-5",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1707,7 +1707,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "mistralai/mistral-large-4",
+		defaultModelId: "anthropic/claude-haiku-5.5",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1863,7 +1863,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "ollama",
-		defaultModelId: "deepseek-v4.1-flash",
+		defaultModelId: "mistral-large-4",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
 		docsUrl: "https://docs.ollama.com/cloud",
 		defaults: {
@@ -1888,7 +1888,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "exo-free",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1902,7 +1902,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode-go",
-		defaultModelId: "longcat-2.5-preview-free",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/go",
 		defaults: {
@@ -1930,7 +1930,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "google/gemini-nano-banana-2.1",
+		defaultModelId: "anthropic/claude-haiku-5.5",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2125,9 +2125,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Requesty",
 		description: "Requesty model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "prompt-cache", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "requesty",
-		defaultModelId: "mistral-large-4",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["REQUESTY_API_KEY"],
 		docsUrl: "https://requesty.ai/solution/llm-routing/models",
 		defaults: {
@@ -2673,7 +2673,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "google/gemini-nano-banana-2.1",
+		defaultModelId: "anthropic/claude-haiku-5.5",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
@@ -2685,7 +2685,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "vertex",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vertex",
-		defaultModelId: "claude-sonnet-5-5@default",
+		defaultModelId: "claude-haiku-5-5@default",
 		apiKeyEnv: [
 			"GOOGLE_VERTEX_PROJECT",
 			"GOOGLE_VERTEX_LOCATION",
@@ -2714,7 +2714,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vivgrid",
-		defaultModelId: "gpt-6.1-sol",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["VIVGRID_API_KEY"],
 		docsUrl: "https://docs.vivgrid.com/models",
 		defaults: {

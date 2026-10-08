@@ -2682,9 +2682,15 @@ export async function handleCommand(
 		const { assertSessionDeleteAllowedDuringHandoff } = await import(
 			"./cloud-handoff"
 		);
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		ctx = getEnvironmentContext(
+			ctx,
+			binding?.environmentId ?? LOCAL_ENVIRONMENT_ID,
+		);
 		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
 			ctx,
 			sessionId,
+			binding ?? getRuntimeBinding(ctx),
 		);
 		try {
 			ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
@@ -2694,7 +2700,6 @@ export async function handleCommand(
 			const sessionCwd =
 				row?.cwd?.trim() ||
 				(typeof manifest?.cwd === "string" ? manifest.cwd.trim() : "");
-			const binding = await getCommandSessionBinding(ctx, sessionId, args);
 			let deleted = false;
 			let deleteError: Error | null = null;
 			try {

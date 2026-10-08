@@ -31,6 +31,7 @@ import {
 } from "./cloud-handoff";
 import {
 	getEnvironmentContext,
+	getSessionRuntimeBinding,
 	handleCoreSessionEvent,
 	handleHubLiveEvent,
 	requestSidecarAskQuestion,
@@ -538,7 +539,11 @@ describe("session forks", () => {
 		).rejects.toThrow("A different cloud handoff is already in progress");
 
 		await expect(
-			assertSessionDeleteAllowedDuringHandoff(ctx, sessionId),
+			assertSessionDeleteAllowedDuringHandoff(
+				ctx,
+				sessionId,
+				getSessionRuntimeBinding(ctx),
+			),
 		).rejects.toThrow("Wait for the cloud handoff to finish before deleting");
 		const { handleCommand } = await import("./commands");
 		await expect(
@@ -646,7 +651,11 @@ describe("session forks", () => {
 				{ sessionIds: [sessionId] },
 			),
 		} as unknown as SidecarContext;
-		const deletion = assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
+		const deletion = assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			sessionId,
+			getSessionRuntimeBinding(ctx),
+		);
 		expect(releaseGet).toBeTypeOf("function");
 
 		await expect(
