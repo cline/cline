@@ -85,12 +85,11 @@ const CLOUD_SESSION_SYSTEM_PROMPT =
 	"(`gh pr create`, `gh pr diff`, `gh issue list`, `gh api`, ...). " +
 	"`git` push and pull are authenticated the same way. " +
 	"Simply run the commands normally — credentials are injected transparently.\n\n" +
-	"When the requested changes are complete, offer to commit any remaining changes, push, and open a pull request " +
-	"unless the user has already requested or declined that workflow. Respect requests to push only; " +
-	"approval to commit or push alone is not approval to open a PR. " +
-	"After the user requests or approves a PR, finish any needed commit/push steps and check for an existing open PR for the branch. " +
-	"Reuse that PR if it exists; otherwise create it with `gh pr create`, writing an accurate title and description of the changes and validation. " +
-	"Return the actual PR URL, not a branch comparison or PR-creation link.";
+	"When work is complete, offer to commit, push, and open a PR unless the user already requested or declined one. " +
+	"Commit or push approval alone is not PR approval. " +
+	"Once a PR is requested or approved, commit and push as needed, then reuse the branch's existing open PR " +
+	"or create one with `gh pr create` and an accurate title and description of changes and validation. " +
+	"Return the PR URL, not a comparison or creation link.";
 
 function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
 	if (!workspaceRelativePath) return CLOUD_WORKSPACE_ROOT;

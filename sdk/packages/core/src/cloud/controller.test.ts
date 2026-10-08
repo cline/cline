@@ -1151,14 +1151,14 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(prompt).toContain("branch `cline/inner`");
 			expect(prompt).toContain("never commit directly to the default branch");
 			expect(prompt).toContain("Do not force-push or amend commits");
+			expect(prompt).toContain("offer to commit, push, and open a PR");
 			expect(prompt).toContain(
-				"offer to commit any remaining changes, push, and open a pull request",
+				"Commit or push approval alone is not PR approval",
 			);
+			expect(prompt).toContain("or create one with `gh pr create`");
 			expect(prompt).toContain(
-				"approval to commit or push alone is not approval to open a PR",
+				"Return the PR URL, not a comparison or creation link",
 			);
-			expect(prompt).toContain("otherwise create it with `gh pr create`");
-			expect(prompt).toContain("Return the actual PR URL");
 			expect(prompt.includes("SAVE YOUR WORK")).toBe(autoPush);
 			expect(prompt.includes("Commit regularly")).toBe(autoPush);
 			expect(prompt.includes("git push -u origin")).toBe(autoPush);
@@ -1573,13 +1573,13 @@ describe("seeded cloud handoff controller", () => {
 		).systemPrompt as string;
 		expect(prompt).toContain("egress proxy");
 		expect(prompt).toContain("must never run `gh auth login`");
+		expect(prompt).toContain("offer to commit, push, and open a PR");
 		expect(prompt).toContain(
-			"offer to commit any remaining changes, push, and open a pull request",
+			"Commit or push approval alone is not PR approval",
 		);
 		expect(prompt).toContain(
-			"approval to commit or push alone is not approval to open a PR",
+			"Return the PR URL, not a comparison or creation link",
 		);
-		expect(prompt).toContain("Return the actual PR URL");
 		expect(prompt).toContain("fresh Linux clone");
 		expect(prompt).toContain("are stale");
 		expect(prompt).toContain("subdirectory at /workspace/packages/app");
