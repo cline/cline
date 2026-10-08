@@ -1744,6 +1744,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// An abort that arrived between turns targeted a run that had already
 		// ended; only aborts issued from here on belong to this turn.
 		session.aborting = false;
+		await session.runtime.mcpToolsReady;
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;

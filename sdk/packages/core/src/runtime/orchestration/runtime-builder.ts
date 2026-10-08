@@ -463,6 +463,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
+		let mcpLoad: Promise<{ tools: AgentTool[] }> | undefined;
 
 		for (const error of configuredAgents.errors) {
 			(logger ?? config.logger)?.log?.(
@@ -587,13 +588,21 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				!normalized.disableMcpSettingsTools ||
 				agentPluginMcpServers?.length
 			) {
-				const mcpRuntime = await loadConfiguredMcpTools({
+				// MCP servers connect in the background so slow launchers do not
+				// hold up session creation (capped by the hub); the first turn
+				// awaits them through `mcpToolsReady` instead.
+				const load = loadConfiguredMcpTools({
 					logger: config.logger,
 					includeSettings: !normalized.disableMcpSettingsTools,
 					agentPluginServers: agentPluginMcpServers,
+				}).catch((error) => {
+					config.logger?.log(
+						`[mcp] Failed to load MCP tools: ${error instanceof Error ? error.message : String(error)}`,
+					);
+					return { tools: [], shutdown: undefined };
 				});
-				tools.push(...mcpRuntime.tools);
-				mcpShutdown = mcpRuntime.shutdown;
+				mcpLoad = load;
+				mcpShutdown = async () => (await load).shutdown?.();
 			}
 		}
 
@@ -862,6 +871,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			: teamCompletionGuard
 				? { completionGuard: teamCompletionGuard }
 				: undefined;
+		let mcpTools: AgentTool[] = [];
+		const mcpToolsReady = mcpLoad?.then((mcp) => {
+			mcpTools = filterAvailableTools(mcp.tools, effectiveToolPolicies);
+			leadAgentInstance?.addTools(mcpTools);
+		});
 
 		return {
 			tools: finalTools,
@@ -875,6 +889,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			extensions: runtimeExtensions,
 			completionPolicy,
+			mcpToolsReady,
 			registerLeadAgent: (agent) => {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {
@@ -883,6 +898,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							...globallyDisabledToolNames,
 						]),
 					);
+				}
+				if (mcpTools.length > 0) {
+					agent.addTools(mcpTools);
 				}
 			},
 			shutdown: async (reason: string) => {

@@ -61,6 +61,16 @@ async function collectExtensionTools(
 	return registry.getRegisteredTools();
 }
 
+async function collectMcpTools(runtime: {
+	mcpToolsReady?: Promise<void>;
+	registerLeadAgent?: (agent: { addTools(tools: AgentTool[]): void }) => void;
+}): Promise<AgentTool[]> {
+	const tools: AgentTool[] = [];
+	runtime.registerLeadAgent?.({ addTools: (added) => tools.push(...added) });
+	await runtime.mcpToolsReady;
+	return tools;
+}
+
 describe("DefaultRuntimeBuilder", () => {
 	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
@@ -577,7 +587,8 @@ process.stdin.on("data", (chunk) => {
 			const runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
 			});
-			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
+			const mcpTools = await collectMcpTools(runtime);
+			expect(mcpTools.map((tool) => tool.name)).toContain("mock__echo");
 			await runtime.shutdown("test");
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
@@ -685,7 +696,7 @@ process.stdin.on("data", (chunk) => {
 				],
 			});
 
-			const mcpTool = runtime.tools.find(
+			const mcpTool = (await collectMcpTools(runtime)).find(
 				(tool) => tool.description === "Portable echo",
 			);
 			expect(existsSync(join(tempRoot, "plugin-data"))).toBe(true);
@@ -785,9 +796,8 @@ process.stdin.on("data", (chunk) => {
 					disableMcpSettingsTools: true,
 				}),
 			});
-			expect(runtime.tools.map((tool) => tool.name)).not.toContain(
-				"mock__echo",
-			);
+			const mcpTools = await collectMcpTools(runtime);
+			expect(mcpTools.map((tool) => tool.name)).not.toContain("mock__echo");
 			await runtime.shutdown("test");
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
@@ -833,7 +843,7 @@ process.stdin.on("data", (chunk) => {
 			const runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
 			});
-			const mcpTools = runtime.tools.filter((t) =>
+			const mcpTools = (await collectMcpTools(runtime)).filter((t) =>
 				t.name.startsWith("broken__"),
 			);
 			expect(mcpTools).toEqual([]);
@@ -857,7 +867,9 @@ process.stdin.on("data", (chunk) => {
 			const runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
 			});
-			const mcpTools = runtime.tools.filter((t) => t.name.includes("__"));
+			const mcpTools = (await collectMcpTools(runtime)).filter((t) =>
+				t.name.includes("__"),
+			);
 			expect(mcpTools).toEqual([]);
 			await runtime.shutdown("test");
 		} finally {
