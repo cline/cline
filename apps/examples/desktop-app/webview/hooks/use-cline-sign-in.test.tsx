@@ -149,19 +149,26 @@ describe("Cline sign-in", () => {
 		expect(login.signingIn).toBe(false);
 	});
 
-	it("reports a login failure and permits a successful retry", async () => {
+	it("reports a login failure and permits retry while account refresh is pending", async () => {
+		const refresh = deferred();
+		refreshAccount.mockReturnValueOnce(refresh.promise);
 		invoke
 			.mockRejectedValueOnce(new Error("Login failed"))
 			.mockResolvedValueOnce({});
 		await act(async () => {
-			expect(await login.signIn()).toBe(false);
+			void login.signIn();
 		});
 		expect(login.error).toBe("Login failed");
 		expect(login.signingIn).toBe(false);
+		expect(invalidateProviderCatalogCache).toHaveBeenCalledOnce();
+		expect(refreshAccount).toHaveBeenCalledOnce();
 		await act(async () => {
 			expect(await login.signIn()).toBe(true);
 		});
 		expect(login.error).toBeNull();
 		expect(refreshAccount).toHaveBeenCalledTimes(2);
+		await act(async () => refresh.resolve());
+		expect(login.signingIn).toBe(false);
+		expect(login.error).toBeNull();
 	});
 });

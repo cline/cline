@@ -37,13 +37,12 @@ export function useClineSignIn() {
 					{ provider: "cline" },
 					{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
 				)
-				.finally(async () => {
-					// Credentials may have been saved before a cancellation or later error.
-					invalidateProviderCatalogCache();
-					await refreshAccount();
-				});
+				.finally(invalidateProviderCatalogCache);
+			await refreshAccount();
 			return activeAttempt.current === attempt && !attempt.cancelling;
 		} catch (error) {
+			// Reconcile any saved credentials without delaying the error or retry.
+			void refreshAccount();
 			if (activeAttempt.current === attempt && !attempt.cancelling) {
 				setError(error instanceof Error ? error.message : String(error));
 			}

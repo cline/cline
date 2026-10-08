@@ -87,7 +87,10 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
-	it("keeps retry cancellable while an earlier sign-in reloads account data", async () => {
+	it.each([
+		false,
+		true,
+	])("keeps retry available during account reload (already retrying: %s)", async (retryBeforeReload) => {
 		let rejectFirstSignIn!: (error: Error) => void;
 		const firstSignIn = new Promise((_, reject) => {
 			rejectFirstSignIn = reject;
@@ -121,9 +124,15 @@ describe("AccountView signed-out state", () => {
 		});
 		expect(button("Sign in").disabled).toBe(false);
 		expect(button("Create account").disabled).toBe(false);
-		await act(async () => button("Sign in").click());
+		if (retryBeforeReload) {
+			await act(async () => button("Sign in").click());
+		}
 		await act(async () => rejectFirstSignIn(new Error("Sign-in cancelled")));
 		expect(overviewCount).toBe(2);
+		if (!retryBeforeReload) {
+			expect(button("Sign in").disabled).toBe(false);
+			await act(async () => button("Sign in").click());
+		}
 		expect(button("Signing in").disabled).toBe(true);
 		expect(button("Cancel").disabled).toBe(false);
 		await act(async () => button("Cancel").click());

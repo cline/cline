@@ -624,8 +624,8 @@ export function AccountView() {
 			{/* Overview Tab */}
 			{activeTab === "overview" && (
 				<div className="flex flex-col gap-6">
-					{overviewLoading && !signingIn && renderLoading()}
-					{(signingIn || (overviewReady && signedOut)) && renderSignedOut()}
+					{overviewLoading && !signingIn && !signedOut && renderLoading()}
+					{(signingIn || signedOut) && renderSignedOut()}
 					{overviewError && renderError(overviewError, loadOverview)}
 					{overviewReady && !signedOut && !overviewError && user && (
 						<>
