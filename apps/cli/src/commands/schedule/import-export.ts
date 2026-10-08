@@ -164,6 +164,7 @@ export function registerScheduleImportCommand(
 				const created = await client.createSchedule({
 					name: String(parsed.name ?? "").trim(),
 					cronPattern: String(parsed.cronPattern ?? parsed.cron ?? "").trim(),
+					timezone: stringValue(parsed.timezone),
 					prompt: String(parsed.prompt ?? "").trim(),
 					provider,
 					model,
@@ -176,6 +177,12 @@ export function registerScheduleImportCommand(
 					systemPrompt:
 						String(parsed.systemPrompt ?? parsed.system_prompt ?? "").trim() ||
 						undefined,
+					maxIterations:
+						typeof parsed.maxIterations === "number"
+							? parsed.maxIterations
+							: typeof parsed.max_iterations === "number"
+								? parsed.max_iterations
+								: undefined,
 					timeoutSeconds:
 						typeof parsed.timeoutSeconds === "number"
 							? parsed.timeoutSeconds
@@ -197,6 +204,12 @@ export function registerScheduleImportCommand(
 								.map((item) => (typeof item === "string" ? item.trim() : ""))
 								.filter((item) => item.length > 0)
 						: undefined,
+					runtimeOptions:
+						parsed.runtimeOptions &&
+						typeof parsed.runtimeOptions === "object" &&
+						!Array.isArray(parsed.runtimeOptions)
+							? parsed.runtimeOptions
+							: undefined,
 					metadata: mergeScheduleMetadata(
 						parsed.metadata && typeof parsed.metadata === "object"
 							? (parsed.metadata as Record<string, unknown>)
