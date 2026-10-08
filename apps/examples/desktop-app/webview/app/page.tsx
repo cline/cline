@@ -1352,8 +1352,9 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
-	const liveHistoryStatus =
-		liveHistorySession?.status ?? historySession?.status;
+	const liveHistoryStatus = historySession
+		? (liveHistorySession?.status ?? historySession.status)
+		: undefined;
 	const headerStatus = resolveSessionHeaderStatus({
 		chatStatus: status,
 		isCloudSession,

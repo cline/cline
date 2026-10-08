@@ -1178,14 +1178,21 @@ export function useSessionHistory({
 				return;
 			}
 			const nextTitle = detail.title.trim();
+			const withTitle = (session: SessionHistoryItem) => ({
+				...session,
+				metadata: {
+					...(session.metadata ?? {}),
+					title: nextTitle || undefined,
+				},
+			});
+			// Refresh continuations can run before React commits this update.
+			sessionsRef.current = updateSessionById(
+				sessionsRef.current,
+				sessionId,
+				withTitle,
+			);
 			setSessions((current) =>
-				updateSessionById(current, sessionId, (session) => ({
-					...session,
-					metadata: {
-						...(session.metadata ?? {}),
-						title: nextTitle || undefined,
-					},
-				})),
+				updateSessionById(current, sessionId, withTitle),
 			);
 			setThreads((current) =>
 				updateThreadById(current, sessionId, (thread) => ({

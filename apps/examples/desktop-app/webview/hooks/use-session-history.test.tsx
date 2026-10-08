@@ -126,8 +126,9 @@ describe("useSessionHistory session mapping", () => {
 		await flush(12_000);
 		await act(async () => {
 			await current.renameThread(current.threads[0].id, "Desktop title");
+			pendingLists[2].resolve([row("Web title")]);
+			await vi.advanceTimersByTimeAsync(0);
 		});
-		await act(async () => pendingLists[2].resolve([row("Web title")]));
 		expect(current.threads[0].title).toBe("Desktop title");
 		await flush(12_000);
 		await act(async () => pendingLists[3].resolve([row("Web title again")]));
