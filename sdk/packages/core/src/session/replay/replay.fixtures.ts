@@ -135,7 +135,6 @@ export async function recordFixtureSession(
 		const recorder = await SessionRecorder.open({
 			sessionId,
 			dir: join(dir, "recording"),
-			enabledBy: "config",
 			cwd: "/w",
 			now: () => now,
 		});
