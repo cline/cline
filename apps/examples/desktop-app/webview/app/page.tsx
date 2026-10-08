@@ -976,16 +976,15 @@ export default function Home() {
 													: null
 											}
 											historySession={activeThread.historySession}
-											liveHistoryStatus={
-												sessionHistory.sessions.find(
-													(session) =>
-														session.sessionId ===
-															activeThread.historySession?.sessionId &&
-														(session.environmentId ??
-															LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
-															activeThread.environmentId,
-												)?.status ?? activeThread.historySession?.status
-											}
+											liveHistorySession={sessionHistory.sessions.find(
+												(session) =>
+													session.sessionId ===
+														(activeThread.historySession?.sessionId ??
+															activeThread.sessionId) &&
+													(session.environmentId ??
+														LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
+														activeThread.environmentId,
+											)}
 											initialPromptDraft={activeThread.initialPromptDraft}
 											promptDrafts={promptDrafts}
 											knownWorkspacePaths={historyWorkspacePaths}
@@ -1110,7 +1109,7 @@ function ChatThreadPane({
 	environmentProfiles,
 	environmentProfilesLoading,
 	historySession,
-	liveHistoryStatus,
+	liveHistorySession,
 	initialPromptDraft,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -1135,7 +1134,7 @@ function ChatThreadPane({
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
-	liveHistoryStatus?: SessionHistoryItem["status"];
+	liveHistorySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
@@ -1350,6 +1349,8 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const liveHistoryStatus =
+		liveHistorySession?.status ?? historySession?.status;
 	const headerStatus = resolveSessionHeaderStatus({
 		chatStatus: status,
 		isCloudSession,
@@ -2339,7 +2340,9 @@ function ChatThreadPane({
 		(message) => message.role === "user",
 	)?.content;
 	const metadataTitle =
-		manualTitle || getSessionMetadataTitle(visibleHistorySession?.metadata);
+		getSessionMetadataTitle(liveHistorySession?.metadata) ||
+		manualTitle ||
+		getSessionMetadataTitle(visibleHistorySession?.metadata);
 	const threadTitle = toThreadTitle({
 		title: hideDeletedSessionUi ? undefined : metadataTitle,
 		prompt: hideDeletedSessionUi

@@ -210,6 +210,36 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("refreshes an attached session title after an external rename", async () => {
+		const f = await attached();
+		await f.controller.updateTitle(record.id, "Desktop title");
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.title).toBe("Web title");
+		await f.controller.dispose();
+	});
+
+	it("does not undo a desktop rename when an older list response arrives", async () => {
+		const f = await attached();
+		let resolveListing!: (records: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveListing = resolve;
+				}),
+		);
+		const refreshing = f.controller.listForDiscovery();
+		await f.controller.updateTitle(record.id, "Desktop title");
+		resolveListing([{ ...record, title: "Old title" }]);
+		expect((await refreshing)[0]?.metadata).toMatchObject({
+			title: "Desktop title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.title).toBe("Desktop title");
+		await f.controller.dispose();
+	});
+
 	it.each([
 		"suspended",
 		"ready",

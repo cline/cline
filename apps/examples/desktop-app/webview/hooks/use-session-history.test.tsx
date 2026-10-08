@@ -110,6 +110,30 @@ afterEach(async () => {
 });
 
 describe("useSessionHistory session mapping", () => {
+	it("accepts refreshed titles without reverting a rename during the refresh", async () => {
+		const row = (title: string) => ({
+			...sessionRow("ses-cloud"),
+			metadata: { title, origin: "cloud" },
+		});
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => pendingLists[0].resolve([row("Old title")]));
+		await flush(12_000);
+		await act(async () => pendingLists[1].resolve([row("Web title")]));
+		expect(current.threads[0].title).toBe("Web title");
+		expect(current.sessions[0].metadata?.title).toBe("Web title");
+
+		await flush(12_000);
+		await act(async () => {
+			await current.renameThread(current.threads[0].id, "Desktop title");
+		});
+		await act(async () => pendingLists[2].resolve([row("Web title")]));
+		expect(current.threads[0].title).toBe("Desktop title");
+		await flush(12_000);
+		await act(async () => pendingLists[3].resolve([row("Web title again")]));
+		expect(current.threads[0].title).toBe("Web title again");
+	});
+
 	it("keeps duplicate IDs visible and renames only the selected environment", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);

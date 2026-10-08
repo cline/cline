@@ -678,6 +678,9 @@ export class CloudSessionController {
 
 	async list(): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
+		const titlesBeforeRefresh = new Map(
+			Array.from(this.sessions, ([id, session]) => [id, session.title]),
+		);
 		const organizationId = await this.resolveActiveOrganizationId();
 		const listed = (await this.options.api.list(organizationId)).map(
 			(session) => this.preserveConnectedRuntimeModel(session),
@@ -725,6 +728,17 @@ export class CloudSessionController {
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
 			const live = this.sessions.get(session.id);
+			if (live) {
+				// A list request started before a local rename must not undo it.
+				if (
+					this.titleWrites.has(session.id) ||
+					live.title !== titlesBeforeRefresh.get(session.id)
+				) {
+					session.title = live.title ?? session.title;
+				} else {
+					live.title = session.title;
+				}
+			}
 			if (
 				live?.status === "provisioning" &&
 				session.status !== "provisioning"
