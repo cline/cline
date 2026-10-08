@@ -18,7 +18,10 @@ export function localRuntimeContext(
 					environmentId: "local",
 					kind: "local" as const,
 					workspaceRoot,
-					sessionManager,
+					sessionManager: {
+						get: vi.fn(async () => undefined),
+						...sessionManager,
+					},
 					hubClient: {
 						command: vi.fn(async () => undefined),
 					},
