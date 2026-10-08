@@ -40,6 +40,16 @@ export type CloudHandoffUiEntry =
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
+export function getHandoffTargetDraft(
+	entry: CloudHandoffUiEntry | undefined,
+): string | undefined {
+	if (!entry || entry.status === "progress") return undefined;
+	return entry.status === "complete"
+		? entry.retryDraft
+		: (parseHandoffCommand(entry.retryDraft ?? "")?.nextCommand ??
+				entry.retryDraft);
+}
+
 export function hasLivePendingHandoff(
 	entry: CloudHandoffUiEntry | undefined,
 ): boolean {
@@ -157,9 +167,10 @@ export function cloudHandoffUiReducer(
 					...state,
 					[action.sourceSessionId]: {
 						...current,
-						retryDraft:
-							parseHandoffCommand(action.retryDraft ?? "")?.nextCommand ??
-							action.retryDraft,
+						retryDraft: getHandoffTargetDraft({
+							status: "failed",
+							retryDraft: action.retryDraft,
+						}),
 						retryAttachments: action.retryAttachments,
 					},
 				};
