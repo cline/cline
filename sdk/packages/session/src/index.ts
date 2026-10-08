@@ -87,6 +87,19 @@ export {
 	structurallyEqual,
 } from "./replay-diff";
 export {
+	compareSessionReplayEnv,
+	createSessionReplayPathMap,
+	describeSessionReplayEnvironment,
+	mapSessionReplaySessionData,
+	type RebuildSessionReplayWorkspaceOptions,
+	rebuildSessionReplayWorkspace,
+	type SessionReplayEnvComparison,
+	SessionReplayEnvironmentError,
+	type SessionReplayPathMap,
+	type SessionReplayRebuiltWorkspace,
+	type SessionReplayRecordedEnvironment,
+} from "./replay-environment";
+export {
 	type DiffSessionReplayRequestsOptions,
 	describeLiveModelRequest,
 	describeRecordedModelRequest,
