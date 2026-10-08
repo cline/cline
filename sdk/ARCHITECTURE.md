@@ -161,6 +161,8 @@ Owns everything that reads a session recording or replay bundle:
 - the replay source, request snapshots, and compare/divergence reports
 - rerun: rebuilding a recorded workspace, recorded/live path mapping, and the
   rerun engine that drives a live session against the recording
+- ATIF export: converting a bundle to an ATIF v1.7 trajectory, and the
+  vendored ATIF schema and validator
 
 Design rules:
 
@@ -1148,6 +1150,47 @@ rest of the bundle, and decision events merged into `events.jsonl`), and uses
 each segment's `leadAgentId` to separate root hook lines from subagent and
 teammate lines. Version 1 bundles migrate on read. Subagent and teammate model
 calls and approvals, and compaction summarizer calls, are not recorded yet.
+With `includeChildSessions` the export also writes the root's subagent and
+teammate sessions as further `sessions[]` entries, found through
+`childSessions` links (recursively) and the source's optional
+`listChildSessions`.
+
+Independently of recording, the manifest store (the single writer of session
+message files) annotates every persisted `MessageWithMetadata` with optional
+fields that readers use instead of heuristics:
+
+- `id` and `ts` on every message: the writer fills a missing `id`, and a
+  missing `ts` from the nearest neighbour's (`ConversationStore` already gives
+  appended messages a stable id and timestamp);
+- `iteration` on each model call's assistant message and the tool results
+  that answer it, numbered with `groupSessionMessageIterations` from
+  `@cline/shared` so it matches bundle iteration indexes;
+- `childSessions` (`{ toolCallId, sessionId, kind }`) on assistant messages
+  whose `spawn_agent`, configured subagent or `team_run_task` call started a
+  child session. The tools pass the parent tool call id to the subagent and
+  team task lifecycle callbacks, and the team child session manager records
+  the link when it creates the child;
+- `compactionSummary: true` on compaction summaries, in the transcript and the
+  compaction sidecar.
+
+All fields are optional: older message files still read, and the bundle
+format stays at schemaVersion 2.
+
+### Session ATIF export
+
+`exportSessionReplayBundleToAtif` (`@cline/session`) converts a bundle into
+one ATIF v1.7 trajectory (Harbor's Agent Trajectory Interchange Format) for
+the root session: one agent step per iteration with its tool calls and their
+results, user steps for prompts, system steps for the system prompt, injected
+messages and compactions, and subagent and teammate sessions nested as
+`subagent_trajectories` referenced from the tool call that started them. Cline
+data without an ATIF field stays under `extra.cline`. It reads only the
+bundle, so it works on redacted bundles and older bundles (with inferred child
+links). `validateAtifTrajectory` checks a trajectory against a JSON Schema
+generated from Harbor's Pydantic models at a pinned commit, plus the models'
+cross-field rules. The CLI exposes it as `cline session export <id|bundle>
+--format atif [--out <path>]`. The session package README has the field
+mapping and what is not carried over.
 
 ### Session replay source and comparison
 
