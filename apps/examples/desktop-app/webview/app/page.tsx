@@ -979,15 +979,12 @@ export default function Home() {
 													: null
 											}
 											historySession={activeThread.historySession}
-											liveHistoryStatus={
-												sessionHistory.sessions.find(
-													(session) =>
-														session.sessionId ===
-															activeThread.historySession?.sessionId &&
-														(session.environmentId ??
-															LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
-															activeThread.environmentId,
-												)?.status ?? activeThread.historySession?.status
+											liveHistorySession={
+												activeHistorySessionId
+													? sessionHistory.sessionById.get(
+															activeHistorySessionId,
+														)
+													: undefined
 											}
 											initialPromptDraft={activeThread.initialPromptDraft}
 											promptDrafts={promptDrafts}
@@ -1113,7 +1110,7 @@ function ChatThreadPane({
 	environmentProfiles,
 	environmentProfilesLoading,
 	historySession,
-	liveHistoryStatus,
+	liveHistorySession,
 	initialPromptDraft,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -1138,7 +1135,7 @@ function ChatThreadPane({
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
-	liveHistoryStatus?: SessionHistoryItem["status"];
+	liveHistorySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
@@ -1353,6 +1350,9 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const liveHistoryStatus = historySession
+		? (liveHistorySession?.status ?? historySession.status)
+		: undefined;
 	const headerStatus = resolveSessionHeaderStatus({
 		chatStatus: status,
 		isCloudSession,
@@ -2344,7 +2344,9 @@ function ChatThreadPane({
 		(message) => message.role === "user",
 	)?.content;
 	const metadataTitle =
-		manualTitle || getSessionMetadataTitle(visibleHistorySession?.metadata);
+		(isCloudSession && getSessionMetadataTitle(liveHistorySession?.metadata)) ||
+		manualTitle ||
+		getSessionMetadataTitle(visibleHistorySession?.metadata);
 	const threadTitle = toThreadTitle({
 		title: hideDeletedSessionUi ? undefined : metadataTitle,
 		prompt: hideDeletedSessionUi
