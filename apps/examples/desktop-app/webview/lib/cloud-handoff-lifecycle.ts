@@ -34,7 +34,7 @@ export type HandoffLifecycleEffects = {
 			initialAttachments?: File[];
 			expectedActiveThreadId?: string;
 		},
-	) => Promise<HandoffOpenResult> | HandoffOpenResult;
+	) => Promise<HandoffOpenResult | undefined> | HandoffOpenResult | undefined;
 	openExternal: (url: string) => Promise<void>;
 };
 
@@ -175,7 +175,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				)
 				.catch(() => ({ opened: false, draftDelivered: false }));
 			if (handoffAttemptId && source.accepted !== attempt) return;
-			if (outcome.draftDelivered) attempt.retry = undefined;
+			if (outcome?.draftDelivered) attempt.retry = undefined;
 		}
 		const newerRetry =
 			handoffAttemptId && source.latest !== attempt

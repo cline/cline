@@ -62,7 +62,7 @@ function makeHarness(options: { openSessionResult?: boolean } = {}) {
 				initialAttachments?: File[];
 				expectedActiveThreadId?: string;
 			},
-		) =>
+		): Promise<HandoffOpenResult | undefined> =>
 			Promise.resolve({
 				opened: options.openSessionResult ?? true,
 				draftDelivered: options.openSessionResult ?? true,
@@ -593,13 +593,20 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});
 
-	it("retains a retry when cloud opens but preserves a different target draft", async () => {
+	it.each([
+		"preserved draft",
+		"cancelled navigation",
+	])("retains a retry without external navigation after %s", async (outcome) => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
-		h.openSession.mockResolvedValueOnce({
-			opened: true,
-			draftDelivered: false,
-		});
+		h.openSession.mockResolvedValueOnce(
+			outcome === "cancelled navigation"
+				? undefined
+				: {
+						opened: true,
+						draftDelivered: false,
+					},
+		);
 		await h.lifecycle.onRpcResolved(SOURCE, {
 			result: makeResult({ warning: "Not queued", warningKind: "unqueued" }),
 			nextCommand: "edited retry",
