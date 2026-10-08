@@ -1,17 +1,16 @@
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
-	addDeliveryOptions,
 	addSharedOptions,
 	emitJsonOrText,
 	formatResolvedAddressLabel,
-	mergeScheduleMetadata,
 	parseJsonObjectFlag,
 	parseList,
 	parseMode,
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
+import { addDeliveryOptions, scheduleMetadata } from "./delivery-input";
 import {
 	registerScheduleExportCommand,
 	registerScheduleImportCommand,
@@ -75,9 +74,13 @@ export function registerScheduleCommands(
 	createCmd.action(
 		action(async (name: string) => {
 			const opts = createCmd.opts();
-			const metadata = mergeScheduleMetadata({
-				json: parseJsonObjectFlag(opts.metadataJson),
-				delivery: opts,
+			const metadataJson = parseJsonObjectFlag(opts.metadataJson);
+			const metadata = scheduleMetadata({
+				metadata: metadataJson && {
+					object: metadataJson,
+					label: "--metadata-json",
+				},
+				flags: opts,
 			});
 			const address = resolveAddress(opts.address);
 			const ensured = await ensureSchedulerHub(address, opts.workspace, io);

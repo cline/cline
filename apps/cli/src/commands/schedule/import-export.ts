@@ -3,19 +3,21 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
-	addDeliveryOptions,
 	addSharedOptions,
 	emitJsonOrText,
 	formatResolvedAddressLabel,
-	hasMetadataPatchOpts,
 	isJsonPath,
-	mergeScheduleMetadata,
 	parseJsonObjectFlag,
 	parseList,
 	parseMode,
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
+import {
+	addDeliveryOptions,
+	hasDeliveryFlags,
+	scheduleMetadata,
+} from "./delivery-input";
 import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
 
@@ -160,6 +162,18 @@ export function registerScheduleImportCommand(
 					return;
 				}
 				const { provider, model } = resolveImportedModelSelection(parsed);
+				const metadata =
+					parsed.metadata &&
+					typeof parsed.metadata === "object" &&
+					!Array.isArray(parsed.metadata)
+						? scheduleMetadata({
+								metadata: {
+									object: parsed.metadata as Record<string, unknown>,
+									label: sourcePath,
+									objectPath: "metadata.",
+								},
+							})
+						: undefined;
 				const created = await client.createSchedule({
 					name: String(parsed.name ?? "").trim(),
 					cronPattern: String(parsed.cronPattern ?? parsed.cron ?? "").trim(),
@@ -196,10 +210,7 @@ export function registerScheduleImportCommand(
 								.map((item) => (typeof item === "string" ? item.trim() : ""))
 								.filter((item) => item.length > 0)
 						: undefined,
-					metadata:
-						parsed.metadata && typeof parsed.metadata === "object"
-							? (parsed.metadata as Record<string, unknown>)
-							: undefined,
+					metadata,
 				});
 				if (!created) {
 					io.writeErr("failed to import schedule");
@@ -271,7 +282,8 @@ export function registerScheduleUpdateCommand(
 					return;
 				}
 				let metadata: Record<string, unknown> | undefined;
-				if (hasMetadataPatchOpts(opts)) {
+				const metadataJson = parseJsonObjectFlag(opts.metadataJson);
+				if (metadataJson || hasDeliveryFlags(opts)) {
 					const current = (await client.getSchedule(scheduleId)) as
 						| { metadata?: Record<string, unknown> }
 						| undefined;
@@ -280,10 +292,13 @@ export function registerScheduleUpdateCommand(
 						fail();
 						return;
 					}
-					metadata = mergeScheduleMetadata({
+					metadata = scheduleMetadata({
 						stored: current.metadata ?? {},
-						json: parseJsonObjectFlag(opts.metadataJson),
-						delivery: opts,
+						metadata: metadataJson && {
+							object: metadataJson,
+							label: "--metadata-json",
+						},
+						flags: opts,
 					});
 				}
 				const updated = await client.updateSchedule(scheduleId, {

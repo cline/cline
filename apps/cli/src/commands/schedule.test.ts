@@ -368,108 +368,139 @@ describe("runScheduleCommand create", () => {
 		);
 	});
 
-	it("rejects a delivery with no thread before contacting the hub", async () => {
-		const errors: string[] = [];
+	const createArgs = [
+		"create",
+		"Daily summary",
+		"--cron",
+		"0 9 * * *",
+		"--prompt",
+		"Summarize yesterday",
+		"--workspace",
+		"/tmp/workspace",
+	];
+
+	it.each([
+		{
+			name: "flags without a chat",
+			args: ["--delivery-adapter", "telegram", "--delivery-bot", "my_bot"],
+			errors: [
+				"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
+			],
+		},
+		{
+			name: "flags without an adapter",
+			args: ["--delivery-thread", "telegram:123456789"],
+			errors: [
+				"schedule delivery needs --delivery-adapter <name>, such as telegram or slack",
+			],
+		},
+		{
+			name: "a flag adapter no connector answers to",
+			args: [
+				"--delivery-adapter",
+				"telgram",
+				"--delivery-thread",
+				"telegram:123456789",
+			],
+			errors: [
+				'--delivery-adapter <name> is "telgram"; use one of: discord, gchat, linear, slack, telegram, whatsapp',
+			],
+		},
+		{
+			name: "JSON without a chat",
+			args: ["--metadata-json", '{"delivery":{"adapter":"telegram"}}'],
+			errors: [
+				"schedule delivery needs --metadata-json delivery.threadId: send /whereami in the chat to get it",
+			],
+		},
+		{
+			name: "JSON with fields of the wrong type",
+			args: [
+				"--metadata-json",
+				'{"delivery":{"adapter":"telegram","threadId":123}}',
+			],
+			errors: ["--metadata-json delivery.threadId must be a string"],
+		},
+		{
+			name: "a JSON delivery that isn't an object",
+			args: ["--metadata-json", '{"delivery":"telegram"}'],
+			errors: [
+				"--metadata-json delivery must be an object, or null to remove the delivery",
+			],
+		},
+		{
+			name: "a JSON thread and a flag adapter no connector answers to",
+			args: [
+				"--metadata-json",
+				'{"delivery":{"threadId":"telegram:123456789"}}',
+				"--delivery-adapter",
+				"telgram",
+			],
+			errors: [
+				'--delivery-adapter <name> is "telgram"; use one of: discord, gchat, linear, slack, telegram, whatsapp',
+			],
+		},
+		{
+			name: "a JSON adapter no connector answers to, and no chat in either",
+			args: [
+				"--metadata-json",
+				'{"delivery":{"adapter":"telgram"}}',
+				"--delivery-bot",
+				"my_bot",
+			],
+			errors: [
+				'--metadata-json delivery.adapter is "telgram"; use one of: discord, gchat, linear, slack, telegram, whatsapp',
+				"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
+			],
+		},
+	])("rejects $name before contacting the hub", async ({ args, errors }) => {
+		const written: string[] = [];
+		const code = await runScheduleCommand([...createArgs, ...args], {
+			writeln: () => {},
+			writeErr: (text: string) => {
+				written.push(text);
+			},
+		});
+
+		expect(code).toBe(1);
+		expect(written).toEqual([errors.join("\n")]);
+		expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it("adds a flag to a JSON delivery", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_delivery" } },
+		});
+
 		const code = await runScheduleCommand(
 			[
-				"create",
-				"Daily summary",
-				"--cron",
-				"0 9 * * *",
-				"--prompt",
-				"Summarize yesterday",
-				"--workspace",
-				"/tmp/workspace",
-				"--delivery-adapter",
-				"telegram",
+				...createArgs,
+				"--metadata-json",
+				'{"owner":"ops","delivery":{"adapter":"slack","bindingKey":"C1"}}',
 				"--delivery-bot",
 				"my_bot",
 				"--address",
 				"127.0.0.1:25463",
 			],
-			{
-				writeln: () => {},
-				writeErr: (text: string) => {
-					errors.push(text);
-				},
-			},
+			{ writeln: () => {}, writeErr: () => {} },
 		);
 
-		expect(code).toBe(1);
-		expect(errors).toEqual([
-			"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
-		]);
-		expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
-		expect(mockHubClientCommand).not.toHaveBeenCalled();
-	});
-
-	it("rejects a delivery thread with no adapter", async () => {
-		const errors: string[] = [];
-		const code = await runScheduleCommand(
-			[
-				"create",
-				"Daily summary",
-				"--cron",
-				"0 9 * * *",
-				"--prompt",
-				"Summarize yesterday",
-				"--workspace",
-				"/tmp/workspace",
-				"--delivery-thread",
-				"telegram:123456789",
-			],
-			{
-				writeln: () => {},
-				writeErr: (text: string) => {
-					errors.push(text);
+		expect(code).toBe(0);
+		expect(mockHubClientCommand).toHaveBeenCalledWith(
+			"schedule.create",
+			expect.objectContaining({
+				metadata: {
+					owner: "ops",
+					delivery: { adapter: "slack", bindingKey: "C1", userName: "my_bot" },
 				},
-			},
+			}),
 		);
-
-		expect(code).toBe(1);
-		expect(errors).toEqual([
-			"schedule delivery needs --delivery-adapter <name>, such as telegram or slack",
-		]);
-		expect(mockHubClientCommand).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		[
-			'{"delivery":{"adapter":"telegram"}}',
-			"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
-		],
-		[
-			'{"delivery":{"threadId":"telegram:123456789"}}',
-			"schedule delivery needs --delivery-adapter <name>, such as telegram or slack",
-		],
-		['{"delivery":"telegram"}', "metadata delivery must be an object or null"],
-	])("rejects --metadata-json %s", async (metadataJson, message) => {
-		const errors: string[] = [];
-		const code = await runScheduleCommand(
-			[
-				"create",
-				"Daily summary",
-				"--cron",
-				"0 9 * * *",
-				"--prompt",
-				"Summarize yesterday",
-				"--workspace",
-				"/tmp/workspace",
-				"--metadata-json",
-				metadataJson,
-			],
-			{
-				writeln: () => {},
-				writeErr: (text: string) => {
-					errors.push(text);
-				},
-			},
-		);
-
-		expect(code).toBe(1);
-		expect(errors).toEqual([message]);
-		expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
-		expect(mockHubClientCommand).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -663,15 +694,15 @@ describe("runScheduleCommand update", () => {
 		);
 	});
 
-	it("rejects a JSON delivery without a thread", async () => {
+	it("rejects a JSON delivery that replaces a working one without a thread", async () => {
 		const { code, errors } = await updateWithStoredMetadata(
-			{},
+			{ delivery: { adapter: "telegram", threadId: "telegram:123456789" } },
 			'{"delivery":{"adapter":"telegram"}}',
 		);
 
 		expect(code).toBe(1);
 		expect(errors).toEqual([
-			"schedule delivery needs --delivery-thread <id>: send /whereami in the chat to get it",
+			"schedule delivery needs --metadata-json delivery.threadId: send /whereami in the chat to get it",
 		]);
 		expect(mockHubClientCommand).not.toHaveBeenCalledWith(
 			"schedule.update",
@@ -704,6 +735,50 @@ describe("runScheduleCommand import", () => {
 		vi.clearAllMocks();
 		mockProviderSettings.lastUsed = undefined;
 		mockProviderSettings.providers = {};
+	});
+
+	it("rejects a file whose delivery has no chat, naming the file and path", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		const sourcePath = join(
+			tmpdir(),
+			`cline-schedule-import-delivery-${Date.now()}.json`,
+		);
+		await writeFile(
+			sourcePath,
+			JSON.stringify({
+				name: "Daily Review",
+				cronPattern: "0 9 * * *",
+				prompt: "review status",
+				workspaceRoot: "/tmp/workspace",
+				modelSelection: { providerId: "anthropic", modelId: "claude" },
+				metadata: { delivery: { adapter: "telegram", userName: "my_bot" } },
+			}),
+			"utf8",
+		);
+
+		const errors: string[] = [];
+		try {
+			const code = await runScheduleCommand(
+				["import", sourcePath, "--address", "127.0.0.1:25463"],
+				{
+					writeln: () => {},
+					writeErr: (text: string) => {
+						errors.push(text);
+					},
+				},
+			);
+
+			expect(code).toBe(1);
+			expect(errors).toEqual([
+				`schedule delivery needs ${sourcePath} metadata.delivery.threadId: send /whereami in the chat to get it`,
+			]);
+			expect(mockHubClientCommand).not.toHaveBeenCalled();
+		} finally {
+			await rm(sourcePath, { force: true });
+		}
 	});
 
 	it("preserves exported modelSelection providerId/modelId values", async () => {
