@@ -109,6 +109,7 @@ export {
 	resolveGatewayProviderRegistrationSync,
 	resolveProviderApiLineBaseUrl,
 } from "./providers";
+export { isProviderApiKeyEnv } from "./providers/api-key-env";
 export {
 	type ProviderUsageCostDisplay,
 	resolveProviderUsageCostDisplay,

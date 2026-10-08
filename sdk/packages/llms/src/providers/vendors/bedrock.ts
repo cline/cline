@@ -2,6 +2,7 @@ import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../../catalog/catalog.generated-access";
+import { isProviderApiKeyEnv } from "../api-key-env";
 import type { ProviderFactoryResult } from "./types";
 
 type BedrockCredentials = {
@@ -13,16 +14,6 @@ type BedrockCredentials = {
 type BedrockCredentialProvider = () => PromiseLike<BedrockCredentials>;
 
 type BedrockAuthentication = "iam" | "api-key" | "apikey" | "profile";
-
-// Docs: https://ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock
-const NON_BEDROCK_API_KEY_ENV = new Set([
-	"AWS_ACCESS_KEY_ID",
-	"AWS_SECRET_ACCESS_KEY",
-	"AWS_SESSION_TOKEN",
-	"AWS_REGION",
-	"AWS_DEFAULT_REGION",
-	"AWS_PROFILE",
-]);
 
 // Bedrock inference-profile model-id resolution.
 //
@@ -313,7 +304,7 @@ async function resolveBedrockApiKey(
 	}
 
 	for (const key of config.apiKeyEnv ?? []) {
-		if (NON_BEDROCK_API_KEY_ENV.has(key)) {
+		if (!isProviderApiKeyEnv("bedrock", key)) {
 			continue;
 		}
 		const value = readOptionalString(process.env[key]);
