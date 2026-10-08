@@ -177,7 +177,7 @@ describe("WelcomeScreen", () => {
 		expect(container.textContent).toContain("Waiting for browser");
 		await clickButton("Cancel");
 		const cancelling = Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent === "Cancelling…",
+			(button) => button.textContent === "Cancel",
 		);
 		expect(cancelling?.disabled).toBe(true);
 		expect(invokeMock).toHaveBeenCalledWith("cancel_provider_oauth_login", {

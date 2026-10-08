@@ -148,7 +148,7 @@ export function CloudOnboardingCard({
 									size="sm"
 									variant="ghost"
 								>
-									{cancelling ? "Cancelling…" : "Cancel"}
+									Cancel
 								</Button>
 							)}
 						</>

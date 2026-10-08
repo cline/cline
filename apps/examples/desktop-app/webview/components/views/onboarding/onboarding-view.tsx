@@ -582,7 +582,7 @@ function ConnectStep({
 									type="button"
 									variant="ghost"
 								>
-									{cancelling ? "Cancelling…" : "Cancel"}
+									Cancel
 								</Button>
 							) : (
 								<Button

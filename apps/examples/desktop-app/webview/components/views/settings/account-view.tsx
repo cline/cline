@@ -492,7 +492,7 @@ export function AccountView() {
 							onClick={() => void cancelSignIn()}
 							className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium hover:bg-surface-hover disabled:opacity-60"
 						>
-							{cancelling ? "Cancelling…" : "Cancel"}
+							Cancel
 						</button>
 					)}
 					<button
