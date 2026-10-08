@@ -8,7 +8,7 @@ import {
 	type SessionReplayModelCall,
 	type SessionReplayToolCall,
 	selectSessionReplayIterations,
-} from "@cline/core";
+} from "@cline/replay";
 import { c, formatUsd } from "../utils/output";
 
 export interface LoadedSessionReplay {

@@ -111,7 +111,7 @@ export async function runSessionValidate(input: {
 	const { io } = input;
 	const bundleDir = resolve(input.bundleDir);
 	try {
-		const { validateSessionReplayBundle } = await import("@cline/core");
+		const { validateSessionReplayBundle } = await import("@cline/replay");
 		const result = await validateSessionReplayBundle(bundleDir);
 		if (input.outputMode === "json") {
 			writeJson({
@@ -174,10 +174,10 @@ export async function runSessionDiff(
 		);
 		return SESSION_DIFF_EXIT.error;
 	}
-	const core = await import("@cline/core");
-	const allKinds: readonly string[] = core.SESSION_REPLAY_DIVERGENCE_KINDS;
+	const replay = await import("@cline/replay");
+	const allKinds: readonly string[] = replay.SESSION_REPLAY_DIVERGENCE_KINDS;
 	const requestKinds: readonly string[] =
-		core.SESSION_REPLAY_REQUEST_DIVERGENCE_KINDS;
+		replay.SESSION_REPLAY_REQUEST_DIVERGENCE_KINDS;
 	const ignored = new Set<string>();
 	for (const raw of (input.ignore ?? "").split(",")) {
 		const name = raw.trim();
@@ -193,7 +193,7 @@ export async function runSessionDiff(
 			return SESSION_DIFF_EXIT.error;
 		}
 	}
-	const kinds = core.SESSION_REPLAY_DIVERGENCE_KINDS.filter(
+	const kinds = replay.SESSION_REPLAY_DIVERGENCE_KINDS.filter(
 		(kind) => !ignored.has(kind),
 	);
 
@@ -201,8 +201,8 @@ export async function runSessionDiff(
 	const liveDir = resolve(input.liveDir);
 	try {
 		const [recorded, live] = await Promise.all([
-			core.readSessionReplayBundle(recordedDir),
-			core.readSessionReplayBundle(liveDir),
+			replay.readSessionReplayBundle(recordedDir),
+			replay.readSessionReplayBundle(liveDir),
 		]);
 		const rootOf = (bundle: typeof recorded) => {
 			const session = bundle.sessions.find(
@@ -218,7 +218,7 @@ export async function runSessionDiff(
 		};
 		const recordedSession = rootOf(recorded);
 		const liveSession = rootOf(live);
-		const report = core.compareSessionReplaySessions(
+		const report = replay.compareSessionReplaySessions(
 			recordedSession,
 			liveSession,
 			{ kinds, strictness: input.lenient ? "lenient" : "strict" },

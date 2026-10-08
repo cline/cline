@@ -1,12 +1,12 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { MessageWithMetadata } from "@cline/core";
 import {
 	createSessionReplayRedactor,
 	type ExportSessionReplayBundleResult,
-	type MessageWithMetadata,
 	writeSessionReplayBundle,
-} from "@cline/core";
+} from "@cline/replay";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	runSessionDiff,

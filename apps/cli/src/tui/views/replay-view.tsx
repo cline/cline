@@ -1,9 +1,6 @@
 import "opentui-spinner/react";
-import {
-	isUserRunMessage,
-	type MessageWithMetadata,
-	type SessionReplayIteration,
-} from "@cline/core";
+import { isUserRunMessage, type MessageWithMetadata } from "@cline/core";
+import type { SessionReplayIteration } from "@cline/replay";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useMemo, useRef, useState } from "react";

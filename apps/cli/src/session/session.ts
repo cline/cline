@@ -1,7 +1,6 @@
 import type {
 	AgentConfig,
 	BasicLogger,
-	ExportSessionReplayBundleResult,
 	RuntimeCapabilities,
 	RuntimeHostMode,
 	SessionHistoryRecord,
@@ -9,10 +8,13 @@ import type {
 } from "@cline/core";
 import {
 	ClineCore,
-	exportSessionReplayBundle,
 	listSessionHistoryFromBackend,
 	resolveSessionBackend,
 } from "@cline/core";
+import {
+	type ExportSessionReplayBundleResult,
+	exportSessionReplayBundle,
+} from "@cline/replay";
 import {
 	createCliMessagesArtifactUploader,
 	prepareCliEnterpriseIntegration,
