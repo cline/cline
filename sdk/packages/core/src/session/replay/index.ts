@@ -112,6 +112,45 @@ export {
 	SessionRecordingSegmentSchema,
 } from "./recording-schema";
 export {
+	assertNoSessionReplayDivergence,
+	buildSessionReplayComparableIterations,
+	compareSessionReplayIteration,
+	compareSessionReplayIterations,
+	compareSessionReplaySessions,
+	formatSessionReplayDivergence,
+	SESSION_REPLAY_RERUN_DIVERGENCE_KINDS,
+	type SessionReplayComparableDecision,
+	type SessionReplayComparableIteration,
+	type SessionReplayComparableToolCall,
+	type SessionReplayComparableToolResult,
+	type SessionReplayCompareOptions,
+	SessionReplayDivergenceError,
+	type SessionReplayDivergenceReport,
+	type SessionReplaySessionData,
+} from "./replay-compare";
+export {
+	canonicalJson,
+	SESSION_REPLAY_DIVERGENCE_KINDS,
+	SESSION_REPLAY_REQUEST_DIVERGENCE_KINDS,
+	SESSION_REPLAY_STRICTNESS,
+	type SessionReplayDiffEntry,
+	type SessionReplayDiffValue,
+	type SessionReplayDivergence,
+	type SessionReplayDivergenceKind,
+	type SessionReplayStrictness,
+	structurallyEqual,
+} from "./replay-diff";
+export {
+	type DiffSessionReplayRequestsOptions,
+	describeLiveModelRequest,
+	describeRecordedModelRequest,
+	diffSessionReplayRequests,
+	type SessionReplayBlobLookup,
+	type SessionReplayRequestMessage,
+	type SessionReplayRequestSnapshot,
+	type SessionReplayToolDefinition,
+} from "./replay-request";
+export {
 	computeRecordedRequestMatchKey,
 	recordedMessageContentSha256,
 	recordedToolDefinitions,
