@@ -20,7 +20,7 @@ import {
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
-import { usePromptDraft } from "./use-prompt-draft";
+import { type PromptDraft, usePromptDraft } from "./use-prompt-draft";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -434,7 +434,7 @@ afterEach(async () => {
 
 describe("useChatSession", () => {
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new Map<string, PromptDraft>();
 		let draft!: ReturnType<typeof usePromptDraft>;
 		function DraftHarness({ threadId }: { threadId: string }) {
 			current = useChatSession("local");
@@ -2483,7 +2483,21 @@ describe("useChatSession", () => {
 				repoUrl: "https://github.com/cline/test",
 			}),
 		);
-		await act(async () => current.sendPrompt("Keep working"));
+		await act(async () =>
+			current.sendPrompt("Keep working", [], {
+				handoffFollowUpId: "restored-draft",
+			}),
+		);
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			{
+				request: expect.objectContaining({
+					action: "send",
+					handoffFollowUpId: "restored-draft",
+				}),
+			},
+			{ timeoutMs: null },
+		);
 
 		expect(current.status).toBe("running");
 		expect(current.error).toBeNull();
@@ -3241,7 +3255,9 @@ describe("useChatSession", () => {
 
 		let taken: boolean | undefined;
 		await act(async () => {
-			taken = await current.sendPrompt("Rebase the branch");
+			taken = await current.sendPrompt("Rebase the branch", [], {
+				handoffFollowUpId: "restored-draft",
+			});
 		});
 
 		expect(taken).toBe(expectedTaken);
@@ -3252,6 +3268,11 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.findLast((message) => message.role === "error")?.content,
 		).toContain("Token refresh failed: 401");
+		const sendCall = invokeMock.mock.calls.find(
+			([command, args]) =>
+				command === "chat_session_command" && args?.request?.action === "send",
+		);
+		expect(sendCall?.[1]?.request?.handoffFollowUpId).toBe("restored-draft");
 	});
 
 	it("publishes the first user message before cold session startup resolves", async () => {

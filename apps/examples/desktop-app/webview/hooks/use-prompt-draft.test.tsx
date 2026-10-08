@@ -2,17 +2,18 @@
 
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { shouldPreserveCloudComposer } from "../lib/cloud-handoff-follow-up";
 import {
 	createDesktopAppState,
 	type DesktopAppAction,
 	desktopAppReducer,
 } from "../lib/desktop-app-state";
-import { usePromptDraft } from "./use-prompt-draft";
+import { type PromptDraft, usePromptDraft } from "./use-prompt-draft";
 
 let container: HTMLDivElement;
 let root: Root;
-let drafts: Map<string, string>;
+let drafts: Map<string, PromptDraft>;
 let current: ReturnType<typeof usePromptDraft>;
 let renders: number;
 let appState: ReturnType<typeof createDesktopAppState<"General">>;
@@ -95,7 +96,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(current.promptDraft.value).toBe("Submitted prompt");
-		expect(drafts.get("new-session")).toBe("Submitted prompt");
+		expect(drafts.get("new-session")?.text).toBe("Submitted prompt");
 	});
 
 	it("does not restore a failed send after the user types and erases newer text", async () => {
@@ -111,7 +112,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(current.promptInputRef.current).toBe("");
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
 	it("invalidates recovery for an equal-valued external replacement", async () => {
@@ -122,7 +123,7 @@ describe("usePromptDraft", () => {
 			current.setPromptInput("");
 		});
 		act(() => expect(restore("Old prompt")).toBe(false));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
 	it("does not let an earlier send's failure replace a later send's draft", async () => {
@@ -288,7 +289,7 @@ describe("usePromptDraft", () => {
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("Edited fork prompt");
 		act(() => current.setPromptInput(""));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 		await openSession();
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("");
@@ -301,6 +302,125 @@ describe("usePromptDraft", () => {
 		await openSession();
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("");
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
+	});
+
+	it.each([
+		"Edited retry",
+		"",
+	])("preserves a restored source retry edited to %j across navigation", async (edited) => {
+		await navigate();
+		const image = new File(["synthetic"], "test.png", { type: "image/png" });
+		const retry = {
+			sourceSessionId: "source",
+			draft: "/cloud original",
+			attachments: [image],
+		};
+		act(() => expect(current.restoreHandoffRetry(retry)).toBe(true));
+		act(() => {
+			current.handlePromptInputChange(edited);
+			current.setPendingAttachments([]);
+		});
+		await openSession();
+		await navigate({ type: "back" });
+		act(() => expect(current.restoreHandoffRetry(retry)).toBe(false));
+		expect(current.promptInputRef.current).toBe(edited);
+		expect(current.pendingAttachments).toEqual([]);
+		act(() =>
+			expect(
+				current.restoreHandoffRetry({ ...retry, draft: "/cloud newer" }),
+			).toBe(true),
+		);
+		expect(current.promptInputRef.current).toBe("/cloud newer");
+		expect(current.pendingAttachments).toEqual([image]);
+	});
+
+	it("keeps edited cloud follow-up identity and images through a pane remount", async () => {
+		await openSession();
+		const image = new File(["synthetic"], "test.png", { type: "image/png" });
+		act(() => {
+			current.setPromptInput("Original follow-up");
+			current.setPendingAttachments([image]);
+			current.draftRef.current.handoffFollowUpId = "draft-1";
+			current.draftRef.current.lastRestoredFollowUpId = "draft-1";
+			current.handlePromptInputChange("Edited follow-up");
+		});
+		await navigate({
+			type: "navigate",
+			destination: { ...appState.navigation.current, view: "sessions" },
+		});
+		await openSession();
+		expect(current.promptInputRef.current).toBe("Edited follow-up");
+		expect(current.pendingAttachments).toEqual([image]);
+		expect(current.draftRef.current.handoffFollowUpId).toBe("draft-1");
+		act(() => {
+			current.handlePromptInputChange("");
+			current.setPendingAttachments([]);
+		});
+		await navigate({ type: "back" });
+		await openSession();
+		expect(
+			shouldPreserveCloudComposer(
+				current.promptInputRef.current,
+				current.pendingAttachments.length,
+				current.draftRef.current.lastRestoredFollowUpId,
+				"draft-1",
+			),
+		).toBe(true);
+		expect(current.promptInputRef.current).toBe("");
+		expect(current.pendingAttachments).toEqual([]);
+	});
+
+	it("merges attachments against the current draft when an older send restores files", async () => {
+		await navigate();
+		const original = new File(["a"], "a.png");
+		const added = new File(["b"], "b.png");
+		act(() => current.setPendingAttachments([original]));
+		const sent = current.pendingAttachments;
+		const update = current.setPendingAttachments;
+		act(() => update([]));
+		act(() => current.setPendingAttachments([added]));
+		const restore = vi.fn((files: File[]) => [...files, ...sent]);
+		act(() => update(restore));
+		expect(current.pendingAttachments).toEqual([added, original]);
+		expect(restore).toHaveBeenCalledOnce();
+		act(() => {
+			update([]);
+			update((files) => [...files, original]);
+			update((files) => [...files, added]);
+		});
+		expect(current.pendingAttachments).toEqual([original, added]);
+	});
+
+	it.each([
+		false,
+		true,
+	])("allows saved recovery after an offscreen send settles without overwriting newer edits (%s)", async (editAfterRemount) => {
+		await openSession();
+		let finish!: ReturnType<typeof current.clearPromptForSend>;
+		act(() => {
+			current.setPromptInput("Saved follow-up");
+			current.draftRef.current.lastRestoredFollowUpId = "draft-1";
+			finish = current.clearPromptForSend();
+		});
+		await navigate({
+			type: "navigate",
+			destination: { ...appState.navigation.current, view: "sessions" },
+		});
+		await openSession();
+		if (editAfterRemount)
+			act(() => {
+				current.handlePromptInputChange("A different draft");
+				current.handlePromptInputChange("");
+			});
+		act(() => expect(finish("Saved follow-up")).toBe(false));
+		expect(
+			shouldPreserveCloudComposer(
+				current.promptInputRef.current,
+				current.pendingAttachments.length,
+				current.draftRef.current.lastRestoredFollowUpId,
+				"draft-1",
+			),
+		).toBe(editAfterRemount);
 	});
 });
