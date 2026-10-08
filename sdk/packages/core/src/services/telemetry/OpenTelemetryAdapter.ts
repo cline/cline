@@ -28,12 +28,22 @@ export interface TelemetryLoggerProviderLike {
 	shutdown?(): Promise<void>;
 }
 
+/**
+ * What an {@link OpenTelemetryAdapterOptions.enabled} predicate is deciding
+ * about: the event name for log events, the instrument name for metrics.
+ * Absent when the adapter is asked whether it is enabled in general.
+ */
+export interface TelemetryEnabledContext {
+	readonly event?: string;
+	readonly metric?: string;
+}
+
 export interface OpenTelemetryAdapterOptions {
 	readonly metadata: TelemetryMetadata;
 	readonly meterProvider?: TelemetryMeterProviderLike | null;
 	readonly loggerProvider?: TelemetryLoggerProviderLike | null;
 	readonly name?: string;
-	readonly enabled?: boolean | (() => boolean);
+	readonly enabled?: boolean | ((context?: TelemetryEnabledContext) => boolean);
 	readonly distinctId?: string;
 	readonly commonProperties?: TelemetryProperties;
 	/**
@@ -51,7 +61,9 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 	private readonly metadata: TelemetryMetadata;
 	private readonly meter: Meter | null;
 	private readonly logger: OpenTelemetryLogger | null;
-	private readonly enabled: boolean | (() => boolean);
+	private readonly enabled:
+		| boolean
+		| ((context?: TelemetryEnabledContext) => boolean);
 	private distinctId?: string;
 	private commonProperties: TelemetryProperties;
 	private counters = new Map<string, ReturnType<Meter["createCounter"]>>();
@@ -84,7 +96,7 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 	}
 
 	emit(event: string, properties?: TelemetryProperties): void {
-		if (!this.isEnabled()) {
+		if (!this.isEnabled({ event })) {
 			return;
 		}
 		this.emitLog(event, properties, false);
@@ -101,7 +113,7 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		description?: string,
 		required = false,
 	): void {
-		if (!this.meter || (!required && !this.isEnabled())) {
+		if (!this.meter || (!required && !this.isEnabled({ metric: name }))) {
 			return;
 		}
 
@@ -127,7 +139,7 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		description?: string,
 		required = false,
 	): void {
-		if (!this.meter || (!required && !this.isEnabled())) {
+		if (!this.meter || (!required && !this.isEnabled({ metric: name }))) {
 			return;
 		}
 
@@ -153,7 +165,7 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		description?: string,
 		required = false,
 	): void {
-		if (!this.meter || (!required && !this.isEnabled())) {
+		if (!this.meter || (!required && !this.isEnabled({ metric: name }))) {
 			return;
 		}
 
@@ -197,8 +209,10 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		series.set(attrKey, { value, attributes: mergedAttributes });
 	}
 
-	isEnabled(): boolean {
-		return typeof this.enabled === "function" ? this.enabled() : this.enabled;
+	isEnabled(context?: TelemetryEnabledContext): boolean {
+		return typeof this.enabled === "function"
+			? this.enabled(context)
+			: this.enabled;
 	}
 
 	setDistinctId(distinctId?: string): void {

@@ -748,6 +748,7 @@ export {
 	type OpenTelemetryAdapterOptions,
 	resolveCoreDeviceId,
 	resolveCoreDistinctId,
+	type TelemetryEnabledContext,
 	type TelemetryLoggerProviderLike,
 	type TelemetryMeterProviderLike,
 } from "./services/telemetry";

@@ -143,6 +143,37 @@ describe("OpenTelemetryAdapter", () => {
 		});
 	});
 
+	it("passes the event or metric being gated to the enabled predicate", () => {
+		const seen: unknown[] = [];
+		const emit = vi.fn();
+		const counterAdd = vi.fn();
+		const adapter = new OpenTelemetryAdapter({
+			metadata: makeMetadata(),
+			enabled: (context) => {
+				seen.push(context);
+				return context?.event !== "task.created";
+			},
+			loggerProvider: { getLogger: () => ({ emit }) as never },
+			meterProvider: {
+				getMeter: () =>
+					({ createCounter: () => ({ add: counterAdd }) }) as never,
+			},
+		});
+
+		adapter.emit("task.created");
+		adapter.emit("task.provider_api_error");
+		adapter.recordCounter("cline.turns.total", 1);
+
+		expect(emit).toHaveBeenCalledTimes(1);
+		expect(counterAdd).toHaveBeenCalledTimes(1);
+		expect(seen).toEqual([
+			{ event: "task.created" },
+			{ event: "task.provider_api_error" },
+			{ metric: "cline.turns.total" },
+		]);
+		expect(adapter.isEnabled()).toBe(true);
+	});
+
 	it("does not shut down providers it does not own", async () => {
 		const forceFlush = vi.fn().mockResolvedValue(undefined);
 		const shutdown = vi.fn().mockResolvedValue(undefined);

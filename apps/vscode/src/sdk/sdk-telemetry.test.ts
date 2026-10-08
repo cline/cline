@@ -17,6 +17,7 @@ vi.mock("@/services/telemetry/otel-clients", () => ({
 const telemetryState = vi.hoisted(() => ({
 	clineTelemetrySetting: "unset" as string | undefined,
 	hostSetting: 1,
+	errorLevel: "all" as string,
 	hostVersion: {
 		platform: "VS Code",
 		version: "1.103.0",
@@ -40,7 +41,10 @@ vi.mock("@/core/storage/StateManager", () => ({
 vi.mock("@/hosts/host-provider", () => ({
 	HostProvider: {
 		env: {
-			getTelemetrySettings: vi.fn(async () => ({ isEnabled: telemetryState.hostSetting })),
+			getTelemetrySettings: vi.fn(async () => ({
+				isEnabled: telemetryState.hostSetting,
+				errorLevel: telemetryState.errorLevel,
+			})),
 			getHostVersion: vi.fn(async () => {
 				if (telemetryState.hostVersionGate) {
 					await telemetryState.hostVersionGate
@@ -95,6 +99,7 @@ describe("createVscodeSdkTelemetryHandle (shared-stack construction)", () => {
 		resetTelemetryPolicyForTests()
 		telemetryState.clineTelemetrySetting = "unset"
 		telemetryState.hostSetting = Setting.ENABLED
+		telemetryState.errorLevel = "all"
 		telemetryState.hostVersion = {
 			platform: "VS Code",
 			version: "1.103.0",
@@ -229,6 +234,26 @@ describe("createVscodeSdkTelemetryHandle (shared-stack construction)", () => {
 		expect(runtime.emitted.filter((record) => record.body === "task.created")).toHaveLength(1)
 	})
 
+	it("applies the host telemetry level per destination", async () => {
+		telemetryState.errorLevel = "error"
+		const prod = createFakeSharedClient({ id: "build-time", bypassUserSettings: false })
+		const runtime = createFakeSharedClient({ id: "runtime-env", bypassUserSettings: true })
+		otelClientMocks.clients = [prod.shared, runtime.shared]
+
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
+
+		handle.telemetry.capture({ event: "task.created" })
+		handle.telemetry.capture({ event: "task.provider_api_error" })
+
+		// Error-only level: the usage event is kept from the production collector
+		// but still reaches the bypass destination, as the classic providers do.
+		expect(prod.emitted.map((record) => record.body)).not.toContain("task.created")
+		expect(prod.emitted.map((record) => record.body)).toContain("task.provider_api_error")
+		expect(runtime.emitted.map((record) => record.body)).toContain("task.created")
+		expect(runtime.emitted.map((record) => record.body)).toContain("task.provider_api_error")
+	})
+
 	it("flushes the shared clients instead of shutting them down on dispose", async () => {
 		const { shared } = createFakeSharedClient()
 		otelClientMocks.clients = [shared]
@@ -247,6 +272,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		resetTelemetryPolicyForTests()
 		telemetryState.clineTelemetrySetting = "unset"
 		telemetryState.hostSetting = Setting.ENABLED
+		telemetryState.errorLevel = "all"
 		telemetryState.hostVersion = {
 			platform: "VS Code",
 			version: "1.103.0",

@@ -10,6 +10,7 @@ import {
 	isHostTelemetryEnabled,
 	isTelemetryExportAllowed,
 	isUserTelemetryOptedIn,
+	passesHostTelemetryLevel,
 } from "../../telemetry-policy"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 /**
@@ -54,16 +55,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public log(event: string, properties?: TelemetryProperties): void {
-		const level = getHostTelemetryLevel()
-		if (!this.isEnabled() || level === "off") {
+		if (!this.isEnabled() || !passesHostTelemetryLevel(event)) {
 			return
-		}
-
-		// Filter events based on telemetry level
-		if (level === "error") {
-			if (!event.includes("error")) {
-				return
-			}
 		}
 
 		this.client.capture({
