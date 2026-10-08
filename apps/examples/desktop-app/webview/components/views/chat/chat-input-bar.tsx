@@ -1543,7 +1543,7 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0 shrink-0">
+					<div className="min-w-0">
 						<ModelSelector
 							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
@@ -1596,7 +1596,9 @@ function ChatInputBarImpl({
 					</Select>
 				</AgentComposerSettingsGroup>
 
-				<AgentComposerSettingsEnd>
+				{/* Reserve room for the model and thinking controls so a long
+				    branch name can't squeeze the model name out entirely. */}
+				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] max-[560px]:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -2241,7 +2243,7 @@ const ModelSelector = memo(function ModelSelector({
 		);
 	}
 	return (
-		<div className="relative min-w-0 shrink-0 text-sm">
+		<div className="relative min-w-0 text-sm">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
@@ -2288,9 +2290,11 @@ const ModelSelector = memo(function ModelSelector({
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
 				{/* Wide enough for the longest built-in provider names ("Cline
 				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
-				{renderProviderSelect("max-w-56")}
-				<div className="bg-border-2 h-4 w-[0.1rem]" />
-				{renderModelSelect("max-w-52")}
+				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>
+				<div className="bg-border-2 h-4 w-[0.1rem] shrink-0" />
+				{/* Uncapped so long model names show in full when the row has
+				    room; the name truncates only once the row runs out of space. */}
+				{renderModelSelect("max-w-full")}
 			</div>
 		</div>
 	);

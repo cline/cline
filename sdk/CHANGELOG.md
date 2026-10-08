@@ -1,8 +1,15 @@
 # Cline SDK Changelog
 
-## 0.0.91
+## 0.0.92
 
 - The AI SDK moves together to one release line: `ai` 7.0.120 and every `@ai-sdk/*` package on `@ai-sdk/provider-utils` 5.0.50 (previously `ai` 7.0.79 with packages bumped one by one). Turning reasoning off no longer sends `reasoning.effort: "none"` to OpenAI models that can't turn it off, such as GPT-6 Astra and GPT-6.1 Sol (GPT-6 Astra answered with a 400, for example from commit message generation); GPT-5.x and GPT-6 Sol/Luna still get `"none"`. Turning reasoning off also no longer sends `thinking: {type: "disabled"}` to Claude models that can't turn thinking off, such as Claude Fable 5 and Opus 5.5 (they answered with `"thinking.type.disabled" is not supported for this model`); other Claude models still get `disabled`
+- Stdio MCP clients handle EPIPE when a server exits before reading all of its input. Previously that raised an uncaught exception on the host process. The SAP AI Core provider also no longer installs winston's process-wide `uncaughtException` handler, which called `process.exit(1)` three seconds after any uncaught error
+- The legacy provider-settings migration no longer adds an empty `sapaicore` entry to `providers.json`. It used to do this for every migrated user, because the extension writes `sapAiCoreUseOrchestrationMode` as a default
+- `@cline/core` exports `parseMcpHeaders`, used by the CLI's `mcp add` wizard to keep `--header` values
+- Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
+
+## 0.0.91
+
 - Responses that end with a missing or unrecognized finish reason are no longer treated as successful completions. `AgentModelFinishReason` gains `unknown` (the AI SDK adapter maps unified `other` and missing reasons to it instead of `stop`). Without tool activity, the agent keeps the partial response and continues once with a hidden user message; a second unknown finish fails the run. Queued user messages are now consumed at every request boundary, including the first iteration
 - Stdio MCP servers get a 10s default initialize budget (was 3s). `npx`/`uvx` launchers through cmd.exe on Windows routinely took 3-6s and were silently dropped from the session. An explicit `timeout` still overrides it
 - The Anthropic provider sends the server-side refusal `fallbacks` option only to `api.anthropic.com`. Custom endpoints such as Azure AI Foundry rejected it with a 400. New `isOfficialAnthropicEndpoint` helper
