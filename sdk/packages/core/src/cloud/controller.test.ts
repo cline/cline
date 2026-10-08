@@ -210,6 +210,47 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("refreshes an attached session title after an external rename", async () => {
+		const f = await attached();
+		await f.controller.updateTitle(record.id, "Desktop title");
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.title).toBe("Web title");
+		await f.controller.dispose();
+	});
+
+	it.each([
+		false,
+		true,
+	])("preserves a rename across a timed-out discovery request (attached: %s)", async (isAttached) => {
+		const f = isAttached ? await attached() : fixture();
+		await f.controller.listForDiscovery();
+		let resolveListing!: (records: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveListing = resolve;
+				}),
+		);
+		await f.controller.listForDiscovery({ timeoutMs: 0 });
+		await f.controller.updateTitle(record.id, "Desktop title");
+		const refreshing = f.controller.listForDiscovery();
+		resolveListing([{ ...record, title: "Old title" }]);
+		expect((await refreshing)[0]?.metadata).toMatchObject({
+			title: "Desktop title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.record?.title).toBe(
+			"Desktop title",
+		);
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		await f.controller.dispose();
+	});
+
 	it.each([
 		"suspended",
 		"ready",

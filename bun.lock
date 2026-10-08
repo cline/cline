@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.68",
+      "version": "3.0.70",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.43",
+      "version": "0.0.45",
       "dependencies": {
         "@ai-sdk/gateway": "^4.0.98",
         "@ai-sdk/openai": "^4.0.79",
