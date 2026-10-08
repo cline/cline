@@ -300,6 +300,35 @@ describe("session replay rerun", () => {
 		).toHaveLength(2);
 	});
 
+	it("does not count the abort its own stop recorded, and keeps the recorded iteration count", async () => {
+		const { result } = await rerunWith(
+			[
+				FIXTURE_STEPS[0] as FixtureStep,
+				{
+					...READ_DIFFERENT,
+					decisionsAfter: [
+						{
+							name: "abort_requested",
+							toolCallId: "call_read",
+							payload: {
+								source: "abort",
+								reason: "Replay rerun stopped at the first divergence",
+								running: true,
+							},
+						},
+					],
+				},
+				FIXTURE_STEPS[2] as FixtureStep,
+			],
+			{ untilDivergence: true },
+		);
+		expect(result.stopped).toMatchObject({ iteration: 2, kind: "tool-calls" });
+		expect(
+			result.comparison.divergences.map((d) => `${d.iteration}:${d.kind}`),
+		).not.toContain("2:decisions");
+		expect(result.comparison.iterations.recorded).toBe(3);
+	});
+
 	it("runs to the end by default and reports every iteration", async () => {
 		const { result, core } = await rerunWith([
 			FIXTURE_STEPS[0] as FixtureStep,

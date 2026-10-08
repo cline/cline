@@ -28,6 +28,7 @@ import {
 	compareSessionReplayIteration,
 	compareSessionReplayIterations,
 	SESSION_REPLAY_RERUN_DIVERGENCE_KINDS,
+	type SessionReplayComparableDecision,
 	type SessionReplayComparableIteration,
 	type SessionReplayComparableToolCall,
 	type SessionReplayDivergenceReport,
@@ -48,6 +49,9 @@ import {
 	type SessionReplayModelResponseMatch,
 	type SessionReplaySource,
 } from "./replay-source";
+
+/** Abort reason of an `untilDivergence` stop; its recorded decision is not compared. */
+const RERUN_STOP_REASON = "Replay rerun stopped at the first divergence";
 
 // ── Divergence kinds and request matching ─────────────────────────────────
 
@@ -781,17 +785,49 @@ class SessionReplayRerunImpl implements SessionReplayRerun {
 		}
 	}
 
-	private finalReport(
+	/** Drops the `abort_requested` decision the rerun's own stop recorded. */
+	private withoutOwnStop(
 		live: readonly SessionReplayComparableIteration[],
+	): SessionReplayComparableIteration[] {
+		const own = (decision: SessionReplayComparableDecision) => {
+			const fields = decision.fields as
+				| { source?: unknown; reason?: unknown }
+				| undefined;
+			return (
+				decision.name === "abort_requested" &&
+				fields?.source === "abort" &&
+				fields.reason === RERUN_STOP_REASON
+			);
+		};
+		return live.map((iteration) => ({
+			...iteration,
+			decisions: {
+				beforeModelCall: iteration.decisions.beforeModelCall.filter(
+					(decision) => !own(decision),
+				),
+				afterModelCall: iteration.decisions.afterModelCall.filter(
+					(decision) => !own(decision),
+				),
+			},
+		}));
+	}
+
+	private finalReport(
+		persistedLive: readonly SessionReplayComparableIteration[],
 	): SessionReplayDivergenceReport {
 		const options = { kinds: this.kinds, includeInheritedMessages: false };
 		if (!this.stopped) {
 			return compareSessionReplayIterations(
 				this.recordedIterations,
-				live,
+				persistedLive,
 				options,
 			);
 		}
+		const live = this.withoutOwnStop(persistedLive);
+		const iterations = {
+			recorded: this.recordedIterations.length,
+			live: Math.max(live.length, this.stopped.iteration),
+		};
 		const detected = this.stopped;
 		const stopAt = detected.iteration;
 		const before = compareSessionReplayIterations(
@@ -818,20 +854,20 @@ class SessionReplayRerunImpl implements SessionReplayRerun {
 				(divergence) => divergence.counted && divergence.kind === detected.kind,
 			);
 		if (persistedAgrees) {
-			return compareSessionReplayIterations(
-				this.recordedIterations.slice(0, stopAt),
-				live.slice(0, stopAt),
-				options,
-			);
+			return {
+				...compareSessionReplayIterations(
+					this.recordedIterations.slice(0, stopAt),
+					live.slice(0, stopAt),
+					options,
+				),
+				iterations,
+			};
 		}
 		const divergences = [...before.divergences, ...this.stopDivergences];
 		const first = divergences.find((divergence) => divergence.counted) ?? null;
 		return {
 			...before,
-			iterations: {
-				recorded: this.recordedIterations.length,
-				live: Math.max(live.length, stopAt),
-			},
+			iterations,
 			perIteration: [
 				...before.perIteration,
 				{
@@ -917,12 +953,7 @@ class SessionReplayRerunImpl implements SessionReplayRerun {
 		}
 
 		this.abortStop = () => {
-			void core
-				.abort(
-					sessionId,
-					new Error("Replay rerun stopped at the first divergence"),
-				)
-				.catch(() => {});
+			void core.abort(sessionId, new Error(RERUN_STOP_REASON)).catch(() => {});
 		};
 		const unsubscribe = core.subscribe(this.onEvent, { sessionId });
 		let polling = true;
