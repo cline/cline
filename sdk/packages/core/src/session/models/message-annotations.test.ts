@@ -12,7 +12,14 @@ const toolUse = (id: string, ts?: number): MessageWithMetadata => ({
 });
 const toolResult = (id: string, ts?: number): MessageWithMetadata => ({
 	role: "user",
-	content: [{ type: "tool_result", tool_use_id: id, content: "done" }],
+	content: [
+		{
+			type: "tool_result",
+			tool_use_id: id,
+			name: "spawn_agent",
+			content: "done",
+		},
+	],
 	...(ts !== undefined ? { ts } : {}),
 });
 

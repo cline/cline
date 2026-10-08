@@ -19,7 +19,9 @@ const assistant = (
 });
 const toolResult = (id: string): MessageWithMetadata => ({
 	role: "user",
-	content: [{ type: "tool_result", tool_use_id: id, content: "ok" }],
+	content: [
+		{ type: "tool_result", tool_use_id: id, name: "tool", content: "ok" },
+	],
 });
 
 describe("groupSessionMessageIterations", () => {

@@ -255,6 +255,7 @@ export function fixtureTreeMessages(
 				{
 					type: "tool_result",
 					tool_use_id: "call_spawn",
+					name: "spawn_agent",
 					content: '{"text":"a.txt says hi"}',
 				},
 			],
@@ -298,7 +299,12 @@ export function fixtureChildMessages(): MessageWithMetadata[] {
 			id: "c3",
 			role: "user",
 			content: [
-				{ type: "tool_result", tool_use_id: "call_child", content: "hi" },
+				{
+					type: "tool_result",
+					tool_use_id: "call_child",
+					name: "read_files",
+					content: "hi",
+				},
 			],
 			ts: T0 + 2_200,
 		},

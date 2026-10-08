@@ -1117,7 +1117,7 @@ describe("UnifiedSessionPersistenceService", () => {
 			subAgentId: "agent_1",
 			conversationId: "conv_1",
 			parentAgentId: "lead",
-			input: { task: "sub task" },
+			input: { systemPrompt: "You help.", task: "sub task" },
 			toolCallId: "call_spawn",
 		});
 		await service.onTeamTaskStart(
@@ -1152,11 +1152,13 @@ describe("UnifiedSessionPersistenceService", () => {
 					{
 						type: "tool_result" as const,
 						tool_use_id: "call_spawn",
+						name: "spawn_agent",
 						content: "sub done",
 					},
 					{
 						type: "tool_result" as const,
 						tool_use_id: "call_team",
+						name: "team_run_task",
 						content: "team done",
 					},
 				],
