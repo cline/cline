@@ -92,7 +92,12 @@ export type CloudHandoffUiAction =
 	  }
 	| { type: "retry_restored"; sourceSessionId: string }
 	| { type: "local_prompt_delivered"; sourceSessionId: string }
-	| { type: "retry_delivered"; sourceSessionId: string };
+	| {
+			type: "retry_delivered";
+			sourceSessionId: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  };
 
 export function cloudHandoffUiReducer(
 	state: CloudHandoffUiState,
@@ -244,15 +249,13 @@ export function cloudHandoffUiReducer(
 		}
 		case "retry_delivered": {
 			if (!current) return state;
+			if (
+				current.status === "progress" ||
+				current.retryDraft !== action.retryDraft ||
+				current.retryAttachments !== action.retryAttachments
+			)
+				return state;
 			if (current.status !== "complete") {
-				if (
-					current.status !== "recovery" &&
-					current.status !== "recovery_dismissed" &&
-					current.status !== "failed" &&
-					current.status !== "retry_restored"
-				) {
-					return state;
-				}
 				const next = { ...state };
 				delete next[action.sourceSessionId];
 				return next;

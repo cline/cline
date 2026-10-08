@@ -32,13 +32,16 @@ it.each([
 it("restores the command and images again after opening without sending", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
 	const open = vi.fn();
+	const onSavedDraftOpened = vi.fn();
 	expect(
 		await openWithCloudHandoffFollowUp({
 			targetSessionId: "cloud-target",
 			canOpen: () => true,
 			open,
+			onSavedDraftOpened,
 		}),
 	).toBe(true);
+	expect(onSavedDraftOpened).toHaveBeenCalledExactlyOnceWith(saved);
 	const [command, images, draftId] = open.mock.calls[0];
 	expect(draftId).toBe(saved.draftId);
 	expect(command).toBe(saved.command);
@@ -117,12 +120,15 @@ it("does not offer an unconfirmed send for resubmission, even with stale initial
 it("opens an explicit text-only retry without the older saved images", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
 	const open = vi.fn();
+	const onSavedDraftOpened = vi.fn();
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "cloud-target",
 		initialPromptDraft: "new text-only retry",
 		canOpen: () => true,
 		open,
+		onSavedDraftOpened,
 	});
+	expect(onSavedDraftOpened).not.toHaveBeenCalled();
 	expect(open).toHaveBeenCalledExactlyOnceWith(
 		"new text-only retry",
 		undefined,
