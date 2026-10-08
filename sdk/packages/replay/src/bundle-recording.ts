@@ -1,12 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SessionReplayRedactor } from "./bundle-redaction";
-import type {
-	SessionReplayEvent,
-	SessionReplayRequestBlob,
-	SessionReplaySessionRecording,
-} from "./bundle-schema";
 import {
 	SESSION_RECORDING_DIR,
 	SESSION_RECORDING_FILES,
@@ -18,7 +12,11 @@ import {
 	SessionRecordedModelCallSchema,
 	type SessionRecordingHeader,
 	SessionRecordingHeaderSchema,
-} from "./recording-schema";
+	type SessionReplayEvent,
+	type SessionReplayRequestBlob,
+	type SessionReplaySessionRecording,
+} from "@cline/shared";
+import type { SessionReplayRedactor } from "./bundle-redaction";
 
 export interface LoadedSessionRecording {
 	header: SessionRecordingHeader;

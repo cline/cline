@@ -1,23 +1,23 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-	AgentMessage,
-	AgentModelEvent,
-	AgentModelRequest,
-	AgentRuntimeEvent,
-	AgentToolDefinition,
-	MessageWithMetadata,
+import { describeRecordedProvider, SessionRecorder } from "@cline/core";
+import {
+	type AgentMessage,
+	type AgentModelEvent,
+	type AgentModelRequest,
+	type AgentRuntimeEvent,
+	type AgentToolDefinition,
+	type MessageWithMetadata,
+	type SessionReplayRequestBlob,
+	TOOL_ENVIRONMENT_METADATA_KEY,
 } from "@cline/shared";
 import {
 	mergeSessionReplayEvents,
 	readSessionRecording,
 	toSessionReplayRecordedEvents,
 } from "./bundle-recording";
-import type { SessionReplayRequestBlob } from "./bundle-schema";
 import type { SessionReplaySessionData } from "./replay-compare";
-import { describeRecordedProvider, SessionRecorder } from "./session-recorder";
-import { TOOL_ENVIRONMENT_METADATA_KEY } from "./tool-environment";
 
 export interface FixtureToolCall {
 	id: string;

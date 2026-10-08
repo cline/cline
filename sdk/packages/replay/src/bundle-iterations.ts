@@ -1,15 +1,16 @@
 import {
+	countUserRunMessages,
+	isUserRunMessage,
+	projectSessionMessagesForDisplay,
+} from "@cline/core";
+import {
 	type ContentBlock,
 	formatDisplayUserInput,
 	type MessageWithMetadata,
+	type SessionRecordedModelCall,
+	type SessionReplayEvent,
+	type SessionReplayTranscriptFile,
 } from "@cline/shared";
-import { projectSessionMessagesForDisplay } from "../display-messages";
-import { countUserRunMessages, isUserRunMessage } from "../user-run-messages";
-import type {
-	SessionReplayEvent,
-	SessionReplayTranscriptFile,
-} from "./bundle-schema";
-import type { SessionRecordedModelCall } from "./recording-schema";
 
 export interface SessionReplayToolCall {
 	id: string;

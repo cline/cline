@@ -3,8 +3,8 @@ import {
 	SENSITIVE_KEY_SUFFIXES,
 	SENSITIVE_KEYS_EXACT,
 	SENSITIVE_VALUE_PATTERNS,
+	type SessionReplayRedactionReport,
 } from "@cline/shared";
-import type { SessionReplayRedactionReport } from "./bundle-schema";
 
 /**
  * Bundle locations the redaction pass covers. Structural identifiers the

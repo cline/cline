@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { sessionHookLogFileName } from "@cline/core";
+import type { SessionReplayEvent } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
-import { sessionHookLogFileName } from "../../services/session-artifacts";
 import type { SessionReplayRedactor } from "./bundle-redaction";
-import type { SessionReplayEvent } from "./bundle-schema";
 
 export type RawHookLogEntry = Record<string, unknown>;
 

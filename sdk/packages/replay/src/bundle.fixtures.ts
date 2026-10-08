@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { SessionRecord } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/shared";
-import type { SessionRecord } from "../../types/sessions";
 import type { SessionReplayExportSource } from "./bundle-export";
 import { resolveSessionHookLogPath } from "./bundle-hook-events";
 

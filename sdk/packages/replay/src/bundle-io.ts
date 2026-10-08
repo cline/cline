@@ -2,21 +2,16 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import type { SessionCompactionState } from "../models/session-compaction";
-import {
-	migrateSessionReplayBundleManifest,
-	readSessionReplayBundleSchemaVersion,
-	SessionReplayBundleError,
-	SessionReplayBundleVersionError,
-} from "./bundle-migrations";
+import type { SessionCompactionState } from "@cline/core";
 import {
 	SESSION_REPLAY_BUNDLE_FORMAT,
 	SESSION_REPLAY_BUNDLE_SCHEMA_VERSION,
 	SESSION_REPLAY_MANIFEST_FILE,
 	SESSION_REPLAY_REDACTION_FILE,
+	type SessionRecordedModelCall,
+	SessionRecordedModelCallSchema,
 	type SessionReplayBundleManifest,
 	SessionReplayBundleManifestSchema,
-	SessionReplayCompactionFileSchema,
 	type SessionReplayEvent,
 	SessionReplayEventSchema,
 	type SessionReplayFileEntry,
@@ -28,14 +23,19 @@ import {
 	type SessionReplaySessionEntry,
 	type SessionReplayTranscriptFile,
 	SessionReplayTranscriptFileSchema,
+} from "@cline/shared";
+import {
+	SessionReplayCompactionFileSchema,
 	sessionReplayBundlePaths,
 	sessionReplayFileMediaType,
-} from "./bundle-schema";
+} from "./bundle-layout";
 import {
-	resolveRecordedRequestMessages,
-	type SessionRecordedModelCall,
-	SessionRecordedModelCallSchema,
-} from "./recording-schema";
+	migrateSessionReplayBundleManifest,
+	readSessionReplayBundleSchemaVersion,
+	SessionReplayBundleError,
+	SessionReplayBundleVersionError,
+} from "./bundle-migrations";
+import { resolveRecordedRequestMessages } from "./recording-messages";
 
 export interface SessionReplayBundleSessionInput {
 	entry: Omit<SessionReplaySessionEntry, "counts">;

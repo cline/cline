@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SessionReplaySessionEntry } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fixtureMessages } from "./bundle.fixtures";
 import {
@@ -11,7 +12,6 @@ import {
 } from "./bundle-io";
 import { SessionReplayBundleVersionError } from "./bundle-migrations";
 import { createSessionReplayRedactor } from "./bundle-redaction";
-import type { SessionReplaySessionEntry } from "./bundle-schema";
 
 let root: string;
 

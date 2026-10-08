@@ -1,11 +1,13 @@
+import {
+	type SessionRecordedModelCall,
+	type SessionReplayEvent,
+	TOOL_ENVIRONMENT_METADATA_KEY,
+	type ToolEnvironmentFacts,
+} from "@cline/shared";
 import { readSessionReplayBundle } from "./bundle-io";
 import { buildSessionReplayIterations } from "./bundle-iterations";
 import { SessionReplayBundleError } from "./bundle-migrations";
-import type { SessionReplayEvent } from "./bundle-schema";
-import {
-	resolveRecordedRequestMessages,
-	type SessionRecordedModelCall,
-} from "./recording-schema";
+import { resolveRecordedRequestMessages } from "./recording-messages";
 import type { SessionReplaySessionData } from "./replay-compare";
 import { formatSessionReplayDivergence } from "./replay-compare";
 import type {
@@ -17,10 +19,6 @@ import {
 	diffSessionReplayRequests,
 	type SessionReplayRequestSnapshot,
 } from "./replay-request";
-import {
-	TOOL_ENVIRONMENT_METADATA_KEY,
-	type ToolEnvironmentFacts,
-} from "./tool-environment";
 
 /**
  * Where a live model request sits in its session. Every field is optional;

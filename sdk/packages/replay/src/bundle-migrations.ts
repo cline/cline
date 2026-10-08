@@ -1,7 +1,7 @@
 import {
 	SESSION_REPLAY_BUNDLE_FORMAT,
 	SESSION_REPLAY_BUNDLE_SCHEMA_VERSION,
-} from "./bundle-schema";
+} from "@cline/shared";
 
 export class SessionReplayBundleError extends Error {
 	constructor(

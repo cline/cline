@@ -1,10 +1,10 @@
+import type { SessionReplayEvent } from "@cline/shared";
 import type { LoadedSessionReplaySession } from "./bundle-io";
 import {
 	buildSessionReplayIterations,
 	describeSessionReplayEvent,
 } from "./bundle-iterations";
-import type { SessionReplayEvent } from "./bundle-schema";
-import { resolveRecordedRequestMessages } from "./recording-schema";
+import { resolveRecordedRequestMessages } from "./recording-messages";
 import {
 	canonicalJson,
 	canonicalSha256,

@@ -1,3 +1,4 @@
+import { SESSION_REPLAY_BUNDLE_FORMAT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	migrateSessionReplayBundleManifest,
@@ -7,7 +8,6 @@ import {
 	type SessionReplayBundleMigration,
 	SessionReplayBundleVersionError,
 } from "./bundle-migrations";
-import { SESSION_REPLAY_BUNDLE_FORMAT } from "./bundle-schema";
 
 function rawManifest(schemaVersion: unknown, extra: object = {}) {
 	return { format: SESSION_REPLAY_BUNDLE_FORMAT, schemaVersion, ...extra };

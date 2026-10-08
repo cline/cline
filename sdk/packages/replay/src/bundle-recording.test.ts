@@ -1,6 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type {
+	SessionRecordedModelCall,
+	SessionRecordingHeader,
+	SessionReplayEvent,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	type LoadedSessionRecording,
@@ -9,11 +14,6 @@ import {
 	redactSessionRecording,
 } from "./bundle-recording";
 import { createSessionReplayRedactor } from "./bundle-redaction";
-import type { SessionReplayEvent } from "./bundle-schema";
-import type {
-	SessionRecordedModelCall,
-	SessionRecordingHeader,
-} from "./recording-schema";
 
 function event(name: string, ts: string, seq?: number): SessionReplayEvent {
 	return {

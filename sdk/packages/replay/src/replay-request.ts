@@ -1,5 +1,10 @@
-import type { AgentModelRequest } from "@cline/shared";
-import type { SessionRecordedModelCall } from "./recording-schema";
+import {
+	type AgentModelRequest,
+	computeRecordedRequestMatchKey,
+	recordedMessageContentSha256,
+	recordedToolDefinitions,
+	type SessionRecordedModelCall,
+} from "@cline/shared";
 import {
 	alignByKey,
 	canonicalJson,
@@ -15,11 +20,6 @@ import {
 	structurallyEqual,
 	textDiffEntry,
 } from "./replay-diff";
-import {
-	computeRecordedRequestMatchKey,
-	recordedMessageContentSha256,
-	recordedToolDefinitions,
-} from "./session-recorder";
 
 export interface SessionReplayRequestMessage {
 	role: string;

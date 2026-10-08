@@ -11,21 +11,23 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentTool, ToolApprovalRequest } from "@cline/shared";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ClineCore } from "../../ClineCore";
-import { createLocalHubScheduleRuntimeHandlers } from "../../hub/daemon/runtime-handlers";
-import { createInMemoryHubOwnerContext } from "../../hub/discovery";
+import { ClineCore, SESSION_RECORDING_REQUIRES_HUB_MESSAGE } from "@cline/core";
 import {
+	createInMemoryHubOwnerContext,
+	createLocalHubScheduleRuntimeHandlers,
 	type HubWebSocketServer,
 	startHubWebSocketServer,
-} from "../../hub/server";
-import { SESSION_RECORDING_REQUIRES_HUB_MESSAGE } from "../../runtime/host/local-runtime-host";
+} from "@cline/core/hub";
+import {
+	type AgentTool,
+	TOOL_ENVIRONMENT_METADATA_KEY,
+	type ToolApprovalRequest,
+} from "@cline/shared";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { exportSessionReplayBundle } from "./bundle-export";
 import { readSessionReplayBundle } from "./bundle-io";
 import { buildSessionReplayIterations } from "./bundle-iterations";
-import { resolveRecordedRequestMessages } from "./recording-schema";
-import { TOOL_ENVIRONMENT_METADATA_KEY } from "./tool-environment";
+import { resolveRecordedRequestMessages } from "./recording-messages";
 
 const STEER_TEXT = "Also note the steer arrived.";
 

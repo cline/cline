@@ -1,14 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { MessageWithMetadata } from "@cline/shared";
-import { resolveSessionDataDir } from "@cline/shared/storage";
-import { version as corePackageVersion } from "../../../package.json";
-import type { SessionRecord } from "../../types/sessions";
-import type { SessionCompactionState } from "../models/session-compaction";
 import {
+	CORE_BUILD_VERSION,
 	parseSubSessionId,
 	parseTeamTaskSubSessionId,
-} from "../models/session-graph";
+	type SessionCompactionState,
+	type SessionRecord,
+} from "@cline/core";
+import {
+	type MessageWithMetadata,
+	SESSION_RECORDING_VERSION,
+	SESSION_REPLAY_MANIFEST_FILE,
+	type SessionReplayBundleManifest,
+	type SessionReplayCheckpointRef,
+	type SessionReplayIterationRestorePoint,
+	type SessionReplaySessionEntry,
+} from "@cline/shared";
+import { resolveSessionDataDir } from "@cline/shared/storage";
 import {
 	isRootAgentHookEntry,
 	type RawHookLogEntry,
@@ -22,6 +30,7 @@ import {
 	writeSessionReplayBundle,
 } from "./bundle-io";
 import { sessionReplayIterationRunCounts } from "./bundle-iterations";
+import { sessionReplayBundlePaths } from "./bundle-layout";
 import { SessionReplayBundleError } from "./bundle-migrations";
 import {
 	mergeSessionReplayEvents,
@@ -33,15 +42,6 @@ import {
 	createSessionReplayRedactor,
 	type SessionReplayRedactor,
 } from "./bundle-redaction";
-import {
-	SESSION_REPLAY_MANIFEST_FILE,
-	type SessionReplayBundleManifest,
-	type SessionReplayCheckpointRef,
-	type SessionReplayIterationRestorePoint,
-	type SessionReplaySessionEntry,
-	sessionReplayBundlePaths,
-} from "./bundle-schema";
-import { SESSION_RECORDING_VERSION } from "./recording-schema";
 
 /**
  * Read access to local session storage. `ClineCore` satisfies it through
@@ -448,7 +448,7 @@ export async function exportSessionReplayBundle(
 			createdAt: now.toISOString(),
 			producer: {
 				name: "@cline/core",
-				version: corePackageVersion,
+				version: CORE_BUILD_VERSION,
 				...(options.producer?.host ? { host: options.producer.host } : {}),
 				...(options.producer?.hostVersion
 					? { hostVersion: options.producer.hostVersion }

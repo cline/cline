@@ -1,4 +1,8 @@
-import type { MessageWithMetadata } from "@cline/shared";
+import type {
+	MessageWithMetadata,
+	SessionRecordedModelCall,
+	SessionReplayEvent,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	FIXTURE_SESSION_ID,
@@ -16,8 +20,6 @@ import {
 	selectSessionReplayIterations,
 } from "./bundle-iterations";
 import { createSessionReplayRedactor } from "./bundle-redaction";
-import type { SessionReplayEvent } from "./bundle-schema";
-import type { SessionRecordedModelCall } from "./recording-schema";
 
 function fixtureEvents() {
 	return toSessionReplayHookEvents({
