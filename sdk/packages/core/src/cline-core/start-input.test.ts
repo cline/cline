@@ -26,6 +26,17 @@ function createInput(
 }
 
 describe("normalizeClineCoreStartInput", () => {
+	it("keeps the additional hook directory in serialized session config", () => {
+		const input = createInput();
+		input.config.hooksDir = "/tmp/session-hooks";
+		const normalized = normalizeClineCoreStartInput(input);
+		expect(JSON.parse(JSON.stringify(normalized.config))).toHaveProperty(
+			"hooksDir",
+			"/tmp/session-hooks",
+		);
+		expect(normalized.localRuntime).not.toHaveProperty("hooksDir");
+	});
+
 	it("captures the client surface, version, and default user mode", () => {
 		const normalized = normalizeClineCoreStartInput(createInput());
 

@@ -4,6 +4,7 @@ import { writeDiagnostic } from "../utils/output";
 
 export interface AcpModeOptions {
 	autoApproveTools?: boolean;
+	hooksDir?: string;
 }
 
 export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
@@ -24,6 +25,7 @@ export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
 	const connection = new AgentSideConnection((conn) => {
 		return new AcpAgent(conn, {
 			autoApproveTools: options?.autoApproveTools,
+			hooksDir: options?.hooksDir,
 		});
 	}, stream);
 
