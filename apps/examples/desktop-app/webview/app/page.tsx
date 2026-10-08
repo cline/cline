@@ -206,6 +206,9 @@ function makeThreadId(): string {
 }
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
+// Over SSH every refresh is a fresh ssh login on the remote host; branch
+// switches made through the picker refresh immediately regardless.
+const REMOTE_GIT_BRANCH_REFRESH_INTERVAL_MS = 30_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
@@ -1794,7 +1797,9 @@ function ChatThreadPane({
 		};
 		const intervalId = window.setInterval(
 			refreshVisibleBranch,
-			GIT_BRANCH_REFRESH_INTERVAL_MS,
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+				? GIT_BRANCH_REFRESH_INTERVAL_MS
+				: REMOTE_GIT_BRANCH_REFRESH_INTERVAL_MS,
 		);
 		window.addEventListener("focus", refreshVisibleBranch);
 		document.addEventListener("visibilitychange", refreshVisibleBranch);
@@ -1803,7 +1808,7 @@ function ChatThreadPane({
 			window.removeEventListener("focus", refreshVisibleBranch);
 			document.removeEventListener("visibilitychange", refreshVisibleBranch);
 		};
-	}, [activeWorkspaceCwd, refreshGitBranch]);
+	}, [activeWorkspaceCwd, environmentId, refreshGitBranch]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);
