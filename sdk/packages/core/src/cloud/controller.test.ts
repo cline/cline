@@ -1091,7 +1091,7 @@ describe("CloudSessionController neutral host contract", () => {
 		["standard", "standard", undefined, true],
 		["resumable", "resumable", undefined, false],
 		["resumable metadata", undefined, "resumable", false],
-	] as const)("scopes automatic Git backups for %s sessions", async (_label, sandboxType, metadataType, autoPush) => {
+	] as const)("sets working directory context and Git backup policy for %s sessions", async (_label, sandboxType, metadataType, autoPush) => {
 		const f = fixture({ pendingInitialTasks: new Map([[record.id, {}]]) });
 		f.api.list.mockResolvedValue([
 			{
@@ -1103,10 +1103,16 @@ describe("CloudSessionController neutral host contract", () => {
 		f.setHasInner(false);
 		try {
 			await f.controller.send(record.id, "First prompt");
-			const { sessionConfig } = f.commands.find(
+			const { cwd, sessionConfig } = f.commands.find(
 				(c) => c.command === "session.create",
-			)!.payload as { sessionConfig: { systemPrompt: string } };
+			)!.payload as {
+				cwd: string;
+				sessionConfig: { cwd: string; systemPrompt: string };
+			};
 			const prompt = sessionConfig.systemPrompt;
+			expect(cwd).toBe("/workspace");
+			expect(sessionConfig.cwd).toBe(cwd);
+			expect(prompt).toContain(`Working directory: ${cwd}.`);
 			expect(prompt).toContain("branch `cline/inner`");
 			expect(prompt).toContain("never commit directly to the default branch");
 			expect(prompt).toContain("Do not force-push or amend commits");

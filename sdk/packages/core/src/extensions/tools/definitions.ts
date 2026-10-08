@@ -452,7 +452,7 @@ export function buildRunCommandsDescription(
 		const wrapper = `${executable} ${shellKind === "powershell" ? "-Command" : "/c"}`;
 		const sequencingOperator = shellKind === "powershell" ? "';'" : "'&&'";
 		return (
-			`Run non-interactive shell commands${isWindows ? " in Windows environment" : ""}. ` +
+			`Run non-interactive shell commands from the root of the workspace${isWindows ? " in Windows environment" : ""}. ` +
 			RUN_COMMANDS_SHARED_INSTRUCTIONS +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
 			`Commands run through ${shellName}; quote paths and arguments for ${executable} and use ${sequencingOperator} to sequence commands. ` +
@@ -469,7 +469,7 @@ export function buildRunCommandsDescription(
 				? "Commands run through a POSIX (bash-compatible) shell on Windows. "
 				: "";
 	return (
-		"Run non-interactive shell commands. " +
+		"Run non-interactive shell commands from the root of the workspace. " +
 		RUN_COMMANDS_SHARED_INSTRUCTIONS +
 		environmentNote +
 		"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
@@ -511,9 +511,7 @@ export function createShellTool(
 		typeof configShell === "function"
 			? configShell
 			: () => configShell ?? getDefaultShell(process.platform);
-	const describe = () =>
-		`Configured working directory: ${JSON.stringify(cwd)}. ` +
-		buildRunCommandsDescription(resolveShell(), isWindows);
+	const describe = () => buildRunCommandsDescription(resolveShell(), isWindows);
 
 	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
@@ -657,9 +655,7 @@ export function createApplyPatchTool(
 
 	return createTool<ApplyPatchInput, ToolOperationResult>({
 		name: "apply_patch",
-		description:
-			`Configured working directory: ${JSON.stringify(cwd)}. ` +
-			APPLY_PATCH_TOOL_DESC,
+		description: APPLY_PATCH_TOOL_DESC,
 		inputSchema: zodToJsonSchema(ApplyPatchInputSchema),
 		timeoutMs,
 		retryable: false,
@@ -710,7 +706,6 @@ export function createEditorTool(
 		name: "editor",
 		description:
 			"An editor for controlled filesystem edits on the text file at the provided path. " +
-			`Configured working directory: ${JSON.stringify(cwd)}. ` +
 			"Provide `insert_line` to insert `new_text` at a specific line number. " +
 			"Otherwise, the tool replaces `old_text` with `new_text`, or creates the file with `new_text` if file does not exist. " +
 			"Use this tool for making small, precise edits to existing files or creating new files over shell commands. If several edits to different files or non-overlapping regions are already known, emit multiple editor tool calls in the same response instead of serializing them across turns.",

@@ -402,19 +402,13 @@ Use the review guidance.`,
 	});
 
 	it("uses apply_patch instead of editor for codex/gpt model IDs in act mode", async () => {
-		const cwd = join(process.cwd(), "packages", "app");
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
-				cwd,
 				providerId: "openai",
 				modelId: "openai/gpt-5.4",
 				mode: "act",
 			}),
 		});
-
-		expect(
-			runtime.tools.find((tool) => tool.name === "apply_patch")?.description,
-		).toContain(JSON.stringify(cwd));
 
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names).toContain("apply_patch");
@@ -422,22 +416,14 @@ Use the review guidance.`,
 	});
 
 	it("keeps editor for non-codex/non-gpt model IDs in act mode", async () => {
-		const cwd = join(process.cwd(), "packages", "app");
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
-				cwd,
 				mode: "act",
-				toolPolicies: { run_commands: { enabled: false } },
 			}),
 		});
 
-		expect(
-			runtime.tools.find((tool) => tool.name === "editor")?.description,
-		).toContain(JSON.stringify(cwd));
-
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names).toContain("editor");
-		expect(names).not.toContain("run_commands");
 		expect(names).not.toContain("apply_patch");
 	});
 

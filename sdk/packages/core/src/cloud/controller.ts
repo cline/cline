@@ -2737,6 +2737,7 @@ export class CloudSessionController {
 			connection.remote.metadata.sandboxType === "resumable";
 		const systemPrompt =
 			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
+			`Working directory: ${cwd}.\n\n` +
 			`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
 			"(or check it out if it already exists), and never commit directly to the default branch. " +
 			(resumable
