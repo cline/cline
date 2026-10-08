@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
@@ -260,7 +260,7 @@ function DraftComposer({
 	threadId,
 	sendPrompt,
 }: {
-	drafts: Map<string, string>;
+	drafts: Map<string, PromptDraft>;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
 }) {
@@ -308,7 +308,9 @@ function DraftComposer({
 
 describe("ChatInputBar draft navigation", () => {
 	it("restores a failed send after the real composer acknowledges the external clear", async () => {
-		const drafts = new Map([["A", "Try again"]]);
+		const drafts = new Map<string, PromptDraft>([
+			["A", { text: "Try again", attachments: [], revision: 0 }],
+		]);
 		const response = deferred<boolean>();
 		await act(async () => {
 			root.render(
@@ -327,11 +329,11 @@ describe("ChatInputBar draft navigation", () => {
 		expect(container.querySelector("textarea")?.value).toBe("");
 		await act(async () => response.resolve(false));
 		expect(container.querySelector("textarea")?.value).toBe("Try again");
-		expect(drafts.get("A")).toBe("Try again");
+		expect(drafts.get("A")?.text).toBe("Try again");
 	});
 
 	it("restores typed text on return and does not restore it after sending", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new Map<string, PromptDraft>();
 		const showThread = async (threadId: string) => {
 			await act(async () => {
 				root.render(
