@@ -54,30 +54,41 @@ export function hasMetadataPatchOpts(
 }
 
 /**
- * Merges the delivery flags into `metadata.delivery`. Connectors deliver a
- * scheduled result only to a chat they can find from `threadId`,
- * `bindingKey` or `participantKey`, so a delivery without any of them is
- * rejected here instead of being saved and never delivered.
+ * Builds a schedule's metadata from the stored metadata, the
+ * `--metadata-json` object and the delivery flags, in that order of
+ * precedence. Connectors deliver a scheduled result only to a chat they can
+ * find from `threadId`, `bindingKey` or `participantKey`, so a delivery that
+ * the JSON or the flags set without any of them, or without an adapter, is
+ * rejected here instead of being saved and never delivered. A stored
+ * delivery that neither changes is kept as it is, and `"delivery": null`
+ * in the JSON removes it.
  */
-export function mergeScheduleMetadata(
-	base: Record<string, unknown> | undefined,
-	delivery: ScheduleDeliveryOptions,
-): Record<string, unknown> | undefined {
+export function mergeScheduleMetadata(input: {
+	stored?: Record<string, unknown>;
+	json?: Record<string, unknown>;
+	delivery: ScheduleDeliveryOptions;
+}): Record<string, unknown> | undefined {
+	const { stored, json, delivery } = input;
 	const adapter = delivery.deliveryAdapter?.trim();
 	const threadId = delivery.deliveryThread?.trim();
 	const userName = delivery.deliveryBot?.trim();
-	if (!adapter && !threadId && !userName) {
-		return base;
+	const flagsSetDelivery = !!(adapter || threadId || userName);
+	const jsonSetsDelivery = !!json && Object.hasOwn(json, "delivery");
+	if (!stored && !json && !flagsSetDelivery) {
+		return undefined;
 	}
-	const next = { ...(base ?? {}) };
-	const existingDelivery =
-		next.delivery &&
-		typeof next.delivery === "object" &&
-		!Array.isArray(next.delivery)
-			? (next.delivery as Record<string, unknown>)
-			: {};
+	const next = { ...(stored ?? {}), ...(json ?? {}) };
+	if (!flagsSetDelivery && !jsonSetsDelivery) {
+		return next;
+	}
+	if (jsonSetsDelivery && next.delivery !== null && !isObject(next.delivery)) {
+		throw new Error("metadata delivery must be an object or null");
+	}
+	if (!flagsSetDelivery && next.delivery === null) {
+		return next;
+	}
 	const merged: Record<string, unknown> = {
-		...existingDelivery,
+		...(isObject(next.delivery) ? next.delivery : {}),
 		...(adapter ? { adapter } : {}),
 		...(threadId ? { threadId } : {}),
 		...(userName ? { userName } : {}),
@@ -94,6 +105,10 @@ export function mergeScheduleMetadata(
 	}
 	next.delivery = merged;
 	return next;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function hasNonEmptyString(value: unknown): boolean {

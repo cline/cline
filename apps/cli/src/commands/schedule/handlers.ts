@@ -75,10 +75,10 @@ export function registerScheduleCommands(
 	createCmd.action(
 		action(async (name: string) => {
 			const opts = createCmd.opts();
-			const metadata = mergeScheduleMetadata(
-				parseJsonObjectFlag(opts.metadataJson),
-				opts,
-			);
+			const metadata = mergeScheduleMetadata({
+				json: parseJsonObjectFlag(opts.metadataJson),
+				delivery: opts,
+			});
 			const address = resolveAddress(opts.address);
 			const ensured = await ensureSchedulerHub(address, opts.workspace, io);
 			if (!ensured.ok) {

@@ -280,11 +280,11 @@ export function registerScheduleUpdateCommand(
 						fail();
 						return;
 					}
-					const metadataBase = {
-						...(current.metadata ?? {}),
-						...(parseJsonObjectFlag(opts.metadataJson) ?? {}),
-					};
-					metadata = mergeScheduleMetadata(metadataBase, opts);
+					metadata = mergeScheduleMetadata({
+						stored: current.metadata ?? {},
+						json: parseJsonObjectFlag(opts.metadataJson),
+						delivery: opts,
+					});
 				}
 				const updated = await client.updateSchedule(scheduleId, {
 					name: opts.name,
