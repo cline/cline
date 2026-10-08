@@ -82,9 +82,10 @@ import {
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
 import {
+	type SessionHostRecorder,
 	SessionRecorder,
 	sessionRecordingDir,
-} from "../../session/replay/session-recorder";
+} from "../../session/recording/session-recorder";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
@@ -245,7 +246,7 @@ function describeAbortReason(reason: unknown): string | null {
 
 function recordMistakeLimitDecisions(
 	decide: CoreSessionConfig["onConsecutiveMistakeLimitReached"],
-	recorder: SessionRecorder | undefined,
+	recorder: SessionHostRecorder | undefined,
 	getAgentId: () => string | undefined,
 ): CoreSessionConfig["onConsecutiveMistakeLimitReached"] {
 	if (!decide || !recorder) return decide;
@@ -1884,7 +1885,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		config: CoreSessionConfig;
 		getCompactionState: () => SessionCompactionState | undefined;
 		logger?: BasicLogger;
-	}): Promise<SessionRecorder | undefined> {
+	}): Promise<SessionHostRecorder | undefined> {
 		if (!this.recordSessions || input.config.recording?.enabled !== true) {
 			return undefined;
 		}

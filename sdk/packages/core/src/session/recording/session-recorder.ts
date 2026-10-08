@@ -2,22 +2,21 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-	AgentAfterToolContext,
-	AgentBeforeToolContext,
-	AgentMessage,
-	AgentModel,
-	AgentModelEvent,
-	AgentModelRequest,
-	AgentRuntimeEvent,
-	AgentToolResult,
-	BasicLogger,
-} from "@cline/shared";
 import {
+	type AgentAfterToolContext,
+	type AgentBeforeToolContext,
+	type AgentMessage,
+	type AgentModel,
+	type AgentModelEvent,
+	type AgentModelRequest,
+	type AgentRuntimeEvent,
+	type AgentToolResult,
+	type BasicLogger,
+	computeRecordedRequestMatchKey,
+	recordedToolDefinitions,
 	SESSION_RECORDING_DIR,
 	SESSION_RECORDING_FILES,
 	SESSION_RECORDING_FORMAT,
-	SESSION_RECORDING_MATCH_KEY_VERSION,
 	SESSION_RECORDING_VERSION,
 	type SessionRecordedEvent,
 	type SessionRecordedModelCall,
@@ -25,15 +24,15 @@ import {
 	type SessionRecordingHeader,
 	SessionRecordingHeaderSchema,
 	type SessionRecordingSegment,
-} from "./recording-schema";
+	TOOL_ENVIRONMENT_METADATA_KEY,
+	type ToolEnvironmentFacts,
+	type ToolEnvironmentFileFact,
+} from "@cline/shared";
 import {
 	classifyToolEnvironment,
 	collectRecordedEnv,
 	commandResultFacts,
 	hashFileFacts,
-	TOOL_ENVIRONMENT_METADATA_KEY,
-	type ToolEnvironmentFacts,
-	type ToolEnvironmentFileFact,
 	toolEnvironmentTargetPaths,
 } from "./tool-environment";
 
@@ -106,6 +105,29 @@ export interface SessionRuntimeRecorder {
 	onRuntimeEvent(event: AgentRuntimeEvent): void;
 	beforeTool(ctx: AgentBeforeToolContext): Promise<void>;
 	afterTool(ctx: AgentAfterToolContext): Promise<AgentToolResult | undefined>;
+}
+
+/**
+ * The recorder surface the runtime host, pending-prompt queue and hook audit
+ * log drive. {@link SessionRecorder} is the built-in implementation; it only
+ * appends raw records and never reads, validates or assembles bundles.
+ */
+export interface SessionHostRecorder extends SessionRuntimeRecorder {
+	startSegment(input: {
+		leadAgentId: string | null;
+		initialMessageCount: number;
+		mode?: string;
+		toolPolicies?: Record<string, unknown>;
+	}): void;
+	noteMode(
+		mode: string | undefined,
+		source: "turn" | "steer",
+		input?: SessionDecisionInput,
+	): void;
+	nextSeq(): number;
+	recordDecision(name: string, input?: SessionDecisionInput): number;
+	currentPosition(): { runId: string | null; iteration: number };
+	close(): Promise<void>;
 }
 
 interface PendingModelCall {
@@ -186,14 +208,6 @@ export function describeRecordedProvider(input: {
 	};
 }
 
-/** sha256 of a message's `[role, content]`: what the provider sees of it. */
-export function recordedMessageContentSha256(message: {
-	role: string;
-	content: unknown;
-}): string {
-	return sha256Hex(JSON.stringify([message.role, message.content]));
-}
-
 /**
  * A request message as stored in a `message` blob. The runtime rebuilds
  * request messages with fresh ids and timestamps for every model call and
@@ -229,40 +243,10 @@ function serializeRequestMessage(
 }
 
 /**
- * The key phase-3 replay pairs a live request with a recorded one by. Built
- * from content hashes only, so message ids, timestamps and metadata (all of
- * which differ between runs) do not affect it.
- */
-export function computeRecordedRequestMatchKey(input: {
-	systemPromptSha256: string | null;
-	toolsSha256: string;
-	messageContentSha256s: readonly string[];
-}): string {
-	return sha256Hex(
-		[
-			SESSION_RECORDING_MATCH_KEY_VERSION,
-			input.systemPromptSha256 ?? "",
-			input.toolsSha256,
-			...input.messageContentSha256s,
-		].join("\n"),
-	);
-}
-
-export function recordedToolDefinitions(
-	tools: AgentModelRequest["tools"],
-): Array<{ name: string; description: string; inputSchema: unknown }> {
-	return tools.map((tool) => ({
-		name: tool.name,
-		description: tool.description,
-		inputSchema: tool.inputSchema,
-	}));
-}
-
-/**
  * Writes one session's recording. Writes are buffered and appended in the
  * background; recording failures are logged and never fail the session.
  */
-export class SessionRecorder implements SessionRuntimeRecorder {
+export class SessionRecorder implements SessionHostRecorder {
 	readonly sessionId: string;
 	readonly dir: string;
 	private readonly cwd: string;

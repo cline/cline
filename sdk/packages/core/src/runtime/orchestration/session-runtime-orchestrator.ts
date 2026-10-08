@@ -67,7 +67,7 @@ import { toPersistedToolResultContent } from "../../session/persisted-tool-resul
 import {
 	describeRecordedProvider,
 	type SessionRuntimeRecorder,
-} from "../../session/replay/session-recorder";
+} from "../../session/recording/session-recorder";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,

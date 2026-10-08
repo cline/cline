@@ -8,30 +8,24 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-	AgentAfterToolContext,
-	AgentBeforeToolContext,
-	AgentMessage,
-	AgentModel,
-	AgentModelEvent,
-	AgentModelRequest,
-	AgentRuntimeEvent,
-} from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-	resolveRecordedRequestMessages,
+	type AgentAfterToolContext,
+	type AgentBeforeToolContext,
+	type AgentMessage,
+	type AgentModel,
+	type AgentModelEvent,
+	type AgentModelRequest,
+	type AgentRuntimeEvent,
+	computeRecordedRequestMatchKey,
+	recordedMessageContentSha256,
 	type SessionRecordedBlob,
 	type SessionRecordedEvent,
 	type SessionRecordedModelCall,
 	type SessionRecordingHeader,
-} from "./recording-schema";
-import {
-	computeRecordedRequestMatchKey,
-	describeRecordedProvider,
-	recordedMessageContentSha256,
-	SessionRecorder,
-} from "./session-recorder";
-import { TOOL_ENVIRONMENT_METADATA_KEY } from "./tool-environment";
+	TOOL_ENVIRONMENT_METADATA_KEY,
+} from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describeRecordedProvider, SessionRecorder } from "./session-recorder";
 
 let createdAt = 1_000;
 
@@ -93,34 +87,6 @@ const PROVIDER = describeRecordedProvider({
 	baseUrl: "https://user:secret-pass@llm.example.com/v1",
 	headers: { Authorization: "Bearer sk-header-secret", "X-Org": "org" },
 	maxTokensPerTurn: 1024,
-});
-
-describe("resolveRecordedRequestMessages", () => {
-	const record = (
-		callIndex: number,
-		messageCount: number,
-		messagePrefix: { callIndex: number; count: number } | null,
-		messageSha256s: string[],
-	) =>
-		({
-			callIndex,
-			request: { messageCount, messagePrefix, messageSha256s },
-		}) as unknown as SessionRecordedModelCall;
-
-	it("reports prefixes that name a missing call or overrun it", () => {
-		const { messages, errors } = resolveRecordedRequestMessages([
-			record(0, 1, null, ["a"]),
-			record(1, 3, { callIndex: 0, count: 2 }, ["b"]),
-			record(2, 2, { callIndex: 5, count: 1 }, ["c"]),
-			record(3, 4, { callIndex: 0, count: 1 }, ["d"]),
-		]);
-		expect([...messages.keys()]).toEqual([0]);
-		expect(errors).toEqual([
-			"model call 1 shares 2 messages with call 0, which has only 1",
-			"model call 2 shares 1 messages with call 5, which is not an earlier recorded call",
-			"model call 3 resolves to 2 messages but records messageCount 4",
-		]);
-	});
 });
 
 describe("SessionRecorder", () => {
@@ -271,10 +237,8 @@ describe("SessionRecorder", () => {
 			messagePrefix: { callIndex: 0, count: 1 },
 		});
 		expect(second?.request.messageSha256s).toHaveLength(1);
-		const resolved = resolveRecordedRequestMessages(records);
-		expect(resolved.errors).toEqual([]);
-		const [promptSha] = resolved.messages.get(0) ?? [];
-		expect(resolved.messages.get(1)?.[0]).toBe(promptSha);
+		expect(first?.request.messageSha256s).toHaveLength(1);
+		const [promptSha] = first?.request.messageSha256s ?? [];
 		const promptBlob = blobs.find((blob) => blob.sha256 === promptSha);
 		expect(promptBlob?.value).toEqual({
 			role: "user",
@@ -376,10 +340,6 @@ describe("SessionRecorder", () => {
 			[null, 1, 1],
 			[{ callIndex: 3, count: 1 }, 1, 2],
 		]);
-		const { messages, errors } = resolveRecordedRequestMessages(records);
-		expect(errors).toEqual([]);
-		expect(messages.get(2)).toEqual(messages.get(1));
-		expect(messages.get(4)?.[0]).toBe(messages.get(3)?.[0]);
 	});
 
 	it("counts attempts per run and iteration and flushes unlinked calls", async () => {

@@ -5,7 +5,7 @@ import type { BuiltRuntime } from "../runtime/orchestration/session-runtime";
 import type { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
 import type { SessionCompactionState } from "../session/models/session-compaction";
 import type { SessionRow } from "../session/models/session-row";
-import type { SessionRecorder } from "../session/replay/session-recorder";
+import type { SessionHostRecorder } from "../session/recording/session-recorder";
 import type { RootSessionArtifacts } from "../session/services/session-service";
 import type { SessionSource, SessionStatus } from "./common";
 import type { CoreAgentMode, CoreSessionConfig } from "./config";
@@ -37,7 +37,7 @@ export type ActiveSession = {
 	drainingPendingPrompts: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
 	/** Present while the session is being recorded for replay. */
-	recorder?: SessionRecorder;
+	recorder?: SessionHostRecorder;
 	turnUsageBaseline?: SessionAccumulatedUsage;
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;
