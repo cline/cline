@@ -201,6 +201,14 @@ const DiffView = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+const ProjectFilesPanel = dynamic(
+	() =>
+		import("@/components/views/chat/project-files-panel").then(
+			(module) => module.ProjectFilesPanel,
+		),
+	{ ssr: false },
+);
+
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -1219,6 +1227,11 @@ function ChatThreadPane({
 		writeWorkInToWindow(next);
 	}, []);
 	const [showDiffView, setShowDiffView] = useState(false);
+	const [showFilesPanel, setShowFilesPanel] = useState(false);
+	const toggleFilesPanel = useCallback(
+		() => setShowFilesPanel((current) => !current),
+		[],
+	);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2575,6 +2588,11 @@ function ChatThreadPane({
 		cloudSessionError?.code === "github_not_connected"
 			? cloudSessionError.connectUrl
 			: undefined;
+	// Cloud runs have no reachable workspace, and the welcome state has no
+	// session to browse alongside yet.
+	const canBrowseFiles =
+		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	const filesPanelVisible = canBrowseFiles && showFilesPanel;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -2583,7 +2601,11 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: filesPanelVisible
+							? // The panel is placed explicitly in column 2 spanning both
+								// rows, so the transcript and composer auto-flow into column 1.
+								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				disabled={isCloudSessionExpired}
 				description={
@@ -2612,6 +2634,8 @@ function ChatThreadPane({
 								onDeleteSession={requestDeleteSession}
 								onNewThread={onNewThread}
 								onOpenDiff={handleOpenDiff}
+								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
+								filesOpen={filesPanelVisible}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
 								status={headerStatus}
@@ -2721,6 +2745,15 @@ function ChatThreadPane({
 					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 				/>
+				{filesPanelVisible ? (
+					<ProjectFilesPanel
+						cwd={config.cwd || config.workspaceRoot}
+						environmentId={environmentId}
+						fileDiffs={fileDiffs}
+						onClose={toggleFilesPanel}
+						workspaceRoot={resolvedWorkspaceRoot}
+					/>
+				) : null}
 			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
