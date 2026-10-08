@@ -46,6 +46,7 @@ import {
 	sendEvent,
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
+import { readSessionManifest } from "./paths";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
@@ -1064,16 +1065,21 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 	const release = beginActiveSessionDelete(ctx, sessionId);
 	try {
 		const binding = getSessionRuntimeBinding(ctx);
-		const persisted = await binding.sessionManager
-			.get(sessionId)
-			.catch((error) => {
-				if (binding.kind !== "local") throw error;
-				// Local deletion remains available when the Hub is offline.
-				return undefined;
-			});
-		const metadata =
-			persisted?.metadata ??
-			(binding.kind === "local" ? readSessionMetadata(sessionId) : undefined);
+		let metadata: JsonRecord | undefined;
+		try {
+			const persisted = await binding.sessionManager.get(sessionId);
+			metadata =
+				persisted?.metadata ??
+				(binding.kind === "local" ? readSessionMetadata(sessionId) : undefined);
+		} catch (error) {
+			if (binding.kind !== "local") throw error;
+			const manifest = readSessionManifest(sessionId);
+			if (!manifest) throw error;
+			metadata =
+				manifest.metadata && typeof manifest.metadata === "object"
+					? (manifest.metadata as JsonRecord)
+					: undefined;
+		}
 		const handoff = readCloudHandoffMetadata(metadata);
 		if (!handoff && metadata?.cloudHandoffIntent) {
 			throw new Error(
