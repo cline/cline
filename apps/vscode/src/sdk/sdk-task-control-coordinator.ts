@@ -119,10 +119,17 @@ export class SdkTaskControlCoordinator {
 		Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 	}
 
-	async clearTask(): Promise<void> {
+	/**
+	 * Clears the task view under a new task-view generation and returns that
+	 * generation's fence. A caller installing a task next (a cloud open or
+	 * start) keeps this fence rather than claiming again after the await: a
+	 * selection made while the view was clearing must win over it.
+	 */
+	async clearTask(): Promise<() => boolean> {
 		// Supersede any in-flight showTaskWithId so it cannot re-install a task
 		// after the user cleared the view (e.g. clicked New Task).
 		const generation = ++this.taskViewGeneration
+		const isSuperseded = () => generation !== this.taskViewGeneration
 		this.options.interactions.clearPending("Task cleared")
 		await this.options.rebuilds.runTaskTransition(async () => {
 			if (generation !== this.taskViewGeneration) {
@@ -143,6 +150,7 @@ export class SdkTaskControlCoordinator {
 			await this.options.clearTaskSettings()
 			this.options.resetMessageTranslator()
 		})
+		return isSuperseded
 	}
 
 	/**
