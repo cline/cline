@@ -1056,16 +1056,34 @@ gets half that budget, bounding the combined wait to 7.5 seconds.
 
 ### Session recording
 
-`core/src/session/replay` owns opt-in session recording for replay. A session is
-recorded when `CoreSessionConfig.recording.enabled` is `true` (the CLI's
-`--record-session`), or when it is unset and the executing host's environment
-has `CLINE_RECORD_SESSIONS=1`; an explicit `false` wins. In hub mode the hub
-daemon is the executing host, so the config field travels with
-`session.create`/`session.restore` while the environment variable is read by the
-daemon process. `LocalRuntimeHost` opens one `SessionRecorder` per host start
-(a segment in `recording/recording.json`) and closes it on shutdown; recording
-never changes the messages file, manifest or hook logs except by adding the
-`recording/` directory, `seq` on hook audit lines, and tool-result metadata.
+`core/src/session/replay` owns opt-in session recording for replay. Recording
+happens only in the hub. A session is recorded when its
+`CoreSessionConfig.recording.enabled` is `true` and it runs on one of the hub's
+own `LocalRuntimeHost`s (the `session.create` host and the schedule host), which
+are constructed with `recordSessions: true`. Any other `LocalRuntimeHost` (local
+or `auto` fallback `ClineCore`, sandboxed CLI runs) refuses to start a session
+that asks for recording, so a recording is never written by a process the hub
+does not own.
+
+The switch is per-session config, never process environment:
+
+- Clients send `recording` in the session config of `session.create` and
+  `session.restore`, or as `runtimeOptions.recording` (the hub maps it onto the
+  session config the same way as `checkpointEnabled`).
+- Hub schedules keep `runtimeOptions.recording` in the schedule's stored
+  runtime options; the cron runner copies it onto each run's start request.
+- The CLI's `--record-session` ensures the hub daemon is running, then starts
+  the session on it with `recording.enabled`, even for yolo runs that would
+  otherwise run locally. It refuses sandboxed runs, `--acp`, and an explicit
+  non-hub `CLINE_SESSION_BACKEND_MODE`.
+
+The executing host opens one `SessionRecorder` per host start (a segment in
+`recording/recording.json`) and closes it on shutdown; recording never changes
+the messages file, manifest or hook logs except by adding the `recording/`
+directory, `seq` on hook audit lines, and tool-result metadata. Records are
+appended in the background after each model call and run end, so a reader that
+needs a finished run should wait for its `run_finished` event: events are
+appended after the requests of the same batch.
 
 The recorder observes the model adapter and runtime events rather than logs:
 
