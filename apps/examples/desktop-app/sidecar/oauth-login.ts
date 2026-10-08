@@ -45,14 +45,17 @@ async function loginProviderForDesktop(
 	existing: Parameters<typeof loginLocalProvider>[1],
 	openUrl: (url: string) => void,
 	onUserCode?: (userCode: string) => void,
+	signal?: AbortSignal,
 ): ReturnType<typeof loginLocalProvider> {
 	if (providerId !== "cline" && providerId !== "cline-pass") {
 		return loginLocalProvider(providerId, existing, openUrl);
 	}
-	const device = await startClineDeviceAuth();
+	const device = await startClineDeviceAuth({ signal });
+	signal?.throwIfAborted();
 	onUserCode?.(device.userCode);
 	openUrl(device.verificationUriComplete ?? device.verificationUri);
 	return completeClineDeviceAuth({
+		signal,
 		deviceCode: device.deviceCode,
 		expiresInSeconds: device.expiresInSeconds,
 		pollIntervalSeconds: device.pollIntervalSeconds,
@@ -94,10 +97,12 @@ export async function runCancellableProviderOAuthLogin(
 	const cancellation = new Promise<never>((_, reject) => {
 		rejectOnCancel = reject;
 	});
+	const controller = new AbortController();
 	const entry: PendingOAuthLogin = {
 		cancelled: false,
 		cancel: () => {
 			entry.cancelled = true;
+			controller.abort();
 			rejectOnCancel(new OAuthLoginCancelledError(providerId));
 		},
 		owner: options.owner,
@@ -109,7 +114,13 @@ export async function runCancellableProviderOAuthLogin(
 		// after cancellation is observed and cannot become an unhandled
 		// rejection that kills the sidecar.
 		const credentials = await Promise.race([
-			dependencies.login(providerId, existing, openUrl, options.onUserCode),
+			dependencies.login(
+				providerId,
+				existing,
+				openUrl,
+				options.onUserCode,
+				controller.signal,
+			),
 			cancellation,
 		]);
 		if (entry.cancelled) {

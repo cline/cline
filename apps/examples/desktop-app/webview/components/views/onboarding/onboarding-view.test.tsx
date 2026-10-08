@@ -694,7 +694,7 @@ describe("OnboardingView", () => {
 			{ provider: "cline" },
 			// The browser round-trip must get the extended OAuth deadline, not
 			// the default 120s command deadline (cline/cline#14201).
-			{ timeoutMs: 15 * 60_000 },
+			{ timeoutMs: 15 * 60_000, signal: expect.any(AbortSignal) },
 		);
 		expect(container.textContent).toContain("Connect GitHub");
 		await act(async () => {

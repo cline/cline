@@ -336,22 +336,40 @@ function ConnectStep({
 	onSkip: () => void;
 }) {
 	const { user, refreshAccount } = useAccount();
-	const {
-		signIn,
-		cancelSignIn,
-		signingIn,
-		cancelling,
-		error: signInError,
-	} = useClineSignIn();
+	const [signInPending, setSigningIn] = useState(false);
+	const oauth = useClineSignIn();
+	const signInAttemptRef = useRef(0);
+	const signingIn = signInPending || oauth.signingIn;
 	const deviceUserCode = useOAuthUserCode(signingIn);
+	const [signInError, setSignInError] = useState<string | null>(null);
 	const [clineApiKey, setClineApiKey] = useState("");
 	const [clineKeySaving, setClineKeySaving] = useState(false);
 	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
 
+	const cancelSignIn = async () => {
+		if (await oauth.cancelSignIn()) setSigningIn(false);
+	};
+
 	const signInWithCline = async () => {
-		if (await signIn()) {
+		const attempt = ++signInAttemptRef.current;
+		setSigningIn(true);
+		setSignInError(null);
+		try {
+			const result = await oauth.signIn();
+			if (!result.signedIn) return;
+			if (result.cancelled || signInAttemptRef.current !== attempt) {
+				void refreshAccount();
+				return;
+			}
 			rememberProviderSelection({ id: "cline" });
-			onConnected({ kind: "cline" });
+			await refreshAccount();
+			if (signInAttemptRef.current === attempt) onConnected({ kind: "cline" });
+		} catch (error) {
+			if (signInAttemptRef.current !== attempt) return;
+			setSignInError(getErrorMessage(error));
+		} finally {
+			invalidateProviderCatalogCache();
+			if (signInAttemptRef.current === attempt) setSigningIn(false);
 		}
 	};
 
@@ -573,10 +591,10 @@ function ConnectStep({
 								{signingIn && <Loader2 className="size-4 animate-spin" />}
 								{signingIn ? "Waiting for browser..." : "Sign in"}
 							</Button>
-							{signingIn ? (
+							{oauth.signingIn ? (
 								<Button
-									disabled={cancelling}
 									onClick={() => void cancelSignIn()}
+									disabled={oauth.cancelling}
 									size="md"
 									tone="neutral"
 									type="button"
@@ -605,12 +623,12 @@ function ConnectStep({
 							</span>
 						</p>
 					) : null}
-					{signInError ? (
+					{signInError || oauth.error ? (
 						<p
 							className="mt-6 ml-12 text-xs text-destructive max-[720px]:ml-0"
 							role="alert"
 						>
-							Sign in failed: {signInError}
+							Sign in failed: {signInError || oauth.error}
 						</p>
 					) : null}
 					{!user ? (

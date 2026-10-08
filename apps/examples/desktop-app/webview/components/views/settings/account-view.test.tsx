@@ -87,23 +87,18 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
-	it.each([
-		false,
-		true,
-	])("keeps retry available during account reload (already retrying: %s)", async (retryBeforeReload) => {
-		let rejectFirstSignIn!: (error: Error) => void;
-		const firstSignIn = new Promise((_, reject) => {
-			rejectFirstSignIn = reject;
-		});
-		let signInCount = 0;
-		let overviewCount = 0;
-		invoke.mockImplementation(async (command, args) => {
-			if (command === "run_provider_oauth_login" && ++signInCount === 1)
-				return await firstSignIn;
-			if (command === "run_provider_oauth_login")
-				return await new Promise(() => {});
-			if (args?.operation === "fetchMe" && ++overviewCount > 1)
-				return await new Promise(() => {});
+	it("restores Sign in after cancellation without reloading the overview", async () => {
+		let rejectLogin!: (error: Error) => void;
+		invoke.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			}
+			if (command === "cancel_provider_oauth_login") {
+				rejectLogin(new Error("Sign-in cancelled"));
+				return { cancelled: true };
+			}
 			return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
 		});
 		await act(async () => root.render(<AccountView />));
@@ -114,74 +109,24 @@ describe("AccountView signed-out state", () => {
 			if (!found) throw new Error(`Missing button: ${label}`);
 			return found;
 		};
-		expect(button("Create account").disabled).toBe(false);
 		await act(async () => button("Sign in").click());
 		expect(button("Signing in").disabled).toBe(true);
 		expect(container.textContent).not.toContain("Create account");
 		await act(async () => button("Cancel").click());
-		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
-			provider: "cline",
-		});
 		expect(button("Sign in").disabled).toBe(false);
 		expect(button("Create account").disabled).toBe(false);
-		if (retryBeforeReload) {
-			await act(async () => button("Sign in").click());
-		}
-		await act(async () => rejectFirstSignIn(new Error("Sign-in cancelled")));
-		expect(overviewCount).toBe(2);
-		if (!retryBeforeReload) {
-			expect(button("Sign in").disabled).toBe(false);
-			await act(async () => button("Sign in").click());
-		}
-		expect(button("Signing in").disabled).toBe(true);
+		expect(container.textContent).not.toContain("Sign-in cancelled");
+		expect(
+			invoke.mock.calls.filter(([command]) => command === "cline_account"),
+		).toHaveLength(1);
+		await act(async () => button("Sign in").click());
 		expect(button("Cancel").disabled).toBe(false);
-		await act(async () => button("Cancel").click());
 		expect(
 			invoke.mock.calls.filter(
-				([command]) => command === "cancel_provider_oauth_login",
+				([command]) => command === "run_provider_oauth_login",
 			),
 		).toHaveLength(2);
-	});
-
-	it("ignores an earlier account error after sign-in retry succeeds", async () => {
-		let rejectOldOverview!: (error: Error) => void;
-		const oldOverview = new Promise((_, reject) => {
-			rejectOldOverview = reject;
-		});
-		let signInCount = 0;
-		let overviewCount = 0;
-		invoke.mockImplementation(async (command, args) => {
-			if (command === "run_provider_oauth_login" && ++signInCount === 1)
-				throw new Error("Sign-in failed");
-			if (args?.operation === "fetchMe") {
-				if (++overviewCount === 1)
-					return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
-				if (overviewCount === 2) return await oldOverview;
-				return { displayName: "Beatrix", organizations: [] };
-			}
-			if (args?.operation === "fetchBalance") return { balance: 5_000_000 };
-			if (args?.operation === "fetchUserOrganizations") return [];
-			return {};
-		});
-		await act(async () => root.render(<AccountView />));
-		const signIn = () => {
-			const button = Array.from(container.querySelectorAll("button")).find(
-				(button) => button.textContent === "Sign in",
-			);
-			expect(button).toBeDefined();
-			button?.click();
-		};
-		await act(async () => signIn());
-		expect(overviewCount).toBe(2);
-		await act(async () => signIn());
-		expect(container.textContent).toContain("Beatrix");
-		expect(container.textContent).toContain("Sign Out");
-		await act(async () =>
-			rejectOldOverview(new Error("Account request failed with status 401")),
-		);
-		expect(container.textContent).toContain("Beatrix");
-		expect(container.textContent).toContain("Sign Out");
-		expect(container.textContent).not.toContain("Sign in to Cline");
+		await act(async () => button("Cancel").click());
 	});
 
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {

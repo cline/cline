@@ -5,20 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useClineSignIn } from "./use-cline-sign-in";
 
-const { invoke, refreshAccount, invalidateProviderCatalogCache } = vi.hoisted(
-	() => ({
-		invoke: vi.fn(),
-		refreshAccount: vi.fn(async () => undefined),
-		invalidateProviderCatalogCache: vi.fn(),
-	}),
-);
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
-vi.mock("@/contexts/account-context", () => ({
-	useAccount: () => ({ refreshAccount }),
-}));
-vi.mock("@/lib/provider-model-catalog", () => ({
-	invalidateProviderCatalogCache,
-}));
 
 function deferred() {
 	let resolve!: () => void;
@@ -67,7 +55,10 @@ describe("Cline sign-in", () => {
 		});
 		expect(login.cancelling).toBe(true);
 		await act(async () => {
-			expect(await login.signIn()).toBe(false);
+			expect(await login.signIn()).toEqual({
+				signedIn: false,
+				cancelled: true,
+			});
 		});
 		expect(invoke).toHaveBeenCalledTimes(2);
 		await act(async () => cancel.resolve());
@@ -80,7 +71,6 @@ describe("Cline sign-in", () => {
 		expect(login.error).toBeNull();
 		await act(async () => second.resolve());
 		expect(login.signingIn).toBe(false);
-		expect(refreshAccount).toHaveBeenCalledTimes(2);
 	});
 
 	it("keeps retry disabled if login rejects before cancel is acknowledged", async () => {
@@ -117,7 +107,10 @@ describe("Cline sign-in", () => {
 		expect(login.signingIn).toBe(true);
 		expect(login.cancelling).toBe(false);
 		await act(async () => {
-			expect(await login.signIn()).toBe(false);
+			expect(await login.signIn()).toEqual({
+				signedIn: false,
+				cancelled: true,
+			});
 			await login.cancelSignIn();
 		});
 		expect(invoke).toHaveBeenCalledTimes(3);
@@ -126,13 +119,13 @@ describe("Cline sign-in", () => {
 		await act(async () => pending.reject(new Error("cancelled")));
 	});
 
-	it("refreshes saved credentials without advancing setup when success races cancellation", async () => {
+	it("reports saved sign-in separately from cancellation", async () => {
 		const pending = deferred();
 		const cancel = deferred();
 		invoke
 			.mockReturnValueOnce(pending.promise)
 			.mockReturnValueOnce(cancel.promise);
-		let result!: Promise<boolean>;
+		let result!: ReturnType<typeof login.signIn>;
 		await act(async () => {
 			result = login.signIn();
 			void login.cancelSignIn();
@@ -142,33 +135,24 @@ describe("Cline sign-in", () => {
 		});
 		await act(async () => {
 			pending.resolve();
-			expect(await result).toBe(false);
+			expect(await result).toEqual({ signedIn: true, cancelled: true });
 		});
-		expect(invalidateProviderCatalogCache).toHaveBeenCalledOnce();
-		expect(refreshAccount).toHaveBeenCalledOnce();
 		expect(login.signingIn).toBe(false);
 	});
 
-	it("reports a login failure and permits retry while account refresh is pending", async () => {
-		const refresh = deferred();
-		refreshAccount.mockReturnValueOnce(refresh.promise);
+	it("throws login failures to the caller and permits another sign-in", async () => {
 		invoke
 			.mockRejectedValueOnce(new Error("Login failed"))
 			.mockResolvedValueOnce({});
 		await act(async () => {
-			void login.signIn();
+			await expect(login.signIn()).rejects.toThrow("Login failed");
 		});
-		expect(login.error).toBe("Login failed");
 		expect(login.signingIn).toBe(false);
-		expect(invalidateProviderCatalogCache).toHaveBeenCalledOnce();
-		expect(refreshAccount).toHaveBeenCalledOnce();
-		await act(async () => {
-			expect(await login.signIn()).toBe(true);
-		});
-		expect(login.error).toBeNull();
-		expect(refreshAccount).toHaveBeenCalledTimes(2);
-		await act(async () => refresh.resolve());
-		expect(login.signingIn).toBe(false);
-		expect(login.error).toBeNull();
+		await act(async () =>
+			expect(await login.signIn()).toEqual({
+				signedIn: true,
+				cancelled: false,
+			}),
+		);
 	});
 });

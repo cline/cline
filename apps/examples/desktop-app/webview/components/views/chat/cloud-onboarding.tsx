@@ -141,7 +141,7 @@ export function CloudOnboardingCard({
 								<LogIn aria-hidden="true" className="size-3.5" />
 								{signingIn ? "Waiting for browser…" : "Sign in with Cline"}
 							</Button>
-							{signingIn && (
+							{signingIn && onCancelSignIn && (
 								<Button
 									disabled={cancelling}
 									onClick={onCancelSignIn}

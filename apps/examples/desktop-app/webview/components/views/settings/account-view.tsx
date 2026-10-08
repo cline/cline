@@ -176,20 +176,17 @@ export function AccountView() {
 	>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
-	const overviewGenerationRef = useRef(0);
 	// Signed out is an expected state carried by a typed sidecar result (or a
 	// definitive auth error from older sidecars), tracked separately from
 	// failures so it renders the sign-in prompt instead of an error card.
 	const [signedOut, setSignedOut] = useState(false);
-	const [signingOut, setSigningOut] = useState(false);
-	const {
-		signIn: startSignIn,
-		cancelSignIn,
-		signingIn,
-		cancelling,
-		error: signInError,
-	} = useClineSignIn();
-	const deviceUserCode = useOAuthUserCode(signingIn);
+	const [accountActionPending, setAccountActionPending] = useState<
+		"sign-in" | "sign-out" | null
+	>(null);
+	const oauth = useClineSignIn();
+	const signInAttemptRef = useRef(0);
+	const signingIn = accountActionPending === "sign-in" || oauth.signingIn;
+	const deviceUserCode = useOAuthUserCode(oauth.signingIn);
 	// Organization id being switched to, "" while switching to the personal
 	// account, null when no switch is in flight.
 	const [switchTargetId, setSwitchTargetId] = useState<string | null>(null);
@@ -227,7 +224,6 @@ export function AccountView() {
 
 	// -- Overview fetch --
 	const loadOverview = useCallback(async () => {
-		const generation = ++overviewGenerationRef.current;
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
@@ -235,7 +231,6 @@ export function AccountView() {
 			// remaining account commands would just fail the same way, so they
 			// are never fired.
 			const userData = await fetchAccountUser();
-			if (generation !== overviewGenerationRef.current) return;
 			if (isClineAccountNotAuthenticatedResult(userData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -245,7 +240,6 @@ export function AccountView() {
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),
 			]);
-			if (generation !== overviewGenerationRef.current) return;
 			if (
 				isClineAccountNotAuthenticatedResult(balanceData) ||
 				isClineAccountNotAuthenticatedResult(orgsData)
@@ -259,7 +253,6 @@ export function AccountView() {
 			const organizationBalanceData = nextActiveOrganization
 				? await fetchOrganizationBalance(nextActiveOrganization.organizationId)
 				: null;
-			if (generation !== overviewGenerationRef.current) return;
 			if (isClineAccountNotAuthenticatedResult(organizationBalanceData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -271,7 +264,6 @@ export function AccountView() {
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
-			if (generation !== overviewGenerationRef.current) return;
 			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
 			if (isAccountAuthError(message)) {
@@ -280,8 +272,7 @@ export function AccountView() {
 				setOverviewError(message);
 			}
 		} finally {
-			if (generation === overviewGenerationRef.current)
-				setOverviewLoading(false);
+			setOverviewLoading(false);
 		}
 	}, [resetAccountData]);
 
@@ -289,14 +280,35 @@ export function AccountView() {
 		void loadOverview();
 	}, [loadOverview]);
 
+	const cancelSignIn = async () => {
+		if (await oauth.cancelSignIn()) setAccountActionPending(null);
+	};
+
 	const signIn = async () => {
+		const attempt = ++signInAttemptRef.current;
+		setAccountActionPending("sign-in");
 		setOverviewError(null);
-		if (await startSignIn()) setActiveTab("overview");
-		await loadOverview();
+		try {
+			const result = await oauth.signIn();
+			if (!result.signedIn || signInAttemptRef.current !== attempt) return;
+			await loadOverview();
+			setActiveTab("overview");
+		} catch (err) {
+			if (signInAttemptRef.current !== attempt) return;
+			const message = normalizeAccountViewError(err).message;
+			setOverviewError(message);
+			resetAccountData();
+		} finally {
+			// The login may have persisted credentials; drop the short-lived
+			// catalog cache so consumers reload them.
+			invalidateProviderCatalogCache();
+			if (signInAttemptRef.current === attempt) setAccountActionPending(null);
+			void refreshAccount();
+		}
 	};
 
 	const signOut = async () => {
-		setSigningOut(true);
+		setAccountActionPending("sign-out");
 		try {
 			await desktopClient.invoke("save_provider_settings", {
 				provider: "cline",
@@ -318,7 +330,7 @@ export function AccountView() {
 			setOverviewError(message);
 		} finally {
 			invalidateProviderCatalogCache();
-			setSigningOut(false);
+			setAccountActionPending(null);
 			void refreshAccount();
 		}
 	};
@@ -445,7 +457,6 @@ export function AccountView() {
 		: (balance?.balance ?? null);
 
 	const tabs = ["overview", "usage", "billing"] as const;
-	const overviewReady = !overviewLoading && !signingIn;
 
 	// -- Shared error / loading UI --
 
@@ -482,7 +493,7 @@ export function AccountView() {
 				<div className="flex flex-wrap items-center justify-center gap-2">
 					<button
 						type="button"
-						disabled={signingIn || signingOut}
+						disabled={accountActionPending !== null || oauth.signingIn}
 						onClick={() => void signIn()}
 						className="flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
 					>
@@ -493,10 +504,10 @@ export function AccountView() {
 						)}
 						{signingIn ? "Signing in" : "Sign in"}
 					</button>
-					{signingIn ? (
+					{oauth.signingIn ? (
 						<button
 							type="button"
-							disabled={cancelling}
+							disabled={oauth.cancelling}
 							onClick={() => void cancelSignIn()}
 							className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>
@@ -513,9 +524,9 @@ export function AccountView() {
 						</button>
 					)}
 				</div>
-				{signInError && (
+				{oauth.error && (
 					<p role="alert" className="text-sm text-destructive">
-						{signInError}
+						{oauth.error}
 					</p>
 				)}
 				{signingIn && deviceUserCode ? (
@@ -585,16 +596,16 @@ export function AccountView() {
 					user ? (
 						<button
 							type="button"
-							disabled={signingIn || signingOut}
+							disabled={accountActionPending !== null || oauth.signingIn}
 							onClick={() => void signOut()}
 							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>
-							{signingOut ? (
+							{accountActionPending === "sign-out" ? (
 								<Loader2 className="size-4 animate-spin" />
 							) : (
 								<LogOut className="size-4" />
 							)}
-							{signingOut ? "Signing Out" : "Sign Out"}
+							{accountActionPending === "sign-out" ? "Signing Out" : "Sign Out"}
 						</button>
 					) : undefined
 				}
@@ -631,10 +642,10 @@ export function AccountView() {
 			{/* Overview Tab */}
 			{activeTab === "overview" && (
 				<div className="flex flex-col gap-6">
-					{overviewLoading && !signingIn && !signedOut && renderLoading()}
-					{(signingIn || signedOut) && renderSignedOut()}
+					{overviewLoading && renderLoading()}
+					{!overviewLoading && signedOut && renderSignedOut()}
 					{overviewError && renderError(overviewError, loadOverview)}
-					{overviewReady && !signedOut && !overviewError && user && (
+					{!overviewLoading && !signedOut && !overviewError && user && (
 						<>
 							{/* User Profile Card */}
 							<div className="rounded-lg border border-border p-5">

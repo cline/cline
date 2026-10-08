@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useAccount } from "@/contexts/account-context";
 import { desktopClient } from "@/lib/desktop-client";
 import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
-import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 
 type SignInAttempt = {
 	cancelling: boolean;
 	settled: boolean;
+	controller: AbortController;
 };
 
 export function useClineSignIn() {
-	const { refreshAccount } = useAccount();
 	const [status, setStatus] = useState<"idle" | "pending" | "cancelling">(
 		"idle",
 	);
@@ -24,29 +22,34 @@ export function useClineSignIn() {
 		[],
 	);
 
-	async function signIn(): Promise<boolean> {
-		if (activeAttempt.current) return false;
-		const attempt = { cancelling: false, settled: false };
+	async function signIn(): Promise<{ signedIn: boolean; cancelled: boolean }> {
+		if (activeAttempt.current) return { signedIn: false, cancelled: true };
+		const attempt = {
+			cancelling: false,
+			settled: false,
+			controller: new AbortController(),
+		};
 		activeAttempt.current = attempt;
 		setStatus("pending");
 		setError(null);
 		try {
-			await desktopClient
-				.invoke(
-					"run_provider_oauth_login",
-					{ provider: "cline" },
-					{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-				)
-				.finally(invalidateProviderCatalogCache);
-			await refreshAccount();
-			return activeAttempt.current === attempt && !attempt.cancelling;
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{
+					timeoutMs: OAUTH_LOGIN_TIMEOUT_MS,
+					signal: attempt.controller.signal,
+				},
+			);
+			return {
+				signedIn: true,
+				cancelled: activeAttempt.current !== attempt || attempt.cancelling,
+			};
 		} catch (error) {
-			// Reconcile any saved credentials without delaying the error or retry.
-			void refreshAccount();
 			if (activeAttempt.current === attempt && !attempt.cancelling) {
-				setError(error instanceof Error ? error.message : String(error));
+				throw error;
 			}
-			return false;
+			return { signedIn: false, cancelled: true };
 		} finally {
 			attempt.settled = true;
 			if (activeAttempt.current === attempt && !attempt.cancelling) {
@@ -56,10 +59,11 @@ export function useClineSignIn() {
 		}
 	}
 
-	async function cancelSignIn(): Promise<void> {
+	async function cancelSignIn(): Promise<boolean> {
 		const attempt = activeAttempt.current;
-		if (!attempt || attempt.cancelling) return;
+		if (!attempt || attempt.cancelling) return false;
 		attempt.cancelling = true;
+		attempt.controller.abort();
 		setStatus("cancelling");
 		setError(null);
 		try {
@@ -71,6 +75,7 @@ export function useClineSignIn() {
 				activeAttempt.current = null;
 				setStatus("idle");
 			}
+			return true;
 		} catch (error) {
 			if (activeAttempt.current === attempt) {
 				setError(
@@ -79,6 +84,7 @@ export function useClineSignIn() {
 				if (attempt.settled) activeAttempt.current = null;
 				setStatus(attempt.settled ? "idle" : "pending");
 			}
+			return false;
 		} finally {
 			attempt.cancelling = false;
 		}
