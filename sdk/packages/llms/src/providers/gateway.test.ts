@@ -321,6 +321,68 @@ function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 }
 
 describe("sdk-gateway", () => {
+	it.each([
+		["unknown", "unknown"],
+		["other", "unknown"],
+		["unexpected", "unknown"],
+		["aborted", "unknown"],
+		[undefined, "unknown"],
+		["stop", "stop"],
+		["length", "max-tokens"],
+		["tool-calls", "tool-calls"],
+		["content-filter", "content-filter"],
+		["error", "error"],
+	])("preserves finish reason %s as %s", async (finishReason, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Partial" },
+				{ type: "finish", finishReason },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
+	});
+
+	it.each([
+		["stop", "stop"],
+		["unknown", "unknown"],
+		["length", "max-tokens"],
+		["content-filter", "content-filter"],
+		["error", "error"],
+	])("preserves %s as %s when a tool was streamed", async (finishReason, expected) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "echo-1",
+					toolName: "echo",
+					input: {},
+				},
+				{ type: "finish", finishReason },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: expected });
+	});
+
 	beforeEach(() => {
 		resetSdkErrorRateLimiterForTests();
 		streamTextSpy.mockReset();
@@ -3444,6 +3506,7 @@ describe("sdk-gateway", () => {
 			fullStream: makeStreamParts([
 				{
 					type: "finish",
+					finishReason: "stop",
 					usage: {
 						prompt_tokens: 9125,
 						completion_tokens: 96,
@@ -5772,8 +5835,11 @@ describe("sdk-gateway", () => {
 		{
 			providerId: "vercel-ai-gateway",
 			modelId: "alibaba/qwen3.6-plus",
-			providerOptionsKey: "vercel-ai-gateway",
-			aliasKey: "vercelAiGateway",
+			// Hyphenated openai-compatible ids are written under the camelCase
+			// alias only; the raw name would trigger the AI SDK deprecation
+			// warning on every chunk.
+			providerOptionsKey: "vercelAiGateway",
+			aliasKey: undefined,
 		},
 	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
 		providerId,
@@ -6223,12 +6289,13 @@ describe("sdk-gateway", () => {
 					vercelAiGateway: expect.objectContaining({
 						reasoning: { exclude: true },
 					}),
-					"vercel-ai-gateway": expect.objectContaining({
-						reasoning: { exclude: true },
-					}),
 				}),
 			}),
 		);
+		expect(
+			(streamTextSpy.mock.calls[3]?.[0] as { providerOptions?: object })
+				.providerOptions,
+		).not.toHaveProperty("vercel-ai-gateway");
 		// Unlisted GLM ids route explicit enablement through the portable
 		// top-level reasoning option instead of the routed include shape.
 		expect(streamTextSpy).toHaveBeenNthCalledWith(

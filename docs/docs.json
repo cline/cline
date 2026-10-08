@@ -112,6 +112,7 @@
 									"usage/cline-desktop-ssh"
 								]
 							},
+							"usage/cloud-agents",
 							"usage/ide",
 							"usage/tui",
 							{

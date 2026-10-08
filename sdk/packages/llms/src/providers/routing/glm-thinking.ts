@@ -4,7 +4,7 @@ import type {
 	GatewayStreamRequest,
 } from "@cline/shared";
 import { isGlmModel } from "../model-facts";
-import type { ProviderOptionsPatch } from "./utils";
+import { buildProviderAndAliasPatch, type ProviderOptionsPatch } from "./utils";
 
 /**
  * GLM thinking routing.
@@ -67,10 +67,11 @@ export function buildNativeGlmThinkingProviderOptionsPatch(
 	return nativeThinking
 		? {
 				openaiCompatible: nativeThinking,
-				[request.providerId]: nativeThinking,
-				...(providerOptionsKey !== request.providerId
-					? { [providerOptionsKey]: nativeThinking }
-					: {}),
+				...buildProviderAndAliasPatch({
+					providerId: request.providerId,
+					providerOptionsKey: providerOptionsKey,
+					bucketOptions: nativeThinking,
+				}),
 			}
 		: undefined;
 }
@@ -96,11 +97,10 @@ export function buildRoutedGlmReasoningProviderOptionsPatch(
 		openaiCompatible: routed,
 		...(options?.includeProviderBuckets === false
 			? {}
-			: {
-					[request.providerId]: routed,
-					...(providerOptionsKey !== request.providerId
-						? { [providerOptionsKey]: routed }
-						: {}),
-				}),
+			: buildProviderAndAliasPatch({
+					providerId: request.providerId,
+					providerOptionsKey: providerOptionsKey,
+					bucketOptions: routed,
+				})),
 	};
 }
