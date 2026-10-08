@@ -357,6 +357,12 @@ it("preserves A recovery while an edited B dispatches during A pending", async (
 		saved.draftId,
 	);
 	await Promise.resolve();
+	for (const action of ["restore", "dismiss"] as const) {
+		expect(() => updateCloudHandoffFollowUp("target", saved, action)).toThrow(
+			"Wait for the follow-up send to finish",
+		);
+		expect(readCloudHandoffFollowUp("target")).toEqual(saved);
+	}
 	// B is an edited dispatch reusing the restored draft identity. It must not
 	// overwrite A's pending recovery, even though it is allowed to dispatch.
 	const sendB = sendWithCloudHandoffFollowUp(
@@ -373,6 +379,13 @@ it("preserves A recovery while an edited B dispatches during A pending", async (
 		...saved,
 		unconfirmed: true,
 	});
+	expect(
+		updateCloudHandoffFollowUp(
+			"target",
+			{ ...saved, unconfirmed: true },
+			"restore",
+		),
+	).toEqual(saved);
 });
 
 it("leaves ordinary cloud sends without a recovery copy unchanged", async () => {

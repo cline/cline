@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -123,6 +123,38 @@ describe("deletion with an unavailable Hub", () => {
 		}
 		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
 			Boolean(error),
+		);
+	});
+
+	it.each([
+		"unreadable",
+		"missing",
+	])("refuses offline deletion with a %s manifest", async (state) => {
+		if (state === "unreadable") {
+			writeSessionManifest(sessionId, {});
+			writeFileSync(
+				join(dataDir, "sessions", sessionId, `${sessionId}.json`),
+				"{",
+			);
+		}
+		const offline = new Error("Hub unavailable");
+		const remove = vi.fn();
+		const ctx = Object.assign(
+			createSidecarContext("/workspace"),
+			localRuntimeContext({
+				get: vi.fn().mockRejectedValue(offline),
+				delete: remove,
+			}),
+		);
+		await expect(
+			handleCommand(ctx, "delete_chat_session", {
+				sessionId,
+				environmentId: "local",
+			}),
+		).rejects.toBe(offline);
+		expect(remove).not.toHaveBeenCalled();
+		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
+			state === "unreadable",
 		);
 	});
 
