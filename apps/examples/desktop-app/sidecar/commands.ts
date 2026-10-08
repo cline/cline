@@ -170,6 +170,11 @@ import {
 	getPluginCommandService,
 	warmPluginCommandService,
 } from "./plugin-commands";
+import {
+	getGitStatus,
+	listProjectEntries,
+	readProjectFile,
+} from "./project-files";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -2076,6 +2081,17 @@ export async function handleCommand(
 			typeof args?.path === "string" ? args.path : undefined,
 		);
 	}
+	// Project explorer: paths are confined to the session's workspace root so
+	// the webview cannot browse or read outside the folder the user opened.
+	if (command === "list_project_entries" || command === "read_project_file") {
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const root = String(args?.workspaceRoot ?? "").trim();
+		if (!root) throw new Error("workspaceRoot is required");
+		const path = String(args?.path ?? "").trim() || root;
+		return command === "list_project_entries"
+			? await listProjectEntries(ctx, binding, root, path)
+			: await readProjectFile(ctx, binding, root, path);
+	}
 
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -3482,6 +3498,17 @@ export async function handleCommand(
 			prewarmWorkspaceMetadata(cwd);
 		}
 		return { environmentId: binding.environmentId, branch };
+	}
+	if (command === "get_git_status") {
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		return await getGitStatus(
+			(gitArgs) => runGit(ctx, binding, cwd, gitArgs),
+			binding.environmentId,
+		);
 	}
 	if (command === "list_git_branches") {
 		const binding = getCommandRuntimeBinding(ctx, args);
