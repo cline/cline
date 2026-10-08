@@ -5,6 +5,7 @@ import {
 	Conversation,
 	ConversationContent,
 	ConversationScrollButton,
+	type ConversationScrollState,
 	ConversationViewport,
 	useConversation,
 } from "@cline/ui/components/agent-chat";
@@ -103,6 +104,11 @@ type AskQuestionRequestItem = {
 		iteration?: number;
 	};
 };
+
+// Switching sessions remounts the whole chat pane, so the reader's place in
+// each transcript has to outlive the component. In-memory is enough: the
+// expectation is "I come back to where I was", not "across restarts".
+const scrollStateBySession = new Map<string, ConversationScrollState>();
 
 function ChatMessagesImpl({
 	sessionId,
@@ -222,11 +228,15 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
+	const [readerPinned, setReaderPinned] = useState(true);
 	// The live run keeps rendering its rows while the session is active, and an
 	// interrupted run (cancelled/failed/error) keeps them too — even when Stop
 	// landed mid-answer and left partial trailing text — so the user can see
-	// where it stopped. Only a run the agent finished folds into a summary row.
-	const collapseTrailingRun = status === "completed" || status === "idle";
+	// where it stopped. Only a run the agent finished folds into a summary row,
+	// and only once the reader is back at the bottom: folding hundreds of px of
+	// rows out from under someone reading them is the jump this avoids.
+	const collapseTrailingRun =
+		(status === "completed" || status === "idle") && readerPinned;
 	const renderItems = useMemo(
 		() =>
 			collapseCompletedWork(groupChatMessages(messages), {
@@ -543,10 +553,21 @@ function ChatMessagesImpl({
 		[onForkSession],
 	);
 
+	const rememberScrollState = useCallback(
+		(state: ConversationScrollState) => {
+			if (sessionId) scrollStateBySession.set(sessionId, state);
+		},
+		[sessionId],
+	);
+
 	return (
 		<Conversation
 			className="relative isolate h-full min-h-0 min-w-0 overflow-hidden"
+			initialScrollState={
+				sessionId ? scrollStateBySession.get(sessionId) : undefined
+			}
 			key={sessionId ?? "new-chat"}
+			onScrollStateChange={rememberScrollState}
 		>
 			<ConversationViewport
 				aria-label="Agent conversation"
@@ -807,7 +828,11 @@ function ChatMessagesImpl({
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />
-			<AutoScrollOnSend messages={messages} />
+			<AutoScrollOnSend
+				isSessionSwitching={isSessionSwitching}
+				messages={messages}
+			/>
+			<ReaderPinnedSync onChange={setReaderPinned} />
 			{visibleExpandedImage ? (
 				<ChatImageLightbox
 					image={visibleExpandedImage}
@@ -895,12 +920,34 @@ function ChatMessagesImpl({
 export const ChatMessages = memo(ChatMessagesImpl);
 
 /**
+ * `ChatMessagesImpl` renders the `Conversation` and so cannot read its
+ * context; this child lifts the pinned flag back out to it.
+ */
+function ReaderPinnedSync({
+	onChange,
+}: {
+	onChange: (pinned: boolean) => void;
+}) {
+	const { isPinned } = useConversation();
+	useEffect(() => onChange(isPinned), [isPinned, onChange]);
+	return null;
+}
+
+/**
  * Sending a message returns the reader to the newest content: whenever a new
  * user message lands in the transcript, scroll to the bottom even if the user
  * had scrolled up. Keyed off the count (not the id) because optimistic user
  * bubbles are re-keyed to their runtime id, which must not re-trigger.
+ * A session loading its history also grows the count; that is not a send
+ * and must leave a restored scroll position alone.
  */
-function AutoScrollOnSend({ messages }: { messages: ChatMessage[] }) {
+function AutoScrollOnSend({
+	isSessionSwitching,
+	messages,
+}: {
+	isSessionSwitching: boolean;
+	messages: ChatMessage[];
+}) {
 	const { scrollToBottom } = useConversation();
 	const userMessageCount = useMemo(
 		() =>
@@ -912,11 +959,13 @@ function AutoScrollOnSend({ messages }: { messages: ChatMessage[] }) {
 	);
 	const previousCount = useRef(userMessageCount);
 	useEffect(() => {
-		if (userMessageCount > previousCount.current) {
+		const isSend =
+			!isSessionSwitching && userMessageCount === previousCount.current + 1;
+		if (isSend) {
 			scrollToBottom();
 		}
 		previousCount.current = userMessageCount;
-	}, [scrollToBottom, userMessageCount]);
+	}, [isSessionSwitching, scrollToBottom, userMessageCount]);
 	return null;
 }
 

@@ -1981,6 +1981,41 @@ describe("ChatMessages send auto-scroll", () => {
 			expect.objectContaining({ behavior: "smooth" }),
 		);
 	});
+
+	it("does not treat a single-turn session hydrating as a send", async () => {
+		await renderMessages([], { isSessionSwitching: true });
+		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
+		scrollTo.mockClear();
+
+		await renderMessages(baseMessages, { isSessionSwitching: true });
+		await renderMessages(baseMessages, { isSessionSwitching: false });
+		expect(scrollTo).not.toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+	});
+
+	it("does not treat a session hydrating from empty as a send", async () => {
+		await renderMessages([], { isSessionSwitching: true });
+		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
+		scrollTo.mockClear();
+
+		await renderMessages(
+			[
+				...baseMessages,
+				{
+					id: "user-2",
+					sessionId: "session-1",
+					role: "user",
+					content: "Second",
+					createdAt: 4_000,
+				},
+			],
+			{ isSessionSwitching: true },
+		);
+		expect(scrollTo).not.toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+	});
 });
 
 describe("ChatMessages work collapse", () => {
@@ -2047,6 +2082,27 @@ describe("ChatMessages work collapse", () => {
 
 		expect(container.querySelector(".cline-chat-work")).toBeNull();
 		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
+
+	it("waits until the reader is back at the bottom before folding a finished run", async () => {
+		await renderMessages(completedRun, { status: "running" });
+		const viewport = container.querySelector(
+			".cline-chat-conversation-viewport",
+		) as HTMLDivElement;
+		Object.defineProperties(viewport, {
+			clientHeight: { configurable: true, value: 100 },
+			scrollHeight: { configurable: true, value: 500 },
+			scrollTop: { configurable: true, value: 100, writable: true },
+		});
+		await act(async () => viewport.dispatchEvent(new Event("scroll")));
+
+		await renderMessages(completedRun, { status: "completed" });
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+
+		viewport.scrollTop = 400;
+		await act(async () => viewport.dispatchEvent(new Event("scroll")));
+		expect(container.querySelector(".cline-chat-work")).not.toBeNull();
 	});
 
 	it.each([

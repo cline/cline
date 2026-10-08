@@ -19,6 +19,7 @@ import {
 	ToolActivity,
 	ToolActivityContent,
 	ToolActivityTrigger,
+	useConversation,
 	WorkActivity,
 	WorkActivityContent,
 	WorkActivityTrigger,
@@ -329,9 +330,9 @@ describe("@cline/ui agent chat primitives", () => {
 		expect(button).not.toBeNull();
 
 		await act(async () => button.click());
-		expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 500 });
+		expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 400 });
 
-		viewport.scrollTop = 300;
+		viewport.scrollTop = 400;
 		await act(async () => viewport.dispatchEvent(new Event("scroll")));
 		expect(
 			container.querySelector('button[aria-label="Scroll to latest message"]'),
@@ -380,5 +381,370 @@ describe("@cline/ui agent chat primitives", () => {
 		expect(
 			container.querySelector('button[aria-label="Scroll to latest message"]'),
 		).toBeNull();
+	});
+
+	describe("scroll ownership", () => {
+		type MockViewport = HTMLDivElement & { scrollHeight: number };
+
+		function mockViewport(viewport: HTMLDivElement, scrollTop: number) {
+			const scrollTo = vi.fn(({ top }: ScrollToOptions) => {
+				viewport.scrollTop = top ?? 0;
+			});
+			Object.defineProperties(viewport, {
+				clientHeight: { configurable: true, value: 100 },
+				scrollHeight: { configurable: true, value: 500, writable: true },
+				scrollTop: { configurable: true, value: scrollTop, writable: true },
+				scrollTo: { configurable: true, value: scrollTo },
+			});
+			return scrollTo;
+		}
+
+		function stubResizeObserver() {
+			let callback: ResizeObserverCallback = () => {};
+			vi.stubGlobal(
+				"ResizeObserver",
+				class {
+					constructor(cb: ResizeObserverCallback) {
+						callback = cb;
+					}
+					observe() {}
+					disconnect() {}
+				},
+			);
+			return () => act(async () => callback([], {} as ResizeObserver));
+		}
+
+		function PinnedProbe() {
+			const { isPinned } = useConversation();
+			return <span data-testid="pinned">{String(isPinned)}</span>;
+		}
+		const pinned = () =>
+			container.querySelector('[data-testid="pinned"]')?.textContent;
+
+		const transcript = (
+			props: React.ComponentProps<typeof Conversation> = {},
+		) => (
+			<Conversation {...props}>
+				<ConversationViewport>
+					<ConversationContent>Long conversation</ConversationContent>
+				</ConversationViewport>
+				<ConversationScrollButton />
+				<PinnedProbe />
+			</Conversation>
+		);
+		const getViewport = () =>
+			container.querySelector(
+				".cline-chat-conversation-viewport",
+			) as MockViewport;
+
+		afterEach(() => vi.unstubAllGlobals());
+
+		it("un-pins on wheel-up before any scroll event arrives", async () => {
+			await render(transcript());
+			const viewport = getViewport();
+			mockViewport(viewport, 400);
+			expect(pinned()).toBe("true");
+
+			await act(async () =>
+				viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 })),
+			);
+			expect(pinned()).toBe("false");
+		});
+
+		it("re-pins only when the reader reaches the bottom, not on wheel-down", async () => {
+			await render(transcript());
+			const viewport = getViewport();
+			mockViewport(viewport, 400);
+			await act(async () =>
+				viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 })),
+			);
+			viewport.scrollTop = 200;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			expect(pinned()).toBe("false");
+
+			await act(async () =>
+				viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 })),
+			);
+			expect(pinned()).toBe("false");
+
+			viewport.scrollTop = 400;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			expect(pinned()).toBe("true");
+		});
+
+		it("reports the reader's scrolls and the pin from scrollToBottom, once each", async () => {
+			const onScrollStateChange = vi.fn();
+			await render(transcript({ onScrollStateChange }));
+			const viewport = getViewport();
+			mockViewport(viewport, 400);
+
+			viewport.scrollTop = 200;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			expect(onScrollStateChange).toHaveBeenCalledWith({
+				pinned: false,
+				scrollTop: 200,
+			});
+
+			onScrollStateChange.mockClear();
+			const button = container.querySelector(
+				'button[aria-label="Scroll to latest message"]',
+			) as HTMLButtonElement;
+			await act(async () => button.click());
+			expect(onScrollStateChange).toHaveBeenCalledTimes(1);
+			expect(onScrollStateChange).toHaveBeenCalledWith(
+				expect.objectContaining({ pinned: true }),
+			);
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			expect(onScrollStateChange).toHaveBeenCalledTimes(1);
+			expect(pinned()).toBe("true");
+		});
+
+		function mockRows(viewport: HTMLDivElement, rowTops: number[]) {
+			const rows = [...viewport.querySelectorAll("[data-row]")];
+			viewport.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+			rows.forEach((row, index) => {
+				row.getBoundingClientRect = () =>
+					({
+						top: rowTops[index] - viewport.scrollTop,
+						bottom: rowTops[index] + 100 - viewport.scrollTop,
+					}) as DOMRect;
+			});
+			return rows;
+		}
+
+		const rowTranscript = (
+			<Conversation>
+				<ConversationViewport>
+					<ConversationContent>
+						<div data-row="a" />
+						<div data-row="b" />
+						<div data-row="c" />
+					</ConversationContent>
+				</ConversationViewport>
+				<PinnedProbe />
+			</Conversation>
+		);
+
+		it("keeps the row under the reader still when content below them grows", async () => {
+			const fireResize = stubResizeObserver();
+			await render(rowTranscript);
+			const viewport = getViewport();
+			const scrollTo = mockViewport(viewport, 400);
+			const rowTops = [0, 100, 200];
+			mockRows(viewport, rowTops);
+
+			viewport.scrollTop = 120;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			expect(pinned()).toBe("false");
+			scrollTo.mockClear();
+
+			// Rows above and at the reader keep their document positions;
+			// only the transcript's total height changes.
+			viewport.scrollHeight = 900;
+			await fireResize();
+			expect(scrollTo).not.toHaveBeenCalled();
+		});
+
+		it("absorbs a height change above the reader into scrollTop", async () => {
+			const fireResize = stubResizeObserver();
+			await render(rowTranscript);
+			const viewport = getViewport();
+			const scrollTo = mockViewport(viewport, 400);
+			const rowTops = [0, 100, 200];
+			mockRows(viewport, rowTops);
+
+			viewport.scrollTop = 120;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			scrollTo.mockClear();
+
+			// Row "a" grows by 150px, pushing "b" (the anchor) down.
+			rowTops[1] += 150;
+			rowTops[2] += 150;
+			viewport.scrollHeight = 650;
+			await fireResize();
+			expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 270 });
+
+			// Row "a" collapses by 200px, pulling "b" up.
+			rowTops[1] -= 200;
+			rowTops[2] -= 200;
+			viewport.scrollHeight = 450;
+			await fireResize();
+			expect(scrollTo).toHaveBeenLastCalledWith({ behavior: "auto", top: 70 });
+			expect(pinned()).toBe("false");
+		});
+
+		it("anchors on the row being read even when the row list has siblings", async () => {
+			const fireResize = stubResizeObserver();
+			await render(
+				<Conversation>
+					<ConversationViewport>
+						<ConversationContent>
+							<div data-wrapper="column">
+								<div data-wrapper="list">
+									<div data-row="a" />
+									<div data-row="b" />
+									<div data-row="c" />
+								</div>
+								<div data-banner="reconnecting" />
+							</div>
+						</ConversationContent>
+					</ConversationViewport>
+					<PinnedProbe />
+				</Conversation>,
+			);
+			const viewport = getViewport();
+			const scrollTo = mockViewport(viewport, 400);
+			viewport.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+			const rowTops = [0, 100, 200];
+			const rows = [...viewport.querySelectorAll("[data-row]")];
+			rows.forEach((row, index) => {
+				row.getBoundingClientRect = () =>
+					({
+						top: rowTops[index] - viewport.scrollTop,
+						bottom: rowTops[index] + 100 - viewport.scrollTop,
+					}) as DOMRect;
+			});
+			// The wrappers and banner track the rows: column and list span all
+			// of them; the banner sits below the last row.
+			const column = viewport.querySelector(
+				'[data-wrapper="column"]',
+			) as Element;
+			const list = viewport.querySelector('[data-wrapper="list"]') as Element;
+			const banner = viewport.querySelector("[data-banner]") as Element;
+			const spanRows = () =>
+				({
+					top: rowTops[0] - viewport.scrollTop,
+					bottom: rowTops[2] + 100 - viewport.scrollTop,
+				}) as DOMRect;
+			list.getBoundingClientRect = spanRows;
+			column.getBoundingClientRect = () =>
+				({
+					top: rowTops[0] - viewport.scrollTop,
+					bottom: rowTops[2] + 140 - viewport.scrollTop,
+				}) as DOMRect;
+			banner.getBoundingClientRect = () =>
+				({
+					top: rowTops[2] + 100 - viewport.scrollTop,
+					bottom: rowTops[2] + 140 - viewport.scrollTop,
+				}) as DOMRect;
+
+			viewport.scrollTop = 120;
+			await act(async () => viewport.dispatchEvent(new Event("scroll")));
+			scrollTo.mockClear();
+
+			// Row "a" grows by 150px above the reader; the column's top did not
+			// move, so anchoring on the column would miss this entirely.
+			rowTops[1] += 150;
+			rowTops[2] += 150;
+			viewport.scrollHeight = 650;
+			await fireResize();
+			expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 270 });
+		});
+
+		it("ignores arrow keys aimed at a focused child control", async () => {
+			await render(
+				<Conversation>
+					<ConversationViewport>
+						<ConversationContent>
+							<button type="button">Copy</button>
+						</ConversationContent>
+					</ConversationViewport>
+					<PinnedProbe />
+				</Conversation>,
+			);
+			const viewport = getViewport();
+			mockViewport(viewport, 400);
+			const child = container.querySelector("button") as HTMLButtonElement;
+
+			await act(async () =>
+				child.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+				),
+			);
+			expect(pinned()).toBe("true");
+
+			await act(async () =>
+				viewport.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+				),
+			);
+			expect(pinned()).toBe("false");
+		});
+
+		it("waits to restore a remembered position until the transcript is tall enough", async () => {
+			const fireResize = stubResizeObserver();
+			await render(
+				transcript({ initialScrollState: { pinned: false, scrollTop: 800 } }),
+			);
+			const viewport = getViewport();
+			const scrollTo = mockViewport(viewport, 0);
+			expect(pinned()).toBe("false");
+
+			// Still hydrating: 500 - 100 = 400 reachable, target is 800.
+			await fireResize();
+			expect(scrollTo).not.toHaveBeenCalled();
+
+			viewport.scrollHeight = 1200;
+			await fireResize();
+			expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 800 });
+
+			// Applied once; later growth is anchored, not re-restored.
+			scrollTo.mockClear();
+			viewport.scrollHeight = 1400;
+			await fireResize();
+			expect(scrollTo).not.toHaveBeenCalledWith(
+				expect.objectContaining({ top: 800 }),
+			);
+		});
+
+		it("follows new content while pinned", async () => {
+			const fireResize = stubResizeObserver();
+			await render(transcript());
+			const viewport = getViewport();
+			const scrollTo = mockViewport(viewport, 400);
+			scrollTo.mockClear();
+
+			viewport.scrollHeight = 700;
+			await fireResize();
+			expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 600 });
+			expect(pinned()).toBe("true");
+		});
+
+		it("starts from a remembered position instead of the bottom", async () => {
+			// The mount effect reads geometry before the test can reach the
+			// viewport element, so the mocks have to live on the prototype.
+			const scrollTo = vi.fn(function (this: HTMLElement, o: ScrollToOptions) {
+				Object.defineProperty(this, "scrollTop", {
+					configurable: true,
+					value: o.top,
+					writable: true,
+				});
+			});
+			const proto = HTMLElement.prototype;
+			proto.scrollTo = scrollTo as typeof proto.scrollTo;
+			Object.defineProperty(proto, "clientHeight", {
+				configurable: true,
+				get: () => 100,
+			});
+			Object.defineProperty(proto, "scrollHeight", {
+				configurable: true,
+				get: () => 500,
+			});
+			try {
+				await render(
+					transcript({ initialScrollState: { pinned: false, scrollTop: 250 } }),
+				);
+				expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 250 });
+				expect(pinned()).toBe("false");
+				expect(
+					container.querySelector(
+						'button[aria-label="Scroll to latest message"]',
+					),
+				).not.toBeNull();
+			} finally {
+				Reflect.deleteProperty(proto, "clientHeight");
+				Reflect.deleteProperty(proto, "scrollHeight");
+			}
+		});
 	});
 });
