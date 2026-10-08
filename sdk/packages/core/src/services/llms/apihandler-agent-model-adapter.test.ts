@@ -95,6 +95,45 @@ describe("createAgentModelFromApiHandler", () => {
 		]);
 	});
 
+	it("coalesces per-chunk cumulative usage into a single final usage event", async () => {
+		// Some OpenAI-compatible providers (vLLM --enable-force-include-usage,
+		// ik_llama.cpp, z.ai) attach usage to EVERY streamed chunk with running
+		// totals. `ApiStreamUsageChunk` documents those values as the totals
+		// reported by the provider so far, so only the last snapshot is the
+		// request's usage — forwarding each one makes the runtime's cross-request
+		// accumulation multiply the request's tokens by the chunk count
+		// (https://github.com/cline/cline/issues/10148).
+		const handler = fakeHandler([
+			{ type: "text", text: "hello", id: "x" },
+			{ type: "usage", inputTokens: 13856, outputTokens: 133, id: "x" },
+			{ type: "usage", inputTokens: 13856, outputTokens: 134, id: "x" },
+			{ type: "usage", inputTokens: 13856, outputTokens: 136, id: "x" },
+			{ type: "done", success: true, id: "x" },
+		]);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+
+		const usageEvents = events.filter((e) => e.type === "usage");
+		expect(usageEvents).toHaveLength(1);
+		expect(usageEvents[0]).toEqual({
+			type: "usage",
+			usage: {
+				inputTokens: 13856,
+				outputTokens: 136,
+				cacheReadTokens: undefined,
+				cacheWriteTokens: undefined,
+				reasoningTokenCount: undefined,
+				totalCost: undefined,
+			},
+		});
+		// The single usage snapshot lands right before the terminal finish,
+		// matching the gateway/AI-SDK adapter's ordering.
+		expect(events.slice(-2)).toEqual([
+			usageEvents[0],
+			{ type: "finish", reason: "stop", error: undefined },
+		]);
+	});
+
 	it("maps tool_calls (object args) to a tool-call-delta event", async () => {
 		const handler = fakeHandler([
 			{
