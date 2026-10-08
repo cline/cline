@@ -83,8 +83,10 @@ export async function openWithCloudHandoffFollowUp(options: {
 	if (saved?.unconfirmed) {
 		// A stale copy of the uncertain send stays behind explicit Restore; a newer edit is the user's own draft.
 		const newerDraft =
-			options.initialPromptDraft?.trim() &&
-			options.initialPromptDraft.trim() !== saved.command.trim();
+			explicitRetry &&
+			((options.initialPromptDraft?.trim() ?? "") !== saved.command.trim() ||
+				!(await sameImages(options.initialAttachments ?? [], saved)));
+		if (!options.canOpen()) return false;
 		options.open(
 			newerDraft ? options.initialPromptDraft : undefined,
 			newerDraft ? options.initialAttachments : undefined,
@@ -106,6 +108,24 @@ export async function openWithCloudHandoffFollowUp(options: {
 	}
 	if (saved) {
 		options.delivered(saved.sourceSessionId);
+	}
+	return true;
+}
+
+async function sameImages(
+	files: File[],
+	saved: CloudHandoffFollowUp,
+): Promise<boolean> {
+	if (files.length !== saved.userImages.length) return false;
+	const original = cloudHandoffFollowUpAttachments(saved);
+	for (const [index, file] of files.entries()) {
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		const previous = new Uint8Array(await original[index].arrayBuffer());
+		if (
+			bytes.length !== previous.length ||
+			!bytes.every((value, offset) => value === previous[offset])
+		)
+			return false;
 	}
 	return true;
 }
