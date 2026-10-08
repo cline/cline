@@ -98,6 +98,7 @@ import {
 import {
 	createHandoffLifecycle,
 	type HandoffLifecycle,
+	type HandoffOpenResult,
 } from "@/lib/cloud-handoff-lifecycle";
 import {
 	type HandoffPreparation,
@@ -735,10 +736,27 @@ export default function Home() {
 			initialPromptDraft?: string,
 			initialAttachments?: File[],
 			expectedActiveThreadId?: string,
-		): Promise<boolean> => {
+		): Promise<HandoffOpenResult> => {
 			const revision = ++sessionOpenRevision.current;
 			const location = activeLocationRef.current;
-			const open = (draft?: string, attachments?: File[], draftId?: string) =>
+			let draftDelivered = false;
+			const open = (draft?: string, attachments?: File[], draftId?: string) => {
+				const targetThread = threads.find(
+					(thread) =>
+						thread.environmentId === session.environmentId &&
+						(thread.sessionId === session.sessionId ||
+							thread.historySession?.sessionId === session.sessionId),
+				);
+				const targetDraft = targetThread && promptDrafts.get(targetThread.id);
+				draftDelivered =
+					session.origin !== "cloud" ||
+					(draft === undefined && attachments === undefined) ||
+					!shouldPreserveCloudComposer(
+						targetDraft?.text ?? "",
+						targetDraft?.attachments.length ?? 0,
+						targetDraft?.lastRestoredFollowUpId,
+						draftId,
+					);
 				dispatchApp({
 					type: "open-session",
 					session,
@@ -747,12 +765,13 @@ export default function Home() {
 					initialAttachments: attachments,
 					initialHandoffFollowUpId: draftId,
 				});
+			};
 			if (session.origin !== "cloud") {
 				open(initialPromptDraft, initialAttachments);
-				return true;
+				return { opened: true, draftDelivered };
 			}
 			try {
-				return await openWithCloudHandoffFollowUp({
+				const opened = await openWithCloudHandoffFollowUp({
 					targetSessionId: session.sessionId,
 					initialPromptDraft,
 					initialAttachments,
@@ -765,19 +784,18 @@ export default function Home() {
 							activeLocationRef.current.view,
 						),
 					open,
-					delivered: (sourceSessionId) =>
-						dispatchHandoffUi({ type: "retry_delivered", sourceSessionId }),
 				});
+				return { opened, draftDelivered };
 			} catch (error) {
 				toast({
 					title: "Unable to restore cloud follow-up",
 					description: error instanceof Error ? error.message : String(error),
 					variant: "destructive",
 				});
-				return false;
+				return { opened: false, draftDelivered: false };
 			}
 		},
-		[],
+		[promptDrafts, threads],
 	);
 
 	const handleDeleteSession = useCallback(
@@ -933,7 +951,7 @@ export default function Home() {
 						initialAttachments?: File[];
 						expectedActiveThreadId?: string;
 				  } = {},
-		): Promise<boolean> => {
+		): Promise<HandoffOpenResult> => {
 			const options =
 				typeof optionsOrEnvironment === "string"
 					? { environmentId: optionsOrEnvironment }
@@ -946,7 +964,7 @@ export default function Home() {
 					activeLocationRef.current.view,
 				)
 			) {
-				return false;
+				return { opened: false, draftDelivered: false };
 			}
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
@@ -980,7 +998,7 @@ export default function Home() {
 						activeLocationRef.current.view,
 					)
 				) {
-					return false;
+					return { opened: false, draftDelivered: false };
 				}
 				if (
 					environmentId !== undefined &&
@@ -1006,7 +1024,7 @@ export default function Home() {
 						variant: "destructive",
 					});
 				}
-				return false;
+				return { opened: false, draftDelivered: false };
 			}
 		},
 		[handleOpenSession],
@@ -1433,7 +1451,7 @@ function ChatThreadPane({
 					initialPromptDraft?: string;
 					initialAttachments?: File[];
 			  },
-	) => boolean | Promise<boolean>;
+	) => HandoffOpenResult | Promise<HandoffOpenResult>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
 	) => Promise<string | null>;
@@ -2482,11 +2500,11 @@ function ChatThreadPane({
 			);
 			setPendingAttachments([]);
 			try {
-				const attachments = await serializeAttachments(sourceAttachments);
 				onHandoffUiAction({
 					type: "start",
 					sourceSessionId,
 				});
+				const attachments = await serializeAttachments(sourceAttachments);
 				const preflight = await prepareHandoffWithGit({
 					inspect: () =>
 						desktopClient.invoke<HandoffPreparation>("chat_session_command", {
@@ -3052,15 +3070,19 @@ function ChatThreadPane({
 				handoffUi && "retryAttachments" in handoffUi
 					? handoffUi.retryAttachments
 					: undefined;
-			const opened = await Promise.resolve(
+			const outcome = await Promise.resolve(
 				onOpenSessionById?.(receipt.targetSessionId, {
 					silent: true,
 					initialPromptDraft: retryDraft,
 					initialAttachments: retryAttachments,
 				}),
-			).catch(() => false);
-			if (opened) {
-				if (sourceSessionId && (retryDraft || retryAttachments?.length)) {
+			).catch(() => undefined);
+			if (outcome?.opened) {
+				if (
+					outcome.draftDelivered &&
+					sourceSessionId &&
+					(retryDraft || retryAttachments?.length)
+				) {
 					onHandoffUiAction({ type: "retry_delivered", sourceSessionId });
 				}
 				return;
