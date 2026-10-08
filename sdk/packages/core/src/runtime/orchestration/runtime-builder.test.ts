@@ -584,6 +584,123 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("rebuilds a server's tools when it signals notifications/tools/list_changed", async () => {
+		const tempRoot = mkdtempSync(
+			join(tmpdir(), "runtime-builder-mcp-refresh-"),
+		);
+		const serverPath = join(tempRoot, "mock-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+let listed = false;
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload) + "\\n");
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "mock", version: "1.0.0" } } });
+    return;
+  }
+  if (message.method === "tools/list") {
+    const echo = { name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: { value: { type: "string" } }, required: [] } };
+    const tools = listed
+      ? [echo, { name: "beta", description: "Beta tool registered mid-session", inputSchema: { type: "object", properties: {}, required: [] } }]
+      : [echo];
+    write({ jsonrpc: "2.0", id: message.id, result: { tools } });
+    if (!listed) {
+      listed = true;
+      write({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+    }
+    return;
+  }
+  if (message.method === "tools/call") {
+    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\n");
+    if (separator < 0) break;
+    const line = buffer.slice(0, separator).trim();
+    buffer = buffer.slice(separator + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						mock: {
+							command: process.execPath,
+							args: [serverPath],
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			// The session builds with the pre-change tool set.
+			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
+			expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+				"mock__beta",
+			);
+
+			const refreshCalls: Array<{
+				previous: readonly AgentTool[];
+				next: readonly AgentTool[];
+			}> = [];
+			runtime.registerLeadAgent?.({
+				addTools: () => {},
+				refreshTools: (previous, next) => {
+					refreshCalls.push({ previous: [...previous], next: [...next] });
+				},
+			});
+
+			// The notification landed before the lead agent existed; registering
+			// the agent flushes the queued change, re-listing the server.
+			const deadline = Date.now() + 10_000;
+			while (refreshCalls.length === 0 && Date.now() < deadline) {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+			expect(refreshCalls).toHaveLength(1);
+			expect(refreshCalls[0]?.previous.map((tool) => tool.name)).toEqual([
+				"mock__echo",
+			]);
+			expect(refreshCalls[0]?.next.map((tool) => tool.name)).toEqual([
+				"mock__echo",
+				"mock__beta",
+			]);
+		} finally {
+			await runtime?.shutdown("test");
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+		}
+	});
+
 	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {
 		const tempRoot = realpathSync.native(
 			mkdtempSync(join(tmpdir(), "runtime-builder-agent-plugin-")),

@@ -212,3 +212,67 @@ describe("InMemoryMcpManager", () => {
 		expect(clientFactory).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("InMemoryMcpManager tools list_changed", () => {
+	it("registers onToolsChanged on connect, invalidates the cache, and notifies", async () => {
+		const toolDescriptors: readonly McpToolDescriptor[] = [
+			{
+				name: "echo",
+				inputSchema: { type: "object", properties: {} },
+			},
+		];
+		let signalToolsChanged: (() => void) | undefined;
+		const client = createClient({
+			listTools: vi.fn(async () => toolDescriptors),
+			onToolsChanged: vi.fn((handler: () => void) => {
+				signalToolsChanged = handler;
+			}),
+		});
+		const onToolsChanged = vi.fn();
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () => client,
+			toolsCacheTtlMs: 60_000,
+			onToolsChanged,
+		});
+
+		await manager.registerServer({
+			name: "docs",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.example.test",
+			},
+		});
+
+		// Connecting eagerly (the session does this via connectServer) is what
+		// registers the client-side notification handler.
+		await manager.connectServer("docs");
+		expect(signalToolsChanged).toBeTypeOf("function");
+
+		// Cache primed; within the TTL a second listTools would not re-list.
+		await manager.listTools("docs");
+		expect(client.listTools).toHaveBeenCalledTimes(1);
+
+		// The server signals notifications/tools/list_changed.
+		signalToolsChanged?.();
+
+		expect(onToolsChanged).toHaveBeenCalledTimes(1);
+		expect(onToolsChanged).toHaveBeenCalledWith("docs");
+		// The invalidated cache forces a real re-list despite the long TTL.
+		const tools = await manager.listTools("docs");
+		expect(client.listTools).toHaveBeenCalledTimes(2);
+		expect(tools).toEqual(toolDescriptors);
+	});
+
+	it("keeps working when the client does not support onToolsChanged", async () => {
+		const client = createClient();
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () => client,
+			onToolsChanged: vi.fn(),
+		});
+		await manager.registerServer({
+			name: "plain",
+			transport: { type: "stdio", command: "node" },
+		});
+		await expect(manager.connectServer("plain")).resolves.toBeUndefined();
+	});
+});

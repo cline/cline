@@ -41,6 +41,16 @@ import type { CoreSessionConfig } from "../../types/config";
  */
 type LeadAgentHandle = {
 	addTools(tools: AgentTool[]): unknown;
+	/**
+	 * Swap one coherent tool subset for another in every subsequent turn's
+	 * runtime config: tools named in `previous` are removed, then `next`
+	 * is appended (a name present in both is replaced). Optional so
+	 * handles that never refresh tools can omit it.
+	 */
+	refreshTools?(
+		previous: readonly AgentTool[],
+		next: readonly AgentTool[],
+	): unknown;
 };
 
 export interface BuiltRuntime {
