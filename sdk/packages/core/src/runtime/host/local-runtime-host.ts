@@ -1204,15 +1204,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 						modelId: active.config.modelId,
 					},
 				});
-				try {
-					await this.failSession(active);
-				} catch (cleanupError) {
-					// Never let cleanup failures mask the error that actually
-					// killed the turn; that one is what callers must see.
-					active.config.logger?.error?.("Session failure cleanup threw", {
-						sessionId: active.sessionId,
-						error: cleanupError,
-					});
+				// A session that is shutting down already has its status and
+				// end event owned by that teardown; a second one through
+				// failSession would record "failed" over its "cancelled". The
+				// failure itself still reaches the caller.
+				if (!active.shuttingDown) {
+					try {
+						await this.failSession(active);
+					} catch (cleanupError) {
+						// Never let cleanup failures mask the error that actually
+						// killed the turn; that one is what callers must see.
+						active.config.logger?.error?.("Session failure cleanup threw", {
+							sessionId: active.sessionId,
+							error: cleanupError,
+						});
+					}
 				}
 				throw error;
 			}
@@ -1348,7 +1354,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 					modelId: session.config.modelId,
 				},
 			});
-			await this.failSession(session);
+			if (!session.shuttingDown) {
+				await this.failSession(session);
+			}
 			throw error;
 		}
 	}
@@ -2046,7 +2054,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// Teardown may have started during the awaits above. It only aborts a
 		// run that is already in progress, so this turn has to stop itself.
 		if (session.shuttingDown) {
-			throw new Error("session is shutting down");
+			return this.abortedTurnResult(session, {
+				messages: session.agent.getMessages(),
+				usage: createInitialAccumulatedUsage(),
+				endedAt: new Date(),
+			});
 		}
 
 		try {
@@ -2164,10 +2176,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		queueMicrotask(() => {
 			void this.pendingPromptsController.drain(session.sessionId);
 		});
+		return this.abortedTurnResult(session, { messages, usage, endedAt });
+	}
+
+	private abortedTurnResult(
+		session: ActiveSession,
+		input: {
+			messages: AgentResult["messages"];
+			usage: AgentResult["usage"];
+			endedAt: Date;
+		},
+	): AgentResult {
 		return {
 			text: "",
-			usage,
-			messages,
+			usage: input.usage,
+			messages: input.messages,
 			toolCalls: [],
 			iterations: 0,
 			finishReason: "aborted",
@@ -2175,8 +2198,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				id: session.config.modelId,
 				provider: session.config.providerId,
 			},
-			startedAt: endedAt,
-			endedAt,
+			startedAt: input.endedAt,
+			endedAt: input.endedAt,
 			durationMs: 0,
 		};
 	}
@@ -2571,6 +2594,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
+		// Teardown aborted this run and already owns the session's status and
+		// end event; a second shutdown here would emit them again.
+		if (session.shuttingDown) return;
 		const isAborted = finishReason === "aborted" || session.aborting;
 		const isError = finishReason === "error";
 		await this.shutdownSession(session, {
