@@ -1,16 +1,17 @@
-import type { MermaidConfig } from "mermaid";
+import { cssColorToHex } from "./color.js";
+import { UI_TIMING } from "./config.js";
 import {
-	buildMermaidConfig,
-	cssColorToHex,
 	encodePngWithinLimit,
+	prepareSvgForRaster,
+	resolvePngDesiredScale,
+} from "./png.js";
+import {
 	FALLBACK_MERMAID_TOKENS,
 	type MermaidColorMode,
 	type MermaidThemeTokens,
 	normalizeMermaidTokens,
-	prepareSvgForRaster,
 	resolveMermaidFontFamily,
-	resolvePngDesiredScale,
-} from "./mermaid-diagram.js";
+} from "./theme.js";
 
 /**
  * Browser-only glue for the owned Mermaid block: samples the live Cline design
@@ -19,7 +20,6 @@ import {
  * to import in Node; DOM access happens only inside the functions.
  */
 
-// Custom property backing each Mermaid theme token.
 const TOKEN_VARIABLES = {
 	background: "--card",
 	border: "--border",
@@ -137,12 +137,6 @@ export function readMermaidTheme(element?: Element): ResolvedMermaidTheme {
 	};
 }
 
-/** Themed Mermaid config for the tokens currently in effect. */
-export function resolveThemedMermaidConfig(element?: Element): MermaidConfig {
-	const { fontFamily, mode, tokens } = readMermaidTheme(element);
-	return buildMermaidConfig(tokens, mode, { fontFamily });
-}
-
 /**
  * Calls `onChange` when light/dark, the accent palette, or inline token
  * overrides change on the document root. Returns a cleanup function.
@@ -162,17 +156,16 @@ export function observeThemeChanges(onChange: () => void): () => void {
 	return () => observer.disconnect();
 }
 
-const FONT_WAIT_MS = 1500;
-
 /**
  * Waits (bounded) for web fonts so Mermaid measures text with Inter rather
- * than a fallback face. Never rejects and never blocks longer than 1.5s.
+ * than a fallback face. Never rejects and never blocks longer than
+ * `UI_TIMING.fontWaitMs`.
  */
 export async function waitForFonts(): Promise<void> {
 	if (typeof document === "undefined" || !document.fonts) return;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const timeout = new Promise<void>((resolve) => {
-		timer = setTimeout(resolve, FONT_WAIT_MS);
+		timer = setTimeout(resolve, UI_TIMING.fontWaitMs);
 	});
 	try {
 		await Promise.race([document.fonts.ready.then(() => undefined), timeout]);
@@ -262,8 +255,6 @@ function encodeCanvasPng(
 	});
 }
 
-const REVOKE_DELAY_MS = 1000;
-
 /**
  * Anchor+blob download (same mechanism as Streamdown's built-in exports). The
  * object URL is revoked shortly after the click: revoking synchronously can
@@ -279,7 +270,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 		anchor.click();
 		document.body.removeChild(anchor);
 	} finally {
-		setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
+		setTimeout(() => URL.revokeObjectURL(url), UI_TIMING.revokeUrlDelayMs);
 	}
 }
 
