@@ -57,13 +57,39 @@ on:
 permissions: {}
 
 jobs:
-  analyze:
-    # Runs for @cline mentions on issues, not pull requests, from people with
-    # write access to the repository.
+  authorize:
+    # Runs for @cline mentions on issues, not pull requests.
     if: |
       contains(github.event.comment.body, '@cline') &&
-      !github.event.issue.pull_request &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Read-only, and uses no secrets.
+    permissions:
+      contents: read
+
+    outputs:
+      allowed: ${{ steps.check.outputs.allowed }}
+
+    steps:
+      # Checks the comment's author, not whoever edited it last, so that
+      # editing someone else's comment doesn't start Cline on their text.
+      - name: Check that the comment's author can write to the repository
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          PERMISSION=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$AUTHOR/permission" --jq .permission)
+          echo "$AUTHOR has $PERMISSION permission"
+          if [ "$PERMISSION" = admin ] || [ "$PERMISSION" = write ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  analyze:
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-latest
     environment: cline-actions
     timeout-minutes: 30
@@ -72,9 +98,6 @@ jobs:
     permissions:
       contents: read
       issues: read
-
-    env:
-      CLINE_DIR: ${{ runner.temp }}/cline
 
     steps:
       - name: Checkout repository
@@ -139,10 +162,11 @@ jobs:
 ```
 </Accordion>
 
-The workflow has two jobs, so that the job that runs Cline can't change your repository or your issues:
+The workflow has three jobs, so that only people who can write to the repository can start Cline, and the job that runs Cline can't change your repository or your issues:
 
-1. **`analyze`** runs when someone with write access to the repository mentions `@cline` in an issue comment. It gets a read-only token, runs the analysis script from your repository, and saves Cline's answer to a file.
-2. **`post`** gets permission to write issues, but doesn't check out code or run Cline. It posts the file as a comment on the issue.
+1. **`authorize`** runs when someone mentions `@cline` in an issue comment. It looks up the comment author's permission on the repository, and the workflow stops unless they can write to it. GitHub reports the maintain role as write.
+2. **`analyze`** gets a read-only token, runs the analysis script from your repository, and saves Cline's answer to a file.
+3. **`post`** gets permission to write issues, but doesn't check out code or run Cline. It posts the file as a comment on the issue.
 
 ### 2. Configure API Keys
 
@@ -201,6 +225,9 @@ fi
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
 
+# Fail if Cline fails, not only if jq does
+set -o pipefail
+
 # Ask Cline for its analysis, showing only the summary
 cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
     jq -r 'select(.type == "run_result") | .text'
@@ -244,7 +271,7 @@ comments, and only for comments from people with write access to the repository.
 The workflow (`cline-responder.yml`):
 
 1. **Triggers** on issue comments (created or edited) that mention `@cline`
-2. **Checks** that the commenter has write access to the repository
+2. **Checks** that the comment's author can write to the repository
 3. **Installs** Cline CLI globally using npm
 4. **Configures** authentication using `cline auth --provider openrouter --apikey ... --modelid ...`
 5. **Runs** `git-scripts/analyze-issue.sh` from your repository, which runs Cline in Act mode with auto-approval

@@ -16,7 +16,7 @@ When Cline uses the `spawn_agent` tool, it starts a subagent. Each one:
 
 - Gets its own instructions and task from the main agent
 - Runs with a separate context window
-- Has Cline's built-in tools for the current mode: in Act mode it can read and edit files and run commands, and in Plan mode it can't edit files. It can start subagents of its own. It doesn't get MCP tools.
+- Has Cline's built-in tools for the current mode. In Act mode it can read and edit files and run commands. In Plan mode it has no tools for editing files, and Cline refuses shell commands that usually change files, such as `rm` and `git commit`. Other commands still run, and some of them, such as `python -c`, can write files. A subagent can start subagents of its own. It doesn't get MCP tools.
 - Returns its final reply to the main agent
 
 The main agent waits for its subagents, then continues. Their token use and cost are added to the session's total.
@@ -44,7 +44,7 @@ Example prompts:
 - "Spin up subagents to investigate the API routes, the test setup, and the deployment config"
 - "I'm new to this codebase. Use subagents to map out the main entry points, the routing layer, and the data access patterns"
 
-Give each subagent one focused question. To keep subagents from changing files, ask for research only, or work in Plan mode.
+Give each subagent one focused question. Asking for research only, and working in Plan mode, make subagents less likely to change files, but neither stops every change.
 
 ## When to Use Subagents
 

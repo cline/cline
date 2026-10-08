@@ -21,7 +21,7 @@ Models differ in what they do well. Security analysis in particular benefits fro
 
 ## Pattern 1: CI/CD Code Review
 
-The [GitHub PR Review](/cli/samples/github-pr-review) sample runs Cline CLI in GitHub Actions to review every pull request. Its `cline auth` step picks the model, so you can give the review job a stronger model than the rest of your automation.
+The [GitHub PR Review](/cli/samples/github-pr-review) sample runs Cline CLI in GitHub Actions to review pull requests, except drafts and pull requests from forks or Dependabot. Its `cline auth` step picks the model, so you can give the review job a stronger model than the rest of your automation.
 
 ## Pattern 2: Task Phase Optimization
 
@@ -30,6 +30,9 @@ Use different models for different phases of work. Route simple tasks to cheap m
 ### Example: Issue Analysis Pipeline
 
 ```bash
+# Stop if any command, including a cline run, fails
+set -euo pipefail
+
 # Print only Cline's final answer from --json output
 final_answer() { jq -r 'select(.type == "run_result") | .text'; }
 
@@ -51,6 +54,8 @@ echo "$PLAN" | cline --auto-approve true --config ~/.cline-sonnet \
 
 <Note>
 Without `--json`, the CLI also prints the model's thinking, and the next phase would read it as part of its input. `--json` with `final_answer` keeps only the answer. Each `cline` command must finish before the next phase starts, so store each result in a shell variable rather than piping one `cline` command into the next.
+
+When a run fails, `cline` exits with an error, but `final_answer` still prints the error message. `set -euo pipefail` stops the script there, so that the error message doesn't become the next phase's input.
 </Note>
 
 **Cost impact** (Anthropic list prices per million input tokens, from the model catalog Cline ships):
@@ -89,6 +94,11 @@ Get multiple AI perspectives on the same change, then synthesize their feedback.
 ### Example: Diff Review Pipeline
 
 ```bash
+set -euo pipefail
+
+# Remove reviews from an earlier run
+rm -f gemini-review.md gpt-review.md opus-review.md
+
 # Get the latest commit
 DIFF=$(git show)
 
@@ -120,20 +130,25 @@ cat gemini-review.md gpt-review.md opus-review.md | cline --auto-approve true \
 Run reviews in parallel for faster feedback:
 
 ```bash
+set -euo pipefail
+
+# Remove reviews from an earlier run
+rm -f gemini-review.md gpt-review.md opus-review.md
+
 # Run all reviews simultaneously
 git show | cline --auto-approve true --config ~/.cline-gemini "review and save to gemini-review.md" &
 git show | cline --auto-approve true --config ~/.cline-gpt "review and save to gpt-review.md" &
 git show | cline --auto-approve true --config ~/.cline-opus "review and save to opus-review.md" &
 
-# Wait for all to complete
-wait
+# Wait for each review, and stop if one failed
+for pid in $(jobs -p); do wait "$pid"; done
 
 # Synthesize
-cat *-review.md | cline --auto-approve true "create consensus review"
+cat gemini-review.md gpt-review.md opus-review.md | cline --auto-approve true "create consensus review"
 ```
 
 <Note>
-Each `cline` command runs as its own process, so the reviews run at the same time. Give each one a different output file, as above, so that they don't write over each other.
+Each `cline` command runs as its own process, so the reviews run at the same time. Give each one a different output file, as above, so that they don't write over each other. `wait` on its own succeeds even when a review fails, so the script waits for each review by its process ID.
 </Note>
 
 ## Extended Thinking for Complex Tasks
@@ -168,8 +183,13 @@ The `--thinking <level>` flag sets reasoning effort. Use `--thinking high` or `-
 ### Cost-Optimized PR Review
 
 ```bash
+set -euo pipefail
+
+# Remove findings from an earlier run
+rm -f issues.md
+
 # Haiku: Quick summary and issue identification
-gh pr diff $PR | cline --auto-approve true --config ~/.cline-haiku \
+gh pr diff "$PR" | cline --auto-approve true --config ~/.cline-haiku \
     "list the issues to fix in this diff and write them to issues.md. If there are none, don't create the file."
 
 # Opus with thinking: Deep analysis only if issues found
@@ -182,6 +202,8 @@ fi
 ### Security-Focused Multi-Model Scan
 
 ```bash
+set -euo pipefail
+
 # Print only Cline's final answer from --json output
 final_answer() { jq -r 'select(.type == "run_result") | .text'; }
 
@@ -189,10 +211,12 @@ final_answer() { jq -r 'select(.type == "run_result") | .text'; }
 git diff main | cline --auto-approve true --json --config ~/.cline-gemini "security review" | final_answer > gemini-sec.md &
 git diff main | cline --auto-approve true --json --config ~/.cline-opus "security review" | final_answer > opus-sec.md &
 git diff main | cline --auto-approve true --json --config ~/.cline-gpt "security review" | final_answer > gpt-sec.md &
-wait
+
+# Wait for each review, and stop if one failed
+for pid in $(jobs -p); do wait "$pid"; done
 
 # High-priority: Issues all 3 models found
-cat *-sec.md | cline --auto-approve true "find security issues all 3 reviews mentioned"
+cat gemini-sec.md opus-sec.md gpt-sec.md | cline --auto-approve true "find security issues all 3 reviews mentioned"
 ```
 
 ## Related Documentation

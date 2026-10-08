@@ -45,7 +45,7 @@ cline schedule create "PR summary" \
 | Option | Description |
 |--------|-------------|
 | `--provider <id>` and `--model <id>` | Provider and model for the runs. Without them, the schedule uses the provider and model you last used. |
-| `--mode <act\|plan\|yolo>` | Default `yolo`. `plan` runs can't edit files. In every mode, a scheduled run approves its own tool calls, because nobody is there to approve them. |
+| `--mode <act\|plan\|yolo>` | Default `yolo`. `plan` runs have no tools for editing files, and Cline refuses shell commands that usually change files, such as `rm` and `git commit`. Other commands still run, and some of them, such as `python -c`, can write files. In every mode, a scheduled run approves its own tool calls, because nobody is there to approve them. |
 | `--timeout <seconds>` | Stop a run that takes longer than this |
 | `--max-parallel <n>` | How many runs of this schedule can run at once (default 1). Runs that come due while it is busy wait their turn. |
 | `--system-prompt <text>` | Replace the system prompt |

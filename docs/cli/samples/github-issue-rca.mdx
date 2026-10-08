@@ -84,6 +84,10 @@ fi
 # Gather the args
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
+
+# Fail if Cline fails, not only if jq does
+set -o pipefail
+
 # Ask Cline for its analysis, showing only the summary
 cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
     jq -r 'select(.type == "run_result") | .text'
@@ -166,10 +170,15 @@ PROMPT="${2:-What is the root cause of this issue?}"
 This is where the magic happens:
 
 ```bash
+# Fail if Cline fails, not only if jq does
+set -o pipefail
+
 # Ask Cline for its analysis, showing only the summary
 cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
     jq -r 'select(.type == "run_result") | .text'
 ```
+
+When a run fails, the `run_result` line holds the error message, so the script prints it. `set -o pipefail` makes the script exit with an error too, so that a calling script or workflow knows the analysis failed.
 
 <Accordion title="Pipeline Breakdown: Understanding Each Component">
 
