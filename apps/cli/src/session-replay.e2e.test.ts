@@ -3,6 +3,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
@@ -240,11 +241,15 @@ describe("session replay e2e", () => {
 		expect(exported.status, exported.stderr).toBe(0);
 		expect(JSON.parse(exported.stdout)).toMatchObject({
 			sessionId,
-			schemaVersion: 1,
+			schemaVersion: 2,
 			counts: { iterations: 2 },
 			eventsSource: "session-log",
+			recording: null,
 			redaction: { enabled: true },
 		});
+		expect(
+			existsSync(path.join(root, "sessions", sessionId, "recording")),
+		).toBe(false);
 
 		const validated = await runCli(["session", "validate", bundleDir], {
 			cwd: workspace,
@@ -294,7 +299,263 @@ describe("session replay e2e", () => {
 		});
 		expect(refused.status).toBe(1);
 		expect(refused.stderr).toContain(
-			"Session replay bundle uses schemaVersion 99, but this version of Cline reads bundles up to schemaVersion 1.",
+			"Session replay bundle uses schemaVersion 99, but this version of Cline reads bundles up to schemaVersion 2.",
 		);
 	}, 180_000);
+
+	/**
+	 * Env for a run against its own hub: a separate data dir (so hub discovery
+	 * starts empty), sessions dir, database and port. No backend mode is set, as
+	 * for a user who has not chosen one.
+	 */
+	async function hubTestEnv(name: string): Promise<{
+		env: NodeJS.ProcessEnv;
+		dataDir: string;
+		sessionsDir: string;
+	}> {
+		const dataDir = path.join(root, `${name}-data`);
+		const sessionsDir = path.join(root, `${name}-sessions`);
+		const hubEnv: NodeJS.ProcessEnv = {
+			...env,
+			CLINE_DATA_DIR: dataDir,
+			CLINE_DB_DATA_DIR: path.join(dataDir, "db"),
+			CLINE_SESSION_DATA_DIR: sessionsDir,
+			CLINE_HOOKS_LOG_PATH: path.join(dataDir, "logs", "hooks.jsonl"),
+			CLINE_HUB_PORT: String(await findFreePort()),
+		};
+		delete hubEnv.CLINE_SESSION_BACKEND_MODE;
+		return { env: hubEnv, dataDir, sessionsDir };
+	}
+
+	async function onlySessionId(hubEnv: NodeJS.ProcessEnv): Promise<string> {
+		const history = await runCli(["history", "--json"], {
+			cwd: workspace,
+			env: hubEnv,
+		});
+		expect(history.status, history.stderr).toBe(0);
+		const sessions = JSON.parse(history.stdout) as Array<{
+			sessionId: string;
+		}>;
+		expect(sessions).toHaveLength(1);
+		return sessions[0]?.sessionId ?? "";
+	}
+
+	it("starts the hub for --record-session when none is running, and the hub records the session", async () => {
+		const { env: hubEnv, dataDir, sessionsDir } = await hubTestEnv("no-hub");
+		expect(readHubDiscovery(dataDir)).toBeUndefined();
+		try {
+			// Yolo runs locally unless the session is recorded.
+			const run = await runCli(["-y", "--record-session", "Run echo for me"], {
+				cwd: workspace,
+				env: hubEnv,
+				timeoutMs: 120_000,
+			});
+			expect(run.status, run.stderr).toBe(0);
+			expect(run.stdout).toContain("replay-e2e");
+			const hub = readHubDiscovery(dataDir);
+			expect(hub?.pid).toBeDefined();
+
+			const sessionId = await onlySessionId(hubEnv);
+			const recordingDir = path.join(sessionsDir, sessionId, "recording");
+			const header = JSON.parse(
+				readFileSync(path.join(recordingDir, "recording.json"), "utf8"),
+			) as { segments: Array<{ pid: number }> };
+			expect(header.segments.map((segment) => segment.pid)).toEqual([hub?.pid]);
+
+			const bundleDir = path.join(root, "no-hub-bundle");
+			const exported = await runCli(
+				["session", "export", sessionId, "--bundle", bundleDir, "--json"],
+				{ cwd: workspace, env: hubEnv },
+			);
+			expect(exported.status, exported.stderr).toBe(0);
+			const summary = JSON.parse(exported.stdout);
+			expect(summary).toMatchObject({
+				schemaVersion: 2,
+				counts: { iterations: 2 },
+				recording: {
+					counts: { modelCalls: 2 },
+					coverage: {
+						assistantMessages: 2,
+						linked: 2,
+						unlinkedMessageIds: [],
+					},
+				},
+			});
+			expect(summary.files).toEqual(
+				expect.arrayContaining([
+					`sessions/${sessionId}/requests/requests.jsonl`,
+					`sessions/${sessionId}/requests/blobs.jsonl`,
+				]),
+			);
+			const requests = readFileSync(
+				path.join(
+					bundleDir,
+					"sessions",
+					sessionId,
+					"requests",
+					"requests.jsonl",
+				),
+				"utf8",
+			);
+			expect(requests).not.toContain("sk-replay-e2e");
+
+			const validated = await runCli(["session", "validate", bundleDir], {
+				cwd: workspace,
+				env: hubEnv,
+			});
+			expect(validated.status, validated.stderr).toBe(0);
+
+			const json = await runCli(
+				["session", "replay", bundleDir, "--format", "json"],
+				{ cwd: workspace, env: hubEnv },
+			);
+			expect(json.status, json.stderr).toBe(0);
+			const iterations = json.stdout
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line));
+			expect(
+				iterations.map((iteration) =>
+					iteration.modelCalls.map(
+						(call: { callIndex: number; outcome: string }) =>
+							`${call.callIndex}:${call.outcome}`,
+					),
+				),
+			).toEqual([["0:completed"], ["1:completed"]]);
+			expect(
+				iterations[0].events
+					.filter((event: { kind: string }) => event.kind === "decision")
+					.map((event: { detail?: string }) => event.detail),
+			).toEqual(["immediate prompt delivered (send)"]);
+
+			const text = await runCli(["session", "replay", bundleDir], {
+				cwd: workspace,
+				env: hubEnv,
+			});
+			expect(text.status, text.stderr).toBe(0);
+			expect(text.stdout).toContain("recording: 2 model calls");
+			expect(text.stdout).toContain("decision +");
+			expect(text.stdout).toContain("immediate prompt delivered (send)");
+			expect(text.stdout).toMatch(
+				/model call: call 0 · completed \(tool-calls\) · \d+ms · 2 messages · 120 in \/ 15 out · match [0-9a-f]{12}/,
+			);
+		} finally {
+			await runCli(["hub", "stop"], { cwd: workspace, env: hubEnv });
+		}
+	}, 240_000);
+
+	it("records --record-session sessions in a hub that is already running", async () => {
+		const {
+			env: hubEnv,
+			dataDir,
+			sessionsDir,
+		} = await hubTestEnv("running-hub");
+		try {
+			const ensured = await runCli(["hub", "ensure"], {
+				cwd: workspace,
+				env: hubEnv,
+			});
+			expect(ensured.status, ensured.stderr).toBe(0);
+			const hub = readHubDiscovery(dataDir);
+			expect(hub?.hubId).toBeDefined();
+
+			const run = await runCli(
+				["--auto-approve", "true", "--record-session", "Run echo for me"],
+				{ cwd: workspace, env: hubEnv, timeoutMs: 120_000 },
+			);
+			expect(run.status, run.stderr).toBe(0);
+			expect(readHubDiscovery(dataDir)?.hubId).toBe(hub?.hubId);
+
+			const sessionId = await onlySessionId(hubEnv);
+			const header = JSON.parse(
+				readFileSync(
+					path.join(sessionsDir, sessionId, "recording", "recording.json"),
+					"utf8",
+				),
+			) as { segments: Array<{ pid: number }> };
+			expect(header.segments.map((segment) => segment.pid)).toEqual([hub?.pid]);
+
+			const exported = await runCli(
+				[
+					"session",
+					"export",
+					sessionId,
+					"--bundle",
+					path.join(root, "running-hub-bundle"),
+					"--json",
+				],
+				{ cwd: workspace, env: hubEnv },
+			);
+			expect(exported.status, exported.stderr).toBe(0);
+			const { recording } = JSON.parse(exported.stdout);
+			// Outside yolo mode the scripted submit does not end the run, so the
+			// number of model calls varies.
+			expect(recording.counts.modelCalls).toBeGreaterThanOrEqual(2);
+			expect(recording.coverage).toMatchObject({
+				assistantMessages: recording.counts.modelCalls,
+				linked: recording.counts.modelCalls,
+				unlinkedMessageIds: [],
+			});
+		} finally {
+			await runCli(["hub", "stop"], { cwd: workspace, env: hubEnv });
+		}
+	}, 240_000);
+
+	it("refuses --record-session for runs that cannot use the hub", async () => {
+		const sandboxed = await runCli(
+			[
+				"--data-dir",
+				path.join(root, "sandbox"),
+				"--record-session",
+				"Run echo for me",
+			],
+			{ cwd: workspace, env },
+		);
+		expect(sandboxed.status).toBe(1);
+		expect(sandboxed.stderr).toContain(
+			"--record-session cannot be combined with --data-dir or CLINE_SANDBOX=1",
+		);
+
+		const local = await runCli(["-y", "--record-session", "Run echo for me"], {
+			cwd: workspace,
+			env: { ...env, CLINE_SESSION_BACKEND_MODE: "local" },
+		});
+		expect(local.status).toBe(1);
+		expect(local.stderr).toContain(
+			"--record-session needs the hub, but CLINE_SESSION_BACKEND_MODE=local is set.",
+		);
+	}, 60_000);
 });
+
+/** The hub discovery record under a data dir, if a hub has published one. */
+function readHubDiscovery(
+	dataDir: string,
+): { hubId: string; pid?: number; url: string } | undefined {
+	for (const dir of [
+		path.join(dataDir, "locks", "hub"),
+		path.join(dataDir, "locks", "hub", "owners"),
+	]) {
+		if (!existsSync(dir)) continue;
+		for (const name of readdirSync(dir)) {
+			if (!name.endsWith(".json")) continue;
+			try {
+				const record = JSON.parse(readFileSync(path.join(dir, name), "utf8"));
+				if (typeof record?.hubId === "string") return record;
+			} catch {
+				// Not a discovery record.
+			}
+		}
+	}
+	return undefined;
+}
+
+function findFreePort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const probe = createServer();
+		probe.once("error", reject);
+		probe.listen(0, "127.0.0.1", () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close(() => resolve(port));
+		});
+	});
+}

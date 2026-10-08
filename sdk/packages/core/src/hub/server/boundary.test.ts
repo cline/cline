@@ -442,6 +442,7 @@ describe("HubServerTransport boundaries", () => {
 						accountId: "account-1",
 						organizationId: "org-1",
 					},
+					recording: { enabled: true },
 				},
 			},
 		});
@@ -449,6 +450,7 @@ describe("HubServerTransport boundaries", () => {
 		expect(reply.ok).toBe(true);
 		expect(startSession).toHaveBeenCalledTimes(1);
 		expect(capturedStartInput?.config.sessionId).toBe("session-boundary");
+		expect(capturedStartInput?.config.recording).toEqual({ enabled: true });
 		expect(capturedStartInput?.config.cwd).toBeUndefined();
 		expect(capturedStartInput?.config.workspaceRoot).toBeUndefined();
 		expect(capturedStartInput?.source).toBe("desktop");
@@ -497,6 +499,7 @@ describe("HubServerTransport boundaries", () => {
 			approved: false,
 			reason:
 				"Tool approval requires an interactive session, but this session is non-interactive.",
+			decidedBy: { kind: "system", detail: "non_interactive" },
 		});
 	});
 
@@ -846,6 +849,7 @@ describe("HubServerTransport boundaries", () => {
 			await expect(resultPromise).resolves.toEqual({
 				approved: true,
 				reason: "approved by user",
+				decidedBy: { kind: "client" },
 			});
 		} finally {
 			vi.useRealTimers();
@@ -904,6 +908,7 @@ describe("HubServerTransport boundaries", () => {
 		await expect(resultPromise).resolves.toEqual({
 			approved: true,
 			reason: undefined,
+			decidedBy: { kind: "client" },
 		});
 	});
 
@@ -966,6 +971,7 @@ describe("HubServerTransport boundaries", () => {
 		await expect(resultPromise).resolves.toEqual({
 			approved: false,
 			reason: "user cancelled",
+			decidedBy: { kind: "system", detail: "cancelled" },
 		});
 		expect(events).toEqual(
 			expect.arrayContaining([

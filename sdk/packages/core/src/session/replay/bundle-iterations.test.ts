@@ -12,9 +12,12 @@ import {
 } from "./bundle-hook-events";
 import {
 	buildSessionReplayIterations,
+	describeSessionReplayEvent,
 	selectSessionReplayIterations,
 } from "./bundle-iterations";
 import { createSessionReplayRedactor } from "./bundle-redaction";
+import type { SessionReplayEvent } from "./bundle-schema";
+import type { SessionRecordedModelCall } from "./recording-schema";
 
 function fixtureEvents() {
 	return toSessionReplayHookEvents({
@@ -154,6 +157,202 @@ describe("buildSessionReplayIterations", () => {
 		});
 		expect(iterations).toHaveLength(2);
 		expect(iterations[1]?.messageRange).toEqual({ start: 3, end: 5 });
+	});
+});
+
+function recordedCall(
+	callIndex: number,
+	seq: number,
+	response: Partial<SessionRecordedModelCall["response"]> = {},
+): SessionRecordedModelCall {
+	return {
+		callIndex,
+		seq,
+		sessionId: FIXTURE_SESSION_ID,
+		agentId: "agent_1",
+		runId: "run_1",
+		iteration: callIndex + 1,
+		attempt: 0,
+		startedAt: "2026-01-01T00:00:00.000Z",
+		finishedAt: "2026-01-01T00:00:00.500Z",
+		durationMs: 500,
+		compaction: null,
+		request: {
+			matchKey: "a".repeat(64),
+			systemPromptSha256: null,
+			toolsSha256: "b".repeat(64),
+			modelToolsSha256: null,
+			messageCount: 1,
+			messagePrefix: null,
+			messageSha256s: ["c".repeat(64)],
+			options: null,
+			provider: {},
+		},
+		response: {
+			outcome: "completed",
+			finishReason: "stop",
+			requestId: null,
+			error: null,
+			messageId: null,
+			toolCallIds: [],
+			usage: { inputTokens: 10, outputTokens: 2 },
+			events: [],
+			...response,
+		},
+	};
+}
+
+function decision(
+	seq: number,
+	name: string,
+	payload: Record<string, unknown> = {},
+): SessionReplayEvent {
+	return {
+		index: seq,
+		seq,
+		// Same timestamp for all: placement must come from seq.
+		ts: "2026-01-01T00:00:00.000Z",
+		kind: "decision",
+		name,
+		sessionId: FIXTURE_SESSION_ID,
+		agentId: "agent_1",
+		payload,
+	};
+}
+
+describe("buildSessionReplayIterations with a recording", () => {
+	const iterations = buildSessionReplayIterations({
+		transcript: { sessionId: FIXTURE_SESSION_ID, messages: fixtureMessages() },
+		events: [
+			decision(0, "prompt_delivered", {
+				delivery: "immediate",
+				source: "start",
+			}),
+			decision(5, "prompt_enqueued", { delivery: "steer", prompt: "also" }),
+			decision(10, "abort_requested", { source: "abort", reason: "user" }),
+		],
+		requests: [
+			recordedCall(1, 3, { messageId: "m2", finishReason: "tool-calls" }),
+			recordedCall(0, 2, { outcome: "error", error: "overloaded" }),
+			recordedCall(2, 8, { messageId: "m4" }),
+			recordedCall(3, 12, { outcome: "interrupted" }),
+		],
+	});
+
+	it("attaches each linked call with the failed attempts before it", () => {
+		expect(
+			iterations.map((iteration) =>
+				iteration.modelCalls?.map(
+					(call) => `${call.callIndex}:${call.outcome}`,
+				),
+			),
+		).toEqual([
+			["0:error", "1:completed"],
+			["2:completed", "3:interrupted"],
+		]);
+		expect(iterations[0]?.modelCalls?.[0]).toMatchObject({
+			error: "overloaded",
+			usage: { inputTokens: 10, outputTokens: 2 },
+			messageCount: 1,
+		});
+	});
+
+	it("places sequenced events by seq rather than timestamp", () => {
+		expect(
+			iterations.map((iteration) =>
+				iteration.events.map((event) => event.detail),
+			),
+		).toEqual([
+			["immediate prompt delivered (start)"],
+			['steer prompt queued: "also"', "abort requested by abort: user"],
+		]);
+		expect(iterations[1]?.events[0]).toMatchObject({ seq: 5 });
+	});
+
+	it("leaves unrecorded sessions without model calls", () => {
+		const plain = buildSessionReplayIterations({
+			transcript: {
+				sessionId: FIXTURE_SESSION_ID,
+				messages: fixtureMessages(),
+			},
+		});
+		expect(plain.every((iteration) => !iteration.modelCalls)).toBe(true);
+	});
+});
+
+describe("describeSessionReplayEvent", () => {
+	const describeDecision = (name: string, payload: Record<string, unknown>) =>
+		describeSessionReplayEvent({ kind: "decision", name, payload });
+
+	it("describes decisions", () => {
+		expect(
+			describeDecision("approval_resolved", {
+				toolName: "run_commands",
+				approved: false,
+				reason: "not now",
+				decidedBy: { kind: "client", detail: "vscode" },
+				waitMs: 1234.4,
+			}),
+		).toBe("denied run_commands by client (vscode) after 1234ms: not now");
+		expect(
+			describeDecision("prompt_enqueued", {
+				delivery: "queue",
+				merged: true,
+				aborting: true,
+				prompt: `${"x".repeat(80)}\nsecond line`,
+			}),
+		).toBe(
+			`queue prompt queued (merged, while aborting): "${"x".repeat(59)}…"`,
+		);
+		expect(
+			describeDecision("prompt_delivered", {
+				delivery: "queue",
+				requestedDelivery: "steer",
+			}),
+		).toBe("queue prompt delivered (requested steer)");
+		expect(
+			describeDecision("mode_switched", {
+				from: "act",
+				to: "plan",
+				source: "turn",
+			}),
+		).toBe("mode act → plan (turn)");
+		expect(
+			describeDecision("prompt_queue_discarded", { promptIds: ["a", "b"] }),
+		).toBe("2 queued prompts discarded");
+		expect(
+			describeDecision("mistake_limit_resolved", {
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				action: "stop",
+			}),
+		).toBe("mistake limit 3/3: stop");
+		expect(describeDecision("something_new", {})).toBeUndefined();
+	});
+
+	it("describes runtime events and ignores hook events", () => {
+		expect(
+			describeSessionReplayEvent({
+				kind: "runtime",
+				name: "model_finished",
+				refs: { modelCallIndex: 4 },
+				payload: { outcome: "completed", finishReason: "stop", durationMs: 12 },
+			}),
+		).toBe("model call 4 completed (stop) in 12ms");
+		expect(
+			describeSessionReplayEvent({
+				kind: "runtime",
+				name: "tool_finished",
+				payload: { toolName: "editor", isError: true },
+			}),
+		).toBe("editor failed");
+		expect(
+			describeSessionReplayEvent({
+				kind: "hook",
+				name: "tool_call",
+				payload: {},
+			}),
+		).toBeUndefined();
 	});
 });
 

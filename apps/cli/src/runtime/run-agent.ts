@@ -171,6 +171,7 @@ export async function runAgent(
 			requestToolApproval,
 		},
 		forceLocalBackend: isYoloMode || config.sandbox === true,
+		recordSession: config.recording?.enabled === true,
 		logger: config.logger,
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,

@@ -55,6 +55,7 @@ import {
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
+	resolveConnectionProviderConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
 import {
@@ -63,6 +64,10 @@ import {
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
+import {
+	describeRecordedProvider,
+	type SessionRuntimeRecorder,
+} from "../../session/replay/session-recorder";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,
@@ -309,6 +314,8 @@ export interface SessionRuntimeOrchestratorDeps {
 	readonly createAgentRuntimeImpl?: (
 		config: Parameters<typeof createAgentRuntime>[0],
 	) => AgentRuntime;
+	/** Session replay recorder; set only for recorded lead sessions. */
+	readonly recorder?: SessionRuntimeRecorder;
 }
 
 /** Connection overrides applied via `updateConnection`. */
@@ -368,6 +375,7 @@ export class SessionRuntime {
 	private readonly createAgentRuntimeImpl: (
 		config: Parameters<typeof createAgentRuntime>[0],
 	) => AgentRuntime;
+	private readonly recorder?: SessionRuntimeRecorder;
 
 	/** Stable run id for the active run. */
 	private activeRunId: string | null = null;
@@ -428,6 +436,7 @@ export class SessionRuntime {
 		this.telemetry = deps.telemetry ?? config.telemetry;
 		this.createAgentRuntimeImpl =
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
+		this.recorder = deps.recorder;
 
 		this.conversation = new ConversationStore(config.initialMessages);
 		this.toolResultCache = new ToolResultCache(
@@ -946,11 +955,14 @@ export class SessionRuntime {
 		}
 
 		// Build the AgentRuntime for this turn.
-		const agentModel = createAgentModelFromConfig(
+		const baseAgentModel = createAgentModelFromConfig(
 			this.config,
 			this.logger,
 			this.telemetry,
 		);
+		const agentModel = this.recorder
+			? this.recorder.wrapModel(baseAgentModel, this.describeRecordedProvider())
+			: baseAgentModel;
 		// Merge extension-contributed tools with the config-declared
 		// tools for this turn. Extensions register tools via
 		// `api.registerTool` during `setup()` — parity with legacy
@@ -1149,6 +1161,21 @@ export class SessionRuntime {
 		this.extensionsInitialized = true;
 	}
 
+	private describeRecordedProvider() {
+		const connection = resolveConnectionProviderConfig(this.config);
+		return describeRecordedProvider({
+			providerId: connection.providerId,
+			modelId: connection.modelId,
+			baseUrl: connection.baseUrl,
+			headers: connection.headers,
+			maxTokensPerTurn: this.config.maxTokensPerTurn,
+			temperature: this.config.temperature,
+			reasoningEffort: this.config.reasoningEffort,
+			thinking: this.config.thinking,
+			thinkingBudgetTokens: this.config.thinkingBudgetTokens,
+		});
+	}
+
 	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {
 		const hooks = mergeRuntimeHooks([
 			this.config.hooks,
@@ -1156,10 +1183,36 @@ export class SessionRuntime {
 				.getValidatedExtensions()
 				.map((extension) => extension.hooks),
 		]);
+		const recorder = this.recorder;
 		return {
 			...hooks,
+			...(recorder
+				? {
+						afterModel: async (ctx) => {
+							recorder.onAssistantMessageAssembled(ctx.assistantMessage);
+							return await hooks.afterModel?.(ctx);
+						},
+						beforeTool: async (ctx) => {
+							const control = await hooks.beforeTool?.(ctx);
+							if (!control?.skip) {
+								await recorder.beforeTool({
+									...ctx,
+									input: control?.input ?? ctx.input,
+								});
+							}
+							return control;
+						},
+					}
+				: {}),
 			afterTool: async (ctx) => {
-				const control = await hooks.afterTool?.(ctx);
+				let control = await hooks.afterTool?.(ctx);
+				if (recorder) {
+					const recorded = await recorder.afterTool({
+						...ctx,
+						result: control?.result ?? ctx.result,
+					});
+					if (recorded) control = { ...control, result: recorded };
+				}
 				const result = control?.result ?? ctx.result;
 				if (ctx.tool.resultPolicy === "cache-oversized") {
 					const { text: previewText } = prepareToolResultPreview(
@@ -1268,6 +1321,7 @@ export class SessionRuntime {
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {
+		this.recorder?.onRuntimeEvent(event);
 		// Track tool-call records before translation so the timing data
 		// is available to observers via `AgentResult.toolCalls`.
 		switch (event.type) {

@@ -277,6 +277,8 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	sessionOrigin?: SessionHistoryOriginMetadata;
 	/** Per-session copy of the hook audit log; see `createHookAuditHooks`. */
 	sessionHookLogPath?: string;
+	/** `seq` source for hook audit lines while the session is recorded. */
+	hookAuditSeq?: () => number | undefined;
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
 	defaultLogger?: BasicLogger;
@@ -327,6 +329,7 @@ export async function prepareLocalRuntimeBootstrap(
 		sessionId,
 		sessionOrigin,
 		sessionHookLogPath,
+		hookAuditSeq,
 		providerSettingsManager,
 		defaultTelemetry,
 		defaultLogger,
@@ -445,6 +448,7 @@ export async function prepareLocalRuntimeBootstrap(
 				workspacePath,
 				workspaceInfo,
 				sessionLogPath: sessionHookLogPath,
+				nextSeq: hookAuditSeq,
 				logger: localConfig?.logger ?? defaultLogger,
 			});
 	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);

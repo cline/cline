@@ -9,6 +9,7 @@ export {
 	resolveSessionHookLogPath,
 } from "./bundle-hook-events";
 export {
+	computeSessionRecordingCoverage,
 	type LoadedSessionReplayBundle,
 	type LoadedSessionReplaySession,
 	readSessionReplayBundle,
@@ -21,9 +22,11 @@ export {
 } from "./bundle-io";
 export {
 	buildSessionReplayIterations,
+	describeSessionReplayEvent,
 	type SessionReplayIteration,
 	type SessionReplayIterationEvent,
 	type SessionReplayIterationRange,
+	type SessionReplayModelCall,
 	type SessionReplayToolCall,
 	selectSessionReplayIterations,
 	sessionReplayIterationRunCounts,
@@ -38,6 +41,11 @@ export {
 	type SessionReplayBundleMigration,
 	SessionReplayBundleVersionError,
 } from "./bundle-migrations";
+export {
+	type LoadedSessionRecording,
+	mergeSessionReplayEvents,
+	readSessionRecording,
+} from "./bundle-recording";
 export {
 	createSessionReplayRedactor,
 	type SessionReplayRedactor,
@@ -68,8 +76,12 @@ export {
 	SessionReplayIterationRestorePointSchema,
 	type SessionReplayRedactionReport,
 	SessionReplayRedactionReportSchema,
+	type SessionReplayRequestBlob,
+	SessionReplayRequestBlobSchema,
 	type SessionReplaySessionEntry,
 	SessionReplaySessionEntrySchema,
+	type SessionReplaySessionRecording,
+	SessionReplaySessionRecordingSchema,
 	type SessionReplaySessionRole,
 	type SessionReplayTranscriptFile,
 	SessionReplayTranscriptFileSchema,
@@ -77,3 +89,42 @@ export {
 	sessionReplayFileMediaType,
 	sessionReplaySessionDir,
 } from "./bundle-schema";
+export {
+	resolveRecordedRequestMessages,
+	SESSION_RECORDED_EVENT_KINDS,
+	SESSION_RECORDED_MODEL_CALL_OUTCOMES,
+	SESSION_RECORDING_BLOB_KINDS,
+	SESSION_RECORDING_DIR,
+	SESSION_RECORDING_FILES,
+	SESSION_RECORDING_FORMAT,
+	SESSION_RECORDING_MATCH_KEY_VERSION,
+	SESSION_RECORDING_VERSION,
+	type SessionRecordedBlob,
+	SessionRecordedBlobSchema,
+	type SessionRecordedEvent,
+	SessionRecordedEventSchema,
+	type SessionRecordedModelCall,
+	SessionRecordedModelCallSchema,
+	type SessionRecordingBlobKind,
+	type SessionRecordingHeader,
+	SessionRecordingHeaderSchema,
+	type SessionRecordingSegment,
+	SessionRecordingSegmentSchema,
+} from "./recording-schema";
+export {
+	computeRecordedRequestMatchKey,
+	recordedMessageContentSha256,
+	recordedToolDefinitions,
+	type SessionDecisionInput,
+	type SessionRecordedProvider,
+	SessionRecorder,
+	type SessionRecorderOptions,
+	type SessionRecorderStats,
+	sessionRecordingDir,
+} from "./session-recorder";
+export {
+	TOOL_ENVIRONMENT_METADATA_KEY,
+	type ToolEnvironmentCommandFact,
+	type ToolEnvironmentFacts,
+	type ToolEnvironmentFileFact,
+} from "./tool-environment";

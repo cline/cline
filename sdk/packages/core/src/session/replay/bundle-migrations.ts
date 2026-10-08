@@ -45,9 +45,26 @@ export interface SessionReplayBundleMigration {
 	migrate(manifest: Record<string, unknown>): Record<string, unknown>;
 }
 
-/** Ordered migrations, one per schema version bump. Empty at version 1. */
+/** Ordered migrations, one per schema version bump. */
 export const SESSION_REPLAY_BUNDLE_MIGRATIONS: readonly SessionReplayBundleMigration[] =
-	[];
+	[
+		{
+			from: 1,
+			to: 2,
+			description:
+				"1 → 2: sessions gain `recording` (null: version 1 bundles carry no recordings)",
+			migrate(manifest) {
+				const sessions = Array.isArray(manifest.sessions)
+					? manifest.sessions.map((session: unknown) =>
+							isRecord(session) && !("recording" in session)
+								? { ...session, recording: null }
+								: session,
+						)
+					: manifest.sessions;
+				return { ...manifest, sessions };
+			},
+		},
+	];
 
 export interface MigrateSessionReplayBundleManifestOptions {
 	migrations?: readonly SessionReplayBundleMigration[];

@@ -1,9 +1,11 @@
 import type { SessionReplayIteration } from "@cline/core";
 import { describe, expect, it } from "vitest";
 import {
+	formatReplayDecisions,
 	formatReplayDuration,
 	formatReplayEventTimeline,
 	formatReplayIterationText,
+	formatReplayModelCalls,
 	replayDelayMs,
 	truncateLines,
 } from "./replay";
@@ -69,6 +71,108 @@ describe("formatReplayEventTimeline", () => {
 				}),
 			),
 		).toEqual(["+1.1s tool_call call_1", "+400ms agent_end"]);
+	});
+
+	it("leaves recorded decisions and runtime events out of the hook timeline", () => {
+		expect(
+			formatReplayEventTimeline(
+				iteration({
+					events: [
+						{ index: 0, ts: "t", kind: "decision", name: "approval_resolved" },
+						{ index: 1, ts: "t", kind: "runtime", name: "tool_started" },
+					],
+				}),
+			),
+		).toEqual([]);
+	});
+});
+
+describe("recorded sessions", () => {
+	const recorded = iteration({
+		timing: { startedAt: "2026-01-01T00:00:00.000Z" },
+		events: [
+			{
+				index: 0,
+				ts: "2026-01-01T00:00:00.000Z",
+				kind: "decision",
+				name: "prompt_delivered",
+				seq: 0,
+				detail: "immediate prompt delivered (start)",
+			},
+			{
+				index: 1,
+				ts: "2026-01-01T00:00:01.200Z",
+				kind: "decision",
+				name: "approval_resolved",
+				seq: 7,
+				detail: "approved run_commands by client (cli) after 900ms",
+			},
+			{
+				index: 2,
+				ts: "2026-01-01T00:00:01.300Z",
+				kind: "decision",
+				name: "custom_decision",
+				seq: 8,
+			},
+		],
+		modelCalls: [
+			{
+				callIndex: 3,
+				seq: 5,
+				runId: "run_1",
+				iteration: 1,
+				attempt: 0,
+				outcome: "error",
+				finishReason: null,
+				durationMs: 80,
+				matchKey: "a".repeat(64),
+				messageCount: 1,
+				error: "rate limited",
+			},
+			{
+				callIndex: 4,
+				seq: 6,
+				runId: "run_1",
+				iteration: 1,
+				attempt: 1,
+				outcome: "completed",
+				finishReason: "tool-calls",
+				durationMs: 1_200,
+				matchKey: "b".repeat(64),
+				messageCount: 1,
+				messageId: "msg_1",
+				usage: { inputTokens: 812, outputTokens: 40 },
+			},
+		],
+	});
+
+	it("formats decisions with their offset, falling back to the event name", () => {
+		expect(formatReplayDecisions(recorded)).toEqual([
+			"+0ms immediate prompt delivered (start)",
+			"+1.2s approved run_commands by client (cli) after 900ms",
+			"+1.3s custom_decision",
+		]);
+	});
+
+	it("formats model calls including failed attempts", () => {
+		expect(formatReplayModelCalls(recorded)).toEqual([
+			`call 3 · error · 80ms · 1 message · match aaaaaaaaaaaa · rate limited`,
+			`call 4 (attempt 2) · completed (tool-calls) · 1.2s · 1 message · 812 in / 40 out · match bbbbbbbbbbbb`,
+		]);
+		expect(formatReplayModelCalls(iteration())).toEqual([]);
+	});
+
+	it("renders decisions and model calls in the iteration text", () => {
+		const lines = formatReplayIterationText(recorded, 1, {
+			color: false,
+			maxResultLines: 0,
+		}).split("\n");
+		expect(lines).toContain(
+			"  decision +1.2s approved run_commands by client (cli) after 900ms",
+		);
+		expect(lines).toContain(
+			"  model call: call 4 (attempt 2) · completed (tool-calls) · 1.2s · 1 message · 812 in / 40 out · match bbbbbbbbbbbb",
+		);
 	});
 });
 

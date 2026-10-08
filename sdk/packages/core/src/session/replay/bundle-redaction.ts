@@ -26,6 +26,19 @@ const NOT_COVERED_LOCATIONS = [
 	"compaction.json messages[].content and system_prompt",
 ];
 
+const RECORDING_COVERED_LOCATIONS = [
+	"manifest.json sessions[].recording.segments[].env, cwd, toolPolicies (key and value rules)",
+	"requests/requests.jsonl request.options, request.provider (key and value rules; credentials and header values are never recorded)",
+	"requests/requests.jsonl response.error, response.usage and usage/finish stream events (key and value rules)",
+	"requests/blobs.jsonl message metadata (key and value rules; such blobs are marked redacted)",
+];
+
+const RECORDING_NOT_COVERED_LOCATIONS = [
+	"requests/blobs.jsonl system prompts, tool definitions and message content (the request as sent, kept verbatim for replay)",
+	"requests/requests.jsonl response text, reasoning and tool-call stream events (model output, kept verbatim for replay)",
+	"events.jsonl refs (correlation ids)",
+];
+
 export interface SessionReplayRedactor {
 	readonly enabled: boolean;
 	/** Redacts `value`, recording each removal against `file` and `path`. */
@@ -35,6 +48,8 @@ export interface SessionReplayRedactor {
 
 export function createSessionReplayRedactor(options: {
 	enabled: boolean;
+	/** Whether the bundle carries a recording; extends the reported locations. */
+	recorded?: boolean;
 }): SessionReplayRedactor {
 	const redactions: SessionReplayRedactionReport["redactions"] = [];
 	return {
@@ -63,9 +78,17 @@ export function createSessionReplayRedactor(options: {
 					keySuffixes: [...SENSITIVE_KEY_SUFFIXES],
 					valuePatterns: SENSITIVE_VALUE_PATTERNS.map(({ name }) => name),
 				},
-				covered: options.enabled ? [...COVERED_LOCATIONS] : [],
+				covered: options.enabled
+					? [
+							...COVERED_LOCATIONS,
+							...(options.recorded ? RECORDING_COVERED_LOCATIONS : []),
+						]
+					: [],
 				notCovered: options.enabled
-					? [...NOT_COVERED_LOCATIONS]
+					? [
+							...NOT_COVERED_LOCATIONS,
+							...(options.recorded ? RECORDING_NOT_COVERED_LOCATIONS : []),
+						]
 					: ["redaction disabled at export: every file is verbatim"],
 				redactions: [...redactions],
 			};

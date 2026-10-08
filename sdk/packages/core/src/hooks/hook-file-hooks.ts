@@ -637,6 +637,11 @@ export function createHookAuditHooks(options: {
 	 */
 	sessionLogPath?: string;
 	logger?: BasicLogger;
+	/**
+	 * Ordering key stamped on each line as `seq` while the session is being
+	 * recorded, shared with the recording's events so the streams interleave.
+	 */
+	nextSeq?: () => number | undefined;
 }): AgentHooks {
 	const runtimeOptions: HookRuntimeOptions = {
 		cwd: options.workspacePath,
@@ -647,8 +652,10 @@ export function createHookAuditHooks(options: {
 	const sessionLogPath = options.sessionLogPath?.trim() || undefined;
 
 	const append = (payload: HookEventPayload): void => {
+		const seq = options.nextSeq?.();
 		const line = `${JSON.stringify({
 			ts: new Date().toISOString(),
+			...(seq !== undefined ? { seq } : {}),
 			...payload,
 		})}\n`;
 		const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;

@@ -12,6 +12,7 @@ import {
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	type ToolApprovalResult,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
@@ -80,6 +81,10 @@ import {
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
+import {
+	SessionRecorder,
+	sessionRecordingDir,
+} from "../../session/replay/session-recorder";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
@@ -110,7 +115,10 @@ import {
 	RuntimeOAuthTokenManager,
 } from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
-import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
+import {
+	SessionRuntime,
+	type SessionRuntimeOrchestratorDeps,
+} from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
@@ -229,6 +237,34 @@ function maxAccumulatedUsage(
 	};
 }
 
+function describeAbortReason(reason: unknown): string | null {
+	if (reason === undefined || reason === null) return null;
+	if (reason instanceof Error) return reason.message;
+	return typeof reason === "string" ? reason : String(reason);
+}
+
+function recordMistakeLimitDecisions(
+	decide: CoreSessionConfig["onConsecutiveMistakeLimitReached"],
+	recorder: SessionRecorder | undefined,
+	getAgentId: () => string | undefined,
+): CoreSessionConfig["onConsecutiveMistakeLimitReached"] {
+	if (!decide || !recorder) return decide;
+	return async (context) => {
+		const result = await decide(context);
+		recorder.recordDecision("mistake_limit_resolved", {
+			agentId: getAgentId(),
+			iteration: context.iteration,
+			payload: {
+				reason: context.reason,
+				consecutiveMistakes: context.consecutiveMistakes,
+				maxConsecutiveMistakes: context.maxConsecutiveMistakes,
+				action: result.action,
+			},
+		});
+		return result;
+	};
+}
+
 function isIncomingCompactionStateStale(
 	incoming: SessionCompactionState,
 	current: SessionCompactionState | undefined,
@@ -246,7 +282,10 @@ export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
-	createAgent?: (config: AgentConfig) => SessionRuntime;
+	createAgent?: (
+		config: AgentConfig,
+		deps?: SessionRuntimeOrchestratorDeps,
+	) => SessionRuntime;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	providerSettingsManager?: ProviderSettingsManager;
@@ -259,14 +298,26 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+	/**
+	 * Allows sessions started with `recording.enabled` to be recorded. Only
+	 * the hub's own hosts set this: recording runs in the hub, and any other
+	 * host refuses to start a session that asks for it.
+	 */
+	recordSessions?: boolean;
 }
+
+export const SESSION_RECORDING_REQUIRES_HUB_MESSAGE =
+	'Session recording runs only in the hub: start sessions with recording.enabled through a hub-backed runtime (backendMode "hub").';
 
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
-	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
+	private readonly createAgentInstance: (
+		config: AgentConfig,
+		deps?: SessionRuntimeOrchestratorDeps,
+	) => SessionRuntime;
 	private readonly toolExecutors?: Partial<ToolExecutors>;
 	private readonly defaultCapabilities?: RuntimeCapabilities;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
@@ -276,6 +327,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly distinctId: string;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
+	private readonly recordSessions: boolean;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
@@ -300,7 +352,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
-			options.createAgent ?? ((config) => new SessionRuntime(config));
+			options.createAgent ??
+			((config, deps) => new SessionRuntime(config, deps));
 		this.defaultCapabilities = normalizeRuntimeCapabilities(
 			options.capabilities,
 		);
@@ -324,6 +377,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.defaultTelemetry?.setDistinctId(distinctId);
 		}
 		this.defaultFetch = options.fetch;
+		this.recordSessions = options.recordSessions === true;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -409,6 +463,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		if (input.config.recording?.enabled === true && !this.recordSessions) {
+			throw new Error(SESSION_RECORDING_REQUIRES_HUB_MESSAGE);
+		}
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const isReadOnlyResumeStart =
@@ -552,6 +609,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			inputLocalConfig?.extensionContext?.telemetry ??
 			inputLocalConfig?.telemetry ??
 			this.defaultTelemetry;
+		const recorder = await this.openSessionRecorder({
+			sessionId,
+			sessionDir,
+			config: startInput.config,
+			getCompactionState: () => activeSessionRef?.compactionState,
+			logger: pluginEventFallbackLogger ?? this.defaultLogger,
+		});
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
@@ -584,6 +648,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			sessionOrigin,
 			sessionHookLogPath: join(sessionDir, sessionHookLogFileName(sessionId)),
+			...(recorder ? { hookAuditSeq: () => recorder.nextSeq() } : {}),
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
@@ -798,14 +863,50 @@ export class LocalRuntimeHost implements RuntimeHost {
 						if (liveSession) {
 							await this.markTurnPending(liveSession);
 						}
+						const requestedAt = Date.now();
+						const decision = {
+							agentId: request.agentId,
+							iteration: request.iteration,
+							toolCallId: request.toolCallId,
+						};
+						recorder?.recordDecision("approval_requested", {
+							...decision,
+							payload: {
+								toolName: request.toolName,
+								policy: request.policy,
+							},
+						});
+						const recordResolved = (result: ToolApprovalResult) =>
+							recorder?.recordDecision("approval_resolved", {
+								...decision,
+								payload: {
+									toolName: request.toolName,
+									approved: result.approved,
+									...(result.reason ? { reason: result.reason } : {}),
+									decidedBy: result.decidedBy ?? { kind: "host" },
+									waitMs: Date.now() - requestedAt,
+								},
+							});
 						try {
 							if (!requestToolApproval) {
-								return {
+								const result: ToolApprovalResult = {
 									approved: false,
 									reason: "Tool approval callback is not configured.",
+									decidedBy: { kind: "system", detail: "no_callback" },
 								};
+								recordResolved(result);
+								return result;
 							}
-							return await requestToolApproval(request);
+							const result = await requestToolApproval(request);
+							recordResolved(result);
+							return result;
+						} catch (error) {
+							recordResolved({
+								approved: false,
+								reason: error instanceof Error ? error.message : String(error),
+								decidedBy: { kind: "system", detail: "error" },
+							});
+							throw error;
 						} finally {
 							const currentSession = this.sessions.get(sessionId);
 							if (currentSession?.status === "pending") {
@@ -815,8 +916,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 					}
 				: undefined,
 			telemetry: configWithProvider.telemetry,
-			onConsecutiveMistakeLimitReached:
+			onConsecutiveMistakeLimitReached: recordMistakeLimitDecisions(
 				configWithProvider.onConsecutiveMistakeLimitReached,
+				recorder,
+				() => activeSessionRef?.agent.getAgentId(),
+			),
 			completionPolicy: runtime.completionPolicy,
 			consumePendingUserMessage: () => {
 				const entry = this.pendingPromptsController.consumeSteer(sessionId);
@@ -871,7 +975,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			},
 		};
-		const agent = this.createAgentInstance(agentConfig);
+		const agent = recorder
+			? this.createAgentInstance(agentConfig, { recorder })
+			: this.createAgentInstance(agentConfig);
+		recorder?.startSegment({
+			leadAgentId: agent.getAgentId(),
+			initialMessageCount: agent.getMessages().length,
+			mode: configWithProvider.mode,
+			...(bootstrap.toolPolicies
+				? { toolPolicies: bootstrap.toolPolicies }
+				: {}),
+		});
 		if (agentConfig.onEvent) {
 			agent.subscribeEvents(agentConfig.onEvent);
 		}
@@ -936,6 +1050,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			pendingPrompts: [],
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
+			...(recorder ? { recorder } : {}),
 			submitAndExitObserved: false,
 			taskCompletedEmitted: false,
 			lastInteractiveTurnFinishReason: undefined,
@@ -1002,6 +1117,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let result: AgentResult | undefined;
 		try {
 			if (startInput.prompt?.trim()) {
+				this.recordImmediatePrompt(active, "start", {
+					prompt: startInput.prompt,
+					userImages: startInput.userImages,
+					userFiles: startInput.userFiles,
+				});
 				result = await this.executeTurn(active, {
 					prompt: startInput.prompt,
 					userImages: startInput.userImages,
@@ -1112,6 +1232,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 			return undefined;
 		}
+		if (!session.drainingPendingPrompts) {
+			this.recordImmediatePrompt(session, "send", input);
+		}
 		try {
 			const result = await this.executeTurn(session, {
 				prompt: input.prompt,
@@ -1184,6 +1307,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// and start a fresh provider call, and the session could never be
 		// brought to a full stop.
 		session.aborting = true;
+		session.recorder?.recordDecision("abort_requested", {
+			agentId: session.agent.getAgentId(),
+			...this.recordedPosition(session),
+			payload: {
+				source: "abort",
+				reason: describeAbortReason(reason),
+				running: !session.agent.canStartRun(),
+				queueInitiated: session.drainingPendingPrompts,
+			},
+		});
 		if (session.drainingPendingPrompts) {
 			this.pendingPromptsController.discardQueue(session);
 		}
@@ -1232,6 +1365,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		// Abort the agent first if it's running, so shutdown can proceed
 		session.aborting = true;
+		session.recorder?.recordDecision("abort_requested", {
+			agentId: session.agent.getAgentId(),
+			...this.recordedPosition(session),
+			payload: {
+				source: "stop",
+				reason: "session_stop",
+				running: !session.agent.canStartRun(),
+			},
+		});
 		session.agent.abort(new Error("session_stop"));
 		await this.shutdownSession(session, {
 			status: "cancelled",
@@ -1734,6 +1876,70 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 	}
 
+	// ── Session recording ───────────────────────────────────────────────
+
+	private async openSessionRecorder(input: {
+		sessionId: string;
+		sessionDir: string;
+		config: CoreSessionConfig;
+		getCompactionState: () => SessionCompactionState | undefined;
+		logger?: BasicLogger;
+	}): Promise<SessionRecorder | undefined> {
+		if (!this.recordSessions || input.config.recording?.enabled !== true) {
+			return undefined;
+		}
+		try {
+			return await SessionRecorder.open({
+				sessionId: input.sessionId,
+				dir: sessionRecordingDir(input.sessionDir),
+				cwd: input.config.cwd,
+				logger: input.logger,
+				getCompactionState: input.getCompactionState,
+			});
+		} catch (error) {
+			input.logger?.log?.("Session recording disabled: failed to open", {
+				sessionId: input.sessionId,
+				error,
+				severity: "warn",
+			});
+			return undefined;
+		}
+	}
+
+	private recordedPosition(session: ActiveSession): {
+		iteration?: number;
+		refs?: Record<string, string>;
+	} {
+		const position = session.recorder?.currentPosition();
+		if (!position || session.agent.canStartRun()) return {};
+		return {
+			iteration: position.iteration,
+			...(position.runId ? { refs: { runId: position.runId } } : {}),
+		};
+	}
+
+	private recordImmediatePrompt(
+		session: ActiveSession,
+		source: "start" | "send",
+		input: {
+			prompt: string;
+			mode?: SendSessionInput["mode"];
+			userImages?: string[];
+			userFiles?: string[];
+		},
+	): void {
+		session.recorder?.recordDecision("prompt_delivered", {
+			agentId: session.agent.getAgentId(),
+			payload: {
+				delivery: "immediate",
+				source,
+				...(input.mode ? { mode: input.mode } : {}),
+				attachmentCount:
+					(input.userImages?.length ?? 0) + (input.userFiles?.length ?? 0),
+			},
+		});
+	}
+
 	// ── Turn execution ──────────────────────────────────────────────────
 
 	private async executeTurn(
@@ -1748,6 +1954,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// An abort that arrived between turns targeted a run that had already
 		// ended; only aborts issued from here on belong to this turn.
 		session.aborting = false;
+		session.recorder?.noteMode(input.mode ?? session.config.mode, "turn", {
+			agentId: session.agent.getAgentId(),
+		});
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;
@@ -2404,6 +2613,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
+		await session.recorder?.close();
 		this.sessions.delete(session.sessionId);
 		this.emit({
 			type: "ended",
@@ -2481,6 +2691,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
+		await session.recorder?.close();
 		this.sessions.delete(session.sessionId);
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];

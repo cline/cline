@@ -84,6 +84,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 		},
 		fetch: options.fetch,
 		telemetry: options.telemetry,
+		recordSessions: true,
 	});
 
 	return {
@@ -119,6 +120,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 					agentPluginPaths: request.agentPluginPaths,
 					missionLogIntervalSteps: request.missionStepInterval,
 					missionLogIntervalMs: request.missionTimeIntervalMs,
+					...(request.recording ? { recording: request.recording } : {}),
 				},
 				toolPolicies: request.toolPolicies ?? {
 					"*": {

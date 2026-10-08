@@ -81,9 +81,23 @@ export interface ToolApprovalRequest {
 	policy: ToolPolicy;
 }
 
+/**
+ * Who answered a tool approval request. `client` is a hub client (its id is
+ * the hub client id); `host` is an in-process approval callback; `system`
+ * covers answers nobody chose (cancellation, non-interactive refusal,
+ * callback failure), with `detail` naming which.
+ */
+export interface ToolApprovalDecider {
+	kind: "client" | "host" | "system";
+	id?: string;
+	detail?: string;
+}
+
 export interface ToolApprovalResult {
 	approved: boolean;
 	reason?: string;
+	/** Optional attribution, recorded by session replay. */
+	decidedBy?: ToolApprovalDecider;
 }
 
 /**

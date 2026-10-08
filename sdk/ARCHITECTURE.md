@@ -1054,6 +1054,68 @@ resolution also lives in core and is reused by the helper and desktop startup.
 The primary shell probe allows 5 seconds for slow profiles; a fallback shell
 gets half that budget, bounding the combined wait to 7.5 seconds.
 
+### Session recording
+
+`core/src/session/replay` owns opt-in session recording for replay. Recording
+happens only in the hub. A session is recorded when its
+`CoreSessionConfig.recording.enabled` is `true` and it runs on one of the hub's
+own `LocalRuntimeHost`s (the `session.create` host and the schedule host), which
+are constructed with `recordSessions: true`. Any other `LocalRuntimeHost` (local
+or `auto` fallback `ClineCore`, sandboxed CLI runs) refuses to start a session
+that asks for recording, so a recording is never written by a process the hub
+does not own.
+
+The switch is per-session config, never process environment:
+
+- Clients send `recording` in the session config of `session.create` and
+  `session.restore`, or as `runtimeOptions.recording` (the hub maps it onto the
+  session config the same way as `checkpointEnabled`).
+- Hub schedules keep `runtimeOptions.recording` in the schedule's stored
+  runtime options; the cron runner copies it onto each run's start request.
+- The CLI's `--record-session` ensures the hub daemon is running, then starts
+  the session on it with `recording.enabled`, even for yolo runs that would
+  otherwise run locally. It refuses sandboxed runs, `--acp`, and an explicit
+  non-hub `CLINE_SESSION_BACKEND_MODE`.
+
+The executing host opens one `SessionRecorder` per host start (a segment in
+`recording/recording.json`) and closes it on shutdown; recording never changes
+the messages file, manifest or hook logs except by adding the `recording/`
+directory, `seq` on hook audit lines, and tool-result metadata. Records are
+appended in the background after each model call and run end, so a reader that
+needs a finished run should wait for its `run_finished` event: events are
+appended after the requests of the same batch.
+
+The recorder observes the model adapter and runtime events rather than logs:
+
+- `requests.jsonl` holds one record per model call, with outcome, usage, retry
+  attempt, a credential-free provider summary, and the request as content
+  hashes. Each request stores only the messages after the prefix it shares with
+  the previous call (`messagePrefix`); `resolveRecordedRequestMessages` rebuilds
+  full request lists. Message blobs omit per-request ids and timestamps, so
+  identical history deduplicates in `blobs.jsonl`.
+- `request.matchKey` hashes the system prompt, tool definitions, and each
+  message's role and content under `cline-replay-match-v1`; replay matching
+  should key on it rather than on ids or timestamps.
+- `events.jsonl` holds `kind: "decision"` events (approvals with `decidedBy`,
+  pending-prompt enqueue/update/delete/deliver/discard, mode switches, aborts,
+  mistake-limit outcomes) and `kind: "runtime"` events (run, turn, tool and
+  model-call boundaries). Correlation ids live in `refs`, outside the payload,
+  so export redaction keeps them.
+- One per-session `seq` counter orders requests, events and hook audit lines
+  together, including parallel tool calls; order by `seq`, not file position.
+- Tool results carry `metadata.toolEnvironment`: hashes of files read, file
+  pre/post images for edits, and command cwd, exit facts and a hash of the
+  allow-listed environment (whose values live in the recording header). The
+  recorder adds it through `afterTool` result metadata; the agents package only
+  carries that metadata onto the tool message.
+
+`exportSessionReplayBundle` copies a recording into bundle schemaVersion 2
+(`sessions/<id>/requests/requests.jsonl` and `blobs.jsonl`, redacted like the
+rest of the bundle, and decision events merged into `events.jsonl`), and uses
+each segment's `leadAgentId` to separate root hook lines from subagent and
+teammate lines. Version 1 bundles migrate on read. Subagent and teammate model
+calls and approvals, and compaction summarizer calls, are not recorded yet.
+
 ### Configured subagent approvals
 
 Configured subagents execute their available tools without inheriting the parent

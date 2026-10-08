@@ -238,6 +238,14 @@ export function resolveSessionAutoApproveTools(
 	return runtimeOptions.autoApproveTools === true;
 }
 
+function readRuntimeRecording(
+	runtimeOptions: Record<string, unknown>,
+): { enabled: true } | undefined {
+	return asPlainRecord(runtimeOptions.recording)?.enabled === true
+		? { enabled: true }
+		: undefined;
+}
+
 function authorizeSessionCompactionAccess(input: {
 	sessionId: string;
 	ctx: HubTransportContext;
@@ -477,6 +485,8 @@ export async function handleSessionCreate(
 				(runtimeOptions.checkpointEnabled === true
 					? { enabled: true }
 					: undefined),
+			recording:
+				sessionConfig?.recording ?? readRuntimeRecording(runtimeOptions),
 			teamName:
 				sessionConfig?.teamName ??
 				(typeof metadata.teamName === "string" ? metadata.teamName : undefined),
@@ -766,6 +776,8 @@ export async function handleSessionRestore(
 							(runtimeOptions.checkpointEnabled === true
 								? { enabled: true }
 								: undefined),
+						recording:
+							sessionConfig?.recording ?? readRuntimeRecording(runtimeOptions),
 						teamName:
 							sessionConfig?.teamName ??
 							(typeof metadata.teamName === "string"

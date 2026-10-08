@@ -167,8 +167,12 @@ export function toSessionReplayHookEvents(input: {
 		const index = events.length;
 		const iteration = entry.iteration;
 		const toolCallId = readToolCallId(entry);
+		const seq = entry.seq;
 		events.push({
 			index,
+			...(typeof seq === "number" && Number.isInteger(seq) && seq >= 0
+				? { seq }
+				: {}),
 			ts,
 			kind: "hook",
 			name,

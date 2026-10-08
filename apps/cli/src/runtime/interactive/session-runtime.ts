@@ -153,10 +153,12 @@ export function createInteractiveSessionRuntime(input: {
 			// background. Forcing `hub` here routes through `ensureCompatibleLocalHubUrl`,
 			// which can poll for up to the hub startup timeout before the TUI is usable.
 			// Yolo and sandbox modes must stay fully local and must not prewarm or reuse
-			// the shared daemon hub.
+			// the shared daemon hub. `--record-session` is the exception: recording
+			// happens only in the hub, so it waits for the hub instead.
 			backendMode: "auto",
 			forceLocalBackend:
 				input.config.mode === "yolo" || input.config.sandbox === true,
+			recordSession: input.config.recording?.enabled === true,
 			capabilities: {
 				toolExecutors: {
 					askQuestion: (question, options) => {

@@ -236,6 +236,19 @@ export interface CoreCheckpointConfig {
 		| undefined;
 }
 
+/**
+ * Session replay recording. When enabled the session additionally writes
+ * per-model-call request records, decision events and tool environment facts
+ * under `<session-dir>/recording/`; nothing else it writes changes.
+ */
+export interface CoreRecordingConfig {
+	/**
+	 * Record this session. Only the hub records sessions; other runtime hosts
+	 * refuse to start a session with this set.
+	 */
+	enabled?: boolean;
+}
+
 export interface CoreSessionConfig
 	extends CoreModelConfig,
 		CoreRuntimeFeatures,
@@ -280,6 +293,7 @@ export interface CoreSessionConfig
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;
 	checkpoint?: CoreCheckpointConfig;
+	recording?: CoreRecordingConfig;
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

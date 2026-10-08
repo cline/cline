@@ -29,11 +29,28 @@ const FAKE_MIGRATIONS: SessionReplayBundleMigration[] = [
 ];
 
 describe("session replay bundle migrations", () => {
-	it("has no migrations at schema version 1", () => {
-		expect(SESSION_REPLAY_BUNDLE_MIGRATIONS).toEqual([]);
-		expect(migrateSessionReplayBundleManifest(rawManifest(1))).toEqual({
-			manifest: rawManifest(1),
-			fromVersion: 1,
+	it("migrates version 1 manifests to version 2 with recording: null", () => {
+		expect(SESSION_REPLAY_BUNDLE_MIGRATIONS.map((step) => step.from)).toEqual([
+			1,
+		]);
+		const result = migrateSessionReplayBundleManifest(
+			rawManifest(1, {
+				sessions: [{ sessionId: "root" }, { sessionId: "child" }],
+			}),
+		);
+		expect(result.fromVersion).toBe(1);
+		expect(result.applied).toHaveLength(1);
+		expect(result.manifest).toEqual(
+			rawManifest(2, {
+				sessions: [
+					{ sessionId: "root", recording: null },
+					{ sessionId: "child", recording: null },
+				],
+			}),
+		);
+		expect(migrateSessionReplayBundleManifest(rawManifest(2))).toEqual({
+			manifest: rawManifest(2),
+			fromVersion: 2,
 			applied: [],
 		});
 	});
@@ -79,9 +96,9 @@ describe("session replay bundle migrations", () => {
 			caught = error;
 		}
 		expect(caught).toBeInstanceOf(SessionReplayBundleVersionError);
-		expect(caught).toMatchObject({ bundleVersion: 5, supportedVersion: 1 });
+		expect(caught).toMatchObject({ bundleVersion: 5, supportedVersion: 2 });
 		expect((caught as Error).message).toBe(
-			"Session replay bundle uses schemaVersion 5, but this version of Cline reads bundles up to schemaVersion 1. Upgrade Cline to read this bundle.",
+			"Session replay bundle uses schemaVersion 5, but this version of Cline reads bundles up to schemaVersion 2. Upgrade Cline to read this bundle.",
 		);
 	});
 

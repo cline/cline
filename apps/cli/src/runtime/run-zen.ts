@@ -103,6 +103,7 @@ export async function runZen(
 			source: "cline-cli-zen",
 			interactive: false,
 			logger: config.loggerConfig,
+			...(config.recording?.enabled ? { recording: { enabled: true } } : {}),
 		};
 
 		const started = await sessionClient.startRuntimeSession(startRequest);

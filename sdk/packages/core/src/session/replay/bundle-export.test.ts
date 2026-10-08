@@ -69,7 +69,7 @@ describe("exportSessionReplayBundle", () => {
 		const { manifest } = result;
 		expect(manifest).toMatchObject({
 			format: "cline.session-replay-bundle",
-			schemaVersion: 1,
+			schemaVersion: 2,
 			createdAt: "2026-02-01T00:00:00.000Z",
 			producer: { name: "@cline/core", host: "test", hostVersion: "0.0.0" },
 			rootSessionId: FIXTURE_SESSION_ID,
