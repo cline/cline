@@ -68,8 +68,23 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(recovery, {
 				type: "retry_delivered",
 				sourceSessionId: "local-1",
+				retryDraft: recovery["local-1"].retryDraft,
+				retryAttachments: recovery["local-1"].retryAttachments,
 			}),
 		).toEqual({});
+		for (const delivered of [
+			{ ...recovery["local-1"], retryDraft: "/cloud older command" },
+			{ ...recovery["local-1"], retryAttachments: [] },
+		]) {
+			expect(
+				cloudHandoffUiReducer(recovery, {
+					type: "retry_delivered",
+					sourceSessionId: "local-1",
+					retryDraft: delivered.retryDraft,
+					retryAttachments: delivered.retryAttachments,
+				}),
+			).toBe(recovery);
+		}
 	});
 
 	it("preserves the source's latest progress phase", () => {

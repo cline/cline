@@ -60,6 +60,7 @@ export async function openWithCloudHandoffFollowUp(options: {
 	initialAttachments?: File[];
 	canOpen: () => boolean;
 	open: (draft?: string, attachments?: File[], draftId?: string) => void;
+	onSavedDraftOpened?: (saved: CloudHandoffFollowUp) => void | Promise<void>;
 }): Promise<boolean> {
 	let saved: CloudHandoffFollowUp | null = null;
 	const explicitRetry =
@@ -76,9 +77,11 @@ export async function openWithCloudHandoffFollowUp(options: {
 		if (!explicitRetry && saved && !saved.unconfirmed)
 			attachments = cloudHandoffFollowUpAttachments(saved);
 		if (saved?.unconfirmed && explicitRetry)
-			newerDraft =
-				(options.initialPromptDraft?.trim() ?? "") !== saved.command.trim() ||
-				!(await sameImages(options.initialAttachments ?? [], saved));
+			newerDraft = !(await matchesCloudHandoffFollowUp(
+				options.initialPromptDraft,
+				options.initialAttachments ?? [],
+				saved,
+			));
 	} catch {
 		saved = null;
 		restoreFailed = true;
@@ -97,6 +100,7 @@ export async function openWithCloudHandoffFollowUp(options: {
 		attachments,
 		saved?.draftId,
 	);
+	if (!explicitRetry && saved) await options.onSavedDraftOpened?.(saved);
 	if (restoreFailed) {
 		toast({
 			title: "Cloud opened without the saved follow-up",
@@ -108,10 +112,12 @@ export async function openWithCloudHandoffFollowUp(options: {
 	return true;
 }
 
-async function sameImages(
+export async function matchesCloudHandoffFollowUp(
+	draft: string | undefined,
 	files: File[],
 	saved: CloudHandoffFollowUp,
 ): Promise<boolean> {
+	if ((draft?.trim() ?? "") !== saved.command.trim()) return false;
 	if (files.length !== saved.userImages.length) return false;
 	const original = cloudHandoffFollowUpAttachments(saved);
 	for (const [index, file] of files.entries()) {
