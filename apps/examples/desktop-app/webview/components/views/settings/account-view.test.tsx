@@ -87,9 +87,19 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
-	it("replaces account creation with cancellation while browser sign-in is pending", async () => {
-		invoke.mockImplementation(async (command) => {
+	it("keeps retry cancellable while an earlier sign-in reloads account data", async () => {
+		let rejectFirstSignIn!: (error: Error) => void;
+		const firstSignIn = new Promise((_, reject) => {
+			rejectFirstSignIn = reject;
+		});
+		let signInCount = 0;
+		let overviewCount = 0;
+		invoke.mockImplementation(async (command, args) => {
+			if (command === "run_provider_oauth_login" && ++signInCount === 1)
+				return await firstSignIn;
 			if (command === "run_provider_oauth_login")
+				return await new Promise(() => {});
+			if (args?.operation === "fetchMe" && ++overviewCount > 1)
 				return await new Promise(() => {});
 			return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
 		});
@@ -111,6 +121,17 @@ describe("AccountView signed-out state", () => {
 		});
 		expect(button("Sign in").disabled).toBe(false);
 		expect(button("Create account").disabled).toBe(false);
+		await act(async () => button("Sign in").click());
+		await act(async () => rejectFirstSignIn(new Error("Sign-in cancelled")));
+		expect(overviewCount).toBe(2);
+		expect(button("Signing in").disabled).toBe(true);
+		expect(button("Cancel").disabled).toBe(false);
+		await act(async () => button("Cancel").click());
+		expect(
+			invoke.mock.calls.filter(
+				([command]) => command === "cancel_provider_oauth_login",
+			),
+		).toHaveLength(2);
 	});
 
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {

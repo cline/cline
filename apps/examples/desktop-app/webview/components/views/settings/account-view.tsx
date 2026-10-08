@@ -438,6 +438,7 @@ export function AccountView() {
 		: (balance?.balance ?? null);
 
 	const tabs = ["overview", "usage", "billing"] as const;
+	const overviewReady = !overviewLoading && !signingIn;
 
 	// -- Shared error / loading UI --
 
@@ -623,10 +624,10 @@ export function AccountView() {
 			{/* Overview Tab */}
 			{activeTab === "overview" && (
 				<div className="flex flex-col gap-6">
-					{overviewLoading && renderLoading()}
-					{!overviewLoading && signedOut && renderSignedOut()}
+					{overviewLoading && !signingIn && renderLoading()}
+					{(signingIn || (overviewReady && signedOut)) && renderSignedOut()}
 					{overviewError && renderError(overviewError, loadOverview)}
-					{!overviewLoading && !signedOut && !overviewError && user && (
+					{overviewReady && !signedOut && !overviewError && user && (
 						<>
 							{/* User Profile Card */}
 							<div className="rounded-lg border border-border p-5">
