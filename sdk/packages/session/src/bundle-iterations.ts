@@ -6,6 +6,8 @@ import {
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
+	groupSessionMessageIterations as groupMessages,
+	hasSessionToolResult as hasToolResult,
 	type MessageWithMetadata,
 	type SessionRecordedModelCall,
 	type SessionReplayEvent,
@@ -112,71 +114,11 @@ export interface SessionReplayIteration {
 	messageRange: { start: number; end: number };
 }
 
-interface MessageGroup {
-	start: number;
-	end: number;
-	assistantIndex?: number;
-}
-
 const NON_CONVERSATIONAL_DISPLAY_ROLES = new Set(["system", "status", "error"]);
 
 function displayRole(message: MessageWithMetadata): string | undefined {
 	const role = message.metadata?.displayRole;
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
-}
-
-function isModelCall(message: MessageWithMetadata): boolean {
-	if (message.role !== "assistant") {
-		return false;
-	}
-	if (message.metadata?.displayOnly === true) {
-		return false;
-	}
-	const role = displayRole(message);
-	return !role || !NON_CONVERSATIONAL_DISPLAY_ROLES.has(role);
-}
-
-function hasToolResult(message: MessageWithMetadata): boolean {
-	return (
-		Array.isArray(message.content) &&
-		message.content.some((block) => block.type === "tool_result")
-	);
-}
-
-function groupMessages(
-	messages: readonly MessageWithMetadata[],
-): MessageGroup[] {
-	const groups: MessageGroup[] = [];
-	let current: MessageGroup | undefined;
-	for (const [index, message] of messages.entries()) {
-		if (isModelCall(message)) {
-			if (!current || current.assistantIndex !== undefined) {
-				if (current) {
-					groups.push(current);
-				}
-				current = { start: index, end: index + 1 };
-			}
-			current.assistantIndex = index;
-			current.end = index + 1;
-			continue;
-		}
-		const followsModelCall = current?.assistantIndex !== undefined;
-		const attachesToCurrent =
-			followsModelCall &&
-			(hasToolResult(message) || message.role === "assistant");
-		if (current && (attachesToCurrent || !followsModelCall)) {
-			current.end = index + 1;
-			continue;
-		}
-		if (current) {
-			groups.push(current);
-		}
-		current = { start: index, end: index + 1 };
-	}
-	if (current) {
-		groups.push(current);
-	}
-	return groups;
 }
 
 /**

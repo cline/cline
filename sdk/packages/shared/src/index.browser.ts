@@ -174,6 +174,7 @@ export type {
 	ImageContent,
 	MediaContent,
 	Message,
+	MessageChildSessionLink,
 	MessageRole,
 	MessageWithMetadata,
 	RedactedThinkingContent,

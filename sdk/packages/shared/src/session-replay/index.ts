@@ -34,6 +34,12 @@ export {
 	SessionReplayTranscriptFileSchema,
 } from "./bundle-schema";
 export {
+	groupSessionMessageIterations,
+	hasSessionToolResult,
+	isSessionModelCallMessage,
+	type SessionMessageIterationGroup,
+} from "./message-iterations";
+export {
 	computeRecordedRequestMatchKey,
 	recordedMessageContentSha256,
 	recordedToolDefinitions,
