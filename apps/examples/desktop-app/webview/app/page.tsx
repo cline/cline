@@ -35,6 +35,7 @@ import {
 	SidebarProvider,
 	SidebarRail,
 	SidebarTrigger,
+	useSidebar,
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
@@ -128,6 +129,7 @@ import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import {
 	markCurrentWhatsNewSeen,
 	markWhatsNewSeen,
@@ -197,6 +199,14 @@ const DiffView = dynamic(
 	() =>
 		import("@/components/views/chat/diff-view").then(
 			(module) => module.DiffView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
+const FilesWorkbench = dynamic(
+	() =>
+		import("@/components/views/chat/files-workbench").then(
+			(module) => module.FilesWorkbench,
 		),
 	{ loading: viewLoading, ssr: false },
 );
@@ -1208,6 +1218,7 @@ function ChatThreadPane({
 	const {
 		clearPromptForSend,
 		promptDraft,
+		promptInputRef,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
@@ -1219,6 +1230,50 @@ function ChatThreadPane({
 		writeWorkInToWindow(next);
 	}, []);
 	const [showDiffView, setShowDiffView] = useState(false);
+	const [showFiles, setShowFiles] = useState(false);
+	const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
+	// The workbench needs the width, so it collapses the sidebar and gives it
+	// back when it closes (or when this pane unmounts on session switch).
+	const sidebarCollapsedForFilesRef = useRef(false);
+	const setSidebarOpenRef = useRef(setSidebarOpen);
+	setSidebarOpenRef.current = setSidebarOpen;
+	const closeFiles = useCallback(() => {
+		setShowFiles(false);
+		if (sidebarCollapsedForFilesRef.current) {
+			sidebarCollapsedForFilesRef.current = false;
+			setSidebarOpenRef.current(true);
+		}
+	}, []);
+	const handleToggleFiles = useCallback(() => {
+		if (showFiles) {
+			closeFiles();
+			return;
+		}
+		setShowDiffView(false);
+		setShowFiles(true);
+		if (sidebarOpen) {
+			sidebarCollapsedForFilesRef.current = true;
+			setSidebarOpen(false);
+		}
+	}, [closeFiles, setSidebarOpen, showFiles, sidebarOpen]);
+	useEffect(() => {
+		// Reopened by hand: nothing left to give back.
+		if (sidebarOpen) sidebarCollapsedForFilesRef.current = false;
+	}, [sidebarOpen]);
+	useEffect(
+		() => () => {
+			if (sidebarCollapsedForFilesRef.current) setSidebarOpenRef.current(true);
+		},
+		[],
+	);
+	const handleAddFileToChat = useCallback(
+		(path: string) => {
+			const current = promptInputRef.current;
+			const separator = current && !/\s$/.test(current) ? " " : "";
+			setPromptInput(`${current}${separator}@${path} `);
+		},
+		[promptInputRef, setPromptInput],
+	);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2363,9 +2418,10 @@ function ChatThreadPane({
 	);
 	const handleOpenDiff = useCallback(() => {
 		if (summary.additions + summary.deletions > 0) {
+			closeFiles();
 			setShowDiffView(true);
 		}
-	}, [summary.additions, summary.deletions]);
+	}, [closeFiles, summary.additions, summary.deletions]);
 
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
@@ -2576,6 +2632,14 @@ function ChatThreadPane({
 			? cloudSessionError.connectUrl
 			: undefined;
 
+	const filesCwd = (config.cwd || config.workspaceRoot || "").trim();
+	const canBrowseFiles =
+		!isWelcomeState &&
+		!isCloudSession &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+		Boolean(filesCwd);
+	const filesVisible = showFiles && canBrowseFiles;
+
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
 			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
@@ -2583,7 +2647,12 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: cn(
+								"grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden",
+								filesVisible
+									? "grid-cols-[minmax(20rem,2fr)_minmax(0,3fr)]"
+									: "grid-cols-[minmax(0,1fr)]",
+							)
 				}
 				disabled={isCloudSessionExpired}
 				description={
@@ -2609,6 +2678,8 @@ function ChatThreadPane({
 								canDeleteSession={Boolean(activeSessionToDelete)}
 								deletingSession={deletingSession}
 								diff={isCloudSession ? undefined : headerDiff}
+								filesOpen={filesVisible}
+								onToggleFiles={canBrowseFiles ? handleToggleFiles : undefined}
 								onDeleteSession={requestDeleteSession}
 								onNewThread={onNewThread}
 								onOpenDiff={handleOpenDiff}
@@ -2721,6 +2792,15 @@ function ChatThreadPane({
 					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 				/>
+				{filesVisible ? (
+					<FilesWorkbench
+						className="col-start-2 row-span-2 row-start-1"
+						cwd={filesCwd}
+						environmentId={environmentId}
+						fileDiffs={fileDiffs}
+						onAddToChat={handleAddFileToChat}
+					/>
+				) : null}
 			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}

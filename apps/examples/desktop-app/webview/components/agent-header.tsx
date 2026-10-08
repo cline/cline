@@ -8,6 +8,7 @@ import {
 	ChevronRight,
 	Clock3,
 	CornerUpLeft,
+	FolderTree,
 	Loader2,
 	MoreHorizontal,
 	Plus,
@@ -45,6 +46,8 @@ type AgentHeaderProps = {
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
 	onOpenDiff?: () => void;
+	filesOpen?: boolean;
+	onToggleFiles?: () => void;
 	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
 	diff?: {
@@ -72,6 +75,8 @@ function AgentHeaderImpl({
 	canDeleteSession,
 	deletingSession,
 	onOpenDiff,
+	filesOpen = false,
+	onToggleFiles,
 	showSessionActions = true,
 	status,
 	diff,
@@ -136,6 +141,25 @@ function AgentHeaderImpl({
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenChange={onAgentsOpenChange}
 						/>
+						{onToggleFiles ? (
+							<Button
+								aria-label={filesOpen ? "Hide files" : "Show files"}
+								aria-pressed={filesOpen}
+								className={cn(
+									"h-7 gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground",
+									filesOpen && "bg-secondary text-foreground",
+								)}
+								id="files-toggle"
+								onClick={onToggleFiles}
+								size="sm"
+								title={filesOpen ? "Hide files" : "Browse project files"}
+								type="button"
+								variant="ghost"
+							>
+								<FolderTree className="size-3.5" />
+								Files
+							</Button>
+						) : null}
 						{additions !== 0 && (
 							<Button
 								aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}

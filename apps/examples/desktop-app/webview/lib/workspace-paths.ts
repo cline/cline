@@ -92,6 +92,20 @@ export function resolveWorkspaceFilePath(path: string, cwd?: string): string {
 	return `${base.replace(/[\\/]+$/, "")}${separator}${trimmed.replace(/^\.\//, "")}`;
 }
 
+/**
+ * The inverse of resolveWorkspaceFilePath: maps a diff path onto the
+ * workspace-relative, forward-slash form the file index uses. Absolute paths
+ * outside the cwd come back unchanged.
+ */
+export function toWorkspaceRelativePath(path: string, cwd: string): string {
+	const normalized = path.trim().replace(/\\/g, "/");
+	const base = cwd.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+	if (base && normalized.startsWith(`${base}/`)) {
+		return normalized.slice(base.length + 1);
+	}
+	return normalized.replace(/^\.\//, "");
+}
+
 const POSIX_HOME_OR_DESKTOP_PATTERN =
 	/^(?:\/Users\/[^/]+|\/home\/[^/]+|\/root)(?:\/Desktop)?$/;
 const WINDOWS_HOME_OR_DESKTOP_PATTERN =

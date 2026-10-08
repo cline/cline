@@ -196,6 +196,7 @@ import type {
 	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
+import { listWorkspaceFiles, readWorkspaceFile } from "./workspace-files";
 import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
@@ -2762,6 +2763,24 @@ export async function handleCommand(
 	if (command === "search_workspace_files") {
 		const binding = getCommandRuntimeBinding(ctx, args);
 		return await searchRemoteWorkspaceFiles(ctx, binding, args);
+	}
+	if (command === "list_workspace_files" || command === "read_workspace_file") {
+		const binding = getCommandRuntimeBinding(ctx, args);
+		if (binding.kind === "ssh") {
+			throw new Error(
+				"Browsing files is not available for SSH workspaces yet.",
+			);
+		}
+		const root =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		if (command === "list_workspace_files") {
+			return await listWorkspaceFiles(root);
+		}
+		const path = String(args?.path ?? "").trim();
+		if (!path) throw new Error("path is required");
+		return await readWorkspaceFile(root, path);
 	}
 
 	// ── External links ─────────────────────────────────────────────────

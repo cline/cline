@@ -3,7 +3,13 @@
 import { AgentChangedFile, AgentChangesPanel } from "@cline/ui";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { AppWindow, ExternalLink } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -31,13 +37,7 @@ type EditorOption = {
 	label: string;
 };
 
-export function DiffView({
-	environmentId,
-	fileDiffs,
-	cwd,
-	onClose,
-}: DiffViewProps) {
-	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+export function useAvailableEditors(): EditorOption[] {
 	const [editors, setEditors] = useState<EditorOption[]>([]);
 
 	useEffect(() => {
@@ -55,6 +55,18 @@ export function DiffView({
 			cancelled = true;
 		};
 	}, []);
+
+	return editors;
+}
+
+export function DiffView({
+	environmentId,
+	fileDiffs,
+	cwd,
+	onClose,
+}: DiffViewProps) {
+	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+	const editors = useAvailableEditors();
 
 	return (
 		<AgentChangesPanel
@@ -110,7 +122,6 @@ function DiffFileSection({
 	environmentId: string;
 }) {
 	const [copied, setCopied] = useState(false);
-	const [opening, setOpening] = useState(false);
 	const copyResetTimerRef = useRef<number | null>(null);
 	const resolvedPath = resolveWorkspaceFilePath(file.path, cwd);
 
@@ -134,32 +145,6 @@ function DiffFileSection({
 		}
 	}, [resolvedPath]);
 
-	const handleOpenInEditor = useCallback(
-		async (editor?: string) => {
-			setOpening(true);
-			try {
-				await desktopClient.invoke("open_file_in_editor", {
-					environmentId,
-					path: file.path,
-					...(cwd?.trim() ? { cwd } : {}),
-					...(editor ? { editor } : {}),
-				});
-			} catch (error) {
-				toast({
-					variant: "destructive",
-					title: "Could not open file",
-					description:
-						error instanceof Error
-							? error.message
-							: "The file could not be opened in an editor.",
-				});
-			} finally {
-				setOpening(false);
-			}
-		},
-		[cwd, environmentId, file.path],
-	);
-
 	return (
 		<AgentChangedFile
 			path={file.path}
@@ -170,38 +155,15 @@ function DiffFileSection({
 			copied={copied}
 			onCopyPath={() => void handleCopyPath()}
 			actions={
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<button
-							aria-label={`Open ${file.path} in editor`}
-							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
-							disabled={opening}
-							title="Open in editor"
-							type="button"
-						>
-							<ExternalLink className="h-3.5 w-3.5" />
-						</button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-52">
-						<DropdownMenuLabel>Open in</DropdownMenuLabel>
-						{editors.map((editor) => (
-							<DropdownMenuItem
-								key={editor.id}
-								onSelect={() => void handleOpenInEditor(editor.id)}
-							>
-								<EditorIcon editorId={editor.id} />
-								{editor.label}
-							</DropdownMenuItem>
-						))}
-						{editors.length > 0 && <DropdownMenuSeparator />}
-						<DropdownMenuItem
-							onSelect={() => void handleOpenInEditor("default")}
-						>
-							<AppWindow aria-hidden />
-							System default
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+				<OpenInEditorMenu
+					className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
+					cwd={cwd}
+					editors={editors}
+					environmentId={environmentId}
+					path={file.path}
+				>
+					<ExternalLink className="h-3.5 w-3.5" />
+				</OpenInEditorMenu>
 			}
 		>
 			{file.hunks.length === 0 ? (
@@ -224,7 +186,90 @@ function DiffFileSection({
 	);
 }
 
-function DiffHunk({ hunk, path }: { hunk: SessionDiffHunk; path: string }) {
+export function OpenInEditorMenu({
+	path,
+	cwd,
+	environmentId,
+	editors,
+	className,
+	children,
+}: {
+	path: string;
+	cwd?: string;
+	environmentId: string;
+	editors: EditorOption[];
+	className?: string;
+	children: ReactNode;
+}) {
+	const [opening, setOpening] = useState(false);
+
+	const handleOpenInEditor = useCallback(
+		async (editor?: string) => {
+			setOpening(true);
+			try {
+				await desktopClient.invoke("open_file_in_editor", {
+					environmentId,
+					path,
+					...(cwd?.trim() ? { cwd } : {}),
+					...(editor ? { editor } : {}),
+				});
+			} catch (error) {
+				toast({
+					variant: "destructive",
+					title: "Could not open file",
+					description:
+						error instanceof Error
+							? error.message
+							: "The file could not be opened in an editor.",
+				});
+			} finally {
+				setOpening(false);
+			}
+		},
+		[cwd, environmentId, path],
+	);
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					aria-label={`Open ${path} in editor`}
+					className={className}
+					disabled={opening}
+					title="Open in editor"
+					type="button"
+				>
+					{children}
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-52">
+				<DropdownMenuLabel>Open in</DropdownMenuLabel>
+				{editors.map((editor) => (
+					<DropdownMenuItem
+						key={editor.id}
+						onSelect={() => void handleOpenInEditor(editor.id)}
+					>
+						<EditorIcon editorId={editor.id} />
+						{editor.label}
+					</DropdownMenuItem>
+				))}
+				{editors.length > 0 && <DropdownMenuSeparator />}
+				<DropdownMenuItem onSelect={() => void handleOpenInEditor("default")}>
+					<AppWindow aria-hidden />
+					System default
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
+export function DiffHunk({
+	hunk,
+	path,
+}: {
+	hunk: SessionDiffHunk;
+	path: string;
+}) {
 	// A hunk with no old side that starts at line 1 on both sides carries the
 	// complete new contents (editor `create`, apply_patch Add File). Chat tool
 	// rows render those with complete-file semantics (real line numbers);

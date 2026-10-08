@@ -14,6 +14,7 @@ import {
 	registerHostHomeDirectory,
 	registerTaskWorktreeRoot,
 	resolveWorkspaceFilePath,
+	toWorkspaceRelativePath,
 	WORKSPACE_SELECTION_STORAGE_KEY,
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
@@ -70,6 +71,27 @@ describe("workspace paths", () => {
 		);
 		expect(resolveWorkspaceFilePath("docs\\a.mdx", "C:\\Users\\renee")).toBe(
 			"C:\\Users\\renee\\docs\\a.mdx",
+		);
+	});
+
+	it("maps diff paths onto workspace-relative paths", () => {
+		expect(
+			toWorkspaceRelativePath(
+				"/Users/renee/cline/docs/a.mdx",
+				"/Users/renee/cline/",
+			),
+		).toBe("docs/a.mdx");
+		expect(toWorkspaceRelativePath("./docs/a.mdx", "/Users/renee/cline")).toBe(
+			"docs/a.mdx",
+		);
+		expect(
+			toWorkspaceRelativePath(
+				"C:\\Users\\renee\\docs\\a.mdx",
+				"C:\\Users\\renee",
+			),
+		).toBe("docs/a.mdx");
+		expect(toWorkspaceRelativePath("/elsewhere/a.mdx", "/Users/renee")).toBe(
+			"/elsewhere/a.mdx",
 		);
 	});
 
