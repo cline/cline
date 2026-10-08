@@ -885,6 +885,95 @@ describe("session replay e2e", () => {
 		}
 	}, 600_000);
 
+	// Needs a container runtime and an image with bun and git, e.g. one built
+	// FROM oven/bun:1 with git installed; the repository is mounted read-only.
+	it.skipIf(!process.env.CLINE_E2E_CONTAINER_IMAGE)(
+		"reruns a recorded session in a container with the workspace at the recorded path",
+		async () => {
+			const image = process.env.CLINE_E2E_CONTAINER_IMAGE ?? "";
+			const repoRoot = path.resolve(cliRoot, "..", "..");
+			const { env: containerEnv } = await hubTestEnv("container");
+			const repo = path.join(root, "container-repo");
+			mkdirSync(repo, { recursive: true });
+			const git = (...args: string[]) =>
+				execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" });
+			git("init", "--quiet");
+			git("config", "user.email", "replay@example.com");
+			git("config", "user.name", "Replay");
+			writeFileSync(path.join(repo, "notes.txt"), "committed\n");
+			git("add", ".");
+			git("commit", "--quiet", "-m", "base");
+			try {
+				fakeModelScript = "recorded";
+				const recorded = await runCli(
+					["-y", "--record-session", "Run echo for me"],
+					{ cwd: repo, env: containerEnv, timeoutMs: 120_000 },
+				);
+				expect(recorded.status, recorded.stderr).toBe(0);
+				const sessionId = await onlySessionId(containerEnv);
+				const bundleDir = path.join(root, "container-bundle");
+				const exported = await runCli(
+					["session", "export", sessionId, "--bundle", bundleDir],
+					{ cwd: workspace, env: containerEnv },
+				);
+				expect(exported.status, exported.stderr).toBe(0);
+				const out = path.join(root, "container-out");
+				const rerun = await runCli(
+					[
+						"session",
+						"replay",
+						bundleDir,
+						"--mode",
+						"rerun",
+						"--in-container",
+						"--image",
+						image,
+						"--container-cli",
+						`bun ${cliEntry}`,
+						`--container-arg=--volume=${repoRoot}:${repoRoot}:ro`,
+						"--out",
+						out,
+						"--format",
+						"json",
+					],
+					{ cwd: workspace, env: containerEnv, timeoutMs: 240_000 },
+				);
+				expect([0, 1], `${rerun.stderr}\n${rerun.stdout}`).toContain(
+					rerun.status,
+				);
+				const report = JSON.parse(rerun.stdout);
+				expect(report).toMatchObject({
+					workspace: {
+						method: "checkpoint",
+						root: path.join(out, "workspace", "container-repo"),
+					},
+					container: { runtime: "docker", image },
+					env: { applied: true },
+					live: {
+						bundleDir: path.join(out, "container", "bundle"),
+						validated: true,
+					},
+					comparison: { iterations: { recorded: 2, live: 2 } },
+				});
+				expect(report.container.command).toEqual(
+					expect.arrayContaining([
+						"-v",
+						`${path.join(out, "workspace", "container-repo")}:${repo}`,
+					]),
+				);
+				// Commands ran in the container, at the recorded path.
+				expect(
+					report.comparison.divergences.filter(
+						(divergence: { kind: string }) => divergence.kind === "tool-calls",
+					),
+				).toEqual([]);
+			} finally {
+				await runCli(["hub", "stop"], { cwd: workspace, env: containerEnv });
+			}
+		},
+		600_000,
+	);
+
 	it("refuses --record-session for runs that cannot use the hub", async () => {
 		const sandboxed = await runCli(
 			[
