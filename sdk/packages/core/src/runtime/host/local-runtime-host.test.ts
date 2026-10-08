@@ -3703,6 +3703,194 @@ describe("LocalRuntimeHost", () => {
 		expect(statuses()).toEqual(["running", "idle", "running", "cancelled"]);
 	});
 
+	function createOneShotStopFixture(
+		sessionId: string,
+		options: { abortSettlesRun: boolean } = { abortSettlesRun: true },
+	) {
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let settleRun: ((result: AgentResult) => void) | undefined;
+		let failRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const startRun = vi.fn().mockImplementation(() => {
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((resolve, reject) => {
+				settleRun = (result) => {
+					activeRun = false;
+					resolve(result);
+				};
+				failRun = (error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const agent = {
+			run: startRun,
+			continue: startRun,
+			// The runtime resolves an aborted run with an "aborted" finish.
+			abort: vi.fn().mockImplementation(() => {
+				if (options.abortSettlesRun) {
+					settleRun?.(createResult({ finishReason: "aborted" }));
+				}
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn(
+				() => new Promise<void>((resolve) => setTimeout(resolve, 20)),
+			),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		const endReasons: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "ended") endReasons.push(event.payload.reason);
+		});
+		const statuses = () =>
+			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
+		return {
+			manager,
+			agent,
+			runStarted,
+			endReasons,
+			statuses,
+			failRun: (error: Error) => failRun?.(error),
+		};
+	}
+
+	it("lets teardown own a one-shot session whose start turn is stopped", async () => {
+		const sessionId = "sess-stop-one-shot-start";
+		const { manager, agent, runStarted, endReasons, statuses } =
+			createOneShotStopFixture(sessionId);
+
+		const starting = manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "one-shot",
+			}),
+		);
+		await runStarted;
+		await manager.stopSession(sessionId);
+
+		// The stop persisted the status and ended the session; the aborted
+		// turn must not run the single-run teardown a second time.
+		await expect(starting).resolves.toMatchObject({
+			sessionId,
+			result: { finishReason: "aborted" },
+		});
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets teardown own a seeded one-shot session whose turn is stopped", async () => {
+		const sessionId = "sess-stop-one-shot-turn";
+		const { manager, agent, runStarted, endReasons, statuses } =
+			createOneShotStopFixture(sessionId);
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				initialMessages: [
+					{ role: "user", content: "seeded" },
+					{ role: "assistant", content: "ok" },
+				] as never,
+			}),
+		);
+		const turn = manager.runTurn({ sessionId, prompt: "continue" });
+		await runStarted;
+		await manager.stopSession(sessionId);
+
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("still reports a one-shot turn that fails on its own while the session is stopping", async () => {
+		const sessionId = "sess-stop-one-shot-independent-failure";
+		const { manager, agent, runStarted, endReasons, statuses, failRun } =
+			createOneShotStopFixture(sessionId, { abortSettlesRun: false });
+
+		const starting = manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "one-shot",
+			}),
+		);
+		await runStarted;
+		const stopping = manager.stopSession(sessionId);
+		// Teardown is still awaiting the agent shutdown when the provider
+		// fails. The failure must reach the caller, and must not run a
+		// second teardown that records "failed" over the stop's status.
+		failRun(new Error("provider exploded"));
+		await expect(starting).rejects.toThrow("provider exploded");
+		await stopping;
+
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("still reports a seeded one-shot turn that fails on its own while the session is stopping", async () => {
+		const sessionId = "sess-stop-one-shot-turn-independent-failure";
+		const { manager, agent, runStarted, endReasons, statuses, failRun } =
+			createOneShotStopFixture(sessionId, { abortSettlesRun: false });
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				initialMessages: [
+					{ role: "user", content: "seeded" },
+					{ role: "assistant", content: "ok" },
+				] as never,
+			}),
+		);
+		const turn = manager.runTurn({ sessionId, prompt: "continue" });
+		await runStarted;
+		const stopping = manager.stopSession(sessionId);
+		failRun(new Error("provider exploded"));
+		await expect(turn).rejects.toThrow("provider exploded");
+		await stopping;
+
+		expect(endReasons).toEqual(["stopped"]);
+		expect(statuses()).toEqual(["cancelled"]);
+		expect(agent.shutdown).toHaveBeenCalledTimes(1);
+	});
+
 	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
 		const sessionId = "sess-second-abort-clears-queue";
 		const manifest = createManifest(sessionId);
