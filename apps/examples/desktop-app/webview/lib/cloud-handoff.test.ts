@@ -66,7 +66,7 @@ describe("cloud handoff helpers", () => {
 			readHandoffReceipt({
 				handoff: {
 					status: "complete",
-					targetSessionId: "cloud-1",
+					toCloudSessionId: "cloud-1",
 					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 				},
 			}),
