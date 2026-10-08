@@ -871,7 +871,6 @@ export async function handleConnectorUserTurn<
 					`deliveryAdapter=${input.transport}`,
 					`deliveryThread=${input.thread.id}`,
 					`deliveryBindingKey=${input.thread.id}`,
-					`deliveryChannel=${input.thread.channelId}`,
 					...(input.botUserName
 						? [`deliveryUserName=${input.botUserName}`]
 						: []),
@@ -915,7 +914,6 @@ export async function handleConnectorUserTurn<
 							...(current.participantLabel
 								? { participantLabel: current.participantLabel }
 								: {}),
-							channelId: input.thread.channelId,
 							...(input.botUserName ? { userName: input.botUserName } : {}),
 							...(input.getScheduleDeliveryMetadata?.(input.thread) ?? {}),
 						},
