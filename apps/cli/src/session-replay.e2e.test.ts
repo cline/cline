@@ -13,6 +13,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { validateAtifTrajectory } from "@cline/session";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const cliRoot = path.resolve(__dirname, "..");
@@ -94,8 +95,86 @@ function toolCallChunk(id: string, name: string, input: unknown) {
 /**
  * `recorded`: run a shell command, then submit. `diverge`: run a second,
  * different command before submitting, so a rerun diverges at iteration 2.
+ * `spawn`: delegate to a subagent that runs a shell command, then answer.
  */
-let fakeModelScript: "recorded" | "diverge" = "recorded";
+let fakeModelScript: "recorded" | "diverge" | "spawn" = "recorded";
+
+const SUBAGENT_SYSTEM_PROMPT = "You are the replay subagent.";
+
+function writeSpawnScript(
+	res: import("node:http").ServerResponse,
+	input: { subagent: boolean; toolResults: number },
+): void {
+	if (input.subagent && input.toolResults === 0) {
+		res.write(
+			sseChunk({ role: "assistant", content: "Running echo here." }, null),
+		);
+		res.write(
+			toolCallChunk("call_sub_echo", "run_commands", {
+				commands: ["echo replay-subagent"],
+			}),
+		);
+		res.write(
+			sseChunk({}, "tool_calls", {
+				prompt_tokens: 60,
+				completion_tokens: 7,
+				total_tokens: 67,
+			}),
+		);
+		return;
+	}
+	if (input.subagent) {
+		res.write(
+			sseChunk(
+				{ role: "assistant", content: "The command printed replay-subagent." },
+				null,
+			),
+		);
+		res.write(
+			sseChunk({}, "stop", {
+				prompt_tokens: 80,
+				completion_tokens: 8,
+				total_tokens: 88,
+			}),
+		);
+		return;
+	}
+	if (input.toolResults === 0) {
+		res.write(
+			sseChunk(
+				{ role: "assistant", content: "Delegating to a subagent." },
+				null,
+			),
+		);
+		res.write(
+			toolCallChunk("call_spawn", "spawn_agent", {
+				systemPrompt: SUBAGENT_SYSTEM_PROMPT,
+				task: "Run echo replay-subagent and report the output.",
+			}),
+		);
+		res.write(
+			sseChunk({}, "tool_calls", {
+				prompt_tokens: 120,
+				completion_tokens: 20,
+				total_tokens: 140,
+			}),
+		);
+		return;
+	}
+	res.write(
+		sseChunk(
+			{ role: "assistant", content: "The subagent ran the echo command." },
+			null,
+		),
+	);
+	res.write(
+		sseChunk({}, "stop", {
+			prompt_tokens: 200,
+			completion_tokens: 10,
+			total_tokens: 210,
+		}),
+	);
+}
 
 /**
  * OpenAI-compatible streaming endpoint scripted for a two-iteration session:
@@ -109,13 +188,21 @@ function startFakeModel(): Promise<Server> {
 		});
 		req.on("end", () => {
 			const messages =
-				(JSON.parse(body || "{}") as { messages?: Array<{ role?: string }> })
-					.messages ?? [];
+				(
+					JSON.parse(body || "{}") as {
+						messages?: Array<{ role?: string; content?: unknown }>;
+					}
+				).messages ?? [];
 			const toolResults = messages.filter(
 				(message) => message.role === "tool",
 			).length;
 			res.writeHead(200, { "content-type": "text/event-stream" });
-			if (fakeModelScript === "diverge" && toolResults === 1) {
+			if (fakeModelScript === "spawn") {
+				const subagent = JSON.stringify(
+					messages.filter((message) => message.role === "system"),
+				).includes(SUBAGENT_SYSTEM_PROMPT);
+				writeSpawnScript(res, { subagent, toolResults });
+			} else if (fakeModelScript === "diverge" && toolResults === 1) {
 				res.write(
 					sseChunk({ role: "assistant", content: "Running echo again." }, null),
 				);
@@ -523,6 +610,143 @@ describe("session replay e2e", () => {
 			});
 		} finally {
 			await runCli(["hub", "stop"], { cwd: workspace, env: hubEnv });
+		}
+	}, 240_000);
+
+	it("records a session with a subagent and exports it as a validated ATIF trajectory", async () => {
+		const { env: atifEnv } = await hubTestEnv("atif");
+		fakeModelScript = "spawn";
+		try {
+			const run = await runCli(
+				[
+					"--auto-approve",
+					"true",
+					"--record-session",
+					"Delegate an echo to a subagent",
+				],
+				{ cwd: workspace, env: atifEnv, timeoutMs: 120_000 },
+			);
+			expect(run.status, run.stderr).toBe(0);
+			const sessionId = await onlySessionId(atifEnv);
+
+			const rootBundle = path.join(root, "atif-root-bundle");
+			const bundled = await runCli(
+				["session", "export", sessionId, "--bundle", rootBundle, "--json"],
+				{ cwd: workspace, env: atifEnv },
+			);
+			expect(bundled.status, bundled.stderr).toBe(0);
+			expect(JSON.parse(bundled.stdout)).toMatchObject({
+				sessionId,
+				schemaVersion: 2,
+			});
+
+			const fullBundle = path.join(root, "atif-full-bundle");
+			const target = path.join(root, "atif", "trajectory.json");
+			const exported = await runCli(
+				[
+					"session",
+					"export",
+					sessionId,
+					"--format",
+					"atif",
+					"--bundle",
+					fullBundle,
+					"--out",
+					target,
+					"--json",
+				],
+				{ cwd: workspace, env: atifEnv },
+			);
+			expect(exported.status, exported.stderr).toBe(0);
+			expect(JSON.parse(exported.stdout)).toMatchObject({
+				sessionId,
+				format: "atif",
+				schemaVersion: "ATIF-v1.7",
+				out: target,
+				bundleDir: fullBundle,
+				subagentTrajectories: 1,
+			});
+
+			const trajectory = JSON.parse(readFileSync(target, "utf8"));
+			expect(validateAtifTrajectory(trajectory)).toEqual({
+				ok: true,
+				errors: [],
+			});
+			expect(trajectory).toMatchObject({
+				schema_version: "ATIF-v1.7",
+				session_id: sessionId,
+				agent: { name: "cline", model_name: "fake-model" },
+			});
+			const agentSteps = trajectory.steps.filter(
+				(step: { source: string }) => step.source === "agent",
+			);
+			const spawnStep = agentSteps.find(
+				(step: { tool_calls?: Array<{ function_name: string }> }) =>
+					step.tool_calls?.some((call) => call.function_name === "spawn_agent"),
+			);
+			expect(spawnStep).toMatchObject({
+				message: "Delegating to a subagent.",
+				tool_calls: [
+					{
+						tool_call_id: "call_spawn",
+						arguments: { systemPrompt: SUBAGENT_SYSTEM_PROMPT },
+					},
+				],
+				metrics: { prompt_tokens: 120, completion_tokens: 20 },
+			});
+			const spawnResult = spawnStep.observation.results[0];
+			expect(spawnResult.source_call_id).toBe("call_spawn");
+			const childId = spawnResult.subagent_trajectory_ref[0].trajectory_id;
+			expect(trajectory.subagent_trajectories).toHaveLength(1);
+			const child = trajectory.subagent_trajectories[0];
+			expect(child.trajectory_id).toBe(childId);
+			const childEcho = child.steps.find(
+				(step: { tool_calls?: Array<{ function_name: string }> }) =>
+					step.tool_calls?.some(
+						(call) => call.function_name === "run_commands",
+					),
+			);
+			expect(childEcho.observation.results[0].content).toContain(
+				"replay-subagent",
+			);
+			expect(child.final_metrics).toMatchObject({
+				total_prompt_tokens: 140,
+				total_completion_tokens: 15,
+			});
+			expect(trajectory.final_metrics).toMatchObject({
+				total_prompt_tokens: 460,
+				total_completion_tokens: 45,
+				extra: {
+					own_metrics: {
+						total_prompt_tokens: 320,
+						total_completion_tokens: 30,
+					},
+					subagent_metrics: {
+						total_prompt_tokens: 140,
+						total_completion_tokens: 15,
+					},
+				},
+			});
+
+			const fromBundle = await runCli(
+				["session", "export", fullBundle, "--format", "atif"],
+				{ cwd: workspace, env: atifEnv },
+			);
+			expect(fromBundle.status, fromBundle.stderr).toBe(0);
+			expect(JSON.parse(fromBundle.stdout)).toEqual(trajectory);
+
+			const rootOnly = await runCli(
+				["session", "export", rootBundle, "--format", "atif"],
+				{ cwd: workspace, env: atifEnv },
+			);
+			expect(rootOnly.status, rootOnly.stderr).toBe(0);
+			expect(rootOnly.stderr).toContain("warning:");
+			const rootOnlyTrajectory = JSON.parse(rootOnly.stdout);
+			expect(validateAtifTrajectory(rootOnlyTrajectory).ok).toBe(true);
+			expect(rootOnlyTrajectory.subagent_trajectories).toBeUndefined();
+		} finally {
+			fakeModelScript = "recorded";
+			await runCli(["hub", "stop"], { cwd: workspace, env: atifEnv });
 		}
 	}, 240_000);
 
