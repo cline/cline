@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	cloudHandoffUiReducer,
+	getHandoffTargetDraft,
 	hasLivePendingHandoff,
 	resolveHandoffReceipt,
 } from "./cloud-handoff-ui-state";
@@ -50,6 +51,20 @@ describe("cloudHandoffUiReducer", () => {
 			),
 		).toBe(persisted);
 		expect(resolveHandoffReceipt(undefined, persisted)).toBe(persisted);
+		expect(
+			getHandoffTargetDraft({
+				status: "failed",
+				retryDraft: "/cloud continue",
+			}),
+		).toBe("continue");
+		expect(
+			getHandoffTargetDraft({
+				status: "complete",
+				receipt: persisted,
+				externalPresentation: false,
+				retryDraft: "/cloud literal command",
+			}),
+		).toBe("/cloud literal command");
 	});
 
 	it("clears a live recovery override after its payload reaches the target", () => {
