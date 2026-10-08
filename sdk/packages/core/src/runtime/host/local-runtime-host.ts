@@ -1521,18 +1521,30 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		action: () => Promise<T>,
 	): Promise<T> {
-		const previous = session.compactionStateWriteQueue ?? Promise.resolve();
+		return this.enqueueSessionWrite(
+			session,
+			"compactionStateWriteQueue",
+			action,
+		);
+	}
+
+	private async enqueueSessionWrite<T>(
+		session: ActiveSession,
+		queue: "compactionStateWriteQueue" | "statusWriteQueue",
+		action: () => Promise<T>,
+	): Promise<T> {
+		const previous = session[queue] ?? Promise.resolve();
 		const run = previous.catch(() => undefined).then(action);
 		const tracked = run.then(
 			() => undefined,
 			() => undefined,
 		);
-		session.compactionStateWriteQueue = tracked;
+		session[queue] = tracked;
 		try {
 			return await run;
 		} finally {
-			if (session.compactionStateWriteQueue === tracked) {
-				session.compactionStateWriteQueue = undefined;
+			if (session[queue] === tracked) {
+				session[queue] = undefined;
 			}
 		}
 	}
@@ -2508,6 +2520,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		exitCode?: number | null,
 	): Promise<void> {
 		if (!session.artifacts) return;
+		// Status writes are serialized per session so teardown's terminal
+		// status lands after a non-terminal write that was already in flight
+		// when teardown started. The persistence layer retries a write whose
+		// status lock went stale, so an overlapping earlier write would
+		// otherwise win.
+		return this.enqueueSessionWrite(session, "statusWriteQueue", () =>
+			this.writeStatus(session, status, exitCode),
+		);
+	}
+
+	private async writeStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		exitCode?: number | null,
+	): Promise<void> {
 		// Turns aborted by teardown settle concurrently with it; their idle or
 		// running transitions must not overwrite the status teardown persists.
 		if (session.shuttingDown && isNonTerminalSessionStatus(status)) return;

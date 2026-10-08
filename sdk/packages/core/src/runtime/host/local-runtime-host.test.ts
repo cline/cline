@@ -3687,15 +3687,20 @@ describe("LocalRuntimeHost", () => {
 		await runningStatusHeld;
 
 		const stopping = manager.stopSession(sessionId);
+		// Teardown must wait for the in-flight running write: the persistence
+		// layer retries a write whose status lock went stale, so a cancelled
+		// written underneath it would be overwritten with running.
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		const statuses = () =>
+			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
+		expect(statuses()).toEqual(["running", "idle", "running"]);
 		releaseRunningStatus?.();
 		await stopping;
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
 		expect(sentPrompts).toHaveLength(1);
 		expect(endedEvents).toBe(1);
-		expect(
-			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]),
-		).toEqual(["running", "idle", "running", "cancelled"]);
+		expect(statuses()).toEqual(["running", "idle", "running", "cancelled"]);
 	});
 
 	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
