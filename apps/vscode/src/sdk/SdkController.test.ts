@@ -433,6 +433,20 @@ describe("SDK remote-config coordination", () => {
 			expect(controller.messages.appendAndEmit).not.toHaveBeenCalled()
 		})
 
+		it("keeps the original attachments when Retry arrives with the webview's empty image list", async () => {
+			const { controller, errorTask } = controllerShowingCloudStartError()
+			// Protobuf decodes the Retry request's omitted repeated images field as an empty array.
+			await errorTask.handleWebviewAskResponse("yesButtonClicked", "", [])
+			expect(controller.initTask).toHaveBeenCalledWith(
+				"cloud prompt",
+				["img"],
+				undefined,
+				undefined,
+				undefined,
+				cloudTarget,
+			)
+		})
+
 		it("starts a cloud task on the same target with a prompt typed into the composer", async () => {
 			const { controller, errorTask } = controllerShowingCloudStartError()
 			await errorTask.handleWebviewAskResponse("messageResponse", "revised prompt")

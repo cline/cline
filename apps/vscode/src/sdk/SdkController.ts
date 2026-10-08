@@ -1671,7 +1671,16 @@ export class Controller {
 		if (retry && retry.task === this.task) {
 			const askResponse = this.task.taskState.askResponse
 			if (askResponse === "yesButtonClicked") {
-				await this.initTask(retry.prompt, images ?? retry.images, files, undefined, undefined, retry.cloudTarget)
+				// A Retry click carries no attachments of its own (protobuf decodes the
+				// omitted field as an empty list), so the failed start's attachments stand.
+				await this.initTask(
+					retry.prompt,
+					images?.length ? images : retry.images,
+					files,
+					undefined,
+					undefined,
+					retry.cloudTarget,
+				)
 				return
 			}
 			// A task that failed before it had a session has nothing to
