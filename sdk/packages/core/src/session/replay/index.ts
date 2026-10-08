@@ -26,6 +26,7 @@ export {
 	type SessionReplayIterationRange,
 	type SessionReplayToolCall,
 	selectSessionReplayIterations,
+	sessionReplayIterationRunCounts,
 } from "./bundle-iterations";
 export {
 	type MigratedSessionReplayBundleManifest,
@@ -44,6 +45,7 @@ export {
 export {
 	SESSION_REPLAY_BUNDLE_FORMAT,
 	SESSION_REPLAY_BUNDLE_SCHEMA_VERSION,
+	SESSION_REPLAY_CHECKPOINT_CAPTURES,
 	SESSION_REPLAY_EVENT_KINDS,
 	SESSION_REPLAY_EVENT_SOURCES,
 	SESSION_REPLAY_FILE_KINDS,
@@ -52,6 +54,7 @@ export {
 	SESSION_REPLAY_SESSION_ROLES,
 	type SessionReplayBundleManifest,
 	SessionReplayBundleManifestSchema,
+	type SessionReplayCheckpointCapture,
 	type SessionReplayCheckpointRef,
 	SessionReplayCheckpointRefSchema,
 	SessionReplayCompactionFileSchema,
@@ -61,6 +64,8 @@ export {
 	type SessionReplayFileEntry,
 	SessionReplayFileEntrySchema,
 	type SessionReplayFileKind,
+	type SessionReplayIterationRestorePoint,
+	SessionReplayIterationRestorePointSchema,
 	type SessionReplayRedactionReport,
 	SessionReplayRedactionReportSchema,
 	type SessionReplaySessionEntry,

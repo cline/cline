@@ -11,7 +11,10 @@ import {
 } from "./bundle-io";
 import { SessionReplayBundleVersionError } from "./bundle-migrations";
 import { createSessionReplayRedactor } from "./bundle-redaction";
-import type { SessionReplaySessionEntry } from "./bundle-schema";
+import type {
+	SessionReplayIterationRestorePoint,
+	SessionReplaySessionEntry,
+} from "./bundle-schema";
 
 let root: string;
 
@@ -204,6 +207,110 @@ describe("session replay bundle io", () => {
 		await expect(readSessionReplayBundle(dir)).rejects.toThrow(
 			"Session replay bundle uses schemaVersion 2, but this version of Cline reads bundles up to schemaVersion 1. Upgrade Cline to read this bundle.",
 		);
+	});
+
+	it("accepts sessions with and without per-iteration restore points", async () => {
+		const withoutPoints = await validateSessionReplayBundle(
+			await writeBundle([sessionInput()], join(root, "without")),
+		);
+		expect(withoutPoints.errors).toEqual([]);
+		expect(withoutPoints.manifest?.sessions[0]).not.toHaveProperty(
+			"iterations",
+		);
+
+		const iterations: SessionReplayIterationRestorePoint[] = [
+			{
+				index: 1,
+				checkpoint: {
+					ref: "abc123",
+					kind: "stash",
+					runCount: 1,
+					createdAt: 1,
+					capture: "iteration-start",
+				},
+				compaction: { stateId: "prefix-hash-1" },
+			},
+			{
+				index: 2,
+				checkpoint: {
+					ref: "abc123",
+					runCount: 1,
+					createdAt: 1,
+					capture: "run-start",
+				},
+				compaction: {
+					file: "sessions/root/compaction.json",
+					stateId: "prefix-hash-2",
+				},
+			},
+		];
+		const input = sessionInput({ iterations });
+		input.compaction = {
+			version: 1,
+			updated_at: "2026-01-01T00:00:03.000Z",
+			source_message_count: 2,
+			messages: [{ role: "user", content: "summary" }],
+		};
+		const dir = await writeBundle([input], join(root, "with"));
+		const withPoints = await validateSessionReplayBundle(dir);
+		expect(withPoints.errors).toEqual([]);
+		const loaded = await readSessionReplayBundle(dir);
+		expect(loaded.manifest.sessions[0]?.iterations).toEqual(iterations);
+		expect(loaded.manifest.schemaVersion).toBe(1);
+	});
+
+	it("rejects malformed per-iteration restore points", async () => {
+		const checkpoint = {
+			ref: "abc123",
+			runCount: 1,
+			createdAt: 1,
+			capture: "iteration-start" as const,
+		};
+		const dangling = await validateSessionReplayBundle(
+			await writeBundle(
+				[
+					sessionInput({
+						iterations: [
+							{
+								index: 1,
+								compaction: { file: "sessions/root/compaction.json" },
+							},
+						],
+					}),
+				],
+				join(root, "dangling"),
+			),
+		);
+		expect(dangling.errors).toEqual([
+			"session root: iteration 1 points at sessions/root/compaction.json, which is not a compaction file of this session",
+		]);
+
+		const validateEdited = async (name: string, iterations: unknown[]) => {
+			const dir = await writeBundle([sessionInput()], join(root, name));
+			await editJson(join(dir, "manifest.json"), (manifest) => {
+				const [session] = manifest.sessions as Array<Record<string, unknown>>;
+				if (session) {
+					session.iterations = iterations;
+				}
+			});
+			const result = await validateSessionReplayBundle(dir);
+			expect(result.ok).toBe(false);
+			return result.errors.join("\n");
+		};
+		expect(
+			await validateEdited("unordered", [
+				{ index: 2, checkpoint },
+				{ index: 2, checkpoint },
+			]),
+		).toContain("iteration indexes must be strictly increasing");
+		const fieldErrors = await validateEdited("fields", [
+			{ index: 0 },
+			{ index: 1, compaction: {} },
+			{ index: 2, checkpoint: { ...checkpoint, capture: "later" } },
+		]);
+		expect(fieldErrors).toContain("sessions.0.iterations.0.index");
+		expect(fieldErrors).toContain("needs a file or a stateId");
+		expect(fieldErrors).toContain("sessions.0.iterations.2.checkpoint.capture");
 	});
 
 	it("validates event lines against the session they are filed under", async () => {

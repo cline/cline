@@ -18,6 +18,9 @@ import { SessionCompactionStateSchema } from "../models/session-compaction";
  *     requests/                       reserved: per-iteration provider records
  * ```
  *
+ * `sessions[].iterations` reserves per-iteration restore points (checkpoint
+ * ref and compaction state) next to the per-run `sessions[].checkpoints`.
+ *
  * Readers must locate files through `manifest.files`, not by deriving paths.
  * The manifest lists every session of the bundle as a flat array linked by
  * `parentSessionId`, so one bundle can carry a whole team/subagent tree.
@@ -99,6 +102,53 @@ export type SessionReplayCheckpointRef = z.infer<
 	typeof SessionReplayCheckpointRefSchema
 >;
 
+export const SESSION_REPLAY_CHECKPOINT_CAPTURES = [
+	// Captured right before this iteration's model call, so it is the
+	// workspace as it was before the iteration's tools ran.
+	"iteration-start",
+	// The checkpoint of the user run the iteration belongs to, captured before
+	// the run's first iteration. Changes made by earlier iterations of the same
+	// run are not reflected.
+	"run-start",
+] as const;
+export type SessionReplayCheckpointCapture =
+	(typeof SESSION_REPLAY_CHECKPOINT_CAPTURES)[number];
+
+/**
+ * The workspace checkpoint and model context in force before one iteration's
+ * tools ran, so a later replay mode can restore them for `--from N`.
+ *
+ * v1 exporters fill `checkpoint` from per-run refs (`iteration-start` for a
+ * run's first iteration, `run-start` for the rest) and never write
+ * `compaction`; recording both for every iteration is left to a later phase.
+ * An iteration without an entry has no recorded restore point.
+ */
+export const SessionReplayIterationRestorePointSchema = z.object({
+	/** 1-based iteration index, matching `SessionReplayIteration.index`. */
+	index: z.number().int().positive(),
+	checkpoint: SessionReplayCheckpointRefSchema.extend({
+		capture: z.enum(SESSION_REPLAY_CHECKPOINT_CAPTURES),
+	}).optional(),
+	/** Compaction state the iteration's model call was made with. */
+	compaction: z
+		.object({
+			/** Compaction file in `manifest.files` holding the state. */
+			file: SafeRelativePathSchema.optional(),
+			/** Identity of the state, e.g. its `source_prefix_hash`. */
+			stateId: z.string().min(1).optional(),
+		})
+		.refine(
+			(value) => value.file !== undefined || value.stateId !== undefined,
+			{
+				message: "needs a file or a stateId",
+			},
+		)
+		.optional(),
+});
+export type SessionReplayIterationRestorePoint = z.infer<
+	typeof SessionReplayIterationRestorePointSchema
+>;
+
 export const SessionReplaySessionEntrySchema = z.object({
 	sessionId: z.string().min(1),
 	role: z.enum(SESSION_REPLAY_SESSION_ROLES),
@@ -118,7 +168,19 @@ export const SessionReplaySessionEntrySchema = z.object({
 	cwd: z.string(),
 	workspaceRoot: z.string(),
 	team: z.object({ name: z.string().min(1) }).nullable(),
+	/** Per-run checkpoint refs, as recorded in session metadata. */
 	checkpoints: z.array(SessionReplayCheckpointRefSchema),
+	/** Per-iteration restore points, ordered by strictly increasing index. */
+	iterations: z
+		.array(SessionReplayIterationRestorePointSchema)
+		.refine(
+			(points) =>
+				points.every(
+					(point, position) => point.index > (points[position - 1]?.index ?? 0),
+				),
+			{ message: "iteration indexes must be strictly increasing" },
+		)
+		.optional(),
 	title: z.string().optional(),
 	/** Free-form session metadata, after redaction. */
 	metadata: z.record(z.string(), z.unknown()).optional(),

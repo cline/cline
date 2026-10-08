@@ -17,6 +17,7 @@ import {
 	validateSessionReplayBundle,
 	writeSessionReplayBundle,
 } from "./bundle-io";
+import { sessionReplayIterationRunCounts } from "./bundle-iterations";
 import { SessionReplayBundleError } from "./bundle-migrations";
 import {
 	createSessionReplayRedactor,
@@ -26,6 +27,7 @@ import {
 	SESSION_REPLAY_MANIFEST_FILE,
 	type SessionReplayBundleManifest,
 	type SessionReplayCheckpointRef,
+	type SessionReplayIterationRestorePoint,
 	type SessionReplaySessionEntry,
 	sessionReplayBundlePaths,
 } from "./bundle-schema";
@@ -107,6 +109,42 @@ function readCheckpointRefs(
 	return [...refs.values()].sort((a, b) => a.runCount - b.runCount);
 }
 
+/**
+ * Maps per-run checkpoints onto the iterations of each run. Only checkpoint
+ * data that already exists is used; compaction states are not addressed per
+ * iteration yet.
+ */
+function buildIterationRestorePoints(
+	messages: readonly MessageWithMetadata[],
+	checkpoints: readonly SessionReplayCheckpointRef[],
+): SessionReplayIterationRestorePoint[] {
+	const byRun = new Map<number, SessionReplayCheckpointRef>();
+	for (const checkpoint of checkpoints) {
+		const current = byRun.get(checkpoint.runCount);
+		if (!current || checkpoint.createdAt >= current.createdAt) {
+			byRun.set(checkpoint.runCount, checkpoint);
+		}
+	}
+	const points: SessionReplayIterationRestorePoint[] = [];
+	let previousRun: number | undefined;
+	for (const [position, runCount] of sessionReplayIterationRunCounts(
+		messages,
+	).entries()) {
+		const checkpoint = byRun.get(runCount);
+		if (checkpoint) {
+			points.push({
+				index: position + 1,
+				checkpoint: {
+					...checkpoint,
+					capture: runCount === previousRun ? "run-start" : "iteration-start",
+				},
+			});
+		}
+		previousRun = runCount;
+	}
+	return points;
+}
+
 function resolveRole(record: SessionRecord): SessionReplaySessionEntry["role"] {
 	if (parseTeamTaskSubSessionId(record.sessionId)) {
 		return "teammate";
@@ -157,6 +195,7 @@ function redactMessageMetadata(
 
 function buildSessionEntry(input: {
 	record: SessionRecord;
+	messages: readonly MessageWithMetadata[];
 	redactor: SessionReplayRedactor;
 	eventsSource: SessionReplaySessionEntry["eventsSource"];
 	isBundleRoot: boolean;
@@ -172,6 +211,8 @@ function buildSessionEntry(input: {
 					manifestPath("metadata"),
 				)
 			: undefined;
+	const checkpoints = readCheckpointRefs(record.metadata);
+	const iterations = buildIterationRestorePoints(input.messages, checkpoints);
 	return {
 		sessionId: record.sessionId,
 		role: input.isBundleRoot ? "root" : resolveRole(record),
@@ -198,7 +239,8 @@ function buildSessionEntry(input: {
 			manifestPath("workspaceRoot"),
 		),
 		team: record.teamName ? { name: record.teamName } : null,
-		checkpoints: readCheckpointRefs(record.metadata),
+		checkpoints,
+		...(iterations.length > 0 ? { iterations } : {}),
 		...(typeof title === "string" && title
 			? {
 					title: redactor.redact(
@@ -264,6 +306,7 @@ export async function exportSessionReplayBundle(
 
 	const entry = buildSessionEntry({
 		record,
+		messages,
 		redactor,
 		eventsSource: hookLog.source,
 		isBundleRoot: true,

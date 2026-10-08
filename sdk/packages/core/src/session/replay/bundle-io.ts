@@ -431,6 +431,14 @@ async function inspectSessionReplayBundle(
 				`session ${entry.sessionId}: expected at most one compaction file, found ${compactions.length}`,
 			);
 		}
+		for (const point of entry.iterations ?? []) {
+			const file = point.compaction?.file;
+			if (file && !compactions.some((candidate) => candidate.path === file)) {
+				errors.push(
+					`session ${entry.sessionId}: iteration ${point.index} points at ${file}, which is not a compaction file of this session`,
+				);
+			}
+		}
 
 		const transcriptFile = transcripts[0];
 		if (!transcriptFile || !contentsByPath.has(transcriptFile.path)) {

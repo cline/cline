@@ -4,7 +4,7 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { projectSessionMessagesForDisplay } from "../display-messages";
-import { isUserRunMessage } from "../user-run-messages";
+import { countUserRunMessages, isUserRunMessage } from "../user-run-messages";
 import type {
 	SessionReplayEvent,
 	SessionReplayTranscriptFile,
@@ -146,6 +146,24 @@ function groupMessages(
 		groups.push(current);
 	}
 	return groups;
+}
+
+/**
+ * The user run each iteration's model call belongs to, counted the way
+ * checkpoint hooks number runs (span-aware, so compacted turns still count).
+ * Position `i` holds the run count of iteration `i + 1`.
+ */
+export function sessionReplayIterationRunCounts(
+	messages: readonly MessageWithMetadata[],
+): number[] {
+	let counted = 0;
+	let runCount = 0;
+	return groupMessages(messages).map((group) => {
+		const upTo = group.assistantIndex ?? group.end;
+		runCount += countUserRunMessages(messages.slice(counted, upTo));
+		counted = upTo;
+		return runCount;
+	});
 }
 
 function textOf(content: MessageWithMetadata["content"]): string {
