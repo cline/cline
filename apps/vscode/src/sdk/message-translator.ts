@@ -47,7 +47,11 @@ import { Logger } from "@shared/services/Logger"
 import * as path from "path"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
-import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
+import {
+	CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+	isClineFreePromotionEndedMessage,
+	MODEL_NOT_FOUND_GUIDANCE,
+} from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeCredentialRejectedError, describeMissingCredentialError } from "./provider-credential-error"
 import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
@@ -2656,9 +2660,6 @@ export function historyItemToSessionFields(item: {
 		modelId: item.modelId,
 	}
 }
-
-const MODEL_NOT_FOUND_GUIDANCE =
-	"This model may be retired or unavailable on your account. Switch to a different model in API Configuration settings, then retry."
 
 const VERTEX_GLOBAL_REGION_GUIDANCE =
 	'This model does not support the Vertex AI global endpoint. Switch Google Cloud Region from "global" to a specific region (e.g. "us-east5") in API Configuration settings, or choose a different model, then retry.'
