@@ -1,7 +1,106 @@
 ---
 title: "Hooks"
 sidebarTitle: "Hooks"
-description: "See details under SDK Plugins page."
+description: "Run your own scripts when Cline starts a task, calls a tool, or finishes, and block or adjust what it does."
 ---
 
-See details under [SDK Plugins](/sdk/plugins).
+A hook is a script that Cline runs at a point in a task, such as before every tool call. Cline sends the script a JSON description of the event on stdin. For some events, the script can reply on stdout to stop the task or to give the model more context.
+
+Hooks work in the CLI, Cline Desktop and the VS Code extension. To run your own code inside Cline instead of a separate script, write a [plugin](/sdk/plugins), whose runtime hooks such as `beforeTool` are typed functions.
+
+## Where Hooks Live
+
+A hook is a file named after its event, such as `PreToolUse.sh`, in a hooks folder:
+
+| Folder | CLI and Desktop | VS Code extension |
+|--------|-----------------|-------------------|
+| `.cline/hooks/` in the workspace | Yes | No |
+| `.clinerules/hooks/` in the workspace | Yes | Yes |
+| `~/.cline/hooks/` | Yes | No |
+| `~/Documents/Cline/Hooks/` | Yes | Yes |
+
+Cline runs every matching hook it finds, from all of these folders. To see which hooks the CLI finds, run `cline config hooks`. `--config` and `CLINE_DIR` move `~/.cline/hooks/` but not `~/Documents/Cline/Hooks/`.
+
+## Hook Events
+
+Cline runs a hook each time its event happens. Each message you send starts a new run, so `TaskStart` and `TaskComplete` run once per message, not once per conversation.
+
+| File name | Runs | CLI and Desktop | VS Code extension |
+|-----------|------|-----------------|-------------------|
+| `TaskStart` | When Cline starts work on a message | Yes | Yes |
+| `TaskResume` | In place of `TaskStart`, when you resume a session in the CLI | CLI only | No |
+| `UserPromptSubmit` | When you send a message | No (see [Known Problems](#known-problems)) | Yes |
+| `PreToolUse` | Before each tool call | Yes | Yes |
+| `PostToolUse` | After each tool call | Yes | Yes |
+| `TaskComplete` | When Cline finishes replying to a message | Yes | Yes |
+| `TaskError` | When a run fails with an error | Yes | No |
+| `TaskCancel` | When you cancel a run | No (see [Known Problems](#known-problems)) | Yes |
+| `SessionShutdown` | When you cancel a run | Yes | No |
+
+The CLI and Desktop also accept `PreCompact` as a file name but never run it.
+
+## File Names and Languages
+
+In the CLI and Desktop, the name can have no extension or one of `.sh`, `.bash`, `.zsh`, `.js`, `.mjs`, `.cjs`, `.ts`, `.mts`, `.cts`, `.py` or `.ps1`. A script with a `#!` line runs with that interpreter. Otherwise Cline picks one from the extension: `bash` for shell scripts and files with no extension, `node` for JavaScript, `bun run` for TypeScript, `python3` (or `py -3` on Windows) for Python, and PowerShell for `.ps1`.
+
+The VS Code extension looks for one file per event. On macOS and Linux it is the name with no extension, such as `PreToolUse`, and must be executable (`chmod +x`). On Windows it is `<Name>.ps1`, such as `PreToolUse.ps1`.
+
+## What a Hook Receives
+
+Each hook gets one JSON object on stdin. Every event includes `hookName`, `taskId`, `timestamp` and `workspaceRoots`. In the VS Code extension, `hookName` is the file name, such as `PreToolUse`. The CLI and Desktop use their own names: `agent_start`, `agent_resume`, `prompt_submit`, `tool_call`, `tool_result`, `agent_end`, `agent_error`, `agent_abort` and `session_shutdown`, in the order of the table above. In the CLI and Desktop, a `PreToolUse` hook also gets the call:
+
+```json
+{
+  "hookName": "tool_call",
+  "taskId": "conv-123",
+  "workspaceRoots": ["/path/to/repo"],
+  "tool_call": {
+    "id": "call-456",
+    "name": "read_files",
+    "input": { "files": [{ "path": "src/index.ts" }] }
+  }
+}
+```
+
+The VS Code extension sends the call as `preToolUse.toolName` and `preToolUse.parameters` instead. The [`.clineignore` hook](/customization/clineignore#the-hook-script) shows a script that reads both shapes.
+
+## What a Hook Can Do
+
+A hook that only watches can print `{}`. To act, print one JSON object:
+
+| Field | Effect |
+|-------|--------|
+| `cancel` | `true` stops the task. Send a new message to continue. |
+| `errorMessage` | The reason shown when `cancel` is `true`. |
+| `contextModification` | Text added for the model to read on its next request. The CLI and Desktop also accept the name `context`. |
+| `overrideInput` | Replaces the tool call's input. `PreToolUse` in the CLI and Desktop only. |
+
+Only some events read the reply:
+
+- **CLI and Desktop:** `PreToolUse` and `PostToolUse` hooks can stop the task or add context. Cline waits up to 2 minutes for each one. Hooks for the other events start and run on their own while Cline carries on, and Cline doesn't read their reply.
+- **VS Code extension:** `TaskStart`, `UserPromptSubmit`, `PreToolUse` and `PostToolUse` hooks can stop the task or add context. Cline waits up to 30 seconds for every hook, including `TaskComplete` and `TaskCancel`, whose reply it ignores.
+
+Write logs to stderr. Cline reads stdout as the hook's reply.
+
+Hooks don't run for tools that the model provider runs itself. With the Claude Code and OpenAI Codex CLI providers, `PreToolUse` and `PostToolUse` never run.
+
+## Turning Hooks Off
+
+In the VS Code extension, open **Settings**, go to **Features**, and turn off **Hooks** under **Advanced**. Hooks are on by default. To turn off one hook on macOS or Linux, open **Customize** from the chat box, go to the **Hooks** tab, and switch the hook off. That switch removes the file's executable bit, so it isn't available on Windows.
+
+The CLI and Desktop run every hook they find. To stop a hook, move or delete its file.
+
+## Known Problems
+
+- In the CLI and Desktop, `UserPromptSubmit` hooks don't run for the messages you send. In yolo mode (`-y`) they run for Cline's own reminders instead, and `userPromptSubmit.prompt` holds the reminder text. To act on each message, use `TaskStart`.
+- In the CLI and Desktop, `TaskCancel` hooks don't run when you cancel. Use `SessionShutdown`, which does.
+- When the CLI runs a session in the [hub](/cli/cli-reference#hub), `TaskStart` and `TaskResume` can swap. The hub uses the choice of the CLI command that started it: after `cline --id` starts the hub, new sessions run `TaskResume`, and after a new session starts it, resumed sessions run `TaskStart`.
+- On Windows, the CLI doesn't run `.ps1` hooks for events that don't wait for a reply, such as `TaskStart` ([#14767](https://github.com/cline/cline/issues/14767)).
+
+## Examples
+
+The SDK repository has example hooks in [`sdk/examples/hooks`](https://github.com/cline/cline/tree/main/sdk/examples/hooks), including one that blocks destructive commands and one that enforces [`.clineignore`](/customization/clineignore#enforcing-clineignore-with-a-hook).
+
+<Warning>
+Hooks run with your permissions. Only use hooks from sources you trust, and check the hooks in any repository you open.
+</Warning>
