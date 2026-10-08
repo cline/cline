@@ -91,6 +91,7 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
+	matchesCloudHandoffFollowUp,
 	openWithCloudHandoffFollowUp,
 	restoreCloudHandoffFollowUp,
 	shouldPreserveCloudComposer,
@@ -784,6 +785,27 @@ export default function Home() {
 							activeLocationRef.current.view,
 						),
 					open,
+					onSavedDraftOpened: async (saved) => {
+						const source = handoffUiState[saved.sourceSessionId];
+						if (!draftDelivered || !source || source.status === "progress")
+							return;
+						const { retryDraft, retryAttachments } = source;
+						const matches = await matchesCloudHandoffFollowUp(
+							source.status === "complete"
+								? retryDraft
+								: (parseHandoffCommand(retryDraft ?? "")?.nextCommand ??
+									retryDraft),
+							retryAttachments ?? [],
+							saved,
+						).catch(() => false);
+						if (matches)
+							dispatchHandoffUi({
+								type: "retry_delivered",
+								sourceSessionId: saved.sourceSessionId,
+								retryDraft,
+								retryAttachments,
+							});
+					},
 				});
 				return { opened, draftDelivered };
 			} catch (error) {
@@ -795,7 +817,7 @@ export default function Home() {
 				return { opened: false, draftDelivered: false };
 			}
 		},
-		[promptDrafts, threads],
+		[handoffUiState, promptDrafts, threads],
 	);
 
 	const handleDeleteSession = useCallback(
@@ -3083,7 +3105,12 @@ function ChatThreadPane({
 					sourceSessionId &&
 					(retryDraft || retryAttachments?.length)
 				) {
-					onHandoffUiAction({ type: "retry_delivered", sourceSessionId });
+					onHandoffUiAction({
+						type: "retry_delivered",
+						sourceSessionId,
+						retryDraft,
+						retryAttachments,
+					});
 				}
 				return;
 			}
