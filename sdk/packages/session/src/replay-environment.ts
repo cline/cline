@@ -225,6 +225,12 @@ export interface RebuildSessionReplayWorkspaceOptions {
 	workspace?: string;
 	/** Run in the workspace itself: no copy, no restore. */
 	inPlace?: boolean;
+	/**
+	 * Copy the source's objects into the clone instead of borrowing them
+	 * (`--shared`), so the copy works where the source path is not visible,
+	 * such as inside a container.
+	 */
+	standalone?: boolean;
 }
 
 export interface SessionReplayRebuiltWorkspace {
@@ -295,8 +301,9 @@ function describeCheckpoint(checkpoint: SessionReplayCheckpointRef): string {
 /**
  * Rebuilds the workspace a session started in. By default the result is a
  * fresh clone of the source repository (`git clone --shared`, so the source
- * is never written to) with HEAD detached at the checkpoint's base commit
- * and, for stash checkpoints, the snapshot's tracked and untracked changes
+ * is never written to; `--local` with `standalone`, which links or copies
+ * every object, checkpoints included) with HEAD detached at the checkpoint's
+ * base commit and, for stash checkpoints, the snapshot's tracked and untracked changes
  * applied. A bundle carries checkpoint refs, not files: the repository that
  * holds those objects has to be on this machine, at the recorded path or
  * named by `workspace`. Nothing is guessed; every missing piece throws a
@@ -449,7 +456,14 @@ export async function rebuildSessionReplayWorkspace(
 	);
 	await execFile(
 		"git",
-		["clone", "--quiet", "--shared", "--no-checkout", sourceTop, target],
+		[
+			"clone",
+			"--quiet",
+			options.standalone ? "--local" : "--shared",
+			"--no-checkout",
+			sourceTop,
+			target,
+		],
 		{ windowsHide: true },
 	);
 	await git(target, ["checkout", "--quiet", "--detach", base]);

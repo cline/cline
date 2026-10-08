@@ -263,6 +263,23 @@ describe("rebuildSessionReplayWorkspace", () => {
 		expect(git(repo, "status", "--porcelain")).toBe("M a.txt");
 	});
 
+	it("makes a standalone clone that does not borrow the source's objects", async () => {
+		const checkpoint = stashCheckpoint();
+		const rebuilt = await rebuildSessionReplayWorkspace({
+			environment: environmentFor(checkpoint),
+			parentDir: join(root, "out"),
+			standalone: true,
+		});
+		expect(
+			existsSync(join(rebuilt.root, ".git", "objects", "info", "alternates")),
+		).toBe(false);
+		expect(readFileSync(join(rebuilt.root, "a.txt"), "utf8")).toBe("two\n");
+		rmSync(repo, { recursive: true, force: true });
+		expect(git(rebuilt.root, "cat-file", "-t", `${checkpoint.ref}^3`)).toBe(
+			"commit",
+		);
+	});
+
 	it("restores a clean HEAD checkpoint", async () => {
 		const head = git(repo, "rev-parse", "HEAD");
 		writeFileSync(join(repo, "a.txt"), "next\n");
