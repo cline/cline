@@ -567,10 +567,12 @@ function mergeDiscoveredSessions(
 			return session;
 		}
 		const incomingTitle = getSessionMetadataTitle(session.metadata);
-		// Accept server titles unless a local rename landed during this refresh.
+		// Cloud refreshes may include web renames; retain cached titles for other runtimes.
 		if (
-			incomingTitle &&
-			existingTitle === titlesBeforeRefresh.get(sessionKey(session))
+			incomingTitle === existingTitle ||
+			(session.origin === "cloud" &&
+				incomingTitle &&
+				existingTitle === titlesBeforeRefresh.get(sessionKey(session)))
 		) {
 			return session;
 		}
@@ -1189,7 +1191,8 @@ export function useSessionHistory({
 			sessionsRef.current = updateSessionById(
 				sessionsRef.current,
 				sessionId,
-				withTitle,
+				(session) =>
+					session.origin === "cloud" ? withTitle(session) : session,
 			);
 			setSessions((current) =>
 				updateSessionById(current, sessionId, withTitle),

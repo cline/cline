@@ -113,6 +113,7 @@ describe("useSessionHistory session mapping", () => {
 	it("accepts refreshed titles without reverting a rename during the refresh", async () => {
 		const row = (title: string) => ({
 			...sessionRow("ses-cloud"),
+			origin: "cloud" as const,
 			metadata: { title, origin: "cloud" },
 		});
 		await act(async () => root.render(<HookHarness />));
@@ -133,6 +134,31 @@ describe("useSessionHistory session mapping", () => {
 		await flush(12_000);
 		await act(async () => pendingLists[3].resolve([row("Web title again")]));
 		expect(current.threads[0].title).toBe("Web title again");
+	});
+
+	it.each([
+		"local",
+		"remote",
+	])("preserves a non-cloud rename when later discovery returns an older title (%s)", async (environmentId) => {
+		const row = {
+			...sessionRow("same-session"),
+			environmentId,
+			prompt: "Original task",
+			metadata: { title: "Old title" },
+		};
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => pendingLists[0].resolve([row]));
+		await act(async () => {
+			await current.renameThread(current.threads[0].id, "Renamed title");
+		});
+		await flush(12_000);
+		await act(async () =>
+			pendingLists[1].resolve([{ ...row, status: "running" }]),
+		);
+		expect(current.threads[0].title).toBe("Renamed title");
+		expect(current.sessions[0].metadata?.title).toBe("Renamed title");
+		expect(current.sessions[0].status).toBe("running");
 	});
 
 	it("keeps duplicate IDs visible and renames only the selected environment", async () => {

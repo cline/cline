@@ -2346,7 +2346,7 @@ function ChatThreadPane({
 		(message) => message.role === "user",
 	)?.content;
 	const metadataTitle =
-		getSessionMetadataTitle(liveHistorySession?.metadata) ||
+		(isCloudSession && getSessionMetadataTitle(liveHistorySession?.metadata)) ||
 		manualTitle ||
 		getSessionMetadataTitle(visibleHistorySession?.metadata);
 	const threadTitle = toThreadTitle({
