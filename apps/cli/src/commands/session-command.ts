@@ -6,8 +6,10 @@ import {
 	runSessionReplay,
 	runSessionValidate,
 	SESSION_DIFF_FORMATS,
+	SESSION_EXPORT_FORMATS,
 	SESSION_REPLAY_FORMATS,
 	SESSION_REPLAY_MODES,
+	type SessionExportFormat,
 	type SessionRerunFlags,
 } from "./session";
 
@@ -45,25 +47,46 @@ export function registerSessionCommand({
 			: "text";
 
 	const exportCmd = sessionCmd
-		.command("export <sessionId>")
-		.description("Export a session as a replay bundle directory")
-		.requiredOption("--bundle <dir>", "Directory to write the bundle to")
+		.command("export <session>")
+		.description(
+			"Export a session as a replay bundle directory, or a session or bundle as an ATIF trajectory (--format atif)",
+		)
+		.addOption(
+			new Option("--format <format>", "What to export")
+				.choices(SESSION_EXPORT_FORMATS)
+				.default("bundle"),
+		)
+		.option(
+			"--bundle <dir>",
+			"Directory to write the bundle to (required for --format bundle; with --format atif, keeps the intermediate bundle)",
+		)
+		.option(
+			"--out <path>",
+			"File to write the ATIF trajectory to (--format atif; default: stdout)",
+		)
 		.option(
 			"--no-redact",
 			"Keep values that match the sanitiser rules (secrets, ids, home paths)",
 		)
-		.option("--force", "Replace an existing bundle in the target directory")
+		.option(
+			"--force",
+			"Replace an existing bundle in the target directory, or an existing --out file",
+		)
 		.option("--json", "Output as JSON")
-		.action(async (sessionId: string) => {
+		.action(async (session: string) => {
 			const opts = exportCmd.opts<{
-				bundle: string;
+				format: SessionExportFormat;
+				bundle?: string;
+				out?: string;
 				redact: boolean;
 				force?: boolean;
 			}>();
 			setExitCode(
 				await runSessionExport({
-					sessionId,
-					bundleDir: opts.bundle,
+					sessionId: session,
+					format: opts.format,
+					...(opts.bundle !== undefined ? { bundleDir: opts.bundle } : {}),
+					...(opts.out !== undefined ? { out: opts.out } : {}),
 					redact: opts.redact !== false,
 					overwrite: opts.force === true,
 					outputMode: outputMode(exportCmd),

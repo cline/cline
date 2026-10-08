@@ -5,6 +5,7 @@ import type { MessageWithMetadata } from "@cline/core";
 import {
 	createSessionReplayRedactor,
 	type ExportSessionReplayBundleResult,
+	validateAtifTrajectory,
 	writeSessionReplayBundle,
 } from "@cline/session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -133,6 +134,7 @@ async function writeTestBundle(
 }
 
 beforeEach(async () => {
+	mockedExportSessionReplay.mockReset();
 	root = await mkdtemp(join(tmpdir(), "cli-session-replay-"));
 	bundleDir = join(root, "bundle");
 	await writeTestBundle(bundleDir);
@@ -485,6 +487,209 @@ describe("runSessionExport", () => {
 		});
 		expect(code).toBe(1);
 		expect(err).toEqual(["Session x not found."]);
+	});
+
+	it("requires --bundle for bundle exports and rejects --out", async () => {
+		const missing = createIo();
+		expect(
+			await runSessionExport({
+				sessionId: "sess_1",
+				redact: true,
+				overwrite: false,
+				outputMode: "text",
+				io: missing.io,
+			}),
+		).toBe(1);
+		expect(missing.err).toEqual(["session export requires --bundle <dir>"]);
+		const withOut = createIo();
+		expect(
+			await runSessionExport({
+				sessionId: "sess_1",
+				bundleDir: "b",
+				out: "t.json",
+				redact: true,
+				overwrite: false,
+				outputMode: "text",
+				io: withOut.io,
+			}),
+		).toBe(1);
+		expect(withOut.err[0]).toMatch(/--out is only used with --format atif/);
+		expect(mockedExportSessionReplay).not.toHaveBeenCalled();
+	});
+});
+
+describe("runSessionExport --format atif", () => {
+	const atif = (
+		overrides: Partial<Parameters<typeof runSessionExport>[0]> &
+			Pick<Parameters<typeof runSessionExport>[0], "io">,
+	) =>
+		runSessionExport({
+			sessionId: bundleDir,
+			format: "atif",
+			redact: true,
+			overwrite: false,
+			outputMode: "text",
+			...overrides,
+		});
+
+	it("writes a bundle's trajectory to stdout", async () => {
+		const { io, out, err } = createIo();
+		const stdout = captureStdout();
+		let code: number;
+		try {
+			code = await atif({ io });
+		} finally {
+			stdout.restore();
+		}
+		expect(code).toBe(0);
+		expect(err).toEqual([]);
+		expect(out).toEqual([]);
+		const trajectory = JSON.parse(stdout.lines().join("\n"));
+		expect(validateAtifTrajectory(trajectory)).toEqual({
+			ok: true,
+			errors: [],
+		});
+		expect(trajectory).toMatchObject({
+			schema_version: "ATIF-v1.7",
+			session_id: "sess_1",
+			agent: { name: "cline", version: "0.0.0", model_name: "fake-model" },
+			final_metrics: {
+				total_prompt_tokens: 230,
+				total_completion_tokens: 28,
+				total_cost_usd: 0.001,
+				total_steps: 3,
+			},
+		});
+		expect(
+			trajectory.steps.map((step: { source: string }) => step.source),
+		).toEqual(["user", "agent", "agent"]);
+		expect(mockedExportSessionReplay).not.toHaveBeenCalled();
+	});
+
+	it("writes --out, refuses to replace it without --force and reports JSON", async () => {
+		const target = join(root, "out", "trajectory.json");
+		const first = createIo();
+		expect(await atif({ io: first.io, out: target })).toBe(0);
+		expect(first.out).toEqual([
+			`Exported session sess_1 as ATIF-v1.7 to ${target}`,
+			"  3 steps · 0 subagent trajectories · 230 prompt / 28 completion tokens · $0.0010",
+		]);
+		expect(
+			validateAtifTrajectory(JSON.parse(await readFile(target, "utf8"))).ok,
+		).toBe(true);
+
+		const again = createIo();
+		expect(await atif({ io: again.io, out: target })).toBe(1);
+		expect(again.err).toEqual([
+			`${target} already exists; pass --force to replace it`,
+		]);
+
+		const forced = createIo();
+		const stdout = captureStdout();
+		try {
+			expect(
+				await atif({
+					io: forced.io,
+					out: target,
+					overwrite: true,
+					outputMode: "json",
+				}),
+			).toBe(0);
+		} finally {
+			stdout.restore();
+		}
+		expect(JSON.parse(stdout.lines()[0] ?? "")).toMatchObject({
+			sessionId: "sess_1",
+			format: "atif",
+			schemaVersion: "ATIF-v1.7",
+			out: target,
+			bundleDir,
+			steps: 3,
+			subagentTrajectories: 0,
+			warnings: [],
+		});
+	});
+
+	it("exports a session id through a temporary bundle with its child sessions", async () => {
+		let tempBundle = "";
+		mockedExportSessionReplay.mockImplementation(async (input) => {
+			tempBundle = input.bundleDir;
+			await writeTestBundle(input.bundleDir);
+			return {
+				warnings: ["No hook audit log was found for this session."],
+			} as unknown as ExportSessionReplayBundleResult;
+		});
+		const target = join(root, "trajectory.json");
+		const { io, out, err } = createIo();
+		expect(await atif({ io, sessionId: "sess_1", out: target })).toBe(0);
+		expect(mockedExportSessionReplay).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "sess_1",
+				redact: true,
+				includeChildSessions: true,
+			}),
+		);
+		expect(tempBundle).not.toBe("");
+		await expect(readFile(join(tempBundle, "manifest.json"))).rejects.toThrow();
+		expect(err).toEqual([
+			"warning: No hook audit log was found for this session.",
+		]);
+		expect(out[0]).toBe(`Exported session sess_1 as ATIF-v1.7 to ${target}`);
+	});
+
+	it("keeps the intermediate bundle when --bundle is given", async () => {
+		const kept = join(root, "kept");
+		mockedExportSessionReplay.mockImplementation(async (input) => {
+			await writeTestBundle(input.bundleDir);
+			return { warnings: [] } as unknown as ExportSessionReplayBundleResult;
+		});
+		const target = join(root, "trajectory.json");
+		const { io, out } = createIo();
+		expect(
+			await atif({
+				io,
+				sessionId: "sess_1",
+				bundleDir: kept,
+				redact: false,
+				out: target,
+			}),
+		).toBe(0);
+		expect(mockedExportSessionReplay).toHaveBeenCalledWith(
+			expect.objectContaining({ bundleDir: kept, redact: false }),
+		);
+		expect(out.at(-1)).toBe(`  bundle: ${kept}`);
+		await expect(
+			readFile(join(kept, "manifest.json"), "utf8"),
+		).resolves.toContain("sess_1");
+	});
+
+	it("returns 1 for unusable inputs", async () => {
+		const plainDir = join(root, "plain");
+		await mkdir(plainDir);
+		const noManifest = createIo();
+		expect(await atif({ io: noManifest.io, sessionId: plainDir })).toBe(1);
+		expect(noManifest.err[0]).toMatch(/is a directory without manifest\.json/);
+
+		const bundleAndBundle = createIo();
+		expect(
+			await atif({ io: bundleAndBundle.io, bundleDir: join(root, "x") }),
+		).toBe(1);
+		expect(bundleAndBundle.err[0]).toMatch(
+			/--bundle writes a new bundle and cannot be used/,
+		);
+
+		const empty = createIo();
+		expect(await atif({ io: empty.io, sessionId: "  " })).toBe(1);
+		expect(empty.err).toEqual([
+			"session export requires <session-id> or <bundle>",
+		]);
+
+		mockedExportSessionReplay.mockRejectedValue(
+			new Error("Session y not found."),
+		);
+		const failed = createIo();
+		expect(await atif({ io: failed.io, sessionId: "y" })).toBe(1);
+		expect(failed.err).toEqual(["Session y not found."]);
 	});
 });
 

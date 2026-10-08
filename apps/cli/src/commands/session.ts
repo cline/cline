@@ -1,5 +1,10 @@
-import { resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
+import type { AtifTrajectory } from "@cline/session";
+import { SESSION_REPLAY_MANIFEST_FILE } from "@cline/shared";
 import { version as cliVersion } from "../../package.json";
 import type { LoadedSessionReplay } from "../session/replay";
 import type { CliOutputMode } from "../utils/types";
@@ -28,21 +33,45 @@ function writeJson(value: unknown): void {
 	process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
-export async function runSessionExport(input: {
+export const SESSION_EXPORT_FORMATS = ["bundle", "atif"] as const;
+export type SessionExportFormat = (typeof SESSION_EXPORT_FORMATS)[number];
+
+export interface SessionExportCommandInput {
+	/** A session id, or with `--format atif` also a bundle directory. */
 	sessionId: string;
-	bundleDir: string;
+	bundleDir?: string;
+	format?: SessionExportFormat;
+	/** ATIF output file; stdout when absent. */
+	out?: string;
 	redact: boolean;
 	overwrite: boolean;
 	outputMode: CliOutputMode;
 	io: SessionCommandIo;
-}): Promise<number> {
+}
+
+export async function runSessionExport(
+	input: SessionExportCommandInput,
+): Promise<number> {
 	const { io } = input;
 	const sessionId = input.sessionId.trim();
 	if (!sessionId) {
-		io.writeErr("session export requires <session-id>");
+		io.writeErr(
+			input.format === "atif"
+				? "session export requires <session-id> or <bundle>"
+				: "session export requires <session-id>",
+		);
 		return 1;
 	}
-	if (!input.bundleDir.trim()) {
+	if (input.format === "atif") {
+		return await runSessionExportAtif({ ...input, sessionId });
+	}
+	if (input.out !== undefined) {
+		io.writeErr(
+			"--out is only used with --format atif; bundles are written to --bundle <dir>",
+		);
+		return 1;
+	}
+	if (!input.bundleDir?.trim()) {
 		io.writeErr("session export requires --bundle <dir>");
 		return 1;
 	}
@@ -101,6 +130,150 @@ export async function runSessionExport(input: {
 		io.writeErr(errorMessage(error));
 		return 1;
 	}
+}
+
+function isDirectory(path: string): boolean {
+	try {
+		return statSync(path).isDirectory();
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * `session export --format atif`: converts a bundle directory, or a session
+ * exported on the fly (redacted unless `--no-redact`, with its subagent and
+ * teammate sessions), into one ATIF trajectory.
+ */
+async function runSessionExportAtif(
+	input: SessionExportCommandInput,
+): Promise<number> {
+	const { io } = input;
+	const target = input.sessionId;
+	const asPath = resolve(target);
+	const fromBundle = isDirectory(asPath);
+	if (fromBundle && !existsSync(join(asPath, SESSION_REPLAY_MANIFEST_FILE))) {
+		io.writeErr(
+			`${asPath} is a directory without ${SESSION_REPLAY_MANIFEST_FILE}; pass a session id or a session replay bundle directory`,
+		);
+		return 1;
+	}
+	if (fromBundle && input.bundleDir?.trim()) {
+		io.writeErr(
+			"--bundle writes a new bundle and cannot be used when converting an existing bundle",
+		);
+		return 1;
+	}
+	const out = input.out?.trim() ? resolve(input.out) : undefined;
+	if (out && existsSync(out) && !input.overwrite) {
+		io.writeErr(`${out} already exists; pass --force to replace it`);
+		return 1;
+	}
+	const warnings: string[] = [];
+	if (fromBundle && !input.redact) {
+		warnings.push(
+			"--no-redact has no effect when converting an existing bundle; the bundle's own redaction applies.",
+		);
+	}
+	let tempDir: string | undefined;
+	try {
+		const {
+			exportSessionReplayBundleToAtif,
+			readSessionReplayBundle,
+			validateAtifTrajectory,
+		} = await import("@cline/session");
+		let bundleDir = asPath;
+		if (!fromBundle) {
+			if (input.bundleDir?.trim()) {
+				bundleDir = resolve(input.bundleDir);
+			} else {
+				tempDir = await mkdtemp(join(tmpdir(), "cline-session-atif-"));
+				bundleDir = tempDir;
+			}
+			const { exportSessionReplay } = await import("../session/session");
+			const exported = await exportSessionReplay({
+				sessionId: target,
+				bundleDir,
+				redact: input.redact,
+				overwrite: input.overwrite,
+				hostVersion: cliVersion,
+				includeChildSessions: true,
+			});
+			warnings.push(...exported.warnings);
+		}
+		const bundle = await readSessionReplayBundle(bundleDir);
+		const { trajectory, warnings: atifWarnings } =
+			exportSessionReplayBundleToAtif(bundle);
+		warnings.push(...atifWarnings);
+		const validation = validateAtifTrajectory(trajectory);
+		if (!validation.ok) {
+			io.writeErr("The exported trajectory does not validate against ATIF:");
+			for (const error of validation.errors) {
+				io.writeErr(`  - ${error}`);
+			}
+			return 1;
+		}
+		const json = `${JSON.stringify(trajectory, null, 2)}\n`;
+		if (out) {
+			await mkdir(dirname(out), { recursive: true });
+			await writeFile(out, json, "utf8");
+		} else {
+			process.stdout.write(json);
+		}
+		const subagents = countSubagentTrajectories(trajectory);
+		if (input.outputMode === "json" && out) {
+			writeJson({
+				sessionId: bundle.manifest.rootSessionId,
+				format: "atif",
+				schemaVersion: trajectory.schema_version,
+				out,
+				...(fromBundle || !tempDir ? { bundleDir } : {}),
+				steps: trajectory.steps.length,
+				subagentTrajectories: subagents,
+				finalMetrics: trajectory.final_metrics ?? null,
+				warnings,
+			});
+			return 0;
+		}
+		for (const warning of warnings) {
+			io.writeErr(`warning: ${warning}`);
+		}
+		if (out) {
+			const metrics = trajectory.final_metrics;
+			io.writeln(
+				`Exported session ${bundle.manifest.rootSessionId} as ${trajectory.schema_version} to ${out}`,
+			);
+			io.writeln(
+				`  ${trajectory.steps.length} steps · ${subagents} subagent trajector${subagents === 1 ? "y" : "ies"}${
+					metrics?.total_prompt_tokens !== undefined
+						? ` · ${metrics.total_prompt_tokens} prompt / ${metrics.total_completion_tokens ?? 0} completion tokens`
+						: ""
+				}${
+					typeof metrics?.total_cost_usd === "number"
+						? ` · $${metrics.total_cost_usd.toFixed(4)}`
+						: ""
+				}`,
+			);
+			if (!fromBundle && !tempDir) {
+				io.writeln(`  bundle: ${bundleDir}`);
+			}
+		}
+		return 0;
+	} catch (error) {
+		io.writeErr(errorMessage(error));
+		return 1;
+	} finally {
+		if (tempDir) {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	}
+}
+
+function countSubagentTrajectories(trajectory: AtifTrajectory): number {
+	return (trajectory.subagent_trajectories ?? []).reduce(
+		(total, sub) => total + 1 + countSubagentTrajectories(sub),
+		0,
+	);
 }
 
 export async function runSessionValidate(input: {
