@@ -60,7 +60,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 	initialAttachments?: File[];
 	canOpen: () => boolean;
 	open: (draft?: string, attachments?: File[], draftId?: string) => void;
-	delivered: (sourceSessionId: string) => void;
 }): Promise<boolean> {
 	let saved: CloudHandoffFollowUp | null = null;
 	const explicitRetry =
@@ -68,6 +67,7 @@ export async function openWithCloudHandoffFollowUp(options: {
 		options.initialAttachments !== undefined;
 	let attachments = options.initialAttachments;
 	let restoreFailed = false;
+	let newerDraft = false;
 	try {
 		saved = await desktopClient.invoke<CloudHandoffFollowUp | null>(
 			"get_cloud_handoff_follow_up",
@@ -75,6 +75,10 @@ export async function openWithCloudHandoffFollowUp(options: {
 		);
 		if (!explicitRetry && saved && !saved.unconfirmed)
 			attachments = cloudHandoffFollowUpAttachments(saved);
+		if (saved?.unconfirmed && explicitRetry)
+			newerDraft =
+				(options.initialPromptDraft?.trim() ?? "") !== saved.command.trim() ||
+				!(await sameImages(options.initialAttachments ?? [], saved));
 	} catch {
 		saved = null;
 		restoreFailed = true;
@@ -82,11 +86,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 	if (!options.canOpen()) return false;
 	if (saved?.unconfirmed) {
 		// A stale copy of the uncertain send stays behind explicit Restore; a newer edit is the user's own draft.
-		const newerDraft =
-			explicitRetry &&
-			((options.initialPromptDraft?.trim() ?? "") !== saved.command.trim() ||
-				!(await sameImages(options.initialAttachments ?? [], saved)));
-		if (!options.canOpen()) return false;
 		options.open(
 			newerDraft ? options.initialPromptDraft : undefined,
 			newerDraft ? options.initialAttachments : undefined,
@@ -105,9 +104,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 				"The recovery copy could not be read and has not been cleared. Try reopening the session to restore it.",
 			variant: "destructive",
 		});
-	}
-	if (saved) {
-		options.delivered(saved.sourceSessionId);
 	}
 	return true;
 }

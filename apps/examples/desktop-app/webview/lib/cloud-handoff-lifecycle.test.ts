@@ -3,6 +3,7 @@ import type { HandoffResult } from "./cloud-handoff";
 import {
 	createHandoffLifecycle,
 	type HandoffLifecycleToast,
+	type HandoffOpenResult,
 	type HandoffProgressEventPayload,
 } from "./cloud-handoff-lifecycle";
 import {
@@ -61,7 +62,11 @@ function makeHarness(options: { openSessionResult?: boolean } = {}) {
 				initialAttachments?: File[];
 				expectedActiveThreadId?: string;
 			},
-		) => Promise.resolve(options.openSessionResult ?? true),
+		) =>
+			Promise.resolve({
+				opened: options.openSessionResult ?? true,
+				draftDelivered: options.openSessionResult ?? true,
+			}),
 	);
 	const openExternal = vi.fn((_url: string) => Promise.resolve());
 	const lifecycle = createHandoffLifecycle({
@@ -588,12 +593,32 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});
 
+	it("retains a retry when cloud opens but preserves a different target draft", async () => {
+		const h = makeHarness();
+		const attachment = makeAttachment();
+		h.openSession.mockResolvedValueOnce({
+			opened: true,
+			draftDelivered: false,
+		});
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			result: makeResult({ warning: "Not queued", warningKind: "unqueued" }),
+			nextCommand: "edited retry",
+			sourceAttachments: [attachment],
+		});
+		expect(h.getState()[SOURCE]).toMatchObject({
+			status: "complete",
+			retryDraft: "edited retry",
+			retryAttachments: [attachment],
+		});
+		expect(h.openExternal).not.toHaveBeenCalled();
+	});
+
 	it("does not let an older completion overwrite a retry accepted while its target open awaited", async () => {
 		const h = makeHarness();
-		let resolveOpen: ((opened: boolean) => void) | undefined;
+		let resolveOpen: ((outcome: HandoffOpenResult) => void) | undefined;
 		h.openSession.mockImplementationOnce(
 			() =>
-				new Promise<boolean>((resolve) => {
+				new Promise<HandoffOpenResult>((resolve) => {
 					resolveOpen = resolve;
 				}),
 		);
@@ -620,7 +645,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			phase: "creating",
 			message: "Creating the retry",
 		});
-		resolveOpen?.(true);
+		resolveOpen?.({ opened: true, draftDelivered: true });
 		await originalCompletion;
 
 		expect(
@@ -742,11 +767,11 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		let finishOpen!: () => void;
 		h.openSession.mockImplementationOnce(
 			() =>
-				new Promise<boolean>((resolve, reject) => {
+				new Promise<HandoffOpenResult>((resolve, reject) => {
 					finishOpen = () =>
 						outcome === "reject"
 							? reject(new Error("discovery failed"))
-							: resolve(false);
+							: resolve({ opened: false, draftDelivered: false });
 				}),
 		);
 		await h.lifecycle.onEvent(
@@ -811,10 +836,10 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 	it("reject then event: recovery stays available until the target opens with the saved draft and attachments", async () => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
-		let resolveOpen: ((opened: boolean) => void) | undefined;
+		let resolveOpen: ((outcome: HandoffOpenResult) => void) | undefined;
 		h.openSession.mockImplementationOnce(
 			() =>
-				new Promise<boolean>((resolve) => {
+				new Promise<HandoffOpenResult>((resolve) => {
 					resolveOpen = resolve;
 				}),
 		);
@@ -854,7 +879,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			retryDraft: "/cloud fix flaky test",
 			retryAttachments: [attachment],
 		});
-		resolveOpen?.(true);
+		resolveOpen?.({ opened: true, draftDelivered: true });
 		await completion;
 		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
 			silent: true,
