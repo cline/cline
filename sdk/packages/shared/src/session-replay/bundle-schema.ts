@@ -1,6 +1,6 @@
-import { type MessageWithMetadata, SESSION_STATUS_VALUES } from "@cline/shared";
 import { z } from "zod";
-import { SessionCompactionStateSchema } from "../models/session-compaction";
+import type { MessageWithMetadata } from "../llms/messages";
+import { SESSION_STATUS_VALUES } from "../session/records";
 import {
 	SessionRecordedBlobSchema,
 	SessionRecordingSegmentSchema,
@@ -340,48 +340,6 @@ export const SessionReplayRedactionReportSchema = z.object({
 export type SessionReplayRedactionReport = z.infer<
 	typeof SessionReplayRedactionReportSchema
 >;
-
-export const SessionReplayCompactionFileSchema = SessionCompactionStateSchema;
-
-const MEDIA_TYPES: Record<
-	SessionReplayFileKind,
-	SessionReplayFileEntry["mediaType"]
-> = {
-	transcript: "application/json",
-	events: "application/x-ndjson",
-	compaction: "application/json",
-	"redaction-report": "application/json",
-	request: "application/x-ndjson",
-	"request-blobs": "application/x-ndjson",
-	cassette: "application/json",
-	environment: "application/json",
-};
-
-export function sessionReplayFileMediaType(
-	kind: SessionReplayFileKind,
-): SessionReplayFileEntry["mediaType"] {
-	return MEDIA_TYPES[kind];
-}
-
-/** Directory of one session inside a bundle, relative to the bundle root. */
-export function sessionReplaySessionDir(sessionId: string): string {
-	return `sessions/${encodeURIComponent(sessionId)}`;
-}
-
-export const sessionReplayBundlePaths = {
-	transcript: (sessionId: string) =>
-		`${sessionReplaySessionDir(sessionId)}/transcript.json`,
-	events: (sessionId: string) =>
-		`${sessionReplaySessionDir(sessionId)}/events.jsonl`,
-	compaction: (sessionId: string) =>
-		`${sessionReplaySessionDir(sessionId)}/compaction.json`,
-	requestsDir: (sessionId: string) =>
-		`${sessionReplaySessionDir(sessionId)}/requests`,
-	requests: (sessionId: string) =>
-		`${sessionReplaySessionDir(sessionId)}/requests/requests.jsonl`,
-	requestBlobs: (sessionId: string) =>
-		`${sessionReplaySessionDir(sessionId)}/requests/blobs.jsonl`,
-} as const;
 
 /**
  * A recorded request part. `sha256` is the recording-time hash of `value`;
