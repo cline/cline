@@ -431,8 +431,10 @@ describe("default apply_patch tool", () => {
 	});
 
 	it("validates and executes apply_patch input", async () => {
+		const cwd = "/project/packages/my app";
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
+			cwd,
 			executors: {
 				applyPatch: execute,
 			},
@@ -452,6 +454,8 @@ describe("default apply_patch tool", () => {
 			throw new Error("Expected apply_patch tool to be defined.");
 		}
 
+		expect(applyPatchTool.description).toContain(JSON.stringify(cwd));
+
 		const result = await applyPatchTool.execute(
 			{ input: "*** Begin Patch\n*** End Patch" },
 			{
@@ -468,7 +472,7 @@ describe("default apply_patch tool", () => {
 		});
 		expect(execute).toHaveBeenCalledWith(
 			{ input: "*** Begin Patch\n*** End Patch" },
-			process.cwd(),
+			cwd,
 			expect.objectContaining({
 				agentId: "agent-1",
 				conversationId: "conv-1",
@@ -565,6 +569,7 @@ describe("run_commands tool description", () => {
 		const posixTool = createShellTool(async () => "ok", {
 			shell: "/bin/bash",
 		});
+		expect(posixTool.description).toContain(JSON.stringify(process.cwd()));
 		expect(posixTool.description).toContain(
 			"Run non-interactive shell commands",
 		);
@@ -577,10 +582,13 @@ describe("run_commands tool description", () => {
 	});
 
 	it("re-derives the description on each read when config.shell is a provider", () => {
+		const cwd = "/project/packages/app";
 		let shell = "/bin/bash";
 		const tool = createShellTool(async () => "ok", {
 			shell: () => shell,
+			cwd,
 		});
+		expect(tool.description).toContain(JSON.stringify(cwd));
 		expect(tool.description).not.toContain("PowerShell");
 
 		shell = "powershell.exe";
@@ -602,6 +610,7 @@ describe("run_commands tool description", () => {
 		// building AgentToolDefinitions for a model request.
 		shell = "cmd.exe";
 		const definition = { ...tool };
+		expect(definition.description).toContain(JSON.stringify(cwd));
 		expect(definition.description).toContain("Commands run through cmd.exe");
 	});
 });
@@ -632,10 +641,13 @@ describe("default run_commands tool", () => {
 	}
 
 	it("accepts object input with commands as a single string", async () => {
+		const cwd = "/project/packages/my app";
 		const execute = vi.fn(async (command: string | { command: string }) =>
 			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
 		);
-		const tool = createShellTool(execute);
+		const tool = createShellTool(execute, { cwd });
+
+		expect(tool.description).toContain(JSON.stringify(cwd));
 
 		const result = await tool.execute({ commands: "ls" } as never, {
 			agentId: "agent-1",
@@ -653,7 +665,7 @@ describe("default run_commands tool", () => {
 		expect(execute).toHaveBeenCalledTimes(1);
 		expect(execute).toHaveBeenCalledWith(
 			"ls",
-			process.cwd(),
+			cwd,
 			expect.objectContaining({
 				agentId: "agent-1",
 				conversationId: "conv-1",
@@ -1881,8 +1893,10 @@ describe("zod schema conversion", () => {
 
 describe("default editor tool", () => {
 	it("accepts replacement edits without insert fields", async () => {
+		const cwd = "/project/packages/my app";
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
+			cwd,
 			executors: {
 				editor: execute,
 			},
@@ -1900,6 +1914,8 @@ describe("default editor tool", () => {
 		if (!editorTool) {
 			throw new Error("Expected editor tool to be defined.");
 		}
+
+		expect(editorTool.description).toContain(JSON.stringify(cwd));
 
 		const result = await editorTool.execute(
 			{
@@ -1925,7 +1941,7 @@ describe("default editor tool", () => {
 				old_text: "before",
 				new_text: "after",
 			}),
-			process.cwd(),
+			cwd,
 			expect.objectContaining({
 				agentId: "agent-1",
 				conversationId: "conv-1",
