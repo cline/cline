@@ -192,6 +192,14 @@ export function writeErr(text: string): void {
 	console.error(`${c.red}error:${c.reset} ${text}`);
 }
 
+export function writeWarn(text: string): void {
+	if (currentOutputMode === "json") {
+		emitJsonLine("stderr", { type: "warning", message: text });
+		return;
+	}
+	console.error(`${c.yellow}warning:${c.reset} ${text}`);
+}
+
 // =============================================================================
 // Formatting helpers
 // =============================================================================

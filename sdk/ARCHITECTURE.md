@@ -605,13 +605,86 @@ Design implications:
 `packages/core/src/extensions` is split by concern:
 
 - `extensions/config`: config loaders, parsers, watchers, and watcher projections such as runtime slash-command expansion
-- `extensions/plugin`: runtime plugin discovery, loading, and sandboxing
+- `extensions/plugin`: runtime plugin discovery, loading, the in-process plugin registry, and the opt-in sandbox
 - `extensions/context`: core-owned context/message pipeline concerns such as compaction
 
 Design implications:
 
 - avoid mixing config discovery code into runtime/plugin code
 - avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
+
+#### Plugin execution
+
+Plugins load in the host process through one `PluginRegistry` per process
+(`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). In the
+Hub daemon that registry is Hub-owned: the daemon discovers and imports global
+and workspace plugins once at startup, and every session reuses those modules.
+The session bootstrap, plugin tool listing (`listPluginToolsWithDiagnostics`),
+plugin MCP settings sync, and plugin slash commands all load through the same
+registry. There is no `node` or `bun` child process, so plugins work in the
+compiled CLI, the Hub it starts, and VS Code/Electron without a runtime on
+`PATH`, and plugins can use the host runtime's globals (`Bun` under the
+Bun-built Hub).
+
+Each session gets its own guarded view of the plugins it enabled:
+
+- `StartSessionInput.plugins` (`session.create` payload `plugins`) is shaped
+  like `toolPolicies`: `"*"` sets the default and named entries override it.
+  Plugins are enabled unless a policy turns them off. Tools, hooks, rules, and
+  providers come only from enabled plugins; plugin tools still go through
+  `toolPolicies`.
+- `setup()` runs once per session with a context that carries the session's
+  `cwd`, `session.sessionId`, and `emitEvent`. Plugin tools also receive `cwd`
+  and `emitEvent` in their call context. `globalThis.__clinePluginHost.emitEvent`
+  remains as a shim for sandbox-era plugins and routes to the calling session
+  through async context.
+- Every import (4 s), setup (4 s), hook (3 s), tool (60 s, or the tool's own
+  `timeoutMs`), and command call is wrapped with a timeout and error capture.
+  A failing tool throws its error back to the model as a tool error. A failing
+  hook follows `hookErrorMode` (`"ignore"` by default; `"throw"` rethrows).
+  Registrations from a setup that throws are discarded as a unit.
+
+The registry tracks one status per plugin: `loading`, `ready`, `degraded`,
+`failed`, or `disabled`. It records the last error with its phase (`discover`,
+`import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or
+`uncaught`), message, stack, plugin path, timestamp, and session, plus error
+and timeout counts. Import, setup, and attributed uncaught errors mark a plugin
+`failed`. A hook or tool failure marks it `degraded`, and five consecutive
+failures mark it `failed`. A `failed` plugin is no longer called until it is
+reloaded or its entry file changes.
+
+Status is surfaced, never only logged:
+
+- `plugins.list` / `plugins.status` return each plugin's status, last error,
+  and the sessions using it; `plugins.reload` re-imports one plugin by name or
+  path without restarting the Hub. `cline hub plugins [--reload <plugin>]`
+  wraps these.
+- The Hub broadcasts `plugin.status_changed` to attached clients.
+- `session.create` replies and `session.created` events carry `pluginIssues`
+  for plugins the session asked for but does not have (failed or disabled).
+  `StartSessionResult.pluginIssues` exposes the same list to SDK hosts.
+- Because `setup()` and hooks run on the first turn, after the start reply,
+  later degraded/failed transitions reach each affected session as a status
+  notice (`AgentNoticeEvent` with `metadata.pluginIssue`).
+- Registry logs are structured lines with `pluginName`, `phase`, and
+  `sessionId`; in the Hub they go through `logHubMessage`.
+
+The daemon's `uncaughtException` / `unhandledRejection` handlers first ask the
+registry to attribute the error: when its stack points into a known plugin root
+(the package directory for package plugins, the file itself for drop-in files),
+that plugin is marked `failed` and the Hub keeps running. Other errors still go
+to `shutdownFatal`.
+
+Accepted risks of in-process execution: plugins share process state across
+sessions (setup runs per session, but module state is shared), and a plugin
+stuck in a synchronous loop freezes the Hub. Timeouts cannot interrupt
+synchronous code; a call that overran its limit is logged once it returns.
+
+#### Opt-in sandbox
+
+`mode: "sandbox"` on `resolveAndLoadAgentPlugins`, or `CLINE_PLUGIN_MODE=sandbox`,
+keeps the previous subprocess sandbox. It needs a `node` or `bun` runtime on
+`PATH` when the host is not itself `node` or `bun`.
 
 Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -628,7 +701,7 @@ Design implications:
 - sandbox process count scales with recently active sessions, not every session
   observed since hub startup
 - eviction never interrupts an in-flight plugin call
-- in-process plugin state is ephemeral across idle eviction; durable plugin
+- sandboxed plugin state is ephemeral across idle eviction; durable plugin
   state belongs in persistent storage
 - a sandbox must never outlive its owning hub process
 
@@ -893,7 +966,7 @@ completed turn. Report and cleanup failures are logged separately.
 **I want to understand the agent loop and tool execution:**
 - Start: `packages/agents/src/agent.ts` — the stateless runtime loop
 - Then: `packages/agents/src/agent-step.ts` — individual iteration steps
-- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery and sandboxing
+- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery, the in-process registry, and the opt-in sandbox
 
 **I want to understand session persistence and state:**
 - Start: `packages/core/src/runtime/host/local-runtime-host.ts` — local session lifecycle

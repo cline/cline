@@ -8,7 +8,7 @@ import {
 	getPluginDisplayName,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
-	listPluginTools,
+	listPluginToolsWithDiagnostics,
 	type RuleConfig,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
@@ -372,10 +372,16 @@ async function runToolsConfigCommand(
 	availabilityContext?: BuiltinToolAvailabilityContext,
 ): Promise<number> {
 	const tools = getToolCatalog(availabilityContext);
-	const pluginTools = await listPluginTools({
+	const pluginReport = await listPluginToolsWithDiagnostics({
 		workspacePath: cwd,
 		cwd,
 	});
+	const pluginTools = pluginReport.tools;
+	// A plugin that fails to import or set up contributes no tools; list it
+	// anyway so the failure is visible instead of its tools just vanishing.
+	const failedPlugins = pluginReport.plugins.filter(
+		(plugin) => plugin.state === "failed",
+	);
 
 	if (outputMode === "json") {
 		process.stdout.write(
@@ -390,11 +396,28 @@ async function runToolsConfigCommand(
 					enabled: tool.enabled,
 					description: tool.description,
 				})),
+				...failedPlugins.map((plugin) => ({
+					type: "plugin_failure" as const,
+					pluginName: plugin.pluginName,
+					path: plugin.path,
+					state: plugin.state,
+					enabled: false,
+					error: plugin.lastError
+						? {
+								phase: plugin.lastError.phase,
+								message: plugin.lastError.message,
+							}
+						: undefined,
+				})),
 			]),
 		);
 		return 0;
 	}
-	if (tools.length === 0 && pluginTools.length === 0) {
+	if (
+		tools.length === 0 &&
+		pluginTools.length === 0 &&
+		failedPlugins.length === 0
+	) {
 		io.writeln("No tools found.");
 		return 0;
 	}
@@ -414,6 +437,17 @@ async function runToolsConfigCommand(
 		for (const tool of pluginTools) {
 			io.writeln(
 				`  ${tool.name} [plugin: ${tool.pluginName}] [${tool.enabled ? "enabled" : "disabled"}] (${tool.path})`,
+			);
+		}
+	}
+	if (failedPlugins.length > 0) {
+		io.writeln();
+		io.writeln("Failed plugins (their tools are unavailable):");
+		for (const plugin of failedPlugins) {
+			const phase = plugin.lastError?.phase ?? "load";
+			const message = plugin.lastError?.message ?? "unknown error";
+			io.writeln(
+				`  ${plugin.pluginName} [failed during ${phase}] ${message} (${plugin.path})`,
 			);
 		}
 	}

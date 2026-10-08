@@ -619,6 +619,38 @@ function loadJitiBabelTransform(): JitiTransform | null {
 	return cachedJitiTransform;
 }
 
+let cachedStaticJitiTransform: Promise<JitiTransform | null> | undefined;
+
+/**
+ * Fallback for compiled binaries run without an install layout next to them
+ * (no wrapper `node_modules/jiti` on disk). `jiti/static` imports babel
+ * statically, so `bun build --compile` bundles it into the binary. Its
+ * instance `transform` forwards our options last, so the `interopDefault`
+ * override below still reaches babel.
+ */
+function loadStaticJitiTransform(): Promise<JitiTransform | null> {
+	cachedStaticJitiTransform ??= (async () => {
+		try {
+			const staticModule = (await import("jiti/static")) as unknown as {
+				createJiti?: (
+					id: string,
+					opts?: Record<string, unknown>,
+				) => { transform: (opts: Parameters<JitiTransform>[0]) => string };
+			};
+			const createStaticJiti = staticModule.createJiti;
+			if (typeof createStaticJiti !== "function") return null;
+			const instance = createStaticJiti(MODULE_DIR, {
+				cache: false,
+				interopDefault: false,
+			});
+			return (opts) => ({ code: instance.transform(opts) });
+		} catch {
+			return null;
+		}
+	})();
+	return cachedStaticJitiTransform;
+}
+
 export async function importPluginModule(
 	pluginPath: string,
 	options: ImportPluginModuleOptions = {},
@@ -658,7 +690,8 @@ export async function importPluginModule(
 	// plugins). Pin `interopDefault: true` going into babel by overriding it
 	// in the transform call, while keeping `interopDefault: false` on the jiti
 	// instance so the loader sees raw exports.
-	const baseBabelTransform = loadJitiBabelTransform();
+	const baseBabelTransform =
+		loadJitiBabelTransform() ?? (await loadStaticJitiTransform());
 	const babelTransform: JitiTransform | undefined = baseBabelTransform
 		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
 		: undefined;

@@ -96,6 +96,65 @@ await cline.start({
 
 Plugin files export an `AgentPlugin`.
 
+## How Plugins Run
+
+File-based plugins load in the host process. When sessions run through the hub, the hub imports each plugin once and every session reuses it. No separate `node` or `bun` process is started, so plugins work in the compiled CLI and the hub without a runtime on `PATH`, and a plugin can use the host runtime's globals, such as `Bun` under the Bun-built hub.
+
+Plugins share one process. `setup()` runs once per session, but module-level state is shared across sessions, and a plugin stuck in a synchronous loop blocks the hub. Keep per-session state inside `setup()` and use `ctx.cwd` rather than `process.cwd()`.
+
+The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
+
+## Choosing Plugins per Session
+
+Pass a `plugins` policy when you start a session. It's shaped like `toolPolicies`: `"*"` sets the default, and named entries override it for one plugin. Plugins are enabled unless a policy turns them off.
+
+```typescript
+await cline.start({
+  prompt: "Review this change",
+  config: { /* ...model/runtime config */ },
+  plugins: {
+    "*": { enabled: false },
+    "code-review": { enabled: true },
+  },
+})
+```
+
+A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`.
+
+## Setup and Call Context
+
+`setup(api, ctx)` receives the session's context:
+
+| Field | Meaning |
+|-------|---------|
+| `ctx.cwd` | The session's working directory |
+| `ctx.session?.sessionId` | The session that is setting the plugin up |
+| `ctx.emitEvent(name, payload)` | Sends a plugin event, such as `steer_message`, to that session |
+| `ctx.workspaceInfo` | Workspace root and git metadata |
+
+Plugin tools also receive `cwd` and `emitEvent` in their call context (`execute(input, context)`). `globalThis.__clinePluginHost.emitEvent` still works for plugins written for the sandbox; it routes to the session whose hook or tool is running.
+
+## Plugin Status and Errors
+
+The host wraps every plugin call and records what goes wrong, so a broken plugin never just loses its tools silently.
+
+| Call | Timeout | On failure |
+|------|---------|------------|
+| Import | 4 s (`CLINE_PLUGIN_IMPORT_TIMEOUT_MS`) | Plugin is `failed` |
+| `setup()` | 4 s | Plugin is `failed`; none of its registrations are kept |
+| Hook | 3 s | Plugin is `degraded`; the run continues unless `hookErrorMode` is `"throw"` |
+| Tool | 60 s, or the tool's `timeoutMs` | The error goes back to the model as a tool error; plugin is `degraded` |
+
+Five failures in a row turn a `degraded` plugin `failed`. A `failed` plugin isn't called again until it is reloaded or its entry file changes. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
+
+Each plugin has a status of `loading`, `ready`, `degraded`, `failed`, or `disabled`. Its last error records the phase (`discover`, `import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or `uncaught`), the message, the stack, the plugin path, and a timestamp. The status also counts errors and timeouts.
+
+To read status:
+
+- `StartSessionResult.pluginIssues` lists the plugins the session asked for but doesn't have.
+- Plugins that fail later in the session (`setup()` and hooks run on the first turn) are reported to that session as a status notice event, with the issue in `metadata.pluginIssue`.
+- Hub clients can send `plugins.status` (or `plugins.list`) for every plugin's status, last error, and the sessions using it. `plugins.reload` with `{ plugin: "<name or path>" }` re-imports one plugin without restarting the hub. The hub broadcasts a `plugin.status_changed` event when a status changes.
+
 ## Installing Plugins via CLI
 
 Plugins can also be installed from file URLs, npm, git, or local paths using `cline plugin install`. See [Plugins](/customization/plugins) for install commands, the manifest format, and directory layout.
@@ -143,11 +202,8 @@ Hook policies control execution behavior:
 | `timeoutMs` | Hook timeout |
 | `retries` | Retry count |
 | `retryDelayMs` | Delay between retries |
-| `failureMode` | `"fail_open"` or `"fail_closed"` |
 | `maxConcurrency` | Concurrent hook executions |
 | `queueLimit` | Queue size before dropping |
-
-Use `fail_closed` for policy-enforcement hooks where bypassing the hook is unsafe.
 
 ## Build a Plugin
 

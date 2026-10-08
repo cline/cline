@@ -5,6 +5,11 @@ import {
 	initVcr,
 	resolveClineBuildEnv,
 } from "@cline/shared";
+import { resolveAgentPluginPathsWithDiagnostics } from "../../extensions/plugin/plugin-config-loader";
+import {
+	getProcessPluginRegistry,
+	type PluginRegistry,
+} from "../../extensions/plugin/plugin-registry";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -155,6 +160,29 @@ export function isAbortRejection(reason: unknown): boolean {
 	return false;
 }
 
+/**
+ * Plugins run inside the daemon, so a stray exception or rejection from a
+ * plugin must not shut every session down. When the error's stack points into
+ * a loaded plugin, mark that plugin `failed` and keep running. Returns false
+ * for errors that are not attributable to a plugin.
+ */
+export function attributeUncaughtErrorToPlugin(
+	label: "uncaughtException" | "unhandledRejection",
+	error: unknown,
+	registry: PluginRegistry = getProcessPluginRegistry(),
+	write: (line: string) => void = (line) => process.stderr.write(line),
+): boolean {
+	const status = registry.attributeUncaughtError(error, label);
+	if (!status) {
+		return false;
+	}
+	const message = error instanceof Error ? error.message : String(error);
+	write(
+		`[hub-daemon] ${label} from plugin "${status.name}" (${status.pluginPath}); marked it failed and kept running: ${message}\n`,
+	);
+	return true;
+}
+
 async function main(): Promise<void> {
 	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
@@ -238,6 +266,9 @@ async function main(): Promise<void> {
 	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
 	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
 	process.on("uncaughtException", (error) => {
+		if (attributeUncaughtErrorToPlugin("uncaughtException", error)) {
+			return;
+		}
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
@@ -246,6 +277,9 @@ async function main(): Promise<void> {
 			process.stderr.write(
 				`[hub-daemon] ignored abort rejection: ${message}\n`,
 			);
+			return;
+		}
+		if (attributeUncaughtErrorToPlugin("unhandledRejection", reason)) {
 			return;
 		}
 		shutdownFatal("unhandledRejection", reason);
@@ -377,6 +411,9 @@ async function main(): Promise<void> {
 	}
 
 	resolveHubDaemonReady();
+	// Discover and import global plugins once up front so `plugins.status`
+	// reports them before any session starts. Sessions reuse these modules.
+	void preloadDaemonPlugins(options.cwd);
 	try {
 		// Adopt first: connectors that outlived the previous hub have to be known
 		// before recovery runs, so they are restarted onto this hub's session
@@ -395,6 +432,30 @@ async function main(): Promise<void> {
 	await new Promise<void>(() => {
 		// keep daemon process alive
 	});
+}
+
+async function preloadDaemonPlugins(cwd: string): Promise<void> {
+	try {
+		const resolved = resolveAgentPluginPathsWithDiagnostics({
+			workspacePath: cwd,
+			cwd,
+		});
+		const statuses = await getProcessPluginRegistry().preload({
+			pluginPaths: resolved.paths,
+			disabledPluginPaths: resolved.disabledPaths,
+			discoveryFailures: resolved.discoveryFailures,
+		});
+		const failed = statuses.filter((status) => status.state === "failed");
+		for (const status of failed) {
+			process.stderr.write(
+				`[hub-daemon] plugin "${status.name}" failed (${status.lastError?.phase}): ${status.lastError?.message}\n`,
+			);
+		}
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(`[hub-daemon] plugin preload failed: ${message}\n`);
+	}
 }
 
 void main().catch((error) => {

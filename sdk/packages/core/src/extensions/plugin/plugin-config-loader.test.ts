@@ -9,6 +9,7 @@ import {
 	resolveAgentPluginSkillDirectories,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginExecutionMode,
 	resolvePluginSkillDirectoriesFromPaths,
 } from "./plugin-config-loader";
 
@@ -16,10 +17,16 @@ describe("plugin-config-loader", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
 		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
+		CLINE_PLUGIN_MODE: process.env.CLINE_PLUGIN_MODE,
 	};
 
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
+		if (envSnapshot.CLINE_PLUGIN_MODE === undefined) {
+			delete process.env.CLINE_PLUGIN_MODE;
+		} else {
+			process.env.CLINE_PLUGIN_MODE = envSnapshot.CLINE_PLUGIN_MODE;
+		}
 		process.env.CLINE_GLOBAL_SETTINGS_PATH =
 			envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
 		setHomeDir(envSnapshot.HOME ?? "~");
@@ -408,8 +415,8 @@ describe("plugin-config-loader", () => {
 			);
 			await writeFile(invalid, "export default { name: 'broken' };", "utf8");
 
+			// No mode: plugins load in-process by default.
 			const loaded = await resolveAndLoadAgentPlugins({
-				mode: "in_process",
 				pluginPaths: [first, invalid, second],
 				cwd: root,
 			});
@@ -422,6 +429,13 @@ describe("plugin-config-loader", () => {
 			expect(testPlugins[0]?.manifest.capabilities).toEqual(["commands"]);
 			expect(loaded.pluginPaths).toEqual([second]);
 			expect(loaded.failures).toHaveLength(1);
+			expect(loaded.issues).toEqual([
+				expect.objectContaining({
+					pluginPath: invalid,
+					state: "failed",
+					lastError: expect.objectContaining({ phase: "import" }),
+				}),
+			]);
 			expect(loaded.warnings).toHaveLength(1);
 			expect(loaded.warnings[0]?.overriddenPluginPath).toBe(first);
 		} finally {
@@ -462,7 +476,6 @@ describe("plugin-config-loader", () => {
 			);
 
 			const loaded = await resolveAndLoadAgentPlugins({
-				mode: "in_process",
 				pluginPaths: [compatible, incompatible],
 				cwd: root,
 				providerId: "cline",
@@ -473,6 +486,54 @@ describe("plugin-config-loader", () => {
 				"compatible-plugin",
 			]);
 			expect(loaded.pluginPaths).toEqual([compatible]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("loads plugins in-process by default and keeps the sandbox opt-in", () => {
+		delete process.env.CLINE_PLUGIN_MODE;
+		expect(resolvePluginExecutionMode()).toBe("in_process");
+		expect(resolvePluginExecutionMode("sandbox")).toBe("sandbox");
+		process.env.CLINE_PLUGIN_MODE = "sandbox";
+		expect(resolvePluginExecutionMode()).toBe("sandbox");
+		expect(resolvePluginExecutionMode("in_process")).toBe("in_process");
+	});
+
+	it("applies the session plugin policy", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const kept = join(root, "kept.js");
+			const dropped = join(root, "dropped.js");
+			await writeFile(
+				kept,
+				"export default { name: 'kept-plugin', manifest: { capabilities: ['tools'] } };",
+				"utf8",
+			);
+			await writeFile(
+				dropped,
+				"export default { name: 'dropped-plugin', manifest: { capabilities: ['tools'] } };",
+				"utf8",
+			);
+
+			const loaded = await resolveAndLoadAgentPlugins({
+				pluginPaths: [kept, dropped],
+				cwd: root,
+				policy: { "dropped-plugin": { enabled: false } },
+			});
+
+			expect(loaded.extensions.map((plugin) => plugin.name)).toEqual([
+				"kept-plugin",
+			]);
+			expect(loaded.issues).toEqual([
+				expect.objectContaining({
+					name: "dropped-plugin",
+					state: "disabled",
+					reason: "session_policy",
+				}),
+			]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -119,6 +119,28 @@ vi.mock("./bind-diagnostics", () => ({
 	describeAddressInUse: mockDescribeAddressInUse,
 }));
 
+const { mockAttributeUncaughtError, mockPluginPreload } = vi.hoisted(() => ({
+	mockAttributeUncaughtError: vi.fn(
+		(_error: unknown, _label?: string): unknown => undefined,
+	),
+	mockPluginPreload: vi.fn(async () => []),
+}));
+
+vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
+	resolveAgentPluginPathsWithDiagnostics: () => ({
+		paths: [],
+		disabledPaths: [],
+		discoveryFailures: [],
+	}),
+}));
+
+vi.mock("../../extensions/plugin/plugin-registry", () => ({
+	getProcessPluginRegistry: () => ({
+		attributeUncaughtError: mockAttributeUncaughtError,
+		preload: mockPluginPreload,
+	}),
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -343,6 +365,65 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
+	});
+
+	it("keeps running when an uncaught error is attributed to a plugin", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		const handlers = new Map<string, (reason: unknown) => void>();
+		vi.spyOn(process, "on").mockImplementation(((
+			event: string,
+			handler: (reason: unknown) => void,
+		) => {
+			handlers.set(event, handler);
+			return process;
+		}) as never);
+		const stderr = vi
+			.spyOn(process.stderr, "write")
+			.mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		const pluginError = new Error("plugin went wrong");
+		mockAttributeUncaughtError.mockImplementation((error) =>
+			error === pluginError
+				? {
+						name: "bad-plugin",
+						pluginPath: "/plugins/bad-plugin.ts",
+						state: "failed",
+					}
+				: undefined,
+		);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		expect(mockPluginPreload).toHaveBeenCalled();
+
+		handlers.get("unhandledRejection")?.(pluginError);
+		handlers.get("uncaughtException")?.(pluginError);
+		expect(mockAttributeUncaughtError).toHaveBeenCalledWith(
+			pluginError,
+			"unhandledRejection",
+		);
+		expect(mockAttributeUncaughtError).toHaveBeenCalledWith(
+			pluginError,
+			"uncaughtException",
+		);
+		expect(exitSpy).not.toHaveBeenCalled();
+		expect(
+			stderr.mock.calls.some(([line]) =>
+				String(line).includes('from plugin "bad-plugin"'),
+			),
+		).toBe(true);
+
+		// Errors that do not come from a plugin stay fatal.
+		handlers.get("uncaughtException")?.(new Error("hub bug"));
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+		mockAttributeUncaughtError.mockReset();
+		mockAttributeUncaughtError.mockImplementation(() => undefined);
 	});
 
 	it("routes HTTP and signal shutdown through one cleanup", async () => {

@@ -1,5 +1,9 @@
 import z from "zod";
-import type { HubToolExecutorName } from "../hub";
+import type {
+	HubToolExecutorName,
+	PluginPolicies,
+	SessionPluginIssue,
+} from "../hub";
 import type {
 	ModelModality,
 	ModelOperation,
@@ -29,6 +33,8 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	missionTimeIntervalMs?: number;
 	timeoutSeconds?: number;
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
+	/** Per-session plugin selection, shaped like `toolPolicies`. */
+	plugins?: PluginPolicies;
 	toolExecutors?: HubToolExecutorName[];
 	configExtensions?: RuntimeConfigExtensionKind[];
 }
@@ -59,6 +65,8 @@ export interface ChatStartSessionArtifacts {
 export interface ChatStartSessionResponse {
 	sessionId: string;
 	startResult?: ChatStartSessionArtifacts;
+	/** Plugins the session asked for but does not have (failed or disabled). */
+	pluginIssues?: SessionPluginIssue[];
 }
 
 export interface ChatAttachmentFile {

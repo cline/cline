@@ -30,6 +30,7 @@ import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
+import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
@@ -602,6 +603,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 					pluginEventFallbackTelemetry,
 				);
 			},
+			onPluginIssue: (issue) => {
+				// Setup runs on the first turn, after the start result went out;
+				// surface later plugin failures as a status notice instead.
+				if (!bootstrap) return;
+				this.eventBridge.dispatchAgentEvent(sessionId, bootstrap.config, {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message: formatSessionPluginIssue(issue),
+					metadata: { pluginIssue: issue },
+				});
+			},
 			onTeamEvent: (event: TeamEvent) => {
 				void this.eventBridge.handleTeamEvent(sessionId, event);
 				bootstrap.config.onTeamEvent?.(event);
@@ -1045,6 +1058,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			manifestPath,
 			messagesPath,
 			result,
+			...(bootstrap.pluginIssues.length > 0
+				? { pluginIssues: bootstrap.pluginIssues }
+				: {}),
 		};
 	}
 
