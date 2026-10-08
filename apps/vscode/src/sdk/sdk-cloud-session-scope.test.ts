@@ -142,7 +142,8 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		onCancelTask: vi.fn(),
 		clearTask: async () => {
 			task = undefined
-			viewGeneration++
+			const claimed = ++viewGeneration
+			return () => claimed !== viewGeneration
 		},
 		onStartFailed: vi.fn(),
 		claimTaskViewGeneration: () => {
