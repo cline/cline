@@ -1232,6 +1232,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// other input during a queued run is fresh user input.
 		const replayingQueuedPrompt = session.replayingQueuedPrompt === true;
 		session.replayingQueuedPrompt = false;
+		// Resolving undefined here would look like an accepted queued prompt
+		// to the caller, who could not tell the user that the input was lost.
+		if (session.shuttingDown) {
+			throw new Error(`Session ${input.sessionId} is shutting down`);
+		}
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
