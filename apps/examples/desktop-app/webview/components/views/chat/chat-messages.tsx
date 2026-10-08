@@ -10,6 +10,7 @@ import {
 } from "@cline/ui/components/agent-chat";
 import { Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TerminalConceptInlineBlocks } from "@/components/terminal-concepts";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -707,6 +708,7 @@ function ChatMessagesImpl({
 										/>
 									);
 								})}
+								<TerminalConceptInlineBlocks />
 								{/* Lives inside the transcript column and mirrors a
 								    reasoning/tool trigger's geometry exactly (icon slot,
 								    min-height, padding), so the first real row replaces it
