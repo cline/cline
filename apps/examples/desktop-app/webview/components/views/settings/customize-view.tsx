@@ -31,10 +31,11 @@ type CustomizeTab =
 	| "hooks"
 	| "tools";
 
+// Plugins is temporarily hidden while plugin support is broken. Its view still
+// exists — add `{ id: "plugins", label: "Plugins" }` back here to surface it.
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
 	{ id: "integrations", label: "Connectors" },
 	{ id: "tools", label: "Tools" },
-	{ id: "plugins", label: "Plugins" },
 	{ id: "skills", label: "Skills" },
 	{ id: "rules", label: "Rules" },
 	{ id: "mcp", label: "MCP" },
