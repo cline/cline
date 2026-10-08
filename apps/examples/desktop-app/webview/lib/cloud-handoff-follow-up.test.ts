@@ -32,26 +32,25 @@ it.each([
 it("restores the command and images again after opening without sending", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
 	const open = vi.fn();
-	const delivered = vi.fn();
+	const onSavedDraftOpened = vi.fn();
 	expect(
 		await openWithCloudHandoffFollowUp({
 			targetSessionId: "cloud-target",
 			canOpen: () => true,
 			open,
-			delivered,
+			onSavedDraftOpened,
 		}),
 	).toBe(true);
+	expect(onSavedDraftOpened).toHaveBeenCalledExactlyOnceWith(saved);
 	const [command, images, draftId] = open.mock.calls[0];
 	expect(draftId).toBe(saved.draftId);
 	expect(command).toBe(saved.command);
 	expect(images[0].type).toBe("image/png");
 	expect(await images[0].text()).toBe("image");
-	expect(delivered).toHaveBeenCalledExactlyOnceWith(saved.sourceSessionId);
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "cloud-target",
 		canOpen: () => true,
 		open,
-		delivered,
 	});
 	expect(open.mock.calls[1][0]).toBe(saved.command);
 	expect(await open.mock.calls[1][1][0].text()).toBe("image");
@@ -66,7 +65,6 @@ it.each([
 	"open failed",
 ])("does not consume recovery when %s", async (failure) => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
-	const delivered = vi.fn();
 	const open = vi.fn(() => {
 		throw new Error("open failed");
 	});
@@ -74,18 +72,15 @@ it.each([
 		targetSessionId: "cloud-target",
 		canOpen: () => failure !== "navigated",
 		open,
-		delivered,
 	});
 	if (failure === "navigated") await expect(result).resolves.toBe(false);
 	else await expect(result).rejects.toThrow("open failed");
 	expect(desktopClient.invoke).toHaveBeenCalledTimes(1);
-	expect(delivered).not.toHaveBeenCalled();
 });
 
 it("keeps explicitly supplied draft/files and leaves normal cloud opens unchanged", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(null);
 	const open = vi.fn();
-	const delivered = vi.fn();
 	const image = new File(["current"], "current.png", { type: "image/png" });
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "cloud-target",
@@ -93,17 +88,14 @@ it("keeps explicitly supplied draft/files and leaves normal cloud opens unchange
 		initialAttachments: [image],
 		canOpen: () => true,
 		open,
-		delivered,
 	});
 	expect(open).toHaveBeenLastCalledWith("current", [image], undefined);
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "another-target",
 		canOpen: () => true,
 		open,
-		delivered,
 	});
 	expect(open).toHaveBeenLastCalledWith(undefined, undefined, undefined);
-	expect(delivered).not.toHaveBeenCalled();
 });
 
 it("does not offer an unconfirmed send for resubmission, even with stale initial props", async () => {
@@ -119,7 +111,6 @@ it("does not offer an unconfirmed send for resubmission, even with stale initial
 			initialAttachments: [new File(["image"], "image.png")],
 			canOpen: () => true,
 			open,
-			delivered: vi.fn(),
 		}),
 	).toBe(true);
 	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined);
@@ -129,13 +120,15 @@ it("does not offer an unconfirmed send for resubmission, even with stale initial
 it("opens an explicit text-only retry without the older saved images", async () => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue(saved);
 	const open = vi.fn();
+	const onSavedDraftOpened = vi.fn();
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "cloud-target",
 		initialPromptDraft: "new text-only retry",
 		canOpen: () => true,
 		open,
-		delivered: vi.fn(),
+		onSavedDraftOpened,
 	});
+	expect(onSavedDraftOpened).not.toHaveBeenCalled();
 	expect(open).toHaveBeenCalledExactlyOnceWith(
 		"new text-only retry",
 		undefined,
@@ -147,12 +140,15 @@ it.each([
 	{ command: "newer edit", image: "newer" },
 	{ command: saved.command, image: "newer" },
 	{ command: saved.command, image: undefined },
+	{ command: saved.command, image: "newer", savedImages: ["invalid"] },
 ])("keeps a newer retry when an older send is unconfirmed: %j", async ({
 	command,
 	image,
+	savedImages,
 }) => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue({
 		...saved,
+		userImages: savedImages ?? saved.userImages,
 		unconfirmed: true,
 	});
 	const open = vi.fn();
@@ -165,9 +161,10 @@ it.each([
 		initialAttachments: attachments,
 		canOpen: () => true,
 		open,
-		delivered: vi.fn(),
 	});
-	expect(open).toHaveBeenCalledExactlyOnceWith(command, attachments);
+	expect(open).toHaveBeenCalledOnce();
+	expect(open.mock.calls[0][0]).toBe(command);
+	expect(open.mock.calls[0][1]).toBe(attachments);
 });
 
 it("decodes an explicitly restored uncertain image without mutating the saved copy", async () => {
@@ -187,16 +184,20 @@ it("does not navigate after retry image comparison loses the active thread", asy
 		unconfirmed: true,
 	});
 	const open = vi.fn();
+	let active = true;
+	const image = new File(["newer"], "newer.png", { type: "image/png" });
+	const readImage = image.arrayBuffer.bind(image);
+	vi.spyOn(image, "arrayBuffer").mockImplementation(async () => {
+		active = false;
+		return readImage();
+	});
 	expect(
 		await openWithCloudHandoffFollowUp({
 			targetSessionId: "cloud-target",
 			initialPromptDraft: saved.command,
-			initialAttachments: [
-				new File(["newer"], "newer.png", { type: "image/png" }),
-			],
-			canOpen: vi.fn().mockReturnValueOnce(true).mockReturnValue(false),
+			initialAttachments: [image],
+			canOpen: () => active,
 			open,
-			delivered: vi.fn(),
 		}),
 	).toBe(false);
 	expect(open).not.toHaveBeenCalled();
@@ -254,17 +255,14 @@ it.each([
 			userImages: ["invalid"],
 		});
 	const open = vi.fn();
-	const delivered = vi.fn();
 	expect(
 		await openWithCloudHandoffFollowUp({
 			targetSessionId: "cloud-target",
 			canOpen: () => true,
 			open,
-			delivered,
 		}),
 	).toBe(true);
 	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined, undefined);
-	expect(delivered).not.toHaveBeenCalled();
 	expect(desktopClient.invoke).toHaveBeenCalledTimes(1);
 	expect(toast).toHaveBeenCalledWith(
 		expect.objectContaining({

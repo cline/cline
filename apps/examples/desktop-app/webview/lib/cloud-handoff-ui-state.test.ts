@@ -68,8 +68,23 @@ describe("cloudHandoffUiReducer", () => {
 			cloudHandoffUiReducer(recovery, {
 				type: "retry_delivered",
 				sourceSessionId: "local-1",
+				retryDraft: recovery["local-1"].retryDraft,
+				retryAttachments: recovery["local-1"].retryAttachments,
 			}),
 		).toEqual({});
+		for (const delivered of [
+			{ ...recovery["local-1"], retryDraft: "/cloud older command" },
+			{ ...recovery["local-1"], retryAttachments: [] },
+		]) {
+			expect(
+				cloudHandoffUiReducer(recovery, {
+					type: "retry_delivered",
+					sourceSessionId: "local-1",
+					retryDraft: delivered.retryDraft,
+					retryAttachments: delivered.retryAttachments,
+				}),
+			).toBe(recovery);
+		}
 	});
 
 	it("preserves the source's latest progress phase", () => {
@@ -239,17 +254,20 @@ describe("cloudHandoffUiReducer", () => {
 
 	it("keeps the completion receipt when a late failure lands after complete", () => {
 		const completed = cloudHandoffUiReducer({}, COMPLETE);
+		const retryAttachments = [new File(["edited"], "edited.png")];
 
 		expect(Object.keys(completed)).toEqual(["local-1"]);
 		const withRecovery = cloudHandoffUiReducer(completed, {
 			type: "failed",
 			sourceSessionId: "local-1",
 			retryDraft: "/cloud continue",
+			retryAttachments,
 		});
 		expect(withRecovery["local-1"]).toMatchObject({
 			status: "complete",
 			receipt: RECEIPT,
-			retryDraft: "/cloud continue",
+			retryDraft: "continue",
+			retryAttachments,
 		});
 		expect(
 			cloudHandoffUiReducer(completed, {

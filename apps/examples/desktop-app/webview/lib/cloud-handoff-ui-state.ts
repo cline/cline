@@ -1,4 +1,8 @@
-import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
+import {
+	type HandoffProgressPhase,
+	type HandoffReceipt,
+	parseHandoffCommand,
+} from "@/lib/cloud-handoff";
 
 export type CloudHandoffUiEntry =
 	| {
@@ -88,7 +92,12 @@ export type CloudHandoffUiAction =
 	  }
 	| { type: "retry_restored"; sourceSessionId: string }
 	| { type: "local_prompt_delivered"; sourceSessionId: string }
-	| { type: "retry_delivered"; sourceSessionId: string };
+	| {
+			type: "retry_delivered";
+			sourceSessionId: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  };
 
 export function cloudHandoffUiReducer(
 	state: CloudHandoffUiState,
@@ -148,7 +157,9 @@ export function cloudHandoffUiReducer(
 					...state,
 					[action.sourceSessionId]: {
 						...current,
-						retryDraft: action.retryDraft,
+						retryDraft:
+							parseHandoffCommand(action.retryDraft ?? "")?.nextCommand ??
+							action.retryDraft,
 						retryAttachments: action.retryAttachments,
 					},
 				};
@@ -238,15 +249,13 @@ export function cloudHandoffUiReducer(
 		}
 		case "retry_delivered": {
 			if (!current) return state;
+			if (
+				current.status === "progress" ||
+				current.retryDraft !== action.retryDraft ||
+				current.retryAttachments !== action.retryAttachments
+			)
+				return state;
 			if (current.status !== "complete") {
-				if (
-					current.status !== "recovery" &&
-					current.status !== "recovery_dismissed" &&
-					current.status !== "failed" &&
-					current.status !== "retry_restored"
-				) {
-					return state;
-				}
 				const next = { ...state };
 				delete next[action.sourceSessionId];
 				return next;
