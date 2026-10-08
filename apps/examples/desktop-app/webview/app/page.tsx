@@ -794,7 +794,7 @@ export default function Home() {
 							source.status === "complete"
 								? retryDraft
 								: (parseHandoffCommand(retryDraft ?? "")?.nextCommand ??
-									retryDraft),
+										retryDraft),
 							retryAttachments ?? [],
 							saved,
 						).catch(() => false);
