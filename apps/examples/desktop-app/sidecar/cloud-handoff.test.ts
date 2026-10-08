@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	CloudHandoffGitPreflightError,
 	CloudHandoffTranscriptMismatchError,
@@ -29,8 +32,14 @@ import {
 	type CreateCloudSessionInput,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
+import {
+	createSidecarContext,
+	getEnvironmentContext,
+	getSessionRuntimeBinding,
+} from "./context";
 import { writeSessionManifest } from "./paths";
 import * as pluginCommands from "./plugin-commands";
+import { readSessionMetadata } from "./session-data/common";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -50,6 +59,97 @@ vi.mock("@cline/core", async (importOriginal) => {
 });
 
 afterEach(cleanupCloudHandoffGates);
+
+describe("deletion with an unavailable Hub", () => {
+	let dataDir: string;
+	const sessionId = "offline-source";
+	beforeEach(() => {
+		dataDir = mkdtempSync(join(tmpdir(), "desktop-offline-delete-"));
+		vi.stubEnv("CLINE_DATA_DIR", dataDir);
+		vi.stubEnv("CLINE_SESSION_DATA_DIR", join(dataDir, "sessions"));
+	});
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		rmSync(dataDir, { recursive: true, force: true });
+	});
+
+	it.each([
+		{ metadata: { title: "Ordinary local session" }, error: undefined },
+		{
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "cloud-target",
+					handedOffAt: "2026-09-30T00:00:00.000Z",
+				},
+			},
+			error: "Cloud handoff is still pending",
+		},
+		{
+			metadata: { cloudHandoffIntent: { requestId: "unconfirmed-create" } },
+			error: "Cloud handoff creation is still unconfirmed",
+		},
+	])("uses durable local metadata when get fails: $metadata", async ({
+		metadata,
+		error,
+	}) => {
+		writeSessionManifest(sessionId, { metadata });
+		expect(readSessionMetadata(sessionId)).toEqual(metadata);
+		const get = vi.fn();
+		const remove = vi.fn().mockRejectedValue(new Error("Hub unavailable"));
+		const ctx = Object.assign(
+			createSidecarContext("/workspace"),
+			localRuntimeContext({ get, delete: remove }, { sessionIds: [sessionId] }),
+		);
+		for (const response of ["record", "missing", "offline"]) {
+			if (response === "offline")
+				get.mockRejectedValue(new Error("Hub unavailable"));
+			else
+				get.mockResolvedValue(response === "record" ? { metadata } : undefined);
+			const deletion = assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
+			if (error) await expect(deletion).rejects.toThrow(error);
+			else (await deletion)();
+		}
+		const deletion = handleCommand(ctx, "delete_chat_session", {
+			sessionId,
+			environmentId: "local",
+		});
+		if (error) {
+			await expect(deletion).rejects.toThrow(error);
+			expect(remove).not.toHaveBeenCalled();
+		} else {
+			await expect(deletion).resolves.toBe(true);
+			expect(remove).toHaveBeenCalledWith(sessionId);
+		}
+		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
+			Boolean(error),
+		);
+	});
+
+	it("never uses a local manifest for an SSH session", async () => {
+		writeSessionManifest(sessionId, {
+			metadata: { cloudHandoffIntent: { requestId: "local-only" } },
+		});
+		const get = vi.fn().mockResolvedValue(undefined);
+		const ctx = Object.assign(
+			createSidecarContext("/workspace"),
+			localRuntimeContext({ get }, { sessionIds: [sessionId] }),
+		);
+		const binding = getSessionRuntimeBinding(ctx, sessionId);
+		ctx.runtimeBindings.set("ssh-test", {
+			...binding,
+			kind: "ssh",
+			environmentId: "ssh-test",
+		});
+		const remote = getEnvironmentContext(ctx, "ssh-test");
+		(await assertSessionDeleteAllowedDuringHandoff(remote, sessionId))();
+		get.mockRejectedValue(new Error("SSH Hub unavailable"));
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(remote, sessionId),
+		).rejects.toThrow("SSH Hub unavailable");
+		expect(readSessionMetadata(sessionId)).toHaveProperty("cloudHandoffIntent");
+	});
+});
 
 describe("cloud handoff gates", () => {
 	beforeEach(() => {

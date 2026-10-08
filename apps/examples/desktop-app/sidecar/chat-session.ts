@@ -215,13 +215,6 @@ async function compactSession(
 	return `Compacted context from ${messages.length} to ${result.messages.length} messages.`;
 }
 
-/** /cloud is built-in only while Cloud sessions are enabled; otherwise a
- * user-defined /cloud workflow owns the name and must expand normally. */
-function isBuiltinSlashCommand(name: string): boolean {
-	if (BUILTIN_SLASH_COMMAND_NAMES.has(name)) return true;
-	return name === "cloud" && isCloudAgentsEnabled();
-}
-
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
  * instructions before dispatching the prompt. Skill commands pass through as
@@ -244,7 +237,7 @@ async function expandRuntimeSlashCommand(
 		return prompt;
 	}
 	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
-	if (!name || isBuiltinSlashCommand(name)) {
+	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
 		return prompt;
 	}
 	const service = createUserInstructionConfigService({
@@ -1658,10 +1651,7 @@ async function handleSendOnce(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	const persistedSession =
-		typeof manager.get === "function"
-			? await manager.get(sessionId)
-			: undefined;
+	const persistedSession = await manager.get(sessionId);
 	const handoff = readCloudHandoffMetadata(
 		persistedSession?.metadata ?? readSessionMetadata(sessionId),
 	);
@@ -1713,7 +1703,9 @@ async function handleSendOnce(
 		return { sessionId, ok: true, commandHandled: true };
 	}
 	const pluginCommand =
-		commandName && !isBuiltinSlashCommand(commandName) && binding.kind !== "ssh"
+		commandName &&
+		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
+		binding.kind !== "ssh"
 			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
 			: undefined;
 	if (pluginCommand) {
@@ -2308,10 +2300,7 @@ async function handleReset(
 			throw new Error("Wait for the cloud handoff to finish before resetting.");
 		}
 		const manager = getSessionManager(ctx, sessionId, request.config);
-		const persisted =
-			typeof manager.get === "function"
-				? await manager.get(sessionId)
-				: undefined;
+		const persisted = await manager.get(sessionId);
 		const pendingHandoff = readCloudHandoffMetadata(
 			persisted?.metadata ?? readSessionMetadata(sessionId),
 		);

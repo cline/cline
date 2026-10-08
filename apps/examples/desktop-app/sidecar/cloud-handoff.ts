@@ -1063,9 +1063,17 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 ): Promise<() => void> {
 	const release = beginActiveSessionDelete(ctx, sessionId);
 	try {
-		const manager = getSessionRuntimeBinding(ctx).sessionManager;
-		const persisted = await manager.get(sessionId);
-		const metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
+		const binding = getSessionRuntimeBinding(ctx);
+		const persisted = await binding.sessionManager
+			.get(sessionId)
+			.catch((error) => {
+				if (binding.kind !== "local") throw error;
+				// Local deletion remains available when the Hub is offline.
+				return undefined;
+			});
+		const metadata =
+			persisted?.metadata ??
+			(binding.kind === "local" ? readSessionMetadata(sessionId) : undefined);
 		const handoff = readCloudHandoffMetadata(metadata);
 		if (!handoff && metadata?.cloudHandoffIntent) {
 			throw new Error(

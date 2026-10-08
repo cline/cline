@@ -216,24 +216,12 @@ export function cloudHandoffUiReducer(
 				},
 			};
 		case "retry_restored":
-			if (current?.status === "failed") {
+			if (current?.status === "failed" || current?.status === "recovery") {
 				return {
 					...state,
 					[action.sourceSessionId]: {
+						...current,
 						status: "retry_restored",
-						retryDraft: current.retryDraft,
-						retryAttachments: current.retryAttachments,
-					},
-				};
-			}
-			if (current?.status === "recovery") {
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						status: "retry_restored",
-						dashboardUrl: current.dashboardUrl,
-						retryDraft: current.retryDraft,
-						retryAttachments: current.retryAttachments,
 					},
 				};
 			}

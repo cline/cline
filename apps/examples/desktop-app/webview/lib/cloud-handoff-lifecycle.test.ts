@@ -133,18 +133,6 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});
 
-	it("accepts the legacy sessionId alias when outerSessionId is empty", async () => {
-		const h = makeHarness();
-		await h.lifecycle.onRpcResolved(SOURCE, {
-			result: makeResult({ outerSessionId: "", sessionId: TARGET }),
-			nextCommand: "",
-			sourceAttachments: [],
-		});
-		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
-			silent: true,
-		});
-	});
-
 	it("keeps the source-thread guard through an asynchronous RPC target open", async () => {
 		const h = makeHarness();
 		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");

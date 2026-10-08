@@ -21,10 +21,7 @@ export type HandoffPreflight = {
 	modelId: string;
 };
 
-export type HandoffResult = CloudHandoffResult & {
-	/** Backward-compatible alias used by early desktop spikes. */
-	sessionId?: string;
-};
+export type HandoffResult = CloudHandoffResult;
 
 export type HandoffReceipt = {
 	targetSessionId: string;
@@ -84,13 +81,8 @@ export function readHandoffReceipt(
 	if (handoff.status !== "complete") {
 		return null;
 	}
-	const targetSessionId =
-		stringField(handoff.toCloudSessionId) ||
-		stringField(handoff.targetSessionId) ||
-		stringField(handoff.cloudSessionId) ||
-		stringField(handoff.sessionId);
-	const dashboardUrl =
-		stringField(handoff.dashboardUrl) || stringField(handoff.url);
+	const targetSessionId = stringField(handoff.toCloudSessionId);
+	const dashboardUrl = stringField(handoff.dashboardUrl);
 	return targetSessionId && dashboardUrl
 		? { targetSessionId, dashboardUrl }
 		: null;

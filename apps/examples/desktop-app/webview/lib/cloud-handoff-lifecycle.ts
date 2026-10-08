@@ -10,7 +10,6 @@ import {
 	parseCloudSessionError,
 } from "./cloud-session-error";
 
-/** Coordinates racing completion events and RPC results independently of React rendering. */
 export type HandoffLifecycleToast = {
 	title: string;
 	description?: string;
@@ -77,6 +76,7 @@ export type HandoffRpcRejectedContext = {
 	isThreadActive?: () => boolean;
 };
 
+/** Coordinates racing completion events and RPC results independently of React rendering. */
 export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	type Attempt = {
 		order: number;
@@ -274,11 +274,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			ctx: HandoffRpcResolvedContext,
 		): Promise<void> {
 			const { result, nextCommand, sourceAttachments } = ctx;
-			const targetSessionId = (
-				result.outerSessionId ||
-				result.sessionId ||
-				""
-			).trim();
+			const targetSessionId = result.outerSessionId?.trim();
 			const dashboardUrl = result.dashboardUrl?.trim();
 			if (!targetSessionId || !dashboardUrl) {
 				throw new Error("Cloud handoff did not return a cloud session.");
