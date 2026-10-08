@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MessageWithMetadata } from "@cline/core";
@@ -284,9 +284,13 @@ describe("runSessionReplay", () => {
 			});
 			return { code, err: err.join("\n") };
 		};
-		expect(await run({ mode: "rerun" })).toEqual({
+		expect(await run({ mode: "mock" })).toEqual({
 			code: 1,
-			err: 'Unsupported replay mode "rerun". Supported modes: playback.',
+			err: 'Unsupported replay mode "mock". Supported modes: playback, rerun.',
+		});
+		expect(await run({ rerun: { untilDivergence: true } })).toEqual({
+			code: 1,
+			err: "--until-divergence needs --mode rerun.",
 		});
 		expect(await run({ format: "tui" })).toMatchObject({ code: 1 });
 		expect(await run({ from: "0" })).toEqual({
@@ -301,6 +305,90 @@ describe("runSessionReplay", () => {
 		expect(await run({ sessionId: "nope" })).toEqual({
 			code: 1,
 			err: "Session nope is not in this bundle (available: sess_1).",
+		});
+	});
+});
+
+describe("runSessionReplay --mode rerun", () => {
+	const rerun = async (
+		flags: Record<string, unknown> = {},
+		overrides: Record<string, unknown> = {},
+	) => {
+		const { io, err } = createIo();
+		const code = await runSessionReplay({
+			bundleDir,
+			mode: "rerun",
+			format: "json",
+			io,
+			isInteractiveTTY: false,
+			rerun: { out: join(root, "out"), ...flags },
+			...overrides,
+		});
+		return { code, err: err.join("\n") };
+	};
+
+	it("rejects flags that do not apply or conflict, with exit 2", async () => {
+		expect(await rerun({}, { from: "2", step: true })).toEqual({
+			code: 2,
+			err: "--from, --step apply to playback only; a rerun always starts from the first iteration.",
+		});
+		expect(await rerun({ untilDivergence: true, continue: true })).toEqual({
+			code: 2,
+			err: "--until-divergence and --continue cannot be combined.",
+		});
+		expect(
+			await rerun({ image: "node:22", containerArgs: ["--volume=/a:/a"] }),
+		).toEqual({
+			code: 2,
+			err: "--image, --container-arg need --in-container.",
+		});
+		expect(
+			await rerun(
+				{ interactive: true },
+				{ format: "tui", isInteractiveTTY: true },
+			),
+		).toMatchObject({ code: 2, err: expect.stringContaining("--interactive") });
+		expect(await rerun({ ignore: "tools" })).toEqual({
+			code: 2,
+			err: expect.stringContaining(
+				'Unknown divergence kind "tools" in --ignore.',
+			),
+		});
+		expect(await rerun({ ignore: "decisions", count: "decisions" })).toEqual({
+			code: 2,
+			err: "decisions cannot be both ignored (--ignore) and counted (--count).",
+		});
+	});
+
+	it("starts from the root session only", async () => {
+		expect(await rerun({}, { sessionId: "sess_2" })).toEqual({
+			code: 2,
+			err: "Session sess_2 is not in the bundle. Its root session is sess_1.",
+		});
+	});
+
+	it("fails clearly when the recorded workspace is not on this machine", async () => {
+		const result = await rerun();
+		expect(result.code).toBe(2);
+		expect(result.err).toContain(
+			"The recorded workspace /repo is not on this machine.",
+		);
+		expect(result.err).toContain("pass --workspace <path>");
+	});
+
+	it("refuses to write into a non-empty --out", async () => {
+		await mkdir(join(root, "out"));
+		await writeFile(join(root, "out", "keep.txt"), "x");
+		expect(await rerun()).toEqual({
+			code: 2,
+			err: `${join(root, "out")} already exists and is not empty; pass --out <dir> to write the rerun elsewhere.`,
+		});
+	});
+
+	it("needs an image to rerun in a container", async () => {
+		expect(await rerun({ inContainer: true })).toEqual({
+			code: 2,
+			err: "--in-container needs --image <image>: the bundle does not name the image the session ran in (bundles carry no image digest).",
 		});
 	});
 });

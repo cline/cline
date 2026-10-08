@@ -9,7 +9,7 @@ type SessionCommandIo = {
 	writeErr: (text: string) => void;
 };
 
-export const SESSION_REPLAY_MODES = ["playback"] as const;
+export const SESSION_REPLAY_MODES = ["playback", "rerun"] as const;
 export const SESSION_REPLAY_FORMATS = ["tui", "text", "json"] as const;
 export type SessionReplayFormat = (typeof SESSION_REPLAY_FORMATS)[number];
 export const SESSION_DIFF_FORMATS = ["text", "json"] as const;
@@ -175,26 +175,18 @@ export async function runSessionDiff(
 		return SESSION_DIFF_EXIT.error;
 	}
 	const replay = await import("@cline/session");
-	const allKinds: readonly string[] = replay.SESSION_REPLAY_DIVERGENCE_KINDS;
-	const requestKinds: readonly string[] =
-		replay.SESSION_REPLAY_REQUEST_DIVERGENCE_KINDS;
-	const ignored = new Set<string>();
-	for (const raw of (input.ignore ?? "").split(",")) {
-		const name = raw.trim();
-		if (!name) continue;
-		if (name === "request") {
-			for (const kind of requestKinds) ignored.add(kind);
-		} else if (allKinds.includes(name)) {
-			ignored.add(name);
-		} else {
-			io.writeErr(
-				`Unknown divergence kind "${name}" in --ignore. Kinds: ${allKinds.join(", ")}, or "request" for all request kinds.`,
-			);
-			return SESSION_DIFF_EXIT.error;
-		}
+	let ignored: string[];
+	try {
+		ignored = replay.parseSessionReplayDivergenceKinds(
+			input.ignore,
+			"--ignore",
+		);
+	} catch (error) {
+		io.writeErr(errorMessage(error));
+		return SESSION_DIFF_EXIT.error;
 	}
 	const kinds = replay.SESSION_REPLAY_DIVERGENCE_KINDS.filter(
-		(kind) => !ignored.has(kind),
+		(kind) => !ignored.includes(kind),
 	);
 
 	const recordedDir = resolve(input.recordedDir);
@@ -282,10 +274,104 @@ export interface SessionReplayCommandInput {
 	speed?: string;
 	step?: boolean;
 	sessionId?: string;
+	rerun?: SessionRerunFlags;
 	io: SessionCommandIo;
 	isInteractiveTTY: boolean;
 	sleep?: (ms: number) => Promise<void>;
 	waitForStep?: () => Promise<boolean>;
+}
+
+/** Flags of `session replay --mode rerun`. */
+export interface SessionRerunFlags {
+	workspace?: string;
+	inPlace?: boolean;
+	untilDivergence?: boolean;
+	continue?: boolean;
+	ignore?: string;
+	count?: string;
+	lenient?: boolean;
+	interactive?: boolean;
+	model?: string;
+	provider?: string;
+	out?: string;
+	inContainer?: boolean;
+	image?: string;
+	containerRuntime?: string;
+	containerCli?: string;
+	containerArgs?: string[];
+}
+
+const PLAYBACK_ONLY_FLAGS = [
+	["from", "--from"],
+	["to", "--to"],
+	["speed", "--speed"],
+	["step", "--step"],
+] as const;
+
+const RERUN_FLAG_NAMES: Record<keyof SessionRerunFlags, string> = {
+	workspace: "--workspace",
+	inPlace: "--in-place",
+	untilDivergence: "--until-divergence",
+	continue: "--continue",
+	ignore: "--ignore",
+	count: "--count",
+	lenient: "--lenient",
+	interactive: "--interactive",
+	model: "--model",
+	provider: "--provider",
+	out: "--out",
+	inContainer: "--in-container",
+	image: "--image",
+	containerRuntime: "--container-runtime",
+	containerCli: "--container-cli",
+	containerArgs: "--container-arg",
+};
+
+function isSet(value: unknown): boolean {
+	return Array.isArray(value)
+		? value.length > 0
+		: value !== undefined && value !== false && value !== "";
+}
+
+/** Flags that do not apply to the chosen mode, or that conflict; undefined when fine. */
+export function sessionReplayFlagError(
+	input: Pick<
+		SessionReplayCommandInput,
+		"mode" | "from" | "to" | "speed" | "step" | "rerun"
+	>,
+): string | undefined {
+	const mode = input.mode ?? "playback";
+	const rerun = input.rerun ?? {};
+	if (mode !== "rerun") {
+		const given = (
+			Object.keys(RERUN_FLAG_NAMES) as Array<keyof SessionRerunFlags>
+		)
+			.filter((key) => isSet(rerun[key]))
+			.map((key) => RERUN_FLAG_NAMES[key]);
+		return given.length > 0
+			? `${given.join(", ")} ${given.length === 1 ? "needs" : "need"} --mode rerun.`
+			: undefined;
+	}
+	const playback = PLAYBACK_ONLY_FLAGS.filter(([key]) => isSet(input[key])).map(
+		([, flag]) => flag,
+	);
+	if (playback.length > 0) {
+		return `${playback.join(", ")} ${playback.length === 1 ? "applies" : "apply"} to playback only; a rerun always starts from the first iteration.`;
+	}
+	if (rerun.untilDivergence && rerun.continue) {
+		return "--until-divergence and --continue cannot be combined.";
+	}
+	if (!rerun.inContainer) {
+		const container = (
+			["image", "containerRuntime", "containerCli", "containerArgs"] as const
+		)
+			.filter((key) => isSet(rerun[key]))
+			.map((key) => RERUN_FLAG_NAMES[key]);
+		if (container.length > 0) {
+			return `${container.join(", ")} ${container.length === 1 ? "needs" : "need"} --in-container.`;
+		}
+	}
+	return undefined;
 }
 
 const defaultSleep = (ms: number) =>
@@ -354,13 +440,23 @@ export async function runSessionReplay(
 		);
 		return 1;
 	}
+	const flagError = sessionReplayFlagError(input);
+	if (flagError) {
+		io.writeErr(flagError);
+		return mode === "rerun" ? SESSION_DIFF_EXIT.error : 1;
+	}
 	const format = (input.format ??
-		(input.isInteractiveTTY ? "tui" : "text")) as SessionReplayFormat;
+		(input.isInteractiveTTY && !input.rerun?.interactive
+			? "tui"
+			: "text")) as SessionReplayFormat;
 	if (!SESSION_REPLAY_FORMATS.includes(format)) {
 		io.writeErr(
 			`Unsupported replay format "${input.format}". Supported formats: ${SESSION_REPLAY_FORMATS.join(", ")}.`,
 		);
-		return 1;
+		return mode === "rerun" ? SESSION_DIFF_EXIT.error : 1;
+	}
+	if (mode === "rerun") {
+		return await runSessionRerunCommand(input, format);
 	}
 	if (format === "tui" && !input.isInteractiveTTY) {
 		io.writeErr(
@@ -419,5 +515,139 @@ export async function runSessionReplay(
 	} catch (error) {
 		io.writeErr(errorMessage(error));
 		return 1;
+	}
+}
+
+/**
+ * `session replay --mode rerun`: runs the bundle's root session again in a
+ * rebuilt workspace and reports where it diverged. Exits like `session diff`:
+ * 0 when nothing that counts diverged, 1 when it did, 2 on errors.
+ */
+async function runSessionRerunCommand(
+	input: SessionReplayCommandInput,
+	format: SessionReplayFormat,
+): Promise<number> {
+	const { io } = input;
+	const flags = input.rerun ?? {};
+	if (format === "tui" && !input.isInteractiveTTY) {
+		io.writeErr(
+			"--format tui requires an interactive terminal; use --format text or --format json.",
+		);
+		return SESSION_DIFF_EXIT.error;
+	}
+	if (flags.interactive && format === "tui") {
+		io.writeErr(
+			"--interactive asks on the terminal and cannot be combined with --format tui; use --format text.",
+		);
+		return SESSION_DIFF_EXIT.error;
+	}
+	if (flags.interactive && !process.stdin.isTTY) {
+		io.writeErr("--interactive needs an interactive stdin.");
+		return SESSION_DIFF_EXIT.error;
+	}
+	const rerunModule = await import("../session/rerun");
+	const options = {
+		bundleDir: input.bundleDir,
+		...(input.sessionId ? { sessionId: input.sessionId } : {}),
+		...(flags.workspace ? { workspace: flags.workspace } : {}),
+		inPlace: flags.inPlace === true,
+		untilDivergence: flags.untilDivergence === true,
+		...(flags.ignore ? { ignore: flags.ignore } : {}),
+		...(flags.count ? { count: flags.count } : {}),
+		lenient: flags.lenient === true,
+		interactive: flags.interactive === true,
+		...(flags.model ? { model: flags.model } : {}),
+		...(flags.provider ? { provider: flags.provider } : {}),
+		...(flags.out ? { outDir: flags.out } : {}),
+	};
+	const run = async (handlers: {
+		onLine: (line: string) => void;
+		signal: AbortSignal;
+	}): Promise<{
+		outcome: Awaited<ReturnType<typeof rerunModule.runSessionRerun>>;
+		exitCode: number;
+	}> => {
+		if (flags.inContainer) {
+			const { runSessionRerunInContainer } = await import(
+				"../session/rerun-container"
+			);
+			const { exitCode, ...outcome } = await runSessionRerunInContainer({
+				...options,
+				...(flags.image ? { image: flags.image } : {}),
+				...(flags.containerRuntime ? { runtime: flags.containerRuntime } : {}),
+				...(flags.containerCli ? { cli: flags.containerCli } : {}),
+				...(flags.containerArgs ? { runtimeArgs: flags.containerArgs } : {}),
+				onNote: handlers.onLine,
+				signal: handlers.signal,
+			});
+			return {
+				outcome,
+				exitCode:
+					exitCode === SESSION_DIFF_EXIT.error
+						? exitCode
+						: outcome.report.comparison.failed
+							? SESSION_DIFF_EXIT.diverged
+							: SESSION_DIFF_EXIT.same,
+			};
+		}
+		const outcome = await rerunModule.runSessionRerun({
+			...options,
+			onNote: handlers.onLine,
+			onProgress: (progress) => {
+				const line = rerunModule.formatRerunProgress(progress);
+				if (line) handlers.onLine(line);
+			},
+			signal: handlers.signal,
+		});
+		return {
+			outcome,
+			exitCode: outcome.report.comparison.failed
+				? SESSION_DIFF_EXIT.diverged
+				: SESSION_DIFF_EXIT.same,
+		};
+	};
+
+	try {
+		if (format === "tui") {
+			const { renderRerunTui } = await import("../tui/replay");
+			const { exitCode } = await renderRerunTui({
+				title: `Session rerun · ${resolve(input.bundleDir)}`,
+				run,
+				reportLines: ({ outcome }) =>
+					rerunModule.formatSessionRerunText(outcome),
+			});
+			return exitCode;
+		}
+		const controller = new AbortController();
+		const onSignal = () => controller.abort();
+		process.once("SIGINT", onSignal);
+		let result: Awaited<ReturnType<typeof run>>;
+		try {
+			result = await run({
+				onLine: (line) => {
+					if (format === "text") io.writeErr(`[rerun] ${line}`);
+				},
+				signal: controller.signal,
+			});
+		} finally {
+			process.off("SIGINT", onSignal);
+		}
+		if (format === "json") {
+			writeJson({
+				...result.outcome.report,
+				reportPath: result.outcome.reportPath,
+			});
+		} else {
+			for (const warning of result.outcome.report.warnings) {
+				io.writeErr(`warning: ${warning}`);
+			}
+			for (const line of rerunModule.formatSessionRerunText(result.outcome)) {
+				io.writeln(line);
+			}
+		}
+		return result.exitCode;
+	} catch (error) {
+		io.writeErr(errorMessage(error));
+		return SESSION_DIFF_EXIT.error;
 	}
 }

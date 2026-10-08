@@ -8,6 +8,7 @@ import {
 	SESSION_DIFF_FORMATS,
 	SESSION_REPLAY_FORMATS,
 	SESSION_REPLAY_MODES,
+	type SessionRerunFlags,
 } from "./session";
 
 type SessionCommandIo = {
@@ -73,9 +74,14 @@ export function registerSessionCommand({
 
 	const replayCmd = sessionCmd
 		.command("replay <bundle>")
-		.description("Play back a session replay bundle")
+		.description(
+			"Play back a session replay bundle, or rerun it live with --mode rerun (rerun exit 0: no divergence, 1: diverged, 2: error)",
+		)
 		.addOption(
-			new Option("--mode <mode>", "Replay mode")
+			new Option(
+				"--mode <mode>",
+				"playback shows the recording; rerun runs the session again in a rebuilt workspace and reports where it diverged",
+			)
 				.choices([...SESSION_REPLAY_MODES])
 				.default("playback"),
 		)
@@ -94,18 +100,82 @@ export function registerSessionCommand({
 		.option("--step", "Advance one iteration at a time")
 		.option(
 			"--session <id>",
-			"Session in the bundle to play (default: the bundle root)",
+			"Session in the bundle to play (default: the bundle root; a rerun always starts from the root)",
+		)
+		.option(
+			"--workspace <path>",
+			"Rerun: repository to restore the starting checkpoint from (default: the recorded workspace path)",
+		)
+		.option(
+			"--in-place",
+			"Rerun: run in the workspace itself instead of a fresh copy (files are changed)",
+		)
+		.option(
+			"--until-divergence",
+			"Rerun: stop at the first divergence that counts",
+		)
+		.option("--continue", "Rerun: run to the end (default)")
+		.option(
+			"--ignore <kinds>",
+			'Rerun: comma-separated divergence kinds that do not count, e.g. "request" (all request kinds)',
+		)
+		.option(
+			"--count <kinds>",
+			'Rerun: comma-separated divergence kinds that count in addition to the defaults, e.g. "assistant-text"',
+		)
+		.option(
+			"--lenient",
+			"Rerun: report request differences without counting them",
+		)
+		.option(
+			"--interactive",
+			"Rerun: ask for tool approvals and questions instead of answering from the recording",
+		)
+		.option(
+			"--model <id>",
+			"Rerun: model to run with (relaxes request matching to messages and tools)",
+		)
+		.option(
+			"--provider <id>",
+			"Rerun: provider to run with (relaxes request matching to messages and tools)",
+		)
+		.option(
+			"--out <dir>",
+			"Rerun: directory for the workspace copy, the rerun bundle and rerun-report.json (default: <bundle>.rerun-<time> next to the bundle)",
+		)
+		.option(
+			"--in-container",
+			"Rerun: run inside a container with the workspace mounted at the recorded path and the recorded env set",
+		)
+		.option(
+			"--image <image>",
+			"Rerun in a container: image to run (required; bundles carry no image digest)",
+		)
+		.option(
+			"--container-runtime <bin>",
+			"Rerun in a container: runtime binary (default: docker)",
+		)
+		.option(
+			"--container-cli <command>",
+			"Rerun in a container: the Cline CLI command in the image (default: cline)",
+		)
+		.option(
+			"--container-arg <arg>",
+			"Rerun in a container: extra argument for `<runtime> run`, repeatable (e.g. --container-arg=--volume=/src:/src:ro)",
+			(value: string, previous: string[] = []) => [...previous, value],
 		)
 		.action(async (bundle: string) => {
-			const opts = replayCmd.opts<{
-				mode?: string;
-				format?: string;
-				from?: string;
-				to?: string;
-				speed?: string;
-				step?: boolean;
-				session?: string;
-			}>();
+			const opts = replayCmd.opts<
+				{
+					mode?: string;
+					format?: string;
+					from?: string;
+					to?: string;
+					speed?: string;
+					step?: boolean;
+					session?: string;
+				} & SessionRerunFlags
+			>();
 			setExitCode(
 				await runSessionReplay({
 					bundleDir: bundle,
@@ -116,6 +186,24 @@ export function registerSessionCommand({
 					speed: opts.speed,
 					step: opts.step === true,
 					sessionId: opts.session,
+					rerun: {
+						workspace: opts.workspace,
+						inPlace: opts.inPlace,
+						untilDivergence: opts.untilDivergence,
+						continue: opts.continue,
+						ignore: opts.ignore,
+						count: opts.count,
+						lenient: opts.lenient,
+						interactive: opts.interactive,
+						model: opts.model,
+						provider: opts.provider,
+						out: opts.out,
+						inContainer: opts.inContainer,
+						image: opts.image,
+						containerRuntime: opts.containerRuntime,
+						containerCli: opts.containerCli,
+						containerArgs: opts.containerArgs,
+					},
 					io,
 					isInteractiveTTY: isInteractiveTTY(),
 				}),
