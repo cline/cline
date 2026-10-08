@@ -4,7 +4,6 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
-	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,38 +65,6 @@ it("keeps untrusted session ids inside the recovery directory", () => {
 	});
 	expect(readdirSync(dataDir)).toEqual(["desktop-handoff-follow-ups"]);
 	expect(readCloudHandoffFollowUp("../../outside")?.command).toBe("hello");
-});
-
-it("gives legacy recovery a stable identity across restore and edits", async () => {
-	saveCloudHandoffFollowUp("target", {
-		sourceSessionId: "source",
-		command: "original",
-		userImages: ["image"],
-	});
-	const directory = join(dataDir, "desktop-handoff-follow-ups");
-	const path = join(directory, readdirSync(directory)[0]);
-	const { draftId: _, ...legacy } = JSON.parse(readFileSync(path, "utf8"));
-	writeFileSync(path, JSON.stringify(legacy));
-	const saved = readCloudHandoffFollowUp("target");
-	if (!saved) throw new Error("Missing recovery");
-	expect(saved.draftId).toBeTruthy();
-	expect(readCloudHandoffFollowUp("target")?.draftId).toBe(saved.draftId);
-	updateCloudHandoffFollowUp("target", saved, "restore");
-	await expect(
-		sendWithCloudHandoffFollowUp(
-			"target",
-			"edited",
-			["image"],
-			async () => {
-				throw new Error("preflight");
-			},
-			saved.draftId,
-		),
-	).rejects.toThrow("preflight");
-	expect(readCloudHandoffFollowUp("target")).toEqual({
-		...saved,
-		command: "edited",
-	});
 });
 
 it.each([

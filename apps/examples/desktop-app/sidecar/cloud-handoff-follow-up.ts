@@ -68,15 +68,12 @@ export function readCloudHandoffFollowUp(
 		typeof value.command !== "string" ||
 		!Array.isArray(value.userImages) ||
 		!value.userImages.every((image) => typeof image === "string") ||
-		(value.draftId !== undefined && typeof value.draftId !== "string") ||
+		typeof value.draftId !== "string" ||
 		(value.unconfirmed !== undefined && typeof value.unconfirmed !== "boolean")
 	) {
 		throw new Error("The saved cloud follow-up could not be read.");
 	}
-	return {
-		...value,
-		draftId: value.draftId ?? createHash("sha256").update(raw).digest("hex"),
-	};
+	return value;
 }
 
 export function clearCloudHandoffFollowUp(targetSessionId: string): void {

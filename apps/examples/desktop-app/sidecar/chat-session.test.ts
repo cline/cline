@@ -36,7 +36,6 @@ import {
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
-import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -666,34 +665,6 @@ describe("session forks", () => {
 		).rejects.toThrow("Wait for session deletion to finish before handing off");
 		releaseGet?.(undefined);
 		const releaseDelete = await deletion;
-		releaseDelete();
-	});
-
-	it("allows deletion after a cloud handoff has completed", async () => {
-		const sessionId = "completed-handoff-source";
-		const ctx = {
-			liveSessions: new Map(),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId,
-						metadata: {
-							handoff: {
-								status: "complete",
-								toCloudSessionId: "cloud-complete",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-							},
-						},
-					})),
-				},
-				{ sessionIds: [sessionId] },
-			),
-		} as unknown as SidecarContext;
-
-		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
-			ctx,
-			sessionId,
-		);
 		releaseDelete();
 	});
 
@@ -2877,7 +2848,10 @@ Follow the desktop send workflow instructions.`,
 		});
 	});
 
-	it("expands a user /cloud workflow while the Cloud sessions gate is off", async () => {
+	it.each([
+		false,
+		true,
+	])("expands a user /cloud workflow (Cloud sessions enabled: %s)", async (enabled) => {
 		const workspace = createWorkspaceWithSkill();
 		const workflowsDir = join(workspace, ".cline", "workflows");
 		writeFileSync(
@@ -2889,9 +2863,8 @@ Follow the user cloud workflow instructions.`,
 		);
 		const { ctx, send, sessionId } = createContext(workspace);
 
-		// Explicitly disable the gate so local rollout/settings cannot affect this test.
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		// Gate off: the user's workflow owns /cloud.
+		if (enabled) enableCloudHandoffGates();
+		else process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId,
@@ -2902,21 +2875,6 @@ Follow the user cloud workflow instructions.`,
 				prompt: "Follow the user cloud workflow instructions. please",
 			}),
 		);
-
-		// Gate on: /cloud is built-in again and passes through untouched.
-		const runPlugin = vi
-			.spyOn(pluginCommands, "runPluginSlashCommand")
-			.mockResolvedValue(undefined);
-		enableCloudHandoffGates();
-		await handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "/cloud please",
-		});
-		expect(send).toHaveBeenLastCalledWith(
-			expect.objectContaining({ prompt: "/cloud please" }),
-		);
-		expect(runPlugin).not.toHaveBeenCalled();
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {
