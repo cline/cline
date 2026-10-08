@@ -49,6 +49,8 @@ function fakeCore(input: {
 	steps: readonly FixtureStep[];
 	sessionsDir: string;
 	rerun: () => SessionReplayRerun;
+	/** Pause between iterations; 0 starts the next before any poll can run. */
+	gapMs?: number;
 }): SessionReplayRerunCore & {
 	aborted: boolean;
 	emitted: AgentEvent[];
@@ -119,7 +121,9 @@ function fakeCore(input: {
 					hadToolCalls: (step.toolCalls?.length ?? 0) > 0,
 					toolCallCount: step.toolCalls?.length ?? 0,
 				});
-				await new Promise((resolve) => setTimeout(resolve, 5));
+				if (input.gapMs !== 0) {
+					await new Promise((resolve) => setTimeout(resolve, input.gapMs ?? 5));
+				}
 			}
 			if (core.aborted) finishReason = "aborted";
 			return {
@@ -153,6 +157,7 @@ describe("session replay rerun", () => {
 				typeof createSessionReplayRerun
 			>[0]["decideApproval"];
 			recordedSteps?: readonly FixtureStep[];
+			gapMs?: number;
 		} = {},
 	) {
 		const recorded = await recordFixtureSession(
@@ -169,6 +174,7 @@ describe("session replay rerun", () => {
 			steps: liveSteps,
 			sessionsDir,
 			rerun: () => rerun,
+			...(options.gapMs !== undefined ? { gapMs: options.gapMs } : {}),
 		});
 		const progress: string[] = [];
 		const result = await rerun.run({
@@ -226,6 +232,38 @@ describe("session replay rerun", () => {
 		expect(started?.prompt).toBe("List the files and read notes.txt");
 		expect(started?.interactive).toBe(false);
 		expect(core.aborted).toBe(false);
+	});
+
+	it("names the earliest counted divergence when a later tool call stops the run first", async () => {
+		const [first, , last] = FIXTURE_STEPS as [
+			FixtureStep,
+			FixtureStep,
+			FixtureStep,
+		];
+		const { result, core } = await rerunWith(
+			[
+				{
+					...first,
+					toolCalls: (first.toolCalls ?? []).map((call) => ({
+						...call,
+						result: "notes.txt\nlocale warning",
+					})),
+				},
+				READ_DIFFERENT,
+				last,
+			],
+			{ untilDivergence: true, gapMs: 0 },
+		);
+		expect(core.aborted).toBe(true);
+		expect(result.stopped).toEqual({
+			reason: "until-divergence",
+			iteration: 1,
+			kind: "tool-results",
+		});
+		expect(result.comparison.first).toMatchObject({
+			kind: "tool-results",
+			iteration: 1,
+		});
 	});
 
 	it("stops at the first differing tool call with untilDivergence", async () => {

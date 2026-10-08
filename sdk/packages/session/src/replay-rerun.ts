@@ -792,15 +792,30 @@ class SessionReplayRerunImpl implements SessionReplayRerun {
 				options,
 			);
 		}
-		const stopAt = this.stopped.iteration;
+		const detected = this.stopped;
+		const stopAt = detected.iteration;
+		const before = compareSessionReplayIterations(
+			this.recordedIterations.slice(0, stopAt - 1),
+			live.slice(0, stopAt - 1),
+			options,
+		);
+		// The early tool-call check can fire before an earlier iteration was
+		// compared; the stop names the earliest counted divergence either way.
+		const earlier = before.divergences.find((divergence) => divergence.counted);
+		if (earlier) {
+			this.stopped = {
+				reason: "until-divergence",
+				iteration: earlier.iteration,
+				kind: earlier.kind,
+			};
+		}
 		const persisted = live[stopAt - 1];
 		const recorded = this.recordedIterations[stopAt - 1];
 		const persistedAgrees =
 			persisted &&
 			recorded &&
 			compareSessionReplayIteration(recorded, persisted, options).some(
-				(divergence) =>
-					divergence.counted && divergence.kind === this.stopped?.kind,
+				(divergence) => divergence.counted && divergence.kind === detected.kind,
 			);
 		if (persistedAgrees) {
 			return compareSessionReplayIterations(
@@ -809,11 +824,6 @@ class SessionReplayRerunImpl implements SessionReplayRerun {
 				options,
 			);
 		}
-		const before = compareSessionReplayIterations(
-			this.recordedIterations.slice(0, stopAt - 1),
-			live.slice(0, stopAt - 1),
-			options,
-		);
 		const divergences = [...before.divergences, ...this.stopDivergences];
 		const first = divergences.find((divergence) => divergence.counted) ?? null;
 		return {
