@@ -87,7 +87,7 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
-	it("offers cancellation while browser sign-in is pending", async () => {
+	it("replaces account creation with cancellation while browser sign-in is pending", async () => {
 		invoke.mockImplementation(async (command) => {
 			if (command === "run_provider_oauth_login")
 				return await new Promise(() => {});
@@ -101,13 +101,16 @@ describe("AccountView signed-out state", () => {
 			if (!found) throw new Error(`Missing button: ${label}`);
 			return found;
 		};
+		expect(button("Create account").disabled).toBe(false);
 		await act(async () => button("Sign in").click());
 		expect(button("Signing in").disabled).toBe(true);
+		expect(container.textContent).not.toContain("Create account");
 		await act(async () => button("Cancel").click());
 		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
 			provider: "cline",
 		});
 		expect(button("Sign in").disabled).toBe(false);
+		expect(button("Create account").disabled).toBe(false);
 	});
 
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {

@@ -485,24 +485,25 @@ export function AccountView() {
 						)}
 						{signingIn ? "Signing in" : "Sign in"}
 					</button>
-					{signingIn && (
+					{signingIn ? (
 						<button
 							type="button"
 							disabled={cancelling}
 							onClick={() => void cancelSignIn()}
-							className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium hover:bg-surface-hover disabled:opacity-60"
+							className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>
 							Cancel
 						</button>
+					) : (
+						<button
+							type="button"
+							onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
+						>
+							Create account
+							<ExternalLink className="h-4 w-4" />
+						</button>
 					)}
-					<button
-						type="button"
-						onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
-						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
-					>
-						Create account
-						<ExternalLink className="h-4 w-4" />
-					</button>
 				</div>
 				{signInError && (
 					<p role="alert" className="text-sm text-destructive">
