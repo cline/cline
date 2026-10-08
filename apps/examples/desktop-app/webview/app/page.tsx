@@ -19,11 +19,7 @@ import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
-import {
-	TerminalConceptLayout,
-	TerminalConceptShellComposer,
-	useTerminalConcept,
-} from "@/components/terminal-concepts";
+import { TerminalPanel, type TerminalScope } from "@/components/terminal-panel";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -911,6 +907,21 @@ export default function Home() {
 		sessionHistory.threads,
 	]);
 
+	const terminalSession = activeHistorySessionId
+		? sessionHistory.sessionById.get(activeHistorySessionId)
+		: undefined;
+	const terminalScope: TerminalScope | null =
+		activeThread?.environmentId !== LOCAL_WORKSPACE_ENVIRONMENT_ID
+			? null
+			: !activeHistorySessionId
+				? { key: "home" }
+				: terminalSession?.workspaceRoot && terminalSession.origin !== "cloud"
+					? {
+							key: terminalSession.workspaceRoot,
+							cwd: terminalSession.workspaceRoot,
+						}
+					: null;
+
 	return (
 		<AccountProvider>
 			<SidebarProvider>
@@ -953,104 +964,96 @@ export default function Home() {
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
-							<TerminalConceptLayout
-								sessionCwd={
-									activeHistorySessionId
-										? sessionHistory.sessionById.get(activeHistorySessionId)
-												?.workspaceRoot
-										: undefined
-								}
-							>
-								<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-									{view === "sessions" ? (
-										<SessionsView
-											activeSessionId={activeHistorySessionId}
-											history={sessionHistory}
+							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+								{view === "sessions" ? (
+									<SessionsView
+										activeSessionId={activeHistorySessionId}
+										history={sessionHistory}
+									/>
+								) : activeThread ? (
+									<div
+										aria-hidden={view === "settings" ? true : undefined}
+										className="flex min-h-0 flex-1 flex-col"
+										inert={view === "settings" ? true : undefined}
+									>
+										<ChatThreadPane
+											key={`${activeThread.id}:${activeThread.environmentId}`}
+											environmentId={activeThread.environmentId}
+											environmentProfiles={remoteEnvironmentProfiles}
+											environmentProfilesLoading={
+												remoteEnvironmentProfilesLoading
+											}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
+											onPickRemoteWorkspaceDirectory={
+												pickRemoteWorkspaceDirectory
+											}
+											onSelectEnvironment={handleSelectEnvironment}
+											remoteEnvironment={
+												activeRemoteEnvironment?.id ===
+												activeThread.environmentId
+													? activeRemoteEnvironment
+													: null
+											}
+											historySession={activeThread.historySession}
+											liveHistorySession={
+												activeHistorySessionId
+													? sessionHistory.sessionById.get(
+															activeHistorySessionId,
+														)
+													: undefined
+											}
+											initialPromptDraft={activeThread.initialPromptDraft}
+											promptDrafts={promptDrafts}
+											knownWorkspacePaths={historyWorkspacePaths}
+											onInitialPromptDraftConsumed={
+												handleInitialPromptDraftConsumed
+											}
+											onUpdateSessionMetadata={(sessionId, metadata) =>
+												handleUpdateSessionMetadata(
+													sessionId,
+													metadata,
+													activeThread.environmentId,
+												)
+											}
+											threadId={activeThread.id}
+											onDeleteSession={(sessionId, threadId) =>
+												handleDeleteSession(
+													sessionId,
+													threadId,
+													activeThread.environmentId,
+												)
+											}
+											onNewThread={handleNewThread}
+											onOpenSession={handleOpenSession}
+											onOpenSessionById={handleOpenSessionById}
+											onOpenSetup={handleOpenSetup}
+											onOpenModelSettings={() =>
+												handleSettingsSectionChange("Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
+											}
+											parentSession={activeParentSession}
+											onThreadStarted={handleThreadStarted}
 										/>
-									) : activeThread ? (
-										<div
-											aria-hidden={view === "settings" ? true : undefined}
-											className="flex min-h-0 flex-1 flex-col"
-											inert={view === "settings" ? true : undefined}
-										>
-											<ChatThreadPane
-												key={`${activeThread.id}:${activeThread.environmentId}`}
-												environmentId={activeThread.environmentId}
-												environmentProfiles={remoteEnvironmentProfiles}
-												environmentProfilesLoading={
-													remoteEnvironmentProfilesLoading
-												}
-												onAddSshHost={() =>
-													handleSettingsSectionChange("Remote")
-												}
-												onPickRemoteWorkspaceDirectory={
-													pickRemoteWorkspaceDirectory
-												}
-												onSelectEnvironment={handleSelectEnvironment}
-												remoteEnvironment={
-													activeRemoteEnvironment?.id ===
-													activeThread.environmentId
-														? activeRemoteEnvironment
-														: null
-												}
-												historySession={activeThread.historySession}
-												liveHistorySession={
-													activeHistorySessionId
-														? sessionHistory.sessionById.get(
-																activeHistorySessionId,
-															)
-														: undefined
-												}
-												initialPromptDraft={activeThread.initialPromptDraft}
-												promptDrafts={promptDrafts}
-												knownWorkspacePaths={historyWorkspacePaths}
-												onInitialPromptDraftConsumed={
-													handleInitialPromptDraftConsumed
-												}
-												onUpdateSessionMetadata={(sessionId, metadata) =>
-													handleUpdateSessionMetadata(
-														sessionId,
-														metadata,
-														activeThread.environmentId,
-													)
-												}
-												threadId={activeThread.id}
-												onDeleteSession={(sessionId, threadId) =>
-													handleDeleteSession(
-														sessionId,
-														threadId,
-														activeThread.environmentId,
-													)
-												}
-												onNewThread={handleNewThread}
-												onOpenSession={handleOpenSession}
-												onOpenSessionById={handleOpenSessionById}
-												onOpenSetup={handleOpenSetup}
-												onOpenModelSettings={() =>
-													handleSettingsSectionChange("Providers")
-												}
-												onOpenAccountSettings={() =>
-													handleSettingsSectionChange("Account")
-												}
-												parentSession={activeParentSession}
-												onThreadStarted={handleThreadStarted}
-											/>
-										</div>
-									) : null}
-									{view === "settings" ? (
-										<div className="absolute inset-0 z-30 bg-background text-foreground">
-											<SettingsView
-												onExportDiagnostics={() =>
-													setExportDiagnosticsOpen(true)
-												}
-												onNavigateSection={handleSettingsSectionChange}
-												onOpenSession={handleOpenSessionById}
-												section={settingsSection}
-											/>
-										</div>
-									) : null}
-								</div>
-							</TerminalConceptLayout>
+									</div>
+								) : null}
+								{view === "settings" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<SettingsView
+											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
+											onNavigateSection={handleSettingsSectionChange}
+											onOpenSession={handleOpenSessionById}
+											section={settingsSection}
+										/>
+									</div>
+								) : null}
+							</div>
+							<TerminalPanel
+								home={!activeHistorySessionId}
+								scope={terminalScope}
+								visible={view === "chat"}
+							/>
 						</SidebarInset>
 					</div>
 					{showOnboarding ? (
@@ -2504,7 +2507,6 @@ function ChatThreadPane({
 		}
 	}, [hasDiffChanges]);
 
-	const terminalConcept = useTerminalConcept();
 	const resolvedWorkspaceRoot = config.workspaceRoot || config.cwd || "";
 	const workspaceContextValue = useMemo(
 		() => ({
@@ -2699,13 +2701,7 @@ function ChatThreadPane({
 							/>
 						)
 					}
-					composer={
-						terminalConcept?.concept === 4 && !isWelcomeState ? (
-							<TerminalConceptShellComposer />
-						) : (
-							composer
-						)
-					}
+					composer={composer}
 					environmentSelector={
 						<EnvironmentSelector
 							activeEnvironmentId={environmentId}

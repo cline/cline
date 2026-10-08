@@ -24,7 +24,7 @@ import {
 } from "@/lib/session-agents";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
-import { TerminalConceptHeaderAction } from "./terminal-concepts";
+import { TerminalToggleButton } from "./terminal-panel";
 import { Button } from "./ui/button";
 import {
 	DropdownMenu,
@@ -157,7 +157,7 @@ function AgentHeaderImpl({
 								<span className="text-destructive">-{deletions}</span>
 							</Button>
 						)}
-						<TerminalConceptHeaderAction />
+						<TerminalToggleButton />
 						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}

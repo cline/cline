@@ -1,5 +1,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
+@import "@xterm/xterm/css/xterm.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@cline/ui/theme/index.css";
@@ -69,6 +70,17 @@
 	html[data-windows-custom-titlebar]
 	[data-slot="window-title-bar-content-host"] {
 		padding-right: 9rem;
+	}
+}
+
+/* The welcome hero and its top offset are sized against the viewport, not their
+ * pane, so they would push the composer under an open terminal panel. */
+[data-slot="sidebar-inset"]:has([data-slot="terminal-panel"]) {
+	& [data-welcome-hero] {
+		display: none;
+	}
+	& :has(> .cline-view-enter > [data-welcome-hero]) {
+		padding-top: 2rem;
 	}
 }
 

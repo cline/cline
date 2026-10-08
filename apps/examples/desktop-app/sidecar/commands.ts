@@ -189,6 +189,7 @@ import {
 	readSessionMessages,
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
+import { handleTerminalCommand } from "./terminals";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -2279,6 +2280,10 @@ export async function handleCommand(
 			url: result.url ?? null,
 			interruptedSessionCount: result.activeSessionCount ?? 0,
 		};
+	}
+
+	if (command.startsWith("terminal_")) {
+		return handleTerminalCommand(command, args, options?.connection);
 	}
 
 	// ── Tool approvals (in-memory) ────────────────────────────────────
