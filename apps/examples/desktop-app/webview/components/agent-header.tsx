@@ -11,6 +11,7 @@ import {
 	Loader2,
 	MoreHorizontal,
 	Plus,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
 import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
@@ -60,6 +61,9 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	/** Shown only where a terminal can run (local sessions in the desktop app). */
+	onToggleTerminal?: () => void;
+	terminalOpen?: boolean;
 };
 
 function AgentHeaderImpl({
@@ -83,6 +87,8 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	onToggleTerminal,
+	terminalOpen = false,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -136,6 +142,24 @@ function AgentHeaderImpl({
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenChange={onAgentsOpenChange}
 						/>
+						{onToggleTerminal ? (
+							<Button
+								aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+								aria-pressed={terminalOpen}
+								className={cn(
+									"flex items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground",
+									terminalOpen && "bg-surface-hover text-foreground",
+								)}
+								onClick={onToggleTerminal}
+								size="sm"
+								title="Toggle terminal (Ctrl+`)"
+								type="button"
+								variant="ghost"
+							>
+								<SquareTerminal className="size-3.5" />
+								<span className="max-[720px]:sr-only">Terminal</span>
+							</Button>
+						) : null}
 						{additions !== 0 && (
 							<Button
 								aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}

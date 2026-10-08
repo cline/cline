@@ -79,6 +79,7 @@ export function WelcomeScreen({
 	workIn,
 	onWorkInChange,
 	onOpenSession,
+	terminalToggle,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -99,6 +100,8 @@ export function WelcomeScreen({
 	workIn?: WorkIn;
 	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
+	/** Rendered at the end of the workspace controls row. */
+	terminalToggle?: ReactNode;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
 	const cloudScope = user
@@ -505,6 +508,9 @@ export function WelcomeScreen({
 							<p className="mt-2 text-xs text-destructive">
 								Sign in failed: {signInError}
 							</p>
+						) : null}
+						{terminalToggle ? (
+							<div className="ml-auto shrink-0">{terminalToggle}</div>
 						) : null}
 					</div>
 				</div>

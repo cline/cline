@@ -5,7 +5,7 @@ import {
 	type ProviderAuthInfo,
 } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
-import { Loader2, LoaderCircle } from "lucide-react";
+import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -29,6 +29,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarInset,
@@ -77,7 +78,11 @@ import {
 	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import {
+	desktopClient,
+	isTauriAvailable,
+	openExternalUrl,
+} from "@/lib/desktop-client";
 import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
 	subscribeToDesktopActions,
@@ -127,7 +132,14 @@ import {
 import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
+import {
+	clampTerminalPanelHeight,
+	readTerminalPanelState,
+	type TerminalPanelState,
+	writeTerminalPanelState,
+} from "@/lib/terminal-panel-state";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import {
 	markCurrentWhatsNewSeen,
 	markWhatsNewSeen,
@@ -191,6 +203,15 @@ const OnboardingView = dynamic(
 		loading: () => <div className="h-full w-full bg-background" />,
 		ssr: false,
 	},
+);
+
+// xterm.js is only needed once the panel opens.
+const TerminalPanel = dynamic(
+	() =>
+		import("@/components/terminal-panel").then(
+			(module) => module.TerminalPanel,
+		),
+	{ ssr: false },
 );
 
 const DiffView = dynamic(
@@ -318,6 +339,47 @@ export default function Home() {
 	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
 	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
+	// The terminal panel is app-level so it stays open across session
+	// switches; the PTY needs the native shell, so browser mode never offers it.
+	const [terminalAvailable, setTerminalAvailable] = useState(false);
+	const [terminalPanel, setTerminalPanel] = useState<TerminalPanelState>({
+		open: false,
+		height: 280,
+	});
+	useEffect(() => {
+		setTerminalAvailable(isTauriAvailable());
+		setTerminalPanel(readTerminalPanelState());
+	}, []);
+	const updateTerminalPanel = useCallback(
+		(patch: Partial<TerminalPanelState>) => {
+			setTerminalPanel((current) => {
+				const next = { ...current, ...patch };
+				writeTerminalPanelState(next);
+				return next;
+			});
+		},
+		[],
+	);
+	const handleToggleTerminal = useCallback(() => {
+		setTerminalPanel((current) => {
+			const next = { ...current, open: !current.open };
+			writeTerminalPanelState(next);
+			if (!next.open) requestPromptInputFocus();
+			return next;
+		});
+	}, []);
+	const handleCloseTerminal = useCallback(() => {
+		updateTerminalPanel({ open: false });
+		requestPromptInputFocus();
+	}, [updateTerminalPanel]);
+	const handleTerminalHeightChange = useCallback(
+		(height: number) => {
+			updateTerminalPanel({
+				height: clampTerminalPanelHeight(height, window.innerHeight),
+			});
+		},
+		[updateTerminalPanel],
+	);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -759,10 +821,21 @@ export default function Home() {
 		[navigateWith],
 	);
 	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
-	// new session, and Cmd/Ctrl+, for settings.
+	// new session, Cmd/Ctrl+, for settings, and Ctrl+` for the terminal.
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (showOnboarding) {
+				return;
+			}
+			if (
+				terminalAvailable &&
+				event.ctrlKey &&
+				!event.metaKey &&
+				!event.altKey &&
+				event.code === "Backquote"
+			) {
+				event.preventDefault();
+				handleToggleTerminal();
 				return;
 			}
 			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
@@ -781,7 +854,13 @@ export default function Home() {
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleNewThread, handleViewChange, showOnboarding]);
+	}, [
+		handleNewThread,
+		handleToggleTerminal,
+		handleViewChange,
+		showOnboarding,
+		terminalAvailable,
+	]);
 	const handleThreadStarted = useCallback(
 		(threadId: string, sessionId?: string) => {
 			dispatchApp({ type: "thread-started", threadId, sessionId });
@@ -1019,6 +1098,17 @@ export default function Home() {
 											}
 											parentSession={activeParentSession}
 											onThreadStarted={handleThreadStarted}
+											terminal={
+												terminalAvailable
+													? {
+															open: terminalPanel.open,
+															height: terminalPanel.height,
+															onToggle: handleToggleTerminal,
+															onClose: handleCloseTerminal,
+															onHeightChange: handleTerminalHeightChange,
+														}
+													: undefined
+											}
 										/>
 									</div>
 								) : null}
@@ -1128,6 +1218,7 @@ function ChatThreadPane({
 	parentSession,
 	remoteEnvironment,
 	onThreadStarted,
+	terminal,
 }: {
 	threadId: string;
 	promptDrafts: Map<string, string>;
@@ -1164,6 +1255,14 @@ function ChatThreadPane({
 	parentSession?: { sessionId: string; title?: string };
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
 	onThreadStarted?: (threadId: string, sessionId?: string) => void;
+	/** Absent when the integrated terminal cannot run (browser mode). */
+	terminal?: {
+		open: boolean;
+		height: number;
+		onToggle: () => void;
+		onClose: () => void;
+		onHeightChange: (height: number) => void;
+	};
 }) {
 	const {
 		sessionId,
@@ -1393,6 +1492,31 @@ function ChatThreadPane({
 	const activeWorkspaceCwd = isCloudSession
 		? ""
 		: (config.cwd || config.workspaceRoot || "").trim();
+	// Shells are spawned by the native app on this machine, so only local
+	// sessions get a terminal; cloud sandboxes and SSH hosts do not.
+	const terminalEnabled =
+		terminal !== undefined &&
+		!isCloudSession &&
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const terminalToggle =
+		terminalEnabled && terminal ? (
+			<Button
+				aria-label={terminal.open ? "Hide terminal" : "Show terminal"}
+				aria-pressed={terminal.open}
+				className={cn(
+					"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover",
+					terminal.open && "border-primary/40 bg-primary/10",
+				)}
+				onClick={terminal.onToggle}
+				size="sm"
+				title="Toggle terminal (Ctrl+`)"
+				type="button"
+				variant="ghost"
+			>
+				<SquareTerminal className="size-3.5" />
+				Terminal
+			</Button>
+		) : undefined;
 	// Threads opened on Cloud have no captured Local config.
 	const localConfigRef = useRef<Pick<
 		ChatSessionConfig,
@@ -2578,150 +2702,167 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
-			<AttachmentDropZone
-				className={
-					isWelcomeState
-						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
-				}
-				disabled={isCloudSessionExpired}
-				description={
-					isCloudSession
-						? "Images will be added to your next message"
-						: undefined
-				}
-				onAttachFiles={handleAttachFiles}
-			>
-				{!isWelcomeState ? (
-					<WindowTitleBarContent>
-						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-							<AgentHeader
-								agentActivity={isCloudSession ? undefined : agentActivity}
-								agents={isCloudSession ? undefined : agents}
-								agentsError={agentsError}
-								agentsLoading={agentsLoading}
-								onAgentsOpenChange={setAgentPanelOpen}
-								onOpenAgentSession={onOpenAgentSession}
-								onOpenParentSession={onOpenAgentSession}
-								parentSession={hideDeletedSessionUi ? undefined : parentSession}
-								canEditTitle={Boolean(activeSessionForTitle)}
-								canDeleteSession={Boolean(activeSessionToDelete)}
-								deletingSession={deletingSession}
-								diff={isCloudSession ? undefined : headerDiff}
-								onDeleteSession={requestDeleteSession}
-								onNewThread={onNewThread}
-								onOpenDiff={handleOpenDiff}
-								onRenameTitle={handleRenameTitle}
-								renamingTitle={renamingSession}
-								status={headerStatus}
-								title={threadTitle}
-							/>
-						</div>
-					</WindowTitleBarContent>
-				) : null}
-				<WelcomeScreen
-					active={isWelcomeState}
-					body={
-						isCloudSession &&
-						displayedIsSwitching &&
-						displayedMessages.length === 0 ? (
-							// Keep opening an existing cloud session visually continuous.
-							<CloudProvisioningPane phase="Opening session..." />
-						) : showDiffView && !isCloudSession ? (
-							<DiffView
-								cwd={config.cwd || config.workspaceRoot}
-								environmentId={environmentId}
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
-						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								activityLabel={activityLabel}
-								error={cloudSessionError?.message ?? displayedError}
-								errorAction={
-									cloudConnectUrl
-										? {
-												label: "Connect GitHub",
-												onClick: () => openGitHubConnect(cloudConnectUrl),
-											}
-										: undefined
-								}
-								importedFromTool={importedFromTool}
-								messages={displayedMessages}
-								onEditMessage={isCloudSession ? undefined : handleEditMessage}
-								onRestoreCheckpoint={
-									isCloudSession ? undefined : handleRestoreCheckpoint
-								}
-								onForkSession={isCloudSession ? undefined : handleForkSession}
-								onProceedWhileRunning={
-									isCloudSession ? undefined : proceedWhileRunning
-								}
-								startingLabel={
-									isProvisioningCloudSession
-										? provisioningPhase
-										: isCloudSession && !displayedSessionId
-											? provisioningPhase
+			<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+				{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+				<AttachmentDropZone
+					className={
+						isWelcomeState
+							? "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+							: "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+					}
+					disabled={isCloudSessionExpired}
+					description={
+						isCloudSession
+							? "Images will be added to your next message"
+							: undefined
+					}
+					onAttachFiles={handleAttachFiles}
+				>
+					{!isWelcomeState ? (
+						<WindowTitleBarContent>
+							<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+								<AgentHeader
+									agentActivity={isCloudSession ? undefined : agentActivity}
+									agents={isCloudSession ? undefined : agents}
+									agentsError={agentsError}
+									agentsLoading={agentsLoading}
+									onAgentsOpenChange={setAgentPanelOpen}
+									onOpenAgentSession={onOpenAgentSession}
+									onOpenParentSession={onOpenAgentSession}
+									parentSession={
+										hideDeletedSessionUi ? undefined : parentSession
+									}
+									canEditTitle={Boolean(activeSessionForTitle)}
+									canDeleteSession={Boolean(activeSessionToDelete)}
+									deletingSession={deletingSession}
+									diff={isCloudSession ? undefined : headerDiff}
+									onDeleteSession={requestDeleteSession}
+									onNewThread={onNewThread}
+									onOpenDiff={handleOpenDiff}
+									onRenameTitle={handleRenameTitle}
+									renamingTitle={renamingSession}
+									status={headerStatus}
+									title={threadTitle}
+									onToggleTerminal={
+										terminalEnabled ? terminal?.onToggle : undefined
+									}
+									terminalOpen={terminalEnabled && terminal?.open}
+								/>
+							</div>
+						</WindowTitleBarContent>
+					) : null}
+					<WelcomeScreen
+						active={isWelcomeState}
+						body={
+							isCloudSession &&
+							displayedIsSwitching &&
+							displayedMessages.length === 0 ? (
+								// Keep opening an existing cloud session visually continuous.
+								<CloudProvisioningPane phase="Opening session..." />
+							) : showDiffView && !isCloudSession ? (
+								<DiffView
+									cwd={config.cwd || config.workspaceRoot}
+									environmentId={environmentId}
+									fileDiffs={fileDiffs}
+									onClose={() => setShowDiffView(false)}
+								/>
+							) : (
+								<ChatMessages
+									onAnswerAskQuestion={handleAnswerAskQuestion}
+									onApproveToolApproval={handleApproveToolApproval}
+									onRejectToolApproval={handleRejectToolApproval}
+									chatTransportState={chatTransportState}
+									activityLabel={activityLabel}
+									error={cloudSessionError?.message ?? displayedError}
+									errorAction={
+										cloudConnectUrl
+											? {
+													label: "Connect GitHub",
+													onClick: () => openGitHubConnect(cloudConnectUrl),
+												}
 											: undefined
-								}
-								onFixCredentials={handleFixCredentials}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={
-									isProvisioningCloudSession ? "starting" : displayedStatus
-								}
+									}
+									importedFromTool={importedFromTool}
+									messages={displayedMessages}
+									onEditMessage={isCloudSession ? undefined : handleEditMessage}
+									onRestoreCheckpoint={
+										isCloudSession ? undefined : handleRestoreCheckpoint
+									}
+									onForkSession={isCloudSession ? undefined : handleForkSession}
+									onProceedWhileRunning={
+										isCloudSession ? undefined : proceedWhileRunning
+									}
+									startingLabel={
+										isProvisioningCloudSession
+											? provisioningPhase
+											: isCloudSession && !displayedSessionId
+												? provisioningPhase
+												: undefined
+									}
+									onFixCredentials={handleFixCredentials}
+									pendingToolApprovals={pendingToolApprovals}
+									pendingAskQuestions={pendingAskQuestions}
+									sessionId={displayedSessionId}
+									streamingMessageId={activeAssistantMessageId}
+									isSessionSwitching={displayedIsSwitching}
+									status={
+										isProvisioningCloudSession ? "starting" : displayedStatus
+									}
+								/>
+							)
+						}
+						composer={composer}
+						environmentSelector={
+							<EnvironmentSelector
+								activeEnvironmentId={environmentId}
+								cloudEnabled={cloudAgentsEnabled}
+								executionTarget={isCloudSession ? "cloud" : "local"}
+								onSelectExecutionTarget={handleSelectExecutionTarget}
+								loading={environmentProfilesLoading}
+								onAddSshHost={onAddSshHost}
+								onSelectEnvironment={onSelectEnvironment}
+								profiles={environmentProfiles}
 							/>
-						)
-					}
-					composer={composer}
-					environmentSelector={
-						<EnvironmentSelector
-							activeEnvironmentId={environmentId}
-							cloudEnabled={cloudAgentsEnabled}
-							executionTarget={isCloudSession ? "cloud" : "local"}
-							onSelectExecutionTarget={handleSelectExecutionTarget}
-							loading={environmentProfilesLoading}
-							onAddSshHost={onAddSshHost}
-							onSelectEnvironment={onSelectEnvironment}
-							profiles={environmentProfiles}
-						/>
-					}
-					gitBranch={gitBranch}
-					notice={
-						providersLoaded &&
-						hasConnectedProvider === false &&
-						onOpenSetup &&
-						onOpenModelSettings ? (
-							<WelcomeSetupNotice
-								onOpenModelSettings={onOpenModelSettings}
-								onOpenSetup={onOpenSetup}
-							/>
-						) : undefined
-					}
-					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
-					onSwitchGitBranch={switchGitBranch}
-					executionTarget={isCloudSession ? "cloud" : "local"}
-					repoUrl={config.repoUrl ?? ""}
-					cloudBranch={config.branch ?? ""}
-					onRepoUrlChange={handleCloudRepoUrlChange}
-					onCloudBranchChange={handleCloudBranchChange}
-					cloudAgentsEnabled={
-						cloudAgentsEnabled ||
-						(cloudAgentsFlagEnabled === null &&
-							config.executionTarget === "cloud")
-					}
-					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
-					workIn={workIn}
-				/>
-			</AttachmentDropZone>
+						}
+						gitBranch={gitBranch}
+						notice={
+							providersLoaded &&
+							hasConnectedProvider === false &&
+							onOpenSetup &&
+							onOpenModelSettings ? (
+								<WelcomeSetupNotice
+									onOpenModelSettings={onOpenModelSettings}
+									onOpenSetup={onOpenSetup}
+								/>
+							) : undefined
+						}
+						onListGitBranches={listGitBranches}
+						onOpenSession={onOpenSessionById}
+						onSwitchGitBranch={switchGitBranch}
+						executionTarget={isCloudSession ? "cloud" : "local"}
+						repoUrl={config.repoUrl ?? ""}
+						cloudBranch={config.branch ?? ""}
+						onRepoUrlChange={handleCloudRepoUrlChange}
+						onCloudBranchChange={handleCloudBranchChange}
+						cloudAgentsEnabled={
+							cloudAgentsEnabled ||
+							(cloudAgentsFlagEnabled === null &&
+								config.executionTarget === "cloud")
+						}
+						onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+						workIn={workIn}
+						terminalToggle={terminalToggle}
+					/>
+				</AttachmentDropZone>
+				{terminalEnabled && terminal?.open ? (
+					<TerminalPanel
+						cwd={activeWorkspaceCwd}
+						height={terminal.height}
+						onClose={terminal.onClose}
+						onHeightChange={terminal.onHeightChange}
+					/>
+				) : null}
+			</div>
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {

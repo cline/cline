@@ -1,0 +1,253 @@
+"use client";
+
+import "@xterm/xterm/css/xterm.css";
+
+import { Folder, Plus, SquareTerminal, X } from "lucide-react";
+import {
+	type PointerEvent as ReactPointerEvent,
+	useCallback,
+	useEffect,
+	useRef,
+	useSyncExternalStore,
+} from "react";
+import { formatWorkspacePath } from "@/components/views/chat/welcome-workspace-controls";
+import { clampTerminalPanelHeight } from "@/lib/terminal-panel-state";
+import {
+	activeTerminalTabId,
+	applyTerminalTheme,
+	createTerminalTab,
+	killTerminalTab,
+	listTerminalTabs,
+	normalizeTerminalCwd,
+	setActiveTerminalTab,
+	spawnTerminalTab,
+	subscribeTerminalTabs,
+	type TerminalTab,
+} from "@/lib/terminal-sessions";
+import { cn } from "@/lib/utils";
+
+type TerminalPanelProps = {
+	/** Directory new shells start in; empty opens the home directory. */
+	cwd: string;
+	height: number;
+	onHeightChange: (height: number) => void;
+	onClose: () => void;
+};
+
+/**
+ * Bottom terminal drawer. Shell tabs are owned by `terminal-sessions` and
+ * keyed by directory, so this component only decides which tab is visible
+ * and keeps xterm sized to the panel.
+ */
+export function TerminalPanel({ cwd, ...props }: TerminalPanelProps) {
+	const key = normalizeTerminalCwd(cwd);
+	// Remount per directory so "no tabs" means "fresh panel" and not "the
+	// last shell exited" when the workspace changes under an open panel.
+	return <TerminalPanelForCwd cwd={key} key={key} {...props} />;
+}
+
+const noTabs: TerminalTab[] = [];
+
+function TerminalPanelForCwd({
+	cwd,
+	height,
+	onHeightChange,
+	onClose,
+}: TerminalPanelProps) {
+	const tabs = useSyncExternalStore(
+		subscribeTerminalTabs,
+		() => listTerminalTabs(cwd),
+		() => noTabs,
+	);
+	const activeId = useSyncExternalStore(
+		subscribeTerminalTabs,
+		() => activeTerminalTabId(cwd),
+		() => null,
+	);
+	const activeTab = tabs.find((tab) => tab.id === activeId) ?? null;
+	const hostRef = useRef<HTMLDivElement>(null);
+	const hadTabsRef = useRef(false);
+	const onCloseRef = useRef(onClose);
+	onCloseRef.current = onClose;
+
+	useEffect(() => {
+		if (tabs.length > 0) {
+			hadTabsRef.current = true;
+			return;
+		}
+		if (hadTabsRef.current) {
+			// The last shell exited: close like an editor would.
+			onCloseRef.current();
+			return;
+		}
+		createTerminalTab(cwd);
+	}, [cwd, tabs.length]);
+
+	useEffect(() => {
+		const host = hostRef.current;
+		if (!host || !activeTab) return;
+		host.replaceChildren(activeTab.element);
+		if (!activeTab.opened) {
+			activeTab.term.open(activeTab.element);
+			activeTab.opened = true;
+		}
+		activeTab.fit.fit();
+		void spawnTerminalTab(activeTab);
+		activeTab.term.focus();
+		const observer = new ResizeObserver(() => {
+			window.requestAnimationFrame(() => activeTab.fit.fit());
+		});
+		observer.observe(host);
+		return () => {
+			observer.disconnect();
+			// Leave the element in the store, not in a stale host.
+			activeTab.element.remove();
+		};
+	}, [activeTab]);
+
+	useEffect(() => {
+		const observer = new MutationObserver(applyTerminalTheme);
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["class", "data-cline-accent"],
+		});
+		return () => observer.disconnect();
+	}, []);
+
+	const handleResizeStart = useCallback(
+		(event: ReactPointerEvent<HTMLDivElement>) => {
+			if (event.button !== 0) return;
+			event.preventDefault();
+			const startY = event.clientY;
+			const startHeight = height;
+			const previousCursor = document.body.style.cursor;
+			const previousUserSelect = document.body.style.userSelect;
+			document.body.style.cursor = "row-resize";
+			document.body.style.userSelect = "none";
+			const handleMove = (move: PointerEvent) => {
+				onHeightChange(
+					clampTerminalPanelHeight(
+						startHeight + (startY - move.clientY),
+						window.innerHeight,
+					),
+				);
+			};
+			const handleUp = () => {
+				document.body.style.cursor = previousCursor;
+				document.body.style.userSelect = previousUserSelect;
+				window.removeEventListener("pointermove", handleMove);
+				window.removeEventListener("pointerup", handleUp);
+				window.removeEventListener("pointercancel", handleUp);
+			};
+			window.addEventListener("pointermove", handleMove);
+			window.addEventListener("pointerup", handleUp);
+			window.addEventListener("pointercancel", handleUp);
+		},
+		[height, onHeightChange],
+	);
+
+	return (
+		<section
+			aria-label="Terminal"
+			className="relative flex shrink-0 flex-col border-t border-border/70 bg-sidebar/50"
+			style={{ height }}
+		>
+			<div
+				aria-hidden="true"
+				className="group absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize"
+				onPointerDown={handleResizeStart}
+			>
+				<div className="absolute left-1/2 top-1/2 h-[3px] w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border transition-colors group-hover:bg-primary/60" />
+			</div>
+			<div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 px-2">
+				<div className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
+					{tabs.map((tab) => (
+						<TerminalTabButton
+							active={tab.id === activeTab?.id}
+							key={tab.id}
+							onClose={() => void killTerminalTab(tab)}
+							onSelect={() => setActiveTerminalTab(cwd, tab.id)}
+							tab={tab}
+						/>
+					))}
+					<button
+						aria-label="New terminal"
+						className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+						onClick={() => createTerminalTab(cwd)}
+						title="New terminal"
+						type="button"
+					>
+						<Plus className="size-3.5" />
+					</button>
+				</div>
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
+					<span
+						className="hidden min-w-0 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2 py-0.5 font-mono text-[11px] text-muted-foreground sm:inline-flex"
+						title={cwd}
+					>
+						<Folder className="size-3 shrink-0" />
+						<span className="max-w-72 truncate text-foreground/80">
+							{cwd === "~" ? "~" : formatWorkspacePath(cwd)}
+						</span>
+					</span>
+					<button
+						aria-label="Hide terminal"
+						className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+						onClick={onClose}
+						title="Hide terminal (Ctrl+`)"
+						type="button"
+					>
+						<X className="size-3.5" />
+					</button>
+				</div>
+			</div>
+			<div
+				className="cline-chat-selectable min-h-0 flex-1 overflow-hidden px-3 py-2"
+				ref={hostRef}
+			/>
+		</section>
+	);
+}
+
+function TerminalTabButton({
+	tab,
+	active,
+	onSelect,
+	onClose,
+}: {
+	tab: TerminalTab;
+	active: boolean;
+	onSelect: () => void;
+	onClose: () => void;
+}) {
+	return (
+		<div className="group/tab relative shrink-0">
+			<button
+				aria-current={active ? "true" : undefined}
+				className={cn(
+					"inline-flex h-7 items-center gap-1.5 rounded-md pl-2 pr-6 text-xs",
+					active
+						? "bg-surface-hover text-foreground"
+						: "text-muted-foreground hover:bg-surface-hover/60 hover:text-foreground",
+				)}
+				onClick={onSelect}
+				type="button"
+			>
+				<SquareTerminal className="size-3.5" />
+				<span className="max-w-40 truncate">{tab.label}</span>
+			</button>
+			<button
+				aria-label={`Close ${tab.label}`}
+				className="absolute right-1 top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-surface-hover-lighter hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100"
+				onClick={(event) => {
+					event.stopPropagation();
+					onClose();
+				}}
+				title="Kill terminal"
+				type="button"
+			>
+				<X className="size-3" />
+			</button>
+		</div>
+	);
+}
