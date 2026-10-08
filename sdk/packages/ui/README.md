@@ -41,6 +41,14 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/components/message-scroller` | Shadcn message scrolling, turn anchors, visibility hooks, and centered scroll controls | React 19 |
 | `@cline/ui/components/message-scroller.css` | Framework-neutral scroller styles (also included in `components.css`) | Theme tokens |
 
+`@shadcn/react` is pinned to 0.3.1 with a Bun dependency patch in
+`patches/@shadcn%2Freact@0.3.1.patch`. The patch consumes anchors from loaded
+and prepended history and distinguishes existing rows from replacement DOM
+nodes, so prompt acknowledgment and typing-indicator replacement preserve the
+reader's position. Keep the patch when upgrading until upstream passes
+`tests/message-scroller.test.tsx`. Consumers installing outside this monorepo
+must apply the same patch until an upstream release includes the fix.
+
 `MessageScroller` composes `@shadcn/react/message-scroller`. It provides turn
 anchoring, streaming follow behavior, message jumps, and visibility tracking.
 The dedicated entry point requires React 19; see the
