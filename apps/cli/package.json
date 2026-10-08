@@ -98,7 +98,7 @@
 	},
 	"devDependencies": {
 		"@cline/core": "workspace:*",
-		"@cline/replay": "workspace:*",
+		"@cline/session": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",
 		"@types/bun": "^1.4.2",

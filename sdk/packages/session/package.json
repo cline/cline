@@ -1,11 +1,11 @@
 {
-	"name": "@cline/replay",
+	"name": "@cline/session",
 	"description": "Session replay for the Cline SDK: bundle export, validation, playback and comparison",
 	"version": "0.0.91",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
-		"directory": "sdk/packages/replay"
+		"directory": "sdk/packages/session"
 	},
 	"type": "module",
 	"types": "./dist/index.d.ts",

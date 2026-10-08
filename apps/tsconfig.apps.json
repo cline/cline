@@ -19,7 +19,7 @@
 				"../sdk/packages/core/src/services/telemetry/index.ts"
 			],
 			"@cline/llms": ["../sdk/packages/llms/src/index.ts"],
-			"@cline/replay": ["../sdk/packages/replay/src/index.ts"],
+			"@cline/session": ["../sdk/packages/session/src/index.ts"],
 			"@cline/shared": ["../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/storage": ["../sdk/packages/shared/src/storage/index.ts"],
 			"@cline/shared/db": ["../sdk/packages/shared/src/db/index.ts"],

@@ -2,7 +2,7 @@ import {
 	formatSessionReplayDivergence,
 	SESSION_REPLAY_DIVERGENCE_KINDS,
 	type SessionReplayDivergenceReport,
-} from "@cline/replay";
+} from "@cline/session";
 
 export interface SessionDiffSide {
 	bundleDir: string;

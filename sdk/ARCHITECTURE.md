@@ -29,7 +29,7 @@ flowchart LR
   llms["@cline/llms"]
   agents["@cline/agents"]
   core["@cline/core"]
-  replay["@cline/replay"]
+  session["@cline/session"]
   apps["Host Apps"]
 
   llms --> shared
@@ -38,10 +38,10 @@ flowchart LR
   core --> agents
   core --> llms
   core --> shared
-  replay --> core
-  replay --> shared
+  session --> core
+  session --> shared
   apps --> core
-  apps --> replay
+  apps --> session
 ```
 
 ## Package Responsibilities
@@ -151,7 +151,7 @@ Design rules:
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
 
-### `@cline/replay`
+### `@cline/session`
 
 Owns everything that reads a session recording or replay bundle:
 
@@ -162,7 +162,7 @@ Owns everything that reads a session recording or replay bundle:
 
 Design rules:
 
-- `replay` sits above `core`; `core`, `agents`, `llms` and `shared` never import it.
+- `session` sits above `core`; `core`, `agents`, `llms` and `shared` never import it.
 - Writers (the core recorder) and readers share only the schemas, constants and hash helpers in `@cline/shared` (`session-replay/`).
 
 ## Runtime Flows
@@ -972,7 +972,7 @@ The following packages are published to npm:
 - `@cline/llms` — provider integrations and model manifests
 - `@cline/agents` — the agent loop and tool orchestration
 - `@cline/core` — the main SDK with session management, hub, and configuration
-- `@cline/replay` — session replay bundles, playback, replay source, and comparison
+- `@cline/session` — session replay bundles, playback, replay source, and comparison
 
 ### Internal Apps
 
@@ -1084,7 +1084,7 @@ Recording is split by who writes and who reads:
 - `shared/src/session-replay` holds what both sides need: the recording and
   bundle schemas, the schema and match key version constants, the
   tool environment fact types, and the message/match key hash helpers.
-- `@cline/replay` is the read side (export, bundle IO, playback, replay source,
+- `@cline/session` is the read side (export, bundle IO, playback, replay source,
   comparison). Core never imports it.
 
 Recording happens only in the hub. A session is recorded when its
@@ -1121,7 +1121,7 @@ The recorder observes the model adapter and runtime events rather than logs:
   attempt, a credential-free provider summary, and the request as content
   hashes. Each request stores only the messages after the prefix it shares with
   the previous call (`messagePrefix`); `resolveRecordedRequestMessages` in
-  `@cline/replay` rebuilds full request lists. Message blobs omit per-request ids and timestamps, so
+  `@cline/session` rebuilds full request lists. Message blobs omit per-request ids and timestamps, so
   identical history deduplicates in `blobs.jsonl`.
 - `request.matchKey` hashes the system prompt, tool definitions, and each
   message's role and content under `cline-replay-match-v1`; replay matching
@@ -1139,7 +1139,7 @@ The recorder observes the model adapter and runtime events rather than logs:
   recorder adds it through `afterTool` result metadata; the agents package only
   carries that metadata onto the tool message.
 
-`exportSessionReplayBundle` (`@cline/replay`) copies a recording into bundle
+`exportSessionReplayBundle` (`@cline/session`) copies a recording into bundle
 schemaVersion 2
 (`sessions/<id>/requests/requests.jsonl` and `blobs.jsonl`, redacted like the
 rest of the bundle, and decision events merged into `events.jsonl`), and uses
@@ -1149,7 +1149,7 @@ calls and approvals, and compaction summarizer calls, are not recorded yet.
 
 ### Session replay source and comparison
 
-Replay reads recordings through two pieces in `@cline/replay`, and nothing in
+Replay reads recordings through two pieces in `@cline/session`, and nothing in
 `@cline/agents`, `@cline/llms` or `@cline/core` knows about either:
 
 - `SessionReplaySource` (`createSessionReplaySource`, `openSessionReplaySource`)

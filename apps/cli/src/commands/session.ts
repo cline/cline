@@ -111,7 +111,7 @@ export async function runSessionValidate(input: {
 	const { io } = input;
 	const bundleDir = resolve(input.bundleDir);
 	try {
-		const { validateSessionReplayBundle } = await import("@cline/replay");
+		const { validateSessionReplayBundle } = await import("@cline/session");
 		const result = await validateSessionReplayBundle(bundleDir);
 		if (input.outputMode === "json") {
 			writeJson({
@@ -174,7 +174,7 @@ export async function runSessionDiff(
 		);
 		return SESSION_DIFF_EXIT.error;
 	}
-	const replay = await import("@cline/replay");
+	const replay = await import("@cline/session");
 	const allKinds: readonly string[] = replay.SESSION_REPLAY_DIVERGENCE_KINDS;
 	const requestKinds: readonly string[] =
 		replay.SESSION_REPLAY_REQUEST_DIVERGENCE_KINDS;

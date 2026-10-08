@@ -6,7 +6,7 @@ import {
 	createSessionReplayRedactor,
 	type ExportSessionReplayBundleResult,
 	writeSessionReplayBundle,
-} from "@cline/replay";
+} from "@cline/session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	runSessionDiff,

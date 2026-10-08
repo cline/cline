@@ -14,7 +14,7 @@ import {
 import {
 	type ExportSessionReplayBundleResult,
 	exportSessionReplayBundle,
-} from "@cline/replay";
+} from "@cline/session";
 import {
 	createCliMessagesArtifactUploader,
 	prepareCliEnterpriseIntegration,

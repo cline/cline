@@ -1,6 +1,6 @@
-# [experimental] @cline/replay
+# [experimental] @cline/session
 
-`@cline/replay` reads session recordings. `@cline/core` writes them: when a
+`@cline/session` reads session recordings. `@cline/core` writes them: when a
 hub session runs with `recording.enabled`, core's `SessionRecorder` appends raw
 records under `<session-dir>/recording/`. Everything that reads those records
 lives here.
@@ -26,5 +26,5 @@ the readers here agree on the format without depending on each other.
 
 ## Dependency Direction
 
-`@cline/replay` depends on `@cline/shared` and `@cline/core`. `@cline/core`
-never imports `@cline/replay`.
+`@cline/session` depends on `@cline/shared` and `@cline/core`. `@cline/core`
+never imports `@cline/session`.

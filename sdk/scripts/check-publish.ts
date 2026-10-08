@@ -25,7 +25,7 @@ const PUBLISH_SHAPE_REQUIRED_EXPORTS: Record<
 	Array<{ path: string; label: string }>
 > = {
 	"@cline/core": [{ path: "ClineCore?.create", label: "ClineCore.create" }],
-	"@cline/replay": [
+	"@cline/session": [
 		{ path: "exportSessionReplayBundle", label: "exportSessionReplayBundle" },
 		{ path: "readSessionReplayBundle", label: "readSessionReplayBundle" },
 		{ path: "createSessionReplaySource", label: "createSessionReplaySource" },

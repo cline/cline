@@ -136,7 +136,7 @@ export const SessionRecordedModelCallSchema = z.object({
 		 * The request's first `count` messages are the first `count` messages
 		 * of the earlier call `callIndex`. Null when nothing is shared with the
 		 * previous call (first call of a host start, or after compaction).
-		 * Resolve with `resolveRecordedRequestMessages` from `@cline/replay`.
+		 * Resolve with `resolveRecordedRequestMessages` from `@cline/session`.
 		 */
 		messagePrefix: z
 			.object({
