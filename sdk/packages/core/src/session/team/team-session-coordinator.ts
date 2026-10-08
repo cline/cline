@@ -94,6 +94,7 @@ export async function dispatchTeamEventToBackend(
 				rootSessionId,
 				event.agentId,
 				event.message,
+				...(event.toolCallId ? [event.toolCallId] : []),
 			);
 			break;
 		case "task_end": {

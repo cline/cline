@@ -837,6 +837,44 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(result2.message).toContain("already dispatched");
 	});
 
+	it("passes the team_run_task tool call id to sync and async teammate runs", async () => {
+		const routeToTeammate = vi.fn(async () => ({ text: "ok", iterations: 1 }));
+		const startTeammateRun = vi.fn(() => ({ id: "run_00001" }));
+		const runtime = {
+			routeToTeammate,
+			startTeammateRun,
+			getMemberRole: vi.fn(() => "lead"),
+		} as unknown as AgentTeamsRuntime;
+		const runTask = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		}).find((tool) => tool.name === "team_run_task");
+		if (!runTask) {
+			throw new Error("Expected team_run_task tool to be defined");
+		}
+
+		await runTask.execute(
+			{ agentId: "educator", task: "Explain", runMode: "sync" },
+			{ agentId: "lead", iteration: 1, toolCallId: "call_sync" },
+		);
+		await runTask.execute(
+			{ agentId: "educator", task: "Explain", runMode: "async" },
+			{ agentId: "lead", iteration: 1, toolCallId: "call_async" },
+		);
+
+		expect(routeToTeammate).toHaveBeenCalledWith(
+			"educator",
+			"Explain",
+			expect.objectContaining({ toolCallId: "call_sync" }),
+		);
+		expect(startTeammateRun).toHaveBeenCalledWith(
+			"educator",
+			"Explain",
+			expect.objectContaining({ toolCallId: "call_async" }),
+		);
+	});
+
 	it("returns explicit dispatch state for async team_run_task calls", async () => {
 		const runtime = {
 			startTeammateRun: vi.fn(() => ({ id: "run_00001" })),

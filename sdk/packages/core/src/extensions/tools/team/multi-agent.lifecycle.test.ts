@@ -319,6 +319,31 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		});
 	});
 
+	it("carries the delegating tool call id on task_start for sync and queued runs", async () => {
+		const events: TeamEvent[] = [];
+		const completed = { ...createAbortedResult(), finishReason: "completed" };
+		mockNextSessionRuntime({ run: vi.fn(async () => completed) });
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			onTeamEvent: (event) => events.push(event),
+		});
+		spawnTestTeammate(runtime, "python-poet");
+
+		await runtime.routeToTeammate("python-poet", "first", {
+			toolCallId: "call_sync",
+		});
+		const run = runtime.startTeammateRun("python-poet", "second", {
+			toolCallId: "call_async",
+		});
+		await runtime.awaitRun(run.id, 1);
+
+		expect(
+			events
+				.filter((event) => event.type === TeamMessageType.TaskStart)
+				.map((event) => ("toolCallId" in event ? event.toolCallId : undefined)),
+		).toEqual(["call_sync", "call_async"]);
+	});
+
 	it("cancels an active synchronous teammate run without shutting down the teammate", async () => {
 		const events: TeamEvent[] = [];
 		let resolveRun: ((result: AgentResult) => void) | undefined;

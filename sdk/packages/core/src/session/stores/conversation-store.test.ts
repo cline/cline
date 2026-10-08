@@ -37,3 +37,16 @@ describe("ConversationStore display-only history", () => {
 		expect(store.getMessages()).toEqual([prompt]);
 	});
 });
+
+describe("ConversationStore appended messages", () => {
+	it("gives appended messages a stable id and creation time", () => {
+		const store = new ConversationStore();
+		store.appendMessage({ role: "user", content: "notice" });
+		store.appendMessages([{ id: "kept", role: "user", content: "x", ts: 5 }]);
+		const [notice, kept] = store.getMessages();
+		expect(notice?.id).toEqual(expect.any(String));
+		expect(notice?.ts).toEqual(expect.any(Number));
+		expect(kept).toEqual({ id: "kept", role: "user", content: "x", ts: 5 });
+		expect(store.getMessages()[0]).toEqual(notice);
+	});
+});

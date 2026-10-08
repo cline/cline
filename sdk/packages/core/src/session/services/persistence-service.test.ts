@@ -1105,4 +1105,103 @@ describe("UnifiedSessionPersistenceService", () => {
 			expect(deleteSidecar).toHaveBeenCalledWith(sessionId);
 		},
 	);
+
+	it("links subagent and teammate tool calls to their child sessions in persisted messages", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "child-session-links-"));
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const rootSessionId = "root-links";
+		const artifacts = await createRootSession(service, rootSessionId, "lead");
+
+		await service.handleSubAgentStart(rootSessionId, {
+			subAgentId: "agent_1",
+			conversationId: "conv_1",
+			parentAgentId: "lead",
+			input: { task: "sub task" },
+			toolCallId: "call_spawn",
+		});
+		await service.onTeamTaskStart(
+			rootSessionId,
+			"writer",
+			"write it",
+			"call_team",
+		);
+		const messages = [
+			{ role: "user" as const, content: "delegate" },
+			{
+				role: "assistant" as const,
+				content: [
+					{
+						type: "tool_use" as const,
+						id: "call_spawn",
+						name: "spawn_agent",
+						input: { task: "sub task" },
+					},
+					{
+						type: "tool_use" as const,
+						id: "call_team",
+						name: "team_run_task",
+						input: { agentId: "writer", task: "write it" },
+					},
+				],
+				ts: 1_000,
+			},
+			{
+				role: "user" as const,
+				content: [
+					{
+						type: "tool_result" as const,
+						tool_use_id: "call_spawn",
+						content: "sub done",
+					},
+					{
+						type: "tool_result" as const,
+						tool_use_id: "call_team",
+						content: "team done",
+					},
+				],
+			},
+			{ role: "assistant" as const, content: "all done", ts: 2_000 },
+		];
+		const readMessages = () =>
+			(
+				JSON.parse(readFileSync(artifacts.messagesPath, "utf8")) as {
+					messages: Array<Record<string, unknown>>;
+				}
+			).messages;
+		const expectedLinks = [
+			{
+				toolCallId: "call_spawn",
+				sessionId: "root-links__agent_1",
+				kind: "subagent",
+			},
+			{
+				toolCallId: "call_team",
+				sessionId: expect.stringMatching(/^root-links__teamtask__writer__/),
+				kind: "teammate",
+			},
+		];
+
+		await service.persistSessionMessages(rootSessionId, messages);
+		const persisted = readMessages();
+		expect(persisted[1]?.childSessions).toEqual(expectedLinks);
+		expect(persisted.map((message) => message.iteration)).toEqual([
+			undefined,
+			1,
+			1,
+			2,
+		]);
+		expect(persisted.map((message) => message.ts)).toEqual([
+			1_000, 1_000, 1_000, 2_000,
+		]);
+		expect(persisted.every((message) => typeof message.id === "string")).toBe(
+			true,
+		);
+
+		// A later process rewrites the transcript from restored messages, which
+		// carry no links; the links already on disk survive.
+		const restarted = new FileSessionService(sessionsDir);
+		await restarted.persistSessionMessages(rootSessionId, messages);
+		expect(readMessages()[1]?.childSessions).toEqual(expectedLinks);
+	});
 });

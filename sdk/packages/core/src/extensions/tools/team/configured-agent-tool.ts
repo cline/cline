@@ -176,6 +176,9 @@ export function createConfiguredAgentTools(
 					const subAgentId = subAgent.getAgentId();
 					const conversationId = subAgent.getConversationId();
 					const parentAgentId = context.agentId;
+					const linkedToolCall = context.toolCallId
+						? { toolCallId: context.toolCallId }
+						: {};
 					const spawnInput = {
 						systemPrompt: config.systemPrompt,
 						task: input.prompt,
@@ -188,6 +191,7 @@ export function createConfiguredAgentTools(
 								conversationId,
 								parentAgentId,
 								input: spawnInput,
+								...linkedToolCall,
 							});
 						} catch {
 							// Best-effort observer callback.
@@ -212,6 +216,7 @@ export function createConfiguredAgentTools(
 									conversationId,
 									parentAgentId,
 									input: spawnInput,
+									...linkedToolCall,
 									result: output,
 									agentResult: result,
 								});
@@ -228,6 +233,7 @@ export function createConfiguredAgentTools(
 									conversationId,
 									parentAgentId,
 									input: spawnInput,
+									...linkedToolCall,
 									error:
 										error instanceof Error ? error : new Error(String(error)),
 								});
