@@ -50,6 +50,8 @@ export interface FixtureSessionOptions {
 	systemPrompt?: string;
 	tools?: AgentToolDefinition[];
 	model?: string;
+	/** Keep the recording at `<sessionDir>/recording/` instead of a removed temp dir. */
+	sessionDir?: string;
 }
 
 export const FIXTURE_TOOLS: AgentToolDefinition[] = [
@@ -129,7 +131,8 @@ export async function recordFixtureSession(
 	const sessionId = options.sessionId ?? "sess_replay";
 	const tools = options.tools ?? FIXTURE_TOOLS;
 	const systemPrompt = options.systemPrompt ?? "You are a test agent.";
-	const dir = await mkdtemp(join(tmpdir(), "replay-fixture-"));
+	const dir =
+		options.sessionDir ?? (await mkdtemp(join(tmpdir(), "replay-fixture-")));
 	try {
 		let now = Date.parse("2026-01-01T00:00:00.000Z");
 		const recorder = await SessionRecorder.open({
@@ -354,6 +357,8 @@ export async function recordFixtureSession(
 			sent,
 		};
 	} finally {
-		await rm(dir, { recursive: true, force: true });
+		if (!options.sessionDir) {
+			await rm(dir, { recursive: true, force: true });
+		}
 	}
 }
