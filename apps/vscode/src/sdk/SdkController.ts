@@ -13,7 +13,9 @@ import {
 	ensureChatWorkspace,
 	findCheckpointForRun,
 	getProviderAuthStorageId,
+	loadRulesForSystemPromptFromRecords,
 	type PreparedRemoteConfigCoreIntegration,
+	type RuleConfig,
 	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
@@ -1009,6 +1011,32 @@ export class Controller {
 			return service
 		})()
 		return this.userInstructionService
+	}
+
+	/**
+	 * The user's enabled rules rendered as the SDK renders them into a session's
+	 * system prompt, for standalone utility requests (commit message generation)
+	 * that don't run through a session. Empty when no rule is enabled or the
+	 * rules can't be read — a utility request should still go out without them.
+	 *
+	 * "Enabled" means what the SDK means by it: the rule file has no
+	 * `disabled: true` frontmatter. The Rules panel's on/off toggles are stored
+	 * in extension state that the SDK does not read (CLINE-3120), so a rule
+	 * switched off there is still sent here — exactly as it is still sent to
+	 * chat. Fixing that in one place fixes both.
+	 */
+	async getRulesForSystemPrompt(): Promise<string> {
+		if (this.isDisposed) {
+			return ""
+		}
+		try {
+			const workspaceRoot = await this.getWorkspaceRoot()
+			const service = await this.ensureUserInstructionService(workspaceRoot)
+			return loadRulesForSystemPromptFromRecords(service.listRecords<RuleConfig>("rule"))
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to load rules for system prompt:", error)
+			return ""
+		}
 	}
 
 	/**

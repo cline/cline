@@ -277,6 +277,7 @@ export function isToolResultOnlyUserMessage(
 export function isTurnStartMessage(message: MessageWithMetadata): boolean {
 	return (
 		message.role === "user" &&
+		message.metadata?.userRunSpan !== 0 &&
 		!isToolResultOnlyUserMessage(message) &&
 		!isCompactionSummaryMessage(message)
 	);
