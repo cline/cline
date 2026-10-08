@@ -11,7 +11,8 @@
 - `cline doctor log` opens the file set by `CLINE_LOG_PATH` when that variable is set
 - `cline --help` is corrected: `--retries` shows its real default of 3 (it said 6), and `--thinking` explains that it falls back to the level picked in `/model`
 - A bare `--retries` with no count is now rejected with an error instead of crashing
-- `cline history --page` was never used. It is now hidden from help and prints a deprecation notice
+- Options that were accepted but never did anything are removed and now fail with "unknown option": `cline history --page`, and `cline schedule create`/`update` `--autonomous`, `--no-autonomous`, `--idle-timeout`, `--poll-interval` and `--delivery-channel`. Remove them from scripts. Existing schedules saved with them still load
+- `cline schedule create`, `update` and `import` reject a delivery that could never be posted, such as `--delivery-adapter` without `--delivery-thread` or an adapter that isn't a known connector. Before, the schedule was saved and its results were silently never posted. Errors name the flag or `--metadata-json` path to fix
 - Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
 
 ## 3.0.69
