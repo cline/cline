@@ -149,8 +149,9 @@ export async function setRuleDisabledInFrontmatter(
  * per-rule history that survives multiple windows and hand edits; a stale
  * toggle shows as on instead, which is what the SDK has been loading.
  *
- * Files outside `allowedRoots`, unreadable files, and files whose frontmatter
- * the SDK would reject keep their stored toggle.
+ * A file the SDK cannot load at all shows as off, since nothing from it
+ * reaches the model. Files outside `allowedRoots` and unreadable files keep
+ * their stored toggle.
  */
 export async function syncRuleTogglesFromFrontmatter(
 	toggles: ClineRulesToggles,
@@ -170,9 +171,9 @@ export async function syncRuleTogglesFromFrontmatter(
 		}
 		const sdkEnabled = readSdkEnabledState(content)
 		if (sdkEnabled === undefined) {
-			continue
+			Logger.warn(`Rule ${filePath} cannot be loaded by the SDK (unparseable frontmatter or empty body); showing it as off`)
 		}
-		updated[rulePath] = sdkEnabled
+		updated[rulePath] = sdkEnabled === true
 	}
 	return updated
 }

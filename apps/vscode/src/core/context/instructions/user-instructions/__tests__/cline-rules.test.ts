@@ -10,7 +10,7 @@ import {
 	setRuleDisabledInFrontmatter,
 	syncRuleTogglesFromFrontmatter,
 } from "../cline-rules"
-import { parseYamlFrontmatter } from "../frontmatter"
+import { parseYamlFrontmatter, readSdkEnabledState } from "../frontmatter"
 
 const temporaryDirectories: string[] = []
 
@@ -157,6 +157,34 @@ describe("syncRuleTogglesFromFrontmatter", () => {
 		const toggles = await syncRuleTogglesFromFrontmatter({ [rulePath]: false }, [rulesDir])
 
 		expect(toggles[rulePath]).to.equal(true)
+	})
+
+	it("shows a rule the SDK cannot load as off, whatever the stored toggle says", async () => {
+		const rulesDir = await makeTempDir()
+		const malformed = path.join(rulesDir, "malformed.md")
+		const emptyBody = path.join(rulesDir, "empty-body.md")
+		const nonBoolean = path.join(rulesDir, "non-boolean.md")
+		await fs.writeFile(malformed, "---\npaths: [invalid\n---\nBody")
+		await fs.writeFile(emptyBody, "---\nname: x\n---\n")
+		await fs.writeFile(nonBoolean, "---\ndisabled: [true]\n---\nBody")
+
+		const toggles = await syncRuleTogglesFromFrontmatter({ [malformed]: true, [emptyBody]: true, [nonBoolean]: true }, [
+			rulesDir,
+		])
+
+		expect(toggles).to.deep.equal({ [malformed]: false, [emptyBody]: false, [nonBoolean]: false })
+	})
+
+	it("shows a rule with non-mapping frontmatter as on, since the SDK loads it", async () => {
+		const rulesDir = await makeTempDir()
+		const rulePath = path.join(rulesDir, "divider.md")
+		await fs.writeFile(rulePath, "---\nJust a divider line\n---\nBody")
+
+		const toggles = await syncRuleTogglesFromFrontmatter({ [rulePath]: false }, [rulesDir])
+
+		expect(toggles[rulePath]).to.equal(true)
+		expect(await setRuleDisabledInFrontmatter(rulePath, false, [rulesDir])).to.equal("written")
+		expect(readSdkEnabledState(await fs.readFile(rulePath, "utf-8"))).to.equal(false)
 	})
 
 	it("keeps the stored toggle for files it cannot read as rules", async () => {

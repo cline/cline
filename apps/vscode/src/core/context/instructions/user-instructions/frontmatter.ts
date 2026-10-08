@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from "node:util"
+import { parseRuleConfigFromMarkdown, parseSkillConfigFromMarkdown } from "@cline/core"
 import { stripUtf8Bom } from "@cline/shared"
 import * as yaml from "js-yaml"
-import { type Document, isMap, isScalar, parseDocument } from "yaml"
+import { isMap, isScalar, parseDocument } from "yaml"
 
 export type FrontmatterParseResult = {
 	data: Record<string, unknown>
@@ -71,7 +72,8 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 /**
  * True when the frontmatter marks the document as disabled, with the same
  * precedence as the SDK loader: a boolean `disabled` wins, and the legacy
- * `enabled: false` only counts when `disabled` is absent.
+ * `enabled: false` only counts when `disabled` is absent. Used by the legacy
+ * rule loader; the SDK-facing paths below ask the SDK parser instead.
  */
 export function isFrontmatterDisabled(data: Record<string, unknown>): boolean {
 	if (typeof data.disabled === "boolean") {
@@ -80,96 +82,123 @@ export function isFrontmatterDisabled(data: Record<string, unknown>): boolean {
 	return data.enabled === false
 }
 
-const ENABLEMENT_KEYS = ["disabled", "enabled"] as const
+export type UserInstructionKind = "rule" | "skill"
+
+const ENABLEMENT_KEYS: ReadonlyArray<string> = ["disabled", "enabled"]
 
 type SourceRange = [number, number, number]
+
+/**
+ * Whether the SDK would load this document as enabled (`true`), as disabled
+ * (`false`), or not at all (`undefined`: frontmatter it cannot parse, a
+ * non-boolean flag, or an empty body).
+ *
+ * This is the SDK's own parser, not a reimplementation of its rules, so the
+ * Rules panel, the write paths, and the editor below can never disagree with
+ * what the SDK loads.
+ */
+export function readSdkEnabledState(content: string, kind: UserInstructionKind = "rule"): boolean | undefined {
+	try {
+		const config =
+			kind === "skill" ? parseSkillConfigFromMarkdown(content, "skill") : parseRuleConfigFromMarkdown(content, "rule")
+		return config.disabled !== true
+	} catch {
+		return undefined
+	}
+}
+
+/**
+ * True when the SDK would load the document in the requested state. Write
+ * paths check this on the edited document before writing or reporting
+ * success, so a toggle never claims a state the SDK will not load.
+ */
+export function hasRequestedEnabledState(content: string, enabled: boolean, kind: UserInstructionKind = "rule"): boolean {
+	return readSdkEnabledState(content, kind) === enabled
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
 	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
-/**
- * Parse a frontmatter block with the SDK loader's YAML parser. Returns
- * `undefined` for anything the SDK would reject: invalid YAML, duplicate keys,
- * a non-mapping document, or a non-boolean `disabled`/`enabled`.
- */
-function parseSdkFrontmatterBlock(block: string): { document: Document.Parsed; data: Record<string, unknown> } | undefined {
-	const document = parseDocument(block)
-	if (document.errors.length > 0 || (document.contents !== null && !isMap(document.contents))) {
+/** The top-level values other than the enablement flags, as the SDK reads them. */
+function otherFrontmatterValues(content: string, kind: UserInstructionKind): Record<string, unknown> | undefined {
+	try {
+		const config =
+			kind === "skill" ? parseSkillConfigFromMarkdown(content, "skill") : parseRuleConfigFromMarkdown(content, "rule")
+		const values = { ...asRecord(config.frontmatter) }
+		for (const key of ENABLEMENT_KEYS) {
+			delete values[key]
+		}
+		return values
+	} catch {
 		return undefined
 	}
-	const data = asRecord(document.toJS())
-	for (const key of ENABLEMENT_KEYS) {
-		if (data[key] !== undefined && data[key] !== null && typeof data[key] !== "boolean") {
-			return undefined
-		}
-	}
-	return { document, data }
-}
-
-/**
- * Whether the SDK loader would treat this document as enabled, or `undefined`
- * when it would reject the frontmatter altogether.
- */
-export function readSdkEnabledState(content: string): boolean | undefined {
-	const match = stripUtf8Bom(content).match(FRONTMATTER_REGEX)
-	if (!match) {
-		return true
-	}
-	const parsed = parseSdkFrontmatterBlock(match[1])
-	return parsed ? !isFrontmatterDisabled(parsed.data) : undefined
-}
-
-/**
- * True when the SDK loader would load the document in the requested state.
- * Write paths check this on the edited document before writing or reporting
- * success, so a toggle never claims a state the SDK will not load.
- */
-export function hasRequestedEnabledState(content: string, enabled: boolean): boolean {
-	return readSdkEnabledState(content) === enabled
 }
 
 /**
  * Update the `disabled` frontmatter flag shared by SDK-backed user
- * instructions (rules, skills, and workflows).
+ * instructions (rules and skills).
  *
- * The frontmatter is parsed with the SDK loader's YAML parser and edited by
- * source range, so only the characters of the top-level `disabled` or
- * `enabled` entries change. Everything else the author wrote, including other
+ * The SDK's parser decides every state question (see readSdkEnabledState).
+ * The frontmatter is then parsed as a YAML document only to find the source
+ * ranges of the top-level `disabled` and `enabled` entries, and just those
+ * characters change. Everything else the author wrote, including other
  * values, comments, key order, quoting, line endings, and a UTF-8 BOM, stays
  * byte for byte.
  *
  * - Disabling sets an existing `disabled` value to `true`, or appends a
- *   `disabled: true` entry (creating the frontmatter if there is none).
+ *   `disabled: true` entry. A document with no frontmatter, or with
+ *   frontmatter that is not a mapping (which the SDK loads as having no
+ *   metadata), gets a new `disabled: true` block above its existing text.
  * - Enabling removes the `disabled` entry and a legacy `enabled: false`; an
  *   entry that carries a comment keeps its line and has its value set to
  *   `false` (or `true` for `enabled`) instead, so the comment survives.
  *   Frontmatter left empty is removed entirely.
- * - A document the SDK would reject, or an edit whose result would change any
- *   other value or not reach the requested state, is returned unchanged.
+ * - A document the SDK does not load, or an edit whose result the SDK would
+ *   not load in the requested state or that would change any other value,
+ *   is returned unchanged.
  */
-export function updateUserInstructionMarkdownDisabledState(content: string, enabled: boolean): string {
+export function updateUserInstructionMarkdownDisabledState(
+	content: string,
+	enabled: boolean,
+	kind: UserInstructionKind = "rule",
+): string {
 	const bom = content.startsWith(UTF8_BOM) ? UTF8_BOM : ""
 	const text = bom ? content.slice(UTF8_BOM.length) : content
 	const eol = text.includes("\r\n") ? "\r\n" : "\n"
 
+	// Nothing to do for a document the SDK does not load, or one already in
+	// the requested state.
+	const currentState = readSdkEnabledState(text, kind)
+	if (currentState === undefined || currentState === enabled) {
+		return content
+	}
+	const prependDisabledBlock = () => `${bom}---${eol}disabled: true${eol}---${eol}${text}`
+
 	const match = text.match(FRONTMATTER_REGEX)
 	if (!match) {
-		return enabled ? content : `${bom}---${eol}disabled: true${eol}---${eol}${text}`
+		return enabled ? content : prependDisabledBlock()
 	}
 	const [, block, body] = match
 	const blockStart = text.indexOf("\n") + 1
 
-	const parsed = parseSdkFrontmatterBlock(block)
-	if (!parsed) {
+	const document = parseDocument(block)
+	if (document.errors.length > 0) {
 		return content
 	}
-	const before = parsed.data
-	if (isFrontmatterDisabled(before) !== enabled) {
+	// An empty block (whitespace or comments only) is a mapping with no
+	// entries; the flag is appended inside it so the comments stay in place.
+	if (document.contents !== null && !isMap(document.contents)) {
+		// The SDK treats non-mapping frontmatter as no metadata, so the rule is
+		// enabled and nothing in the block can be edited to disable it.
+		return enabled ? content : prependDisabledBlock()
+	}
+	const before = otherFrontmatterValues(text, kind)
+	if (!before) {
 		return content
 	}
 
-	const pairs = isMap(parsed.document.contents) ? parsed.document.contents.items : []
+	const pairs = isMap(document.contents) ? document.contents.items : []
 	const rangesFor = (key: string): { key: SourceRange; value: SourceRange } | undefined => {
 		const pair = pairs.find((item) => isScalar(item.key) && item.key.value === key)
 		const keyRange = (pair?.key as { range?: SourceRange } | undefined)?.range
@@ -201,11 +230,12 @@ export function updateUserInstructionMarkdownDisabledState(content: string, enab
 		return true
 	}
 
+	const flags = asRecord(document.toJS())
 	if (enabled) {
-		if (rangesFor("disabled") && before.disabled !== false && !removeEntry("disabled", "false")) {
+		if (rangesFor("disabled") && flags.disabled !== false && !removeEntry("disabled", "false")) {
 			return content
 		}
-		if (before.enabled === false && !removeEntry("enabled", "true")) {
+		if (flags.enabled === false && !removeEntry("enabled", "true")) {
 			return content
 		}
 	} else if (rangesFor("disabled")) {
@@ -224,18 +254,10 @@ export function updateUserInstructionMarkdownDisabledState(content: string, enab
 	if (!/\r?\n$/.test(block)) {
 		nextBlock = nextBlock.replace(/\r?\n$/, "")
 	}
-	if (nextBlock.trim() === "") {
-		return `${bom}${body}`
-	}
-
-	const after = parseSdkFrontmatterBlock(nextBlock)
-	if (!after || isFrontmatterDisabled(after.data) === enabled) {
+	const nextText =
+		nextBlock.trim() === "" ? body : `${text.slice(0, blockStart)}${nextBlock}${text.slice(blockStart + block.length)}`
+	if (readSdkEnabledState(nextText, kind) !== enabled || !isDeepStrictEqual(before, otherFrontmatterValues(nextText, kind))) {
 		return content
 	}
-	for (const key of new Set([...Object.keys(before), ...Object.keys(after.data)])) {
-		if (!(ENABLEMENT_KEYS as readonly string[]).includes(key) && !isDeepStrictEqual(before[key], after.data[key])) {
-			return content
-		}
-	}
-	return `${bom}${text.slice(0, blockStart)}${nextBlock}${text.slice(blockStart + block.length)}`
+	return `${bom}${nextText}`
 }

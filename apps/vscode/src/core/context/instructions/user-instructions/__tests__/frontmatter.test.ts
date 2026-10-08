@@ -185,6 +185,31 @@ describe("updateUserInstructionMarkdownDisabledState preserves authored frontmat
 		expect(updateUserInstructionMarkdownDisabledState(block, false)).to.equal(block)
 	})
 
+	it("disables a document whose frontmatter is not a mapping by adding a block above it", () => {
+		// The SDK loads such a document as enabled with no metadata (the block
+		// parses as a plain scalar), so the markdown divider lines are user text.
+		const input = lines("---", "Just a divider line", "---", "Body")
+		const disabled = updateUserInstructionMarkdownDisabledState(input, false)
+		expect(disabled).to.equal(lines("---", "disabled: true", "---", "---", "Just a divider line", "---", "Body"))
+		expect(readSdkEnabledState(disabled)).to.equal(false)
+		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
+	})
+
+	it("appends the flag inside a comment-only block and keeps the comment", () => {
+		const input = lines("---", "# top comment", "---", "Body")
+		const disabled = updateUserInstructionMarkdownDisabledState(input, false)
+		expect(disabled).to.equal(lines("---", "# top comment", "disabled: true", "---", "Body"))
+		expect(readSdkEnabledState(disabled)).to.equal(false)
+		expect(updateUserInstructionMarkdownDisabledState(disabled, true)).to.equal(input)
+	})
+
+	it("leaves a document the SDK does not load untouched", () => {
+		const emptyBody = lines("---", "name: x", "---", "")
+		expect(readSdkEnabledState(emptyBody)).to.equal(undefined)
+		expect(updateUserInstructionMarkdownDisabledState(emptyBody, false)).to.equal(emptyBody)
+		expect(updateUserInstructionMarkdownDisabledState(emptyBody, true)).to.equal(emptyBody)
+	})
+
 	it("does not touch a nested disabled key", () => {
 		const input = lines("---", "meta:", "  disabled: true", "---", "Body")
 		expect(updateUserInstructionMarkdownDisabledState(input, false)).to.equal(

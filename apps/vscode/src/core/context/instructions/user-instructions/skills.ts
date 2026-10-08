@@ -19,7 +19,7 @@ import { hasRequestedEnabledState, parseYamlFrontmatter, updateUserInstructionMa
  * refuses to edit.
  */
 export function updateSkillMarkdownDisabledState(content: string, enabled: boolean): string {
-	return updateUserInstructionMarkdownDisabledState(content, enabled)
+	return updateUserInstructionMarkdownDisabledState(content, enabled, "skill")
 }
 
 /**
@@ -33,7 +33,7 @@ export async function setSkillDisabledInFrontmatter(skillMdPath: string, enabled
 	try {
 		const content = await fs.readFile(skillMdPath, "utf-8")
 		const updated = updateSkillMarkdownDisabledState(content, enabled)
-		if (!hasRequestedEnabledState(updated, enabled)) {
+		if (!hasRequestedEnabledState(updated, enabled, "skill")) {
 			Logger.warn(`Skill frontmatter at ${skillMdPath} could not be updated; leaving the document untouched`)
 			return false
 		}
