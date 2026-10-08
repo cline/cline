@@ -85,6 +85,10 @@ export function updateCloudHandoffFollowUp(
 	expected: CloudHandoffFollowUp,
 	action: "restore" | "dismiss",
 ): CloudHandoffFollowUp | null {
+	if (activeRecoverySends.has(targetSessionId))
+		throw new Error(
+			"Wait for the follow-up send to finish before updating it.",
+		);
 	const saved = readCloudHandoffFollowUp(targetSessionId);
 	if (!saved || !isDeepStrictEqual(saved, expected))
 		throw new Error(
