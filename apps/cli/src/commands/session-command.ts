@@ -174,7 +174,8 @@ export function registerSessionCommand({
 					speed?: string;
 					step?: boolean;
 					session?: string;
-				} & SessionRerunFlags
+					containerArg?: string[];
+				} & Omit<SessionRerunFlags, "containerArgs">
 			>();
 			setExitCode(
 				await runSessionReplay({
@@ -202,7 +203,7 @@ export function registerSessionCommand({
 						image: opts.image,
 						containerRuntime: opts.containerRuntime,
 						containerCli: opts.containerCli,
-						containerArgs: opts.containerArgs,
+						containerArgs: opts.containerArg,
 					},
 					io,
 					isInteractiveTTY: isInteractiveTTY(),

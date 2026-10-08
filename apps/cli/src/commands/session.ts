@@ -618,6 +618,7 @@ async function runSessionRerunCommand(
 			});
 			return exitCode;
 		}
+		const note = (text: string) => process.stderr.write(`${text}\n`);
 		const controller = new AbortController();
 		const onSignal = () => controller.abort();
 		process.once("SIGINT", onSignal);
@@ -625,7 +626,7 @@ async function runSessionRerunCommand(
 		try {
 			result = await run({
 				onLine: (line) => {
-					if (format === "text") io.writeErr(`[rerun] ${line}`);
+					if (format === "text") note(`[rerun] ${line}`);
 				},
 				signal: controller.signal,
 			});
@@ -639,7 +640,7 @@ async function runSessionRerunCommand(
 			});
 		} else {
 			for (const warning of result.outcome.report.warnings) {
-				io.writeErr(`warning: ${warning}`);
+				note(`warning: ${warning}`);
 			}
 			for (const line of rerunModule.formatSessionRerunText(result.outcome)) {
 				io.writeln(line);
