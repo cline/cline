@@ -1,4 +1,8 @@
-import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
+import {
+	type HandoffProgressPhase,
+	type HandoffReceipt,
+	parseHandoffCommand,
+} from "@/lib/cloud-handoff";
 
 export type CloudHandoffUiEntry =
 	| {
@@ -148,7 +152,9 @@ export function cloudHandoffUiReducer(
 					...state,
 					[action.sourceSessionId]: {
 						...current,
-						retryDraft: action.retryDraft,
+						retryDraft:
+							parseHandoffCommand(action.retryDraft ?? "")?.nextCommand ??
+							action.retryDraft,
 						retryAttachments: action.retryAttachments,
 					},
 				};

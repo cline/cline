@@ -239,17 +239,20 @@ describe("cloudHandoffUiReducer", () => {
 
 	it("keeps the completion receipt when a late failure lands after complete", () => {
 		const completed = cloudHandoffUiReducer({}, COMPLETE);
+		const retryAttachments = [new File(["edited"], "edited.png")];
 
 		expect(Object.keys(completed)).toEqual(["local-1"]);
 		const withRecovery = cloudHandoffUiReducer(completed, {
 			type: "failed",
 			sourceSessionId: "local-1",
 			retryDraft: "/cloud continue",
+			retryAttachments,
 		});
 		expect(withRecovery["local-1"]).toMatchObject({
 			status: "complete",
 			receipt: RECEIPT,
-			retryDraft: "/cloud continue",
+			retryDraft: "continue",
+			retryAttachments,
 		});
 		expect(
 			cloudHandoffUiReducer(completed, {

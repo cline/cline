@@ -18,6 +18,11 @@ export type HandoffLifecycleToast = {
 	connectUrl?: string;
 };
 
+export type HandoffOpenResult = {
+	opened: boolean;
+	draftDelivered: boolean;
+};
+
 export type HandoffLifecycleEffects = {
 	dispatch: (action: CloudHandoffUiAction) => void;
 	toast: (t: HandoffLifecycleToast) => void;
@@ -29,7 +34,7 @@ export type HandoffLifecycleEffects = {
 			initialAttachments?: File[];
 			expectedActiveThreadId?: string;
 		},
-	) => Promise<boolean> | boolean | undefined;
+	) => Promise<HandoffOpenResult> | HandoffOpenResult;
 	openExternal: (url: string) => Promise<void>;
 };
 
@@ -144,35 +149,33 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		completion: HandoffCompletionRecord,
 		retry: { command?: string; attachments?: File[] } | undefined,
 		openTarget: boolean,
-	): Promise<boolean | undefined> => {
+	): Promise<HandoffOpenResult | undefined> => {
 		const source = sourceFor(sourceSessionId);
 		const attempt = attemptFor(sourceSessionId, handoffAttemptId);
 		if (handoffAttemptId && source.accepted !== attempt) return;
 		attempt.completion = completion;
 		if (attempt.openAttempted) return;
 		if (!retry) attempt.retry = undefined;
-		let opened: boolean | undefined;
+		let outcome: HandoffOpenResult | undefined;
 		if (openTarget) {
 			attempt.openAttempted = true;
 			const { sourceThreadId } = attempt;
-			opened = Boolean(
-				await Promise.resolve()
-					.then(() =>
-						effects.openSession(completion.targetSessionId, {
-							silent: true,
-							...(retry?.command ? { initialPromptDraft: retry.command } : {}),
-							...(retry?.attachments?.length
-								? { initialAttachments: retry.attachments }
-								: {}),
-							...(sourceThreadId
-								? { expectedActiveThreadId: sourceThreadId }
-								: {}),
-						}),
-					)
-					.catch(() => false),
-			);
+			outcome = await Promise.resolve()
+				.then(() =>
+					effects.openSession(completion.targetSessionId, {
+						silent: true,
+						...(retry?.command ? { initialPromptDraft: retry.command } : {}),
+						...(retry?.attachments?.length
+							? { initialAttachments: retry.attachments }
+							: {}),
+						...(sourceThreadId
+							? { expectedActiveThreadId: sourceThreadId }
+							: {}),
+					}),
+				)
+				.catch(() => ({ opened: false, draftDelivered: false }));
 			if (handoffAttemptId && source.accepted !== attempt) return;
-			if (opened) attempt.retry = undefined;
+			if (outcome.draftDelivered) attempt.retry = undefined;
 		}
 		const newerRetry =
 			handoffAttemptId && source.latest !== attempt
@@ -181,7 +184,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		const retained =
 			newerRetry?.command || newerRetry?.attachments?.length
 				? newerRetry
-				: opened
+				: outcome?.draftDelivered
 					? undefined
 					: retry;
 		effects.dispatch({
@@ -197,7 +200,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				? { retryAttachments: retained.attachments }
 				: {}),
 		});
-		return opened;
+		return outcome;
 	};
 
 	const surfaceWarning = (
@@ -293,7 +296,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				destination,
 				ctx.isThreadActive?.() ?? true,
 			);
-			const opened = await reconcileCompletion(
+			const outcome = await reconcileCompletion(
 				sourceSessionId,
 				ctx.handoffAttemptId,
 				{
@@ -305,7 +308,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				undelivered,
 				openInApp,
 			);
-			if (opened === false && (ctx.isThreadActive?.() ?? true)) {
+			if (outcome?.opened === false && (ctx.isThreadActive?.() ?? true)) {
 				effects.dispatch({ type: "external", sourceSessionId });
 				try {
 					await effects.openExternal(dashboardUrl);
