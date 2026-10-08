@@ -1,4 +1,10 @@
 export {
+	type AtifExportBundle,
+	type ExportSessionReplayAtifOptions,
+	type ExportSessionReplayAtifResult,
+	exportSessionReplayBundleToAtif,
+} from "./atif/atif-export";
+export {
 	ATIF_SCHEMA_VERSION,
 	type AtifAgent,
 	type AtifContent,
