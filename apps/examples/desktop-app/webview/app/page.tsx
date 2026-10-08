@@ -109,6 +109,7 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	getHandoffTargetDraft,
 	hasLivePendingHandoff,
 	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
@@ -791,10 +792,7 @@ export default function Home() {
 							return;
 						const { retryDraft, retryAttachments } = source;
 						const matches = await matchesCloudHandoffFollowUp(
-							source.status === "complete"
-								? retryDraft
-								: (parseHandoffCommand(retryDraft ?? "")?.nextCommand ??
-										retryDraft),
+							getHandoffTargetDraft(source),
 							retryAttachments ?? [],
 							saved,
 						).catch(() => false);
@@ -3095,7 +3093,7 @@ function ChatThreadPane({
 			const outcome = await Promise.resolve(
 				onOpenSessionById?.(receipt.targetSessionId, {
 					silent: true,
-					initialPromptDraft: retryDraft,
+					initialPromptDraft: getHandoffTargetDraft(handoffUi),
 					initialAttachments: retryAttachments,
 				}),
 			).catch(() => undefined);
