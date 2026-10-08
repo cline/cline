@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.69
+
+- MCP servers launched with `npx` or `uvx` on Windows now load. They often took longer than the 3-second startup limit and were silently dropped, so their tools never showed up. The default is now 10 seconds
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. The CLI picks the closest level the model supports
+- OpenAI-compatible providers no longer print a `providerOptions key 'openai-compatible'` deprecation warning on every response
+- If a model's response ends without a recognized finish reason, the agent asks it to continue once instead of treating the response as complete
+- `cline config --json` prints JSON again. It opened the interactive view instead, which failed outside a terminal; `cline config --json mcp` printed plain text
+- `-y`/`--yolo` is now listed in `cline --help`, with a warning to use it only in sandboxed environments
+
 ## 3.0.68
 
 - Agent teams stay fast in long sessions and while teammates are streaming. Every streamed chunk used to re-save the whole team state, so team runs got slower over time and `~/.cline/data/db/teams.db` could grow to gigabytes. Existing team data is compacted automatically the first time it's opened
