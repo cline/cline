@@ -151,6 +151,20 @@ export {
 	type SessionReplayToolDefinition,
 } from "./replay-request";
 export {
+	type CreateSessionReplaySourceOptions,
+	createSessionReplaySource,
+	openSessionReplaySource,
+	SessionReplayMismatchError,
+	type SessionReplayMissingModelResponse,
+	type SessionReplayModelResponse,
+	type SessionReplayModelResponseMatch,
+	type SessionReplayModelResponseQuery,
+	type SessionReplayServedModelResponse,
+	type SessionReplaySource,
+	type SessionReplaySourcePosition,
+	type SessionReplayToolResult,
+} from "./replay-source";
+export {
 	computeRecordedRequestMatchKey,
 	recordedMessageContentSha256,
 	recordedToolDefinitions,
