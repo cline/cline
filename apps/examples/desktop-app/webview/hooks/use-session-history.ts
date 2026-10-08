@@ -567,6 +567,7 @@ function mergeDiscoveredSessions(
 			return session;
 		}
 		const incomingTitle = getSessionMetadataTitle(session.metadata);
+		// Accept server titles unless a local rename landed during this refresh.
 		if (
 			incomingTitle &&
 			existingTitle === titlesBeforeRefresh.get(sessionKey(session))
