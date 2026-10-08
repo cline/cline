@@ -19,7 +19,7 @@ export type CloudHandoffFollowUp = {
 	unconfirmed?: boolean;
 };
 
-const activeRecoverySends = new Set<string>();
+const activeRecoverySends = new Map<string, number>();
 
 function followUpPath(targetSessionId: string): string {
 	const key = createHash("sha256").update(targetSessionId).digest("hex");
@@ -112,8 +112,6 @@ export async function sendWithCloudHandoffFollowUp<
 	send: (lifecycle?: CloudSendLifecycle) => Promise<T>,
 	draftId?: string,
 ): Promise<T> {
-	// Concurrent prompts can send, but only one send owns the recovery copy.
-	if (activeRecoverySends.has(targetSessionId)) return await send();
 	const saved = readCloudHandoffFollowUp(targetSessionId);
 	const matches = (record: CloudHandoffFollowUp | null) =>
 		Boolean(
@@ -124,12 +122,14 @@ export async function sendWithCloudHandoffFollowUp<
 				record.command.trim() === command.trim() &&
 				isDeepStrictEqual(record.userImages, userImages),
 		);
+	const activeSends = activeRecoverySends.get(targetSessionId) ?? 0;
 	if (
 		!saved ||
-		(!matches(saved) && (saved.unconfirmed || saved.draftId !== draftId))
+		(!matches(saved) &&
+			(activeSends > 0 || saved.unconfirmed || saved.draftId !== draftId))
 	)
 		return await send();
-	activeRecoverySends.add(targetSessionId);
+	activeRecoverySends.set(targetSessionId, activeSends + 1);
 	try {
 		if (!matches(saved))
 			saveCloudHandoffFollowUp(targetSessionId, {
@@ -161,6 +161,8 @@ export async function sendWithCloudHandoffFollowUp<
 		if (!result.recoveredAfterDisconnect) clearAccepted();
 		return result;
 	} finally {
-		activeRecoverySends.delete(targetSessionId);
+		const remaining = (activeRecoverySends.get(targetSessionId) as number) - 1;
+		if (remaining > 0) activeRecoverySends.set(targetSessionId, remaining);
+		else activeRecoverySends.delete(targetSessionId);
 	}
 }
