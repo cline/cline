@@ -62,10 +62,7 @@
 					"title": "Extra"
 				}
 			},
-			"required": [
-				"name",
-				"version"
-			],
+			"required": ["name", "version"],
 			"title": "Agent",
 			"type": "object"
 		},
@@ -75,10 +72,7 @@
 			"properties": {
 				"type": {
 					"description": "The type of content",
-					"enum": [
-						"text",
-						"image"
-					],
+					"enum": ["text", "image"],
 					"title": "Type",
 					"type": "string"
 				},
@@ -108,9 +102,7 @@
 					"description": "Image source (file reference). Required when type='image'."
 				}
 			},
-			"required": [
-				"type"
-			],
+			"required": ["type"],
 			"title": "ContentPart",
 			"type": "object"
 		},
@@ -208,12 +200,7 @@
 			"properties": {
 				"media_type": {
 					"description": "MIME type of the image",
-					"enum": [
-						"image/jpeg",
-						"image/png",
-						"image/gif",
-						"image/webp"
-					],
+					"enum": ["image/jpeg", "image/png", "image/gif", "image/webp"],
 					"title": "Media Type",
 					"type": "string"
 				},
@@ -223,10 +210,7 @@
 					"type": "string"
 				}
 			},
-			"required": [
-				"media_type",
-				"path"
-			],
+			"required": ["media_type", "path"],
 			"title": "ImageSource",
 			"type": "object"
 		},
@@ -365,9 +349,7 @@
 					"type": "array"
 				}
 			},
-			"required": [
-				"results"
-			],
+			"required": ["results"],
 			"title": "Observation",
 			"type": "object"
 		},
@@ -466,11 +448,7 @@
 				},
 				"source": {
 					"description": "The originator of this step",
-					"enum": [
-						"system",
-						"user",
-						"agent"
-					],
+					"enum": ["system", "user", "agent"],
 					"title": "Source",
 					"type": "string"
 				},
@@ -613,11 +591,7 @@
 					"title": "Extra"
 				}
 			},
-			"required": [
-				"step_id",
-				"source",
-				"message"
-			],
+			"required": ["step_id", "source", "message"],
 			"title": "Step",
 			"type": "object"
 		},
@@ -717,11 +691,7 @@
 					"title": "Extra"
 				}
 			},
-			"required": [
-				"tool_call_id",
-				"function_name",
-				"arguments"
-			],
+			"required": ["tool_call_id", "function_name", "arguments"],
 			"title": "ToolCall",
 			"type": "object"
 		},
@@ -853,10 +823,7 @@
 					"title": "Subagent Trajectories"
 				}
 			},
-			"required": [
-				"agent",
-				"steps"
-			],
+			"required": ["agent", "steps"],
 			"title": "Trajectory",
 			"type": "object"
 		}

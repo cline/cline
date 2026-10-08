@@ -32,6 +32,9 @@
 		"@cline/core": "workspace:*",
 		"@cline/shared": "workspace:*"
 	},
+	"devDependencies": {
+		"ajv": "^8.20.0"
+	},
 	"engines": {
 		"node": ">=22"
 	},
