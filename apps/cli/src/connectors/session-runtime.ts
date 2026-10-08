@@ -6,6 +6,7 @@ import {
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@cline/core";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { Thread } from "chat";
 import {
 	ensureOAuthProviderApiKey,
@@ -110,7 +111,8 @@ export async function buildConnectorStartRequest(input: {
 			input.options.model?.trim() ||
 			selectedProviderSettings?.model ||
 			input.defaultModel ||
-			"anthropic/claude-sonnet-4.6",
+			(await Llms.getProviderCollection(provider))?.provider?.defaultModelId ||
+			CLINE_DEFAULT_MODEL_ID,
 		mode: input.options.mode,
 		apiKey,
 		systemPrompt,

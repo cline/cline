@@ -5,6 +5,7 @@ import {
 	type GatewayProviderContext,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import {
 	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
 	BUILTIN_SPECS,
@@ -63,8 +64,11 @@ describe("cline builtin spec defaults.baseUrl", () => {
 });
 
 describe("cline builtin models", () => {
-	it("exposes its canonical default model ID", () => {
-		expect(findClineSpec().defaultModelId).toBe(CLINE_DEFAULT_MODEL_ID);
+	it("defaults to the first recommended model, falling back to the canonical id", () => {
+		expect(findClineSpec().defaultModelId).toBe(
+			GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+				CLINE_DEFAULT_MODEL_ID,
+		);
 	});
 
 	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {

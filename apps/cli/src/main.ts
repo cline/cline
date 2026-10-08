@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
-import { registerDisposable } from "@cline/shared";
+import { CLINE_DEFAULT_MODEL_ID, registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
 import { createDashboardCommand } from "./commands/dashboard-command";
 import { registerHistoryCommand } from "./commands/history-command";
@@ -985,6 +985,7 @@ export async function runCli(): Promise<void> {
 		}
 
 		let knownModels: Config["knownModels"];
+		let providerDefaultModelId: string | undefined;
 		try {
 			const persistedProviderConfig = providerSettingsManager.getProviderConfig(
 				provider,
@@ -1005,6 +1006,7 @@ export async function runCli(): Promise<void> {
 				persistedProviderConfig,
 			);
 			knownModels = resolvedProviderConfig?.knownModels;
+			providerDefaultModelId = resolvedProviderConfig?.modelId || undefined;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			writeln(
@@ -1037,8 +1039,9 @@ export async function runCli(): Promise<void> {
 			modelId:
 				args.model ??
 				selectedProviderSettings?.model ??
+				providerDefaultModelId ??
 				knownModelIds[0] ??
-				"anthropic/claude-sonnet-4.6",
+				CLINE_DEFAULT_MODEL_ID,
 			apiKey: apiKey ?? "",
 			knownModels,
 			systemPrompt: await resolveSystemPrompt({

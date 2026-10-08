@@ -12,6 +12,7 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import { filterImageOutputModels } from "../catalog/model-filters";
 import {
 	isCanonicalModelIdForAliasRules,
@@ -730,7 +731,9 @@ const cline = createClineLikeSpec({
 	name: "Cline Usage-Billing",
 	popular: 1,
 	modelsFactory: buildClineModels,
-	defaultModelId: CLINE_DEFAULT_MODEL_ID,
+	defaultModelId:
+		GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+		CLINE_DEFAULT_MODEL_ID,
 	defaults: {
 		options: {
 			onResponseError: async (response: Response) => {
