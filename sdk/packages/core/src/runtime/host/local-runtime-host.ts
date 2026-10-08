@@ -82,7 +82,6 @@ import {
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
 import {
-	resolveSessionRecording,
 	SessionRecorder,
 	sessionRecordingDir,
 } from "../../session/replay/session-recorder";
@@ -299,7 +298,16 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+	/**
+	 * Allows sessions started with `recording.enabled` to be recorded. Only
+	 * the hub's own hosts set this: recording runs in the hub, and any other
+	 * host refuses to start a session that asks for it.
+	 */
+	recordSessions?: boolean;
 }
+
+export const SESSION_RECORDING_REQUIRES_HUB_MESSAGE =
+	'Session recording runs only in the hub: start sessions with recording.enabled through a hub-backed runtime (backendMode "hub").';
 
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
@@ -319,6 +327,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly distinctId: string;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
+	private readonly recordSessions: boolean;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
@@ -368,6 +377,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.defaultTelemetry?.setDistinctId(distinctId);
 		}
 		this.defaultFetch = options.fetch;
+		this.recordSessions = options.recordSessions === true;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -453,6 +463,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		if (input.config.recording?.enabled === true && !this.recordSessions) {
+			throw new Error(SESSION_RECORDING_REQUIRES_HUB_MESSAGE);
+		}
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const isReadOnlyResumeStart =
@@ -1872,13 +1885,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		getCompactionState: () => SessionCompactionState | undefined;
 		logger?: BasicLogger;
 	}): Promise<SessionRecorder | undefined> {
-		const enabledBy = resolveSessionRecording(input.config.recording);
-		if (!enabledBy) return undefined;
+		if (!this.recordSessions || input.config.recording?.enabled !== true) {
+			return undefined;
+		}
 		try {
 			return await SessionRecorder.open({
 				sessionId: input.sessionId,
 				dir: sessionRecordingDir(input.sessionDir),
-				enabledBy,
 				cwd: input.config.cwd,
 				logger: input.logger,
 				getCompactionState: input.getCompactionState,

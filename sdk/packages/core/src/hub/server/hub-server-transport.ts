@@ -279,6 +279,7 @@ export class HubServerTransport implements NativeHubTransport {
 				fetch: options.fetch,
 				logger: options.logger,
 				telemetry: options.telemetry,
+				recordSessions: true,
 			});
 		this.sessionSearch = new SessionHistorySearchService(
 			this.sessionHost,

@@ -84,6 +84,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 		},
 		fetch: options.fetch,
 		telemetry: options.telemetry,
+		recordSessions: true,
 	});
 
 	return {

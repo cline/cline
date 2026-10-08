@@ -110,8 +110,6 @@ export {
 	computeRecordedRequestMatchKey,
 	recordedMessageContentSha256,
 	recordedToolDefinitions,
-	resolveSessionRecording,
-	SESSION_RECORDING_ENV,
 	type SessionDecisionInput,
 	type SessionRecordedProvider,
 	SessionRecorder,

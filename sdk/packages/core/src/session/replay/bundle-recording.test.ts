@@ -35,7 +35,6 @@ const HEADER: SessionRecordingHeader = {
 	segments: [
 		{
 			startedAt: "2026-01-01T00:00:00.000Z",
-			enabledBy: "env",
 			pid: 1,
 			leadAgentId: "agent_1",
 			initialMessageCount: 0,

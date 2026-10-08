@@ -29,7 +29,6 @@ import {
 	computeRecordedRequestMatchKey,
 	describeRecordedProvider,
 	recordedMessageContentSha256,
-	resolveSessionRecording,
 	SessionRecorder,
 } from "./session-recorder";
 import { TOOL_ENVIRONMENT_METADATA_KEY } from "./tool-environment";
@@ -96,27 +95,6 @@ const PROVIDER = describeRecordedProvider({
 	maxTokensPerTurn: 1024,
 });
 
-describe("resolveSessionRecording", () => {
-	it("prefers explicit config over the environment", () => {
-		expect(resolveSessionRecording({ enabled: true }, {})).toBe("config");
-		expect(
-			resolveSessionRecording(
-				{ enabled: false },
-				{ CLINE_RECORD_SESSIONS: "1" },
-			),
-		).toBeUndefined();
-		for (const value of ["1", "true", "YES", " true "]) {
-			expect(
-				resolveSessionRecording(undefined, { CLINE_RECORD_SESSIONS: value }),
-			).toBe("env");
-		}
-		expect(
-			resolveSessionRecording(undefined, { CLINE_RECORD_SESSIONS: "0" }),
-		).toBeUndefined();
-		expect(resolveSessionRecording(undefined, {})).toBeUndefined();
-	});
-});
-
 describe("resolveRecordedRequestMessages", () => {
 	const record = (
 		callIndex: number,
@@ -162,7 +140,6 @@ describe("SessionRecorder", () => {
 		SessionRecorder.open({
 			sessionId: "sess_1",
 			dir,
-			enabledBy: "config",
 			cwd: root,
 		});
 

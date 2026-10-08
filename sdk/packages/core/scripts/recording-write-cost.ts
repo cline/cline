@@ -273,7 +273,6 @@ async function measure(iterations: number): Promise<RunResult> {
 		const recorder = await SessionRecorder.open({
 			sessionId: "bench",
 			dir,
-			enabledBy: "config",
 			cwd: workdir,
 		});
 		recorder.startSegment({

@@ -13,7 +13,6 @@ import type {
 	AgentToolResult,
 	BasicLogger,
 } from "@cline/shared";
-import type { CoreRecordingConfig } from "../../types/config";
 import {
 	SESSION_RECORDING_DIR,
 	SESSION_RECORDING_FILES,
@@ -37,25 +36,6 @@ import {
 	type ToolEnvironmentFileFact,
 	toolEnvironmentTargetPaths,
 } from "./tool-environment";
-
-export const SESSION_RECORDING_ENV = "CLINE_RECORD_SESSIONS";
-
-/**
- * Whether a session should be recorded: an explicit `recording.enabled`
- * wins; otherwise `CLINE_RECORD_SESSIONS=1|true` turns recording on for every
- * session the process hosts (hub daemons included).
- */
-export function resolveSessionRecording(
-	config: CoreRecordingConfig | undefined,
-	env: NodeJS.ProcessEnv = process.env,
-): "config" | "env" | undefined {
-	if (config?.enabled === true) return "config";
-	if (config?.enabled === false) return undefined;
-	const value = env[SESSION_RECORDING_ENV]?.trim().toLowerCase();
-	return value === "1" || value === "true" || value === "yes"
-		? "env"
-		: undefined;
-}
 
 export function sessionRecordingDir(sessionDir: string): string {
 	return join(sessionDir, SESSION_RECORDING_DIR);
@@ -87,7 +67,6 @@ export interface SessionRecorderOptions {
 	sessionId: string;
 	/** `<session-dir>/recording`. */
 	dir: string;
-	enabledBy: "config" | "env";
 	cwd: string;
 	logger?: BasicLogger;
 	getCompactionState?: () => SessionRecorderCompactionState | undefined;
@@ -286,7 +265,6 @@ export function recordedToolDefinitions(
 export class SessionRecorder implements SessionRuntimeRecorder {
 	readonly sessionId: string;
 	readonly dir: string;
-	readonly enabledBy: "config" | "env";
 	private readonly cwd: string;
 	private readonly logger?: BasicLogger;
 	private readonly getCompactionState?: SessionRecorderOptions["getCompactionState"];
@@ -343,7 +321,6 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 	private constructor(options: SessionRecorderOptions) {
 		this.sessionId = options.sessionId;
 		this.dir = options.dir;
-		this.enabledBy = options.enabledBy;
 		this.cwd = options.cwd;
 		this.logger = options.logger;
 		this.getCompactionState = options.getCompactionState;
@@ -426,7 +403,6 @@ export class SessionRecorder implements SessionRuntimeRecorder {
 		const previousMode = this.header?.segments.at(-1)?.mode ?? null;
 		this.segment = {
 			startedAt,
-			enabledBy: this.enabledBy,
 			pid: process.pid,
 			leadAgentId: input.leadAgentId,
 			initialMessageCount: input.initialMessageCount,

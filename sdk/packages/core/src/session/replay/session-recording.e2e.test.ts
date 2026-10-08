@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -13,6 +14,13 @@ import { join } from "node:path";
 import type { AgentTool, ToolApprovalRequest } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ClineCore } from "../../ClineCore";
+import { createLocalHubScheduleRuntimeHandlers } from "../../hub/daemon/runtime-handlers";
+import { createInMemoryHubOwnerContext } from "../../hub/discovery";
+import {
+	type HubWebSocketServer,
+	startHubWebSocketServer,
+} from "../../hub/server";
+import { SESSION_RECORDING_REQUIRES_HUB_MESSAGE } from "../../runtime/host/local-runtime-host";
 import { exportSessionReplayBundle } from "./bundle-export";
 import { readSessionReplayBundle } from "./bundle-io";
 import { buildSessionReplayIterations } from "./bundle-iterations";
@@ -178,7 +186,6 @@ const slowLookup: AgentTool<{ key: string; delayMs: number }, string> = {
 		properties: { key: { type: "string" }, delayMs: { type: "number" } },
 		required: ["key", "delayMs"],
 	},
-	executionMode: "parallel",
 	async execute(input) {
 		await new Promise((resolve) => setTimeout(resolve, input.delayMs));
 		return `value-${input.key}`;
@@ -189,8 +196,37 @@ function sha256(text: string): string {
 	return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+/**
+ * The hub appends a run's last records in the background after the turn
+ * result reaches the client; events are written last, so `run_finished`
+ * on disk means the run's requests are there too.
+ */
+async function waitForRecordedRunEnd(sessionDir: string): Promise<void> {
+	const eventsPath = join(sessionDir, "recording", "events.jsonl");
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		if (
+			existsSync(eventsPath) &&
+			readFileSync(eventsPath, "utf8").includes('"name":"run_finished"')
+		) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+	throw new Error(`no run_finished event in ${eventsPath}`);
+}
+
+async function freePort(): Promise<number> {
+	const probe = createServer();
+	await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
+	const { port } = probe.address() as AddressInfo;
+	await new Promise((resolve) => probe.close(resolve));
+	return port;
+}
+
 describe("session recording e2e", () => {
 	let server: Server;
+	let hub: HubWebSocketServer;
 	let root: string;
 	let workspace: string;
 	let sessionsDir: string;
@@ -213,15 +249,22 @@ describe("session recording e2e", () => {
 			CLINE_DB_DATA_DIR: join(data, "db"),
 			CLINE_SESSION_DATA_DIR: sessionsDir,
 			CLINE_TEAM_DATA_DIR: join(root, "teams"),
-			CLINE_SESSION_BACKEND_MODE: "local",
 			CLINE_PROVIDER_SETTINGS_PATH: join(data, "settings", "providers.json"),
 			CLINE_HOOKS_LOG_PATH: join(data, "logs", "hooks.jsonl"),
 		});
-		delete process.env.CLINE_RECORD_SESSIONS;
+		delete process.env.CLINE_SESSION_BACKEND_MODE;
 		server = await startFakeModel(workspace);
+		hub = await startHubWebSocketServer({
+			owner: createInMemoryHubOwnerContext("session-recording-e2e"),
+			host: "127.0.0.1",
+			port: await freePort(),
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
 	});
 
 	afterAll(async () => {
+		await hub?.close();
 		await new Promise((resolve) => server?.close(resolve));
 		for (const key of Object.keys(process.env)) {
 			if (!(key in savedEnv)) delete process.env[key];
@@ -230,12 +273,42 @@ describe("session recording e2e", () => {
 		if (root) rmSync(root, { recursive: true, force: true });
 	});
 
-	it("records requests, decisions, ordering and tool facts, and exports them", async () => {
+	it("refuses to record a session outside the hub", async () => {
+		const { port } = server.address() as AddressInfo;
+		const core = await ClineCore.create({ backendMode: "local" });
+		try {
+			await expect(
+				core.start({
+					config: {
+						providerId: "openai-compatible",
+						modelId: "fake-model",
+						apiKey: "sk-recording-e2e",
+						baseUrl: `http://127.0.0.1:${port}/v1`,
+						cwd: workspace,
+						workspaceRoot: workspace,
+						systemPrompt: "You are a test agent.",
+						mode: "act",
+						enableTools: false,
+						enableSpawnAgent: false,
+						enableAgentTeams: false,
+						recording: { enabled: true },
+					},
+					prompt: "Hello.",
+					interactive: false,
+				}),
+			).rejects.toThrow(SESSION_RECORDING_REQUIRES_HUB_MESSAGE);
+		} finally {
+			await core.dispose();
+		}
+	});
+
+	it("records requests, decisions, ordering and tool facts in the hub, and exports them", async () => {
 		const { port } = server.address() as AddressInfo;
 		const approvals: ToolApprovalRequest[] = [];
 		let steerTarget: ClineCore | undefined;
 		const core = await ClineCore.create({
-			backendMode: "local",
+			backendMode: "hub",
+			hub: { endpoint: hub.url, authToken: hub.authToken },
 			capabilities: {
 				requestToolApproval: async (request) => {
 					approvals.push(request);
@@ -249,6 +322,8 @@ describe("session recording e2e", () => {
 			},
 		});
 		steerTarget = core;
+		const prompt = "Read, look up, run and edit.";
+		let reader: ClineCore | undefined;
 		try {
 			const started = await core.start({
 				config: {
@@ -267,24 +342,29 @@ describe("session recording e2e", () => {
 					recording: { enabled: true },
 				},
 				toolPolicies: { run_commands: { autoApprove: false } },
-				prompt: "Read, look up, run and edit.",
-				interactive: false,
+				interactive: true,
 			});
 			const sessionId = started.sessionId;
+			const result = await core.send({ sessionId, prompt });
+			expect(result?.finishReason).toBe("completed");
+			await waitForRecordedRunEnd(join(sessionsDir, sessionId));
 			expect(approvals.map((request) => request.toolName)).toEqual([
 				"run_commands",
 			]);
 			expect(readFileSync(join(workspace, "c.txt"), "utf8")).toBe("after\n");
 
+			// Exported from the session store the hub wrote, like `cline export`.
+			const store = await ClineCore.create({ backendMode: "local" });
+			reader = store;
 			const outputDir = join(root, "bundle");
 			const exported = await exportSessionReplayBundle({
 				sessionId,
 				outputDir,
 				source: {
-					getSession: (id) => core.get(id),
-					readMessages: (id) => core.readMessages(id),
+					getSession: (id) => store.get(id),
+					readMessages: (id) => store.readMessages(id),
 					readSessionCompactionState: (id) =>
-						core.readSessionCompactionState(id),
+						store.readSessionCompactionState(id),
 				},
 				sessionsDir,
 			});
@@ -298,7 +378,7 @@ describe("session recording e2e", () => {
 			const recording = session.entry.recording;
 			expect(recording).not.toBeNull();
 			expect(recording?.segments).toHaveLength(1);
-			expect(recording?.segments[0]?.enabledBy).toBe("config");
+			expect(recording?.segments[0]?.pid).toBe(process.pid);
 
 			// One request record per committed assistant message, linked by id.
 			const assistantIds = transcript.messages
@@ -324,10 +404,16 @@ describe("session recording e2e", () => {
 				[],
 			]);
 			expect(requests.map((record) => record.callIndex)).toEqual([0, 1, 2, 3]);
+			// The hub appends its own tool guidance to the configured prompt; the
+			// recording keeps what the model was actually sent.
+			expect(
+				new Set(requests.map((record) => record.request.systemPromptSha256))
+					.size,
+			).toBe(1);
 			for (const record of requests) {
-				expect(blobs.get(record.request.systemPromptSha256 ?? "")?.value).toBe(
-					transcript.systemPrompt,
-				);
+				expect(
+					blobs.get(record.request.systemPromptSha256 ?? "")?.value,
+				).toMatch(/^You are a test agent\./);
 				const tools = blobs.get(record.request.toolsSha256)?.value as Array<{
 					name: string;
 				}>;
@@ -381,7 +467,7 @@ describe("session recording e2e", () => {
 			const [startPrompt, requested, enqueued, resolved, steered] = decisions;
 			expect(startPrompt?.payload).toMatchObject({
 				delivery: "immediate",
-				source: "start",
+				source: "send",
 			});
 			expect(requested).toMatchObject({
 				toolCallId: "call_echo",
@@ -394,7 +480,7 @@ describe("session recording e2e", () => {
 			});
 			expect(resolved?.payload).toMatchObject({
 				approved: true,
-				decidedBy: { kind: "host" },
+				decidedBy: { kind: "client" },
 			});
 			expect(steered?.payload).toMatchObject({ delivery: "steer" });
 			expect(steered?.refs?.promptId).toBe(enqueued?.refs?.promptId);
@@ -404,9 +490,9 @@ describe("session recording e2e", () => {
 			expect(steered?.seq).toBeGreaterThan(seqOf(1));
 			expect(steered?.seq).toBeLessThan(seqOf(2));
 
-			// Ordering: all sequenced events are unique and strictly increasing,
-			// and the parallel lookups started before either finished while
-			// finishing in the opposite order.
+			// Ordering: all sequenced events are unique and strictly increasing.
+			// Client tools served through the hub run one at a time, so the slow
+			// lookup finishes before the fast one starts.
 			const seqs = events
 				.map((event) => event.seq)
 				.filter((seq): seq is number => seq !== undefined);
@@ -425,8 +511,9 @@ describe("session recording e2e", () => {
 			const finishA = runtimeSeq("tool_finished", "call_lookup_a");
 			const finishB = runtimeSeq("tool_finished", "call_lookup_b");
 			expect(startA).toBeGreaterThan(runtimeSeq("tool_finished", "call_read"));
-			expect(Math.max(startA, startB)).toBeLessThan(Math.min(finishA, finishB));
-			expect(finishB).toBeLessThan(finishA);
+			expect(startA).toBeLessThan(finishA);
+			expect(finishA).toBeLessThan(startB);
+			expect(startB).toBeLessThan(finishB);
 			// Hook audit lines share the counter.
 			expect(
 				events.some(
@@ -487,12 +574,12 @@ describe("session recording e2e", () => {
 				iterations[position]?.events
 					.filter((event) => event.kind === "decision")
 					.map((event) => event.detail);
-			expect(decisionDetails(0)).toEqual([
-				"immediate prompt delivered (start)",
-			]);
+			expect(decisionDetails(0)).toEqual(["immediate prompt delivered (send)"]);
 			expect(decisionDetails(1)).toEqual([
 				"approval requested for run_commands",
-				expect.stringMatching(/^approved run_commands by host after \d+ms$/),
+				expect.stringMatching(
+					/^approved run_commands by client( \([^)]+\))? after \d+ms$/,
+				),
 			]);
 			// The steer was enqueued during iteration 2's tool call; its
 			// decisions are shown with iteration 3, the model call it fed,
@@ -505,6 +592,7 @@ describe("session recording e2e", () => {
 				"steer prompt delivered (act)",
 			]);
 		} finally {
+			await reader?.dispose();
 			await core.dispose();
 		}
 	});

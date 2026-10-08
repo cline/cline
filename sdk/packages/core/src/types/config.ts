@@ -243,9 +243,8 @@ export interface CoreCheckpointConfig {
  */
 export interface CoreRecordingConfig {
 	/**
-	 * Record this session. When unset, `CLINE_RECORD_SESSIONS=1` in the
-	 * executing host's environment (e.g. a hub daemon) turns recording on;
-	 * an explicit `false` overrides that.
+	 * Record this session. Only the hub records sessions; other runtime hosts
+	 * refuse to start a session with this set.
 	 */
 	enabled?: boolean;
 }

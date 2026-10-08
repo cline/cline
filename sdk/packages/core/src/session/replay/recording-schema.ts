@@ -43,8 +43,6 @@ const Sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 
 export const SessionRecordingSegmentSchema = z.object({
 	startedAt: z.string().min(1),
-	/** What turned recording on for this host start. */
-	enabledBy: z.enum(["config", "env"]),
 	pid: z.number().int(),
 	/** Lead agent of the session; root hook audit lines carry this agent id. */
 	leadAgentId: z.string().min(1).nullable(),
