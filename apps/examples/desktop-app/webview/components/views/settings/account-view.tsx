@@ -176,6 +176,7 @@ export function AccountView() {
 	>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
+	const overviewGenerationRef = useRef(0);
 	// Signed out is an expected state carried by a typed sidecar result (or a
 	// definitive auth error from older sidecars), tracked separately from
 	// failures so it renders the sign-in prompt instead of an error card.
@@ -226,6 +227,7 @@ export function AccountView() {
 
 	// -- Overview fetch --
 	const loadOverview = useCallback(async () => {
+		const generation = ++overviewGenerationRef.current;
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
@@ -233,6 +235,7 @@ export function AccountView() {
 			// remaining account commands would just fail the same way, so they
 			// are never fired.
 			const userData = await fetchAccountUser();
+			if (generation !== overviewGenerationRef.current) return;
 			if (isClineAccountNotAuthenticatedResult(userData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -242,6 +245,7 @@ export function AccountView() {
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),
 			]);
+			if (generation !== overviewGenerationRef.current) return;
 			if (
 				isClineAccountNotAuthenticatedResult(balanceData) ||
 				isClineAccountNotAuthenticatedResult(orgsData)
@@ -255,6 +259,7 @@ export function AccountView() {
 			const organizationBalanceData = nextActiveOrganization
 				? await fetchOrganizationBalance(nextActiveOrganization.organizationId)
 				: null;
+			if (generation !== overviewGenerationRef.current) return;
 			if (isClineAccountNotAuthenticatedResult(organizationBalanceData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -266,6 +271,7 @@ export function AccountView() {
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
+			if (generation !== overviewGenerationRef.current) return;
 			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
 			if (isAccountAuthError(message)) {
@@ -274,7 +280,8 @@ export function AccountView() {
 				setOverviewError(message);
 			}
 		} finally {
-			setOverviewLoading(false);
+			if (generation === overviewGenerationRef.current)
+				setOverviewLoading(false);
 		}
 	}, [resetAccountData]);
 

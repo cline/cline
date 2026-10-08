@@ -143,6 +143,47 @@ describe("AccountView signed-out state", () => {
 		).toHaveLength(2);
 	});
 
+	it("ignores an earlier account error after sign-in retry succeeds", async () => {
+		let rejectOldOverview!: (error: Error) => void;
+		const oldOverview = new Promise((_, reject) => {
+			rejectOldOverview = reject;
+		});
+		let signInCount = 0;
+		let overviewCount = 0;
+		invoke.mockImplementation(async (command, args) => {
+			if (command === "run_provider_oauth_login" && ++signInCount === 1)
+				throw new Error("Sign-in failed");
+			if (args?.operation === "fetchMe") {
+				if (++overviewCount === 1)
+					return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
+				if (overviewCount === 2) return await oldOverview;
+				return { displayName: "Beatrix", organizations: [] };
+			}
+			if (args?.operation === "fetchBalance") return { balance: 5_000_000 };
+			if (args?.operation === "fetchUserOrganizations") return [];
+			return {};
+		});
+		await act(async () => root.render(<AccountView />));
+		const signIn = () => {
+			const button = Array.from(container.querySelectorAll("button")).find(
+				(button) => button.textContent === "Sign in",
+			);
+			expect(button).toBeDefined();
+			button?.click();
+		};
+		await act(async () => signIn());
+		expect(overviewCount).toBe(2);
+		await act(async () => signIn());
+		expect(container.textContent).toContain("Beatrix");
+		expect(container.textContent).toContain("Sign Out");
+		await act(async () =>
+			rejectOldOverview(new Error("Account request failed with status 401")),
+		);
+		expect(container.textContent).toContain("Beatrix");
+		expect(container.textContent).toContain("Sign Out");
+		expect(container.textContent).not.toContain("Sign in to Cline");
+	});
+
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {
 		invoke.mockResolvedValue({
 			signedIn: false,
