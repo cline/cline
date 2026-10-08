@@ -1116,6 +1116,35 @@ each segment's `leadAgentId` to separate root hook lines from subagent and
 teammate lines. Version 1 bundles migrate on read. Subagent and teammate model
 calls and approvals, and compaction summarizer calls, are not recorded yet.
 
+### Session replay source and comparison
+
+Replay reads recordings through two pieces in `core/src/session/replay`, and
+nothing in `@cline/agents` knows about either:
+
+- `SessionReplaySource` (`createSessionReplaySource`, `openSessionReplaySource`)
+  answers what the loop would ask a recording: the recorded model response for
+  a request (the lowest-`callIndex` unconsumed record with the same
+  `matchKey`, else a fallback by call index or run/iteration/attempt), the
+  next recorded result for a `toolCallId`, the decisions recorded before a
+  `seq`, and the `metadata.toolEnvironment` facts of a tool call. Served items
+  are consumed, so retried requests and reused tool call ids resolve to
+  successive records. Requests are described with `describeLiveModelRequest`,
+  which hashes exactly as the recorder does.
+- `compareSessionReplayIteration` / `compareSessionReplaySessions` compare
+  iterations structurally (parsed messages, canonical JSON, messages aligned by
+  content hash) and report divergences of kind `request-model`,
+  `request-system-prompt`, `request-tools`, `request-messages`,
+  `assistant-text`, `tool-calls`, `tool-results`, `decisions` and
+  `iteration-count`, each with per-entry content hashes and excerpts. Callers
+  choose which kinds count; uncounted divergences are still reported.
+
+Both take a strictness. `strict` sources throw `SessionReplayMismatchError` on
+a request that is neither an exact nor a field-order-equivalent match, and on
+misses; `strict` reports set `failed` when a counted kind diverged. `lenient`
+sources serve the fallback record with its divergences and return misses, and
+`lenient` reports never fail. The CLI exposes the comparison as
+`cline session diff <recorded> <live>`.
+
 ### Configured subagent approvals
 
 Configured subagents execute their available tools without inheriting the parent
