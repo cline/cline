@@ -3558,12 +3558,15 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		const stopping = manager.stopSession(sessionId);
-		// A prompt queued while teardown is in progress must not run either.
-		await manager.runTurn({
-			sessionId,
-			prompt: "queued during stop",
-			delivery: "queue",
-		});
+		// A prompt sent while teardown is in progress is refused, so the
+		// caller can report the loss instead of showing it as queued.
+		await expect(
+			manager.runTurn({
+				sessionId,
+				prompt: "queued during stop",
+				delivery: "queue",
+			}),
+		).rejects.toThrow("is shutting down");
 		await stopping;
 		await expect(firstTurn).resolves.toMatchObject({
 			finishReason: "aborted",

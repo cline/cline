@@ -1091,6 +1091,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		// Resolving undefined here would look like an accepted queued prompt
+		// to the caller, who could not tell the user that the input was lost.
+		if (session.shuttingDown) {
+			throw new Error(`Session ${input.sessionId} is shutting down`);
+		}
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
