@@ -2852,6 +2852,9 @@ function ChatThreadPane({
 						onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 						workIn={workIn}
 						terminalToggle={terminalToggle}
+						bottomInset={
+							terminalEnabled && terminal?.open ? terminal.height : 0
+						}
 					/>
 				</AttachmentDropZone>
 				{terminalEnabled && terminal?.open ? (

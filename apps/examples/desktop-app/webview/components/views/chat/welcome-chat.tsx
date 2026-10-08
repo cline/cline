@@ -80,6 +80,7 @@ export function WelcomeScreen({
 	onWorkInChange,
 	onOpenSession,
 	terminalToggle,
+	bottomInset = 0,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -102,8 +103,22 @@ export function WelcomeScreen({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 	/** Rendered at the end of the workspace controls row. */
 	terminalToggle?: ReactNode;
+	/** Height taken from the pane below (the terminal drawer). */
+	bottomInset?: number;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
+	// The welcome column pads the hero from the top of the window, so a drawer
+	// opening underneath pushes the composer below the fold; bring it back.
+	const composerRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (!active || bottomInset <= 0) return;
+		// After layout: the hero and composer settle their size a frame later
+		// on a fresh mount.
+		const frame = window.requestAnimationFrame(() => {
+			composerRef.current?.scrollIntoView({ block: "end" });
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [active, bottomInset]);
 	const cloudScope = user
 		? JSON.stringify([
 				getClineEnvironmentConfig().appBaseUrl,
@@ -468,7 +483,7 @@ export function WelcomeScreen({
 			welcome={active}
 			body={body}
 			bodyClassName="cline-view-enter"
-			composer={composer}
+			composer={<div ref={composerRef}>{composer}</div>}
 			notice={notice && !showCloudOnboarding ? notice : null}
 			hideWelcomeComposer={showCloudOnboarding}
 			welcomeHeader={

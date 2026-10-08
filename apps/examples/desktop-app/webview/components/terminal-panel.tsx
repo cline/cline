@@ -80,7 +80,9 @@ function TerminalPanelForCwd({
 			onCloseRef.current();
 			return;
 		}
-		createTerminalTab(cwd);
+		// Re-check the store: StrictMode replays this effect before the
+		// subscription has delivered the tab created by the first run.
+		if (listTerminalTabs(cwd).length === 0) createTerminalTab(cwd);
 	}, [cwd, tabs.length]);
 
 	useEffect(() => {
@@ -94,11 +96,18 @@ function TerminalPanelForCwd({
 		activeTab.fit.fit();
 		void spawnTerminalTab(activeTab);
 		activeTab.term.focus();
+		// A tab coming back from a detached element has stale row layout
+		// until xterm redraws it.
+		const frame = window.requestAnimationFrame(() => {
+			activeTab.fit.fit();
+			activeTab.term.refresh(0, activeTab.term.rows - 1);
+		});
 		const observer = new ResizeObserver(() => {
 			window.requestAnimationFrame(() => activeTab.fit.fit());
 		});
 		observer.observe(host);
 		return () => {
+			window.cancelAnimationFrame(frame);
 			observer.disconnect();
 			// Leave the element in the store, not in a stale host.
 			activeTab.element.remove();
@@ -149,17 +158,17 @@ function TerminalPanelForCwd({
 	return (
 		<section
 			aria-label="Terminal"
-			className="relative flex shrink-0 flex-col border-t border-border/70 bg-sidebar/50"
+			className="relative flex shrink-0 flex-col border-t border-border/70 bg-background"
 			style={{ height }}
 		>
 			<div
 				aria-hidden="true"
-				className="group absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize"
+				className="group absolute inset-x-0 -top-1.5 z-10 h-3 cursor-row-resize"
 				onPointerDown={handleResizeStart}
 			>
 				<div className="absolute left-1/2 top-1/2 h-[3px] w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border transition-colors group-hover:bg-primary/60" />
 			</div>
-			<div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 px-2">
+			<div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 bg-sidebar/50 px-2">
 				<div className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
 					{tabs.map((tab) => (
 						<TerminalTabButton

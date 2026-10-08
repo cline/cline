@@ -101,6 +101,10 @@ function resolveCssColor(value: string, fallback: string): string {
 export function readTerminalTheme(): ITheme {
 	const styles = getComputedStyle(document.documentElement);
 	const dark = document.documentElement.classList.contains("dark");
+	const background = resolveCssColor(
+		styles.getPropertyValue("--background"),
+		dark ? "#09090b" : "#ffffff",
+	);
 	const foreground = resolveCssColor(
 		styles.getPropertyValue("--foreground"),
 		dark ? "#e4e4e7" : "#18181b",
@@ -114,7 +118,7 @@ export function readTerminalTheme(): ITheme {
 		dark ? "#a1a1aa" : "#71717a",
 	);
 	return {
-		background: "rgba(0, 0, 0, 0)",
+		background,
 		foreground,
 		cursor: primary,
 		cursorAccent: dark ? "#000000" : "#ffffff",
@@ -150,7 +154,6 @@ export function createTerminalTab(cwd: string): TerminalTab {
 	const existing = tabsByCwd.get(key) ?? [];
 	const term = new Terminal({
 		allowProposedApi: true,
-		allowTransparency: true,
 		cursorBlink: true,
 		cursorStyle: "bar",
 		fontFamily: readMonoFontFamily(),
