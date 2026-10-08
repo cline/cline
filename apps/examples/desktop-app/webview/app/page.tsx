@@ -68,8 +68,7 @@ import type {
 } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
-import { usePendingAttachments } from "@/hooks/use-pending-attachments";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import {
 	resolveLiveHistorySession,
@@ -350,7 +349,7 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 export default function Home() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
-	const { current: promptDrafts } = useRef(new Map<string, string>());
+	const { current: promptDrafts } = useRef(new Map<string, PromptDraft>());
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
@@ -1391,7 +1390,7 @@ function ChatThreadPane({
 	onHandoffUiAction,
 }: {
 	threadId: string;
-	promptDrafts: Map<string, string>;
+	promptDrafts: Map<string, PromptDraft>;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
@@ -1487,13 +1486,16 @@ function ChatThreadPane({
 		}
 	}, [onThreadStarted, sessionId, threadId]);
 	const {
+		draftRef,
+		pendingAttachments,
+		setPendingAttachments,
+		restoreHandoffRetry,
 		clearPromptForSend,
 		promptDraft,
 		promptInputRef,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
-	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -1682,8 +1684,6 @@ function ChatThreadPane({
 	const [uncertainFollowUp, setUncertainFollowUp] =
 		useState<CloudHandoffFollowUp | null>(null);
 	const [updatingFollowUp, setUpdatingFollowUp] = useState(false);
-	const restoredFollowUpIdRef = useRef<string | undefined>(undefined);
-	const lastRestoredFollowUpIdRef = useRef<string | undefined>(undefined);
 	const followUpSessionRef = useRef(sessionId);
 	followUpSessionRef.current = sessionId;
 	const followUpReadRef = useRef(0);
@@ -1727,8 +1727,8 @@ function ChatThreadPane({
 						expected: uncertainFollowUp,
 						canRestore,
 						restore: (draft, attachments, draftId) => {
-							restoredFollowUpIdRef.current = draftId;
-							lastRestoredFollowUpIdRef.current = draftId;
+							draftRef.current.handoffFollowUpId = draftId;
+							draftRef.current.lastRestoredFollowUpId = draftId;
 							setPromptInput(draft);
 							setPendingAttachments(attachments);
 						},
@@ -1755,6 +1755,7 @@ function ChatThreadPane({
 		[
 			sessionId,
 			uncertainFollowUp,
+			draftRef,
 			updatingFollowUp,
 			isThreadActive,
 			promptInputRef,
@@ -2245,10 +2246,9 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId, setPendingAttachments]);
+	}, [historySession, manualTitle, reset, threadId]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -2257,18 +2257,17 @@ function ChatThreadPane({
 		const hasInitialComposerState =
 			initialPromptDraft !== undefined || initialAttachments !== undefined;
 		if (hasInitialComposerState) {
-			// Keep a remounted pane's cached draft, but only link the follow-up when restoring it.
 			const preserveComposer =
 				historySession.origin === "cloud" &&
 				shouldPreserveCloudComposer(
 					promptInputRef.current,
 					attachmentCountRef.current,
-					lastRestoredFollowUpIdRef.current,
+					draftRef.current.lastRestoredFollowUpId,
 					initialHandoffFollowUpId,
 				);
 			if (!preserveComposer) {
-				restoredFollowUpIdRef.current = initialHandoffFollowUpId;
-				lastRestoredFollowUpIdRef.current = initialHandoffFollowUpId;
+				draftRef.current.handoffFollowUpId = initialHandoffFollowUpId;
+				draftRef.current.lastRestoredFollowUpId = initialHandoffFollowUpId;
 				setPromptInput(initialPromptDraft ?? "");
 				setPendingAttachments(
 					initialAttachments ? [...initialAttachments] : [],
@@ -2284,15 +2283,13 @@ function ChatThreadPane({
 			// Opening the current live session's sidebar row now reuses this pane.
 			// Don't reset its stream/attachments just to hydrate the same session.
 			if (historySession.sessionId === sessionId) return;
-			restoredFollowUpIdRef.current = undefined;
-			lastRestoredFollowUpIdRef.current = undefined;
-			setPendingAttachments([]);
 		}
 		setManualTitle(getSessionMetadataTitle(historySession.metadata));
 		void hydrateSession(historySession);
 	}, [
 		historySession,
 		hydrateSession,
+		draftRef,
 		initialAttachments,
 		initialPromptDraft,
 		initialHandoffFollowUpId,
@@ -2348,37 +2345,12 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
-	// Hydrate first, then restore a failed handoff's draft and attachments. If
-	// this ran above the hydration effect, hydration would immediately wipe the
-	// only retained retry payload after navigation back to the source session.
-	const restoredHandoffRetryRef = useRef<{
-		sourceSessionId: string;
-		draft?: string;
-		attachments?: File[];
-	} | null>(null);
 	useEffect(() => {
-		if (!sourceSessionId || !handoffRetry) {
-			restoredHandoffRetryRef.current = null;
-			return;
-		}
-		const restored = restoredHandoffRetryRef.current;
-		if (
-			restored?.sourceSessionId === sourceSessionId &&
-			restored.draft === handoffRetry.draft &&
-			restored.attachments === handoffRetry.attachments
-		) {
-			return;
-		}
-		restoredHandoffRetryRef.current = {
-			sourceSessionId,
-			draft: handoffRetry.draft,
-			attachments: handoffRetry.attachments,
-		};
-		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
-		if (handoffRetry.attachments?.length) {
-			setPendingAttachments([...handoffRetry.attachments]);
-		}
-		if (handoffUi?.status !== "retry_restored") {
+		if (!sourceSessionId) return;
+		const restored = restoreHandoffRetry(
+			handoffRetry ? { sourceSessionId, ...handoffRetry } : undefined,
+		);
+		if (restored && handoffUi?.status !== "retry_restored") {
 			onHandoffUiAction({
 				type: "retry_restored",
 				sourceSessionId,
@@ -2388,8 +2360,7 @@ function ChatThreadPane({
 		handoffRetry,
 		handoffUi?.status,
 		onHandoffUiAction,
-		setPendingAttachments,
-		setPromptInput,
+		restoreHandoffRetry,
 		sourceSessionId,
 	]);
 
@@ -2452,18 +2423,6 @@ function ChatThreadPane({
 				toast({
 					title: "Already in Cline Cloud",
 					description: "Handoff is available from local sessions.",
-				});
-				return;
-			}
-			// A PENDING handoff must stay retryable after either gate flips
-			// off — the source session's normal actions are blocked by the
-			// pending guard, so gating the retry here would lock it forever.
-			// The sidecar applies the same recovery exemption on its side.
-			if (!cloudHandoffAvailable && !handoffRetryEligible) {
-				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
-				toast({
-					title: "Cloud handoff is not available",
-					description: "Enable Cloud sessions in Settings before using /cloud.",
 				});
 				return;
 			}
@@ -2587,10 +2546,8 @@ function ChatThreadPane({
 			}
 		},
 		[
-			cloudHandoffAvailable,
 			confirmHandoffGit,
 			config,
-			handoffRetryEligible,
 			handoffLifecycle,
 			historySession?.sessionId,
 			isCloudSession,
@@ -2637,11 +2594,11 @@ function ChatThreadPane({
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			const restorePrompt = clearPromptForSend();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			const restoredFollowUpId = restoredFollowUpIdRef.current;
-			restoredFollowUpIdRef.current = undefined;
+			const finishPromptSend = clearPromptForSend();
+			const restoredFollowUpId = draftRef.current.handoffFollowUpId;
+			draftRef.current.handoffFollowUpId = undefined;
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 				handoffFollowUpId: restoredFollowUpId,
@@ -2653,17 +2610,25 @@ function ChatThreadPane({
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping, but only if this pane still owns the unchanged draft.
-			if (!promptTaken && restorePrompt(trimmed)) {
+			const followUpNotDispatched =
+				savedFollowUp?.draftId === restoredFollowUpId &&
+				Boolean(savedFollowUp && !savedFollowUp.unconfirmed);
+			if (
+				finishPromptSend(
+					!promptTaken || followUpNotDispatched ? trimmed : undefined,
+				)
+			) {
 				if (
 					savedFollowUp === undefined ||
 					savedFollowUp?.draftId === restoredFollowUpId
 				)
-					restoredFollowUpIdRef.current = restoredFollowUpId;
+					draftRef.current.handoffFollowUpId = restoredFollowUpId;
 				handleAttachFiles(toSend);
 			}
 		},
 		[
 			clearPromptForSend,
+			draftRef,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
