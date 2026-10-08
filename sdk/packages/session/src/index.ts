@@ -1,4 +1,26 @@
 export {
+	ATIF_SCHEMA_VERSION,
+	type AtifAgent,
+	type AtifContent,
+	type AtifContentPart,
+	type AtifExtra,
+	type AtifFinalMetrics,
+	type AtifImageSource,
+	type AtifMetrics,
+	type AtifObservation,
+	type AtifObservationResult,
+	type AtifStep,
+	type AtifStepSource,
+	type AtifSubagentTrajectoryRef,
+	type AtifToolCall,
+	type AtifTrajectory,
+} from "./atif/atif-types";
+export {
+	type AtifValidationOptions,
+	type AtifValidationResult,
+	validateAtifTrajectory,
+} from "./atif/atif-validate";
+export {
 	type ExportSessionReplayBundleOptions,
 	type ExportSessionReplayBundleResult,
 	exportSessionReplayBundle,
