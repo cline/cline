@@ -135,20 +135,23 @@ set -euo pipefail
 # Remove reviews from an earlier run
 rm -f gemini-review.md gpt-review.md opus-review.md
 
-# Run all reviews simultaneously
+# Run all reviews simultaneously, and save each one's process ID
 git show | cline --auto-approve true --config ~/.cline-gemini "review and save to gemini-review.md" &
+pids=($!)
 git show | cline --auto-approve true --config ~/.cline-gpt "review and save to gpt-review.md" &
+pids+=($!)
 git show | cline --auto-approve true --config ~/.cline-opus "review and save to opus-review.md" &
+pids+=($!)
 
 # Wait for each review, and stop if one failed
-for pid in $(jobs -p); do wait "$pid"; done
+for pid in "${pids[@]}"; do wait "$pid"; done
 
 # Synthesize
 cat gemini-review.md gpt-review.md opus-review.md | cline --auto-approve true "create consensus review"
 ```
 
 <Note>
-Each `cline` command runs as its own process, so the reviews run at the same time. Give each one a different output file, as above, so that they don't write over each other. `wait` on its own succeeds even when a review fails, so the script waits for each review by its process ID.
+Each `cline` command runs as its own process, so the reviews run at the same time. Give each one a different output file, as above, so that they don't write over each other. `wait` on its own succeeds even when a review fails, so the script saves each review's process ID as it starts and waits for each one. Don't loop over `jobs -p` instead: in the bash 3.2 that macOS ships as `/bin/bash`, it leaves out reviews that have already finished, so a review that fails quickly would be missed.
 </Note>
 
 ## Extended Thinking for Complex Tasks
@@ -209,11 +212,14 @@ final_answer() { jq -r 'select(.type == "run_result") | .text'; }
 
 # Different models have different security perspectives
 git diff main | cline --auto-approve true --json --config ~/.cline-gemini "security review" | final_answer > gemini-sec.md &
+pids=($!)
 git diff main | cline --auto-approve true --json --config ~/.cline-opus "security review" | final_answer > opus-sec.md &
+pids+=($!)
 git diff main | cline --auto-approve true --json --config ~/.cline-gpt "security review" | final_answer > gpt-sec.md &
+pids+=($!)
 
 # Wait for each review, and stop if one failed
-for pid in $(jobs -p); do wait "$pid"; done
+for pid in "${pids[@]}"; do wait "$pid"; done
 
 # High-priority: Issues all 3 models found
 cat gemini-sec.md opus-sec.md gpt-sec.md | cline --auto-approve true "find security issues all 3 reviews mentioned"
