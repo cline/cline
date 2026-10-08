@@ -57,8 +57,12 @@ import {
  * that share a name (Figma) read as different things rather than duplicates.
  */
 
-/** Ordered most-mature first: skills > MCP servers > plugins. */
-const MATURITY_ORDER: MarketplacePrimitiveType[] = ["skill", "mcp", "plugin"];
+/**
+ * Ordered most-mature first: skills > MCP servers. Only these types are shown;
+ * plugins are temporarily hidden while plugin support is broken — add "plugin"
+ * back here to surface them again.
+ */
+const MATURITY_ORDER: MarketplacePrimitiveType[] = ["skill", "mcp"];
 
 export type MarketplaceTypeFilter = MarketplacePrimitiveType | "connector";
 
@@ -175,7 +179,12 @@ function useMarketplaceDirectory(): MarketplaceDirectory {
 			try {
 				const nextCatalog = await fetchMarketplaceCatalog();
 				if (!cancelled) {
-					setCatalog(nextCatalog);
+					setCatalog({
+						...nextCatalog,
+						entries: nextCatalog.entries.filter((entry) =>
+							MATURITY_ORDER.includes(entry.type),
+						),
+					});
 					setErrorMessage(null);
 				}
 			} catch (error) {
