@@ -38,6 +38,14 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 | `@cline/ui/theme/index.css` | Complete theme: tokens, Tailwind mapping, and base styles | Tailwind v4 |
 | `@cline/ui/components/agent-chat` | Conversation, message, reasoning, action, and tool-activity React primitives | React 18.3 or 19 |
 | `@cline/ui/components/agent-chat.css` | Framework-neutral styles for the agent-chat primitives | Theme tokens |
+| `@cline/ui/components/message-scroller` | Shadcn message scrolling, turn anchors, visibility hooks, and centered scroll controls | React 19 |
+| `@cline/ui/components/message-scroller.css` | Framework-neutral scroller styles (also included in `components.css`) | Theme tokens |
+
+`MessageScroller` composes `@shadcn/react/message-scroller`. It provides turn
+anchoring, streaming follow behavior, message jumps, and visibility tracking.
+The dedicated entry point requires React 19; see the
+[message scroller guide](./ADOPTION.md#message-scroller) for composition and
+transcript outline examples.
 
 `SessionStatus` uses semantic tone colors by default. Set
 `--cline-ui-session-status-color` on the component to override its dot color
