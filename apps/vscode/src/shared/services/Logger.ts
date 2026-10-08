@@ -1,6 +1,11 @@
 /**
  * Simple Logger utility for the extension's backend code.
  */
+// Sinks may be async; the resolved value is ignored, but the sink's return
+// type must still be typeable — e.g. the gRPC debugLog bridge resolves its
+// `Empty` message.
+type LogSink = (msg: string) => void | PromiseLike<unknown>
+
 export class Logger {
 	// Production bundles replace `process.env.IS_DEV` with "false" at build time.
 	// Read lazily so tests can toggle it.
@@ -8,12 +13,16 @@ export class Logger {
 		return process.env.IS_DEV === "true"
 	}
 
-	private static subscribers: Set<(msg: string) => void> = new Set()
+	private static subscribers: Set<LogSink> = new Set()
 
 	private static output(msg: string): void {
 		for (const subscriber of Logger.subscribers) {
 			try {
-				subscriber(msg)
+				const result = subscriber(msg)
+				if (result) {
+					// A failed sink must not feed another message into that same sink.
+					Promise.resolve(result).catch(() => {})
+				}
 			} catch {
 				// ignore errors from subscribers
 			}
@@ -23,12 +32,17 @@ export class Logger {
 	/**
 	 * Register a callback to receive log output messages.
 	 */
-	static subscribe(outputFn: (msg: string) => void) {
+	static subscribe(outputFn: LogSink) {
 		Logger.subscribers.add(outputFn)
 	}
 
-	static unsubscribe(outputFn: (msg: string) => void) {
+	static unsubscribe(outputFn: LogSink) {
 		Logger.subscribers.delete(outputFn)
+	}
+
+	/** Detach output sinks before extension shutdown disposes their channels. */
+	static clearSubscribers(): void {
+		Logger.subscribers.clear()
 	}
 
 	static error(message: string, ...args: any[]) {
