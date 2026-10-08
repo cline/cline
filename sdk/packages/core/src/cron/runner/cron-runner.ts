@@ -705,6 +705,7 @@ export class CronRunner {
 						enableSpawn?: boolean;
 						enableTeams?: boolean;
 						autoApproveTools?: boolean;
+						recording?: { enabled?: boolean };
 					})
 				: undefined;
 		const cwd =
@@ -739,6 +740,9 @@ export class CronRunner {
 			configExtensions: DEFAULT_CRON_EXTENSIONS.filter((extension) =>
 				cronExtensionEnabled(spec, extension),
 			),
+			...(runtimeOptions?.recording?.enabled === true
+				? { recording: { enabled: true } }
+				: {}),
 		};
 	}
 }

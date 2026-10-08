@@ -864,6 +864,8 @@ export interface HubSessionRuntimeOptions {
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
 	autoApproveTools?: boolean;
+	/** Record sessions started from this schedule for replay. */
+	recording?: { enabled?: boolean };
 	configExtensions?: RuntimeConfigExtensionKind[];
 	clientContributions?: HubClientContribution[];
 }

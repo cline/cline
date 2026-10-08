@@ -404,6 +404,37 @@ describe("CronRunner", () => {
 		);
 	});
 
+	it("records hub schedule runs only when the schedule asks for it", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const schedule = (name: string, recording?: { enabled: boolean }) =>
+			store.createHubSchedule({
+				name,
+				cronPattern: "0 2 * * *",
+				prompt: "Do it",
+				workspaceRoot,
+				...(recording ? { runtimeOptions: { recording } } : {}),
+			});
+		const recorded = schedule("recorded", { enabled: true });
+		const plain = schedule("plain");
+		requireValue(store.enqueueHubScheduleRun(recorded.externalId));
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		requireValue(store.enqueueHubScheduleRun(plain.externalId));
+		await runner.tick();
+		await runner.dispose();
+
+		expect(calls.startRequests.map((request) => request.recording)).toEqual([
+			{ enabled: true },
+			undefined,
+		]);
+	});
+
 	it("marks runs failed when the runtime throws", async () => {
 		const capture = vi.fn();
 		const handlers: HubScheduleRuntimeHandlers = {

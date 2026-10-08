@@ -31,6 +31,8 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
 	toolExecutors?: HubToolExecutorName[];
 	configExtensions?: RuntimeConfigExtensionKind[];
+	/** Record the session for replay. Only the hub records sessions. */
+	recording?: { enabled?: boolean };
 }
 
 export interface RuntimeLoggerConfig {
