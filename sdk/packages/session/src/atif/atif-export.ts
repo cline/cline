@@ -1243,52 +1243,87 @@ function roundCost(value: number | undefined): number | undefined {
 	return value === undefined ? undefined : Math.round(value * 1e12) / 1e12;
 }
 
+const USAGE_TOTAL_KEYS = [
+	"total_prompt_tokens",
+	"total_completion_tokens",
+	"total_cached_tokens",
+	"total_cost_usd",
+	"cache_creation_input_tokens",
+] as const;
+
+type UsageTotals = Partial<
+	Record<(typeof USAGE_TOTAL_KEYS)[number], number | null>
+>;
+
+function addTotals(
+	totals: readonly UsageTotals[],
+): Partial<Record<(typeof USAGE_TOTAL_KEYS)[number], number>> {
+	const result: Partial<Record<(typeof USAGE_TOTAL_KEYS)[number], number>> = {};
+	for (const key of USAGE_TOTAL_KEYS) {
+		for (const entry of totals) {
+			const value = entry[key];
+			if (typeof value === "number") result[key] = (result[key] ?? 0) + value;
+		}
+	}
+	if (result.total_cost_usd !== undefined) {
+		result.total_cost_usd = roundCost(result.total_cost_usd);
+	}
+	return result;
+}
+
+function stepTotals(metrics: AtifMetrics): UsageTotals {
+	const cacheWrite = metrics.extra?.cache_creation_input_tokens;
+	return {
+		total_prompt_tokens: metrics.prompt_tokens,
+		total_completion_tokens: metrics.completion_tokens,
+		total_cached_tokens: metrics.cached_tokens,
+		total_cost_usd: metrics.cost_usd,
+		cache_creation_input_tokens:
+			typeof cacheWrite === "number" ? cacheWrite : undefined,
+	};
+}
+
+function trajectoryTotals(trajectory: AtifTrajectory): UsageTotals {
+	const metrics = trajectory.final_metrics;
+	const cacheWrite = metrics?.extra?.cache_creation_input_tokens;
+	return {
+		total_prompt_tokens: metrics?.total_prompt_tokens,
+		total_completion_tokens: metrics?.total_completion_tokens,
+		total_cached_tokens: metrics?.total_cached_tokens,
+		total_cost_usd: metrics?.total_cost_usd,
+		cache_creation_input_tokens:
+			typeof cacheWrite === "number" ? cacheWrite : undefined,
+	};
+}
+
+/**
+ * Totals cover the whole run: this trajectory's steps plus its embedded
+ * subagents (whose own totals already include their descendants), as
+ * Harbor's agents report them. With subagents, `extra` splits the totals
+ * into `own_metrics` and `subagent_metrics`.
+ */
 function finalMetrics(
 	steps: readonly AtifStep[],
 	subagents: readonly AtifTrajectory[],
 ): AtifFinalMetrics {
-	const sum = (pick: (metrics: AtifMetrics) => unknown) => {
-		let total: number | undefined;
-		for (const step of steps) {
-			const value = step.metrics ? pick(step.metrics) : undefined;
-			if (typeof value === "number") total = (total ?? 0) + value;
-		}
-		return total;
-	};
-	const ownCost = roundCost(sum((metrics) => metrics.cost_usd));
-	const subagentCosts = subagents
-		.map((sub) => sub.final_metrics?.total_cost_usd)
-		.filter((value): value is number => typeof value === "number");
-	const subagentCost = roundCost(
-		subagentCosts.length > 0
-			? subagentCosts.reduce((total, value) => total + value, 0)
-			: undefined,
+	const own = addTotals(
+		steps.flatMap((step) => (step.metrics ? [stepTotals(step.metrics)] : [])),
 	);
-	const totalCost = roundCost(
-		ownCost === undefined && subagentCost === undefined
-			? undefined
-			: (ownCost ?? 0) + (subagentCost ?? 0),
-	);
-	const cacheWrite = sum(
-		(metrics) => metrics.extra?.cache_creation_input_tokens,
-	);
-	return {
-		...nonEmpty({
-			total_prompt_tokens: sum((metrics) => metrics.prompt_tokens),
-			total_completion_tokens: sum((metrics) => metrics.completion_tokens),
-			total_cached_tokens: sum((metrics) => metrics.cached_tokens),
-			total_cost_usd: totalCost,
-		}),
-		total_steps: steps.length,
-		...(cacheWrite !== undefined || subagentCost !== undefined
-			? {
-					extra: nonEmpty({
-						cache_creation_input_tokens: cacheWrite,
-						own_cost_usd: subagentCost !== undefined ? ownCost : undefined,
-						subagent_cost_usd: subagentCost,
-					}),
-				}
+	const fromSubagents = addTotals(subagents.map(trajectoryTotals));
+	const { cache_creation_input_tokens: cacheWrite, ...totals } = addTotals([
+		own,
+		fromSubagents,
+	]);
+	const extra = nonEmpty({
+		cache_creation_input_tokens: cacheWrite,
+		...(subagents.length > 0
+			? { own_metrics: own, subagent_metrics: fromSubagents }
 			: {}),
+	});
+	return {
+		...nonEmpty({ ...totals }),
+		total_steps: steps.length,
+		...(extra ? { extra } : {}),
 	};
 }
 

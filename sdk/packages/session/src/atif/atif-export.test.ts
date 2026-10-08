@@ -425,10 +425,29 @@ describe("exportSessionReplayBundleToAtif", () => {
 			"agent",
 			"agent",
 		]);
-		expect(trajectory.final_metrics?.total_cost_usd).toBe(0.0018);
-		expect(trajectory.final_metrics?.extra).toEqual({
-			own_cost_usd: 0.0015,
-			subagent_cost_usd: 0.0003,
+		expect(child?.final_metrics).toEqual({
+			total_prompt_tokens: 90,
+			total_completion_tokens: 9,
+			total_cost_usd: 0.0003,
+			total_steps: 3,
+		});
+		expect(trajectory.final_metrics).toEqual({
+			total_prompt_tokens: 340,
+			total_completion_tokens: 35,
+			total_cost_usd: 0.0018,
+			total_steps: 3,
+			extra: {
+				own_metrics: {
+					total_prompt_tokens: 250,
+					total_completion_tokens: 26,
+					total_cost_usd: 0.0015,
+				},
+				subagent_metrics: {
+					total_prompt_tokens: 90,
+					total_completion_tokens: 9,
+					total_cost_usd: 0.0003,
+				},
+			},
 		});
 	});
 
