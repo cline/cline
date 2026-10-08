@@ -32,6 +32,15 @@ vi.mock("../utils/telemetry", () => ({
 	getCliTelemetryService,
 }));
 
+const ensureCliHubServer = vi.fn(async () => ({
+	url: "ws://127.0.0.1:25463/hub",
+	authToken: "hub-token",
+}));
+
+vi.mock("../utils/hub-runtime", () => ({
+	ensureCliHubServer,
+}));
+
 describe("createCliCore", () => {
 	let sessionModule: typeof import("./session");
 	const envSnapshot = {
@@ -49,6 +58,7 @@ describe("createCliCore", () => {
 		resolveSessionBackend.mockReset();
 		resolveSessionBackend.mockResolvedValue({ kind: "backend" });
 		listSessionHistoryFromBackend.mockReset();
+		ensureCliHubServer.mockClear();
 		createCore.mockResolvedValue({
 			runtimeAddress: "127.0.0.1:25463",
 			featureFlags: {
@@ -258,7 +268,30 @@ describe("createCliCore", () => {
 				backendMode: "env-managed",
 				rpcAddress: "127.0.0.1:25463",
 				forceLocalBackend: false,
+				recordSession: false,
 			},
+		);
+		expect(ensureCliHubServer).not.toHaveBeenCalled();
+	});
+
+	it("ensures the hub and routes recorded sessions through it, even when local is forced", async () => {
+		await sessionModule.createCliCore({
+			forceLocalBackend: true,
+			recordSession: true,
+			cwd: "/tmp/recorded-workspace",
+			workspaceRoot: "/tmp/recorded-workspace",
+		});
+
+		expect(ensureCliHubServer).toHaveBeenCalledWith("/tmp/recorded-workspace");
+		expect(createCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backendMode: "hub",
+				hub: expect.objectContaining({
+					endpoint: "ws://127.0.0.1:25463/hub",
+					authToken: "hub-token",
+					clientType: "cli",
+				}),
+			}),
 		);
 	});
 

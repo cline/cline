@@ -87,7 +87,7 @@ export function addRootOptions(cmd: Command): Command {
 			)
 			.option(
 				"--record-session",
-				"Record model requests, decisions and tool facts for replay (also: CLINE_RECORD_SESSIONS=1)",
+				"Record model requests, decisions and tool facts for replay (runs the session on the hub, starting it if needed)",
 			)
 			.option("--update", "Check for updates and install if available")
 			.option("--kanban", "Run the kanban app")

@@ -19,6 +19,7 @@ import {
 } from "../utils/enterprise";
 import { getCliFeatureFlagsService } from "../utils/feature-flags";
 import { resolveWorkspaceRoot } from "../utils/helpers";
+import { ensureCliHubServer } from "../utils/hub-runtime";
 import { getCliTelemetryService } from "../utils/telemetry";
 import type { ConversationHistory } from "./export";
 
@@ -34,15 +35,28 @@ export async function createCliCore(options?: {
 	logger?: BasicLogger;
 	backendMode?: RuntimeHostMode;
 	forceLocalBackend?: boolean;
+	/**
+	 * Sessions are recorded only by the hub, so this starts the hub when it
+	 * is not running and routes every session through it, overriding
+	 * `backendMode` and `forceLocalBackend`.
+	 */
+	recordSession?: boolean;
 	cwd?: string;
 	workspaceRoot?: string;
 }): Promise<ClineCore> {
-	const explicitBackendMode = options?.forceLocalBackend
-		? "local"
-		: options?.backendMode;
 	const cwd = options?.cwd?.trim() || process.cwd();
 	const workspaceRoot =
 		options?.workspaceRoot?.trim() || resolveWorkspaceRoot(cwd);
+	const recordingHub = options?.recordSession
+		? await ensureCliHubServer(workspaceRoot)
+		: undefined;
+	const forceLocalBackend =
+		!recordingHub && options?.forceLocalBackend === true;
+	const explicitBackendMode = recordingHub
+		? "hub"
+		: forceLocalBackend
+			? "local"
+			: options?.backendMode;
 	const telemetry = getCliTelemetryService(options?.logger);
 	const featureFlags = getCliFeatureFlagsService({
 		logger: options?.logger,
@@ -50,13 +64,19 @@ export async function createCliCore(options?: {
 	});
 	const core = await ClineCore.create({
 		...(explicitBackendMode ? { backendMode: explicitBackendMode } : {}),
-		...(options?.forceLocalBackend !== true
+		...(!forceLocalBackend
 			? {
 					hub: {
 						cwd,
 						workspaceRoot,
 						clientType: "cli",
 						displayName: "Cline CLI",
+						...(recordingHub
+							? {
+									endpoint: recordingHub.url,
+									authToken: recordingHub.authToken,
+								}
+							: {}),
 					},
 				}
 			: {}),
@@ -75,7 +95,8 @@ export async function createCliCore(options?: {
 	options?.logger?.log("CLI core runtime routing selected", {
 		backendMode: explicitBackendMode ?? "env-managed",
 		rpcAddress: core.runtimeAddress,
-		forceLocalBackend: options?.forceLocalBackend === true,
+		forceLocalBackend,
+		recordSession: recordingHub !== undefined,
 	});
 	return core;
 }

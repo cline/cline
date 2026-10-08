@@ -804,6 +804,22 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
+	if (args.recordSession) {
+		const { recordSessionUnsupportedReason } = await import(
+			"./runtime/record-session"
+		);
+		const reason = recordSessionUnsupportedReason({
+			acp: args.acpMode === true,
+			sandbox: !!args.dataDir || process.env.CLINE_SANDBOX?.trim() === "1",
+			backendMode: process.env.CLINE_SESSION_BACKEND_MODE,
+		});
+		if (reason) {
+			writeErr(reason);
+			process.exitCode = 1;
+			return;
+		}
+	}
+
 	// ACP mode: mutually exclusive with interactive/piped modes.
 	// Enters the Agent Client Protocol stdio transport and never falls through.
 	if (args.acpMode) {
