@@ -151,8 +151,11 @@ export interface SdkCloudSessionCoordinatorOptions {
 	setTask: (task: TaskProxy | undefined) => void
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	onCancelTask: () => Promise<void>
-	/** Ends the current task view (local or cloud) before a cloud task is installed. */
-	clearTask: () => Promise<void>
+	/**
+	 * Ends the current task view (local or cloud) before a cloud task is
+	 * installed, and returns the fence of the task-view claim it made.
+	 */
+	clearTask: () => Promise<() => boolean>
 	/**
 	 * A cloud start failed before it had a session and `task` now shows the
 	 * error. The controller keeps `input` so the footer's Retry runs it again.
@@ -213,8 +216,16 @@ export class SdkCloudSessionCoordinator {
 	private startGeneration = 0
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
 	private pendingStart: AbortController | undefined
+	/** The sandbox the pending start created, once the control plane has named it. */
+	private pendingStartSessionId: string | undefined
 	/** The task view the pending start installed, once it has one. */
 	private pendingStartTask: TaskProxy | undefined
+	/**
+	 * Re-claims the task view for the pending start when the user returns to it,
+	 * so a selection made in between is rejected. False once the start has seen
+	 * that it lost the view and is cleaning up.
+	 */
+	private renewPendingStartView: (() => boolean) | undefined
 	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
 	private recommendedModelsWarmup: Promise<unknown> | undefined
 	private scopeTransition: Promise<void> | undefined
@@ -443,9 +454,12 @@ export class SdkCloudSessionCoordinator {
 		await this.refreshList()
 		if (this.scopeTransition) return []
 		const generation = this.scopeGeneration
-		const entries = [...this.entries.values()]
+		// The pending start's own task row already stands for its sandbox.
+		const pendingStartSessionId = this.pendingStartSessionId
+		const entries = [...this.entries.values()].filter((entry) => entry.record.id !== pendingStartSessionId)
 		await this.refreshUsage(entries)
-		if (generation !== this.scopeGeneration) {
+		// A start that settled meanwhile has invalidated History; omitting its row now would be cached as current.
+		if (generation !== this.scopeGeneration || pendingStartSessionId !== this.pendingStartSessionId) {
 			return this.listHistoryRecords()
 		}
 		return entries.map((entry) => this.toHistoryRecord(entry))
@@ -904,6 +918,7 @@ export class SdkCloudSessionCoordinator {
 		const pendingStart = new AbortController()
 		this.pendingStart = pendingStart
 		this.pendingStartTask = undefined
+		this.renewPendingStartView = undefined
 		// Snapshot the model now, before any await: it is what the composer was
 		// showing when the user submitted.
 		const modelId = this.nextCloudModelId()
@@ -922,7 +937,11 @@ export class SdkCloudSessionCoordinator {
 			} finally {
 				if (this.pendingStart === pendingStart) {
 					this.pendingStart = undefined
+					this.pendingStartSessionId = undefined
 					this.pendingStartTask = undefined
+					this.renewPendingStartView = undefined
+					// History omitted this start's record while it was pending.
+					this.options.invalidateHistoryCache()
 					// The failure path posts state while the start is still pending;
 					// re-post so the composer no longer sees "provisioning".
 					this.options.postStateToWebview().catch(() => {})
@@ -942,7 +961,9 @@ export class SdkCloudSessionCoordinator {
 			return false
 		}
 		this.pendingStart = undefined
+		this.pendingStartSessionId = undefined
 		this.pendingStartTask = undefined
+		this.renewPendingStartView = undefined
 		this.startGeneration++
 		pendingStart.abort(new Error("Cloud task cancelled while provisioning"))
 		return true
@@ -966,16 +987,26 @@ export class SdkCloudSessionCoordinator {
 		cancelSignal: AbortSignal,
 	): Promise<string | undefined> {
 		if (this.disposed || generation !== this.scopeGeneration || startGeneration !== this.startGeneration) return undefined
-		// clearTask bumps the task-view generation itself, so claim ours after it.
-		await this.options.clearTask()
-		if (this.disposed || generation !== this.scopeGeneration || startGeneration !== this.startGeneration) return undefined
-		const isSuperseded = this.options.claimTaskViewGeneration()
-		const isStale = () =>
-			this.disposed || isSuperseded() || generation !== this.scopeGeneration || startGeneration !== this.startGeneration
+		// Keep the claim clearTask made: claiming again after the await would
+		// override a selection the user made while the view was clearing.
+		let isSuperseded = await this.options.clearTask()
+		if (this.disposed || isSuperseded() || generation !== this.scopeGeneration || startGeneration !== this.startGeneration)
+			return undefined
+		let abandoned = false
+		const isStale = () => {
+			abandoned ||=
+				this.disposed || isSuperseded() || generation !== this.scopeGeneration || startGeneration !== this.startGeneration
+			return abandoned
+		}
 		const startedAt = Date.now()
 		const provisionalId = `${CLOUD_PROVISIONING_ID_PREFIX}${startedAt}`
 		const task = this.installTask(provisionalId)
 		this.pendingStartTask = task
+		this.renewPendingStartView = () => {
+			if (abandoned) return false
+			isSuperseded = this.options.claimTaskViewGeneration()
+			return true
+		}
 		const title = input.prompt.trim().split("\n")[0]?.trim().slice(0, 120) || input.prompt.trim()
 		const repoLabel = input.repoUrl.replace(/^https:\/\/github\.com\//, "")
 
@@ -1022,6 +1053,7 @@ export class SdkCloudSessionCoordinator {
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
 					sessionId = id
+					if (startGeneration === this.startGeneration) this.pendingStartSessionId = id
 					this.rememberPendingStart(id)
 				},
 				cancelSignal,
@@ -1130,6 +1162,26 @@ export class SdkCloudSessionCoordinator {
 	// ---- Reopening a task from History ----
 
 	async openCloudTask(sessionId: string): Promise<HistoryItem | undefined> {
+		const displayed = this.options.getTask()
+		if (
+			displayed &&
+			displayed === this.pendingStartTask &&
+			(sessionId === displayed.taskId || sessionId === this.pendingStartSessionId) &&
+			this.renewPendingStartView?.()
+		) {
+			// Back on the start that is already on screen: it keeps the view, and any
+			// selection still loading since is rejected instead of replacing it.
+			return {
+				id: sessionId,
+				ts: Date.now(),
+				task: "",
+				tokensIn: 0,
+				tokensOut: 0,
+				totalCost: 0,
+				executionTarget: "cloud",
+				cloudStatus: "provisioning",
+			}
+		}
 		const lookupWasSuperseded = this.options.claimTaskViewGeneration()
 		const generationBeforeTransition = this.scopeGeneration
 		await this.scopeTransition
@@ -1147,12 +1199,13 @@ export class SdkCloudSessionCoordinator {
 		}
 		const historyItem = sessionHistoryRecordToHistoryItem(record)
 
-		// clearTask bumps the task-view generation itself, so claim ours after it.
-		await this.options.clearTask()
-		const isSuperseded = this.options.claimTaskViewGeneration()
+		// Keep the claim clearTask made: claiming again after the await would
+		// override a selection the user made while the view was clearing.
+		const isSuperseded = await this.options.clearTask()
 		const generation = this.scopeGeneration
 		const isStale = () =>
 			this.disposed || isSuperseded() || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry
+		if (isStale()) return historyItem
 
 		// Pin the host so a concurrent status resolution or idle sweep does not
 		// close it between connecting and installing the task that owns it.

@@ -45,6 +45,7 @@ describe("opening a cloud session whose sandbox is gone", () => {
 			},
 			clearTask: async () => {
 				task = undefined
+				return () => false
 			},
 			claimTaskViewGeneration: () => () => false,
 			getAuthToken: async () => environment?.accessToken,
