@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	type MessageWithMetadata,
 	redactSensitiveData,
 	type SensitiveDataRedaction,
 } from "@cline/shared";
@@ -9,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	FIXTURE_SESSION_ID,
 	fixtureHookEntries,
+	fixtureMessages,
 	fixtureRecord,
 	fixtureSource,
 	writeHookLog,
@@ -86,6 +88,20 @@ describe("exportSessionReplayBundle", () => {
 			eventsSource: "session-log",
 			counts: { messages: 4, iterations: 2, events: 3 },
 			checkpoints: [{ ref: "abc123", runCount: 1 }],
+			iterations: [
+				{
+					index: 1,
+					checkpoint: {
+						ref: "abc123",
+						runCount: 1,
+						capture: "iteration-start",
+					},
+				},
+				{
+					index: 2,
+					checkpoint: { ref: "abc123", runCount: 1, capture: "run-start" },
+				},
+			],
 		});
 		expect(manifest.files.map((file) => [file.kind, file.path])).toEqual([
 			["transcript", `sessions/${FIXTURE_SESSION_ID}/transcript.json`],
@@ -191,6 +207,65 @@ describe("exportSessionReplayBundle", () => {
 			enabled: false,
 			removedCount: 0,
 		});
+	});
+
+	it("maps per-run checkpoints onto the iterations of each run", async () => {
+		// Runs 1 and 3 have checkpoints; run 2 (iteration 3) has none.
+		const messages: MessageWithMetadata[] = [
+			...fixtureMessages(),
+			{ id: "m5", role: "user", content: "Now count them" },
+			{ id: "m6", role: "assistant", content: "Two." },
+			{ id: "m7", role: "user", content: "Thanks" },
+			{ id: "m8", role: "assistant", content: "Anytime." },
+		];
+		const record = fixtureRecord({
+			metadata: {
+				checkpoint: {
+					latest: { ref: "run3", createdAt: 3, runCount: 3, kind: "commit" },
+					history: [
+						{ ref: "run1-old", createdAt: 1, runCount: 1, kind: "stash" },
+						{ ref: "run1", createdAt: 2, runCount: 1, kind: "stash" },
+						{ ref: "run3", createdAt: 3, runCount: 3, kind: "commit" },
+					],
+				},
+			},
+		});
+		const result = await exportSessionReplayBundle({
+			sessionId: FIXTURE_SESSION_ID,
+			outputDir: join(root, "bundle"),
+			source: fixtureSource({ record, messages }),
+			sessionsDir,
+			globalHookLogPath: globalLogPath,
+		});
+		expect(result.validation.ok).toBe(true);
+		const [entry] = result.manifest.sessions;
+		expect(entry?.counts.iterations).toBe(4);
+		expect(
+			entry?.iterations?.map((point) => [
+				point.index,
+				point.checkpoint?.ref,
+				point.checkpoint?.runCount,
+				point.checkpoint?.capture,
+			]),
+		).toEqual([
+			[1, "run1", 1, "iteration-start"],
+			[2, "run1", 1, "run-start"],
+			[4, "run3", 3, "iteration-start"],
+		]);
+		expect(entry?.iterations?.every((point) => !point.compaction)).toBe(true);
+	});
+
+	it("omits per-iteration restore points when the session has no checkpoints", async () => {
+		const result = await exportSessionReplayBundle({
+			sessionId: FIXTURE_SESSION_ID,
+			outputDir: join(root, "bundle"),
+			source: fixtureSource({ record: fixtureRecord({ metadata: {} }) }),
+			sessionsDir,
+			globalHookLogPath: globalLogPath,
+		});
+		expect(result.validation.ok).toBe(true);
+		expect(result.manifest.sessions[0]?.checkpoints).toEqual([]);
+		expect(result.manifest.sessions[0]).not.toHaveProperty("iterations");
 	});
 
 	it("falls back to filtering the global hook log", async () => {
