@@ -738,7 +738,7 @@ export default function Home() {
 			initialPromptDraft?: string,
 			initialAttachments?: File[],
 			expectedActiveThreadId?: string,
-		): Promise<HandoffOpenResult> => {
+		): Promise<HandoffOpenResult | undefined> => {
 			const revision = ++sessionOpenRevision.current;
 			const location = activeLocationRef.current;
 			let draftDelivered = false;
@@ -805,7 +805,7 @@ export default function Home() {
 							});
 					},
 				});
-				return { opened, draftDelivered };
+				return opened ? { opened, draftDelivered } : undefined;
 			} catch (error) {
 				toast({
 					title: "Unable to restore cloud follow-up",
@@ -971,7 +971,7 @@ export default function Home() {
 						initialAttachments?: File[];
 						expectedActiveThreadId?: string;
 				  } = {},
-		): Promise<HandoffOpenResult> => {
+		): Promise<HandoffOpenResult | undefined> => {
 			const options =
 				typeof optionsOrEnvironment === "string"
 					? { environmentId: optionsOrEnvironment }
@@ -984,7 +984,7 @@ export default function Home() {
 					activeLocationRef.current.view,
 				)
 			) {
-				return { opened: false, draftDelivered: false };
+				return undefined;
 			}
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
@@ -1018,7 +1018,7 @@ export default function Home() {
 						activeLocationRef.current.view,
 					)
 				) {
-					return { opened: false, draftDelivered: false };
+					return undefined;
 				}
 				if (
 					environmentId !== undefined &&
@@ -1471,7 +1471,7 @@ function ChatThreadPane({
 					initialPromptDraft?: string;
 					initialAttachments?: File[];
 			  },
-	) => HandoffOpenResult | Promise<HandoffOpenResult>;
+	) => HandoffOpenResult | undefined | Promise<HandoffOpenResult | undefined>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
 	) => Promise<string | null>;
@@ -3096,8 +3096,9 @@ function ChatThreadPane({
 					initialPromptDraft: getHandoffTargetDraft(handoffUi),
 					initialAttachments: retryAttachments,
 				}),
-			).catch(() => undefined);
-			if (outcome?.opened) {
+			).catch(() => ({ opened: false, draftDelivered: false }));
+			if (!outcome) return;
+			if (outcome.opened) {
 				if (
 					outcome.draftDelivered &&
 					sourceSessionId &&
