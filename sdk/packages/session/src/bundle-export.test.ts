@@ -8,11 +8,14 @@ import {
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	FIXTURE_CHILD_SESSION_ID,
 	FIXTURE_SESSION_ID,
 	fixtureHookEntries,
 	fixtureMessages,
 	fixtureRecord,
 	fixtureSource,
+	fixtureTreeMessages,
+	fixtureTreeSource,
 	writeHookLog,
 	writeSessionArtifacts,
 } from "./bundle.fixtures";
@@ -330,6 +333,78 @@ describe("exportSessionReplayBundle", () => {
 		expect(loaded.sessions[0]?.compaction?.messages[0]?.metadata).toEqual({
 			orgId: "REDACTED",
 		});
+	});
+
+	it("adds linked subagent sessions and their hook events when asked", async () => {
+		await writeSessionArtifacts({
+			sessionsDir,
+			messages: fixtureTreeMessages(),
+			hookEntries: fixtureHookEntries(),
+		});
+		const outputDir = join(root, "bundle");
+		const result = await exportSessionReplayBundle({
+			sessionId: FIXTURE_SESSION_ID,
+			outputDir,
+			source: fixtureTreeSource(),
+			sessionsDir,
+			globalHookLogPath: globalLogPath,
+			includeChildSessions: true,
+		});
+		expect(result.warnings).toEqual([]);
+		expect(
+			result.manifest.sessions.map((session) => [
+				session.sessionId,
+				session.role,
+				session.parentSessionId,
+				session.counts.events,
+			]),
+		).toEqual([
+			[FIXTURE_SESSION_ID, "root", null, 3],
+			[FIXTURE_CHILD_SESSION_ID, "subagent", FIXTURE_SESSION_ID, 1],
+		]);
+		const loaded = await readSessionReplayBundle(outputDir);
+		expect(
+			loaded.sessions[1]?.events.map((event) => [event.name, event.toolCallId]),
+		).toEqual([["tool_call", "call_child"]]);
+		expect(loaded.sessions[1]?.transcript.messages).toHaveLength(4);
+	});
+
+	it("finds unlinked children through the source and reports missing ones", async () => {
+		const exportTree = (
+			source: ReturnType<typeof fixtureTreeSource>,
+			name: string,
+		) =>
+			exportSessionReplayBundle({
+				sessionId: FIXTURE_SESSION_ID,
+				outputDir: join(root, name),
+				source,
+				sessionsDir,
+				globalHookLogPath: globalLogPath,
+				includeChildSessions: true,
+			});
+		const listed = await exportTree(
+			fixtureTreeSource({ linked: false, listChildren: true }),
+			"listed",
+		);
+		expect(
+			listed.manifest.sessions.map((session) => session.sessionId),
+		).toEqual([FIXTURE_SESSION_ID, FIXTURE_CHILD_SESSION_ID]);
+
+		const linkedSource = fixtureTreeSource();
+		const missing = await exportTree(
+			{
+				...linkedSource,
+				getSession: async (sessionId) =>
+					sessionId === FIXTURE_SESSION_ID
+						? linkedSource.getSession(sessionId)
+						: undefined,
+			},
+			"missing",
+		);
+		expect(missing.manifest.sessions).toHaveLength(1);
+		expect(missing.warnings).toContain(
+			`Linked child session ${FIXTURE_CHILD_SESSION_ID} was not found and is not in the bundle.`,
+		);
 	});
 
 	it("refuses unknown sessions and non-bundle output directories", async () => {

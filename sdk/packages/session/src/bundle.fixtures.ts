@@ -204,3 +204,151 @@ export function fixtureSource(input: {
 		readMessages: async () => input.messages ?? fixtureMessages(),
 	};
 }
+
+export const FIXTURE_CHILD_SESSION_ID = `${FIXTURE_SESSION_ID}__agent_child`;
+
+/**
+ * A root session whose first model call spawns a subagent. `linked: false`
+ * drops the `childSessions` link, as in sessions written before links existed.
+ */
+export function fixtureTreeMessages(
+	options: { linked?: boolean } = {},
+): MessageWithMetadata[] {
+	return [
+		{
+			id: "r1",
+			role: "user",
+			content: [{ type: "text", text: "<user_input>Delegate it</user_input>" }],
+			ts: T0,
+		},
+		{
+			id: "r2",
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: "call_spawn",
+					name: "spawn_agent",
+					input: { systemPrompt: "You read files.", task: "Read a.txt" },
+				},
+			],
+			ts: T0 + 1_000,
+			modelInfo: { id: "fake-model", provider: "openai-compatible" },
+			metrics: { inputTokens: 100, outputTokens: 20, cost: 0.001 },
+			...(options.linked === false
+				? {}
+				: {
+						iteration: 1,
+						childSessions: [
+							{
+								toolCallId: "call_spawn",
+								sessionId: FIXTURE_CHILD_SESSION_ID,
+								kind: "subagent" as const,
+							},
+						],
+					}),
+		},
+		{
+			id: "r3",
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "call_spawn",
+					content: '{"text":"a.txt says hi"}',
+				},
+			],
+			ts: T0 + 4_000,
+		},
+		{
+			id: "r4",
+			role: "assistant",
+			content: [{ type: "text", text: "The subagent read it." }],
+			ts: T0 + 5_000,
+			modelInfo: { id: "fake-model", provider: "openai-compatible" },
+			metrics: { inputTokens: 150, outputTokens: 6, cost: 0.0005 },
+		},
+	];
+}
+
+export function fixtureChildMessages(): MessageWithMetadata[] {
+	return [
+		{
+			id: "c1",
+			role: "user",
+			content: [{ type: "text", text: "Read a.txt" }],
+			ts: T0 + 1_100,
+		},
+		{
+			id: "c2",
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: "call_child",
+					name: "read_files",
+					input: { paths: ["a.txt"] },
+				},
+			],
+			ts: T0 + 2_000,
+			modelInfo: { id: "fake-model", provider: "openai-compatible" },
+			metrics: { inputTokens: 40, outputTokens: 5, cost: 0.0002 },
+		},
+		{
+			id: "c3",
+			role: "user",
+			content: [
+				{ type: "tool_result", tool_use_id: "call_child", content: "hi" },
+			],
+			ts: T0 + 2_200,
+		},
+		{
+			id: "c4",
+			role: "assistant",
+			content: [{ type: "text", text: "a.txt says hi" }],
+			ts: T0 + 3_000,
+			modelInfo: { id: "fake-model", provider: "openai-compatible" },
+			metrics: { inputTokens: 50, outputTokens: 4, cost: 0.0001 },
+		},
+	];
+}
+
+export function fixtureChildRecord(
+	overrides: Partial<SessionRecord> = {},
+): SessionRecord {
+	return fixtureRecord({
+		sessionId: FIXTURE_CHILD_SESSION_ID,
+		parentSessionId: FIXTURE_SESSION_ID,
+		parentAgentId: "agent_root",
+		agentId: "agent_child",
+		isSubagent: true,
+		startedAt: "2026-01-01T00:00:01.050Z",
+		endedAt: "2026-01-01T00:00:03.500Z",
+		metadata: { title: "Read a.txt" },
+		...overrides,
+	});
+}
+
+/** Root plus one subagent; `listChildren` serves `listChildSessions`. */
+export function fixtureTreeSource(
+	options: {
+		linked?: boolean;
+		listChildren?: boolean;
+		rootRecord?: SessionRecord;
+	} = {},
+): SessionReplayExportSource {
+	const rootRecord = options.rootRecord ?? fixtureRecord();
+	const child = fixtureChildRecord();
+	const records = new Map([
+		[rootRecord.sessionId, rootRecord],
+		[child.sessionId, child],
+	]);
+	return {
+		getSession: async (sessionId) => records.get(sessionId),
+		readMessages: async (sessionId) =>
+			sessionId === child.sessionId
+				? fixtureChildMessages()
+				: fixtureTreeMessages({ linked: options.linked }),
+		...(options.listChildren ? { listChildSessions: async () => [child] } : {}),
+	};
+}

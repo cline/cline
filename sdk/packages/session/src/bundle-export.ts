@@ -25,6 +25,7 @@ import {
 } from "./bundle-hook-events";
 import {
 	computeSessionRecordingCoverage,
+	type SessionReplayBundleSessionInput,
 	type SessionReplayBundleValidationResult,
 	validateSessionReplayBundle,
 	writeSessionReplayBundle,
@@ -33,6 +34,7 @@ import { sessionReplayIterationRunCounts } from "./bundle-iterations";
 import { sessionReplayBundlePaths } from "./bundle-layout";
 import { SessionReplayBundleError } from "./bundle-migrations";
 import {
+	type LoadedSessionRecording,
 	mergeSessionReplayEvents,
 	readSessionRecording,
 	redactSessionRecording,
@@ -53,6 +55,12 @@ export interface SessionReplayExportSource {
 	readSessionCompactionState?(
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined>;
+	/**
+	 * Subagent and teammate sessions of a root session. Used with
+	 * `includeChildSessions` to find children of sessions written before
+	 * messages carried `childSessions` links.
+	 */
+	listChildSessions?(rootSessionId: string): Promise<SessionRecord[]>;
 }
 
 export interface ExportSessionReplayBundleOptions {
@@ -68,6 +76,11 @@ export interface ExportSessionReplayBundleOptions {
 	globalHookLogPath?: string;
 	producer?: { host?: string; hostVersion?: string };
 	now?: () => Date;
+	/**
+	 * Add the root's subagent and teammate sessions as further bundle
+	 * sessions (default false).
+	 */
+	includeChildSessions?: boolean;
 }
 
 export interface ExportSessionReplayBundleResult {
@@ -234,9 +247,12 @@ function buildSessionEntry(input: {
 	redactor: SessionReplayRedactor;
 	eventsSource: SessionReplaySessionEntry["eventsSource"];
 	isBundleRoot: boolean;
+	sessionIndex: number;
+	parentSessionId: string | null;
 }): Omit<SessionReplaySessionEntry, "counts" | "recording"> {
 	const { record, redactor } = input;
-	const manifestPath = (field: string) => `sessions[0].${field}`;
+	const manifestPath = (field: string) =>
+		`sessions[${input.sessionIndex}].${field}`;
 	const { checkpoint: _checkpoint, title, ...rest } = record.metadata ?? {};
 	const metadata =
 		Object.keys(rest).length > 0
@@ -251,7 +267,7 @@ function buildSessionEntry(input: {
 	return {
 		sessionId: record.sessionId,
 		role: input.isBundleRoot ? "root" : resolveRole(record),
-		parentSessionId: record.parentSessionId ?? null,
+		parentSessionId: input.parentSessionId,
 		agentId: record.agentId ?? null,
 		parentAgentId: record.parentAgentId ?? null,
 		conversationId: record.conversationId ?? null,
@@ -290,79 +306,163 @@ function buildSessionEntry(input: {
 	};
 }
 
-/**
- * Builds a session replay bundle for one session from local session storage.
- *
- * The session becomes the bundle root. Subagent and teammate sessions are not
- * exported yet; the format can carry them as additional `sessions[]` entries.
- */
-export async function exportSessionReplayBundle(
-	options: ExportSessionReplayBundleOptions,
-): Promise<ExportSessionReplayBundleResult> {
-	const sessionId = options.sessionId.trim();
-	if (!sessionId) {
-		throw new SessionReplayBundleError("A session id is required.");
-	}
-	const record = await options.source.getSession(sessionId);
-	if (!record) {
-		throw new SessionReplayBundleError(`Session ${sessionId} not found.`);
-	}
-	const sessionsDir = options.sessionsDir ?? resolveSessionDataDir();
-	const [messages, compaction, systemPrompt, hookLog, recording] =
-		await Promise.all([
-			options.source.readMessages(sessionId),
-			options.source.readSessionCompactionState?.(sessionId),
-			readPersistedSystemPrompt(record),
-			selectSessionHookLogEntries({
-				rootSessionId: sessionId,
-				sessionsDir,
-				globalLogPath: options.globalHookLogPath,
-			}),
-			readSessionRecording(join(sessionsDir, sessionId)),
-		]);
-	const warnings: string[] = [];
-	if (messages.length === 0) {
-		warnings.push(`Session ${sessionId} has no persisted messages.`);
-	}
-	if (hookLog.source === "none" && !recording) {
-		warnings.push(
-			"No hook audit log was found for this session; events.jsonl is empty.",
-		);
-	}
-	const leadAgentIds = new Set(
-		(recording?.header.segments ?? [])
-			.map((segment) => segment.leadAgentId)
-			.filter((id): id is string => typeof id === "string"),
-	);
-	const hookEntries = partitionHookEntries(
-		[...hookLog.rootEntries, ...hookLog.descendantEntries],
-		leadAgentIds,
-	);
-	if (hookEntries.descendants.length > 0) {
-		warnings.push(
-			`${hookEntries.descendants.length} hook event(s) from subagents or teammates were not exported; this bundle contains the root session only.`,
-		);
-	}
-	if (recording && recording.skippedLines > 0) {
-		warnings.push(
-			`${recording.skippedLines} unreadable recording line(s) were skipped.`,
-		);
-	}
+interface CollectedSession {
+	record: SessionRecord;
+	messages: MessageWithMetadata[];
+	compaction?: SessionCompactionState;
+	systemPrompt?: string;
+	recording?: LoadedSessionRecording;
+	hookEntries: RawHookLogEntry[];
+}
 
-	const redactor = createSessionReplayRedactor({
-		enabled: options.redact !== false,
-		recorded: recording !== undefined,
-	});
+async function collectSession(
+	source: SessionReplayExportSource,
+	record: SessionRecord,
+	sessionsDir: string,
+): Promise<CollectedSession> {
+	const [messages, compaction, systemPrompt, recording] = await Promise.all([
+		source.readMessages(record.sessionId),
+		source.readSessionCompactionState?.(record.sessionId),
+		readPersistedSystemPrompt(record),
+		readSessionRecording(join(sessionsDir, record.sessionId)),
+	]);
+	return {
+		record,
+		messages,
+		...(compaction ? { compaction } : {}),
+		...(systemPrompt ? { systemPrompt } : {}),
+		...(recording ? { recording } : {}),
+		hookEntries: [],
+	};
+}
+
+function linkedChildSessionIds(
+	messages: readonly MessageWithMetadata[],
+): string[] {
+	return messages.flatMap(
+		(message) => message.childSessions?.map((link) => link.sessionId) ?? [],
+	);
+}
+
+/**
+ * Finds the subagent and teammate sessions of a bundle root: the ones linked
+ * from tool calls (`childSessions`, followed recursively) plus any the source
+ * lists for the root. Linked sessions that no longer exist are reported.
+ */
+async function collectChildSessions(input: {
+	source: SessionReplayExportSource;
+	root: CollectedSession;
+	sessionsDir: string;
+	warnings: string[];
+}): Promise<CollectedSession[]> {
+	const { source, root } = input;
+	const seen = new Set<string>([root.record.sessionId]);
+	const children: CollectedSession[] = [];
+	const listed =
+		(await source.listChildSessions?.(root.record.sessionId)) ?? [];
+	const pending: Array<{ sessionId: string; record?: SessionRecord }> = [
+		...linkedChildSessionIds(root.messages).map((sessionId) => ({
+			sessionId,
+		})),
+		...listed.map((record) => ({ sessionId: record.sessionId, record })),
+	];
+	while (pending.length > 0) {
+		const next = pending.shift();
+		if (!next || seen.has(next.sessionId)) {
+			continue;
+		}
+		seen.add(next.sessionId);
+		const record = next.record ?? (await source.getSession(next.sessionId));
+		if (!record) {
+			input.warnings.push(
+				`Linked child session ${next.sessionId} was not found and is not in the bundle.`,
+			);
+			continue;
+		}
+		const child = await collectSession(source, record, input.sessionsDir);
+		children.push(child);
+		pending.push(
+			...linkedChildSessionIds(child.messages).map((sessionId) => ({
+				sessionId,
+			})),
+		);
+	}
+	return children.sort((a, b) =>
+		a.record.startedAt < b.record.startedAt
+			? -1
+			: a.record.startedAt > b.record.startedAt
+				? 1
+				: 0,
+	);
+}
+
+/**
+ * Hands each descendant hook line to the child session of the same agent.
+ * A teammate runs one session per task, so lines are matched to the task
+ * session whose time window contains them.
+ */
+function assignDescendantHookEntries(
+	entries: readonly RawHookLogEntry[],
+	children: readonly CollectedSession[],
+): RawHookLogEntry[] {
+	const unassigned: RawHookLogEntry[] = [];
+	for (const entry of entries) {
+		const agentId = typeof entry.agent_id === "string" ? entry.agent_id : "";
+		const candidates = children.filter(
+			(child) => agentId && child.record.agentId === agentId,
+		);
+		const ts = typeof entry.ts === "string" ? entry.ts : "";
+		const target =
+			candidates.length <= 1
+				? candidates[0]
+				: (candidates.find(
+						(child) =>
+							child.record.startedAt <= ts &&
+							(!child.record.endedAt || ts <= child.record.endedAt),
+					) ??
+					candidates.filter((child) => child.record.startedAt <= ts).at(-1) ??
+					candidates[0]);
+		if (target) {
+			target.hookEntries.push(entry);
+		} else {
+			unassigned.push(entry);
+		}
+	}
+	return unassigned;
+}
+
+function buildBundleSession(input: {
+	session: CollectedSession;
+	sessionIndex: number;
+	isBundleRoot: boolean;
+	parentSessionId: string | null;
+	eventsSource: SessionReplaySessionEntry["eventsSource"];
+	redactor: SessionReplayRedactor;
+	warnings: string[];
+}): SessionReplayBundleSessionInput {
+	const { session, redactor } = input;
+	const { record, messages, recording, compaction, systemPrompt } = session;
+	const sessionId = record.sessionId;
 	const transcriptPath = sessionReplayBundlePaths.transcript(sessionId);
 	const eventsPath = sessionReplayBundlePaths.events(sessionId);
 	const compactionPath = sessionReplayBundlePaths.compaction(sessionId);
+	if (messages.length === 0) {
+		input.warnings.push(`Session ${sessionId} has no persisted messages.`);
+	}
+	if (recording && recording.skippedLines > 0) {
+		input.warnings.push(
+			`${recording.skippedLines} unreadable recording line(s) were skipped.`,
+		);
+	}
 
 	const baseEntry = buildSessionEntry({
 		record,
 		messages,
 		redactor,
-		eventsSource: hookLog.source,
-		isBundleRoot: true,
+		eventsSource: input.eventsSource,
+		isBundleRoot: input.isBundleRoot,
+		sessionIndex: input.sessionIndex,
+		parentSessionId: input.parentSessionId,
 	});
 	const transcript = {
 		sessionId,
@@ -373,7 +473,7 @@ export async function exportSessionReplayBundle(
 	const events = mergeSessionReplayEvents(
 		toSessionReplayHookEvents({
 			sessionId,
-			entries: hookEntries.root,
+			entries: session.hookEntries,
 			redactor: passThrough,
 			file: eventsPath,
 		}),
@@ -394,6 +494,7 @@ export async function exportSessionReplayBundle(
 				requestsFile: sessionReplayBundlePaths.requests(sessionId),
 				blobsFile: sessionReplayBundlePaths.requestBlobs(sessionId),
 				manifestFile: SESSION_REPLAY_MANIFEST_FILE,
+				sessionIndex: input.sessionIndex,
 			})
 		: undefined;
 	const entry: Omit<SessionReplaySessionEntry, "counts"> = {
@@ -426,7 +527,7 @@ export async function exportSessionReplayBundle(
 		entry.recording &&
 		entry.recording.coverage.unlinkedMessageIds.length > 0
 	) {
-		warnings.push(
+		input.warnings.push(
 			`${entry.recording.coverage.unlinkedMessageIds.length} assistant message(s) written while recording have no request record.`,
 		);
 	}
@@ -440,6 +541,102 @@ export async function exportSessionReplayBundle(
 				),
 			}
 		: undefined;
+	return {
+		entry,
+		transcript,
+		events,
+		...(redactedCompaction ? { compaction: redactedCompaction } : {}),
+		...(recorded ? { requests: recorded.requests, blobs: recorded.blobs } : {}),
+	};
+}
+
+/**
+ * Builds a session replay bundle for one session from local session storage.
+ *
+ * The session becomes the bundle root. With `includeChildSessions`, its
+ * subagent and teammate sessions are added as further `sessions[]` entries
+ * with their hook events; otherwise those events are left out.
+ */
+export async function exportSessionReplayBundle(
+	options: ExportSessionReplayBundleOptions,
+): Promise<ExportSessionReplayBundleResult> {
+	const sessionId = options.sessionId.trim();
+	if (!sessionId) {
+		throw new SessionReplayBundleError("A session id is required.");
+	}
+	const record = await options.source.getSession(sessionId);
+	if (!record) {
+		throw new SessionReplayBundleError(`Session ${sessionId} not found.`);
+	}
+	const sessionsDir = options.sessionsDir ?? resolveSessionDataDir();
+	const [root, hookLog] = await Promise.all([
+		collectSession(options.source, record, sessionsDir),
+		selectSessionHookLogEntries({
+			rootSessionId: sessionId,
+			sessionsDir,
+			globalLogPath: options.globalHookLogPath,
+		}),
+	]);
+	const warnings: string[] = [];
+	if (hookLog.source === "none" && !root.recording) {
+		warnings.push(
+			"No hook audit log was found for this session; events.jsonl is empty.",
+		);
+	}
+	const leadAgentIds = new Set(
+		(root.recording?.header.segments ?? [])
+			.map((segment) => segment.leadAgentId)
+			.filter((id): id is string => typeof id === "string"),
+	);
+	const hookEntries = partitionHookEntries(
+		[...hookLog.rootEntries, ...hookLog.descendantEntries],
+		leadAgentIds,
+	);
+	root.hookEntries = hookEntries.root;
+	const children = options.includeChildSessions
+		? await collectChildSessions({
+				source: options.source,
+				root,
+				sessionsDir,
+				warnings,
+			})
+		: [];
+	const unassigned = assignDescendantHookEntries(
+		hookEntries.descendants,
+		children,
+	);
+	if (unassigned.length > 0) {
+		warnings.push(
+			options.includeChildSessions
+				? `${unassigned.length} hook event(s) from subagents or teammates match no exported child session and were not exported.`
+				: `${unassigned.length} hook event(s) from subagents or teammates were not exported; this bundle contains the root session only.`,
+		);
+	}
+
+	const redactor = createSessionReplayRedactor({
+		enabled: options.redact !== false,
+		recorded: [root, ...children].some((session) => session.recording),
+	});
+	const sessions = [root, ...children].map((session, sessionIndex) =>
+		buildBundleSession({
+			session,
+			sessionIndex,
+			isBundleRoot: sessionIndex === 0,
+			parentSessionId:
+				sessionIndex === 0
+					? (session.record.parentSessionId ?? null)
+					: session.record.parentSessionId &&
+							children.some(
+								(child) =>
+									child.record.sessionId === session.record.parentSessionId,
+							)
+						? session.record.parentSessionId
+						: sessionId,
+			eventsSource: hookLog.source,
+			redactor,
+			warnings,
+		}),
+	);
 
 	const now = options.now?.() ?? new Date();
 	const manifest = await writeSessionReplayBundle(
@@ -455,17 +652,7 @@ export async function exportSessionReplayBundle(
 					: {}),
 			},
 			rootSessionId: sessionId,
-			sessions: [
-				{
-					entry,
-					transcript,
-					events,
-					...(redactedCompaction ? { compaction: redactedCompaction } : {}),
-					...(recorded
-						? { requests: recorded.requests, blobs: recorded.blobs }
-						: {}),
-				},
-			],
+			sessions,
 			redaction: redactor.report(),
 		},
 		{ overwrite: options.overwrite },

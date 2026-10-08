@@ -152,30 +152,33 @@ export function redactSessionRecording(input: {
 	requestsFile: string;
 	blobsFile: string;
 	manifestFile: string;
+	/** Position of the session in `manifest.sessions`; defaults to 0. */
+	sessionIndex?: number;
 }): {
 	segments: SessionReplaySessionRecording["segments"];
 	requests: SessionRecordedModelCall[];
 	blobs: SessionReplayRequestBlob[];
 } {
 	const { recording, redactor } = input;
+	const sessionPath = `sessions[${input.sessionIndex ?? 0}]`;
 	const segments = recording.header.segments.map((segment, index) => ({
 		...segment,
 		cwd: redactor.redact(
 			segment.cwd,
 			input.manifestFile,
-			`sessions[0].recording.segments[${index}].cwd`,
+			`${sessionPath}.recording.segments[${index}].cwd`,
 		),
 		env: redactor.redact(
 			segment.env,
 			input.manifestFile,
-			`sessions[0].recording.segments[${index}].env`,
+			`${sessionPath}.recording.segments[${index}].env`,
 		),
 		...(segment.toolPolicies
 			? {
 					toolPolicies: redactor.redact(
 						segment.toolPolicies,
 						input.manifestFile,
-						`sessions[0].recording.segments[${index}].toolPolicies`,
+						`${sessionPath}.recording.segments[${index}].toolPolicies`,
 					),
 				}
 			: {}),
