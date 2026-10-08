@@ -143,22 +143,31 @@ it("opens an explicit text-only retry without the older saved images", async () 
 	);
 });
 
-it("keeps a newer edited retry when an older send is unconfirmed", async () => {
+it.each([
+	{ command: "newer edit", image: "newer" },
+	{ command: saved.command, image: "newer" },
+	{ command: saved.command, image: undefined },
+])("keeps a newer retry when an older send is unconfirmed: %j", async ({
+	command,
+	image,
+}) => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue({
 		...saved,
 		unconfirmed: true,
 	});
 	const open = vi.fn();
-	const image = new File(["newer"], "newer.png", { type: "image/png" });
+	const attachments = image
+		? [new File([image], "newer.png", { type: "image/png" })]
+		: [];
 	await openWithCloudHandoffFollowUp({
 		targetSessionId: "cloud-target",
-		initialPromptDraft: "newer edit",
-		initialAttachments: [image],
+		initialPromptDraft: command,
+		initialAttachments: attachments,
 		canOpen: () => true,
 		open,
 		delivered: vi.fn(),
 	});
-	expect(open).toHaveBeenCalledExactlyOnceWith("newer edit", [image]);
+	expect(open).toHaveBeenCalledExactlyOnceWith(command, attachments);
 });
 
 it("decodes an explicitly restored uncertain image without mutating the saved copy", async () => {
@@ -170,6 +179,27 @@ it("decodes an explicitly restored uncertain image without mutating the saved co
 	expect(() =>
 		cloudHandoffFollowUpAttachments({ ...saved, userImages: ["invalid"] }),
 	).toThrow("Invalid saved image");
+});
+
+it("does not navigate after retry image comparison loses the active thread", async () => {
+	vi.mocked(desktopClient.invoke).mockResolvedValue({
+		...saved,
+		unconfirmed: true,
+	});
+	const open = vi.fn();
+	expect(
+		await openWithCloudHandoffFollowUp({
+			targetSessionId: "cloud-target",
+			initialPromptDraft: saved.command,
+			initialAttachments: [
+				new File(["newer"], "newer.png", { type: "image/png" }),
+			],
+			canOpen: vi.fn().mockReturnValueOnce(true).mockReturnValue(false),
+			open,
+			delivered: vi.fn(),
+		}),
+	).toBe(false);
+	expect(open).not.toHaveBeenCalled();
 });
 
 it.each([
