@@ -1191,8 +1191,7 @@ export function useSessionHistory({
 			sessionsRef.current = updateSessionById(
 				sessionsRef.current,
 				sessionId,
-				(session) =>
-					session.origin === "cloud" ? withTitle(session) : session,
+				withTitle,
 			);
 			setSessions((current) =>
 				updateSessionById(current, sessionId, withTitle),

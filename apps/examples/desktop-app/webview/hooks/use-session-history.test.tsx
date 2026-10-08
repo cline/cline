@@ -149,12 +149,16 @@ describe("useSessionHistory session mapping", () => {
 		await act(async () => root.render(<HookHarness />));
 		await flush();
 		await act(async () => pendingLists[0].resolve([row]));
+		await flush(12_000);
 		await act(async () => {
 			await current.renameThread(current.threads[0].id, "Renamed title");
+			pendingLists[1].resolve([row]);
+			await vi.advanceTimersByTimeAsync(0);
 		});
+		expect(current.threads[0].title).toBe("Renamed title");
 		await flush(12_000);
 		await act(async () =>
-			pendingLists[1].resolve([{ ...row, status: "running" }]),
+			pendingLists[2].resolve([{ ...row, status: "running" }]),
 		);
 		expect(current.threads[0].title).toBe("Renamed title");
 		expect(current.sessions[0].metadata?.title).toBe("Renamed title");
