@@ -330,7 +330,7 @@ describe("collectSessionReplayRerunTurns", () => {
 				decisionsBefore: [
 					{
 						name: "prompt_delivered",
-						payload: { delivery: "immediate", source: "send" },
+						payload: { delivery: "immediate", source: "send", mode: "plan" },
 					},
 				],
 			},
@@ -352,6 +352,24 @@ describe("collectSessionReplayRerunTurns", () => {
 			},
 		]);
 		expect(warnings).toEqual([]);
+	});
+
+	it("sends a mode only when the recorded delivery carried one", async () => {
+		const recorded = await recordFixtureSession([
+			{
+				...(FIXTURE_STEPS[0] as FixtureStep),
+				prompt: '<user_input mode="yolo">Run echo for me</user_input>',
+				decisionsBefore: [
+					{
+						name: "prompt_delivered",
+						payload: { delivery: "immediate", source: "send" },
+					},
+				],
+			},
+		]);
+		const [turn] = collectSessionReplayRerunTurns(recorded).turns;
+		expect(turn).toMatchObject({ source: "send" });
+		expect(turn?.mode).toBeUndefined();
 	});
 
 	it("warns about steered prompts it does not replay", async () => {

@@ -172,6 +172,7 @@ export interface SessionReplayRerunTurn {
 	 * `send`, or drained from the queue after the previous turn.
 	 */
 	source: "start" | "send" | "queue";
+	/** Mode the prompt was sent with, as recorded. */
 	mode?: "act" | "plan" | "yolo";
 	/** Image and file blocks on the prompt; not replayed. */
 	attachments: number;
@@ -249,6 +250,7 @@ export function collectSessionReplayRerunTurns(
 		const payload = (delivery?.payload ?? {}) as {
 			delivery?: string;
 			source?: string;
+			mode?: string;
 		};
 		const source: SessionReplayRerunTurn["source"] = delivery
 			? payload.delivery === "queue"
@@ -259,7 +261,15 @@ export function collectSessionReplayRerunTurns(
 			: turns.length === 0 && options.interactive === false
 				? "start"
 				: "send";
-		const mode = parseUserInputMode(text);
+		// A recorded delivery says whether the send carried a mode; without one
+		// the mode the prompt was wrapped with is the best guess.
+		const mode = delivery
+			? payload.mode === "act" ||
+				payload.mode === "plan" ||
+				payload.mode === "yolo"
+				? payload.mode
+				: undefined
+			: parseUserInputMode(text);
 		if (attachments > 0) {
 			warnings.push(
 				`The prompt at iteration ${iterationOf(index)} had ${attachments} attachment${attachments === 1 ? "" : "s"}, which are not replayed.`,
