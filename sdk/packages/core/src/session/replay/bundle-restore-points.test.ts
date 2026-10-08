@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { MessageWithMetadata } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fixtureMessages } from "./bundle.fixtures";
 import {
@@ -9,6 +10,10 @@ import {
 	validateSessionReplayBundle,
 	writeSessionReplayBundle,
 } from "./bundle-io";
+import {
+	buildSessionReplayIterations,
+	sessionReplayIterationRunCounts,
+} from "./bundle-iterations";
 import { createSessionReplayRedactor } from "./bundle-redaction";
 import type {
 	SessionReplayIterationRestorePoint,
@@ -89,6 +94,49 @@ const checkpoint = {
 	createdAt: 1,
 	capture: "iteration-start" as const,
 };
+
+describe("sessionReplayIterationRunCounts", () => {
+	it("numbers iterations by the span-aware user run they belong to", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: "Summary of three earlier turns",
+				metadata: { kind: "compaction_summary", userRunSpan: 3 },
+			},
+			{ role: "assistant", content: "Continuing." },
+			{ role: "user", content: "Run the tests" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "t1", name: "run_commands", input: {} },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "t1",
+						name: "run_commands",
+						content: "ok",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: "[SYSTEM] Keep going.",
+				metadata: { userRunSpan: 0 },
+			},
+			{ role: "assistant", content: "Tests pass." },
+		];
+		expect(sessionReplayIterationRunCounts(messages)).toEqual([3, 4, 4]);
+		expect(
+			buildSessionReplayIterations({
+				transcript: { sessionId: "s", messages },
+			}),
+		).toHaveLength(3);
+	});
+});
 
 describe("per-iteration restore points", () => {
 	it("are optional", async () => {

@@ -13,7 +13,6 @@ import {
 import {
 	buildSessionReplayIterations,
 	selectSessionReplayIterations,
-	sessionReplayIterationRunCounts,
 } from "./bundle-iterations";
 import { createSessionReplayRedactor } from "./bundle-redaction";
 
@@ -155,49 +154,6 @@ describe("buildSessionReplayIterations", () => {
 		});
 		expect(iterations).toHaveLength(2);
 		expect(iterations[1]?.messageRange).toEqual({ start: 3, end: 5 });
-	});
-});
-
-describe("sessionReplayIterationRunCounts", () => {
-	it("numbers iterations by the span-aware user run they belong to", () => {
-		const messages: MessageWithMetadata[] = [
-			{
-				role: "user",
-				content: "Summary of three earlier turns",
-				metadata: { kind: "compaction_summary", userRunSpan: 3 },
-			},
-			{ role: "assistant", content: "Continuing." },
-			{ role: "user", content: "Run the tests" },
-			{
-				role: "assistant",
-				content: [
-					{ type: "tool_use", id: "t1", name: "run_commands", input: {} },
-				],
-			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "t1",
-						name: "run_commands",
-						content: "ok",
-					},
-				],
-			},
-			{
-				role: "user",
-				content: "[SYSTEM] Keep going.",
-				metadata: { userRunSpan: 0 },
-			},
-			{ role: "assistant", content: "Tests pass." },
-		];
-		expect(sessionReplayIterationRunCounts(messages)).toEqual([3, 4, 4]);
-		expect(
-			buildSessionReplayIterations({
-				transcript: { sessionId: "s", messages },
-			}),
-		).toHaveLength(3);
 	});
 });
 
