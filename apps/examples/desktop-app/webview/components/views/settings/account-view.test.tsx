@@ -87,8 +87,9 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
-	it("restores Sign in after cancellation without reloading the overview", async () => {
+	it("recovers from a failed cancel and restores Sign in without reloading the overview", async () => {
 		let rejectLogin!: (error: Error) => void;
+		let failCancel = true;
 		invoke.mockImplementation(async (command) => {
 			if (command === "run_provider_oauth_login") {
 				return await new Promise((_, reject) => {
@@ -96,6 +97,10 @@ describe("AccountView signed-out state", () => {
 				});
 			}
 			if (command === "cancel_provider_oauth_login") {
+				if (failCancel) {
+					failCancel = false;
+					throw new Error("Connection unavailable");
+				}
 				rejectLogin(new Error("Sign-in cancelled"));
 				return { cancelled: true };
 			}
@@ -113,6 +118,11 @@ describe("AccountView signed-out state", () => {
 		expect(button("Signing in").disabled).toBe(true);
 		expect(container.textContent).not.toContain("Create account");
 		await act(async () => button("Cancel").click());
+		expect(container.textContent).toContain("Could not cancel sign-in");
+		expect(button("Signing in").disabled).toBe(true);
+		expect(button("Cancel").disabled).toBe(false);
+		await act(async () => button("Cancel").click());
+		expect(container.textContent).not.toContain("Could not cancel sign-in");
 		expect(button("Sign in").disabled).toBe(false);
 		expect(button("Create account").disabled).toBe(false);
 		expect(container.textContent).not.toContain("Sign-in cancelled");

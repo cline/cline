@@ -25,10 +25,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
-import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -183,10 +183,10 @@ export function AccountView() {
 	const [accountActionPending, setAccountActionPending] = useState<
 		"sign-in" | "sign-out" | null
 	>(null);
-	const oauth = useClineSignIn();
-	const signInAttemptRef = useRef(0);
-	const signingIn = accountActionPending === "sign-in" || oauth.signingIn;
-	const deviceUserCode = useOAuthUserCode(oauth.signingIn);
+	const [cancelling, setCancelling] = useState(false);
+	const signInController = useRef<AbortController | null>(null);
+	const signingIn = accountActionPending === "sign-in" || cancelling;
+	const deviceUserCode = useOAuthUserCode(signingIn);
 	// Organization id being switched to, "" while switching to the personal
 	// account, null when no switch is in flight.
 	const [switchTargetId, setSwitchTargetId] = useState<string | null>(null);
@@ -280,21 +280,24 @@ export function AccountView() {
 		void loadOverview();
 	}, [loadOverview]);
 
-	const cancelSignIn = async () => {
-		if (await oauth.cancelSignIn()) setAccountActionPending(null);
-	};
-
 	const signIn = async () => {
-		const attempt = ++signInAttemptRef.current;
+		if (accountActionPending || cancelling) return;
+		const controller = new AbortController();
+		signInController.current = controller;
 		setAccountActionPending("sign-in");
 		setOverviewError(null);
 		try {
-			const result = await oauth.signIn();
-			if (!result.signedIn || signInAttemptRef.current !== attempt) return;
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				// The browser round-trip routinely outlives the default command
+				// deadline; the sidecar bounds the flow by device-code expiry.
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal: controller.signal },
+			);
 			await loadOverview();
 			setActiveTab("overview");
 		} catch (err) {
-			if (signInAttemptRef.current !== attempt) return;
+			if (controller.signal.aborted) return;
 			const message = normalizeAccountViewError(err).message;
 			setOverviewError(message);
 			resetAccountData();
@@ -302,8 +305,27 @@ export function AccountView() {
 			// The login may have persisted credentials; drop the short-lived
 			// catalog cache so consumers reload them.
 			invalidateProviderCatalogCache();
-			if (signInAttemptRef.current === attempt) setAccountActionPending(null);
+			signInController.current = null;
+			setAccountActionPending(null);
 			void refreshAccount();
+		}
+	};
+
+	const cancelSignIn = async () => {
+		if (!signInController.current || cancelling) return;
+		signInController.current.abort();
+		setCancelling(true);
+		setOverviewError(null);
+		try {
+			await desktopClient.invoke("cancel_provider_oauth_login", {
+				provider: "cline",
+			});
+		} catch (error) {
+			setOverviewError(
+				`Could not cancel sign-in: ${normalizeAccountViewError(error).message}`,
+			);
+		} finally {
+			setCancelling(false);
 		}
 	};
 
@@ -493,7 +515,7 @@ export function AccountView() {
 				<div className="flex flex-wrap items-center justify-center gap-2">
 					<button
 						type="button"
-						disabled={accountActionPending !== null || oauth.signingIn}
+						disabled={accountActionPending !== null || cancelling}
 						onClick={() => void signIn()}
 						className="flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
 					>
@@ -504,31 +526,20 @@ export function AccountView() {
 						)}
 						{signingIn ? "Signing in" : "Sign in"}
 					</button>
-					{oauth.signingIn ? (
-						<button
-							type="button"
-							disabled={oauth.cancelling}
-							onClick={() => void cancelSignIn()}
-							className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
-						>
-							Cancel
-						</button>
-					) : (
-						<button
-							type="button"
-							onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
-							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
-						>
-							Create account
-							<ExternalLink className="h-4 w-4" />
-						</button>
-					)}
+					<button
+						type="button"
+						disabled={cancelling}
+						onClick={() =>
+							void (signingIn
+								? cancelSignIn()
+								: openExternalUrl(CREATE_ACCOUNT_URL))
+						}
+						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
+					>
+						{signingIn ? "Cancel" : "Create account"}
+						{!signingIn && <ExternalLink className="h-4 w-4" />}
+					</button>
 				</div>
-				{oauth.error && (
-					<p role="alert" className="text-sm text-destructive">
-						{oauth.error}
-					</p>
-				)}
 				{signingIn && deviceUserCode ? (
 					<p className="text-sm text-muted-foreground">
 						Confirm this code in your browser:{" "}
@@ -596,7 +607,7 @@ export function AccountView() {
 					user ? (
 						<button
 							type="button"
-							disabled={accountActionPending !== null || oauth.signingIn}
+							disabled={accountActionPending !== null || cancelling}
 							onClick={() => void signOut()}
 							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
 						>

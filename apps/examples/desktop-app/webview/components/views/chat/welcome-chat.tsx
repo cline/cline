@@ -15,7 +15,6 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
-import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
@@ -29,6 +28,7 @@ import {
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type { WorkIn } from "@/lib/work-in-selection";
 import {
@@ -108,10 +108,10 @@ export function WelcomeScreen({
 				activeOrganization?.organizationId ?? null,
 			])
 		: null;
-	const [signInPending, setSigningIn] = useState(false);
-	const oauth = useClineSignIn();
-	const signInAttemptRef = useRef(0);
-	const signingIn = signInPending || oauth.signingIn;
+	const [signInPending, setSignInPending] = useState(false);
+	const [cancelling, setCancelling] = useState(false);
+	const signInController = useRef<AbortController | null>(null);
+	const signingIn = signInPending || cancelling;
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
@@ -428,25 +428,45 @@ export function WelcomeScreen({
 		repoUrl,
 	]);
 
-	const cancelSignIn = async () => {
-		if (await oauth.cancelSignIn()) setSigningIn(false);
-	};
-
 	const signIn = async () => {
 		if (signingIn) return;
-		const attempt = ++signInAttemptRef.current;
-		setSigningIn(true);
+		const controller = new AbortController();
+		signInController.current = controller;
+		setSignInPending(true);
 		setSignInError(null);
 		try {
-			const result = await oauth.signIn();
-			if (!result.signedIn) return;
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal: controller.signal },
+			);
 			invalidateProviderCatalogCache();
 			await refreshAccount();
 		} catch (error) {
-			if (signInAttemptRef.current !== attempt) return;
-			setSignInError(error instanceof Error ? error.message : String(error));
+			if (!controller.signal.aborted) {
+				setSignInError(error instanceof Error ? error.message : String(error));
+			}
 		} finally {
-			if (signInAttemptRef.current === attempt) setSigningIn(false);
+			signInController.current = null;
+			setSignInPending(false);
+		}
+	};
+
+	const cancelSignIn = async () => {
+		if (!signInController.current || cancelling) return;
+		signInController.current.abort();
+		setCancelling(true);
+		setSignInError(null);
+		try {
+			await desktopClient.invoke("cancel_provider_oauth_login", {
+				provider: "cline",
+			});
+		} catch (error) {
+			setSignInError(
+				`Could not cancel sign-in: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		} finally {
+			setCancelling(false);
 		}
 	};
 
@@ -507,9 +527,9 @@ export function WelcomeScreen({
 							workspaceRoot={workspaceRoot}
 							workspaces={workspaces}
 						/>
-						{signInError || oauth.error ? (
+						{signInError ? (
 							<p className="mt-2 text-xs text-destructive">
-								Sign in failed: {signInError || oauth.error}
+								Sign in failed: {signInError}
 							</p>
 						) : null}
 					</div>
@@ -519,10 +539,8 @@ export function WelcomeScreen({
 				cloudOnboardingVariant !== null ? (
 					<div className="mt-4 w-full">
 						<CloudOnboardingCard
-							cancelling={oauth.cancelling}
-							onCancelSignIn={
-								oauth.signingIn ? () => void cancelSignIn() : undefined
-							}
+							cancelling={cancelling}
+							onCancelSignIn={() => void cancelSignIn()}
 							checking={cloudSetupChecking}
 							onConnect={() =>
 								void (cloudOnboardingVariant === "not_connected"

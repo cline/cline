@@ -515,10 +515,16 @@ describe("OnboardingView", () => {
 			buttonByText("Get started").click();
 		});
 
-		// OAuth login that never resolves (browser round-trip abandoned).
+		let rejectLogin!: (error: Error) => void;
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "run_provider_oauth_login") {
-				return await new Promise(() => undefined);
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			}
+			if (command === "cancel_provider_oauth_login") {
+				rejectLogin(new Error("Sign-in cancelled"));
+				return { cancelled: true };
 			}
 			if (command === "cline_account") {
 				throw new Error("No Cline account auth token found");
