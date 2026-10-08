@@ -805,7 +805,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("validates resumed sessions before creating a worktree", async () => {
+	it("skips the stdin drain when a prompt argument is already provided", async () => { 		// Regression test for #14570: fd 0 is a pipe but a prompt arg was given, 		// so runCli must not block draining stdin to EOF. 		Object.defineProperty(process.stdin, "isTTY", { 			value: false, 			configurable: true, 		}); 		Object.defineProperty(process.stdout, "isTTY", { 			value: false, 			configurable: true, 		}); 		vi.mocked(fstatSync).mockReturnValue({ 			isFIFO: () => true, 			isFile: () => false, 		} as unknown as ReturnType<typeof fstatSync>); 		vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation( 			async function* (): AsyncGenerator<Buffer, undefined> { 				yield Buffer.from("from pipe"); 				return undefined; 			}, 		); 		process.argv = ["bun", "src/index.ts", "say hello"];  		const { runCli } = await import("./main");  		await expect(runCli()).resolves.toBeUndefined(); 		// Piped input must be ignored; the prompt arg is used as-is. 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith( 			"say hello", 			expect.any(Object), 			expect.anything(), 		); 	});  	it("validates resumed sessions before creating a worktree", async () => {
 		sessionMocks.getSessionRow.mockResolvedValueOnce(undefined);
 		process.argv = ["bun", "src/index.ts", "--worktree", "--id", "missing"];
 
