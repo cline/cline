@@ -207,9 +207,9 @@ describe("session replay e2e", () => {
 	afterAll(async () => {
 		await new Promise((resolve) => server?.close(resolve));
 		if (root) {
-			rmSync(root, { recursive: true, force: true });
+			await removeWhenSettled(root);
 		}
-	});
+	}, 30_000);
 
 	it("records a session, exports it, and plays it back", async () => {
 		const run = await runCli(["-y", "Run echo for me"], {
@@ -501,6 +501,119 @@ describe("session replay e2e", () => {
 		}
 	}, 240_000);
 
+	it("diffs two recordings of the same task iteration by iteration", async () => {
+		const { env: diffEnv } = await hubTestEnv("diff");
+		const seen = new Set<string>();
+		const recordAndExport = async (systemPrompt: string, name: string) => {
+			const run = await runCli(
+				["-y", "--record-session", "-s", systemPrompt, "Run echo for me"],
+				{ cwd: workspace, env: diffEnv },
+			);
+			expect(run.status, run.stderr).toBe(0);
+			const history = await runCli(["history", "--json"], {
+				cwd: workspace,
+				env: diffEnv,
+			});
+			expect(history.status, history.stderr).toBe(0);
+			const sessionId = (
+				JSON.parse(history.stdout) as Array<{ sessionId: string }>
+			)
+				.map((session) => session.sessionId)
+				.find((id) => !seen.has(id));
+			expect(sessionId).toBeDefined();
+			seen.add(sessionId ?? "");
+			const bundleDir = path.join(root, `diff-${name}`);
+			const exported = await runCli(
+				["session", "export", sessionId ?? "", "--bundle", bundleDir, "--json"],
+				{ cwd: workspace, env: diffEnv },
+			);
+			expect(exported.status, exported.stderr).toBe(0);
+			expect(JSON.parse(exported.stdout).recording.counts.modelCalls).toBe(2);
+			return bundleDir;
+		};
+		const diff = (args: string[]) =>
+			runCli(["session", "diff", ...args], { cwd: workspace, env: diffEnv });
+
+		try {
+			const base = await recordAndExport(
+				"You are a replay test agent.",
+				"base",
+			);
+			const again = await recordAndExport(
+				"You are a replay test agent.",
+				"again",
+			);
+			const changed = await recordAndExport(
+				"You are a replay test agent. Prefer short answers.",
+				"changed",
+			);
+
+			const same = await diff([base, again, "--format", "json"]);
+			expect(same.status, same.stderr).toBe(0);
+			expect(JSON.parse(same.stdout)).toMatchObject({
+				strictness: "strict",
+				iterations: { recorded: 2, live: 2 },
+				perIteration: [
+					{ iteration: 1, kinds: [] },
+					{ iteration: 2, kinds: [] },
+				],
+				divergences: [],
+				first: null,
+				diverged: false,
+				failed: false,
+				warnings: [],
+			});
+
+			const divergent = await diff([base, changed, "--format", "json"]);
+			expect(divergent.status, divergent.stderr).toBe(1);
+			const report = JSON.parse(divergent.stdout);
+			expect(report.first).toMatchObject({
+				kind: "request-system-prompt",
+				iteration: 1,
+				counted: true,
+				summary: "system prompt differs at line 1, column 29",
+				entries: [
+					{
+						label: "system prompt",
+						recorded: { excerpt: "…are a replay test agent." },
+						live: {
+							excerpt: "…are a replay test agent. Prefer short answers.",
+						},
+					},
+				],
+			});
+			expect(
+				report.divergences.map(
+					(divergence: { iteration: number; kind: string }) =>
+						`${divergence.iteration}:${divergence.kind}`,
+				),
+			).toEqual(["1:request-system-prompt", "2:request-system-prompt"]);
+
+			const text = await diff([base, changed]);
+			expect(text.status, text.stderr).toBe(1);
+			expect(text.stdout).toContain("  iteration 1  request-system-prompt");
+			expect(text.stdout).toContain(
+				"  iteration 1 · request-system-prompt · system prompt differs at line 1, column 29",
+			);
+			expect(text.stdout).toContain(
+				"Result: diverged · 2 counted divergences in 2 iterations",
+			);
+
+			const tolerated = await diff([
+				base,
+				changed,
+				"--ignore",
+				"request-system-prompt",
+			]);
+			expect(tolerated.status, tolerated.stderr).toBe(0);
+			expect(tolerated.stdout).toContain(
+				"Result: no divergence across 2 iterations · 2 not counted",
+			);
+		} finally {
+			await runCli(["hub", "stop"], { cwd: workspace, env: diffEnv });
+		}
+	}, 240_000);
+
 	it("refuses --record-session for runs that cannot use the hub", async () => {
 		const sandboxed = await runCli(
 			[
@@ -547,6 +660,20 @@ function readHubDiscovery(
 		}
 	}
 	return undefined;
+}
+
+// `hub stop` returns before the hub process exits, and the exiting hub
+// rewrites its discovery lock under the data dir.
+async function removeWhenSettled(dir: string): Promise<void> {
+	for (let attempt = 0; attempt < 40; attempt += 1) {
+		try {
+			rmSync(dir, { recursive: true, force: true });
+		} catch {}
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		if (!existsSync(dir)) {
+			return;
+		}
+	}
 }
 
 function findFreePort(): Promise<number> {
