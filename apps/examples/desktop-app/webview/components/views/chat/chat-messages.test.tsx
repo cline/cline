@@ -2157,6 +2157,46 @@ describe("ChatMessages transcript navigation", () => {
 		expect(viewport?.scrollTop).toBe(1512);
 	});
 
+	it("stays on the new prompt when the activity row is swapped for the first answer in a saved session", async () => {
+		const newPrompt: ChatMessage = {
+			id: "user-3",
+			sessionId: "session-1",
+			role: "user",
+			content: "New prompt",
+			createdAt: 5,
+		};
+		const firstAnswer: ChatMessage = {
+			id: "assistant-3",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Streaming answer",
+			createdAt: 6,
+		};
+		mockTranscriptLayout([...messages, newPrompt, firstAnswer]);
+		// Saved history arrives after the provider mounted on a loading row.
+		await renderMessages([], { isSessionSwitching: true });
+		await renderMessages(messages);
+		await renderMessages([...messages, newPrompt], { status: "running" });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		expect(viewport?.scrollTop).toBe(1512);
+		// The "Thinking..." row unmounts in the same commit the answer row mounts,
+		// so the transcript's child count is unchanged. The upstream heuristic for
+		// that case must not re-anchor to a history prompt the reader already saw.
+		await renderMessages([...messages, newPrompt, firstAnswer], {
+			status: "running",
+			streamingMessageId: firstAnswer.id,
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport?.scrollTop).toBe(1512);
+	});
+
 	it("hides the outline for an empty chat", async () => {
 		await renderMessages([]);
 		expect(

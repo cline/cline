@@ -818,6 +818,7 @@
     "grpc-tools",
   ],
   "patchedDependencies": {
+    "@shadcn/react@0.3.1": "patches/@shadcn%2Freact@0.3.1.patch",
     "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch",
     "ollama-ai-provider-v2@4.0.1": "patches/ollama-ai-provider-v2@4.0.1.patch",
   },
