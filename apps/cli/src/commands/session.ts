@@ -12,6 +12,10 @@ type SessionCommandIo = {
 export const SESSION_REPLAY_MODES = ["playback"] as const;
 export const SESSION_REPLAY_FORMATS = ["tui", "text", "json"] as const;
 export type SessionReplayFormat = (typeof SESSION_REPLAY_FORMATS)[number];
+export const SESSION_DIFF_FORMATS = ["text", "json"] as const;
+
+/** `session diff` exit codes, following diff(1). */
+export const SESSION_DIFF_EXIT = { same: 0, diverged: 1, error: 2 } as const;
 
 /** Tool result lines shown per call in text playback. */
 const TEXT_MAX_RESULT_LINES = 40;
@@ -138,6 +142,109 @@ export async function runSessionValidate(input: {
 	} catch (error) {
 		io.writeErr(errorMessage(error));
 		return 1;
+	}
+}
+
+export interface SessionDiffCommandInput {
+	recordedDir: string;
+	liveDir: string;
+	/** Comma-separated divergence kinds that do not count; `request` names all request kinds. */
+	ignore?: string;
+	lenient?: boolean;
+	format?: string;
+	outputMode: CliOutputMode;
+	io: SessionCommandIo;
+}
+
+/**
+ * Compares the root sessions of two bundles (a recording and a later run of
+ * the same task) iteration by iteration. Exits 0 when nothing that counts
+ * diverged, 1 when it did (never with `--lenient`), and 2 when the bundles
+ * could not be compared.
+ */
+export async function runSessionDiff(
+	input: SessionDiffCommandInput,
+): Promise<number> {
+	const { io } = input;
+	const format =
+		input.format ?? (input.outputMode === "json" ? "json" : "text");
+	if (!(SESSION_DIFF_FORMATS as readonly string[]).includes(format)) {
+		io.writeErr(
+			`Unsupported diff format "${format}". Supported formats: ${SESSION_DIFF_FORMATS.join(", ")}.`,
+		);
+		return SESSION_DIFF_EXIT.error;
+	}
+	const core = await import("@cline/core");
+	const allKinds: readonly string[] = core.SESSION_REPLAY_DIVERGENCE_KINDS;
+	const requestKinds: readonly string[] =
+		core.SESSION_REPLAY_REQUEST_DIVERGENCE_KINDS;
+	const ignored = new Set<string>();
+	for (const raw of (input.ignore ?? "").split(",")) {
+		const name = raw.trim();
+		if (!name) continue;
+		if (name === "request") {
+			for (const kind of requestKinds) ignored.add(kind);
+		} else if (allKinds.includes(name)) {
+			ignored.add(name);
+		} else {
+			io.writeErr(
+				`Unknown divergence kind "${name}" in --ignore. Kinds: ${allKinds.join(", ")}, or "request" for all request kinds.`,
+			);
+			return SESSION_DIFF_EXIT.error;
+		}
+	}
+	const kinds = core.SESSION_REPLAY_DIVERGENCE_KINDS.filter(
+		(kind) => !ignored.has(kind),
+	);
+
+	const recordedDir = resolve(input.recordedDir);
+	const liveDir = resolve(input.liveDir);
+	try {
+		const [recorded, live] = await Promise.all([
+			core.readSessionReplayBundle(recordedDir),
+			core.readSessionReplayBundle(liveDir),
+		]);
+		const rootOf = (bundle: typeof recorded) => {
+			const session = bundle.sessions.find(
+				(candidate) =>
+					candidate.entry.sessionId === bundle.manifest.rootSessionId,
+			);
+			if (!session) {
+				throw new Error(
+					`Bundle ${bundle.dir} has no root session ${bundle.manifest.rootSessionId}.`,
+				);
+			}
+			return session;
+		};
+		const recordedSession = rootOf(recorded);
+		const liveSession = rootOf(live);
+		const report = core.compareSessionReplaySessions(
+			recordedSession,
+			liveSession,
+			{ kinds, strictness: input.lenient ? "lenient" : "strict" },
+		);
+		const sides = {
+			recorded: {
+				bundleDir: recordedDir,
+				sessionId: recordedSession.entry.sessionId,
+			},
+			live: { bundleDir: liveDir, sessionId: liveSession.entry.sessionId },
+		};
+		if (format === "json") {
+			writeJson({ ...sides, ...report });
+		} else {
+			for (const warning of report.warnings) {
+				io.writeErr(`warning: ${warning}`);
+			}
+			const { formatSessionDiffText } = await import("../session/diff");
+			for (const line of formatSessionDiffText({ ...sides, report })) {
+				io.writeln(line);
+			}
+		}
+		return report.failed ? SESSION_DIFF_EXIT.diverged : SESSION_DIFF_EXIT.same;
+	} catch (error) {
+		io.writeErr(errorMessage(error));
+		return SESSION_DIFF_EXIT.error;
 	}
 }
 

@@ -9,6 +9,7 @@ import {
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	runSessionDiff,
 	runSessionExport,
 	runSessionReplay,
 	runSessionValidate,
@@ -91,10 +92,11 @@ function captureStdout(): { lines: () => string[]; restore: () => void } {
 	};
 }
 
-beforeEach(async () => {
-	root = await mkdtemp(join(tmpdir(), "cli-session-replay-"));
-	bundleDir = join(root, "bundle");
-	await writeSessionReplayBundle(bundleDir, {
+async function writeTestBundle(
+	dir: string,
+	messages: MessageWithMetadata[] = MESSAGES,
+): Promise<void> {
+	await writeSessionReplayBundle(dir, {
 		createdAt: "2026-02-01T00:00:00.000Z",
 		producer: { name: "@cline/core", version: "0.0.0" },
 		rootSessionId: "sess_1",
@@ -122,12 +124,18 @@ beforeEach(async () => {
 					eventsSource: "none",
 					recording: null,
 				},
-				transcript: { sessionId: "sess_1", messages: MESSAGES },
+				transcript: { sessionId: "sess_1", messages },
 				events: [],
 			},
 		],
 		redaction: createSessionReplayRedactor({ enabled: true }).report(),
 	});
+}
+
+beforeEach(async () => {
+	root = await mkdtemp(join(tmpdir(), "cli-session-replay-"));
+	bundleDir = join(root, "bundle");
+	await writeTestBundle(bundleDir);
 });
 
 afterEach(async () => {
@@ -389,5 +397,124 @@ describe("runSessionExport", () => {
 		});
 		expect(code).toBe(1);
 		expect(err).toEqual(["Session x not found."]);
+	});
+});
+
+describe("runSessionDiff", () => {
+	const changedText = (): MessageWithMetadata[] =>
+		MESSAGES.map((message, index) =>
+			index === 3
+				? { ...message, content: [{ type: "text", text: "Two files: a, b." }] }
+				: message,
+		);
+
+	it("exits 0 for identical bundles and lists every iteration", async () => {
+		const other = join(root, "other");
+		await writeTestBundle(other);
+		const { io, out, err } = createIo();
+		const code = await runSessionDiff({
+			recordedDir: bundleDir,
+			liveDir: other,
+			outputMode: "text",
+			io,
+		});
+		expect(code).toBe(0);
+		expect(out).toContain("  iteration 1  same");
+		expect(out).toContain("  iteration 2  same");
+		expect(out.at(-1)).toBe("Result: no divergence across 2 iterations");
+		expect(err).toEqual([
+			"warning: request comparison skipped for 2 of 2 iterations: no recorded request on one side (record sessions with --record-session)",
+		]);
+	});
+
+	it("exits 1 and prints the first divergence when a counted kind differs", async () => {
+		const other = join(root, "other");
+		await writeTestBundle(other, changedText());
+		const { io, out } = createIo();
+		const code = await runSessionDiff({
+			recordedDir: bundleDir,
+			liveDir: other,
+			outputMode: "text",
+			io,
+		});
+		expect(code).toBe(1);
+		expect(out).toContain("  iteration 2  assistant-text");
+		expect(out).toContain(
+			"  iteration 2 · assistant-text · assistant text differs at line 1, column 2",
+		);
+		expect(out.at(-1)).toBe(
+			"Result: diverged · 1 counted divergence in 1 iteration",
+		);
+	});
+
+	it("honours --ignore and --lenient, and emits the report as JSON", async () => {
+		const other = join(root, "other");
+		await writeTestBundle(other, changedText());
+		const ignored = createIo();
+		expect(
+			await runSessionDiff({
+				recordedDir: bundleDir,
+				liveDir: other,
+				ignore: "assistant-text, request",
+				outputMode: "text",
+				io: ignored.io,
+			}),
+		).toBe(0);
+		expect(ignored.out).toContain(
+			"  counting: all divergence kinds except request-model, request-system-prompt, request-tools, request-messages, assistant-text · strict",
+		);
+		expect(ignored.out).toContain(
+			"  iteration 2  assistant-text (not counted)",
+		);
+
+		const lenient = createIo();
+		const stdout = captureStdout();
+		let code: number;
+		try {
+			code = await runSessionDiff({
+				recordedDir: bundleDir,
+				liveDir: other,
+				lenient: true,
+				outputMode: "json",
+				io: lenient.io,
+			});
+		} finally {
+			stdout.restore();
+		}
+		expect(code).toBe(0);
+		const [line] = stdout.lines();
+		expect(JSON.parse(line ?? "{}")).toMatchObject({
+			recorded: { bundleDir, sessionId: "sess_1" },
+			live: { bundleDir: other, sessionId: "sess_1" },
+			strictness: "lenient",
+			diverged: true,
+			failed: false,
+			first: { kind: "assistant-text", iteration: 2 },
+		});
+	});
+
+	it("exits 2 for an unknown kind or an unreadable bundle", async () => {
+		const unknown = createIo();
+		expect(
+			await runSessionDiff({
+				recordedDir: bundleDir,
+				liveDir: bundleDir,
+				ignore: "vibes",
+				outputMode: "text",
+				io: unknown.io,
+			}),
+		).toBe(2);
+		expect(unknown.err[0]).toContain('Unknown divergence kind "vibes"');
+
+		const missing = createIo();
+		expect(
+			await runSessionDiff({
+				recordedDir: bundleDir,
+				liveDir: join(root, "nope"),
+				outputMode: "text",
+				io: missing.io,
+			}),
+		).toBe(2);
+		expect(missing.err[0]).toContain("Invalid session replay bundle");
 	});
 });
