@@ -106,24 +106,42 @@ describe("deletion with an unavailable Hub", () => {
 				get.mockRejectedValue(new Error("Hub unavailable"));
 			else
 				get.mockResolvedValue(response === "record" ? { metadata } : undefined);
-			const deletion = assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
+			const deletion = assertSessionDeleteAllowedDuringHandoff(
+				ctx,
+				sessionId,
+				getSessionRuntimeBinding(ctx),
+			);
 			if (error) await expect(deletion).rejects.toThrow(error);
 			else (await deletion)();
 		}
-		const deletion = handleCommand(ctx, "delete_chat_session", {
-			sessionId,
-			environmentId: "local",
+		const binding = getSessionRuntimeBinding(ctx);
+		const remoteDelete = vi.fn();
+		ctx.runtimeBindings.set("ssh-test", {
+			...binding,
+			kind: "ssh",
+			environmentId: "ssh-test",
+			sessionManager: {
+				...binding.sessionManager,
+				get: vi.fn().mockResolvedValue(undefined),
+				delete: remoteDelete,
+			} as unknown as typeof binding.sessionManager,
 		});
+		const deletion = handleCommand(
+			getEnvironmentContext(ctx, "ssh-test"),
+			"delete_chat_session",
+			{ sessionId },
+		);
 		if (error) {
 			await expect(deletion).rejects.toThrow(error);
 			expect(remove).not.toHaveBeenCalled();
 		} else {
 			await expect(deletion).resolves.toBe(true);
-			expect(remove).toHaveBeenCalledWith(sessionId);
 		}
+		expect(remoteDelete).not.toHaveBeenCalled();
 		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
 			Boolean(error),
 		);
+		expect(ctx.sessionEnvironmentIds.has(sessionId)).toBe(Boolean(error));
 	});
 
 	it.each([
@@ -158,26 +176,40 @@ describe("deletion with an unavailable Hub", () => {
 		);
 	});
 
-	it("never uses a local manifest for an SSH session", async () => {
+	it.each([
+		"ssh-test",
+		undefined,
+	])("never uses a local manifest for an SSH deletion (environment: %s)", async (environmentId) => {
 		writeSessionManifest(sessionId, {
 			metadata: { cloudHandoffIntent: { requestId: "local-only" } },
 		});
-		const get = vi.fn().mockResolvedValue(undefined);
 		const ctx = Object.assign(
 			createSidecarContext("/workspace"),
-			localRuntimeContext({ get }, { sessionIds: [sessionId] }),
+			localRuntimeContext({}, { sessionIds: [sessionId] }),
 		);
 		const binding = getSessionRuntimeBinding(ctx, sessionId);
+		const get = vi.fn().mockResolvedValue({ sessionId });
+		const remove = vi.fn().mockResolvedValue(true);
 		ctx.runtimeBindings.set("ssh-test", {
 			...binding,
 			kind: "ssh",
 			environmentId: "ssh-test",
+			sessionManager: {
+				...binding.sessionManager,
+				get,
+				delete: remove,
+			} as unknown as typeof binding.sessionManager,
 		});
-		const remote = getEnvironmentContext(ctx, "ssh-test");
-		(await assertSessionDeleteAllowedDuringHandoff(remote, sessionId))();
+		await expect(
+			handleCommand(ctx, "delete_chat_session", { sessionId, environmentId }),
+		).resolves.toBe(true);
+		expect(remove).toHaveBeenCalledWith(sessionId);
 		get.mockRejectedValue(new Error("SSH Hub unavailable"));
 		await expect(
-			assertSessionDeleteAllowedDuringHandoff(remote, sessionId),
+			handleCommand(ctx, "delete_chat_session", {
+				sessionId,
+				environmentId: "ssh-test",
+			}),
 		).rejects.toThrow("SSH Hub unavailable");
 		expect(readSessionMetadata(sessionId)).toHaveProperty("cloudHandoffIntent");
 	});
@@ -1046,7 +1078,11 @@ describe("cloud handoff transaction", () => {
 		expect(first.getPersistedMetadata()).toHaveProperty("cloudHandoffIntent");
 		const restarted = createHandoffFixture(true, first.getPersistedMetadata());
 		await expect(
-			assertSessionDeleteAllowedDuringHandoff(restarted.ctx, request.sessionId),
+			assertSessionDeleteAllowedDuringHandoff(
+				restarted.ctx,
+				request.sessionId,
+				getSessionRuntimeBinding(restarted.ctx),
+			),
 		).rejects.toThrow("Cloud handoff creation is still unconfirmed");
 		restarted.create.mockImplementation(createWithFreshApi);
 		await expect(
@@ -1070,6 +1106,7 @@ describe("cloud handoff transaction", () => {
 		const release = await assertSessionDeleteAllowedDuringHandoff(
 			recovered.ctx,
 			request.sessionId,
+			getSessionRuntimeBinding(recovered.ctx),
 		);
 		release();
 	});
@@ -1094,6 +1131,7 @@ describe("cloud handoff transaction", () => {
 		const deletion = assertSessionDeleteAllowedDuringHandoff(
 			f.ctx,
 			f.sourceSessionId,
+			getSessionRuntimeBinding(f.ctx),
 		);
 		if (status === "pending") {
 			await expect(deletion).rejects.toThrow("Cloud handoff is still pending");
