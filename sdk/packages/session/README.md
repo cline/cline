@@ -19,6 +19,15 @@ lives here.
   model responses, tool results and decisions
 - `compareSessionReplaySessions` and related helpers — structural comparison
   of two recordings, iteration by iteration
+- `rebuildSessionReplayWorkspace` — rebuild a recorded workspace as a fresh
+  clone at its starting checkpoint; a missing workspace, repository or
+  checkpoint raises `SessionReplayEnvironmentError` instead of guessing
+- `createSessionReplayPathMap` / `mapSessionReplaySessionData` /
+  `compareSessionReplayEnv` — map recorded paths to a live workspace and back,
+  and compare recorded and live environments
+- `createSessionReplayRerun` / `collectSessionReplayRerunTurns` /
+  `resolveSessionReplayRerunKinds` — run a recorded session again on a live
+  core and report where it diverged (`rerun-report.json`)
 
 The bundle and recording schemas, their version constants and the request
 match-key hashing are defined in `@cline/shared`, so the recorder in core and

@@ -159,6 +159,8 @@ Owns everything that reads a session recording or replay bundle:
 - reading and merging a recording, and resolving recorded request messages
 - iteration projection and event descriptions for playback
 - the replay source, request snapshots, and compare/divergence reports
+- rerun: rebuilding a recorded workspace, recorded/live path mapping, and the
+  rerun engine that drives a live session against the recording
 
 Design rules:
 
@@ -1175,6 +1177,60 @@ misses; `strict` reports set `failed` when a counted kind diverged. `lenient`
 sources serve the fallback record with its divergences and return misses, and
 `lenient` reports never fail. The CLI exposes the comparison as
 `cline session diff <recorded> <live>`.
+
+### Session rerun
+
+A rerun runs a recorded session again with a live model and live tools, and
+uses the recording only as the oracle it is compared against. The pieces live
+in `@cline/session`; the CLI (`cline session replay <bundle> --mode rerun`)
+supplies the core, the approval prompt and the output formats.
+
+- `rebuildSessionReplayWorkspace` rebuilds the workspace the session started
+  in as a fresh clone under the rerun's output directory. A bundle carries
+  checkpoint refs, not files, so the source repository (at the recorded path,
+  or named by `workspace`) must be on this machine. The clone uses
+  `--shared`, or `--local` with `standalone` so it still works where the
+  source's object store is not visible (a container). HEAD is detached at the
+  starting checkpoint's base commit and, for stash checkpoints
+  (`refs/cline/checkpoints/...`), the snapshot's tracked and untracked changes
+  are applied. With `inPlace` the workspace is used as is, with warnings when
+  it is not at the starting checkpoint. Every missing piece (redacted or
+  absent workspace path, no checkpoint, not a git repository, checkpoint not
+  in the source) raises `SessionReplayEnvironmentError` saying what to pass
+  instead; the only fallback is an explicit `workspace` for a bundle without
+  a checkpoint, which is copied as it is now, with a warning.
+- `createSessionReplayPathMap` maps the recorded workspace root to the live
+  one in what a rerun sends (prompts, system prompt), and
+  `mapSessionReplaySessionData` maps live session data back (including blob
+  content hashes) before comparison, so a rerun in a different directory
+  compares clean.
+- `compareSessionReplayEnv` compares the recording header's allow-listed
+  environment with the live one and reports differences as warnings.
+- `collectSessionReplayRerunTurns` lists the user turns to send, each paired
+  with the recorded `prompt_delivered` decision (source and mode). Steered
+  prompts and compaction summaries are not turns and are reported as
+  warnings.
+- `createSessionReplayRerun` drives the turns on a recording-enabled core,
+  answers approvals with the next recorded `approval_resolved` decision (in
+  `seq` order) for the same tool call id, else the same tool name, or asks a
+  caller-supplied `decideApproval`, compares each finished iteration with
+  `compareSessionReplayIteration`, and produces a
+  `SessionReplayRerunReport` (`rerun-report.json`,
+  `writeSessionReplayRerunReport`). `untilDivergence` stops at the first
+  counted divergence (checked early on each tool call start); the report
+  attributes the stop to the earliest counted divergence across iterations
+  even when a later tool call was seen first.
+- `resolveSessionReplayRerunKinds` picks the counted kinds:
+  `SESSION_REPLAY_RERUN_DIVERGENCE_KINDS` (everything but `assistant-text`),
+  minus `request-model` and `request-system-prompt` for a model override
+  (`relaxed`), minus every request kind for `lenient`, then `ignore` and
+  `count` (`count` wins).
+
+The CLI's container runner (`--in-container`) rebuilds the workspace
+standalone on the host, mounts it at the recorded workspace path, applies the
+recorded allow-listed environment (except `PATH` and redacted values) with a
+tmpfs `HOME`, and runs the inner CLI with `--in-place`; host paths in the inner
+report are rewritten back to host paths.
 
 ### Configured subagent approvals
 
