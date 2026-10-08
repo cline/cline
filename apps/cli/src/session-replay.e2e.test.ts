@@ -1,10 +1,11 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -91,6 +92,12 @@ function toolCallChunk(id: string, name: string, input: unknown) {
 }
 
 /**
+ * `recorded`: run a shell command, then submit. `diverge`: run a second,
+ * different command before submitting, so a rerun diverges at iteration 2.
+ */
+let fakeModelScript: "recorded" | "diverge" = "recorded";
+
+/**
  * OpenAI-compatible streaming endpoint scripted for a two-iteration session:
  * run a shell command, then submit once the tool result is in the history.
  */
@@ -104,9 +111,27 @@ function startFakeModel(): Promise<Server> {
 			const messages =
 				(JSON.parse(body || "{}") as { messages?: Array<{ role?: string }> })
 					.messages ?? [];
-			const sawToolResult = messages.some((message) => message.role === "tool");
+			const toolResults = messages.filter(
+				(message) => message.role === "tool",
+			).length;
 			res.writeHead(200, { "content-type": "text/event-stream" });
-			if (sawToolResult) {
+			if (fakeModelScript === "diverge" && toolResults === 1) {
+				res.write(
+					sseChunk({ role: "assistant", content: "Running echo again." }, null),
+				);
+				res.write(
+					toolCallChunk("call_diverged", "run_commands", {
+						commands: ["echo replay-diverged"],
+					}),
+				);
+				res.write(
+					sseChunk({}, "tool_calls", {
+						prompt_tokens: 140,
+						completion_tokens: 12,
+						total_tokens: 152,
+					}),
+				);
+			} else if (toolResults > 0) {
 				res.write(
 					sseChunk(
 						{ role: "assistant", content: "The command printed replay-e2e." },
@@ -549,7 +574,7 @@ describe("session replay e2e", () => {
 			);
 
 			const same = await diff([base, again, "--format", "json"]);
-			expect(same.status, same.stderr).toBe(0);
+			expect(same.status, `${same.stderr}\n${same.stdout}`).toBe(0);
 			expect(JSON.parse(same.stdout)).toMatchObject({
 				strictness: "strict",
 				iterations: { recorded: 2, live: 2 },
@@ -613,6 +638,252 @@ describe("session replay e2e", () => {
 			await runCli(["hub", "stop"], { cwd: workspace, env: diffEnv });
 		}
 	}, 240_000);
+
+	it("reruns a recorded session in a fresh copy of its workspace and reports divergences", async () => {
+		const { env: rerunEnv } = await hubTestEnv("rerun");
+		const repo = path.join(root, "rerun-repo");
+		mkdirSync(repo, { recursive: true });
+		const git = (...args: string[]) =>
+			execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
+		git("init", "--quiet");
+		git("config", "user.email", "replay@example.com");
+		git("config", "user.name", "Replay");
+		writeFileSync(path.join(repo, "notes.txt"), "committed\n");
+		git("add", ".");
+		git("commit", "--quiet", "-m", "base");
+		writeFileSync(path.join(repo, "notes.txt"), "uncommitted\n");
+		const rerun = (args: string[], cwd = workspace) =>
+			runCli(["session", "replay", ...args], {
+				cwd,
+				env: rerunEnv,
+				timeoutMs: 120_000,
+			});
+
+		try {
+			fakeModelScript = "recorded";
+			const recorded = await runCli(
+				["-y", "--record-session", "Run echo for me"],
+				{ cwd: repo, env: rerunEnv, timeoutMs: 120_000 },
+			);
+			expect(recorded.status, recorded.stderr).toBe(0);
+			const sessionId = await onlySessionId(rerunEnv);
+			const bundleDir = path.join(root, "rerun-bundle");
+			const exported = await runCli(
+				["session", "export", sessionId, "--bundle", bundleDir, "--json"],
+				{ cwd: workspace, env: rerunEnv },
+			);
+			expect(exported.status, exported.stderr).toBe(0);
+			const manifest = JSON.parse(
+				readFileSync(path.join(bundleDir, "manifest.json"), "utf8"),
+			);
+			expect(manifest.sessions[0].checkpoints[0]).toMatchObject({
+				runCount: 1,
+			});
+			writeFileSync(path.join(repo, "notes.txt"), "changed after recording\n");
+
+			// Same model script: nothing that counts diverges.
+			const sameOut = path.join(root, "rerun-same");
+			const same = await rerun([
+				bundleDir,
+				"--mode",
+				"rerun",
+				"--format",
+				"json",
+				"--out",
+				sameOut,
+			]);
+			expect(same.status, `${same.stderr}\n${same.stdout}`).toBe(0);
+			const sameReport = JSON.parse(same.stdout);
+			expect(sameReport).toMatchObject({
+				format: "cline.session-replay-rerun-report",
+				recorded: { bundleDir, sessionId },
+				live: {
+					bundleDir: path.join(sameOut, "bundle"),
+					validated: true,
+				},
+				workspace: {
+					method: "checkpoint",
+					source: repo,
+					root: path.join(sameOut, "workspace", "rerun-repo"),
+				},
+				options: {
+					requestMatching: "strict",
+					untilDivergence: false,
+					provider: "openai-compatible",
+					model: "fake-model",
+				},
+				turns: { recorded: 1, sent: 1 },
+				stopped: null,
+				comparison: {
+					iterations: { recorded: 2, live: 2 },
+					first: null,
+					diverged: false,
+				},
+			});
+			expect(sameReport.live.sessionId).not.toBe(sessionId);
+			expect(
+				readFileSync(
+					path.join(sameOut, "workspace", "rerun-repo", "notes.txt"),
+					"utf8",
+				),
+			).toBe("uncommitted\n");
+			expect(readFileSync(path.join(repo, "notes.txt"), "utf8")).toBe(
+				"changed after recording\n",
+			);
+			expect(
+				JSON.parse(
+					readFileSync(path.join(sameOut, "rerun-report.json"), "utf8"),
+				).live.sessionId,
+			).toBe(sameReport.live.sessionId);
+			const validated = await runCli(
+				["session", "validate", path.join(sameOut, "bundle")],
+				{ cwd: workspace, env: rerunEnv },
+			);
+			expect(validated.status, validated.stderr).toBe(0);
+			const history = await runCli(["history", "--json"], {
+				cwd: workspace,
+				env: rerunEnv,
+			});
+			expect(
+				(JSON.parse(history.stdout) as Array<{ sessionId: string }>).map(
+					(session) => session.sessionId,
+				),
+			).toContain(sameReport.live.sessionId);
+
+			const text = await rerun([
+				bundleDir,
+				"--mode",
+				"rerun",
+				"--format",
+				"text",
+				"--out",
+				path.join(root, "rerun-text"),
+			]);
+			expect(text.status, text.stderr).toBe(0);
+			expect(text.stderr).toContain("[rerun] workspace: checkpoint ");
+			expect(text.stderr).toContain("[rerun] iteration 2  same");
+			expect(text.stdout).toContain("Session rerun");
+			expect(text.stdout).toContain(
+				"Result: no divergence across 2 iterations",
+			);
+			expect(text.stdout).toContain(
+				`Compare: cline session diff ${bundleDir} ${path.join(root, "rerun-text", "bundle")}`,
+			);
+
+			// A different tool call at iteration 2.
+			fakeModelScript = "diverge";
+			const continued = await rerun([
+				bundleDir,
+				"--mode",
+				"rerun",
+				"--format",
+				"json",
+				"--out",
+				path.join(root, "rerun-continue"),
+			]);
+			expect(continued.status, continued.stderr).toBe(1);
+			const continuedReport = JSON.parse(continued.stdout);
+			expect(continuedReport.stopped).toBeNull();
+			expect(continuedReport.comparison.first).toMatchObject({
+				kind: "tool-calls",
+				iteration: 2,
+				counted: true,
+			});
+			expect(continuedReport.comparison.iterations).toEqual({
+				recorded: 2,
+				live: 3,
+			});
+			expect(
+				continuedReport.comparison.divergences
+					.filter((divergence: { counted: boolean }) => divergence.counted)
+					.map(
+						(divergence: { iteration: number; kind: string }) =>
+							`${divergence.iteration}:${divergence.kind}`,
+					),
+			).toEqual(expect.arrayContaining(["2:tool-calls", "3:iteration-count"]));
+
+			const stopped = await rerun([
+				bundleDir,
+				"--mode",
+				"rerun",
+				"--until-divergence",
+				"--format",
+				"json",
+				"--out",
+				path.join(root, "rerun-stop"),
+			]);
+			expect(stopped.status, stopped.stderr).toBe(1);
+			const stoppedReport = JSON.parse(stopped.stdout);
+			expect(stoppedReport.stopped).toEqual({
+				reason: "until-divergence",
+				iteration: 2,
+				kind: "tool-calls",
+			});
+			expect(stoppedReport.comparison.first).toMatchObject({
+				kind: "tool-calls",
+				iteration: 2,
+			});
+			expect(stoppedReport.comparison.iterations.live).toBe(2);
+			expect(stoppedReport.live.validated).toBe(true);
+
+			const ignored = await rerun([
+				bundleDir,
+				"--mode",
+				"rerun",
+				"--ignore",
+				"tool-calls,tool-results,iteration-count,request-messages",
+				"--format",
+				"json",
+				"--out",
+				path.join(root, "rerun-ignored"),
+			]);
+			expect(ignored.status, ignored.stderr).toBe(0);
+			expect(JSON.parse(ignored.stdout).comparison.diverged).toBe(false);
+			fakeModelScript = "recorded";
+
+			// Without the recorded repository the rerun says what to pass.
+			const moved = path.join(root, "rerun-repo-moved");
+			renameSync(repo, moved);
+			try {
+				const missing = await rerun([
+					bundleDir,
+					"--mode",
+					"rerun",
+					"--format",
+					"json",
+					"--out",
+					path.join(root, "rerun-missing"),
+				]);
+				expect(missing.status).toBe(2);
+				expect(missing.stderr).toContain(
+					`The recorded workspace ${repo} is not on this machine.`,
+				);
+				expect(missing.stderr).toContain("pass --workspace <path>");
+
+				const elsewhere = await rerun([
+					bundleDir,
+					"--mode",
+					"rerun",
+					"--workspace",
+					moved,
+					"--format",
+					"json",
+					"--out",
+					path.join(root, "rerun-elsewhere"),
+				]);
+				expect(elsewhere.status, elsewhere.stderr).toBe(0);
+				expect(JSON.parse(elsewhere.stdout)).toMatchObject({
+					workspace: { method: "checkpoint", source: moved },
+					comparison: { diverged: false },
+				});
+			} finally {
+				renameSync(moved, repo);
+			}
+		} finally {
+			fakeModelScript = "recorded";
+			await runCli(["hub", "stop"], { cwd: workspace, env: rerunEnv });
+		}
+	}, 600_000);
 
 	it("refuses --record-session for runs that cannot use the hub", async () => {
 		const sandboxed = await runCli(
