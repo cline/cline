@@ -388,6 +388,61 @@ it("preserves A recovery while an edited B dispatches during A pending", async (
 	).toEqual(saved);
 });
 
+it.each([
+	false,
+	true,
+])("tracks a matching concurrent send after the first send fails preflight (uncertain: %s)", async (uncertain) => {
+	const saved = {
+		draftId: "draft",
+		sourceSessionId: "source",
+		command: "inspect",
+		userImages: ["image"],
+	};
+	saveCloudHandoffFollowUp("target", saved);
+	let finishA!: () => void;
+	let finishB!: () => void;
+	const gateA = new Promise<void>((resolve) => (finishA = resolve));
+	const gateB = new Promise<void>((resolve) => (finishB = resolve));
+	const sendA = sendWithCloudHandoffFollowUp(
+		"target",
+		saved.command,
+		saved.userImages,
+		async () => {
+			await gateA;
+			throw new Error("preflight rejected");
+		},
+	);
+	const sendB = sendWithCloudHandoffFollowUp(
+		"target",
+		saved.command,
+		saved.userImages,
+		async (lifecycle) => {
+			lifecycle?.beforeDispatch?.();
+			await gateB;
+			if (uncertain) throw new Error("disconnected");
+			lifecycle?.onAccepted?.();
+			return { ok: true };
+		},
+	);
+	try {
+		finishA();
+		await expect(sendA).rejects.toThrow("preflight rejected");
+		const pending = { ...saved, unconfirmed: true };
+		expect(readCloudHandoffFollowUp("target")).toEqual(pending);
+		for (const action of ["restore", "dismiss"] as const)
+			expect(() =>
+				updateCloudHandoffFollowUp("target", pending, action),
+			).toThrow("Wait for the follow-up send to finish");
+	} finally {
+		finishB();
+		if (uncertain) await expect(sendB).rejects.toThrow("disconnected");
+		else await expect(sendB).resolves.toMatchObject({ ok: true });
+	}
+	expect(readCloudHandoffFollowUp("target")).toEqual(
+		uncertain ? { ...saved, unconfirmed: true } : null,
+	);
+});
+
 it("leaves ordinary cloud sends without a recovery copy unchanged", async () => {
 	const send = vi.fn(async () => ({ ok: true as const }));
 	await expect(

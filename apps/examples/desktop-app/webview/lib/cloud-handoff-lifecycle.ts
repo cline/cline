@@ -26,6 +26,7 @@ export type HandoffOpenResult = {
 export type HandoffLifecycleEffects = {
 	dispatch: (action: CloudHandoffUiAction) => void;
 	toast: (t: HandoffLifecycleToast) => void;
+	/** Undefined means navigation was cancelled; retain the draft without browser fallback. */
 	openSession: (
 		sessionId: string,
 		opts: {
