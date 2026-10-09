@@ -40,13 +40,10 @@ import {
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import {
- MessageScroller,
- MessageScrollerProvider,
- useMessageScrollerVisibility,
+	MessageScroller,
+	MessageScrollerProvider,
+	useMessageScrollerVisibility,
 } from "@cline/ui/components/message-scroller";
-if ([MessageScroller, MessageScrollerProvider, useMessageScrollerVisibility].some((part) => typeof part !== "function")) {
- throw new Error("packed message-scroller exports are missing");
-}
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 import {
@@ -60,6 +57,14 @@ import {
 	computePngExportSize,
 	resolveDiagramSlug,
 } from "@cline/ui/components/mermaid-diagram";
+
+if (
+	[MessageScroller, MessageScrollerProvider, useMessageScrollerVisibility].some(
+		(part) => typeof part !== "function",
+	)
+) {
+	throw new Error("packed message-scroller exports are missing");
+}
 
 for (const specifier of [
 	"@cline/ui/components.css",
