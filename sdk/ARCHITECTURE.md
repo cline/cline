@@ -676,8 +676,20 @@ The registry tracks one status per plugin: `loading`, `ready`, `degraded`,
 `rule:<id>`, `messageBuilder:<name>`, or `uncaught`), message, stack, plugin
 path, timestamp, and session, plus error and timeout counts.
 
+Plugins are bound to a session when it starts. A plugin that is added,
+changed, or reloaded reaches only sessions started afterwards; a running
+session keeps the plugins, and the plugin code, it started with, even if its
+`setup()` first runs on a later turn. Restarting a session (a CLI mode switch,
+resuming it, or the Hub rebuilding a missing session) is a new start and gets
+the current plugins. A change is detected by a content fingerprint of the
+plugin's entry file and every file it reaches through relative static imports
+(`fingerprintPluginSources`), so edits outside the entry file count too.
+Files reached only through dynamic imports, `require()` of computed paths, or
+`node_modules` are not fingerprinted; after changing those, use
+`plugins.reload`.
+
 Failures are counted per generation. A generation is one import of the
-module; `plugins.reload` or a change to the entry file starts a new one.
+module; `plugins.reload` or a fingerprint change starts a new one.
 Sessions started afterwards get copies of the new generation, and running
 sessions keep the copy they set up, which stays callable. Import failures,
 discovery failures, and five consecutive call failures turn off one

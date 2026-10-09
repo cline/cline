@@ -609,6 +609,104 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		}
 	});
 
+	it("gives new or reloaded plugin tools only to sessions started afterwards", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "core-plugin-new-sessions-")),
+		);
+		setHomeDir(join(root, "home"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "global-settings.json");
+		const workspace = join(root, "workspace");
+		const pluginDir = join(workspace, ".cline", "plugins");
+		mkdirSync(pluginDir, { recursive: true });
+		const { PluginRegistry, resetProcessPluginRegistryForTests } = await import(
+			"../extensions/plugin/plugin-registry"
+		);
+		const registry = new PluginRegistry();
+		resetProcessPluginRegistryForTests(registry);
+		const writePlugin = (file: string, name: string, toolName: string) =>
+			writeFileSync(
+				join(pluginDir, file),
+				`export default {
+	name: "${name}",
+	manifest: { capabilities: ["tools"] },
+	setup(api) {
+		api.registerTool({ name: "${toolName}", description: "", inputSchema: {}, execute: () => "${toolName}" });
+	},
+};`,
+				"utf8",
+			);
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const start = (sessionId: string) =>
+			prepareLocalRuntimeBootstrap({
+				input: {
+					...createStartInput(),
+					config: {
+						...createStartInput().config,
+						cwd: workspace,
+						workspaceRoot: workspace,
+					},
+				},
+				sessionId,
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+		// Setup runs on a session's first turn, which can come long after it
+		// started; run it explicitly to see which tools each session ends up with.
+		const toolsOf = async (
+			bootstrap: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>,
+		) => {
+			const names: string[] = [];
+			for (const extension of bootstrap.extensions ?? []) {
+				if (!["existing", "added"].includes(extension.name)) continue;
+				await extension.setup?.(
+					{
+						registerTool: (tool: { name: string }) => names.push(tool.name),
+						registerCommand: () => {},
+						registerMessageBuilder: () => {},
+						registerRule: () => {},
+						registerProvider: () => {},
+						registerAutomationEventType: () => {},
+						registerMcpServer: () => {},
+					},
+					{},
+				);
+			}
+			return names.sort();
+		};
+
+		try {
+			writePlugin("existing.js", "existing", "tool_v1");
+			const before = await start("started-before");
+
+			// Change the plugins while that session is still waiting for its
+			// first turn: edit one plugin and add another.
+			writePlugin("existing.js", "existing", "tool_v2");
+			writePlugin("added.js", "added", "added_tool");
+			const after = await start("started-after");
+
+			expect(await toolsOf(before)).toEqual(["tool_v1"]);
+			expect(await toolsOf(after)).toEqual(["added_tool", "tool_v2"]);
+
+			// An explicit reload behaves the same way.
+			writePlugin("existing.js", "existing", "tool_v3");
+			const beforeReload = await start("started-before-reload");
+			writePlugin("existing.js", "existing", "tool_v4");
+			await registry.reload("existing");
+			const afterReload = await start("started-after-reload");
+			expect(await toolsOf(beforeReload)).toEqual(["added_tool", "tool_v3"]);
+			expect(await toolsOf(afterReload)).toEqual(["added_tool", "tool_v4"]);
+		} finally {
+			resetProcessPluginRegistryForTests(undefined);
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("threads active plugin skill directories into the runtime builder input", async () => {
 		vi.resetModules();
 		resetModulesAfterEach = true;

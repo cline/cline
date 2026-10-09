@@ -928,4 +928,43 @@ export default { name: "import-time-work", manifest: { capabilities: ["tools"] }
 		// Status still describes the reloaded generation.
 		expect(registry.get(path)[0]?.state).toBe("ready");
 	});
+
+	it("gives new sessions changes made outside the entry file, and only new sessions", async () => {
+		const helper = await write(
+			"helper.js",
+			`export const toolName = "helper_v1";\n`,
+		);
+		const path = await write(
+			"uses-helper.js",
+			`import { toolName } from "./helper.js";
+export default {
+	name: "uses-helper",
+	manifest: { capabilities: ["tools"] },
+	setup(api) {
+		api.registerTool({ name: toolName, description: "", inputSchema: {}, execute: () => toolName });
+	},
+};
+`,
+		);
+		const before = await registry.loadForSession({
+			sessionId: "before",
+			pluginPaths: [path],
+		});
+		// Leaves an imported copy waiting for the next session to claim.
+		await registry.reload(path);
+		// Same length as before, written immediately, and only in a file the
+		// entry imports: the waiting copy is now stale.
+		await writeFile(helper, `export const toolName = "helper_v2";\n`, "utf8");
+		const after = await registry.loadForSession({
+			sessionId: "after",
+			pluginPaths: [path],
+		});
+
+		expect(
+			(await setUp(before.extensions[0])).tools.map((t) => t.name),
+		).toEqual(["helper_v1"]);
+		expect((await setUp(after.extensions[0])).tools.map((t) => t.name)).toEqual(
+			["helper_v2"],
+		);
+	});
 });

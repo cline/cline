@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
@@ -481,6 +482,37 @@ function assertPluginDependenciesInstalled(
 			);
 		}
 	}
+}
+
+/**
+ * Content fingerprint of a plugin's own source: the entry file plus every
+ * file it reaches through relative static imports (`node_modules` and other
+ * bare imports are not included). Used to tell whether a plugin changed since
+ * it was last imported, including edits outside the entry file and edits that
+ * keep the same size within one clock tick.
+ */
+export function fingerprintPluginSources(pluginPath: string): string {
+	const hash = createHash("sha1");
+	const visit = (filePath: string, seen: Set<string>) => {
+		if (seen.has(filePath)) return;
+		seen.add(filePath);
+		let source: string;
+		try {
+			source = readFileSync(filePath, "utf8");
+		} catch {
+			hash.update(`${filePath}\0missing\0`);
+			return;
+		}
+		hash.update(`${filePath}\0${source}\0`);
+		if (!SUPPORTED_PLUGIN_EXTENSIONS.has(extname(filePath))) return;
+		for (const specifier of collectStaticModuleSpecifiers(source)) {
+			if (isBareSpecifier(specifier)) continue;
+			const resolvedPath = resolveRelativeImportPath(filePath, specifier);
+			if (resolvedPath) visit(resolvedPath, seen);
+		}
+	};
+	visit(pluginPath, new Set());
+	return hash.digest("hex");
 }
 
 function collectPluginStaticModuleSpecifiers(

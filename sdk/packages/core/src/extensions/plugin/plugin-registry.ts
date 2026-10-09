@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type {
@@ -27,6 +27,7 @@ import type {
 	PluginInitializationWarning,
 } from "./plugin-load-report";
 import { loadAgentPluginFromPath } from "./plugin-loader";
+import { fingerprintPluginSources } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
 	type PluginTargeting,
@@ -210,15 +211,6 @@ function toErrorParts(error: unknown): { message: string; stack?: string } {
 		return { message: error.message, stack: error.stack };
 	}
 	return { message: String(error) };
-}
-
-function fingerprintOf(pluginPath: string): string {
-	try {
-		const stats = statSync(pluginPath);
-		return `${stats.mtimeMs}:${stats.size}`;
-	} catch {
-		return "missing";
-	}
 }
 
 /**
@@ -882,7 +874,7 @@ export class PluginRegistry {
 			await entry.loading;
 			return entry;
 		}
-		const fingerprint = fingerprintOf(entry.pluginPath);
+		const fingerprint = fingerprintPluginSources(entry.pluginPath);
 		const upToDate =
 			!options.force &&
 			entry.fingerprint === fingerprint &&

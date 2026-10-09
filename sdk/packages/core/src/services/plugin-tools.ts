@@ -1,4 +1,3 @@
-import { stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { PluginErrorRecord, PluginRuntimeState } from "@cline/shared";
 import {
@@ -10,6 +9,7 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
+import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
 import { getProcessPluginRegistry } from "../extensions/plugin/plugin-registry";
 import { resolveDisabledToolNames } from "./global-settings";
 
@@ -89,15 +89,10 @@ async function buildPluginToolDescriptorCacheKey(input: {
 	providerId?: string;
 	modelId?: string;
 }): Promise<string> {
-	const pathStats = await Promise.all(
-		input.pluginPaths.map(async (pluginPath) => {
-			try {
-				const stats = await stat(pluginPath);
-				return `${pluginPath}:${stats.mtimeMs}:${stats.size}`;
-			} catch {
-				return `${pluginPath}:missing`;
-			}
-		}),
+	// Content fingerprints, so an edit to any of a plugin's own files (not
+	// just its entry) invalidates the inspection.
+	const pathStats = input.pluginPaths.map(
+		(pluginPath) => `${pluginPath}:${fingerprintPluginSources(pluginPath)}`,
 	);
 	// Status is part of the key: a plugin a running session turned off (or a
 	// reload revived) must not be answered from an inspection made before.

@@ -104,6 +104,8 @@ Plugins still share one process: globals, `process.env`, and the working directo
 
 The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. In sandbox mode no plugin code runs in the host process, including tool listing and MCP settings sync. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
 
+Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Edits to the plugin's entry file or any file it imports by relative path are picked up automatically. After changing a dependency in `node_modules`, or a file the plugin loads dynamically, run `cline hub plugins --reload <plugin>`.
+
 ## Choosing Plugins per Session
 
 Pass a `plugins` policy when you start a session. It's shaped like `toolPolicies`: `"*"` sets the default, and named entries override it for one plugin. Plugins are enabled unless a policy turns them off.
