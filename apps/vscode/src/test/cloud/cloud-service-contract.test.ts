@@ -47,6 +47,7 @@ describe("local cloud service boundary", () => {
 		})
 		expect(created).toMatchObject({
 			status: "ready",
+			sandboxType: "resumable",
 			repoContext: { repoUrl: "https://github.com/cline/fixture", branch: "fixture" },
 			metadata: { modelId: "fixture-model", taskId: expect.stringMatching(/^tsk-/) },
 		})
@@ -56,7 +57,7 @@ describe("local cloud service boundary", () => {
 
 		await service.renameSession(created.id, "renamed")
 		expect(await service.listSessions()).toEqual([expect.objectContaining({ id: created.id, title: "renamed" })])
-		expect(await service.getStatus(created.id)).toEqual({ status: "ready" })
+		expect(await service.getStatus(created.id)).toEqual({ status: "ready", phase: "ready" })
 		expect(await service.getHistory(created.id)).toEqual([])
 
 		await service.deleteSession(created.id)
@@ -85,9 +86,48 @@ describe("local cloud service boundary", () => {
 		await expect(creating).rejects.toThrow("cancelled by test")
 		expect(provisioningId).toMatch(/^ses-/)
 		// The record exists in `provisioning`; the caller owns its deletion.
-		expect(await service.getStatus(provisioningId!)).toEqual({ status: "provisioning" })
+		expect(await service.getStatus(provisioningId!)).toEqual({ status: "provisioning", phase: "cloning_repo" })
 		await service.deleteSession(provisioningId!)
 		expect(await service.listSessions()).toEqual([])
+	})
+
+	it("adopts a sandbox whose create response was lost instead of provisioning a second one", async () => {
+		environment = await startLocalCloudEnvironment()
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			appBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => environment?.accessToken,
+			getActiveOrganizationId: () => undefined,
+		})
+		environment.loseNextCreateResponse()
+
+		const created = await service.createSession({ modelId: "fixture-model", repoUrl: "https://github.com/cline/fixture" })
+
+		expect([...environment.sessions.keys()]).toEqual([created.id])
+		// The request marker used for recovery never reaches History as a title.
+		expect(await service.listSessions()).toEqual([expect.objectContaining({ id: created.id, title: undefined })])
+	})
+
+	it("reports provisioning phases while a sandbox starts", async () => {
+		environment = await startLocalCloudEnvironment({ provisioningDelayMs: 4_000 })
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			appBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => environment?.accessToken,
+			getActiveOrganizationId: () => undefined,
+		})
+		const phases: string[] = []
+
+		await service.createSession(
+			{ modelId: "fixture-model", repoUrl: "https://github.com/cline/fixture" },
+			undefined,
+			undefined,
+			(phase) => {
+				if (phases.at(-1) !== phase) phases.push(phase)
+			},
+		)
+
+		expect(phases).toEqual(["cloning_repo", "agent_starting", "ready"])
 	})
 
 	it("rejects an invalid credential", async () => {
@@ -101,7 +141,7 @@ describe("local cloud service boundary", () => {
 
 		await expect(service.listSessions()).rejects.toMatchObject({
 			code: "authentication_required",
-			status: 401,
+			message: "Unauthorized",
 		} satisfies Partial<CloudSessionError>)
 	})
 
