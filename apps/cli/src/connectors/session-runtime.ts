@@ -111,9 +111,6 @@ export async function buildConnectorStartRequest(input: {
 			input.options.model?.trim() ||
 			selectedProviderSettings?.model ||
 			input.defaultModel ||
-			(provider === "cline" || provider === "cline-pass"
-				? (await Llms.getProviderCollection(provider))?.provider?.defaultModelId
-				: undefined) ||
 			CLINE_DEFAULT_MODEL_ID,
 		mode: input.options.mode,
 		apiKey,
