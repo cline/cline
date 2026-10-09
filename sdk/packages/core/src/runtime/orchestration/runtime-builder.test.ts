@@ -701,6 +701,148 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("keeps the refresh loop alive when the lead-agent sink throws", async () => {
+		const tempRoot = mkdtempSync(
+			join(tmpdir(), "runtime-builder-mcp-sink-error-"),
+		);
+		const serverPath = join(tempRoot, "mock-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		// Emits `list_changed` after the first two `tools/list` responses so a
+		// second notification is pending when the sink throws on the first
+		// flush; the re-armed flush must still apply it.
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+let lists = 0;
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload) + "\\n");
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "mock", version: "1.0.0" } } });
+    return;
+  }
+  if (message.method === "tools/list") {
+    lists += 1;
+    const echo = { name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: { value: { type: "string" } }, required: [] } };
+    const beta = { name: "beta", description: "Beta tool registered mid-session", inputSchema: { type: "object", properties: {}, required: [] } };
+    write({ jsonrpc: "2.0", id: message.id, result: { tools: lists > 1 ? [echo, beta] : [echo] } });
+    if (lists <= 2) {
+      write({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+    }
+    return;
+  }
+  if (message.method === "tools/call") {
+    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\n");
+    if (separator < 0) break;
+    const line = buffer.slice(0, separator).trim();
+    buffer = buffer.slice(separator + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						mock: {
+							command: process.execPath,
+							args: [serverPath],
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const logEntries: Array<{ message: string; severity?: string }> = [];
+		const unhandledRejections: unknown[] = [];
+		const onUnhandledRejection = (reason: unknown) => {
+			unhandledRejections.push(reason);
+		};
+		process.on("unhandledRejection", onUnhandledRejection);
+		let runtime:
+			| Awaited<ReturnType<DefaultRuntimeBuilder["build"]>>
+			| undefined;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					logger: {
+						debug: () => {},
+						log: (message, metadata) => {
+							logEntries.push({ message, severity: metadata?.severity });
+						},
+					},
+				}),
+			});
+			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
+
+			let sinkCalls = 0;
+			const appliedNext: string[][] = [];
+			runtime.registerLeadAgent?.({
+				addTools: () => {},
+				refreshTools: (_previous, next) => {
+					sinkCalls += 1;
+					if (sinkCalls === 1) {
+						throw new Error("sink boom");
+					}
+					appliedNext.push(next.map((tool) => tool.name));
+				},
+			});
+
+			// The first flush hits the throwing sink; the re-armed flush applies
+			// the second notification. A throw escaping the flush would surface
+			// here as an unhandled rejection (and fail the run via vitest too).
+			const deadline = Date.now() + 10_000;
+			while (appliedNext.length === 0 && Date.now() < deadline) {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+			expect(appliedNext).toHaveLength(1);
+			expect(appliedNext[0]).toEqual(["mock__echo", "mock__beta"]);
+
+			// The sink failure was logged with the server name and error.
+			const warning = logEntries.find(
+				(entry) =>
+					entry.severity === "warn" &&
+					entry.message.includes('"mock"') &&
+					entry.message.includes("sink boom"),
+			);
+			expect(warning).toBeDefined();
+
+			// Nothing from the throwing sink escaped as an unhandled rejection.
+			expect(
+				unhandledRejections.filter(
+					(reason) =>
+						reason instanceof Error && reason.message.includes("sink boom"),
+				),
+			).toEqual([]);
+		} finally {
+			process.off("unhandledRejection", onUnhandledRejection);
+			await runtime?.shutdown("test");
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+		}
+	});
+
 	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {
 		const tempRoot = realpathSync.native(
 			mkdtempSync(join(tmpdir(), "runtime-builder-agent-plugin-")),

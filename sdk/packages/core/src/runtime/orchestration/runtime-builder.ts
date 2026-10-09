@@ -339,10 +339,18 @@ async function loadConfiguredMcpTools(options: {
 			if (previous.length > 0 || next.length > 0) {
 				applyToolsChange(previous, next);
 			}
+		} catch (error) {
+			// The sink is host-provided and must never reject the caller
+			// (every invocation is `void`-ed); log the failure instead.
+			const message = error instanceof Error ? error.message : String(error);
+			const names = changed.map((name) => `"${name}"`).join(", ");
+			options.logger?.log(
+				`[mcp] Failed to apply refreshed tools for MCP server(s) ${names} to the session: ${message}`,
+				{ severity: "warn" },
+			);
 		} finally {
-			// The sink is host-provided; never let a throw from it leave
-			// `flushInFlight` stuck (which would silence every later refresh)
-			// or escape as an unhandled rejection.
+			// Never let a throw from the sink leave `flushInFlight` stuck
+			// (which would silence every later refresh).
 			flushInFlight = false;
 			// A notification that landed mid-flush re-queues here instead of
 			// being lost until the next one.
