@@ -1075,6 +1075,39 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		capabilities: ["tools"],
 		defaultModelId: "",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
+				
+		configFields: [
+			{
+				path: "apiKey",
+				label: "API Key",
+				type: "text",
+				placeholder: "Optional API key for authenticated instances...",
+				description: "Optional API key for authenticated Ollama instances or cloud services."
+			},
+			{
+				path: "baseUrl",
+				label: "Base URL",
+				type: "url",
+				placeholder: "http://localhost:11434",
+				description: "Base endpoint used for provider requests."
+			},
+			{
+				path: "contextWindow",
+				label: "Context Window",
+				type: "number",
+				placeholder: "32768",
+				description: "Specify custom context window size (num_ctx) for Ollama."
+			},
+			{
+				path: "maxTokens",
+				label: "Max Output Tokens",
+				type: "number",
+				placeholder: "4096",
+				description: "Specify maximum response tokens (num_predict). Leave empty for -1."
+			}
+		],
+
+
 		// Local Ollama models are discovered dynamically; do not inherit the
 		// generated Ollama Cloud catalog when merging the models.dev spec.
 		modelsFactory: () => ({}),

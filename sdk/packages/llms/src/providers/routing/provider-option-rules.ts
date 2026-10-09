@@ -445,28 +445,39 @@ const ollamaNativeOptionsRule: ProviderOptionRule = {
 	id: "provider.ollama.native-options",
 	phase: "provider-reasoning",
 	description:
-		"Ollama receives only its context window through native provider options; reasoning is top-level.",
+		"Ollama receives its context window through native provider options; reasoning is top-level.",
 	applies: (input) => input.target === "ollama",
 	suppresses: { genericThinking: true },
 	build: (input) => {
-		const contextWindow =
-			input.context.model.contextWindow ??
-			input.context.model.maxInputTokens ??
-			OLLAMA_DEFAULT_CONTEXT_WINDOW;
+		const modelContext = input.context.model.contextWindow ?? input.context.model.maxInputTokens;
+		
+		const customNumCtx = (input.context as any)?.providerOptions?.num_ctx ?? (input.request as any)?.providerOptions?.num_ctx;
+		const customNumPredict = (input.context as any)?.providerOptions?.num_predict ?? (input.request as any)?.providerOptions?.num_predict;
+
 		const numCtx =
-			typeof contextWindow === "number" &&
-			Number.isFinite(contextWindow) &&
-			contextWindow > 0
-				? Math.floor(contextWindow)
-				: OLLAMA_DEFAULT_CONTEXT_WINDOW;
+			typeof customNumCtx === "number" && customNumCtx > 0
+				? Math.floor(customNumCtx)
+				: typeof modelContext === "number" && Number.isFinite(modelContext) && modelContext > 0
+					? Math.floor(modelContext)
+					: OLLAMA_DEFAULT_CONTEXT_WINDOW;
+
+		const numPredict =
+			typeof customNumPredict === "number"
+				? Math.floor(customNumPredict)
+				: -1; 
+
 		const bucketOptions = {
-			options: { num_ctx: numCtx },
+			options: { 
+				num_ctx: numCtx,
+				num_predict: numPredict
+			},
 		};
 		return {
 			ollama: bucketOptions,
 		};
 	},
 };
+
 
 const nonGlmProviderRoutingSuppressionRule: ProviderOptionRule = {
 	id: "provider.routing.glm-thinking.non-glm.suppress-generic-thinking",

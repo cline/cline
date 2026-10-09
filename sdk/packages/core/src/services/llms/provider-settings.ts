@@ -245,7 +245,7 @@ export function toProviderConfig(
 				: undefined))
 		: undefined;
 
-	const config: ProviderConfig = {
+	const config: any  = {
 		providerId,
 		clientType: settings.client,
 		routingProviderId,
@@ -264,6 +264,12 @@ export function toProviderConfig(
 		timeoutMs: settings.timeout,
 		maxOutputTokens: settings.maxTokens,
 		maxInputTokens: settings.contextWindow,
+
+		providerOptions: {
+			num_ctx: settings.contextWindow,
+			num_predict: settings.maxTokens
+		},
+
 		thinking: settings.reasoning?.enabled,
 		reasoningEffort,
 		thinkingBudgetTokens: settings.reasoning?.budgetTokens,
@@ -310,7 +316,7 @@ export function toProviderConfig(
 
 	return Object.fromEntries(
 		Object.entries(config).filter(([_, value]) => value !== undefined),
-	) as ProviderConfig;
+	) as any ;
 }
 
 export function createProviderConfig(input: unknown): ProviderConfig {
