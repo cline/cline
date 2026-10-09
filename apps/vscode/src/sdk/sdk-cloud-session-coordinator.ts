@@ -761,6 +761,7 @@ export class SdkCloudSessionCoordinator {
 				(await CloudSessionHost.connect({
 					outerSessionId: sessionId,
 					taskId,
+					sandboxType: record.sandboxType ?? record.metadata.sandboxType,
 					socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
 					getAuthToken: this.options.getAuthToken,
 					requestToolApproval: this.options.requestToolApproval,

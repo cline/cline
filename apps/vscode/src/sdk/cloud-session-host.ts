@@ -35,21 +35,18 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "@cline/core"
+import { buildCloudSessionSystemPrompt } from "@cline/core/cloud"
 import type { AgentResult, ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
 import { CLOUD_SESSION_MODE, CLOUD_WORKSPACE_ROOT, type CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 
-export const CLOUD_GITHUB_AUTH_SYSTEM_PROMPT =
-	"IMPORTANT: GitHub API authentication is handled automatically by the infrastructure. " +
-	"A secrets-proxy sidecar injects the necessary authentication credentials into all GitHub API requests. " +
-	"You do NOT need to set up, configure, or manage any authentication tokens, API keys, or credentials for GitHub API calls. " +
-	"Simply make your GitHub API calls normally — authentication will be injected transparently."
-
 export interface CloudSessionHostOptions {
 	outerSessionId: string
 	/** Canonical `tsk-…` id shared by runtime requests, transcripts and history snapshots. */
 	taskId: string
+	/** A temporary (standard) sandbox's agent is told to push its work as it goes. */
+	sandboxType?: "standard" | "resumable"
 	socketUrl: string
 	getAuthToken: () => Promise<string | null | undefined>
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
@@ -297,14 +294,18 @@ export class CloudSessionHost implements SdkSessionHost {
 
 	private sandboxSessionConfig(config: StartSessionInput["config"], sessionId: string): StartSessionInput["config"] {
 		const workspaceRoot = this.options.workspaceRoot ?? CLOUD_WORKSPACE_ROOT
+		// The same sandbox guidance (GitHub access, work branch) every cloud client sends.
+		const guidance = buildCloudSessionSystemPrompt({
+			id: this.outerSessionId,
+			sandboxType: this.options.sandboxType,
+			metadata: { taskId: this.taskId },
+		})
 		return {
 			...config,
 			sessionId,
 			cwd: config.cwd?.trim() || workspaceRoot,
 			workspaceRoot,
-			systemPrompt: config.systemPrompt
-				? `${CLOUD_GITHUB_AUTH_SYSTEM_PROMPT}\n\n${config.systemPrompt}`
-				: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
+			systemPrompt: config.systemPrompt ? `${guidance}\n\n${config.systemPrompt}` : guidance,
 		}
 	}
 
