@@ -80,14 +80,23 @@ export function MessageScrollerItem({
 }
 
 export function MessageScrollerButton({
+	behavior,
 	direction = "end",
 	className,
 	children,
 	...props
 }: MessageScrollerButtonProps) {
+	const resolvedBehavior =
+		behavior ??
+		(typeof window !== "undefined" &&
+		typeof window.matchMedia === "function" &&
+		window.matchMedia("(prefers-reduced-motion: reduce)").matches
+			? "auto"
+			: "smooth");
 	return (
 		<Primitive.Button
 			data-slot="message-scroller-button"
+			behavior={resolvedBehavior}
 			direction={direction}
 			className={clsx("cline-message-scroller-button", className)}
 			{...props}

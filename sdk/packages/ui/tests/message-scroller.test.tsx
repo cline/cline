@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	MessageScroller,
+	MessageScrollerButton,
 	MessageScrollerContent,
 	MessageScrollerItem,
 	MessageScrollerProvider,
@@ -90,6 +91,7 @@ async function renderRows(rows: string[]) {
 							))}
 						</MessageScrollerContent>
 					</MessageScrollerViewport>
+					<MessageScrollerButton />
 				</MessageScroller>
 			</MessageScrollerProvider>,
 		);
@@ -168,5 +170,32 @@ describe("MessageScroller turn identity", () => {
 		expect(viewport().scrollTop).toBe(1512);
 		await renderRows([...history, "user-confirmed", "answer-new", "user-next"]);
 		expect(viewport().scrollTop).toBe(2312);
+	});
+});
+
+describe("MessageScrollerButton", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it.each([
+		{ reducedMotion: false, behavior: "smooth" },
+		{ reducedMotion: true, behavior: "auto" },
+	])("scrolls to the end with $behavior when reduced motion is $reducedMotion", async ({
+		reducedMotion,
+		behavior,
+	}) => {
+		vi.stubGlobal(
+			"matchMedia",
+			vi.fn(() => ({ matches: reducedMotion })),
+		);
+		await renderRows(history);
+		await readAt(0);
+		const button = container.querySelector<HTMLButtonElement>(
+			'[data-slot="message-scroller-button"]',
+		);
+		await act(async () => button?.click());
+		expect(HTMLElement.prototype.scrollTo).toHaveBeenLastCalledWith({
+			top: 1200,
+			behavior,
+		});
 	});
 });
