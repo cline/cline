@@ -118,6 +118,71 @@ const messagesResponse = sse([
 ]);
 
 describe("OpenCode Go HTTP integration", () => {
+	it("preserves an explicit empty reasoning value on DeepSeek assistant tool calls", async () => {
+		const fetchMock = vi.fn(
+			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
+				new Response(chatResponse, {
+					headers: { "content-type": "text/event-stream" },
+				}),
+		);
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "opencode-go",
+					apiKey: "test-key",
+					fetch: fetchMock as unknown as typeof fetch,
+				},
+			],
+		});
+
+		for await (const _event of await gateway.stream({
+			providerId: "opencode-go",
+			modelId: "deepseek-v4.1-flash",
+			metadata: { sessionId: "reasoning-session" },
+			messages: [
+				{ role: "user", content: [{ type: "text", text: "Inspect" }] },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool-call",
+							toolCallId: "call-1",
+							toolName: "read_files",
+							input: { path: "README.md" },
+						},
+					],
+				},
+				{
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call-1",
+							toolName: "read_files",
+							output: "# Cline",
+						},
+					],
+				},
+			],
+		})) {
+			/* Drain the real adapter stream. */
+		}
+
+		const [, init] = fetchMock.mock.calls[0] ?? [];
+		const body = JSON.parse(String(init?.body));
+		expect(body.messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					role: "assistant",
+					reasoning_content: " ",
+					tool_calls: expect.arrayContaining([
+						expect.objectContaining({ id: "call-1" }),
+					]),
+				}),
+			]),
+		);
+	});
+
 	it.each([
 		["openai-compatible", { apiProtocol: "openai-responses" }],
 		["opencode-go", {}],
