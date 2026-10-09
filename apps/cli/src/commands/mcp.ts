@@ -40,6 +40,7 @@ function quoteCommandArg(arg: string): string {
 }
 
 export function buildMcpInstallDefaults(options: {
+	headers?: string[];
 	name: string;
 	targetArgs?: string[];
 	transport?: string;
@@ -58,6 +59,7 @@ export function buildMcpInstallDefaults(options: {
 		name,
 		type: transport.type,
 		url: transport.url,
+		headers: transport.headers,
 	};
 }
 

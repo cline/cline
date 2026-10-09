@@ -637,6 +637,7 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpHeaders,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./services/mcp-install";

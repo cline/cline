@@ -874,8 +874,7 @@ function collectCandidateProviderIds(
 		trimNonEmpty(legacySecrets.sapAiCoreClientSecret) ||
 		trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl) ||
 		trimNonEmpty(legacyGlobalState.sapAiCoreBaseUrl) ||
-		trimNonEmpty(legacyGlobalState.sapAiResourceGroup) ||
-		legacyGlobalState.sapAiCoreUseOrchestrationMode !== undefined
+		trimNonEmpty(legacyGlobalState.sapAiResourceGroup)
 	) {
 		candidates.add("sapaicore");
 	}

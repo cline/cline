@@ -678,6 +678,24 @@ export class CloudSessionController {
 
 	async list(): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
+		const currentTitle = (id: string) =>
+			this.sessions.get(id)?.title ?? this.knownSessions.get(id)?.title;
+		const titlesBeforeRefresh = new Map(
+			[...this.knownSessions.keys(), ...this.sessions.keys()].map((id) => [
+				id,
+				currentTitle(id),
+			]),
+		);
+		const preserveLocalTitle = (session: CloudSessionRecord) => {
+			const title = currentTitle(session.id);
+			// Preserve pending automatic titles and renames made during this request.
+			if (
+				this.titleWrites.has(session.id) ||
+				title !== titlesBeforeRefresh.get(session.id)
+			) {
+				session.title = title ?? session.title;
+			}
+		};
 		const organizationId = await this.resolveActiveOrganizationId();
 		const listed = (await this.options.api.list(organizationId)).map(
 			(session) => this.preserveConnectedRuntimeModel(session),
@@ -686,6 +704,7 @@ export class CloudSessionController {
 		// Keep canonical rows available while their status checks run.
 		this.lastListedSessions = listed;
 		for (const session of listed) {
+			preserveLocalTitle(session);
 			this.knownSessions.set(session.id, session);
 			this.unlistedSessions.delete(session.id);
 		}
@@ -723,8 +742,10 @@ export class CloudSessionController {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
+			preserveLocalTitle(session);
 			this.knownSessions.set(session.id, session);
 			const live = this.sessions.get(session.id);
+			if (live) live.title = session.title;
 			if (
 				live?.status === "provisioning" &&
 				session.status !== "provisioning"

@@ -123,6 +123,8 @@ cline hub start      # Start the hub daemon
 cline hub stop       # Stop it
 cline hub status     # Check if running
 cline hub ensure     # Start if not running, return URL
+cline hub drain      # Refuse new work while accepted runs finish (--off lifts it)
+cline hub upgrade    # Drain the hub and restart it; does not wait for --zen or scheduled tasks
 ```
 
 The hub listens on `127.0.0.1:25463` by default (set `CLINE_HUB_PORT` to change the port) and logs to `~/.cline/data/logs/hub-daemon.log`.

@@ -155,11 +155,15 @@ content-addressed, branch-matched, self-contained Cline CLI binary under
 `~/.cline/remote/` and runs `cline hub ensure --json --discovery-path ...`
 there, which reuses a compatible healthy remote Hub or starts one bound to
 remote loopback. The desktop forwards it to a random local loopback port.
-Linux x64/arm64 and universal macOS runtimes download on demand from the
-same desktop release on every desktop platform. 32-bit Raspberry Pi operating
-systems are not supported. The remote CLI includes its own runtime and is
+On macOS and Linux desktops, Linux x64/arm64 and universal macOS runtimes
+download on demand from the same desktop release. Windows desktops bundle
+Linux x64/arm64 runtimes; macOS SSH hosts require a locally built runtime
+through `CLINE_REMOTE_HELPER_BINARY` or `CLINE_REMOTE_HELPER_DIRECTORY`.
+32-bit Raspberry Pi operating systems are not supported. The remote CLI includes its own runtime and is
 copied once per matching desktop build and cached, with no remote package
 manager, root access, global CLI install, or public Hub port.
+Do not UPX-compress or strip the CLI binaries: Bun reads its embedded code
+back from the executable at runtime, so compression corrupts lazy module loads.
 Disconnecting runs `cline hub stop` for the desktop-owned remote Hub but leaves
 the CLI cached for a faster reconnect. The remote Hub imports the remote
 login-shell `PATH` (`--login-shell-path`), so user-installed Git, GitHub CLI,
