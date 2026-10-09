@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
@@ -507,7 +506,7 @@ function assertPluginDependenciesInstalled(
  * keep the same size within one clock tick.
  */
 export function fingerprintPluginSources(pluginPath: string): string {
-	const hash = createHash("sha1");
+	const parts: string[] = [];
 	const visit = (filePath: string, seen: Set<string>) => {
 		if (seen.has(filePath)) return;
 		seen.add(filePath);
@@ -515,10 +514,10 @@ export function fingerprintPluginSources(pluginPath: string): string {
 		try {
 			source = readFileSync(filePath, "utf8");
 		} catch {
-			hash.update(`${filePath}\0missing\0`);
+			parts.push(`${filePath}:missing`);
 			return;
 		}
-		hash.update(`${filePath}\0${source}\0`);
+		parts.push(`${filePath}:${source.length}:${checksum(source)}`);
 		if (!SUPPORTED_PLUGIN_EXTENSIONS.has(extname(filePath))) return;
 		for (const specifier of [
 			...collectStaticModuleSpecifiers(source),
@@ -530,7 +529,24 @@ export function fingerprintPluginSources(pluginPath: string): string {
 		}
 	};
 	visit(pluginPath, new Set());
-	return hash.digest("hex");
+	return parts.join("|");
+}
+
+/**
+ * Non-cryptographic change detector (two seeded 32-bit FNV-1a passes plus
+ * the length above). It only has to notice edits to plugin source, so a
+ * cryptographic digest is unnecessary.
+ */
+function checksum(text: string): string {
+	let first = 0x811c9dc5;
+	let second = 0x01000193 ^ text.length;
+	for (let index = 0; index < text.length; index++) {
+		const code = text.charCodeAt(index);
+		first = Math.imul(first ^ code, 0x01000193);
+		second = Math.imul(second ^ code, 0x5bd1e995);
+		second ^= second >>> 15;
+	}
+	return `${(first >>> 0).toString(36)}${(second >>> 0).toString(36)}`;
 }
 
 function collectPluginStaticModuleSpecifiers(

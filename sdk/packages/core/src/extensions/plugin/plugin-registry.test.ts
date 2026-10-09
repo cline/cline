@@ -1002,4 +1002,35 @@ export default { name: "side-effect-entry", manifest: { capabilities: ["tools"] 
 		]);
 		expect(registry.get(path)[0]?.state).toBe("ready");
 	});
+
+	it("retries a failed import on a backoff when the fix is invisible to change detection", async () => {
+		const retrying = new PluginRegistry({ failedImportRetryMs: 100 });
+		await write("dynamic-helper.js", `throw new Error("helper broken");\n`);
+		// The helper path is computed, so change detection cannot follow it.
+		const path = await write(
+			"dynamic-entry.js",
+			`const helper = ["./dynamic", "helper.js"].join("-");
+globalThis.__dynamicImports = (globalThis.__dynamicImports ?? 0) + 1;
+await import(new URL(helper, import.meta.url).href);
+export default { name: "dynamic-entry", manifest: { capabilities: ["tools"] } };
+`,
+		);
+		const globals = globalThis as unknown as Record<string, number>;
+		globals.__dynamicImports = 0;
+		await retrying.loadForSession({ pluginPaths: [path] });
+		expect(retrying.get(path)[0]?.state).toBe("failed");
+
+		await write("dynamic-helper.js", `export const ok = true;\n`);
+		// Within the backoff window: still failed, and not imported again.
+		await retrying.loadForSession({ pluginPaths: [path] });
+		expect(globals.__dynamicImports).toBe(1);
+		expect(retrying.get(path)[0]?.state).toBe("failed");
+
+		await new Promise((resolve) => setTimeout(resolve, 120));
+		const recovered = await retrying.loadForSession({ pluginPaths: [path] });
+		expect(recovered.extensions.map((extension) => extension.name)).toEqual([
+			"dynamic-entry",
+		]);
+		expect(retrying.get(path)[0]?.state).toBe("ready");
+	});
 });

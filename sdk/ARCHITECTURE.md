@@ -684,9 +684,13 @@ resuming it, or the Hub rebuilding a missing session) is a new start and gets
 the current plugins. A change is detected by a content fingerprint of the
 plugin's entry file and every file it reaches through relative static imports
 (`fingerprintPluginSources`), so edits outside the entry file count too.
-Files reached only through dynamic imports, `require()` of computed paths, or
-`node_modules` are not fingerprinted; after changing those, use
-`plugins.reload`.
+Side-effect imports at the start of a statement are followed too. Files
+reached only through dynamic imports, `require()` of computed paths, or
+`node_modules` are not fingerprinted. A plugin whose import failed is
+therefore also retried when a session starts, at most every 30 s
+(`DEFAULT_PLUGIN_FAILED_IMPORT_RETRY_MS`), so fixing any of those recovers it
+without a reload; `plugins.reload` applies a change immediately. The
+fingerprint is a non-cryptographic checksum: it only has to notice edits.
 
 Failures are counted per generation. A generation is one import of the
 module; `plugins.reload` or a fingerprint change starts a new one.

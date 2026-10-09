@@ -40,6 +40,12 @@ export const DEFAULT_PLUGIN_HOOK_TIMEOUT_MS = 3_000;
 export const DEFAULT_PLUGIN_TOOL_TIMEOUT_MS = 60_000;
 /** Consecutive call failures after which a generation is turned off. */
 export const DEFAULT_PLUGIN_FAILURE_THRESHOLD = 5;
+/**
+ * A plugin whose import failed is retried at most this often when a session
+ * starts, even if no change to its source was detected (a dependency was
+ * installed, or a file it loads dynamically was fixed).
+ */
+export const DEFAULT_PLUGIN_FAILED_IMPORT_RETRY_MS = 30_000;
 
 const PLUGIN_IMPORT_TIMEOUT_ENV = "CLINE_PLUGIN_IMPORT_TIMEOUT_MS";
 
@@ -101,6 +107,8 @@ interface PluginEntry {
 	 */
 	spare?: PluginInstance;
 	fingerprint?: string;
+	/** When the current generation's import started. */
+	importedAt?: number;
 	lastError?: PluginErrorRecord;
 	errorCount: number;
 	timeoutCount: number;
@@ -155,6 +163,7 @@ export interface PluginRegistryOptions {
 	hookTimeoutMs?: number;
 	toolTimeoutMs?: number;
 	failureThreshold?: number;
+	failedImportRetryMs?: number;
 }
 
 export interface PluginSessionLoadInput extends PluginTargeting {
@@ -529,6 +538,7 @@ export class PluginRegistry {
 	private logger: BasicLogger | undefined;
 	private readonly defaults: PluginTimeouts;
 	private readonly failureThreshold: number;
+	private readonly failedImportRetryMs: number;
 
 	constructor(options: PluginRegistryOptions = {}) {
 		this.logger = options.logger;
@@ -543,6 +553,8 @@ export class PluginRegistry {
 		};
 		this.failureThreshold =
 			options.failureThreshold ?? DEFAULT_PLUGIN_FAILURE_THRESHOLD;
+		this.failedImportRetryMs =
+			options.failedImportRetryMs ?? DEFAULT_PLUGIN_FAILED_IMPORT_RETRY_MS;
 		installPluginHostShim();
 		installPluginTimerTracking();
 	}
@@ -875,8 +887,16 @@ export class PluginRegistry {
 			return entry;
 		}
 		const fingerprint = fingerprintPluginSources(entry.pluginPath);
+		// Change detection cannot see every way a broken import gets fixed
+		// (dynamic imports, installed dependencies), so retry failed imports
+		// on a backoff instead of leaving them failed until a reload.
+		const retryFailedImport =
+			entry.current.blocked &&
+			entry.lastError?.phase === "import" &&
+			Date.now() - (entry.importedAt ?? 0) >= this.failedImportRetryMs;
 		const upToDate =
 			!options.force &&
+			!retryFailedImport &&
 			entry.fingerprint === fingerprint &&
 			entry.state !== "disabled" &&
 			entry.state !== "loading";
@@ -965,6 +985,7 @@ export class PluginRegistry {
 		entry.fingerprint = fingerprint;
 		entry.extension = undefined;
 		this.discardSpare(entry);
+		entry.importedAt = Date.now();
 		this.setState(entry, "loading", true);
 		const startedAt = Date.now();
 		try {

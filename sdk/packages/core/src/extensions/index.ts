@@ -50,6 +50,7 @@ export type {
 	PluginStatusListener,
 } from "./plugin/plugin-registry";
 export {
+	DEFAULT_PLUGIN_FAILED_IMPORT_RETRY_MS,
 	DEFAULT_PLUGIN_FAILURE_THRESHOLD,
 	DEFAULT_PLUGIN_HOOK_TIMEOUT_MS,
 	DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS,
