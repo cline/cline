@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { win32 } from "node:path";
 import {
 	augmentNodeCommandForDebug,
 	withResolvedClineBuildEnv,
@@ -177,6 +178,19 @@ async function writeToChildStdin(
 	});
 }
 
+export function isPowerShellCommand(command: string[]): boolean {
+	if (!Array.isArray(command) || command.length === 0) {
+		return false;
+	}
+	const base = win32.basename(command[0]).toLowerCase();
+	return (
+		base === "powershell" ||
+		base === "powershell.exe" ||
+		base === "pwsh" ||
+		base === "pwsh.exe"
+	);
+}
+
 export async function runSubprocessEvent(
 	payload: unknown,
 	options: RunSubprocessEventOptions,
@@ -190,11 +204,21 @@ export async function runSubprocessEvent(
 	}
 
 	const detached = !!options.detached;
+	// On Windows, spawning powershell.exe or pwsh.exe with detached: true causes
+	// PowerShell to exit 0 immediately (~200ms) without executing the script
+	// (issue #14767). Running attached (detached: false) allows standard handles
+	// to remain valid while child.unref() and stdio: ['pipe', 'ignore', 'ignore']
+	// maintain the non-blocking fire-and-forget contract. Non-PowerShell commands
+	// and non-Windows platforms preserve detached: true.
+	const isWinPowerShell =
+		process.platform === "win32" && isPowerShellCommand(command);
+	const spawnDetached = detached && !isWinPowerShell;
+
 	const child = spawn(command[0], command.slice(1), {
 		cwd: options.cwd,
 		env: withResolvedClineBuildEnv(options.env),
 		stdio: detached ? ["pipe", "ignore", "ignore"] : ["pipe", "pipe", "pipe"],
-		detached,
+		detached: spawnDetached,
 		// Prevent a console window from flashing on Windows (especially when
 		// detached, which would otherwise allocate a new console).
 		windowsHide: true,
