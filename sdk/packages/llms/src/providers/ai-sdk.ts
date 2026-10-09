@@ -1,4 +1,7 @@
-import type { LanguageModelV4 } from "@ai-sdk/provider";
+import {
+	InvalidResponseDataError,
+	type LanguageModelV4,
+} from "@ai-sdk/provider";
 import type {
 	AgentMessage,
 	AgentModelEvent,
@@ -1446,6 +1449,8 @@ function extractGoogleThoughtMetadata(
  * `extractErrorMessage`.
  */
 interface CapturedStreamError {
+	/** EOF from the OpenAI-compatible adapter, rather than a provider rejection. */
+	missingFinishReason: boolean;
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
@@ -1468,6 +1473,9 @@ interface CapturedStreamError {
 
 function captureStreamError(error: unknown): CapturedStreamError {
 	return {
+		missingFinishReason:
+			InvalidResponseDataError.isInstance(error) &&
+			error.message === "Response stream ended without a finish reason.",
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
@@ -1993,7 +2001,11 @@ async function* emitAiSdkEvents(
 
 	yield {
 		type: "finish",
-		reason: streamError ? "error" : mapFinishReason(finishReason),
+		reason: streamError?.missingFinishReason
+			? "unknown"
+			: streamError
+				? "error"
+				: mapFinishReason(finishReason),
 		...(requestId ? { requestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
