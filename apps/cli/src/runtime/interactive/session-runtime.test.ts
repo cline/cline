@@ -7,7 +7,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import type { AgentTool, Message } from "@cline/shared";
+import type { AgentHooks, AgentTool, Message } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
@@ -22,7 +22,6 @@ const subscribeToPendingPromptEventsMock = vi.hoisted(() => vi.fn());
 const markAbortInProgressMock = vi.hoisted(() => vi.fn());
 const submitAndExitInTerminalMock = vi.hoisted(() => vi.fn());
 const createInteractiveExitSummaryMock = vi.hoisted(() => vi.fn());
-const resolveSystemPromptMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../session/session", () => ({
 	createCliCore: createCliCoreMock,
@@ -46,10 +45,6 @@ vi.mock("../../utils/resume", () => ({
 
 vi.mock("../active-runtime", () => ({
 	markAbortInProgress: markAbortInProgressMock,
-}));
-
-vi.mock("../prompt", () => ({
-	resolveSystemPrompt: resolveSystemPromptMock,
 }));
 
 vi.mock("../session-events", () => ({
@@ -200,6 +195,8 @@ async function makeRuntime(
 	options: {
 		config?: Config;
 		resumeSessionId?: string;
+		persistentExtraTools?: AgentTool[];
+		extraAgentHooks?: AgentHooks;
 		resolveToolPolicy?: (toolName: string) => Config["toolPolicies"][string];
 	} = {},
 ) {
@@ -219,6 +216,8 @@ async function makeRuntime(
 		askQuestionRef: { current: null },
 		resolveMistakeLimitDecision: undefined,
 		switchToActModeTool: makeSwitchToActModeTool(),
+		persistentExtraTools: options.persistentExtraTools,
+		extraAgentHooks: options.extraAgentHooks,
 		onAgentEvent: vi.fn(),
 		onTeamEvent: vi.fn(),
 		onPendingPrompts: vi.fn(),
@@ -238,12 +237,10 @@ describe("createInteractiveSessionRuntime", () => {
 		markAbortInProgressMock.mockReset();
 		submitAndExitInTerminalMock.mockReset();
 		createInteractiveExitSummaryMock.mockReset();
-		resolveSystemPromptMock.mockReset();
 		createRuntimeHooksMock.mockReturnValue({
 			hooks: undefined,
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		});
-		resolveSystemPromptMock.mockResolvedValue("rebuilt system prompt");
 		loadInteractiveResumeMessagesMock.mockResolvedValue([]);
 		subscribeToAgentEventsMock.mockReturnValue(() => {});
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
@@ -594,107 +591,6 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe("session-restarted");
 	});
 
-	it("restarts the active session with one working-directory snapshot", async () => {
-		const manager = makeManager();
-		const config = createConfig();
-		const state = createChatCommandState(config);
-		createCliCoreMock.mockResolvedValue(manager);
-		const { createInteractiveSessionRuntime } = await importRuntime();
-		const runtime = createInteractiveSessionRuntime({
-			config,
-			providerSettingsManager: createProviderSettingsManager(),
-			explicitSystemPrompt: "custom prompt",
-			chatCommandState: state,
-			requestToolApproval: vi.fn(),
-			resolveToolPolicy: () => ({ autoApprove: true }),
-			askQuestionRef: { current: null },
-			resolveMistakeLimitDecision: undefined,
-			switchToActModeTool: {} as never,
-			onAgentEvent: vi.fn(),
-			onTeamEvent: vi.fn(),
-			onPendingPrompts: vi.fn(),
-			onPendingPromptSubmitted: vi.fn(),
-		});
-
-		await runtime.ensureReady();
-		await runtime.changeWorkingDirectory({
-			...state,
-			cwd: "/tmp/next-project",
-			workspaceRoot: "/tmp/next-project",
-		});
-
-		expect(resolveSystemPromptMock).toHaveBeenCalledWith({
-			cwd: "/tmp/next-project",
-			explicitSystemPrompt: "custom prompt",
-			providerId: "anthropic",
-			mode: "act",
-		});
-		expect(config).toMatchObject({
-			cwd: "/tmp/next-project",
-			workspaceRoot: "/tmp/next-project",
-			systemPrompt: "rebuilt system prompt",
-		});
-		expect(state).toMatchObject({
-			cwd: "/tmp/next-project",
-			workspaceRoot: "/tmp/next-project",
-		});
-		expect(manager.stop).toHaveBeenCalledWith("session-1");
-		expect(manager.start).toHaveBeenCalledTimes(2);
-		expect(manager.start.mock.calls[1]?.[0]).toEqual(
-			expect.objectContaining({
-				config: expect.objectContaining({
-					cwd: "/tmp/next-project",
-					workspaceRoot: "/tmp/next-project",
-					systemPrompt: "rebuilt system prompt",
-				}),
-			}),
-		);
-		expect(createRuntimeHooksMock).toHaveBeenLastCalledWith(
-			expect.objectContaining({
-				cwd: "/tmp/next-project",
-				workspaceRoot: "/tmp/next-project",
-			}),
-		);
-	});
-
-	it("restores the previous working-directory snapshot when restart fails", async () => {
-		const manager = makeManager();
-		const config = createConfig();
-		const state = createChatCommandState(config);
-		const runtime = await makeRuntime(manager, { config });
-
-		await runtime.ensureReady();
-		manager.start.mockRejectedValueOnce(new Error("replacement failed"));
-
-		await expect(
-			runtime.changeWorkingDirectory({
-				...state,
-				cwd: "/tmp/failed-project",
-				workspaceRoot: "/tmp/failed-project",
-			}),
-		).rejects.toThrow("replacement failed");
-		expect(config).toMatchObject({
-			cwd: "/tmp/project",
-			workspaceRoot: "/tmp/project",
-			systemPrompt: "system",
-		});
-		expect(state).toMatchObject({
-			cwd: "/tmp/project",
-			workspaceRoot: "/tmp/project",
-		});
-		expect(manager.start).toHaveBeenCalledTimes(3);
-		expect(manager.start.mock.calls[2]?.[0]).toEqual(
-			expect.objectContaining({
-				config: expect.objectContaining({
-					sessionId: "session-1",
-					cwd: "/tmp/project",
-					workspaceRoot: "/tmp/project",
-				}),
-			}),
-		);
-		expect(runtime.getActiveSessionId()).toBe("session-2");
-	});
-
 	it("adds a live interactive approval policy hook to started sessions", async () => {
 		const manager = makeManager();
 		const upstreamBeforeTool = vi.fn(async () => ({
@@ -755,6 +651,60 @@ describe("createInteractiveSessionRuntime", () => {
 			input: { text: "updated" },
 			policy: { autoApprove: true },
 		});
+	});
+
+	it("retains direct computer tools and recording hooks across mode-switch restarts", async () => {
+		const manager = makeManager();
+		manager.get.mockResolvedValue(undefined);
+		manager.getAccumulatedUsage.mockResolvedValue(undefined);
+		const runtimeEvent = vi.fn(async () => {});
+		const recordingEvent = vi.fn(async () => {});
+		createRuntimeHooksMock.mockReturnValue({
+			hooks: { onEvent: runtimeEvent },
+			shutdown: vi.fn(async () => {}),
+		});
+		const computerTools: AgentTool[] = [
+			"computer",
+			"computer_restart_backend",
+		].map((name) => ({ ...makeSwitchToActModeTool(), name }));
+		const config = createConfig();
+		config.extraTools = computerTools;
+		const runtime = await makeRuntime(manager, {
+			config,
+			persistentExtraTools: computerTools,
+			extraAgentHooks: { onEvent: recordingEvent },
+		});
+
+		await runtime.ensureReady();
+		await runtime.applyMode("plan");
+		await runtime.applyMode("act");
+
+		expect(manager.start).toHaveBeenCalledTimes(3);
+		const expectedTools = [
+			["computer", "computer_restart_backend"],
+			["switch_to_act_mode", "computer", "computer_restart_backend"],
+			["computer", "computer_restart_backend"],
+		];
+		const event = {
+			type: "message-added" as const,
+			snapshot: {} as never,
+			message: {
+				id: "driver-message",
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "Inspecting the screen" }],
+				createdAt: 0,
+			},
+		};
+		for (const [index, [input]] of manager.start.mock.calls.entries()) {
+			const started = input as { config: Config };
+			expect(started.config.extraTools?.map(({ name }) => name)).toEqual(
+				expectedTools[index],
+			);
+			await started.config.hooks?.onEvent?.(event);
+		}
+		expect(runtimeEvent).toHaveBeenCalledTimes(3);
+		expect(recordingEvent).toHaveBeenCalledTimes(3);
+		await runtime.cleanup();
 	});
 
 	it("starts fresh after resetting an initially resumed session", async () => {

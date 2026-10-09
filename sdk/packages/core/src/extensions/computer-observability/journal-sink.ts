@@ -1,3 +1,4 @@
+import type { ComputerUseSendOptions } from "../computer-use/client";
 import type { ComputerUseResponse } from "../computer-use/protocol";
 import { PUBLISH_EVENT_ACTION } from "../computer-use/protocol";
 import type {
@@ -11,11 +12,19 @@ import type {
  * supply a fake without opening sockets.
  */
 export interface JournalPublishTransport {
-	send(request: {
-		action: typeof PUBLISH_EVENT_ACTION;
-		kind: string;
-		payload: unknown;
-	}): Promise<ComputerUseResponse>;
+	send(
+		request: {
+			action: typeof PUBLISH_EVENT_ACTION;
+			kind: string;
+			payload: unknown;
+		},
+		options?: ComputerUseSendOptions,
+	): Promise<ComputerUseResponse>;
+}
+
+export interface JournalEventSink extends ArtifactEventSink {
+	/** Stops publishing and settles the active send before the shared client closes. */
+	dispose(): Promise<void>;
 }
 
 const MAX_PENDING_EVENTS = 500;
@@ -30,15 +39,19 @@ const MAX_PENDING_EVENTS = 500;
  * order. If more than 500 events wait, the oldest unsent events are dropped.
  * A failed or dropped send degrades the sink without breaking the action path;
  * `flush()` reports the gap rather than pretending completeness.
+ * Hosts call `dispose()` before closing the shared transport so queued or late
+ * events cannot reconnect after shutdown.
  */
 export function createJournalEventSink(
 	transport: JournalPublishTransport,
-): ArtifactEventSink {
+): JournalEventSink {
 	const pending: ComputerTaskArtifactEvent[] = [];
 	let drainPromise: Promise<void> | undefined;
 	let lastClientSequence = 0;
 	let lastAcknowledgedSequence = 0;
 	let degraded = false;
+	let disposed = false;
+	const controller = new AbortController();
 	const flushWaiters = new Set<() => void>();
 
 	const wakeFlushWaiters = (): void => {
@@ -52,21 +65,24 @@ export function createJournalEventSink(
 	};
 
 	const startDrain = (): void => {
-		if (drainPromise) {
+		if (disposed || drainPromise) {
 			return;
 		}
 		drainPromise = (async () => {
-			while (pending.length > 0) {
+			while (!disposed && pending.length > 0) {
 				const event = pending.shift();
 				if (!event) {
 					continue;
 				}
 				try {
-					const response = await transport.send({
-						action: PUBLISH_EVENT_ACTION,
-						kind: event.type,
-						payload: event,
-					});
+					const response = await transport.send(
+						{
+							action: PUBLISH_EVENT_ACTION,
+							kind: event.type,
+							payload: event,
+						},
+						{ signal: controller.signal },
+					);
 					if (response.ok) {
 						lastAcknowledgedSequence = event.clientSequence;
 						wakeFlushWaiters();
@@ -79,7 +95,7 @@ export function createJournalEventSink(
 			}
 		})().finally(() => {
 			drainPromise = undefined;
-			if (pending.length > 0) {
+			if (!disposed && pending.length > 0) {
 				startDrain();
 			}
 		});
@@ -87,6 +103,7 @@ export function createJournalEventSink(
 
 	return {
 		emit(event: ComputerTaskArtifactEvent): void {
+			if (disposed) return;
 			lastClientSequence = event.clientSequence;
 			pending.push(event);
 			if (pending.length > MAX_PENDING_EVENTS) {
@@ -107,6 +124,17 @@ export function createJournalEventSink(
 				lastClientSequence: barrierSequence,
 				lastAcknowledgedSequence,
 			};
+		},
+		async dispose(): Promise<void> {
+			// Completeness flush may return on degradation while sends remain.
+			// Stop every publisher before returning ownership of the shared client.
+			disposed = true;
+			if (pending.length > 0 || lastAcknowledgedSequence < lastClientSequence) {
+				markDegraded();
+			}
+			pending.length = 0;
+			controller.abort(new Error("Journal publisher disposed"));
+			await drainPromise;
 		},
 	};
 }

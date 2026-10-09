@@ -989,8 +989,8 @@ export {
 	ComputerTaskArtifactRecorder,
 	createJournalEventSink,
 	createTranscriptRecordingHooks,
+	type JournalEventSink,
 	type JournalPublishTransport,
-	type TranscriptRecordingTee,
 } from "./extensions/computer-observability";
 export {
 	type ComputerBackendEnsureResult,
@@ -1010,6 +1010,7 @@ export {
 	type ComputerUseSendOptions,
 	type ComputerUseSequenceItem,
 	type ComputerUseToolOptions,
+	createComputerBackendRestartTool,
 	createComputerUseTool,
 	createComputerUseToolFromEnv,
 	GET_DISPLAY_INFO_ACTION,
@@ -1020,26 +1021,6 @@ export {
 	resolveComputerUseTargetFromEnv,
 	SHUTDOWN_BACKEND_ACTION,
 } from "./extensions/computer-use";
-export {
-	COMPUTER_USER_PROMPT_VERSION,
-	COMPUTER_USER_SYSTEM_PROMPT,
-	type ComputerUserCollaborationToolOptions,
-	ComputerUserCoordinator,
-	type ComputerUserCoordinatorOptions,
-	type ComputerUserDriverToolOptions,
-	type ComputerUserSessionHost,
-	type ComputerUserState,
-	type ComputerUserStatus,
-	type ComputerUserTranscriptEntry,
-	ComputerUserTranscriptLog,
-	createComputerBackendRestartTool,
-	createComputerUserCollaborationTools,
-	createComputerUserDriverTools,
-	type DriverNotifier,
-	type DriverQuestion,
-	type HelperNote,
-	type HelperRun,
-} from "./extensions/computer-user";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,

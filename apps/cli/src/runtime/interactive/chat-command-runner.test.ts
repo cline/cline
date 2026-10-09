@@ -39,15 +39,12 @@ function makeState(config: Config): ChatCommandState {
 	};
 }
 
-function makeRuntime(): InteractiveChatCommandRuntime & {
-	changeWorkingDirectory: (next: ChatCommandState) => Promise<void>;
-} {
+function makeRuntime(): InteractiveChatCommandRuntime {
 	return {
 		forkCurrentSession: vi.fn(async () => undefined),
 		getActiveSessionId: vi.fn(() => "session-1"),
 		resetForNewSession: vi.fn(async () => {}),
 		restartEmpty: vi.fn(async () => {}),
-		changeWorkingDirectory: vi.fn(async () => {}),
 	};
 }
 
@@ -65,7 +62,6 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
-			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -94,7 +90,6 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
-			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -121,7 +116,6 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
-			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -155,7 +149,6 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef,
 			setInteractiveAutoApprove,
 			sessionRuntime: runtime,
-			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 		});
 
@@ -169,72 +162,6 @@ describe("runInteractiveChatCommand", () => {
 		});
 		expect(state.autoApproveTools).toBe(true);
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
-	});
-
-	it("changes the runtime working directory before reporting /cd success", async () => {
-		const config = makeConfig();
-		const state = makeState(config);
-		const runtime = makeRuntime();
-		const target = process.cwd();
-		state.cwd = "/tmp";
-		state.workspaceRoot = "/tmp";
-		vi.mocked(runtime.changeWorkingDirectory).mockImplementation(
-			async (next) => {
-				Object.assign(state, next);
-			},
-		);
-
-		const result = await runInteractiveChatCommand({
-			prompt: `/cd ${target}`,
-			enabled: true,
-			config,
-			host: chatCommandHost,
-			chatCommandState: state,
-			autoApproveAllRef: { current: false },
-			setInteractiveAutoApprove: () => {},
-			sessionRuntime: runtime,
-			changeWorkingDirectory: runtime.changeWorkingDirectory,
-			stop: () => {},
-		});
-
-		expect(runtime.changeWorkingDirectory).toHaveBeenCalledWith(
-			expect.objectContaining({ cwd: target }),
-		);
-		expect(state.cwd).toBe(target);
-		expect(result).toMatchObject({
-			handled: true,
-			turnResult: { commandOutput: expect.stringContaining(`cwd=${target}`) },
-		});
-	});
-
-	it("does not run /cd when the submission is queued behind an active turn", async () => {
-		const config = makeConfig();
-		const state = makeState(config);
-		const runtime = makeRuntime();
-		const target = process.cwd();
-		state.cwd = "/tmp";
-		state.workspaceRoot = "/tmp";
-
-		await expect(
-			runInteractiveChatCommand({
-				prompt: `/cd ${target}`,
-				enabled: true,
-				delivery: "queue",
-				config,
-				host: chatCommandHost,
-				chatCommandState: state,
-				autoApproveAllRef: { current: false },
-				setInteractiveAutoApprove: () => {},
-				sessionRuntime: runtime,
-				changeWorkingDirectory: runtime.changeWorkingDirectory,
-				stop: () => {},
-			}),
-		).rejects.toThrow(
-			"Cannot change working directory while a turn is running. Wait for it to finish or abort it first.",
-		);
-
-		expect(runtime.changeWorkingDirectory).not.toHaveBeenCalled();
-		expect(state).toMatchObject({ cwd: "/tmp", workspaceRoot: "/tmp" });
 	});
 
 	it("returns plugin command submit prompts as model input", async () => {
@@ -258,7 +185,6 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
-			changeWorkingDirectory: runtime.changeWorkingDirectory,
 			stop: () => {},
 			onCommandOutput,
 		});

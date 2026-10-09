@@ -1,4 +1,3 @@
-import { basename } from "node:path";
 import {
 	type AgentEvent,
 	type AgentHooks,
@@ -34,7 +33,6 @@ import { formatPluginIssueWarnings } from "../../utils/plugin-issues";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
-import { resolveSystemPrompt } from "../prompt";
 import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
@@ -101,7 +99,6 @@ export function createInteractiveSessionRuntime(input: {
 	config: Config;
 	providerSettingsManager: ProviderSettingsManager;
 	userInstructionService?: UserInstructionConfigService;
-	explicitSystemPrompt?: string;
 	resumeSessionId?: string;
 	chatCommandState: ChatCommandState;
 	requestToolApproval: (
@@ -111,16 +108,9 @@ export function createInteractiveSessionRuntime(input: {
 	askQuestionRef: AskQuestionRef;
 	resolveMistakeLimitDecision: Config["onConsecutiveMistakeLimitReached"];
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
-	/**
-	 * Mode-independent extra tools (e.g. the computer-user tools) that must
-	 * survive plan/act switches. Rebuilt into config.extraTools on every
-	 * mode change alongside the mode-dependent switch tool.
-	 */
+	/** Mode-independent tools, including computer, retained on mode switches. */
 	persistentExtraTools?: NonNullable<Config["extraTools"]>;
-	/**
-	 * Host-supplied hooks layer (e.g. computer-use transcript recording)
-	 * merged after the runtime's own hooks on every session build.
-	 */
+	/** Host hooks merged after runtime hooks on every session build. */
 	extraAgentHooks?: AgentHooks;
 	onAgentEvent: (event: AgentEvent) => void;
 	onTeamEvent: (event: TeamEvent) => void;
@@ -145,20 +135,6 @@ export function createInteractiveSessionRuntime(input: {
 	let manualCompactionAbortController: AbortController | undefined;
 
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
-
-	const createWorkspaceRuntimeHooks = (
-		manager: CliCore,
-		workspace: Pick<ChatCommandState, "cwd" | "workspaceRoot">,
-	): RuntimeHooks =>
-		createRuntimeHooks({
-			verbose: input.config.verbose,
-			yolo: input.config.mode === "yolo",
-			cwd: workspace.cwd,
-			workspaceRoot: workspace.workspaceRoot,
-			dispatchHookEvent: async (payload) => {
-				await manager.ingestHookEvent(payload);
-			},
-		});
 
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
@@ -217,7 +193,15 @@ export function createInteractiveSessionRuntime(input: {
 			throw new Error("interactive runtime shutdown requested");
 		}
 		sessionManager = manager;
-		runtimeHooks = createWorkspaceRuntimeHooks(manager, input.chatCommandState);
+		runtimeHooks = createRuntimeHooks({
+			verbose: input.config.verbose,
+			yolo: input.config.mode === "yolo",
+			cwd: input.config.cwd,
+			workspaceRoot: input.config.workspaceRoot,
+			dispatchHookEvent: async (payload) => {
+				await manager.ingestHookEvent(payload);
+			},
+		});
 		unsubscribeAgent = subscribeToAgentEvents(manager, input.onAgentEvent);
 		unsubscribePendingPrompts = subscribeToPendingPromptEvents(manager, {
 			onPendingPrompts: input.onPendingPrompts,
@@ -471,14 +455,14 @@ export function createInteractiveSessionRuntime(input: {
 		messages: MessageWithMetadata[],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
-		options?: { preserveSessionId?: boolean; sessionId?: string },
+		options?: { preserveSessionId?: boolean },
 	): Promise<void> => {
 		// Config-only restarts (model/mode/account changes) continue the same
 		// conversation, so they must keep the session id — otherwise each
 		// restart mints a new session history entry for the same conversation.
-		const reuseSessionId =
-			options?.sessionId ??
-			(options?.preserveSessionId ? activeSessionId || undefined : undefined);
+		const reuseSessionId = options?.preserveSessionId
+			? activeSessionId || undefined
+			: undefined;
 		sessionStartGeneration += 1;
 		pendingResumeSessionId = undefined;
 		startupError = undefined;
@@ -539,99 +523,6 @@ export function createInteractiveSessionRuntime(input: {
 				: undefined,
 			{ preserveSessionId: true },
 		);
-	};
-
-	const changeWorkingDirectory = async (
-		next: ChatCommandState,
-	): Promise<void> => {
-		await ensureReady();
-		const manager = sessionManager;
-		if (!manager) {
-			throw new Error("interactive session manager is unavailable");
-		}
-		const sourceSessionId = activeSessionId;
-
-		const [{ messages, status }, compactionState, systemPrompt] =
-			await Promise.all([
-				readCurrentMessages(),
-				readCurrentCompactionState(),
-				resolveSystemPrompt({
-					cwd: next.cwd,
-					explicitSystemPrompt: input.explicitSystemPrompt,
-					providerId: input.config.providerId,
-					mode: input.config.mode,
-				}),
-			]);
-		if (status !== "read" || activeSessionId !== sourceSessionId) {
-			throw new Error("Working directory changed concurrently. Try /cd again.");
-		}
-
-		const previousState = { ...input.chatCommandState };
-		const previousSessionId = activeSessionId;
-		const previousConfig = {
-			cwd: input.config.cwd,
-			workspaceRoot: input.config.workspaceRoot,
-			systemPrompt: input.config.systemPrompt,
-			extensionContext: input.config.extensionContext,
-		};
-		const previousRuntimeHooks = runtimeHooks;
-		const nextRuntimeHooks = createWorkspaceRuntimeHooks(manager, next);
-		const projectedMessages = compactionState
-			? projectSessionCompactionState(compactionState, messages)
-			: undefined;
-		const initialCompactionState = projectedMessages
-			? createSessionCompactionState({
-					sourceMessages: messages,
-					compactedMessages: projectedMessages,
-					systemPrompt: compactionState?.system_prompt,
-				})
-			: undefined;
-
-		// The directory becomes effective as one snapshot for the replacement
-		// session. A concurrent ensureReady() waits on the restart barrier.
-		Object.assign(input.chatCommandState, next);
-		input.config.cwd = next.cwd;
-		input.config.workspaceRoot = next.workspaceRoot;
-		input.config.systemPrompt = systemPrompt;
-		if (input.config.extensionContext?.workspace) {
-			input.config.extensionContext = {
-				...input.config.extensionContext,
-				workspace: {
-					...input.config.extensionContext.workspace,
-					rootPath: next.workspaceRoot,
-					cwd: next.cwd,
-					workspaceName: basename(next.cwd),
-				},
-			};
-		}
-		runtimeHooks = nextRuntimeHooks;
-
-		try {
-			await restartWithMessages(messages, undefined, initialCompactionState, {
-				preserveSessionId: true,
-			});
-		} catch (error) {
-			Object.assign(input.chatCommandState, previousState);
-			input.config.cwd = previousConfig.cwd;
-			input.config.workspaceRoot = previousConfig.workspaceRoot;
-			input.config.systemPrompt = previousConfig.systemPrompt;
-			input.config.extensionContext = previousConfig.extensionContext;
-			runtimeHooks = previousRuntimeHooks;
-			await nextRuntimeHooks.shutdown().catch(() => {});
-			try {
-				await restartWithMessages(messages, undefined, initialCompactionState, {
-					sessionId: previousSessionId || undefined,
-				});
-			} catch (recoveryError) {
-				throw new AggregateError(
-					[error, recoveryError],
-					"Working directory change failed, and the previous session could not be restored.",
-				);
-			}
-			throw error;
-		}
-
-		await previousRuntimeHooks?.shutdown().catch(() => {});
 	};
 
 	const updateCurrentSessionConnection = async (
@@ -1034,7 +925,6 @@ export function createInteractiveSessionRuntime(input: {
 		resetForNewSession,
 		restartWithMessages,
 		restartWithCurrentMessages,
-		changeWorkingDirectory,
 		updateCurrentSessionConnection,
 		resumeSession,
 		forkCurrentSession,

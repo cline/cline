@@ -14,7 +14,7 @@ import {
  * Assigns the artifact's client sequence and fans events into the sink.
  *
  * One recorder instance exists per computer-use task, shared by every
- * observer (driver session, helper session, computer client, coordinator).
+ * observer (driver session and computer client).
  * Sharing one recorder is what makes `clientSequence` a single total order
  * across all sources — separate recorders would produce interleavings the
  * replay viewer cannot reconstruct.

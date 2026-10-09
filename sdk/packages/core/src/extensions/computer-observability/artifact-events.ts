@@ -2,11 +2,11 @@
  * Artifact event contract for computer-use task observability.
  *
  * One append-only event stream captures everything needed to replay a
- * computer-use task: both transcripts (driver and computer user), helper
- * notes/questions, computer actions with their screenshots, and coordinator
- * state transitions. Events are emitted live while the task runs and shipped
- * to an artifact ingress (the qwanban observatory's `observed` channel is the
- * seed of that ingress); they are never reconstructed later from logs.
+ * computer-use task: the driver transcript, computer actions with their
+ * screenshots, and session state transitions. Events are emitted live while
+ * the task runs and shipped to an artifact ingress (the qwanban observatory's
+ * `observed` channel is the seed of that ingress); they are never reconstructed
+ * later from logs.
  *
  * Ordering and identity:
  * - `clientSequence` is the emission order assigned by the VM-side recorder.
@@ -14,8 +14,7 @@
  * - `eventId` makes retries idempotent.
  * - `correlation.computerActionId` ties a tool call to its backend action and
  *   screenshot (see `ComputerUseClientEvent.actionId`).
- * - `correlation.parentEventId` chains helper question → driver injection →
- *   driver reply.
+ * - `correlation.parentEventId` links related events.
  *
  * Payloads carry blob references (`ArtifactBlobRef`), never inline image
  * bytes: screenshots are content-addressed so the backend stores each image
@@ -33,6 +32,7 @@ export interface ArtifactBlobRef {
 	sizeBytes?: number;
 }
 
+/** Includes legacy helper sources so existing version-1 journals remain readable. */
 export type ArtifactEventSourceKind =
 	| "driver"
 	| "computer_user"
@@ -51,6 +51,7 @@ export interface ArtifactEventCorrelation {
 	computerActionId?: string;
 }
 
+/** Includes legacy helper events from version-1 journals. */
 export type ArtifactEventType =
 	| "session.started"
 	| "session.ended"

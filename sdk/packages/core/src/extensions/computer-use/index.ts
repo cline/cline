@@ -15,6 +15,7 @@ export {
 	type ComputerBackendRestartOptions,
 	isComputerUseLoopbackHost,
 } from "./backend-restart";
+export { createComputerBackendRestartTool } from "./backend-restart-tool";
 export {
 	ComputerUseClient,
 	type ComputerUseClientEvent,

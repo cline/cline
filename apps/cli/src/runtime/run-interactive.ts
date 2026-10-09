@@ -23,6 +23,7 @@ import type {
 	LoadInteractiveConfigDataOptions,
 } from "../tui/interactive-config";
 import {
+	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
 	resolveClineWelcomeLine,
 } from "../tui/interactive-welcome";
@@ -35,12 +36,12 @@ import {
 	zeroCliAgentEventCost,
 	zeroCliUsageCost,
 } from "../utils/free-model-cost";
-import type { MutableUserInstructionConfigService } from "../utils/mutable-user-instruction-service";
 import {
 	prepareTerminalForPostTuiOutput,
 	writeErr,
 	writeln,
 } from "../utils/output";
+import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import {
@@ -51,7 +52,10 @@ import {
 } from "./active-runtime";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
-import { createInteractiveComputerUse } from "./interactive/computer-user";
+import {
+	createInteractiveComputerUse,
+	type InteractiveComputerUse,
+} from "./interactive/computer-use";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
 import {
 	formatInteractiveExitSummary,
@@ -68,11 +72,6 @@ import {
 } from "./interactive/mode";
 import { assertInteractivePreflight } from "./interactive/preflight";
 import { createInteractiveSessionRuntime } from "./interactive/session-runtime";
-import {
-	createInteractiveWorkspaceResources,
-	type InteractiveWorkspaceCommandSnapshot,
-	type InteractiveWorkspaceLocation,
-} from "./interactive/workspace-resources";
 import { buildUserInputMessage } from "./prompt";
 import { getUIEventEmitter } from "./session-events";
 
@@ -180,64 +179,86 @@ export async function resumeInteractiveSession(
 	};
 }
 
+interface RunInteractiveOptions {
+	clineApiBaseUrl?: string;
+	clineProviderSettings?: ProviderSettings;
+	startupTarget?: TuiStartupTarget;
+	initialPrompt?: string;
+	initialNotice?: CliMigrationNotice;
+	onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
+}
+
 export async function runInteractive(
 	config: Config,
 	userInstructionService?: UserInstructionConfigService,
 	resumeSessionId?: string,
-	options?: {
-		clineApiBaseUrl?: string;
-		clineProviderSettings?: ProviderSettings;
-		startupTarget?: TuiStartupTarget;
-		initialPrompt?: string;
-		initialNotice?: CliMigrationNotice;
-		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
-		explicitSystemPrompt?: string;
-		mutableUserInstructionService?: MutableUserInstructionConfigService;
-		createUserInstructionService?: (
-			location: InteractiveWorkspaceLocation,
-		) => UserInstructionConfigService;
-	},
+	options?: RunInteractiveOptions,
 ): Promise<void> {
 	assertInteractivePreflight(config);
-
-	const initialRepoStatus = await readRepoStatus(config.cwd);
-	const mutableUserInstructionService = options?.mutableUserInstructionService;
-	const createUserInstructionService = options?.createUserInstructionService;
-	const activeUserInstructionService =
-		mutableUserInstructionService ?? userInstructionService;
-	if (
-		(mutableUserInstructionService === undefined) !==
-		(createUserInstructionService === undefined)
-	) {
-		throw new Error(
-			"interactive workspace resources require both the mutable instruction service and its factory",
+	const computerUse = await createInteractiveComputerUse({ config });
+	try {
+		await runInteractiveSession(
+			config,
+			userInstructionService,
+			resumeSessionId,
+			options,
+			computerUse,
 		);
+	} finally {
+		// Own the host across startup as well as normal exit: TUI import/render
+		// failures must not leave its socket or spawned backend behind.
+		await computerUse?.dispose().catch(() => {});
 	}
-	let workspaceCommandNotifier:
-		| ((snapshot: InteractiveWorkspaceCommandSnapshot) => void)
+}
+
+async function runInteractiveSession(
+	config: Config,
+	userInstructionService: UserInstructionConfigService | undefined,
+	resumeSessionId: string | undefined,
+	options: RunInteractiveOptions | undefined,
+	computerUse: InteractiveComputerUse | undefined,
+): Promise<void> {
+	const initialRepoStatus = await readRepoStatus(config.cwd);
+	const workflowSlashCommands = listInteractiveSlashCommands(
+		userInstructionService,
+	);
+	let interactiveChatCommandHost = chatCommandHost;
+	let pluginChatCommandHostLoaded = false;
+	let pluginChatSlashCommands: InteractiveSlashCommand[] = [];
+	let pluginChatCommandHostShutdown: (() => Promise<void>) | undefined;
+	let pluginChatCommandHostPromise:
+		| Promise<InteractiveSlashCommand[]>
 		| undefined;
-	const workspaceResources =
-		mutableUserInstructionService && createUserInstructionService
-			? createInteractiveWorkspaceResources({
-					initialLocation: {
-						cwd: config.cwd,
-						workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
-					},
-					userInstructionService: mutableUserInstructionService,
-					createUserInstructionService,
-					logger: config.logger,
-					onCommandsChanged: (snapshot) => workspaceCommandNotifier?.(snapshot),
-				})
-			: undefined;
-	const initialCommandSnapshot = workspaceResources?.getCommandSnapshot() ?? {
-		workflowSlashCommands: listInteractiveSlashCommands(
-			activeUserInstructionService,
-		),
-		pluginSlashCommands: [],
+	const ensurePluginChatCommandHost = async (): Promise<
+		InteractiveSlashCommand[]
+	> => {
+		if (pluginChatCommandHostLoaded) {
+			return pluginChatSlashCommands;
+		}
+		pluginChatCommandHostPromise ??= createWorkspaceChatCommandHost({
+			cwd: config.cwd,
+			workspaceRoot: config.workspaceRoot,
+			logger: config.logger,
+		})
+			.then(({ host, pluginSlashCommands, shutdown }) => {
+				interactiveChatCommandHost = host;
+				pluginChatCommandHostShutdown = shutdown;
+				pluginChatSlashCommands = pluginSlashCommands.map((cmd) => ({
+					name: cmd.name,
+					instructions: "",
+					description: cmd.description ?? "Plugin command",
+				}));
+				return pluginChatSlashCommands;
+			})
+			.finally(() => {
+				pluginChatCommandHostLoaded = true;
+				pluginChatCommandHostPromise = undefined;
+			});
+		return await pluginChatCommandHostPromise;
 	};
-	const loadAdditionalSlashCommands = workspaceResources
-		? workspaceResources.loadPluginSlashCommands
-		: undefined;
+	const loadAdditionalSlashCommands = async (): Promise<
+		InteractiveSlashCommand[]
+	> => await ensurePluginChatCommandHost();
 	const shouldTryPluginChatCommands = (prompt: string): boolean => {
 		return prompt.trimStart().startsWith("/");
 	};
@@ -266,34 +287,7 @@ export async function runInteractive(
 		tuiModeChanged,
 	});
 
-	const providerSettingsManager = new ProviderSettingsManager();
-
-	// Computer-use support is enabled by CLINE_COMPUTER_USE_PORT. The driver
-	// gets the raw tool unless CLINE_COMPUTER_USER_MODEL explicitly selects the
-	// asynchronous helper. Both modes publish the driver's observatory lane.
-	//
-	// notifyDriver closes over sessionRuntime (declared below) but only runs
-	// after a driver turn has started, long after initialization. It resolves
-	// the driver session id at call time, so session rebuilds are safe.
-	const computerUse = await createInteractiveComputerUse({
-		config,
-		providerSettingsManager,
-		notifyDriver: (prompt, delivery) => {
-			void sessionRuntime
-				.sendCurrentTurn({ prompt, delivery })
-				.catch((error) => {
-					logCliError(
-						config.logger,
-						"Computer-user driver notification failed",
-						{
-							error,
-						},
-					);
-				});
-		},
-	});
 	const persistentExtraTools = computerUse?.driverTools ?? [];
-
 	config.extraTools = buildInteractiveExtraTools({
 		mode: config.mode === "plan" ? "plan" : "act",
 		switchToActModeTool,
@@ -311,13 +305,13 @@ export async function runInteractive(
 		autoApproveAllRef,
 		askQuestionRef: tuiAskQuestion,
 	});
+	const providerSettingsManager = new ProviderSettingsManager();
 	let zeroCurrentTurnCost = false;
 
 	const sessionRuntime = createInteractiveSessionRuntime({
 		config,
 		providerSettingsManager,
-		userInstructionService: activeUserInstructionService,
-		explicitSystemPrompt: options?.explicitSystemPrompt,
+		userInstructionService,
 		resumeSessionId,
 		chatCommandState,
 		requestToolApproval,
@@ -326,9 +320,8 @@ export async function runInteractive(
 		resolveMistakeLimitDecision,
 		switchToActModeTool,
 		persistentExtraTools,
-		// Record the driver's transcript to the computer-use backend's
-		// journal so the observatory can show it beside the computer user's
-		// transcript and screenshots.
+		// Record the driver's transcript in the backend journal alongside
+		// computer actions and screenshots for the observatory.
 		extraAgentHooks: computerUse?.driverRecordingHooks,
 		onAgentEvent: (event) => {
 			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
@@ -345,24 +338,10 @@ export async function runInteractive(
 	});
 	const configDataLoader = createInteractiveConfigDataLoader({
 		config,
-		userInstructionService: activeUserInstructionService,
+		userInstructionService,
 		loadCoreSettings: sessionRuntime.listCoreSettings,
 		toggleCoreSettings: sessionRuntime.toggleCoreSettings,
 	});
-	const changeInteractiveWorkingDirectory = async (
-		next: ChatCommandState,
-	): Promise<void> => {
-		const applySessionChange = () =>
-			sessionRuntime.changeWorkingDirectory(next);
-		if (!workspaceResources) {
-			await applySessionChange();
-			return;
-		}
-		await workspaceResources.changeWorkspace(
-			{ cwd: next.cwd, workspaceRoot: next.workspaceRoot },
-			applySessionChange,
-		);
-	};
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;
 	const modeSwitchNotice = createModeSwitchNoticeTracker();
@@ -444,8 +423,11 @@ export async function runInteractive(
 			try {
 				exitSummary = await sessionRuntime.cleanup();
 			} finally {
-				await computerUse?.dispose().catch(() => {});
-				await workspaceResources?.dispose();
+				await pluginChatCommandHostPromise?.catch(() => []);
+				await pluginChatCommandHostShutdown?.().catch(() => {
+					// Best effort cleanup for plugin command discovery sandbox.
+				});
+				pluginChatCommandHostShutdown = undefined;
 				setActiveRuntimeAbort(undefined);
 				setActiveRuntimeCleanup(undefined);
 			}
@@ -579,7 +561,7 @@ export async function runInteractive(
 		onInitialNoticeShown: options?.onInitialNoticeShown,
 		loadDeferredInitialMessages,
 		initialRepoStatus,
-		workflowSlashCommands: initialCommandSnapshot.workflowSlashCommands,
+		workflowSlashCommands,
 		loadAdditionalSlashCommands,
 		loadWelcomeLine: async () =>
 			await resolveClineWelcomeLine({
@@ -638,14 +620,12 @@ export async function runInteractive(
 				let chatCommandResult = await runInteractiveChatCommand({
 					prompt: input,
 					enabled: enableChatCommands,
-					delivery,
 					config,
-					host: workspaceResources?.getChatCommandHost() ?? chatCommandHost,
+					host: interactiveChatCommandHost,
 					chatCommandState,
 					autoApproveAllRef,
 					setInteractiveAutoApprove,
 					sessionRuntime,
-					changeWorkingDirectory: changeInteractiveWorkingDirectory,
 					stop: () => tuiApp?.destroy(),
 					onCommandOutput,
 				});
@@ -654,21 +634,18 @@ export async function runInteractive(
 				}
 				if (
 					shouldTryPluginChatCommands(input) &&
-					workspaceResources &&
-					!workspaceResources.arePluginCommandsLoaded()
+					!pluginChatCommandHostLoaded
 				) {
-					await workspaceResources.loadPluginSlashCommands();
+					await ensurePluginChatCommandHost();
 					chatCommandResult = await runInteractiveChatCommand({
 						prompt: input,
 						enabled: enableChatCommands,
-						delivery,
 						config,
-						host: workspaceResources.getChatCommandHost(),
+						host: interactiveChatCommandHost,
 						chatCommandState,
 						autoApproveAllRef,
 						setInteractiveAutoApprove,
 						sessionRuntime,
-						changeWorkingDirectory: changeInteractiveWorkingDirectory,
 						stop: () => tuiApp?.destroy(),
 						onCommandOutput,
 					});
@@ -684,9 +661,8 @@ export async function runInteractive(
 					prompt: userInput,
 					userImages,
 					userFiles,
-				} = await buildUserInputMessage(input, activeUserInstructionService, {
+				} = await buildUserInputMessage(input, userInstructionService, {
 					mode,
-					cwd: config.cwd,
 				});
 				const mergedUserImages = [
 					...(attachments?.userImages ?? []),
@@ -921,12 +897,6 @@ export async function runInteractive(
 		},
 		setModeChangeNotifier: (fn) => {
 			tuiModeChanged.current = fn;
-		},
-		setWorkspaceCommandNotifier: (fn) => {
-			workspaceCommandNotifier = fn ?? undefined;
-			if (fn && workspaceResources) {
-				fn(workspaceResources.getCommandSnapshot());
-			}
 		},
 	});
 

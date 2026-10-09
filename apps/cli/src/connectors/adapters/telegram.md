@@ -57,7 +57,7 @@ The Telegram connector uses the shared connector command parser:
 - `/whereami` - show thread, cwd, tools, and yolo state
 - `/tools [on|off|toggle]` - allow or block repo/file/shell tools
 - `/yolo [on|off|toggle]` - auto-approve tool use
-- `/cd <path>` or `/cwd <path>` - change working directory
+- `/cwd <path>` - change working directory
 - `/schedule create/list/trigger/delete` - manage scheduled workflows
 - `/abort` - stop the current task
 - `/exit` - stop the connector
