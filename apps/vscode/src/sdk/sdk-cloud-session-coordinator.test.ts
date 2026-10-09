@@ -122,6 +122,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => undefined),
+		showChatView: vi.fn(async () => undefined),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: vi.fn(async (text: string) => text),
 		...overrides,
@@ -1083,6 +1084,8 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			await coordinator.openCloudTask(finished.id)
 
 			expect(cloudSessions.resumeSession).toHaveBeenCalledTimes(recordStatus === "suspended" ? 1 : 0)
+			// The resume notice is brought in front of History; a plain open leaves navigation to the caller.
+			expect(options.showChatView).toHaveBeenCalledTimes(recordStatus === "suspended" ? 1 : 0)
 			expect(connect).toHaveBeenCalledOnce()
 			const shown = JSON.stringify(options.getTask()?.messageStateHandler.getClineMessages())
 			expect(shown).toContain("original prompt")

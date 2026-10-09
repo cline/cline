@@ -121,6 +121,7 @@ describe("resuming a suspended cloud sandbox through the real Hub", () => {
 				const text = task?.messageStateHandler.getClineMessages().at(-1)?.text
 				if (text !== undefined) renders.push(`post: ${text}`)
 			}),
+			showChatView: vi.fn(async () => renders.push("chat view shown")),
 			invalidateHistoryCache: vi.fn(),
 			onAskResponse: vi.fn(),
 			onCancelTask: vi.fn(),
@@ -141,7 +142,9 @@ describe("resuming a suspended cloud sandbox through the real Hub", () => {
 		// The transcript starts a new epoch after the notice, so the webview replaces the notice.
 		const noticePosted = renders.indexOf("post: Resuming the cloud sandbox…")
 		expect(noticePosted).toBeGreaterThan(-1)
-		expect(renders.lastIndexOf("new epoch")).toBeGreaterThan(noticePosted)
+		// The chat view is brought forward while the notice is showing, before the conversation replaces it.
+		expect(renders.indexOf("chat view shown")).toBeGreaterThan(noticePosted)
+		expect(renders.lastIndexOf("new epoch")).toBeGreaterThan(renders.indexOf("chat view shown"))
 		expect(environment.sessions.get(record.id)?.record.status).toBe("ready")
 		const shown = JSON.stringify(task?.messageStateHandler.getClineMessages())
 		expect(shown).toContain("first prompt")
