@@ -2601,6 +2601,79 @@ describe("createContextCompactionPrepareTurn", () => {
 		assertBasicCompactionResult(result);
 	});
 
+	it.each([
+		false,
+		true,
+	])("preserves active attachments with hidden continuation context (overflow recovery: %s)", async (overflowRecovery) => {
+		const attachments: LlmsProviders.ContentBlock[] = [
+			{ type: "image", data: "abc", mediaType: "image/png" },
+			{
+				type: "file",
+				path: "/tmp/question.txt",
+				content: "Attached information",
+			},
+		];
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Older request" },
+			{ role: "assistant", content: "Old context ".repeat(10_000) },
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Answer about these attachments" },
+					...attachments,
+				],
+			},
+			{ role: "assistant", content: "Partial response" },
+			{
+				role: "user",
+				content:
+					"Previous turn ended unexpectedly. Continue from where you left off.",
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			},
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic" },
+			logger: undefined,
+		});
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: {
+					id: "mock-model",
+					maxInputTokens: overflowRecovery ? 1_000_000 : 5_000,
+				},
+			},
+		});
+		expect(result).toBeDefined();
+		expect(
+			result?.messages.flatMap((message) =>
+				Array.isArray(message.content) ? message.content : [],
+			),
+		).toEqual(expect.arrayContaining(attachments));
+		expect(result?.messages.at(-1)).toMatchObject({
+			role: "user",
+			content: messages.at(-1)?.content,
+			metadata: { displayRole: "system", userRunSpan: 0 },
+		});
+	});
+
 	it("forces a basic compaction on overflow recovery, bypassing the estimate gate", async () => {
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({

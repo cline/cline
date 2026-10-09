@@ -736,6 +736,13 @@ describe("remote environment command routing", () => {
 			args: ["branch", "--show-current"],
 			cwd: "/srv/code/project",
 		});
+		// The polled branch label must not also list every branch over SSH.
+		expect(fake.run).not.toHaveBeenCalledWith(
+			profile.id,
+			expect.objectContaining({
+				args: expect.arrayContaining(["for-each-ref"]),
+			}),
+		);
 	});
 
 	it("bounds remote search output before transfer and drops a truncated filename", async () => {
