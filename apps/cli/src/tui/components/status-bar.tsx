@@ -61,15 +61,21 @@ export function formatStatusBarUsageText(input: {
 	totalTokens: number;
 	totalCost: number;
 	providerId: string;
+	maxInputTokens?: number;
 }): string {
 	const tokens = `(${input.totalTokens.toLocaleString()})`;
 	const costText = formatCostText(input.providerId, input.totalCost);
-
-	if (!costText) {
-		return tokens;
-	}
-
-	return `${tokens} ${costText}`;
+	const windowTokens =
+		typeof input.maxInputTokens === "number" &&
+		Number.isFinite(input.maxInputTokens) &&
+		input.maxInputTokens > 0
+			? input.maxInputTokens
+			: undefined;
+	const pctText = windowTokens
+		? `${Math.min(100, (input.totalTokens / windowTokens) * 100).toFixed(1)}%`
+		: "";
+	const windowText = windowTokens ? `/${windowTokens.toLocaleString()}` : "";
+	return [tokens, windowText, pctText, costText].filter(Boolean).join(" ");
 }
 
 // knownModels keys are bare IDs ("claude-sonnet-4-6") but config.modelId
@@ -189,6 +195,7 @@ export function StatusBar(props: StatusBarProps) {
 		totalTokens,
 		totalCost,
 		providerId: props.providerId,
+		maxInputTokens,
 	});
 	const contextText = bar
 		? ` ${bar.filled}${bar.empty} ${usageText}`
