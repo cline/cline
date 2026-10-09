@@ -394,5 +394,46 @@ describe("run handlers", () => {
 			expect(reply.error?.message).toContain("userId");
 			expect(dispatchHookEvent).not.toHaveBeenCalled();
 		});
+
+		it("names a nested field by its full path", async () => {
+			const ctx = createContext({ dispatchHookEvent: vi.fn() });
+
+			const reply = await handleSessionHook(ctx, {
+				version: "v1",
+				command: "session.hook",
+				requestId: "req-hook",
+				payload: {
+					payload: {
+						...hookPayload,
+						hookName: "tool_call",
+						tool_call: { id: 42, name: "read_file", input: {} },
+					},
+				},
+			});
+
+			expect(reply.error?.message).toContain("tool_call.id");
+		});
+
+		it("lists at most three rejected fields", async () => {
+			const ctx = createContext({ dispatchHookEvent: vi.fn() });
+			const {
+				timestamp: _timestamp,
+				taskId: _taskId,
+				userId: _userId,
+				agent_id: _agentId,
+				...withoutFourFields
+			} = hookPayload;
+
+			const reply = await handleSessionHook(ctx, {
+				version: "v1",
+				command: "session.hook",
+				requestId: "req-hook",
+				payload: { payload: withoutFourFields },
+			});
+
+			const fields = reply.error?.message.match(/\((.*)\)$/)?.[1].split("; ");
+			expect(fields).toHaveLength(3);
+			expect(reply.error?.message).not.toContain("agent_id");
+		});
 	});
 });
