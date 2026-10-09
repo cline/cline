@@ -103,15 +103,30 @@ function isAbortReason(reason?: string): boolean {
 	);
 }
 
-function serializeHookError(error: Error): {
+/**
+ * Hub-run sessions hand hooks their context as JSON, so the error may arrive
+ * as a plain object rather than an `Error`. The hook payload schema requires
+ * a string `name` and `message`, so fill them in whatever the shape.
+ */
+function serializeHookError(error: unknown): {
 	name: string;
 	message: string;
 	stack?: string;
 } {
+	const record =
+		error && typeof error === "object"
+			? (error as { name?: unknown; message?: unknown; stack?: unknown })
+			: undefined;
+	const message =
+		typeof record?.message === "string"
+			? record.message
+			: typeof error === "string" && error
+				? error
+				: "Agent run failed";
 	return {
-		name: error.name,
-		message: error.message,
-		stack: error.stack,
+		name: typeof record?.name === "string" ? record.name : "Error",
+		message,
+		...(typeof record?.stack === "string" ? { stack: record.stack } : {}),
 	};
 }
 
