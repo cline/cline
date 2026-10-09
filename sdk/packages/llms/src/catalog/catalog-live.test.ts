@@ -436,6 +436,31 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("excludes multimodal realtime sessions from executable catalog models", () => {
+		const models = normalizeModelsDevProviderModels({
+			vercel: {
+				id: "vercel",
+				name: "Vercel",
+				models: {
+					"openai/gpt-realtime-2.1": {
+						tool_call: true,
+						modalities: { input: ["audio", "text", "image"], output: ["text"] },
+					},
+					"openai/gpt-realtime-whisper": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+		});
+		expect(models["vercel-ai-gateway"]).not.toHaveProperty(
+			"openai/gpt-realtime-2.1",
+		);
+		expect(
+			models["vercel-ai-gateway"]?.["openai/gpt-realtime-whisper"]?.operation,
+		).toBe("transcription");
+	});
+
 	it("admits transcription only through an explicit provider operation", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			groq: {

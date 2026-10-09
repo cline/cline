@@ -360,9 +360,12 @@ describe("getComposioStatus", () => {
 		const github = status.integrations.find((e) => e.toolkit === "github");
 		expect(github?.status).toBe("connected");
 		expect(github?.toolNames).toEqual(["Create issue"]);
+		expect(proxy.listToolkitTools).not.toHaveBeenCalled();
 	});
 
-	it("re-fetches schemas for a connected toolkit stored with zero tools", async () => {
+	it.each([
+		0, 20,
+	])("refreshes a connected toolkit cached with %i tools to all 47 tools", async (cachedCount) => {
 		const dir = useTempDataDir();
 		makeAvailable([
 			{
@@ -371,33 +374,106 @@ describe("getComposioStatus", () => {
 				toolkit: { slug: "googlecalendar" },
 			},
 		]);
-		proxy.listToolkitTools.mockResolvedValue([
-			{ slug: "GOOGLECALENDAR_CREATE_EVENT" },
-			{ slug: "GOOGLECALENDAR_LIST_EVENTS" },
-		]);
+		const tools = Array.from({ length: 47 }, (_, i) => ({
+			slug: `GOOGLECALENDAR_TOOL_${i}`,
+			name: `Calendar tool ${i}`,
+		}));
+		proxy.listToolkitTools.mockResolvedValue(tools);
+		const connection = {
+			connectedAccountId: "ca_wedged",
+			connectedAt: "2026-08-28T00:00:00.000Z",
+			name: "Google Calendar",
+			logo: "https://logos/googlecalendar.png",
+		};
 		writeState(dir, {
 			toolkits: {
 				googlecalendar: {
-					connectedAccountId: "ca_wedged",
-					connectedAt: "2026-08-28T00:00:00.000Z",
-					name: "Google Calendar",
-					tools: [],
+					...connection,
+					tools: tools.slice(0, cachedCount),
 				},
 			},
 		});
-		// The wedge is visible before a refresh.
 		const before = await getComposioStatus();
-		expect(
-			before.integrations.find((e) => e.toolkit === "googlecalendar")?.error,
-		).toMatch(/no tools were retrieved/);
-		// A refresh self-heals it.
+		const cached = before.integrations.find(
+			(e) => e.toolkit === "googlecalendar",
+		);
+		expect(cached?.toolNames).toHaveLength(cachedCount);
+		if (cachedCount === 0) {
+			expect(cached?.error).toMatch(/no tools were retrieved/);
+		}
+		expect(proxy.listToolkitTools).not.toHaveBeenCalled();
 		const status = await getComposioStatus({ refresh: true });
 		const healed = status.integrations.find(
 			(e) => e.toolkit === "googlecalendar",
 		);
-		expect(healed?.toolNames).toHaveLength(2);
+		expect(healed?.toolNames).toEqual(tools.map((tool) => tool.name));
 		expect(healed?.error).toBeUndefined();
-		expect(readStateFile(dir).toolkits?.googlecalendar?.tools).toHaveLength(2);
+		expect(readStateFile(dir).toolkits?.googlecalendar).toEqual({
+			...connection,
+			tools,
+		});
+	});
+
+	it("preserves cached schemas after a failed refresh and retries on the next refresh", async () => {
+		const dir = useTempDataDir();
+		const stored = {
+			connectedAccountId: "ca_calendar",
+			connectedAt: "2026-08-28T00:00:00.000Z",
+			tools: [{ slug: "GOOGLECALENDAR_LIST_EVENTS" }],
+		};
+		writeState(dir, { toolkits: { googlecalendar: stored } });
+		makeAvailable([
+			{
+				id: "ca_calendar",
+				status: "ACTIVE",
+				toolkit: { slug: "googlecalendar" },
+			},
+		]);
+		const tools = [...stored.tools, { slug: "GOOGLECALENDAR_CREATE_EVENT" }];
+		proxy.listToolkitTools
+			.mockRejectedValueOnce(new ConnectorsApiError("later page failed", 502))
+			.mockResolvedValueOnce(tools);
+		await getComposioStatus({ refresh: true });
+		expect(readStateFile(dir).toolkits?.googlecalendar).toEqual(stored);
+		const status = await getComposioStatus({ refresh: true });
+		expect(readStateFile(dir).toolkits?.googlecalendar?.tools).toEqual(tools);
+		expect(
+			status.integrations.find((e) => e.toolkit === "googlecalendar")
+				?.toolNames,
+		).toHaveLength(2);
+	});
+
+	it("does not restore a connector disconnected while its schemas are refreshing", async () => {
+		const dir = useTempDataDir();
+		const tools = [{ slug: "GOOGLECALENDAR_LIST_EVENTS" }];
+		writeState(dir, {
+			toolkits: {
+				googlecalendar: { connectedAccountId: "ca_calendar", tools },
+			},
+		});
+		makeAvailable([
+			{
+				id: "ca_calendar",
+				status: "ACTIVE",
+				toolkit: { slug: "googlecalendar" },
+			},
+		]);
+		let complete!: (tools: unknown[]) => void;
+		proxy.listToolkitTools.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const refresh = getComposioStatus({ refresh: true });
+		await vi.waitFor(() => expect(complete).toBeTypeOf("function"));
+		await disconnectComposioToolkit("googlecalendar");
+		complete(tools);
+		const status = await refresh;
+		expect(readStateFile(dir).toolkits?.googlecalendar).toBeUndefined();
+		expect(
+			status.integrations.find((e) => e.toolkit === "googlecalendar")?.status,
+		).toBe("not_connected");
 	});
 
 	it("removes a locally-stored toolkit the proxy no longer lists (revoked remotely)", async () => {

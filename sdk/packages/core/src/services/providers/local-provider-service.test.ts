@@ -15,6 +15,7 @@ import {
 	clearPrivateModelsCatalogCache,
 } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import * as LocalProviderRegistry from "./local-provider-registry";
 import {
 	parseModelsFile,
 	readModelsFile,
@@ -27,6 +28,7 @@ import {
 	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
@@ -466,6 +468,330 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 	afterEach(() => cleanup());
 
+	it("authenticates model discovery on create, update, and refresh", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation(
+				async () =>
+					new Response(JSON.stringify({ data: [{ id: "agent_test" }] })),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "authenticated-model-source";
+		const modelsSourceUrl = "https://librechat.example/api/agents/v1/models";
+		const expectAuth = (token: string | null, tenant: string | null) => {
+			const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+			const headers = new Headers(init.headers);
+			expect(headers.get("authorization")).toBe(token);
+			expect(headers.get("x-tenant")).toBe(tenant);
+		};
+		await addLocalProvider(manager, {
+			providerId,
+			name: "LibreChat",
+			baseUrl: "https://librechat.example/api/agents/v1",
+			modelsSourceUrl,
+			apiKey: " initial-key ",
+			headers: { "X-Tenant": "first" },
+			models: [],
+		});
+		expectAuth("Bearer initial-key", "first");
+		await updateLocalProvider(manager, { providerId, modelsSourceUrl });
+		expectAuth("Bearer initial-key", "first");
+		await updateLocalProvider(manager, {
+			providerId,
+			modelsSourceUrl,
+			apiKey: " replacement-key ",
+			headers: { "X-Tenant": "second" },
+		});
+		expectAuth("Bearer replacement-key", "second");
+		await refreshProviderModelsFromSource(manager, providerId);
+		expectAuth("Bearer replacement-key", "second");
+		await updateLocalProvider(manager, {
+			providerId,
+			modelsSourceUrl,
+			apiKey: null,
+			headers: null,
+		});
+		expectAuth(null, null);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+	});
+
+	it.each([
+		"update",
+		"settings",
+	] as const)("refreshes tenant catalogs through %s on credential-only and endpoint-only changes", async (path) => {
+		const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+			const headers = new Headers(init.headers);
+			const id = `${new URL(url).host}:${headers.get("authorization")}:${headers.get("x-tenant")}`;
+			return new Response(JSON.stringify({ data: [{ id }] }));
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "tenant-switch";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Tenant Switch",
+			baseUrl: "https://first.example/v1",
+			modelsSourceUrl: "https://first.example/v1/models",
+			apiKey: "first",
+			models: [],
+		});
+		const save = async (patch: {
+			apiKey?: string;
+			baseUrl?: string;
+			headers?: Record<string, string>;
+		}) => {
+			if (path === "update")
+				await updateLocalProvider(manager, { providerId, ...patch });
+			else await saveLocalProviderSettings(manager, { providerId, ...patch });
+		};
+		const expectCatalog = async (id: string) => {
+			const state = await readModelsFile(resolveModelsRegistryPath(manager));
+			expect(Object.keys(state.providers[providerId].models ?? {})).toEqual([
+				id,
+			]);
+			expect(manager.getProviderSettings(providerId)?.model).toBe(id);
+		};
+		await save({ apiKey: "second" });
+		await expectCatalog("first.example:Bearer second:null");
+		await save({ headers: { "X-Tenant": "new-tenant" } });
+		await expectCatalog("first.example:Bearer second:new-tenant");
+		await save({ baseUrl: "https://second.example/api/v1" });
+		await expectCatalog("second.example:Bearer second:new-tenant");
+		expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(
+			"https://second.example/api/v1/models",
+		);
+		await save({ apiKey: "" });
+		await expectCatalog("second.example:null:new-tenant");
+		const previousSettings = manager.getProviderSettings(providerId);
+		fetchMock.mockRejectedValueOnce(new Error("unauthorized"));
+		if (path === "update") {
+			await expect(save({ apiKey: "invalid" })).rejects.toThrow("unauthorized");
+			expect(manager.getProviderSettings(providerId)).toEqual(previousSettings);
+		} else {
+			await save({ apiKey: "invalid" });
+			expect(manager.getProviderSettings(providerId)).toEqual({
+				...previousSettings,
+				apiKey: "invalid",
+			});
+		}
+		await expectCatalog("second.example:null:new-tenant");
+	});
+
+	it.each([
+		"update",
+		"settings",
+		"refresh",
+	] as const)("preserves manual models, the default, and model overrides through %s discovery", async (operation) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json(["shared", "old-tenant", "manual-and-discovered"]),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "customized-source";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Customized Source",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			models: ["manual", "manual-and-discovered"],
+			defaultModelId: "manual",
+			capabilities: ["vision", "reasoning"],
+		});
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const state = await readModelsFile(modelsPath);
+		const overrides = {
+			name: "Customized model",
+			contextWindow: 32000,
+			maxTokens: 2048,
+			inputPrice: 0.5,
+			supportsVision: false,
+			supportsReasoning: false,
+		};
+		state.providers[providerId].models = {
+			...state.providers[providerId].models,
+			shared: overrides,
+			"file-added": { contextWindow: 64000 },
+		};
+		await LocalProviderRegistry.writeModelsFile(modelsPath, state);
+		fetchMock.mockImplementation(async () =>
+			Response.json(["shared", "new-tenant"]),
+		);
+		if (operation === "settings") {
+			await saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new-key",
+			});
+		} else if (operation === "update") {
+			await updateLocalProvider(manager, { providerId, apiKey: "new-key" });
+		} else {
+			await refreshProviderModelsFromSource(manager, providerId);
+		}
+		const refreshed = (await readModelsFile(modelsPath)).providers[providerId];
+		expect(Object.keys(refreshed.models ?? {}).sort()).toEqual([
+			"file-added",
+			"manual",
+			"manual-and-discovered",
+			"new-tenant",
+			"shared",
+		]);
+		expect(refreshed.models?.shared).toMatchObject(overrides);
+		expect(refreshed.models?.["file-added"]).toMatchObject({
+			contextWindow: 64000,
+		});
+		expect(refreshed.provider?.defaultModelId).toBe("manual");
+		expect(manager.getProviderSettings(providerId)?.model).toBe("manual");
+		expect(refreshed.discoveredModelIds).toEqual(["shared", "new-tenant"]);
+		const models = await LlmsModels.getModelsForProvider(providerId);
+		expect(Object.keys(models).sort()).toEqual(
+			Object.keys(refreshed.models ?? {}).sort(),
+		);
+		expect(models.shared.contextWindow).toBe(32000);
+		expect(models.shared.capabilities ?? []).not.toContain("images");
+		expect(models.shared.capabilities ?? []).not.toContain("reasoning");
+	});
+
+	it("saves credentials and endpoints while model discovery is offline", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ data: [{ id: "existing-model" }] })),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "offline-provider";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Offline Provider",
+			baseUrl: "https://old.example/v1",
+			modelsSourceUrl: "https://old.example/v1/models",
+			apiKey: "old-key",
+			models: [],
+		});
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+		await saveLocalProviderSettings(manager, {
+			providerId,
+			apiKey: "new-key",
+			headers: { "X-Tenant": "new-tenant" },
+			baseUrl: "https://new.example/v1",
+		});
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new-key",
+			headers: { "X-Tenant": "new-tenant" },
+			baseUrl: "https://new.example/v1",
+			model: "existing-model",
+		});
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			catalog,
+		);
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "" });
+		expect(manager.getProviderSettings(providerId)).not.toHaveProperty(
+			"apiKey",
+		);
+	});
+
+	it("saves credentials when the new catalog source lists no models", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(Response.json({ data: [{ id: "existing-model" }] }));
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "empty-tenant";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Empty Tenant",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			apiKey: "old-key",
+			models: [],
+		});
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		fetchMock.mockImplementation(async () => Response.json({ data: [] }));
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "new-key" });
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new-key",
+			model: "existing-model",
+		});
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			catalog,
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "other-key" }),
+		).rejects.toThrow("at least one model is required");
+	});
+
+	it("prunes models from source-backed entries saved before discovery ownership", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				Response.json({ data: [{ id: "kept" }, { id: "removed" }] }),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "legacy-source";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Legacy Source",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			models: [],
+		});
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const legacy = await readModelsFile(modelsPath);
+		const legacyEntry = legacy.providers[providerId];
+		if (!legacyEntry) throw new Error("expected provider entry");
+		delete legacyEntry.discoveredModelIds;
+		await LocalProviderRegistry.writeModelsFile(modelsPath, legacy);
+
+		fetchMock.mockResolvedValue(Response.json({ data: [{ id: "kept" }] }));
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "key" });
+		const entry = (await readModelsFile(modelsPath)).providers[providerId];
+		expect(Object.keys(entry?.models ?? {})).toEqual(["kept"]);
+		expect(entry?.discoveredModelIds).toEqual(["kept"]);
+	});
+
+	it.each([
+		"settings",
+		"update",
+	] as const)("restores provider settings when catalog persistence fails through %s", async (savePath) => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockImplementation(async () =>
+					Response.json({ data: [{ id: "model" }] }),
+				),
+		);
+		const providerId = "catalog-write-failure";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Catalog Write Failure",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			apiKey: "old-key",
+			models: [],
+		});
+		const previousSettings = manager.read();
+		const previousCatalog = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		const failure = new Error("EACCES: cannot write models.json");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			failure,
+		);
+		const save =
+			savePath === "settings" ? saveLocalProviderSettings : updateLocalProvider;
+		await expect(
+			save(manager, {
+				providerId,
+				apiKey: "new-key",
+				baseUrl: "https://new.example/v1",
+			}),
+		).rejects.toBe(failure);
+		expect(manager.read()).toEqual(previousSettings);
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			previousCatalog,
+		);
+		expect((await LlmsModels.getProvider(providerId))?.baseUrl).toBe(
+			"https://provider.example/v1",
+		);
+	});
+
 	it("parses a flat array payload from modelsSourceUrl", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true,
@@ -505,6 +831,24 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("data-array-provider");
 		expect(models.map((m) => m.id).sort()).toEqual(["model-x", "model-y"]);
+	});
+
+	it("surfaces a failing Ollama modelsSourceUrl fetch instead of an empty list", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://ollama.corp.invalid:11434/v1",
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockRejectedValue(new Error("Unable to connect")),
+		);
+
+		await expect(
+			getLocalProviderModels(
+				"ollama",
+				manager.getProviderConfig("ollama", { includeKnownModels: false }),
+			),
+		).rejects.toThrow(/Unable to connect/);
 	});
 
 	it("parses Ollama-style { models: [{ name }] } payloads", async () => {
@@ -1256,6 +1600,28 @@ describe("addLocalProvider – capabilities", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(models).toEqual([]);
 	});
+
+	it("surfaces the LiteLLM model refresh failure instead of an empty list", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key-catalog",
+				baseUrl: "https://litellm.corp.invalid",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockRejectedValue(new Error("unable to get local issuer certificate")),
+		);
+
+		await expect(
+			getLocalProviderModels("litellm", manager.getProviderConfig("litellm")),
+		).rejects.toThrow(/unable to get local issuer certificate/);
+	});
 });
 
 describe("audio transcription", () => {
@@ -1263,15 +1629,20 @@ describe("audio transcription", () => {
 	let cleanup: () => void;
 
 	beforeEach(async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({})),
+		);
 		({ manager, cleanup } = makeTempManager());
-		await addLocalProvider(manager, {
-			providerId: "audio-provider",
-			name: "Audio Provider",
-			baseUrl: "https://audio.example.invalid/v1",
-			apiKey: "audio-key",
-			models: ["whisper-large-v3"],
-		});
-		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
+		manager.saveProviderSettings(
+			{
+				provider: "groq",
+				model: "whisper-large-v3",
+				apiKey: "audio-key",
+			},
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("groq", "whisper-large-v3", {
 			id: "whisper-large-v3",
 			name: "Whisper Large v3",
 			operation: "transcription",
@@ -1282,12 +1653,25 @@ describe("audio transcription", () => {
 
 	afterEach(() => cleanup());
 
-	it("recognizes only the explicit transcription operation", () => {
+	it("requires exact audio-to-text modalities instead of trusting operation labels", () => {
+		expect(
+			isDedicatedTranscriptionModel({
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(true);
 		expect(
 			isDedicatedTranscriptionModel({
 				operation: "transcription",
 			}),
-		).toBe(true);
+		).toBe(false);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "transcription",
+				inputModalities: ["audio", "text", "image"],
+				outputModalities: ["text"],
+			}),
+		).toBe(false);
 		expect(
 			isDedicatedTranscriptionModel({
 				operation: "speech-generation",
@@ -1307,93 +1691,83 @@ describe("audio transcription", () => {
 
 		await expect(
 			transcribeLocalAudio(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 			}),
 		).resolves.toEqual({ text: "transcribed text" });
 		expect(transcribeSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
+					providerId: "groq",
 					apiKey: "audio-key",
 				}),
 			}),
 		);
 	});
 
-	it("persists and uses the configured voice input model", async () => {
-		await expect(
-			saveVoiceInputSettings(manager, {
-				providerId: "audio-provider",
-				modelId: "whisper-large-v3",
-			}),
-		).resolves.toMatchObject({
-			voiceInput: {
-				providerId: "audio-provider",
-				modelId: "whisper-large-v3",
-			},
-		});
-
-		const transcribeSpy = vi
-			.spyOn(LlmsModels, "transcribeAudio")
-			.mockResolvedValue({ text: "configured transcript" });
-		await expect(
-			transcribeConfiguredVoiceInput(manager, {
-				audio: new Uint8Array([4, 5, 6]),
-				mediaType: "audio/webm",
-			}),
-		).resolves.toEqual({ text: "configured transcript" });
-		expect(transcribeSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				modelId: "whisper-large-v3",
-				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
-				}),
-			}),
+	it.each([
+		["openai-native", "gpt-realtime-whisper"],
+		["elevenlabs", "scribe_v2_realtime"],
+	])("offers and saves streaming transcription for %s", async (providerId, modelId) => {
+		manager.saveProviderSettings(
+			{ provider: providerId, apiKey: "audio-key" },
+			{ setLastUsed: false },
 		);
+		const { models } = await getLocalTranscriptionModels(providerId);
+		expect(models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: modelId, operationModes: ["streaming"] }),
+			]),
+		);
+		await saveVoiceInputSettings(manager, { providerId, modelId });
+		expect(manager.getVoiceInputSettings()).toMatchObject({
+			providerId,
+			modelId,
+		});
 	});
 
-	it("creates a streaming session only for a streaming transcription model", async () => {
-		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
-			id: "realtime-whisper",
-			name: "Realtime Whisper",
+	it("rejects batch-only models for voice input", async () => {
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "groq",
+				modelId: "whisper-large-v3",
+			}),
+		).rejects.toThrow("does not support streaming transcription");
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it.each([
+		["groq", "realtime-whisper"],
+	])("rejects streaming models on the batch-only %s transport", async (providerId, modelId) => {
+		manager.saveProviderSettings(
+			{ provider: providerId, apiKey: "audio-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel(providerId, modelId, {
+			id: modelId,
 			operation: "transcription",
 			operationModes: ["streaming"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
-		await saveVoiceInputSettings(manager, {
-			providerId: "audio-provider",
-			modelId: "realtime-whisper",
-		});
-		const createSessionSpy = vi
-			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
-			.mockResolvedValue({
-				token: "short-lived-token",
-				url: "wss://audio.example.invalid/transcription",
-			});
-
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId,
+				modelId,
+			}),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		manager.setVoiceInputSettings({ providerId, modelId });
 		await expect(
 			createConfiguredStreamingTranscriptionSession(manager),
-		).resolves.toMatchObject({ token: "short-lived-token" });
-		expect(createSessionSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				modelId: "realtime-whisper",
-				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
-				}),
-			}),
-		);
+		).rejects.toThrow("does not support streaming transcription");
 	});
 
 	it("rejects a voice input selection that is not an audio-to-text model", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "missing-model",
 			}),
 		).rejects.toThrow(
@@ -1420,7 +1794,6 @@ describe("audio transcription", () => {
 				providerId: "elevenlabs",
 				modelId: "scribe_v2",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 			}),
 		).resolves.toEqual({ text: "ElevenLabs transcript" });
 		expect(transcribeSpy).toHaveBeenCalledWith(
@@ -1439,6 +1812,156 @@ describe("audio transcription", () => {
 // ===========================================================================
 // models.json – built-in provider model overlays
 // ===========================================================================
+
+describe("authoritative voice model validation", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+	let catalog: Array<Record<string, unknown>>;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+		manager.saveProviderSettings(
+			{ provider: "vercel-ai-gateway", apiKey: "gateway-key" },
+			{ setLastUsed: false },
+		);
+		catalog = [
+			{
+				id: "multimodal-live",
+				type: "transcription",
+				tags: ["websocket-transcription"],
+				supported_specifications: ["v4"],
+				modalities: { input: ["audio", "text", "image"], output: ["text"] },
+			},
+			{
+				modalities: { input: ["audio"], output: ["text"] },
+				id: "new/voice-model",
+				type: "transcription",
+				tags: ["websocket-transcription"],
+				supported_specifications: ["v4"],
+			},
+			{
+				modalities: { input: ["audio"], output: ["text"] },
+				id: "google/gemini-3.5-transcribe-live",
+				type: "transcription",
+				supported_specifications: ["v4"],
+				tags: ["websocket-transcription"],
+			},
+			{
+				id: "transcribe-chat",
+				type: "language",
+				supported_specifications: ["v4"],
+			},
+		];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ data: catalog })),
+		);
+	});
+	afterEach(() => cleanup());
+
+	it("uses current transcription models without merging removed bundled entries", async () => {
+		const { models } = await getLocalTranscriptionModels("vercel-ai-gateway");
+		expect(models.map((model) => model.id)).toEqual([
+			"google/gemini-3.5-transcribe-live",
+			"new/voice-model",
+		]);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId: "new/voice-model",
+			}),
+		).resolves.toMatchObject({ voiceInput: { modelId: "new/voice-model" } });
+	});
+
+	it.each([
+		"transcribe-chat",
+		"multimodal-live",
+		"fish-audio/transcribe-1-free",
+	])("rejects invalid or removed model %s on save and execution", async (modelId) => {
+		const transcribe = vi.spyOn(LlmsModels, "transcribeAudio");
+		const stream = vi.spyOn(
+			LlmsModels,
+			"createStreamingAudioTranscriptionSession",
+		);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId,
+			}),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		manager.setVoiceInputSettings({ providerId: "vercel-ai-gateway", modelId });
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).rejects.toThrow("does not support streaming transcription");
+		expect(transcribe).not.toHaveBeenCalled();
+		expect(stream).not.toHaveBeenCalled();
+	});
+
+	it("revalidates a saved model when the upstream catalog changes", async () => {
+		await saveVoiceInputSettings(manager, {
+			providerId: "vercel-ai-gateway",
+			modelId: "new/voice-model",
+		});
+		catalog = [];
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+	});
+
+	it("routes live models using gateway tags and rejects them on the batch path", async () => {
+		const stream = vi
+			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
+			.mockResolvedValue({
+				transport: "vercel-ai-gateway",
+				modelId: "google/gemini-3.5-transcribe-live",
+				baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
+				sampleRate: 24_000,
+				token: "short-lived",
+				url: "wss://gateway.test",
+			});
+		await saveVoiceInputSettings(manager, {
+			providerId: "vercel-ai-gateway",
+			modelId: "google/gemini-3.5-transcribe-live",
+		});
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).resolves.toMatchObject({ token: "short-lived" });
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "google/gemini-3.5-transcribe-live" }),
+		);
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("requires streaming transcription");
+	});
+
+	it("does not use stale models when the gateway cannot be verified", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("unavailable", { status: 503 })),
+		);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+			}),
+		).rejects.toThrow("Unable to verify");
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("does not advertise voice models for providers without a transcription transport", async () => {
+		LlmsModels.registerModel("anthropic", "transcribe", {
+			id: "transcribe",
+			operation: "transcription",
+		});
+		await expect(getLocalTranscriptionModels("anthropic")).resolves.toEqual({
+			providerId: "anthropic",
+			models: [],
+		});
+	});
+});
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
@@ -1509,6 +2032,304 @@ describe("models.json model overlays", () => {
 // saveLocalProviderSettings
 // ===========================================================================
 
+describe("provider mutation consistency", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+	const providerId = "concurrent-provider";
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (_url: string, init: RequestInit) =>
+				Response.json({
+					data: [
+						{
+							id: new Headers(init.headers).get("authorization") ?? "anonymous",
+						},
+					],
+				}),
+			),
+		);
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Concurrent Provider",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			apiKey: "old",
+			models: [],
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("queues a newer save behind a failing save across manager instances", async () => {
+		let notifyEntered!: () => void;
+		let releaseWrite!: () => void;
+		const entered = new Promise<void>((resolve) => {
+			notifyEntered = resolve;
+		});
+		const release = new Promise<void>((resolve) => {
+			releaseWrite = resolve;
+		});
+		const failure = new Error("catalog write failed");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				notifyEntered();
+				await release;
+				throw failure;
+			},
+		);
+		const first = saveLocalProviderSettings(manager, {
+			providerId,
+			apiKey: "first",
+		});
+		const rejected = expect(first).rejects.toBe(failure);
+		await entered;
+		const otherManager = new ProviderSettingsManager({
+			filePath: manager.getFilePath(),
+		});
+		const second = saveLocalProviderSettings(otherManager, {
+			providerId,
+			apiKey: "second",
+		});
+		releaseWrite();
+		await rejected;
+		await second;
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "second",
+			model: "Bearer second",
+		});
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(Object.keys(catalog.providers[providerId].models ?? {})).toEqual([
+			"Bearer second",
+		]);
+	});
+
+	it("merges overlapping credential and header patches from the latest saved settings", async () => {
+		await Promise.all([
+			saveLocalProviderSettings(manager, { providerId, apiKey: "new" }),
+			saveLocalProviderSettings(manager, {
+				providerId,
+				headers: { "X-Tenant": "tenant" },
+			}),
+		]);
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new",
+			headers: { "X-Tenant": "tenant" },
+			model: "Bearer new",
+		});
+	});
+
+	it("preserves catalog edits for different providers", async () => {
+		await addLocalProvider(manager, {
+			providerId: "other-provider",
+			name: "Other",
+			baseUrl: "https://other.example",
+			models: ["original"],
+		});
+		await Promise.all([
+			updateLocalProvider(manager, { providerId, apiKey: "new" }),
+			updateLocalProvider(manager, {
+				providerId: "other-provider",
+				models: ["updated"],
+			}),
+		]);
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(Object.keys(catalog.providers[providerId].models ?? {})).toEqual([
+			"Bearer new",
+		]);
+		expect(
+			Object.keys(catalog.providers["other-provider"].models ?? {}),
+		).toEqual(["updated"]);
+	});
+
+	it("does not resurrect a provider deleted during a refresh", async () => {
+		await Promise.all([
+			refreshProviderModelsFromSource(manager, providerId),
+			deleteLocalProvider(manager, { providerId }),
+		]);
+		expect(manager.getProviderSettings(providerId)).toBeUndefined();
+		expect(
+			(await readModelsFile(resolveModelsRegistryPath(manager))).providers[
+				providerId
+			],
+		).toBeUndefined();
+		expect(LlmsModels.hasProvider(providerId)).toBe(false);
+	});
+
+	it.each([
+		"newer-save",
+		"removal",
+	] as const)("does not roll back a direct %s while a catalog write is pending", async (change) => {
+		const failure = new Error("catalog write failed");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				if (change === "newer-save") {
+					manager.saveProviderSettings(
+						{
+							provider: providerId,
+							apiKey: "newest",
+							baseUrl: "https://newest.example/v1",
+						},
+						{ setLastUsed: false },
+					);
+				} else {
+					const state = manager.read();
+					delete state.providers[providerId];
+					manager.write(state);
+				}
+				throw failure;
+			},
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "failing" }),
+		).rejects.toBe(failure);
+		if (change === "newer-save") {
+			expect(manager.getProviderSettings(providerId)).toMatchObject({
+				apiKey: "newest",
+				baseUrl: "https://newest.example/v1",
+			});
+		} else expect(manager.getProviderSettings(providerId)).toBeUndefined();
+	});
+
+	it("preserves unrelated settings during rollback", async () => {
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				manager.saveProviderSettings({
+					provider: "openai",
+					apiKey: "unrelated",
+				});
+				throw new Error("catalog write failed");
+			},
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "failing" }),
+		).rejects.toThrow("catalog write failed");
+		expect(manager.getProviderSettings(providerId)?.apiKey).toBe("old");
+		expect(manager.getProviderSettings("openai")?.apiKey).toBe("unrelated");
+		expect(manager.read().lastUsedProvider).toBe("openai");
+	});
+
+	it("reports both catalog and rollback failures", async () => {
+		const failure = new Error("catalog write failed");
+		const rollbackFailure = new Error("settings rollback failed");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				vi.spyOn(manager, "write").mockImplementationOnce(() => {
+					throw rollbackFailure;
+				});
+				throw failure;
+			},
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "failing" }),
+		).rejects.toMatchObject({ errors: [failure, rollbackFailure] });
+	});
+
+	it("persists the complete settings patch exactly once", async () => {
+		const save = vi.spyOn(manager, "saveProviderSettings");
+		await saveLocalProviderSettings(manager, {
+			providerId,
+			apiKey: "new",
+			timeout: 12345,
+			region: "region",
+			maxTokens: 2048,
+		});
+		expect(save).toHaveBeenCalledTimes(1);
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new",
+			timeout: 12345,
+			region: "region",
+			maxTokens: 2048,
+			model: "Bearer new",
+		});
+	});
+
+	it("does not write the catalog when settings persistence fails", async () => {
+		const before = manager.read();
+		const writeCatalog = vi.spyOn(LocalProviderRegistry, "writeModelsFile");
+		const failure = new Error("settings write failed");
+		vi.spyOn(manager, "write").mockImplementationOnce(() => {
+			throw failure;
+		});
+		await expect(
+			saveLocalProviderSettings(manager, { providerId, apiKey: "new" }),
+		).rejects.toBe(failure);
+		expect(writeCatalog).not.toHaveBeenCalled();
+		expect(manager.read()).toEqual(before);
+	});
+
+	it("preserves an endpoint saved offline during later partial updates", async () => {
+		vi.mocked(fetch).mockRejectedValueOnce(new TypeError("offline"));
+		await saveLocalProviderSettings(manager, {
+			providerId,
+			baseUrl: "https://new.example/v1",
+		});
+		await updateLocalProvider(manager, { providerId, name: "Renamed" });
+		expect(manager.getProviderSettings(providerId)?.baseUrl).toBe(
+			"https://new.example/v1",
+		);
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(catalog.providers[providerId].provider).toMatchObject({
+			baseUrl: "https://new.example/v1",
+			modelsSourceUrl: "https://new.example/v1/models",
+		});
+	});
+
+	it("rolls back creation of settings for an existing catalog-only provider", async () => {
+		const state = manager.read();
+		delete state.providers[providerId];
+		manager.write(state);
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			new Error("catalog write failed"),
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "new" }),
+		).rejects.toThrow("catalog write failed");
+		expect(manager.getProviderSettings(providerId)).toBeUndefined();
+	});
+
+	it("preserves provider protocol metadata during a credential-only save", async () => {
+		await updateLocalProvider(manager, { providerId, protocol: "openai-chat" });
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "new" });
+		expect(
+			(await readModelsFile(resolveModelsRegistryPath(manager))).providers[
+				providerId
+			].provider?.protocol,
+		).toBe("openai-chat");
+	});
+
+	it("restores settings when a failed patch contains optional undefined fields", async () => {
+		const before = manager.read();
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			new Error("catalog write failed"),
+		);
+		await expect(
+			saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new",
+				timeout: undefined,
+			}),
+		).rejects.toThrow("catalog write failed");
+		expect(manager.read()).toEqual(before);
+	});
+
+	it("validates the complete settings patch before changing either file", async () => {
+		const before = manager.read();
+		const writeCatalog = vi.spyOn(LocalProviderRegistry, "writeModelsFile");
+		await expect(
+			saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new",
+				timeout: "invalid" as never,
+			}),
+		).rejects.toThrow();
+		expect(writeCatalog).not.toHaveBeenCalled();
+		expect(manager.read()).toEqual(before);
+	});
+});
+
 describe("saveLocalProviderSettings", () => {
 	let manager: ProviderSettingsManager;
 	let cleanup: () => void;
@@ -1526,12 +2347,33 @@ describe("saveLocalProviderSettings", () => {
 
 	afterEach(() => cleanup());
 
-	it("disabling a provider removes it from settings", () => {
+	it("saves and disables the canonical mixed-case built-in provider ID", async () => {
+		const providerId = "nousResearch";
+		expect(await LlmsModels.getProvider(providerId)).toBeDefined();
+		const result = await saveLocalProviderSettings(manager, {
+			providerId: ` ${providerId} `,
+			apiKey: "test-key",
+		});
+		expect(result.providerId).toBe(providerId);
+		expect(manager.getProviderSettings(providerId)?.apiKey).toBe("test-key");
+		expect(manager.read().providers.nousresearch).toBeUndefined();
+		manager.saveProviderSettings(
+			{ provider: providerId, model: "test-model" },
+			{ setLastUsed: true },
+		);
+		manager.setVoiceInputSettings({ providerId, modelId: "test-model" });
+		await saveLocalProviderSettings(manager, { providerId, enabled: false });
+		expect(manager.getProviderSettings(providerId)).toBeUndefined();
+		expect(manager.read().lastUsedProvider).toBeUndefined();
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("disabling a provider removes it from settings", async () => {
 		manager.setVoiceInputSettings({
 			providerId: "test-provider",
 			modelId: "m1",
 		});
-		const result = saveLocalProviderSettings(manager, {
+		const result = await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
 		});
@@ -1541,8 +2383,8 @@ describe("saveLocalProviderSettings", () => {
 		expect(manager.getVoiceInputSettings()).toBeUndefined();
 	});
 
-	it("updates apiKey", () => {
-		saveLocalProviderSettings(manager, {
+	it("updates apiKey", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			apiKey: "new-key",
@@ -1553,15 +2395,15 @@ describe("saveLocalProviderSettings", () => {
 		);
 	});
 
-	it("clears apiKey when empty string is provided", () => {
+	it("clears apiKey when empty string is provided", async () => {
 		// First set a key
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			apiKey: "some-key",
 		});
 		// Then clear it
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			apiKey: "",
@@ -1571,13 +2413,13 @@ describe("saveLocalProviderSettings", () => {
 		expect(settings).not.toHaveProperty("apiKey");
 	});
 
-	it("merges auth object rather than replacing it", () => {
-		saveLocalProviderSettings(manager, {
+	it("merges auth object rather than replacing it", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			auth: { accessToken: "tok1" },
 		});
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			auth: { refreshToken: "ref1" },
@@ -1592,13 +2434,13 @@ describe("saveLocalProviderSettings", () => {
 		expect(auth?.refreshToken).toBe("ref1");
 	});
 
-	it("merges and clears nested provider config fields", () => {
-		saveLocalProviderSettings(manager, {
+	it("merges and clears nested provider config fields", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			gcp: { projectId: "project-a", region: "us-central1" },
 		});
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			gcp: { projectId: "" },
@@ -1609,8 +2451,8 @@ describe("saveLocalProviderSettings", () => {
 		expect(settings?.gcp?.region).toBe("us-central1");
 	});
 
-	it("passes through scalar fields like maxTokens and timeout", () => {
-		saveLocalProviderSettings(manager, {
+	it("passes through scalar fields like maxTokens and timeout", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			maxTokens: 4096,
@@ -1635,7 +2477,7 @@ describe("saveLocalProviderSettings", () => {
 			"test-provider",
 		);
 
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
 		});
@@ -1692,6 +2534,23 @@ describe("updateLocalProvider", () => {
 		expect(
 			models.find((model) => model.id === "model-c")?.supportsReasoning,
 		).toBe(true);
+	});
+
+	it("inherits changed provider capabilities while preserving model overrides", async () => {
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const state = await readModelsFile(modelsPath);
+		state.providers["editable-provider"].models = {
+			...state.providers["editable-provider"].models,
+			"model-a": { supportsVision: false },
+		};
+		await LocalProviderRegistry.writeModelsFile(modelsPath, state);
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			capabilities: ["vision"],
+		});
+		const models = await LlmsModels.getModelsForProvider("editable-provider");
+		expect(models["model-a"].capabilities).not.toContain("images");
+		expect(models["model-b"].capabilities).toContain("images");
 	});
 
 	it("updates provider settings and can clear optional fields", async () => {
@@ -1877,6 +2736,78 @@ describe("listLocalProviders", () => {
 
 	afterEach(() => cleanup());
 
+	it("sends authentication facts for builtins and registered providers", async () => {
+		LlmsModels.registerProvider({
+			provider: {
+				id: "custom-auth-cli",
+				source: "file",
+				name: "Custom CLI",
+				protocol: "openai-chat",
+				client: "openai",
+				defaultModelId: "test",
+				capabilities: ["local-auth"],
+				metadata: { localCliCommand: " custom " },
+				docsUrl: "https://example.com/cli",
+			},
+			models: { test: { id: "test", name: "Test" } },
+		});
+		try {
+			const { providers } = await listLocalProviders(manager);
+			expect(
+				providers.find((p) => p.id === "custom-auth-cli")?.modelTools,
+			).toEqual([]);
+			expect(providers.find((p) => p.id === "anthropic")?.modelTools).toContain(
+				"web_search",
+			);
+			expect(providers.find((p) => p.id === "custom-auth-cli")?.auth).toEqual({
+				providerId: "custom-auth-cli",
+				capabilities: expect.arrayContaining(["local-auth"]),
+				localCli: { command: "custom", docsUrl: "https://example.com/cli" },
+			});
+			expect(
+				providers.find((p) => p.id === "claude-code")?.auth.localCli?.command,
+			).toBe("claude");
+			expect(
+				providers.find((p) => p.id === "openai-codex-cli")?.auth.localCli
+					?.command,
+			).toBe("codex");
+			expect(
+				providers.find((p) => p.id === "opencode")?.auth.localCli?.command,
+			).toBe("opencode");
+			expect(
+				providers.find((p) => p.id === "anthropic")?.auth.localCli,
+			).toBeUndefined();
+			// Keyless-capable providers declare it; everyone else requires a key.
+			for (const id of ["openai-compatible", "ollama", "lmstudio"]) {
+				expect(providers.find((p) => p.id === id)?.auth.apiKeyOptional).toBe(
+					true,
+				);
+			}
+			expect(
+				providers.find((p) => p.id === "anthropic")?.auth.apiKeyOptional,
+			).toBeUndefined();
+		} finally {
+			LlmsModels.unregisterProvider("custom-auth-cli");
+		}
+	});
+
+	it("declares user-added endpoints keyless-capable", async () => {
+		await addLocalProvider(manager, {
+			providerId: "keyless-endpoint",
+			name: "Keyless Endpoint",
+			baseUrl: "http://localhost:8000/v1",
+			models: ["local-model"],
+		});
+		try {
+			const { providers } = await listLocalProviders(manager);
+			expect(
+				providers.find((p) => p.id === "keyless-endpoint")?.auth.apiKeyOptional,
+			).toBe(true);
+		} finally {
+			LlmsModels.unregisterProvider("keyless-endpoint");
+		}
+	});
+
 	it("includes all registered providers", async () => {
 		await addLocalProvider(manager, {
 			providerId: "list-provider-a",
@@ -1992,29 +2923,19 @@ describe("listLocalProviders", () => {
 		expect(p?.enabled).toBe(true);
 	});
 
-	it("returns the configured voice input selection", async () => {
-		await addLocalProvider(manager, {
-			providerId: "voice-list-provider",
-			name: "Voice List Provider",
-			baseUrl: "https://example.invalid/v1",
-			models: ["whisper"],
+	it("returns the saved voice selection even when it is absent from the bundled catalog", async () => {
+		manager.saveProviderSettings(
+			{ provider: "vercel-ai-gateway", apiKey: "key" },
+			{ setLastUsed: false },
+		);
+		manager.setVoiceInputSettings({
+			providerId: "vercel-ai-gateway",
+			modelId: "new-transcription-model",
 		});
-		LlmsModels.registerModel("voice-list-provider", "whisper", {
-			id: "whisper",
-			name: "Whisper",
-			operation: "transcription",
-			operationModes: ["batch"],
-			modalities: { input: ["audio"], output: ["text"] },
-		});
-		await saveVoiceInputSettings(manager, {
-			providerId: "voice-list-provider",
-			modelId: "whisper",
-		});
-
 		const catalog = await listLocalProviders(manager);
 		expect(catalog.voiceInput).toEqual({
-			providerId: "voice-list-provider",
-			modelId: "whisper",
+			providerId: "vercel-ai-gateway",
+			modelId: "new-transcription-model",
 		});
 	});
 
@@ -2336,13 +3257,42 @@ describe("refreshProviderModelsFromSource", () => {
 
 	afterEach(() => cleanup());
 
+	it.each([
+		"old-model",
+		"missing-model",
+	])("does not treat the initial selection %s as a manual catalog addition", async (selectedModel) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ models: [{ name: "old-model" }] }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		await saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://localhost:11434/v1",
+			model: selectedModel,
+		});
+		await refreshProviderModelsFromSource(manager, "ollama");
+		const modelsPath = resolveModelsRegistryPath(manager);
+		expect(
+			(await readModelsFile(modelsPath)).providers.ollama?.discoveredModelIds,
+		).toEqual(["old-model"]);
+
+		fetchMock.mockImplementation(async () =>
+			Response.json({ models: [{ name: "new-model" }] }),
+		);
+		await refreshProviderModelsFromSource(manager, "ollama");
+		const entry = (await readModelsFile(modelsPath)).providers.ollama;
+		expect(Object.keys(entry.models ?? {})).toEqual(["new-model"]);
+		expect(entry.discoveredModelIds).toEqual(["new-model"]);
+		expect(manager.getProviderSettings("ollama")?.model).toBe("new-model");
+	});
+
 	it("refreshes built-in Ollama models through modelsSourceUrl using the saved base URL", async () => {
 		const fetchMock = vi.fn().mockResolvedValue({
 			ok: true,
 			json: async () => ({ models: [{ name: "remote-llama" }] }),
 		});
 		vi.stubGlobal("fetch", fetchMock);
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "ollama",
 			baseUrl: "http://tailscale-host:11434/v1",
 		});
@@ -2365,5 +3315,18 @@ describe("refreshProviderModelsFromSource", () => {
 		);
 		const { models } = await getLocalProviderModels("ollama");
 		expect(models.map((model) => model.id)).toContain("remote-llama");
+
+		// Selecting Ollama seeds models.json; later settings saves must work offline.
+		fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+		await saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://new-host:11434/v1",
+		});
+		expect(manager.getProviderSettings("ollama")?.baseUrl).toBe(
+			"http://new-host:11434/v1",
+		);
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			modelsState,
+		);
 	});
 });

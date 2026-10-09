@@ -10,6 +10,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	isBunEmbeddedModulePath,
 	isHubDaemonProcess,
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
@@ -52,7 +53,16 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	manageConnectors?: boolean;
 }
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
+/**
+ * How long a freshly spawned Hub gets to publish a usable discovery record.
+ * A cold start of the compiled binary the Hub runs from (first launch after
+ * an install or update, while antivirus scans it) regularly takes 8-13s on
+ * Windows. The old 8s limit gave up just before those Hubs came up, which
+ * failed startup even though the next attempt attached fine. 15s covers most
+ * cold starts and still fits inside the desktop shell's 30s endpoint wait
+ * alongside login-shell PATH resolution.
+ */
+const HUB_STARTUP_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
@@ -71,6 +81,7 @@ export const __test__ = {
 	resetRetireAttempts(): void {
 		retireAttemptsByUrl.clear();
 	},
+	resolveDaemonEntryArgs,
 };
 
 /**
@@ -367,6 +378,26 @@ function resolveDaemonEntryPath(): string {
 	return fileURLToPath(new URL(`./entry.${extension}`, import.meta.url));
 }
 
+/**
+ * Compiled Bun binaries mount bundled modules on a virtual filesystem that a
+ * child cannot be handed as a script argument, so the child boots its embedded
+ * entrypoint and switches personality on the marker flag.
+ */
+function resolveDaemonEntryArgs(
+	daemonEntryPath: string,
+	isBunRuntime: boolean,
+): string[] {
+	if (isBunEmbeddedModulePath(daemonEntryPath)) {
+		return [COMPILED_BUN_HUB_DAEMON_ARG];
+	}
+	const useDevelopmentConditions =
+		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
+	return [
+		...(useDevelopmentConditions ? ["--conditions=development"] : []),
+		daemonEntryPath,
+	];
+}
+
 function resolveLaunchCommand(
 	workspaceRoot: string,
 	endpoint: DetachedHubOptions,
@@ -382,15 +413,7 @@ function resolveLaunchCommand(
 		throw new Error("unable to resolve runtime executable for hub daemon");
 	}
 	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
-	const isCompiledBunEmbeddedEntry = daemonEntryPath.startsWith("/$bunfs/");
-	const useDevelopmentConditions =
-		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
-	const entryArgs = isCompiledBunEmbeddedEntry
-		? [COMPILED_BUN_HUB_DAEMON_ARG]
-		: [
-				...(useDevelopmentConditions ? ["--conditions=development"] : []),
-				daemonEntryPath,
-			];
+	const entryArgs = resolveDaemonEntryArgs(daemonEntryPath, isBunRuntime);
 	return {
 		launcher: execPath,
 		args: [
@@ -725,7 +748,9 @@ async function ensureDetachedHubServerLocked(
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
-	throw new Error("Timed out waiting for detached hub startup.");
+	throw new Error(
+		`Timed out after ${HUB_STARTUP_TIMEOUT_MS}ms waiting for detached hub startup.`,
+	);
 }
 
 export async function ensureDetachedHubServer(

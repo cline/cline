@@ -1,5 +1,62 @@
 # Changelog
 
+## [4.1.23]
+
+### Changed
+
+- If a model's response ends without a recognized finish reason, Cline asks it to continue once instead of treating the response as complete.
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol, and the free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Default models change for 302.AI, AKI.IO, Blue Claw, CoralBricks, CrossModel, DevPass, DigitalOcean, GMI Cloud, LLM Gateway, Mistral, NanoGPT, Neon, Nvidia, Ofox, Requesty, Subconscious, The Grid AI, Vivgrid, and Vultr. Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- **Generate Commit Message** now follows your `.clinerules`, so conventions like language, format, and ticket references apply to commit messages too.
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error. 4.1.22 started sending an option only Anthropic's own API accepts.
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. Cline picks the closest level the model supports.
+- When an MCP tool returns more output than fits in context, Cline can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost.
+- Approve and Reject on a tool approval work right away, even while the panel is still updating. A late update failure no longer rejects a later, unrelated approval.
+- Old tasks no longer show leftover Focus Chain checklist rows when reopened.
+
+## [4.1.22]
+
+### Added
+
+- New providers: Bee (by HEOSSI) and Pareto Inference (`PARETO_API_KEY`).
+
+### Changed
+
+- Direct Anthropic requests now use Anthropic's server-side refusal fallback. On OpenRouter and Cline, Anthropic models can fail over to another upstream provider instead of failing the request.
+- When a response is blocked by a content filter, Cline now says so and suggests rephrasing, instead of "Model returned empty response".
+- Refreshed the model catalog. GPT-6.1 Sol becomes the default model for OpenAI, OpenRouter, GitHub Copilot, Cortecs, Eden AI, Kilo Gateway, both LLM Gateway providers, NanoGPT, OpenCode Zen, and Requesty. Vercel AI Gateway moves to Ling 3.1 Flash, Tempr Gateway to MiMo V2.6 Flash, CrossModel and Ofox to Claude Sonnet 5.5, Pioneer to GLiNER 2.5 Decide, and Scaleway to Qwen 3.8 27B. The Cline recommended list adds Claude Sonnet 5.5 and Claude Opus 5.5. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- After an API error you can type and send a new message instead of only using Retry. A `/compact` (or `/smol`, `/newtask`) typed during recovery stays in the composer instead of being sent to the model as text.
+- If a new task fails Cline sign-in, signing in and submitting a revised prompt now starts the task with that prompt. Before, nothing happened.
+- **Reset Code** is now disabled when a message has no checkpoint, and no longer stays disabled for a message whose checkpoint exists (seen on slow disks). Changing the Checkpoints setting now applies to the active task, and follow-up messages typed while it applies are kept in order.
+- Canceling right after sending a message now stops the task. A cancel that landed while the turn was still being set up was ignored, and the task kept running.
+- Reasoning tokens are no longer counted twice in token usage. Cost is unchanged.
+- Amazon Bedrock: GPT-6 and GPT-5.6 route through inference profiles, and India regions (`ap-south-1`, `ap-south-2`) resolve the `in.` profile. OpenAI models behind inference profiles get the reasoning effort setting they support. Nova 2 Lite with high reasoning, application inference-profile ARNs, and Nova Micro no longer get requests Bedrock rejects. A legacy AWS profile setting saved without the "use profile" flag now carries over as profile authentication instead of being dropped.
+- Gateway models on providers that mix endpoints keep their own API protocol instead of falling back to the provider-wide default.
+
+## [4.1.21]
+
+### Added
+
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan.
+
+### Changed
+
+- Refreshed the model catalog to 6,386 models across 209 providers. The resolved default model changes for 19 providers that do not pin one, 11 of them to Claude Opus 5.5 (including GitHub Copilot and Vertex). If you use one of those providers without pinning a model, expect a different default.
+- Raised the minimum js-yaml version to 4.3.2 to pick up a security fix in the parser used to read rule and skill frontmatter.
+
+### Fixed
+
+- Long replies on local models (llama.cpp, Ollama, LM Studio) that hit the output-token limit now compact the conversation and retry once instead of ending the task. These servers cap generation at whatever context is left, regardless of the output budget you set. If compaction cannot help, the existing concise-retry recovery still runs, and the partial answer is kept.
+- Reopening a task that failed now shows the error with the retry option, instead of presenting it as a completed task.
+- A command that prints nothing no longer shows a raw JSON blob like `[{"query":"git add -A","result":"","success":true}]` as its output.
+- On Windows, @-mention search results now show the right file names. Nested files such as a subfolder's README rendered as `/README.md`, and the same open file could appear twice.
+- Canceling a request while it waits to retry an empty model response now takes effect right away, instead of after the backoff finishes.
+
 ## [4.1.20]
 
 ### Changed

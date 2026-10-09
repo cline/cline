@@ -1,6 +1,6 @@
 "use client";
 
-import { AgentAskQuestion } from "@cline/ui";
+import { AgentAskQuestion, AgentSessionContent } from "@cline/ui";
 import {
 	Conversation,
 	ConversationContent,
@@ -27,6 +27,7 @@ import type {
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { formatRunError } from "@/lib/run-error";
 import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 import { ImportedSessionNotice } from "./imported-session-notice";
@@ -48,7 +49,6 @@ import {
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
 import { WorkBlock } from "./messages/work-block";
-import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -153,7 +153,18 @@ function ChatMessagesImpl({
 	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) &&
-		(Boolean(errorAction) || lastErrorMessage?.content !== error);
+		(Boolean(errorAction) ||
+			!lastErrorMessage ||
+			formatRunError(
+				lastErrorMessage.content,
+				lastErrorMessage.meta?.providerId,
+				lastErrorMessage.meta?.providerAuth,
+			) !==
+				formatRunError(
+					error ?? "",
+					lastErrorMessage.meta?.providerId,
+					lastErrorMessage.meta?.providerAuth,
+				));
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&
@@ -547,7 +558,7 @@ function ChatMessagesImpl({
 						showIdleDetails ? "p-0" : "px-6",
 					)}
 				>
-					<SessionContent
+					<AgentSessionContent
 						className={cn(
 							"relative min-h-full",
 							// Bottom padding clears a pinned action pill (~40px with its
@@ -792,7 +803,7 @@ function ChatMessagesImpl({
 								) : null}
 							</div>
 						) : null}
-					</SessionContent>
+					</AgentSessionContent>
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />

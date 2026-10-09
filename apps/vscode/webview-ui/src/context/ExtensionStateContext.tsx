@@ -26,6 +26,11 @@ import {
 	applyMessage as reducerApplyMessage,
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
+import {
+	createSettingsNavigationRequest,
+	type SettingsNavigationRequest,
+	type SettingsNavigationTarget,
+} from "../components/settings/settingsTargets"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export type ProviderId = string
@@ -70,7 +75,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showMcp: boolean
 	mcpTab?: McpViewTab
 	showSettings: boolean
-	settingsTargetSection?: string
+	settingsNavigationRequest?: SettingsNavigationRequest
 	settingsInitialModelTab?: "recommended" | "free"
 	showHistory: boolean
 	showAccount: boolean
@@ -119,8 +124,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Navigation functions
 	navigateToMarketplace: () => void
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: (targetSection?: string) => void
-	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
+	navigateToSettings: (targetSection?: SettingsNavigationTarget) => void
+	navigateToSettingsModelPicker: (opts: {
+		targetSection?: SettingsNavigationTarget
+		initialModelTab?: "recommended" | "free"
+	}) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
@@ -136,7 +144,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	closeMcpView: () => void
 
 	// Event callbacks
-	onRelinquishControl: (callback: () => void) => () => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -149,7 +156,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
-	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
+	const [settingsNavigationRequest, setSettingsNavigationRequest] = useState<SettingsNavigationRequest | undefined>(undefined)
 	const [settingsInitialModelTab, setSettingsInitialModelTab] = useState<"recommended" | "free" | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
@@ -168,7 +175,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Hide functions
 	const hideSettings = useCallback(() => {
 		setShowSettings(false)
-		setSettingsTargetSection(undefined)
+		setSettingsNavigationRequest(undefined)
 		setSettingsInitialModelTab(undefined)
 	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
@@ -202,13 +209,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [closeMcpView])
 
 	const navigateToSettings = useCallback(
-		(targetSection?: string) => {
+		(targetSection?: SettingsNavigationTarget) => {
 			closeMarketplaceView()
 			setShowHistory(false)
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setSettingsTargetSection(targetSection)
+			setSettingsNavigationRequest(targetSection ? createSettingsNavigationRequest(targetSection) : undefined)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
 		},
@@ -216,13 +223,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	)
 
 	const navigateToSettingsModelPicker = useCallback(
-		(opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => {
+		(opts: { targetSection?: SettingsNavigationTarget; initialModelTab?: "recommended" | "free" }) => {
 			closeMarketplaceView()
 			setShowHistory(false)
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setSettingsTargetSection(opts.targetSection)
+			setSettingsNavigationRequest(opts.targetSection ? createSettingsNavigationRequest(opts.targetSection) : undefined)
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
 		},
@@ -423,18 +430,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
-	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
-
-	// Add ref for callbacks
-	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
-
-	// Create hook function
-	const onRelinquishControl = useCallback((callback: () => void) => {
-		relinquishControlCallbacks.current.add(callback)
-		return () => {
-			relinquishControlCallbacks.current.delete(callback)
-		}
-	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 	// Convergent-replica state for clineMessages. The partial-message stream and the full state
 	// snapshots both feed this reducer so the transcript converges correctly regardless of
@@ -719,20 +714,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				console.error("Failed to fetch available terminal profiles:", error)
 			})
 
-		// Subscribe to relinquish control events
-		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
-			onResponse: () => {
-				// Call all registered callbacks
-				relinquishControlCallbacks.current.forEach((callback) => {
-					callback()
-				})
-			},
-			onError: (error: any) => {
-				console.error("Error in relinquishControl subscription:", error)
-			},
-			onComplete: () => {},
-		})
-
 		// Clean up subscriptions when component unmounts
 		return () => {
 			if (stateSubscriptionRef.current) {
@@ -782,10 +763,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
 				workspaceUpdatesUnsubscribeRef.current = null
-			}
-			if (relinquishControlUnsubscribeRef.current) {
-				relinquishControlUnsubscribeRef.current()
-				relinquishControlUnsubscribeRef.current = null
 			}
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
@@ -893,7 +870,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showMcp,
 		mcpTab,
 		showSettings,
-		settingsTargetSection,
+		settingsNavigationRequest,
 		settingsInitialModelTab,
 		showHistory,
 		showAccount,
@@ -1006,7 +983,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,
 		refreshLiteLlmModels,
-		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,

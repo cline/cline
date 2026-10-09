@@ -2714,6 +2714,16 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			]
 			expect(extractToolOutputText(output)).toBe("hi")
 		})
+
+		it("returns empty string for a silent command instead of the JSON envelope", () => {
+			const output = [{ query: "git add -A", result: "", success: true }]
+			expect(extractToolOutputText(output)).toBe("")
+		})
+
+		it("preserves an untyped result object with an empty result", () => {
+			const output = [{ result: "", details: "done" }]
+			expect(extractToolOutputText(output)).toBe('[{"result":"","details":"done"}]')
+		})
 	})
 
 	// ---------------------------------------------------------------------------
@@ -3924,6 +3934,47 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(result.messages[1].text).toBe("User: Max (self)")
 	})
 
+	it("content_end for MCP tool preserves an untyped object with an empty result", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "example__status",
+						toolCallId: "c-empty-result",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "example__status",
+						toolCallId: "c-empty-result",
+						output: [{ result: "", details: "done" }],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe('[{"result":"","details":"done"}]')
+	})
+
 	it("content_end for MCP tool with error shows error in response", () => {
 		const state = new MessageTranslatorState()
 		translateSessionEvent(
@@ -4345,5 +4396,18 @@ describe("tool display paths are relativized to the cwd", () => {
 				text: "Bun 1.3.14 is current.",
 			}),
 		)
+	})
+})
+
+describe("persisted display-only errors", () => {
+	it("restores a failed task with error recovery UI, not completion UI", () => {
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "hi" },
+			{ role: "assistant", content: "API key expired.", metadata: { displayOnly: true, displayRole: "error" } },
+		]
+		const rendered = sdkMessagesToClineMessages(messages)
+		expect(rendered.at(-1)).toMatchObject({ type: "ask", ask: "api_req_failed" })
+		expect(rendered.at(-1)?.text).toContain("API key expired")
+		expect(rendered.some((message) => message.say === "completion_result" || message.ask === "completion_result")).toBe(false)
 	})
 })

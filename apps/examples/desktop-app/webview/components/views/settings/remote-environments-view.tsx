@@ -155,6 +155,14 @@ export function RemoteEnvironmentsContent() {
 	);
 	const isBusy = isLoading || busyAction !== null;
 	const hasSavedDestination = Boolean(draft.id);
+	const hasUnsavedChanges =
+		!selectedProfile ||
+		JSON.stringify(normalizeRemoteEnvironmentProfile(draft)) !==
+			JSON.stringify(
+				normalizeRemoteEnvironmentProfile(
+					createRemoteEnvironmentDraft(selectedProfile),
+				),
+			);
 
 	const setRuntimeState = useCallback(
 		(
@@ -636,14 +644,14 @@ export function RemoteEnvironmentsContent() {
 						<div className="flex justify-end border-t pt-5">
 							<div className="flex flex-wrap justify-end gap-2">
 								<Button
-									disabled={isBusy}
+									disabled={isBusy || !hasUnsavedChanges}
 									onClick={() => void saveProfile()}
 									variant="default"
 								>
 									{busyAction?.action === "save" ? (
 										<Loader2 className="animate-spin" />
 									) : null}
-									Save
+									{hasSavedDestination ? "Save" : "Add"}
 								</Button>
 							</div>
 						</div>

@@ -50,7 +50,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       # The suite only uses Bun/Node built-ins and committed artwork, so it does
       # not need a workspace dependency install or macOS runner.
@@ -71,7 +71,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
           # This job installs no dependencies, so there is nothing to cache;
           # setup-bun's cache-save post step otherwise hangs on Windows until
           # the job times out, cancelling an already-passed run.

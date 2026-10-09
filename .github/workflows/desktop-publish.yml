@@ -284,7 +284,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       # A universal (fat) macOS bundle needs both architecture slices, so
       # install both Rust targets; `tauri build --target universal-apple-darwin`
@@ -315,11 +315,6 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-
-      # build-sidecar-bin.ts UPX-packs the Linux SSH remote helpers it bundles
-      # into the app; without upx on PATH the CI build fails.
-      - name: Install UPX
-        run: brew install upx
 
       - name: Write App Store Connect API key
         env:
@@ -618,7 +613,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       # build-sidecar-bin.ts cross-compiles the Linux SSH remote helpers on
       # every platform, and the Windows installer ships them (they are Tauri
@@ -652,12 +647,6 @@ jobs:
             echo "seeded $dest ($(stat -c %s "$dest") bytes)"
           done
           echo "BUN_INSTALL_CACHE_DIR=${CACHE_DIR}" >> "$GITHUB_ENV"
-
-      # build-sidecar-bin.ts UPX-packs the Linux SSH remote helpers it bundles
-      # into the installer; without upx on PATH the CI build fails. UPX packs
-      # Linux ELF files from a Windows host.
-      - name: Install UPX
-        run: choco install upx --no-progress -y
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
@@ -892,9 +881,284 @@ jobs:
           path: apps/examples/desktop-app/dist/publish/*
           if-no-files-found: error
 
+  build-linux:
+    name: Build Linux (${{ matrix.arch }})
+    needs: validate
+    # Same gate rationale as the macOS build job above: the updater signing
+    # key lives in the PublishDesktop environment. No OS-level code signing
+    # exists for deb/rpm; the minisign .sig next to each package is what the
+    # installed app verifies before applying an update.
+    if: github.ref == 'refs/heads/main'
+    environment: PublishDesktop
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            deb_arch: amd64
+            rpm_arch: x86_64
+          # Native arm64 runner rather than cross-compiling: WebKitGTK and the
+          # other GTK build deps have no usable cross toolchain in apt, and a
+          # native build lets the sidecar smoke test below run the real binary.
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            deb_arch: arm64
+            rpm_arch: aarch64
+    # Oldest LTS we build on so the binaries link against the oldest glibc
+    # and WebKitGTK we intend to support; a build on a newer runner would not
+    # run on 22.04-era distros.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      # Tauri skips updater-artifact signing silently when the key is missing,
+      # and without the .sig files the manifest generator cannot publish the
+      # Linux entries, stranding every Linux install without updates.
+      - name: Verify signing secrets are present
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing from the PublishDesktop environment:"
+            printf '  - %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          echo "Updater signing secrets are present."
+
+      # SHA-pinned like the Windows job: the updater signing key is in scope.
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.validate.outputs.ref }}
+
+      - name: Stamp nightly version
+        if: needs.validate.outputs.channel == 'nightly'
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          for (const file of ['apps/examples/desktop-app/package.json', 'apps/examples/desktop-app/src-tauri/tauri.conf.json']) {
+            const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+            config.version = process.env.VERSION;
+            fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          }
+          JS
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.2"
+
+      # Tauri's Linux build deps (WebKitGTK, GTK, the appindicator used by the
+      # tray icon, librsvg for icons, xdo for the window helpers). rpm packages
+      # are written by the bundler's own Rust rpm implementation, so rpmbuild
+      # is not needed.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev build-essential
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
+        with:
+          toolchain: stable
+
+      # No Rust build cache, mirroring the other build jobs: this job holds
+      # the updater signing key.
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Build desktop bundles
+        working-directory: apps/examples/desktop-app
+        # deb and rpm only. The AppImage target is excluded because linuxdeploy
+        # cannot process the Bun-compiled sidecar (ldd fails on it and patchelf
+        # corrupts it), which aborts the bundle step. $CONFIG_ARGS is
+        # deliberately unquoted: it must word-split into separate flags.
+        run: bunx tauri build --bundles deb,rpm $CONFIG_ARGS
+        env:
+          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
+          # Telemetry inlined into the sidecar at compile time, same as macOS.
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          # Updater artifact signing (minisign keypair, same key as macOS)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Same guardrail as the other build jobs: assert the compiled binary
+      # embeds this channel's updater feed URL and not the other channel's.
+      - name: Verify updater feed endpoint
+        working-directory: apps/examples/desktop-app
+        env:
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+        run: |
+          case "$CHANNEL" in
+            stable)
+              WANT="releases/download/desktop-latest/latest.json"
+              FORBID="releases/download/desktop-(beta|nightly)/latest.json"
+              ;;
+            beta)
+              WANT="releases/download/desktop-beta/latest.json"
+              FORBID="releases/download/desktop-(latest|nightly)/latest.json"
+              ;;
+            nightly)
+              WANT=""
+              FORBID="releases/download/desktop-(latest|beta|nightly)/latest.json"
+              ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+
+          BIN="src-tauri/target/release/cline-app"
+          if grep -aE "$FORBID" "$BIN" >/dev/null; then
+            echo "$BIN embeds the other channel's feed URL (${FORBID})"
+            exit 1
+          fi
+          if [ -n "$WANT" ] && ! grep -a "$WANT" "$BIN" >/dev/null; then
+            echo "$BIN does not embed ${WANT}."
+            echo "The updater endpoint overlay did not apply; check the"
+            echo "--config flags on the build step and tauri.beta.conf.json."
+            exit 1
+          fi
+          echo "Updater endpoint verified: ${WANT:-disabled}"
+
+      # Same guardrail as the other build jobs, run on the Linux sidecar.
+      - name: Verify sidecar telemetry config was inlined
+        working-directory: apps/examples/desktop-app
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          SELFCHECK=$(./src-tauri/bin/code-sidecar-${TARGET} --telemetry-selfcheck)
+          echo "$SELFCHECK"
+          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+            echo "Packaged sidecar reports telemetry disabled."
+            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+            echo "'Build desktop bundles' step and the --define inlining in"
+            echo "scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
+          if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
+            echo "Packaged sidecar reports telemetry enabled but its OTLP"
+            echo "endpoint is missing, unparseable, or not an http(s) URL."
+            echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+            exit 1
+          fi
+
+      # Same release-time gate as the macOS job; see the comment there.
+      - name: Smoke-test the packaged sidecar against an isolated Hub
+        working-directory: apps/examples/desktop-app
+        env:
+          CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-${{ matrix.target }}
+        run: bun test scripts/desktop-startup.test.ts
+
+      # Run the SSH remote helper this job bundles (same arch as the runner)
+      # through the exact command the desktop sends over SSH, then stop the
+      # Hub it started. Desktop 0.0.38 through 0.0.44 shipped helpers that
+      # printed --help fine but crashed on every --remote-hub-ensure, because
+      # UPX packing broke the Bun 1.4 runtime's lazy reads of its own payload
+      # (#14815, #14781); nothing exercised that path before release. Isolated
+      # CLINE_DIR and discovery record, as in the sidecar test above. Only the
+      # exit status is checked; the ensure output carries the Hub auth token.
+      - name: Smoke-test the bundled SSH remote helper
+        working-directory: apps/examples/desktop-app
+        env:
+          HELPER: src-tauri/bin/remote-helpers/cline-remote-helper-${{ matrix.target }}
+        run: |
+          export CLINE_DIR="$(mktemp -d)"
+          export CLINE_DATA_DIR="$CLINE_DIR/data"
+          DISCOVERY="$CLINE_DIR/remote-hub.json"
+          trap 'timeout 30 "$HELPER" --remote-hub-stop --discovery-path "$DISCOVERY" >/dev/null 2>&1 || true' EXIT
+          if ! timeout 60 "$HELPER" --remote-hub-ensure --cwd "$CLINE_DIR" --discovery-path "$DISCOVERY" >/dev/null; then
+            echo "Bundled remote helper failed --remote-hub-ensure; SSH remotes"
+            echo "would not start from this build. Check scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
+          timeout 30 "$HELPER" --remote-hub-stop --discovery-path "$DISCOVERY"
+          echo "Remote helper started and stopped an isolated Hub."
+
+      - name: Collect artifacts
+        working-directory: apps/examples/desktop-app
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          PRODUCT: ${{ needs.validate.outputs.product }}
+          DEB_ARCH: ${{ matrix.deb_arch }}
+          RPM_ARCH: ${{ matrix.rpm_arch }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/release/bundle"
+          OUT="dist/publish"
+          mkdir -p "$OUT"
+
+          # "Cline" -> Cline, "Cline Beta" -> Cline-Beta
+          PREFIX="${PRODUCT// /-}"
+
+          # The packages are the updater artifacts; the .sig is the minisign
+          # signature the manifest generator needs for the linux-<arch>-deb and
+          # linux-<arch>-rpm entries. The arch suffixes (amd64/arm64 for deb,
+          # x86_64/aarch64 for rpm) are what generate-update-manifest.ts keys on.
+          DEB=$(find "$BUNDLE_DIR/deb" -name '*.deb' -print -quit)
+          if [ -z "$DEB" ] || [ ! -f "${DEB}.sig" ]; then
+            echo "deb package or updater signature missing under $BUNDLE_DIR/deb"
+            exit 1
+          fi
+          cp "$DEB" "$OUT/${PREFIX}_${VERSION}_${DEB_ARCH}.deb"
+          cp "${DEB}.sig" "$OUT/${PREFIX}_${VERSION}_${DEB_ARCH}.deb.sig"
+
+          RPM=$(find "$BUNDLE_DIR/rpm" -name '*.rpm' -print -quit)
+          if [ -z "$RPM" ] || [ ! -f "${RPM}.sig" ]; then
+            echo "rpm package or updater signature missing under $BUNDLE_DIR/rpm"
+            exit 1
+          fi
+          cp "$RPM" "$OUT/${PREFIX}_${VERSION}_${RPM_ARCH}.rpm"
+          cp "${RPM}.sig" "$OUT/${PREFIX}_${VERSION}_${RPM_ARCH}.rpm.sig"
+
+          ls -lh "$OUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-linux-${{ matrix.arch }}
+          retention-days: 30
+          path: apps/examples/desktop-app/dist/publish/*
+          if-no-files-found: error
+
   release:
     name: Create GitHub release
-    needs: [validate, build, build-windows]
+    needs: [validate, build, build-windows, build-linux]
     if: needs.validate.outputs.channel != 'nightly'
     runs-on: ubuntu-latest
     permissions:
@@ -910,7 +1174,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.13"
+          bun-version: "1.4.2"
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -1084,11 +1348,11 @@ jobs:
               - type: "context"
                 elements:
                   - type: "mrkdwn"
-                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
+                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download installers> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
 
   announce-nightly:
     name: Tag and announce nightly
-    needs: [validate, build, build-windows]
+    needs: [validate, build, build-windows, build-linux]
     if: needs.validate.outputs.channel == 'nightly'
     runs-on: ubuntu-latest
     permissions:

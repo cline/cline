@@ -5,6 +5,18 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "anthropic/claude-sonnet-5.5",
+				name: "claude-sonnet-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
+				id: "anthropic/claude-opus-5.5",
+				name: "claude-opus-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "spacexai/grok-4.7",
 				name: "grok-4.7",
 				description: "",
@@ -17,24 +29,31 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: ["NEW"],
 			},
 			{
+				id: "openai/gpt-6.1-sol",
+				name: "gpt-6.1-sol",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "moonshotai/kimi-k3",
 				name: "kimi-k3",
 				description:
 					"Kimi K3 is Moonshot AI’s new flagship MoE model for agentic coding",
 				tags: ["NEW"],
 			},
-			{
-				id: "anthropic/claude-opus-5",
-				name: "claude-opus-5",
-				description: "",
-				tags: ["NEW"],
-			},
 		],
 		free: [
 			{
-				id: "cline-free/deepseek-v4.1-flash",
-				name: "Deepseek-v4.1-Flash",
-				description: "Fast and efficient with 1M context window ",
+				id: "cline-free/solar-mini4",
+				name: "Solar Mini 4",
+				description: "Compact 35-billion parameter mixture-of-experts",
+				tags: [],
+			},
+			{
+				id: "cline-free/mimo-v2.6-flash",
+				name: "Mimo V2.6 Flash",
+				description:
+					"Mixture-of-Experts architecture with 309B total parameters",
 				tags: [],
 			},
 			{
@@ -44,27 +63,14 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 					"Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows.",
 				tags: [],
 			},
-			{
-				id: "z-ai/glm-5.3-flash",
-				name: "glm-5.3-flash",
-				description: "Latest natively multimodal model in the GLM-5 series.",
-				tags: [],
-			},
-			{
-				id: "cline-free/solar-pro4",
-				name: "Solar Pro 4",
-				description:
-					"Strong model for office productivity, document-intensive work, and coding.",
-				tags: [],
-			},
-			{
-				id: "poolside/laguna-s-2.1:free",
-				name: "laguna-s-2.1:free",
-				description: "Latest coding agent model from Poolside",
-				tags: [],
-			},
 		],
 		clinePass: [
+			{
+				id: "cline-pass/deepseek-v4.1-flash",
+				name: "cline-pass/deepseek-v4.1-flash",
+				description: "Smarter and more efficient, with 1M context window",
+				tags: [],
+			},
 			{
 				id: "cline-pass/mimo-v2.6-flash",
 				name: "cline-pass/mimo-v2.6-flash",
@@ -96,12 +102,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/deepseek-v4.1-flash",
-				name: "cline-pass/deepseek-v4.1-flash",
-				description: "Smarter and more efficient, with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/muse-spark-1.3-contributor",
 				name: "cline-pass/muse-spark-1.3-contributor",
 				description: "",
@@ -121,12 +121,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
@@ -136,6 +130,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				id: "cline-pass/minimax-m3",
 				name: "cline-pass/minimax-m3",
 				description: "Frontier coding and agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.7-plus",
+				name: "cline-pass/qwen3.7-plus",
+				description: "Fast multimodal agent model with vision and video input",
 				tags: [],
 			},
 			{

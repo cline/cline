@@ -2252,6 +2252,40 @@ describe("ChatMessages tool approvals", () => {
 	});
 });
 
+describe("persisted run errors", () => {
+	it.each([
+		"openrouter",
+		"claude-code",
+	])("renders one complete %s failure before and after reopening", async (providerId) => {
+		const providerAuth = {
+			providerId,
+			...(providerId === "claude-code"
+				? { localCli: { command: "claude" } }
+				: {}),
+		};
+		const messages: ChatMessage[] = [
+			{
+				id: "expired-key",
+				sessionId: "session-1",
+				role: "error",
+				content: "API key expired.",
+				createdAt: 1,
+				meta: { providerId, providerAuth },
+			},
+		];
+		const fullError =
+			providerId === "claude-code"
+				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
+				: "The run failed: API key expired. Check your model connection in Settings → Providers (or sign in with Cline), then try again.";
+		await renderMessages(messages, { error: fullError, status: "failed" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+		await renderMessages(messages, { error: null, status: "idle" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+	});
+});
+
 describe("ChatMessages credential failures", () => {
 	const failure: ChatMessage = {
 		id: "error-1",
@@ -2288,20 +2322,37 @@ describe("ChatMessages credential failures", () => {
 		expect(onFixCredentials).toHaveBeenCalledWith("account");
 	});
 
-	it("points other providers at model settings and skips local-auth providers", async () => {
+	it("points known API providers at settings and skips local or unknown auth", async () => {
 		const onFixCredentials = vi.fn();
 		await renderMessages(
 			[
 				{
 					...failure,
 					id: "error-anthropic",
-					meta: { reason: "credentials", providerId: "anthropic" },
+					meta: {
+						reason: "credentials",
+						providerId: "anthropic",
+						providerAuth: { providerId: "anthropic" },
+					},
+				},
+				{
+					...failure,
+					id: "error-restored-claude-code",
+					createdAt: 4,
+					meta: { reason: "credentials", providerId: "claude-code" },
 				},
 				{
 					...failure,
 					id: "error-claude-code",
 					createdAt: 3,
-					meta: { reason: "credentials", providerId: "claude-code" },
+					meta: {
+						reason: "credentials",
+						providerId: "claude-code",
+						providerAuth: {
+							providerId: "claude-code",
+							localCli: { command: "claude" },
+						},
+					},
 				},
 			],
 			{ onFixCredentials, status: "failed" },

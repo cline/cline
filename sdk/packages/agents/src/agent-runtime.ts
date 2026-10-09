@@ -42,6 +42,7 @@ import {
 	omitUndefinedValues,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -49,6 +50,13 @@ import {
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
+
+/** A model request after turn preparation, ready to be issued (possibly more than once). */
+interface PreparedModelRequest {
+	request: AgentModelRequest;
+	/** When preparation began; anchors the provider-request lifecycle timings. */
+	startedAt: number;
+}
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
@@ -81,6 +89,14 @@ const PROVIDER_ERROR_MAX_RETRIES = 3;
 const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 1_000;
 /** Upper bound on any single backoff wait. */
 const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 15_000;
+
+/**
+ * Terminal message for a turn the provider blocked. Kept separate from the
+ * generic empty-response text because the two call for opposite user action:
+ * an empty response is worth retrying, a filtered one reproduces every time.
+ */
+const CONTENT_FILTER_EMPTY_TURN_MESSAGE =
+	"Model returned no content because the response was blocked by a content filter. Retrying is unlikely to help — try rephrasing the request.";
 
 /**
  * Terminal message when a context-window overflow cannot be recovered because
@@ -563,11 +579,23 @@ export class AgentRuntime {
 		 * telemetry leave this false, so their failures still get reported.
 		 */
 		lastErrorReported: false,
+		/**
+		 * Finish reason carried into the run-failed `sdk.error` event. Set
+		 * only at the throw sites where a finish reason IS the failure's
+		 * cause (empty turn, max-tokens, provider error) — never recorded
+		 * ambiently on finish events, so a failure elsewhere in the loop
+		 * (hooks, listeners, transport, setup) can never inherit a reason
+		 * from a request that did not cause it. Undefined means the
+		 * attribute is omitted, which is always safe; a wrong reason is not.
+		 */
+		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
 	/** Consecutive output-limit cut-offs recovered this run; see MAX_TOKENS_RECOVERY_LIMIT. */
 	private maxTokensRecoveryCount = 0;
+	/** One automatic recovery attempt per run for max-tokens-truncated turns. */
+	private maxTokensRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private modelSteerController?: AbortController;
@@ -739,8 +767,12 @@ export class AgentRuntime {
 		].filter((message): message is string => Boolean(message));
 	}
 
-	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
+	private async addUserReminderMessage(
+		text: string,
+		metadata: AgentMessage["metadata"] = {},
+	): Promise<AgentMessage> {
 		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			...metadata,
 			userRunSpan: 0,
 		});
 		this.state.messages.push(reminderMessage);
@@ -767,11 +799,13 @@ export class AgentRuntime {
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorRetryable = undefined;
 		this.state.lastErrorReported = false;
+		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
 		this.state.lastRequestInputTokens = 0;
 		this.pendingHookContexts = [];
 		this.maxTokensRecoveryCount = 0;
+		this.maxTokensRecoveryAttempted = false;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -828,7 +862,14 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
+					// Attribution is set immediately before each throw: nothing can
+					// interleave between a synchronous set-and-throw and the
+					// run-level catch, so `sdk.error` can never pick up a reason
+					// from a failure it did not cause. Failures with no
+					// finish-reason cause (hooks, listeners, transport) leave the
+					// field unset and the attribute is omitted.
 					if (finishReason === "error") {
+						this.state.lastFinishReason = finishReason;
 						throw new Error(this.state.lastError ?? "Model stream failed");
 					}
 					// Provider-executed tool activity lives in message metadata, not
@@ -837,15 +878,21 @@ export class AgentRuntime {
 					// activity is not empty: keep the message so the transcript and
 					// display projection retain it. Replay stays safe — the codec
 					// renders empty content as its placeholder text block.
-					const modelToolActivities = message.metadata?.modelToolActivities;
-					const hasModelToolActivity =
-						Array.isArray(modelToolActivities) &&
-						modelToolActivities.length > 0;
+					const hasModelToolActivity = this.hasModelToolActivity(message);
 					// A turn that produced no content because it hit the output-token
-					// limit is not a true empty response: fall through so the message is
-					// kept and the max-tokens recovery branch below can nudge and retry.
-					if (!hasModelToolActivity && finishReason !== "max-tokens") {
-						throw new Error("Model returned empty response");
+					// limit or has an unknown finish is incomplete: preserve the message
+					// so finish-reason handling below can surface the right failure or recover.
+					if (
+						!hasModelToolActivity &&
+						finishReason !== "max-tokens" &&
+						finishReason !== "unknown"
+					) {
+						this.state.lastFinishReason = finishReason;
+						throw new Error(
+							finishReason === "content-filter"
+								? CONTENT_FILTER_EMPTY_TURN_MESSAGE
+								: "Model returned empty response",
+						);
 					}
 				}
 				const toolCalls = message.content.filter(
@@ -854,19 +901,7 @@ export class AgentRuntime {
 				);
 
 				finalAssistantMessage = message;
-				this.state.messages.push(message);
-				await this.emit({
-					type: "message-added",
-					snapshot: this.snapshot(),
-					message,
-				});
-				await this.emit({
-					type: "assistant-message",
-					snapshot: this.snapshot(),
-					iteration: this.state.iteration,
-					message,
-					finishReason,
-				});
+				await this.recordAssistantMessage(message, finishReason);
 
 				if (interrupted) {
 					await this.emit({
@@ -876,6 +911,13 @@ export class AgentRuntime {
 						toolCallCount: 0,
 					});
 					continue;
+				}
+
+				// Recovery already continued once, or external tool activity made
+				// replay unsafe. Local calls are handled below with their results.
+				if (finishReason === "unknown" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error("Model ended without a recognized finish reason");
 				}
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
@@ -888,9 +930,12 @@ export class AgentRuntime {
 						});
 						continue;
 					}
+					// Same set-and-throw attribution as the empty-content check.
+					this.state.lastFinishReason = finishReason;
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
 				// A turn that yields tool calls is progress: reset the cut-off streak.
@@ -934,6 +979,20 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
+				if (
+					finishReason === "unknown" &&
+					!toolMessages.some((toolMessage) =>
+						toolMessage.content.some(
+							(part) => part.type === "tool-result" && !part.isError,
+						),
+					)
+				) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error(
+						"Model ended without a recognized finish reason or successful tool work",
+					);
+				}
+
 				await this.flushPendingHookContexts();
 				await this.emit({
 					type: "turn-finished",
@@ -1133,16 +1192,57 @@ export class AgentRuntime {
 	 * visible output or provider tool activity are returned unchanged for the
 	 * caller to handle, so this only adds
 	 * resilience and never changes behavior for a turn that would otherwise
-	 * succeed. Context-window overflow recovery still runs inside each attempt.
+	 * succeed. Context-window overflow recovery and max-tokens recovery still
+	 * run inside each attempt (the latter at most once per run). An unknown
+	 * finish without tool activity is continued once from the partial history;
+	 * it is never inferred from whether the response contains visible text.
 	 */
 	private async generateAssistantMessageWithProviderRetry(): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
+		const issue = () =>
+			this.withProviderErrorRetry(() =>
+				this.generateAssistantMessageWithOverflowRecovery(),
+			);
+		const first = await issue();
+		if (first.finishReason !== "unknown" || first.interrupted) return first;
+
+		// Tool activity cannot be replayed, and local tool calls must receive
+		// their results before another request. Leave those turns to the loop.
+		if (
+			first.message.content.some((part) => part.type === "tool-call") ||
+			this.hasModelToolActivity(first.message)
+		)
+			return first;
+
+		// An unknown terminal reason, independent of text/reasoning content,
+		// permits exactly one continuation from the preserved partial history.
+		await this.recordAssistantMessage(first.message, first.finishReason);
+		// A user-role continuation avoids treating partial history as assistant
+		// prefill. Match hook context visibility in live and replayed transcripts.
+		await this.addUserReminderMessage(
+			"Previous turn ended unexpectedly. Continue from where you left off.",
+			{ displayRole: "system" },
+		);
+		this.resetLastError();
+		return await issue();
+	}
+
+	/**
+	 * Run `issue`, re-running it with backoff while it returns a turn that
+	 * failed with a transient, retryable provider error (see
+	 * {@link isRetryableProviderErrorTurn}), up to PROVIDER_ERROR_MAX_RETRIES
+	 * times. `issue` decides what is re-run: the whole prepared turn for an
+	 * ordinary request, or just the issuing of an already-prepared request.
+	 */
+	private async withProviderErrorRetry<
+		T extends { message: AgentMessage; finishReason: AgentModelFinishReason },
+	>(issue: () => Promise<T>): Promise<T> {
 		let attempt = 0;
 		for (;;) {
-			const turn = await this.generateAssistantMessageWithOverflowRecovery();
+			const turn = await issue();
 			if (
 				attempt >= PROVIDER_ERROR_MAX_RETRIES ||
 				!this.isRetryableProviderErrorTurn(turn)
@@ -1249,10 +1349,14 @@ export class AgentRuntime {
 	}
 
 	/**
-	 * Run a model turn, recovering once per run from a provider-rejected
-	 * context-window overflow: force a compaction through `prepareTurn` and
-	 * retry the request. Terminal (unrecoverable) overflow states throw with
-	 * an actionable message instead of the raw provider error.
+	 * Run a model turn, recovering once per run from each of two conditions:
+	 * a provider-rejected context-window overflow, and a response truncated
+	 * at the output-token limit on a turn with no tool calls. Both recoveries
+	 * force a compaction through `prepareTurn` and retry the request.
+	 * Terminal (unrecoverable) overflow states throw with an actionable
+	 * message instead of the raw provider error; an unrecoverable truncated
+	 * turn is returned as-is so the loop surfaces the max-tokens error with
+	 * the partial content preserved.
 	 */
 	private async generateAssistantMessageWithOverflowRecovery(): Promise<{
 		message: AgentMessage;
@@ -1260,6 +1364,9 @@ export class AgentRuntime {
 		interrupted?: boolean;
 	}> {
 		const first = await this.generateAssistantMessage();
+		if (this.isRecoverableMaxTokensTurn(first)) {
+			return await this.retryTruncatedTurnWithCompaction(first);
+		}
 		if (!this.isRecoverableOverflowTurn(first)) {
 			return first;
 		}
@@ -1315,6 +1422,196 @@ export class AgentRuntime {
 		return !turn.message.content.some((part) => part.type === "tool-call");
 	}
 
+	private isRecoverableMaxTokensTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (
+			turn.finishReason !== "max-tokens" ||
+			this.maxTokensRecoveryAttempted ||
+			!this.config.prepareTurn
+		) {
+			return false;
+		}
+		// A truncated turn that produced tool calls proceeds through the normal
+		// loop, which executes them; only text-only truncations are terminal
+		// and worth a recovery attempt.
+		if (turn.message.content.some((part) => part.type === "tool-call")) {
+			return false;
+		}
+		// Provider-executed tool activity lives in metadata, not content, and has
+		// already happened — replaying the turn would repeat its side effects.
+		return !this.hasModelToolActivity(turn.message);
+	}
+
+	/** Tool activity executed outside AgentRuntime is recorded in metadata. */
+	private hasModelToolActivity(message: AgentMessage): boolean {
+		const activities = message.metadata?.modelToolActivities;
+		return Array.isArray(activities) && activities.length > 0;
+	}
+
+	/**
+	 * A response cut off at the output-token limit is often a symptom of a
+	 * nearly-full context: local OpenAI-compatible servers (llama.cpp, ollama,
+	 * LM Studio) cap generation at whatever context remains, regardless of the
+	 * requested output budget. Compacting the conversation frees that room, so
+	 * one forced compaction + retry rescues those turns. When compaction has
+	 * nothing to remove the original turn is returned, so the loop surfaces the
+	 * max-tokens error with the partial content already persisted.
+	 *
+	 * The truncated turn is not yet persisted while this runs (the loop records
+	 * a turn only after it returns), so whenever the attempt ends without a
+	 * replacement turn — compaction threw, the retry was aborted, or it errored
+	 * with nothing for the loop to execute — the truncated turn is recorded
+	 * first and the failure surfaces afterwards; the partial answer is never
+	 * lost to the recovery attempt.
+	 *
+	 * A retry that does come back is handed to the loop unjudged: the run loop
+	 * remains the only place that decides whether a turn is acceptable. When
+	 * compaction cannot help — nothing to remove, the retry truncated again, or
+	 * the turn was never eligible — the loop's own nudge-and-retry recovery
+	 * takes over, so this runs first and at most once per run.
+	 * Telemetry here is purely
+	 * observational — `started`, then `retried` with the retry's finish reason
+	 * when the attempt ran, or `failed` when it could not — so it never claims
+	 * anything about the run outcome and cannot contradict it.
+	 */
+	private async retryTruncatedTurnWithCompaction(first: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}> {
+		this.maxTokensRecoveryAttempted = true;
+		// Distinct from the loop's nudge-and-retry notices (`max_tokens_recovery`)
+		// so the two strategies stay tellable apart downstream.
+		const noticeMetadata = {
+			kind: "max_tokens_compaction",
+			reason: "max_tokens_compaction",
+			iteration: this.state.iteration,
+		};
+		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+			phase: "started",
+		});
+		let retry: { message: AgentMessage; finishReason: AgentModelFinishReason };
+		try {
+			// Emitted inside the try so a throwing listener still funnels
+			// through the terminal-phase catch below.
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message:
+					"response hit the output token limit — compacting and retrying",
+				metadata: { ...noticeMetadata, phase: "started" },
+			});
+			// Prepare (compact) once; a transient provider error on the compacted
+			// request gets the same bounded retry policy as any other request, but
+			// re-issues the *same* prepared request — the transcript has not
+			// changed between a 429 and its retry, so recompacting would only repeat
+			// the compaction's notices, telemetry, and any summarizer call.
+			const prepared = await this.prepareModelRequest({
+				overflowRecovery: true,
+			});
+			retry = await this.withProviderErrorRetry(() =>
+				this.issuePreparedRequest(prepared),
+			);
+		} catch (error) {
+			if (error instanceof ContextWindowOverflowError) {
+				// Nothing to compact — keep the truncated turn so the loop
+				// surfaces the max-tokens error rather than an overflow error.
+				this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+					phase: "failed",
+					eventType: "nothing_to_compact",
+				});
+				await this.emit({
+					type: "status-notice",
+					snapshot: this.snapshot(),
+					message: "output-token-limit recovery failed: nothing to compact",
+					metadata: { ...noticeMetadata, phase: "failed" },
+				});
+				return first;
+			}
+			// Close the recovery's telemetry before rethrowing so every started
+			// phase has a terminal phase; the thrown error itself is surfaced by
+			// the run's own failure path, so no notice here. The error rides along
+			// so `error_type` separates a deliberate stop (ControlledStopError,
+			// AgentRuntimeAbortError) from a genuine recovery failure without
+			// restating how the run loop classifies either.
+			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+				phase: "failed",
+				eventType: "recovery_threw",
+				error,
+			});
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			throw error;
+		}
+		// `retried` states only that the compaction and retry ran — it makes no
+		// claim about the run, which may still reject this turn. The retry's
+		// finish reason rides along as an observed fact; pair it with the run
+		// outcome to see what became of the turn.
+		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+			phase: "retried",
+			eventType: retry.finishReason,
+		});
+		// No replacement turn came back: keep the truncated one and surface what
+		// ended the retry, exactly as the loop would have for that finish.
+		if (retry.finishReason === "aborted") {
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			throw this.normalizeAbortError();
+		}
+		if (
+			retry.finishReason === "error" &&
+			!retry.message.content.some((part) => part.type === "tool-call")
+		) {
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			// An errored retry that still produced output — text, or a
+			// provider-executed tool that has already run — is observable work,
+			// not a discardable draft: keep it alongside the truncated turn so the
+			// transcript shows what happened (the loop records such a turn before
+			// failing, too). Only a retry that produced nothing is dropped.
+			if (
+				retry.message.content.length > 0 ||
+				this.hasModelToolActivity(retry.message)
+			) {
+				await this.recordAssistantMessage(retry.message, retry.finishReason);
+			}
+			throw new Error(this.state.lastError ?? "Model stream failed");
+		}
+		// A retry that came back with nothing is no replacement either: handing it
+		// on would trip the loop's empty-response guard, which throws before
+		// recording anything — discarding the truncated answer and reporting a
+		// misleading error. Keep the truncated turn, exactly as when there was
+		// nothing to compact, and let the loop surface the max-tokens error.
+		if (
+			retry.message.content.length === 0 &&
+			!this.hasModelToolActivity(retry.message)
+		) {
+			return first;
+		}
+		return retry;
+	}
+
+	/** Append an assistant turn to the transcript and announce it. */
+	private async recordAssistantMessage(
+		message: AgentMessage,
+		finishReason: AgentModelFinishReason,
+	): Promise<void> {
+		this.state.messages.push(message);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message,
+		});
+		await this.emit({
+			type: "assistant-message",
+			snapshot: this.snapshot(),
+			iteration: this.state.iteration,
+			message,
+			finishReason,
+		});
+	}
+
 	private async generateAssistantMessage(options?: {
 		overflowRecovery?: boolean;
 	}): Promise<{
@@ -1331,17 +1628,32 @@ export class AgentRuntime {
 		}
 	}
 
-	private async generateAssistantMessageForRequest(
-		steerController: AbortController,
-		options?: {
-			overflowRecovery?: boolean;
-		},
-	): Promise<{
+	/**
+	 * Issue an already-prepared request as a fresh attempt: turn preparation
+	 * (compaction, before-model hooks) is not re-run, but the attempt gets its
+	 * own steer controller and lifecycle timing.
+	 */
+	private async issuePreparedRequest(prepared: PreparedModelRequest): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
-		const usageBeforeModel = cloneUsage(this.state.usage);
+		const controller = new AbortController();
+		this.modelSteerController = controller;
+		try {
+			return await this.streamPreparedRequest(
+				{ ...prepared, startedAt: Date.now() },
+				controller,
+			);
+		} finally {
+			this.modelSteerController = undefined;
+		}
+	}
+
+	/** A model request with turn preparation and before-model hooks applied. */
+	private async prepareModelRequest(options?: {
+		overflowRecovery?: boolean;
+	}): Promise<PreparedModelRequest> {
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
 			clientName: trimNonEmpty(this.config.clientName),
@@ -1368,21 +1680,16 @@ export class AgentRuntime {
 			}),
 		};
 
-		const taskLifecycleStartedAt = Date.now();
-		const getTaskLifecycleDurationMs = () =>
-			Date.now() - taskLifecycleStartedAt;
+		const startedAt = Date.now();
 
-		if (this.state.iteration > 1) {
-			const pendingUserMessage = await this.consumePendingUserMessage();
-			if (pendingUserMessage) {
-				request = {
-					...request,
-					messages: [
-						...request.messages,
-						...cloneMessages([pendingUserMessage]),
-					],
-				};
-			}
+		// Read queued input at every request boundary, including retries and
+		// continuations within the first iteration.
+		const pendingUserMessage = await this.consumePendingUserMessage();
+		if (pendingUserMessage) {
+			request = {
+				...request,
+				messages: [...request.messages, ...cloneMessages([pendingUserMessage])],
+			};
 		}
 
 		request = await this.prepareTurnForModelRequest(request, options);
@@ -1423,6 +1730,40 @@ export class AgentRuntime {
 			...summarizeModelRequest(request),
 		});
 
+		return { request, startedAt };
+	}
+
+	private async generateAssistantMessageForRequest(
+		steerController: AbortController,
+		options?: {
+			overflowRecovery?: boolean;
+		},
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const prepared = await this.prepareModelRequest(options);
+		return await this.streamPreparedRequest(prepared, steerController);
+	}
+
+	/**
+	 * Issue a prepared request and assemble the assistant turn from its stream.
+	 * Separate from preparation so a prepared request can be re-issued (e.g.
+	 * after a transient provider error) without re-running turn preparation.
+	 */
+	private async streamPreparedRequest(
+		prepared: PreparedModelRequest,
+		steerController: AbortController,
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const usageBeforeModel = cloneUsage(this.state.usage);
+		const getTaskLifecycleDurationMs = () => Date.now() - prepared.startedAt;
+		let request = prepared.request;
+
 		this.throwIfAborted();
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
 			durationMs: getTaskLifecycleDurationMs(),
@@ -1450,7 +1791,7 @@ export class AgentRuntime {
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
 		> = [];
 		let nextToolIndex = 0;
-		let finishReason: AgentModelFinishReason = "stop";
+		let finishReason: AgentModelFinishReason = "unknown";
 		let requestId: string | undefined;
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
@@ -2387,6 +2728,9 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							...(this.state.lastFinishReason
+								? { finishReason: this.state.lastFinishReason }
+								: {}),
 						},
 					});
 				}

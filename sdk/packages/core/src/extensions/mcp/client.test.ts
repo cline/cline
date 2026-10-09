@@ -133,11 +133,114 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+// Answers initialize normally, then crashes (exit code 3) the moment a
+// tools/call request starts arriving -- without draining stdin. A request body larger than the
+// pipe buffer is then still partly queued on the client side when the reader
+// disappears, which is how a stdin write fails asynchronously with EPIPE.
+const EXIT_ON_CALL_SERVER_SCRIPT = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+	const text = chunk.toString("utf8");
+	if (text.includes('"tools/call"')) {
+		process.stderr.write("fatal: server crashed while reading request\\n");
+		process.exit(3);
+	}
+	buffer += text;
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined || msg.method !== "initialize") continue;
+		const result = {
+			protocolVersion: "2024-11-05",
+			capabilities: {},
+			serverInfo: { name: "fake", version: "0.0.0" },
+		};
+		process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+	}
+});
+`;
+
+// Answers initialize, then closes its stdin the moment a tools/call request
+// starts arriving and either stays alive or (FAKE_MCP_EXIT_AFTER_CLOSE_MS)
+// exits with code 7 shortly after. FAKE_MCP_IGNORE_SIGTERM makes it survive
+// SIGTERM. It reads fd 0 directly rather than through process.stdin so that
+// libuv holds no handle on it and the close is real.
+const CLOSE_STDIN_SERVER_SCRIPT = `
+const fs = require("node:fs");
+if (process.env.FAKE_MCP_PID_FILE) {
+	fs.writeFileSync(process.env.FAKE_MCP_PID_FILE, String(process.pid));
+}
+if (process.env.FAKE_MCP_IGNORE_SIGTERM) {
+	process.on("SIGTERM", () => {});
+}
+const chunk = Buffer.alloc(4096);
+let buffer = "";
+for (;;) {
+	let read;
+	try {
+		read = fs.readSync(0, chunk, 0, chunk.length, null);
+	} catch (error) {
+		if (error.code === "EAGAIN") continue;
+		throw error;
+	}
+	if (read === 0) break;
+	const text = chunk.toString("utf8", 0, read);
+	if (text.includes('"tools/call"')) {
+		fs.closeSync(0);
+		const exitAfterMs = Number(process.env.FAKE_MCP_EXIT_AFTER_CLOSE_MS);
+		if (Number.isFinite(exitAfterMs)) {
+			setTimeout(() => process.exit(7), exitAfterMs);
+		} else {
+			setInterval(() => {}, 1000);
+		}
+		break;
+	}
+	buffer += text;
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined || msg.method !== "initialize") continue;
+		const result = {
+			protocolVersion: "2024-11-05",
+			capabilities: {},
+			serverInfo: { name: "fake", version: "0.0.0" },
+		};
+		fs.writeSync(1, JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+	}
+}
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
 	tempRoot = mkdtempSync(join(tmpdir(), "mcp-client-test-"));
 	writeFileSync(join(tempRoot, "fake-server.js"), FAKE_SERVER_SCRIPT, "utf8");
+	writeFileSync(
+		join(tempRoot, "exit-on-call-server.js"),
+		EXIT_ON_CALL_SERVER_SCRIPT,
+		"utf8",
+	);
+	writeFileSync(
+		join(tempRoot, "close-stdin-server.js"),
+		CLOSE_STDIN_SERVER_SCRIPT,
+		"utf8",
+	);
 	writeFileSync(
 		join(tempRoot, "framed-server.js"),
 		FRAMED_SERVER_SCRIPT,
@@ -159,6 +262,9 @@ function fakeServerRegistration(options: {
 	delayMs: number;
 	initDelayMs?: number;
 	pidFile?: string;
+	script?: string;
+	exitAfterCloseMs?: number;
+	ignoreSigterm?: boolean;
 }): McpServerRegistration {
 	return {
 		name: "fake-server",
@@ -170,7 +276,7 @@ function fakeServerRegistration(options: {
 				process.platform === "win32"
 					? `"${process.execPath}"`
 					: process.execPath,
-			args: [join(tempRoot, "fake-server.js")],
+			args: [join(tempRoot, options.script ?? "fake-server.js")],
 			env: {
 				FAKE_MCP_DELAY_MS: String(options.delayMs),
 				...(options.initDelayMs === undefined
@@ -179,6 +285,12 @@ function fakeServerRegistration(options: {
 				...(options.pidFile === undefined
 					? {}
 					: { FAKE_MCP_PID_FILE: options.pidFile }),
+				...(options.exitAfterCloseMs === undefined
+					? {}
+					: {
+							FAKE_MCP_EXIT_AFTER_CLOSE_MS: String(options.exitAfterCloseMs),
+						}),
+				...(options.ignoreSigterm ? { FAKE_MCP_IGNORE_SIGTERM: "1" } : {}),
 			},
 		},
 		...(options.timeoutSeconds === undefined
@@ -262,13 +374,15 @@ describe("mcp client request timeout", () => {
 	it("connects a moderately slow server without a configured timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		// The old 1.5s initialize probe killed servers that needed ~2s to answer
-		// (https://github.com/cline/cline/issues/13035), so the default budget
+		// (https://github.com/cline/cline/issues/13035), and the 3s budget that
+		// replaced it still dropped `npx`/`uvx`-launched servers on Windows,
+		// where reaching initialize routinely takes 3-6s. The default budget
 		// must cover them. It deliberately stays small beyond that: initialize
 		// runs on the session.create critical path, so genuinely slow starters
 		// (e.g. JVM-based Oracle SQLcl) opt into patience with an explicit
 		// `timeout` instead of the default stalling every session.
 		const client = await factory(
-			fakeServerRegistration({ delayMs: 0, initDelayMs: 2_000 }),
+			fakeServerRegistration({ delayMs: 0, initDelayMs: 5_000 }),
 		);
 		try {
 			await client.connect();
@@ -576,7 +690,7 @@ describe("default connect budget", () => {
 		// the whole session is torn down (a hung server used to kill the CLI
 		// this way). Keep headroom for the rest of session creation.
 		expect(DEFAULT_MCP_CONNECT_TIMEOUT_MS * 2).toBeLessThanOrEqual(
-			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
+			HUB_DEFAULT_COMMAND_TIMEOUT_MS - 10_000,
 		);
 	});
 
@@ -589,4 +703,107 @@ describe("default connect budget", () => {
 			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
 		);
 	});
+});
+
+describe("mcp client stdin failures", () => {
+	it("reports the server's exit, not the broken pipe, when it dies mid-write", async () => {
+		const uncaught: unknown[] = [];
+		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
+			uncaught.push(error);
+		};
+		process.on("uncaughtException", onUncaught);
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({ delayMs: 0, script: "exit-on-call-server.js" }),
+		);
+		try {
+			await client.connect();
+			await expect(
+				client.callTool({
+					name: "anything",
+					arguments: { blob: "x".repeat(1_000_000) },
+				}),
+			).rejects.toThrow(/MCP process exited for "fake-server" \(code=3/);
+			// Give a late pipe error a chance to surface before asserting.
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			expect(uncaught).toEqual([]);
+		} finally {
+			process.removeListener("uncaughtException", onUncaught);
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	// On win32 the server runs under a cmd.exe wrapper (shell: true) that holds
+	// the pipe open, so closing stdin inside the script never fails the write.
+	for (const ignoreSigterm of [false, true]) {
+		it.skipIf(process.platform === "win32")(
+			`fails the request at once and stops a server that closes stdin but stays alive (${ignoreSigterm ? "ignores" : "honors"} SIGTERM)`,
+			async () => {
+				const pidFile = join(
+					tempRoot,
+					`close-stdin-${ignoreSigterm ? "ignores" : "honors"}-sigterm.pid`,
+				);
+				const factory = createDefaultMcpServerClientFactory();
+				const client = await factory(
+					fakeServerRegistration({
+						delayMs: 0,
+						timeoutSeconds: 20,
+						script: "close-stdin-server.js",
+						pidFile,
+						ignoreSigterm,
+					}),
+				);
+				try {
+					await client.connect();
+					const pid = Number(readFileSync(pidFile, "utf8"));
+					const startedAt = Date.now();
+					await expect(
+						client.callTool({
+							name: "anything",
+							arguments: { blob: "x".repeat(1_000_000) },
+						}),
+					).rejects.toThrow(
+						/MCP server "fake-server" stopped reading its input .*\(write EPIPE\) and did not exit/,
+					);
+					// Well under the 20s request timeout: no reply could ever come.
+					expect(Date.now() - startedAt).toBeLessThan(5_000);
+					// Escalates to SIGKILL when SIGTERM is ignored.
+					await waitFor(() => !isProcessRunning(pid), 10_000);
+				} finally {
+					await client.disconnect();
+				}
+			},
+			30_000,
+		);
+	}
+
+	it.skipIf(process.platform === "win32")(
+		"still reports the server's own exit code when it exits shortly after closing stdin",
+		async () => {
+			const factory = createDefaultMcpServerClientFactory();
+			const client = await factory(
+				fakeServerRegistration({
+					delayMs: 0,
+					timeoutSeconds: 20,
+					script: "close-stdin-server.js",
+					exitAfterCloseMs: 50,
+				}),
+			);
+			try {
+				await client.connect();
+				// The stdin write fails as soon as the server closes its end, but
+				// the server is about to exit on its own; the client must wait for
+				// that rather than kill it and report SIGTERM.
+				await expect(
+					client.callTool({
+						name: "anything",
+						arguments: { blob: "x".repeat(1_000_000) },
+					}),
+				).rejects.toThrow(/MCP process exited for "fake-server" \(code=7/);
+			} finally {
+				await client.disconnect();
+			}
+		},
+		30_000,
+	);
 });

@@ -295,9 +295,9 @@ describe("connector router contract", () => {
 		);
 	});
 
-	it("requests the first 20 schemas and preserves input_parameters and version", async () => {
-		const tools = Array.from({ length: 20 }, (_, i) => ({
-			slug: `GMAIL_TOOL_${i}`,
+	it("loads all 47 schemas across pages and preserves input_parameters and version", async () => {
+		const tools = Array.from({ length: 47 }, (_, i) => ({
+			slug: `GOOGLECALENDAR_TOOL_${i}`,
 			version: "v1",
 			input_parameters: {
 				type: "object",
@@ -305,14 +305,61 @@ describe("connector router contract", () => {
 				required: ["to"],
 			},
 		}));
-		global.fetch = vi.fn(async () =>
-			page(tools, "more-tools"),
-		) as unknown as typeof fetch;
-		expect(await listToolkitTools("gmail")).toEqual(tools);
-		expect(global.fetch).toHaveBeenCalledExactlyOnceWith(
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/gmail/tools?limit=20",
-			expect.objectContaining({ method: "GET" }),
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(page(tools.slice(0, 20), "next/+="))
+			.mockResolvedValueOnce(page([], "last"))
+			.mockResolvedValueOnce(page(tools.slice(20)));
+		global.fetch = fetchMock as unknown as typeof fetch;
+		expect(await listToolkitTools("googlecalendar")).toEqual(tools);
+		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200",
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=next%2F%2B%3D",
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=last",
+		]);
+	});
+
+	it("rejects a failed tool page instead of returning partial schemas", async () => {
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce(page([{ slug: "GMAIL_SEND_EMAIL" }], "next"))
+			.mockResolvedValueOnce(
+				Response.json({ error: "Tools unavailable" }, { status: 502 }),
+			) as unknown as typeof fetch;
+		await expect(listToolkitTools("gmail")).rejects.toThrow(
+			"Tools unavailable",
 		);
+	});
+
+	it("rejects a malformed later tool page", async () => {
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce(page([{ slug: "GMAIL_SEND_EMAIL" }], "next"))
+			.mockResolvedValueOnce(
+				Response.json({ success: true, data: { items: [] } }),
+			) as unknown as typeof fetch;
+		await expect(listToolkitTools("gmail")).rejects.toThrow(
+			/Invalid connectors page/,
+		);
+	});
+
+	it("rejects cyclic tool pagination", async () => {
+		global.fetch = vi.fn(async () =>
+			page([{ slug: "GMAIL_SEND_EMAIL" }], "same"),
+		) as unknown as typeof fetch;
+		await expect(listToolkitTools("gmail")).rejects.toThrow(/repeated cursor/);
+		expect(global.fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not combine tool pages from different accounts", async () => {
+		global.fetch = vi.fn(async () => {
+			identity.accountId = "account-b";
+			return page([{ slug: "GMAIL_SEND_EMAIL" }], "next");
+		}) as unknown as typeof fetch;
+		await expect(listToolkitTools("gmail")).rejects.toMatchObject({
+			status: 401,
+		});
+		expect(global.fetch).toHaveBeenCalledOnce();
 	});
 
 	it("keeps polling while an ACTIVE connection is disabled", async () => {

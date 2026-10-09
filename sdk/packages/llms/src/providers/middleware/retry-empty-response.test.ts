@@ -549,6 +549,22 @@ describe("network interruption retry", () => {
 		expect(Date.now() - startedAt).toBeLessThan(5_000);
 	});
 
+	it("stops retrying when the user aborts during the empty-response backoff sleep", async () => {
+		const abort = new AbortController();
+		const doStream = vi.fn(async () => streamOf(emptyParts));
+		setTimeout(() => abort.abort(), 20);
+
+		const startedAt = Date.now();
+		const { error } = await collectWithError(
+			await run(doStream, { retryDelayMs: 30_000 }, abort.signal),
+		);
+
+		expect(doStream).toHaveBeenCalledTimes(1);
+		expect(error).toBe(abort.signal.reason);
+		// Resolved by the abort, not by waiting out the 30s backoff.
+		expect(Date.now() - startedAt).toBeLessThan(5_000);
+	});
+
 	it("propagates the final failure after the attempt budget is exhausted", async () => {
 		const failures = [
 			undiciSocketClosed(),

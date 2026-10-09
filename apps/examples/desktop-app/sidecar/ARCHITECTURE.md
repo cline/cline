@@ -163,6 +163,33 @@ five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
+The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
+command/docs) through the shared RPC contract. The sidecar resolves these facts
+from the registered provider catalog; chat validation and credential-error UI use
+that data rather than importing the browser LLM registry. Error-message metadata
+retains the provider facts used for that message, so changing providers does not
+change an existing message's recovery action. The same response carries
+`modelTools` for provider-level settings indicators such as web-search support.
+
+Voice settings and the composer's microphone separately call
+`list_transcription_models`. Exact audio-only input and text-only output identify
+speech-to-text models; operation labels do not admit additional modalities.
+Multimodal live models are categorized as `realtime` and are currently unsupported.
+The core service restricts voice choices to executable transcription transports. Vercel voice discovery uses its current `/v1/models` response and
+`websocket-transcription` tags, without merging bundled entries. Discovery errors
+hide that provider's voice choices; they do not block ordinary chat model loading.
+Saving a voice choice, transcribing a recording, and creating a streaming session
+all validate against this same catalog. The network-free provider snapshot carries
+the saved voice choice, which is not proof of current availability.
+
+The webview caches verified voice models for five minutes and renders their
+snapshot when reopening Voice settings. Provider credential changes invalidate
+this cache; changing only the selected voice model preserves it. Session startup
+still validates on the sidecar. Streaming sessions declare the transport and PCM
+sample rate, including Gemini's 16 kHz input and ElevenLabs Scribe v2 Realtime.
+Provider WebSocket handlers are installed before capture starts; Gateway raw
+error events preserve upstream failures that its generic stream error omits.
+
 Supported commands:
 
 | Command | Implementation |
@@ -170,6 +197,7 @@ Supported commands:
 | `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `list_transcription_models` | `getLocalTranscriptionModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
 | `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
 | `transcribe_audio` | configured voice input selection + provider credentials |
@@ -186,6 +214,7 @@ Supported commands:
 | `get_desktop_settings` | `readDesktopSettings()` |
 | `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
 | `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |

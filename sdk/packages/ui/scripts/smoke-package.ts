@@ -14,7 +14,16 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentConversationHeader,
+	AgentConversationLayout,
+	AgentSessionContent,
+	AgentChangedFile,
+	AgentChangesPanel,
+	AgentPullRequestBar,
+	AgentCommandOutput,
+	AgentImageLightboxContent,
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
 	AttachmentDropZone,
 	AgentAurora,
@@ -22,6 +31,9 @@ import {
 	AgentWelcomeHero,
 	AgentPromptQueue,
 	AgentQuickActions,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	AgentSessionOverview,
 	SearchCombobox,
 	SessionStatus,
 	Switch,
@@ -29,6 +41,17 @@ import {
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
+import {
+	agentMarkdownControlsWithMermaid,
+	createLazyMermaidPlugin,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
+	neutralizeDiagramLinks,
+} from "@cline/ui/components/markdown";
+import { createMermaidRenderer } from "@cline/ui/components/mermaid-block";
+import {
+	computePngExportSize,
+	resolveDiagramSlug,
+} from "@cline/ui/components/mermaid-diagram";
 
 for (const specifier of [
 	"@cline/ui/components.css",
@@ -42,6 +65,11 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
+		throw new Error("packed review UI stylesheet is missing: " + name);
+	}
+}
 const heroCss = readFileSync(
 	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
 	"utf8",
@@ -64,16 +92,66 @@ if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") 
 if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
+// Assert the control shape rather than a "not false" check, which would also
+// accept undefined or an empty object and silently ship diagrams without their
+// controls. (This block lives inside the importCheck template literal above, so
+// it must avoid backticks and dollar-brace sequences.)
+const mermaidControls = agentMarkdownControlsWithMermaid.mermaid;
 if (
+	typeof createLazyMermaidPlugin !== "function" ||
+	typeof mermaidControls !== "object" ||
+	mermaidControls === null ||
+	mermaidControls.copy !== true ||
+	mermaidControls.download !== true ||
+	mermaidControls.fullscreen !== true ||
+	mermaidControls.panZoom !== true
+) {
+	throw new Error("markdown subpath did not export Mermaid opt-in controls");
+}
+// A substring check for the original href would also match the preserved
+// data-cline-diagram-href attribute, so assert on attribute boundaries instead.
+const neutralizedDiagram =
+	typeof neutralizeDiagramLinks === "function"
+		? neutralizeDiagramLinks('<svg><a href="https://example.com/">x</a></svg>')
+		: "";
+if (
+	DIAGRAM_LINK_HREF_ATTRIBUTE !== "data-cline-diagram-href" ||
+	neutralizedDiagram.includes(" href=") ||
+	neutralizedDiagram.includes(" xlink:href=") ||
+	!neutralizedDiagram.includes('data-cline-diagram-href="https://example.com/"')
+) {
+	throw new Error("markdown subpath did not export diagram link neutralization");
+}
+if (
+	createMermaidRenderer().language !== "mermaid" ||
+	resolveDiagramSlug({ meta: 'title="Smoke Test"', source: "flowchart LR" }) !==
+		"smoke-test" ||
+	computePngExportSize({ height: 10_000, width: 100 }).height > 4096
+) {
+	throw new Error("mermaid subpaths returned unexpected results");
+}
+if (
+	!AgentConversationHeader ||
+	!AgentConversationLayout ||
+	!AgentSessionContent ||
+	!AgentChangedFile ||
+	!AgentChangesPanel ||
+	!AgentPullRequestBar ||
+	!AgentCommandOutput ||
+	!AgentImageLightboxContent ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentWelcomeHero ||
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
+	!AgentSessionRow ||
+	!AgentSessionRowEditor ||
+	!AgentSessionOverview ||
 	!SessionStatus ||
 	!Switch ||
 	!Conversation ||
@@ -208,6 +286,7 @@ async function verifyTailwindContract(
 		"backdrop-blur-sm",
 		"border-dashed",
 		"pointer-events-none",
+		"group-hover/row:bg-cline-ui-surface-hover",
 	]) {
 		expectCandidate(css, candidate);
 	}
@@ -243,6 +322,14 @@ async function verifyTailwindContract(
 	}
 	expectInlineHeroMasks(noPreflightCss, "no-Preflight Tailwind contract");
 	for (const output of [css, noPreflightCss]) {
+		for (const candidate of [
+			"font-cline-ui-mono",
+			"text-cline-ui-xs",
+			"cursor-zoom-out",
+			"rounded-cline-ui-lg",
+		]) {
+			expectCandidate(output, candidate);
+		}
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(
 			output,

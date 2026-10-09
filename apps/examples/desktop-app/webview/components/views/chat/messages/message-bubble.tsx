@@ -150,7 +150,7 @@ export const MessageBubble = memo(function MessageBubble({
 	 * directly above it, which it answers. */
 	followsWorkingRows?: boolean;
 	/** Opens the page where the credentials of a failed turn's provider can
-	 * be fixed (Settings → Account for Cline, Settings → API Providers otherwise). */
+	 * be fixed (Settings → Account for Cline, Settings → Providers otherwise). */
 	onFixCredentials?: (target: "account" | "models") => void;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
@@ -170,13 +170,19 @@ export const MessageBubble = memo(function MessageBubble({
 	const displayContent = formatChatMessageContent(
 		message.role,
 		message.content,
+		message.meta?.providerId,
+		message.meta?.providerAuth,
+		message.meta?.messageKind,
 	);
 	const credentialAction =
 		isError &&
 		onFixCredentials &&
 		message.meta?.reason === "credentials" &&
 		message.meta.providerId
-			? resolveCredentialFailureAction(message.meta.providerId)
+			? resolveCredentialFailureAction(
+					message.meta.providerId,
+					message.meta.providerAuth,
+				)
 			: null;
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&

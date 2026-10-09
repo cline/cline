@@ -130,10 +130,16 @@ Owns stateful orchestration:
 - hub server and scheduled-runtime services under `src/hub/`
 - hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
 - host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- the experimental cloud-session client exported from `@cline/core/cloud`: cloud API access, remote session lifecycle, and transcript reconciliation
 
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
+- `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
+- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
+- The cloud controller resumes suspended sessions and restores saved tasks.
+- Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
@@ -172,12 +178,12 @@ field.
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
-8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs. Node clients register their version and PID together with caller metadata on every connection; `HubSessionClient` passes metadata through at registration so client events, refreshed lists, and reconnects retain the same details.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
@@ -379,6 +385,18 @@ different process.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
 
+### Temporary external tool result recovery
+
+Cache admission sizes the persisted result using the same JSON/string preview representation as `MessageBuilder`, ensuring every result truncated by the per-result limit is eligible for recovery. Native images are separated from structured preview text and excluded from the recovery copy. Plain strings remain unchanged, while structured cached text uses YAML with literal multiline blocks and no automatic line wrapping. YAML size controls the cache byte limit, not the truncation threshold. This preserves MCP payload line breaks instead of escaping them into a single JSON line. Recovery requires an available `read_files` tool and uses its existing output and per-line limits. Disabling the reader does not disable caching or remove notices.
+
+MCP and Composio tools declare `resultPolicy: "cache-oversized"` at registration; custom tools may opt in. After result-transforming hooks finish, Core caches oversized output in a session-owned `ToolResultCache` while retaining original output in conversation history and tool events. The existing synchronous `MessageBuilder.buildForApi` produces bounded previews and model-only recovery instructions, preserving native images. Other tools keep their existing projection behavior. No disk cache or asynchronous recovery builder is involved.
+
+Recovery URIs have the form `cline://cache/<encoded-session-id>/<unique-result-id>.result.txt`. Core injects the owning cache into the runtime tool context. The built-in file reader resolves these URIs before filesystem handling and uses the same bounded line reader, inclusive ranges, output caps, and abort handling as ordinary text files. URIs are restricted to the owning session; shell commands and filesystem search do not resolve them.
+
+Entries expire after five additional model iterations without an explicit cache read. A session-level counter spans follow-up turns; including a URI in a model request does not refresh it. Reads refresh both the iteration age and least-recently-used order. Cached text is limited to 16 MiB of UTF-8 bytes per session, evicting the least recently read entry first; individually larger results receive a preview without a URI. Shutdown, history reset, and restore clear the cache. Resume and copied sessions do not rehydrate it from history. Missing entries return an explicit refetch instruction through `read_files`, without automatically repeating tools or side effects.
+
+Cache eviction releases cache-owned text only; original output remains under ordinary history retention. URI references survive eviction so earlier model-facing recovery notices remain unchanged. Cache-miss feedback is emitted only by an attempted read. Generated recovery instructions reserve at most half the aggregate model text budget; instructions that cannot fit are omitted. Tool-returned metadata cannot grant recovery-instruction status.
+
 ### Connector Persistence and Recovery
 
 1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.
@@ -472,6 +490,12 @@ Design implication:
   root usage and teammate usage as separate buckets, then derives aggregate
   totals from those buckets while telemetry remains scoped to the primary
   lead/root agent.
+- Usage events report non-reasoning `outputTokens` and a separate optional
+  `reasoningTokenCount` delta. `RuntimeEventAdapter` derives both deltas from
+  cumulative runtime usage; the hub's `usage.updated.delta` payload preserves
+  them when `HubRuntimeHost` reconstructs the event. `task.tokens` telemetry
+  likewise reports reasoning separately from `tokensOut`. Provider billing
+  still includes reasoning tokens at the output rate.
 
 ### 4. Settings Mutation Boundary
 
@@ -939,6 +963,21 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
 
+### Display-only session errors
+
+Terminal run errors are persisted in session message history with
+`metadata.displayOnly: true` and `metadata.displayRole: "error"`. Desktop and CLI
+render these entries on history reload. The core message codec excludes them
+from agent state (including model requests and compaction); the conversation
+store retains their transcript positions when replacing agent snapshots.
+
+Display-only failures are recorded once after automatic authentication retries
+settle; recovered attempts do not emit a terminal error. The
+`session.error_recorded` telemetry event reports session ID, provider, model, and
+whether the terminal failure returned or threw, without error/transcript text.
+Desktop reconciliation retains the full live failed turn until a saved terminal
+error reaches its user-run count and is not a previously displayed error ID.
+
 ### Composio beta access
 
 Composio management in the desktop sidecar and tool registration/execution in
@@ -954,12 +993,16 @@ API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and
-tool pages additionally carry `total`. The sidecar fetches every catalog and
-connection page, including empty pages with continuation tokens, and rejects
-failed, malformed, or cyclic pagination before caching or reconciliation.
-Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
-per toolkit and persists `input_parameters` and the pinned version for the core
-extension. Tool execution sends arguments and the optional version to
+tool pages additionally carry `total`. The sidecar fetches every catalog,
+connection, and tool page, including empty pages with continuation tokens, and
+rejects failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It persists every tool's
+`input_parameters` and pinned version for the core extension. A status refresh
+re-fetches schemas for active connections, including existing nonempty caches;
+ordinary status polling reads local state. New sessions pick up the refreshed
+schemas, while running sessions retain their tool set. The connector dialog
+shows the loaded count and includes a catalog total only when it is known.
+Tool execution sends arguments and the optional version to
 `/tools/{slug}/execute` and retains the provider response body.
 
 Customize > Connectors displays the usage-ranked catalog, with search across
