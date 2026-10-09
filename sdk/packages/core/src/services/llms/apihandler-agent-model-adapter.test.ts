@@ -95,6 +95,79 @@ describe("createAgentModelFromApiHandler", () => {
 		]);
 	});
 
+	it("coalesces per-chunk cumulative usage into a single final usage event", async () => {
+		// Some OpenAI-compatible providers (vLLM --enable-force-include-usage,
+		// ik_llama.cpp, z.ai) attach usage to EVERY streamed chunk with running
+		// totals. `ApiStreamUsageChunk` documents those values as the totals
+		// reported by the provider so far, so only the last snapshot is the
+		// request's usage — forwarding each one makes the runtime's cross-request
+		// accumulation multiply the request's tokens by the chunk count
+		// (https://github.com/cline/cline/issues/10148).
+		const handler = fakeHandler([
+			{ type: "text", text: "hello", id: "x" },
+			{ type: "usage", inputTokens: 13856, outputTokens: 133, id: "x" },
+			{ type: "usage", inputTokens: 13856, outputTokens: 134, id: "x" },
+			{ type: "usage", inputTokens: 13856, outputTokens: 136, id: "x" },
+			{ type: "done", success: true, id: "x" },
+		]);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+
+		const usageEvents = events.filter((e) => e.type === "usage");
+		expect(usageEvents).toHaveLength(1);
+		expect(usageEvents[0]).toEqual({
+			type: "usage",
+			usage: {
+				inputTokens: 13856,
+				outputTokens: 136,
+				cacheReadTokens: undefined,
+				cacheWriteTokens: undefined,
+				reasoningTokenCount: undefined,
+				totalCost: undefined,
+			},
+		});
+		// The single usage snapshot lands right before the terminal finish,
+		// matching the gateway/AI-SDK adapter's ordering.
+		expect(events.slice(-2)).toEqual([
+			usageEvents[0],
+			{ type: "finish", reason: "stop", error: undefined },
+		]);
+	});
+
+	it("drops the held usage snapshot when the stream errors mid-flight", async () => {
+		// A request that dies mid-stream never produced its final totals, so the
+		// intermediate cumulative snapshot is intentionally not forwarded:
+		// emitting it would let the runtime account partial totals (or an
+		// under-reported prefix) against a failed request. This pins that
+		// decision — change it only together with the runtime's usage
+		// accounting, never as an isolated adapter tweak.
+		const handler = fakeHandler(
+			[
+				{
+					type: "usage",
+					inputTokens: 1000,
+					outputTokens: 0,
+					cacheReadTokens: 400,
+					id: "x",
+				},
+				{ type: "text", text: "partial", id: "x" },
+				{ type: "text", text: " more", id: "x" },
+			],
+			{ throwAfter: 2 },
+		);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+
+		expect(events.filter((e) => e.type === "usage")).toEqual([]);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "boom",
+		});
+		// Content delivered before the failure still reaches the consumer.
+		expect(events[0]).toEqual({ type: "text-delta", text: "partial" });
+	});
+
 	it("maps tool_calls (object args) to a tool-call-delta event", async () => {
 		const handler = fakeHandler([
 			{
