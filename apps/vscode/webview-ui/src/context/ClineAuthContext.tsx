@@ -31,6 +31,9 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const organizationsRequestIdRef = useRef(0)
 	const userIdRef = useRef<string | undefined>(undefined)
 	const switchRequestRef = useRef<object | null>(null)
+	// A switch that reported an error may still commit on the server. Its error is
+	// retracted once the newest read shows the requested account active.
+	const unconfirmedSwitchRef = useRef<{ organizationId: string | undefined } | null>(null)
 	const [accountSwitch, setAccountSwitch] = useState<ClineAuthContextType["accountSwitch"]>(null)
 	const [accountSwitchError, setAccountSwitchError] = useState<string | null>(null)
 
@@ -43,6 +46,12 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (requestId === organizationsRequestIdRef.current) {
 				setUserOrganizations((old) => (deepEqual(response.organizations, old) ? old : response.organizations))
+				const unconfirmed = unconfirmedSwitchRef.current
+				const activeId = response.organizations.find((org) => org.active)?.organizationId ?? undefined
+				if (unconfirmed && activeId === unconfirmed.organizationId) {
+					unconfirmedSwitchRef.current = null
+					setAccountSwitchError(null)
+				}
 			}
 			return response.organizations
 		} catch (error) {
@@ -63,6 +72,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			switchRequestRef.current = request
 			setAccountSwitch({ organizationId, slow: false })
 			setAccountSwitchError(null)
+			unconfirmedSwitchRef.current = null
 			const timer = setTimeout(() => {
 				if (switchRequestRef.current === request) setAccountSwitch({ organizationId, slow: true })
 			}, 10_000)
@@ -72,6 +82,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				succeeded = true
 			} catch (error) {
 				if (switchRequestRef.current === request) {
+					unconfirmedSwitchRef.current = { organizationId }
 					setAccountSwitchError(error instanceof Error ? error.message : String(error))
 				}
 			} finally {
@@ -115,6 +126,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				if (userIdRef.current !== responseUser?.uid) {
 					userIdRef.current = responseUser?.uid
 					switchRequestRef.current = null
+					unconfirmedSwitchRef.current = null
 					setAccountSwitch(null)
 					setAccountSwitchError(null)
 					setUserOrganizations(null)

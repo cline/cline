@@ -103,11 +103,11 @@ describe("account confirmation", () => {
 		await expect(getUserOrganizations(controller as never, {})).rejects.toThrow("Could not confirm")
 		expect(mocks.request).toHaveBeenCalledWith(expect.objectContaining({ timeout: 10_000, method: "GET" }))
 	})
-	it("bounds the mutation request and reconciles auth after a transport failure", async () => {
-		mocks.request.mockRejectedValue(new Error("timeout"))
-		await expect(new ClineAccountService().switchAccount("org-new")).rejects.toThrow("timeout")
+	it("waits for the server's answer to the mutation and reconciles auth after a transport failure", async () => {
+		mocks.request.mockRejectedValue(new Error("offline"))
+		await expect(new ClineAccountService().switchAccount("org-new")).rejects.toThrow("offline")
 		expect(mocks.request).toHaveBeenCalledWith(
-			expect.objectContaining({ timeout: 10_000, method: "PUT", data: { organizationId: "org-new" } }),
+			expect.objectContaining({ timeout: 0, method: "PUT", data: { organizationId: "org-new" } }),
 		)
 		expect(mocks.restore).toHaveBeenCalledOnce()
 	})

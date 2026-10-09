@@ -300,6 +300,10 @@ export class ClineAccountService {
 			try {
 				await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
 					method: "PUT",
+					// No client deadline: the server can still commit a PUT the client gave
+					// up on, and only its answer triggers the auth refresh below that brings
+					// this window onto the new account. setUserOrganization bounds the UI wait.
+					timeout: 0,
 					headers: {
 						"Content-Type": "application/json",
 					},
