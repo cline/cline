@@ -4,6 +4,9 @@ import type * as LlmsProviders from "@cline/llms";
 import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
 import { normalizeUserInput, stripModeNotices } from "@cline/shared";
 import { nanoid } from "nanoid";
+import {
+	blobifyStoredMessageMedia,
+} from "../session/services/session-blob-store";
 import { readSessionHistoryOriginMetadata } from "../session/history-origin";
 import {
 	parseSubSessionId,
@@ -336,6 +339,7 @@ export function buildMessagesFilePayload(input: {
 	context: MessagesFileContext;
 	messages: LlmsProviders.MessageWithMetadata[];
 	systemPrompt?: string;
+	blobsDir?: string;
 }): {
 	version: 1;
 	updated_at: string;
@@ -346,6 +350,17 @@ export function buildMessagesFilePayload(input: {
 	messages: StoredMessageWithMetadata[];
 	system_prompt?: string;
 } {
+	// Blob-ify oversized binary content immediately before the message file is
+	// serialized, so stored history never carries multi-megabyte base64 while
+	// the live conversation keeps raw bytes for in-flight model requests.
+	let messages: LlmsProviders.MessageWithMetadata[] = input.messages;
+	if (input.blobsDir) {
+		const blobified = blobifyStoredMessageMedia(
+			input.messages,
+			input.blobsDir,
+		);
+		messages = blobified.messages as LlmsProviders.MessageWithMetadata[];
+	}
 	return {
 		version: 1,
 		updated_at: input.updatedAt,
@@ -353,7 +368,7 @@ export function buildMessagesFilePayload(input: {
 		sessionId: input.context.sessionId,
 		...(input.context.taskType ? { taskType: input.context.taskType } : {}),
 		origin: input.context.origin,
-		messages: normalizeStoredMessagesForPersistence(input.messages),
+		messages: normalizeStoredMessagesForPersistence(messages),
 		...(input.systemPrompt ? { system_prompt: input.systemPrompt } : {}),
 	};
 }

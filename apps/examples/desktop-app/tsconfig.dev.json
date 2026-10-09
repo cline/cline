@@ -10,6 +10,9 @@
 			"@cline/core/hub/daemon-entry": [
 				"../../../sdk/packages/core/src/hub/daemon/entry.ts"
 			],
+			"@cline/core/session-blob-store": [
+				"../../../sdk/packages/core/src/session/services/session-blob-store.ts"
+			],
 			"@cline/llms": ["../../../sdk/packages/llms/src/index.ts"],
 			"@cline/shared": ["../../../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/storage": [
