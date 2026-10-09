@@ -412,6 +412,21 @@ function resolveRelativeImportPath(
 	return null;
 }
 
+/**
+ * Side-effect imports (`import "./setup.js";`) at the start of a statement.
+ * Used only for change fingerprints: a false match there just hashes one more
+ * file, whereas the dependency preflight would reject a valid plugin over it.
+ */
+function collectSideEffectImportSpecifiers(source: string): string[] {
+	const specifiers: string[] = [];
+	for (const match of source.matchAll(
+		/(?:^|[;{}])[ \t]*import[ \t]*(["'])([^"'\n]+)\1/gm,
+	)) {
+		if (match[2]) specifiers.push(match[2]);
+	}
+	return specifiers;
+}
+
 function collectStaticModuleSpecifiers(source: string): string[] {
 	const specifiers = new Set<string>();
 	const patterns = [
@@ -505,7 +520,10 @@ export function fingerprintPluginSources(pluginPath: string): string {
 		}
 		hash.update(`${filePath}\0${source}\0`);
 		if (!SUPPORTED_PLUGIN_EXTENSIONS.has(extname(filePath))) return;
-		for (const specifier of collectStaticModuleSpecifiers(source)) {
+		for (const specifier of [
+			...collectStaticModuleSpecifiers(source),
+			...collectSideEffectImportSpecifiers(source),
+		]) {
 			if (isBareSpecifier(specifier)) continue;
 			const resolvedPath = resolveRelativeImportPath(filePath, specifier);
 			if (resolvedPath) visit(resolvedPath, seen);

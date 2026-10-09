@@ -967,4 +967,39 @@ export default {
 			["helper_v2"],
 		);
 	});
+
+	it("retries a plugin after a fix to a file it imports only for side effects", async () => {
+		await write("side-effect.js", `throw new Error("helper broken");\n`);
+		const path = await write(
+			"side-effect-entry.js",
+			`import "./side-effect.js";
+export default { name: "side-effect-entry", manifest: { capabilities: ["tools"] } };
+`,
+		);
+		const broken = await registry.loadForSession({ pluginPaths: [path] });
+		expect(broken.extensions).toEqual([]);
+		expect(registry.get(path)[0]).toMatchObject({
+			state: "failed",
+			lastError: { phase: "import" },
+		});
+
+		// Text that merely looks like an import inside a string must not be
+		// treated as one when loading.
+		const prose = await write(
+			"prose.js",
+			`export default { name: "prose", note: 'run import "x" first', manifest: { capabilities: ["tools"] } };\n`,
+		);
+		const proseLoaded = await registry.loadForSession({ pluginPaths: [prose] });
+		expect(proseLoaded.extensions.map((extension) => extension.name)).toEqual([
+			"prose",
+		]);
+
+		// Fix only the helper; the entry file is untouched.
+		await write("side-effect.js", `globalThis.__sideEffectRan = true;\n`);
+		const fixed = await registry.loadForSession({ pluginPaths: [path] });
+		expect(fixed.extensions.map((extension) => extension.name)).toEqual([
+			"side-effect-entry",
+		]);
+		expect(registry.get(path)[0]?.state).toBe("ready");
+	});
 });
