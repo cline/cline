@@ -37,7 +37,6 @@ import {
 	normalizeAutoApproveArgs,
 	resolveWorkspaceRoot,
 } from "./utils/helpers";
-import { createMutableUserInstructionConfigService } from "./utils/mutable-user-instruction-service";
 import {
 	c,
 	installStreamErrorGuards,
@@ -897,22 +896,15 @@ export async function runCli(): Promise<void> {
 	});
 	coreServer.setSdkLogger(loggerAdapter.core);
 
-	const createCliUserInstructionService = (location: {
-		cwd: string;
-		workspaceRoot: string;
-	}) =>
-		createUserInstructionConfigService({
-			skills: {
-				workspacePath: location.workspaceRoot,
-				includePluginSkills: true,
-				cwd: location.cwd,
-			},
-			rules: { workspacePath: location.workspaceRoot },
-			workflows: { workspacePath: location.workspaceRoot },
-		});
-	const userInstructionService = createMutableUserInstructionConfigService(
-		createCliUserInstructionService({ cwd, workspaceRoot }),
-	);
+	const userInstructionService = createUserInstructionConfigService({
+		skills: {
+			workspacePath: workspaceRoot,
+			includePluginSkills: true,
+			cwd,
+		},
+		rules: { workspacePath: workspaceRoot },
+		workflows: { workspacePath: workspaceRoot },
+	});
 	await userInstructionService.start().catch(() => {});
 	let userInstructionServiceDisposed = false;
 	const stopUserInstructionService = () => {
@@ -1206,9 +1198,6 @@ export async function runCli(): Promise<void> {
 			await runInteractive(config, userInstructionService, resumeSessionId, {
 				initialPrompt: args.prompt,
 				clineApiBaseUrl: initialClineProviderSettings?.baseUrl,
-				explicitSystemPrompt: args.systemPrompt,
-				mutableUserInstructionService: userInstructionService,
-				createUserInstructionService: createCliUserInstructionService,
 				clineProviderSettings: initialClineProviderSettings,
 				startupTarget,
 				initialNotice,

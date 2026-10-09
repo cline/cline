@@ -160,14 +160,13 @@ also `async` for the same reason:
 | --- | --- | --- | --- |
 | `CLINE_COMPUTER_USE_PORT` | yes (enables the tool) | — | Backend TCP port |
 | `CLINE_COMPUTER_USE_HOST` | no | `127.0.0.1` | Backend host |
-| `CLINE_COMPUTER_USER_MODEL` | no | — | Enables the separate computer-user helper and selects its model. When unset, the driver uses `computer` directly even if Anthropic credentials are configured. The helper always uses the direct `anthropic` provider (CLI host) |
-| `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Shell command that starts the backend before the initial display query and again if it becomes unreachable. Helper mode also gets `computer_user_restart_backend` |
+| `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Shell command that starts the backend before the initial display query and again if it becomes unreachable. Also enables the `computer_restart_backend` tool |
 
 Display size is deliberately not configurable — see "Display size" above.
 
 ### Backend command
 
-`CLINE_COMPUTER_USE_BACKEND_COMMAND` is optional: leave it unset if you manage qbt yourself. When set, Cline probes qbt and launches the command if needed before constructing the computer tool and before each computer action. In helper mode it also enables backend restart tools for the driver and computer user. A forced restart asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement. It never searches for processes by name. Restart the CLI after changing these variables.
+`CLINE_COMPUTER_USE_BACKEND_COMMAND` is optional: leave it unset if you manage qbt yourself. When set with a loopback backend address, Cline probes qbt and launches the command if needed before constructing the computer tool and before each computer action. The agent also gets `computer_restart_backend` to recover a backend that answers probes but cannot take screenshots. A forced restart asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement. It never searches for processes by name. Restart the CLI after changing these variables.
 
 Install qwanban's qbt on PATH from its Git repository. Plain `cargo install qbt` names an unrelated qBittorrent crate.
 
@@ -186,19 +185,15 @@ Replace the executable path with your qbt installation. The first port is the ag
 
 The command runs on the CLI host through its platform shell (`cmd.exe` on Windows, `/bin/sh` on Unix), from the CLI workspace directory and with the CLI environment. Installing qbt on PATH makes executable lookup independent of that directory. Use an absolute executable path or an explicit directory change for a checkout-local build. PowerShell syntax inside the command requires an explicit PowerShell invocation. Setting `CLINE_COMPUTER_USE_HOST` does not run the command remotely.
 
-At startup and on helper-requested recovery, Cline probes `get_display_info` first. A responsive backend is left running; otherwise the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
+At startup and before each computer action, Cline probes `get_display_info` first. A responsive backend is left running; otherwise the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend except through the explicit cooperative restart described above. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
 
-## The asynchronous computer user
+## CLI integration
 
-The raw `computer` tool is the default. The optional driver-facing shape is
-the **computer user** (`src/extensions/computer-user/`): a persistent helper
-session on the Anthropic provider that owns this tool plus the normal
-built-ins, works in the background, and reports to the driver agent through
-`computer_user_*` tools. The CLI wires it up in
-`apps/cli/src/runtime/interactive/computer-user.ts` when both
-`CLINE_COMPUTER_USE_PORT` and `CLINE_COMPUTER_USER_MODEL` are set and the
-direct Anthropic provider is configured. Without the model opt-in or helper
-credentials, the driver receives the raw tool directly.
+The interactive CLI registers the `computer` tool directly on the current
+agent, independently of its provider. Backend recovery and driver transcript
+recording share the same client in
+`apps/cli/src/runtime/interactive/computer-use.ts`. The tools and recording
+hooks remain installed across plan/act switches and session rebuilds.
 
 Action lifecycles are observable (`ComputerUseClientOptions.observer`) and
 cancellable (`ComputerUseSendOptions.signal`); the observability contract
@@ -225,7 +220,7 @@ observatory lives in `src/extensions/computer-observability/`.
 The backend keeps an in-memory journal of everything observable on its host:
 it records every computer action (with a full-screen PNG for screen-capturing
 actions) as it executes it, and the agent host publishes its own events —
-transcripts, coordinator status changes — over the same socket with the
+the driver transcript and session status changes — over the same socket with the
 `publish_event` action. The qwanban observatory subscribes to that journal
 over the backend's WebSocket port and renders the combined timeline.
 
@@ -235,7 +230,9 @@ On the Cline side (`src/extensions/computer-observability/`):
   fans events into an `ArtifactEventSink`.
 - `createJournalEventSink` is the sink that publishes each event to the
   backend via `publish_event`, in emission order, without ever blocking the
-  action path.
+  action path. Hosts stop its publisher with `dispose()` before closing the
+  shared client; a degraded `flush()` reports missing events but does not
+  mean the send queue has stopped.
 - `createTranscriptRecordingHooks` is an `AgentHooks` layer that records
   every committed message (`message-added` is the canonical commit point,
   covering user, assistant, and tool messages) as
@@ -244,6 +241,6 @@ On the Cline side (`src/extensions/computer-observability/`):
   backend already journals every screenshot once, in execution order.
 
 The CLI wires all of this up in
-`apps/cli/src/runtime/interactive/computer-user.ts`, sharing one
+`apps/cli/src/runtime/interactive/computer-use.ts`, sharing one
 `ComputerUseClient` between the `computer` tool and the publisher because
 the backend serves a single agent connection at a time (most recent wins).

@@ -273,11 +273,11 @@ describe("applyInteractiveModeConfig", () => {
 
 	it("keeps persistent extra tools across plan/act switches", async () => {
 		const config = makeConfig();
-		const computerUserTool = {
+		const computerTool = {
 			...switchToActModeTool,
-			name: "computer_user_start",
+			name: "computer",
 		};
-		const persistentExtraTools = [computerUserTool];
+		const persistentExtraTools = [computerTool];
 
 		await applyInteractiveModeConfig({
 			config,
@@ -285,7 +285,7 @@ describe("applyInteractiveModeConfig", () => {
 			switchToActModeTool,
 			persistentExtraTools,
 		});
-		expect(config.extraTools).toEqual([switchToActModeTool, computerUserTool]);
+		expect(config.extraTools).toEqual([switchToActModeTool, computerTool]);
 
 		await applyInteractiveModeConfig({
 			config,
@@ -293,7 +293,7 @@ describe("applyInteractiveModeConfig", () => {
 			switchToActModeTool,
 			persistentExtraTools,
 		});
-		expect(config.extraTools).toEqual([computerUserTool]);
+		expect(config.extraTools).toEqual([computerTool]);
 
 		await applyInteractiveModeConfig({
 			config,
@@ -301,6 +301,6 @@ describe("applyInteractiveModeConfig", () => {
 			switchToActModeTool,
 			persistentExtraTools,
 		});
-		expect(config.extraTools).toEqual([switchToActModeTool, computerUserTool]);
+		expect(config.extraTools).toEqual([switchToActModeTool, computerTool]);
 	});
 });

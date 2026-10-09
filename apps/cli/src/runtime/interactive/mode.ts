@@ -118,7 +118,7 @@ export {
 /**
  * Builds the extraTools list for an interactive mode. The single derivation
  * used both at startup and on every mode switch, so mode-independent tools
- * (e.g. the computer-user tools) cannot be silently dropped by a switch.
+ * (e.g. the computer tool) cannot be silently dropped by a switch.
  */
 export function buildInteractiveExtraTools(input: {
 	mode: InteractiveUiMode;

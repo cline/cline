@@ -1,5 +1,4 @@
 import { stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { resolveWorkspaceRoot } from "./helpers";
 
@@ -217,22 +216,6 @@ function tokenizeArgs(input: string): string[] {
 	return tokens;
 }
 
-function resolveChatCommandDirectory(cwd: string, args: string[]): string {
-	const rawPath = args.join(" ").trim();
-	const unquotedPath =
-		(rawPath.startsWith('"') && rawPath.endsWith('"')) ||
-		(rawPath.startsWith("'") && rawPath.endsWith("'"))
-			? rawPath.slice(1, -1)
-			: rawPath;
-	if (unquotedPath === "~") {
-		return homedir();
-	}
-	if (unquotedPath.startsWith("~/")) {
-		return resolve(homedir(), unquotedPath.slice(2));
-	}
-	return resolve(cwd, unquotedPath);
-}
-
 function parseFlagValues(tokens: string[]): {
 	positionals: string[];
 	flags: Record<string, string>;
@@ -299,7 +282,7 @@ function formatHelp(state: ChatCommandState): string {
 		"/whereami - show thread, cwd, tools, and yolo state",
 		"/tools [on|off|toggle] - allow repo/file/shell tools",
 		"/yolo [on|off|toggle] - auto-approve tool use",
-		"/cd <path> (or /cwd <path>) - change working directory",
+		"/cwd <path> - change working directory",
 		"/schedule create/list/trigger/delete - manage scheduled workflows",
 		"/abort - stop the current task",
 		"/mute [target] - ignore this thread or target until /unmute",
@@ -415,7 +398,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 			},
 		})
 		.register("command", {
-			names: ["/cd", "/cwd"],
+			names: ["/cwd"],
 			run: async ({ args, state }, context) => {
 				const rawPath = args.join(" ").trim();
 				if (!rawPath) {
@@ -424,7 +407,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					);
 					return;
 				}
-				const nextCwd = resolveChatCommandDirectory(state.cwd, args);
+				const nextCwd = resolve(state.cwd, rawPath);
 				const fileStat = await stat(nextCwd).catch(() => undefined);
 				if (!fileStat?.isDirectory()) {
 					await context.reply(`invalid directory: ${nextCwd}`);

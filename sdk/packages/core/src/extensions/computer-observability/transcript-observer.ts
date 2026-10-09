@@ -1,8 +1,5 @@
 import type { AgentHooks, AgentMessage, AgentMessagePart } from "@cline/shared";
-import type {
-	ArtifactEventSource,
-	ComputerTaskArtifactEvent,
-} from "./artifact-events";
+import type { ArtifactEventSource } from "./artifact-events";
 import type { ComputerTaskArtifactRecorder } from "./recorder";
 
 const TEXT_PREVIEW_LIMIT = 4000;
@@ -82,18 +79,9 @@ function partPayload(
  * transcript message, on every host (local or hub), for user, assistant,
  * and tool messages alike.
  */
-/**
- * Optional second sink for the reduced transcript events. The tee receives
- * the exact artifact event the recorder built — one reduction, two sinks —
- * so an in-process reader (e.g. the driver's `computer_user_transcript`
- * tool) never re-implements this file's payload shape.
- */
-export type TranscriptRecordingTee = (event: ComputerTaskArtifactEvent) => void;
-
 export function createTranscriptRecordingHooks(
 	recorder: ComputerTaskArtifactRecorder,
 	source: ArtifactEventSource,
-	tee?: TranscriptRecordingTee,
 ): AgentHooks {
 	return {
 		beforeRun: async () => {
@@ -120,7 +108,7 @@ export function createTranscriptRecordingHooks(
 				if (!reduced) {
 					continue;
 				}
-				const artifact = recorder.record({
+				recorder.record({
 					type: "transcript.message_committed",
 					source: { ...source },
 					...(reduced.toolCallId
@@ -128,7 +116,6 @@ export function createTranscriptRecordingHooks(
 						: {}),
 					payload: reduced.payload,
 				});
-				tee?.(artifact);
 			}
 		},
 	};

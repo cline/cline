@@ -93,7 +93,7 @@ Cline CLI runs in a few different shapes depending on what you need:
 
 ### Computer use (experimental)
 
-Set `CLINE_COMPUTER_USE_PORT` to qbt's agent port. By default the driver gets the `computer` tool directly; set `CLINE_COMPUTER_USER_MODEL` to use the separate computer-user helper on a configured direct Anthropic provider. Set `CLINE_COMPUTER_USE_BACKEND_COMMAND="qbt serve 1234 5678"` to let Cline start qbt before its first display query; helper mode can also recover it later. The command runs from the CLI workspace directory. Set these variables before launching the CLI and restart it after changes.
+Set `CLINE_COMPUTER_USE_PORT` to qbt's agent port to give the interactive agent the raw `computer` tool. Computer use is not available in one-shot or headless runs. Set `CLINE_COMPUTER_USE_BACKEND_COMMAND="qbt serve 1234 5678"` to let Cline start qbt before its first display query and recover the backend before later computer actions. The command runs from the CLI workspace directory. Set these variables before launching the CLI and restart it after changes.
 
 Plain `cargo install qbt` installs an unrelated qBittorrent client. Install qwanban's binary with `cargo install --git https://github.com/dominiccooney/qwanban.git qbt`, then see the [computer-use setup and backend command](../../sdk/packages/core/src/extensions/computer-use/README.md#backend-command) for shell rules, ports, and process ownership.
 
@@ -221,7 +221,7 @@ cline connect --stop
 cline connect --stop telegram
 ```
 
-In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/clear`, `/whereami`, `/tools`, `/yolo`, `/cd <path>` (also `/cwd <path>`), `/schedule`, `/abort`, and `/exit`. Run `cline connect <adapter> --help` to see the full flag list for any adapter.
+In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/schedule`, `/abort`, and `/exit`. Run `cline connect <adapter> --help` to see the full flag list for any adapter.
 
 ### Schedules
 

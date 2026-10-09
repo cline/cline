@@ -254,7 +254,7 @@ export async function createComputerUseTool(
 					);
 				}
 			}
-			// Forward the runtime's abort signal so a cancelled helper run
+			// Forward the runtime's abort signal so a cancelled agent run
 			// stops waiting on the backend. An already-delivered input event
 			// cannot be recalled; the caller re-screenshots before trusting
 			// screen state after a cancellation.

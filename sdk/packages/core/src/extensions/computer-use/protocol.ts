@@ -65,7 +65,7 @@ export const GET_DISPLAY_INFO_ACTION = "get_display_info";
 
 /**
  * Internal action (not one of Anthropic's `computer` tool actions) that
- * publishes a host-side event (transcript message, coordinator status
+ * publishes a host-side event (transcript message, session status
  * change, ...) into the backend's journal for the observatory. The backend
  * journals computer actions itself as it executes them; `publish_event`
  * exists for the events only the agent host can see. `kind` namespaces the

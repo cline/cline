@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ComputerUseResponse } from "../computer-use/protocol";
 import type { ComputerTaskArtifactEvent } from "./artifact-events";
-import { createJournalEventSink } from "./journal-sink";
+import {
+	createJournalEventSink,
+	type JournalPublishTransport,
+} from "./journal-sink";
 
 function makeEvent(clientSequence: number): ComputerTaskArtifactEvent {
 	return {
@@ -76,6 +79,42 @@ describe("createJournalEventSink", () => {
 		const status = await sink.flush();
 		expect(status.status).toBe("degraded");
 		expect(status.lastAcknowledgedSequence).toBe(0);
+	});
+
+	it("stops a degraded drain and rejects later emissions before disposal returns", async () => {
+		const active = new Promise<void>(() => {});
+		let calls = 0;
+		const send = vi.fn<JournalPublishTransport["send"]>(
+			async (_request, options) => {
+				if (++calls === 1) {
+					return { id: 1, ok: false };
+				}
+				await Promise.race([
+					active,
+					new Promise<void>((_resolve, reject) => {
+						options?.signal?.addEventListener(
+							"abort",
+							() => reject(new Error("disposed")),
+							{ once: true },
+						);
+					}),
+				]);
+				return { id: 2, ok: true };
+			},
+		);
+		const sink = createJournalEventSink({ send });
+		sink.emit(makeEvent(1));
+		sink.emit(makeEvent(2));
+		sink.emit(makeEvent(3));
+		expect((await sink.flush()).status).toBe("degraded");
+
+		await sink.dispose();
+		sink.emit(makeEvent(4));
+		await sink.dispose();
+
+		expect(send).toHaveBeenCalledTimes(2);
+		expect(send.mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
+		expect((await sink.flush()).lastClientSequence).toBe(3);
 	});
 
 	it("bounds pending events and keeps the newest when the transport stalls", async () => {

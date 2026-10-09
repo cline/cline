@@ -17,7 +17,7 @@ function parsePositiveInt(value: string | undefined): number | undefined {
  * Reads the computer-use backend's address from the environment, or returns
  * `undefined` if computer-use isn't configured for this process. Setting
  * `CLINE_COMPUTER_USE_PORT` is the single opt-in for everything computer-use:
- * the raw tool, the computer user, and observability all dial this target.
+ * the computer tool, backend recovery, and observability all dial this target.
  */
 export function resolveComputerUseTargetFromEnv(
 	env: NodeJS.ProcessEnv = process.env,
