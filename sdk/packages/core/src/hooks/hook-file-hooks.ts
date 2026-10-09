@@ -1073,7 +1073,12 @@ export function createHookConfigFileHooks(
 			if (result.status === "aborted" || isAbortReason(result.error?.message)) {
 				await runSessionShutdown({
 					...baseContextFromSnapshot(snapshot),
-					reason: result.error?.message,
+					// A real abort carries no error (AgentRuntime sets error
+					// only for "failed"), so surface an explicit abort reason;
+					// without it isAbortReason(undefined) is false and the
+					// TaskCancel (agent_abort) hooks never run. When an abort
+					// does carry an error message, keep it as the reason.
+					reason: result.status === "aborted" && !result.error?.message ? "aborted" : result.error?.message,
 				});
 				return;
 			}
