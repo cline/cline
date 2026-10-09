@@ -66,9 +66,11 @@ import { replaySessionHistory } from "./session-load";
 import {
 	describeAgentError,
 	forwardAgentEvent,
+	promptUsageFrom,
 	sendConfigOptionUpdate,
 	sendCurrentModeUpdate,
 	sendSessionInfoUpdate,
+	usageUpdateFor,
 } from "./session-updates";
 
 const CHAT_MODEL_QUERY_OPTIONS = {
@@ -355,6 +357,7 @@ export class AcpAgent implements Agent {
 		}
 
 		let stopReason: StopReason = "end_turn";
+		let turnUsage: Parameters<typeof promptUsageFrom>[0];
 		try {
 			const onAbort = () => {
 				if (session.activeSessionId && session.sessionManager) {
@@ -379,6 +382,7 @@ export class AcpAgent implements Agent {
 
 			if (result) {
 				stopReason = mapFinishReason(result.finishReason);
+				turnUsage = result.usage;
 			}
 		} finally {
 			session.abortController = undefined;
@@ -399,7 +403,35 @@ export class AcpAgent implements Agent {
 			}
 		}
 
-		return { stopReason };
+		const usage = promptUsageFrom(turnUsage);
+		return usage ? { stopReason, usage } : { stopReason };
+	}
+
+	/**
+	 * Tells the client how full the context is and what the session has cost,
+	 * after each model call. The context window comes from the model catalog;
+	 * a model without one sends nothing rather than a guessed size.
+	 */
+	private async sendUsageUpdate(
+		session: SessionState,
+		acpSessionId: string,
+		event: AgentEvent & { type: "usage" },
+	): Promise<void> {
+		try {
+			const models = await Llms.getModelsForProvider(
+				session.currentProviderId,
+				CHAT_MODEL_QUERY_OPTIONS,
+			);
+			const update = usageUpdateFor(
+				event,
+				models[session.currentModelId]?.contextWindow,
+			);
+			if (update) {
+				await this.conn.sessionUpdate({ sessionId: acpSessionId, update });
+			}
+		} catch {
+			// Usage is informational; a failure to report it must not affect the turn.
+		}
 	}
 
 	async cancel(params: CancelNotification): Promise<void> {
@@ -740,6 +772,9 @@ export class AcpAgent implements Agent {
 							: new Error(describeAgentError(event.error));
 				}
 				forwardAgentEvent(this.conn, acpSessionId, event);
+				if (event.type === "usage") {
+					void this.sendUsageUpdate(session, acpSessionId, event);
+				}
 			},
 		);
 

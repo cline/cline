@@ -2,6 +2,7 @@ import type {
 	AgentSideConnection,
 	SessionConfigOption,
 	SessionUpdate,
+	Usage,
 } from "@agentclientprotocol/sdk";
 import type { AgentEvent } from "@cline/core";
 import type { GeneratedMedia } from "@cline/shared";
@@ -35,6 +36,9 @@ function translateEvent(event: AgentEvent): SessionUpdate[] {
 			return [];
 		case "iteration_start":
 		case "iteration_end":
+			return [];
+		// Usage needs the model's context window, which the agent knows and this
+		// mapping does not: see `usageUpdateFor`, sent from `AcpAgent`.
 		case "usage":
 			return [];
 		default:
@@ -191,4 +195,64 @@ export function sendSessionInfoUpdate(
 		sessionId,
 		update: { sessionUpdate: "session_info_update", ...info },
 	});
+}
+
+type AgentUsageEvent = AgentEvent & { type: "usage" };
+
+/**
+ * The ACP `usage_update` for one model call: how much of the context window
+ * it filled and the session's cost so far.
+ *
+ * `used` counts the call's whole prompt and its reply — input, cache reads,
+ * cache writes and output — the same total Cline shows as context used. A
+ * subagent's call fills the subagent's context, not the session's, so it is
+ * not reported here; nor is a call whose model has no known context window,
+ * since `size` is required.
+ */
+export function usageUpdateFor(
+	event: AgentUsageEvent,
+	contextWindow: number | undefined,
+): SessionUpdate | null {
+	if (event.parentAgentId) return null;
+	if (!contextWindow || contextWindow <= 0) return null;
+	const used =
+		event.inputTokens +
+		event.outputTokens +
+		(event.cacheReadTokens ?? 0) +
+		(event.cacheWriteTokens ?? 0);
+	return {
+		sessionUpdate: "usage_update",
+		used,
+		size: contextWindow,
+		...(typeof event.totalCost === "number"
+			? { cost: { amount: event.totalCost, currency: "USD" } }
+			: {}),
+	};
+}
+
+/** A turn's token usage in the shape `PromptResponse.usage` takes. */
+export function promptUsageFrom(
+	usage:
+		| {
+				inputTokens: number;
+				outputTokens: number;
+				cacheReadTokens?: number;
+				cacheWriteTokens?: number;
+		  }
+		| undefined,
+): Usage | undefined {
+	if (!usage) return undefined;
+	const cachedReadTokens = usage.cacheReadTokens ?? 0;
+	const cachedWriteTokens = usage.cacheWriteTokens ?? 0;
+	return {
+		inputTokens: usage.inputTokens,
+		outputTokens: usage.outputTokens,
+		...(cachedReadTokens ? { cachedReadTokens } : {}),
+		...(cachedWriteTokens ? { cachedWriteTokens } : {}),
+		totalTokens:
+			usage.inputTokens +
+			usage.outputTokens +
+			cachedReadTokens +
+			cachedWriteTokens,
+	};
 }
