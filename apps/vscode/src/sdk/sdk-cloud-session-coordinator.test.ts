@@ -995,6 +995,52 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(globalState.cloudSessionStatuses).toBeUndefined()
 		})
 
+		it("forgets a remembered outcome when a connection finds the agent running again", async () => {
+			const globalState: Record<string, unknown> = {}
+			await rememberCompleted(globalState)
+			vi.spyOn(CloudSessionHost, "connect").mockResolvedValue({
+				status: "running",
+				readMessages: async () => [{ role: "user", content: "original prompt" }],
+				dispose: vi.fn(async () => {}),
+			} as unknown as CloudSessionHost)
+			const opened = makeCoordinator({
+				stateManager: makeStateManager(globalState) as never,
+				sessions: { attachExistingSession: async () => {} } as never,
+			})
+			opened.cloudSessions.listSessions.mockResolvedValue([finished])
+			await opened.coordinator.openCloudTask(finished.id)
+			expect(globalState.cloudSessionStatuses).toEqual({})
+			await opened.coordinator.dispose()
+
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("unknown")
+			await coordinator.dispose()
+		})
+
+		it("forgets the idle status a fresh sandbox reported once its turn starts running", async () => {
+			const globalState: Record<string, unknown> = {}
+			let statusChanged!: NonNullable<Parameters<typeof CloudSessionHost.connect>[0]["onStatusChange"]>
+			vi.spyOn(CloudSessionHost, "connect").mockImplementation(async (options) => {
+				statusChanged = options.onStatusChange!
+				return { status: "idle", readMessages: async () => [], dispose: vi.fn(async () => {}) } as never
+			})
+			const first = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			first.cloudSessions.listSessions.mockResolvedValue([finished])
+			await first.coordinator.listHistoryRecords()
+			await first.coordinator.resolveStatuses([finished.id])
+			expect(globalState.cloudSessionStatuses).toMatchObject({ [finished.id]: { status: "idle" } })
+			statusChanged("running")
+			expect(globalState.cloudSessionStatuses).toEqual({})
+			await first.coordinator.dispose()
+
+			// After a reload mid-turn, the row must be re-resolved instead of trusting the stale idle.
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("unknown")
+			await coordinator.dispose()
+		})
+
 		it.each([false, true])("invalidates a later record without restarting (retained host=%s)", async (retained) => {
 			vi.useFakeTimers()
 			vi.setSystemTime(100_000)
