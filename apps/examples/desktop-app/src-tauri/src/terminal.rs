@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::State;
@@ -18,13 +19,12 @@ pub enum TerminalEvent {
     Exit { code: Option<u32> },
 }
 
-/// The writer has its own lock: a write blocks when the shell stops reading
-/// (a large paste into a sleeping command), and kill/exit must not wait on it.
-type SharedWriter = Arc<Mutex<Box<dyn Write + Send>>>;
-
 struct TerminalSession {
     master: Box<dyn MasterPty + Send>,
-    writer: SharedWriter,
+    /// Input is queued to a per-session writer thread: a write blocks when the
+    /// shell stops reading (a large paste into a sleeping command), and that
+    /// must stall neither the IPC command thread nor kill/exit.
+    input: Sender<Vec<u8>>,
     killer: Box<dyn ChildKiller + Send + Sync>,
 }
 
@@ -176,11 +176,28 @@ pub fn terminal_spawn(
         .master
         .try_clone_reader()
         .map_err(|error| format!("Failed to read from the terminal: {error}"))?;
-    let writer = pair
+    let mut writer = pair
         .master
         .take_writer()
         .map_err(|error| format!("Failed to write to the terminal: {error}"))?;
     let killer = child.clone_killer();
+
+    // Ends when the session is removed (sender dropped) or the PTY closes
+    // under a blocked write after the shell is killed.
+    let (input, input_rx) = channel::<Vec<u8>>();
+    std::thread::Builder::new()
+        .name(format!("pty-writer-{}", options.id))
+        .spawn(move || {
+            for chunk in input_rx {
+                if writer.write_all(&chunk).is_err() {
+                    break;
+                }
+            }
+        })
+        .map_err(|error| {
+            let _ = child.clone_killer().kill();
+            format!("Failed to start the terminal writer: {error}")
+        })?;
 
     let sessions = state.sessions.clone();
     {
@@ -189,7 +206,7 @@ pub fn terminal_spawn(
             options.id.clone(),
             TerminalSession {
                 master: pair.master,
-                writer: Arc::new(Mutex::new(writer)),
+                input,
                 killer,
             },
         ) {
@@ -246,17 +263,15 @@ pub fn terminal_write(
     id: String,
     data: String,
 ) -> Result<(), String> {
-    let writer = state
-        .sessions
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    let sessions = state.sessions.lock().unwrap_or_else(|e| e.into_inner());
+    let session = sessions
         .get(&id)
-        .map(|session| session.writer.clone())
         .ok_or_else(|| "The terminal is no longer running.".to_string())?;
-    let mut writer = writer.lock().unwrap_or_else(|e| e.into_inner());
-    writer
-        .write_all(data.as_bytes())
-        .map_err(|error| error.to_string())
+    // Unbounded channel: never blocks the command thread.
+    session
+        .input
+        .send(data.into_bytes())
+        .map_err(|_| "The terminal is no longer running.".to_string())
 }
 
 #[tauri::command]

@@ -111,13 +111,16 @@ export function WelcomeScreen({
 	// opening underneath pushes the composer below the fold; bring it back.
 	const composerRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
-		if (!active || bottomInset <= 0) return;
-		// After layout: the hero and composer settle their size a frame later
-		// on a fresh mount.
-		const frame = window.requestAnimationFrame(() => {
-			composerRef.current?.scrollIntoView({ block: "end" });
+		const composer = composerRef.current;
+		if (!active || bottomInset <= 0 || !composer) return;
+		// Observing the composer (fires once on observe) covers both the
+		// initial mount and later layout settling, e.g. the setup notice or
+		// workspace controls arriving after the first paint.
+		const observer = new ResizeObserver(() => {
+			composer.scrollIntoView({ block: "end" });
 		});
-		return () => window.cancelAnimationFrame(frame);
+		observer.observe(composer);
+		return () => observer.disconnect();
 	}, [active, bottomInset]);
 	const cloudScope = user
 		? JSON.stringify([
