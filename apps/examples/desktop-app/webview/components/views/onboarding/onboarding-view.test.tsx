@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountProvider } from "@/contexts/account-context";
+import { getClineSignUpUrl } from "@/lib/cline-signup-url";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -137,6 +138,7 @@ describe("OnboardingView", () => {
 		Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 		window.localStorage.clear();
 		invoke.mockReset();
+		openExternalUrl.mockReset();
 		// AccountProvider fetches the account on mount; unresolved auth means
 		// the signed-out variant of the connect step renders.
 		invoke.mockImplementation(async (command: string) => {
@@ -507,6 +509,23 @@ describe("OnboardingView", () => {
 		expect(invoke).toHaveBeenCalledWith("get_feature_flags");
 		expect(container.textContent).not.toContain("Connect GitHub");
 		expect(container.textContent).toContain("You're all set");
+	});
+
+	it("opens explicit registration from Sign up and keeps Sign in separate", async () => {
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		expect(buttonByText("Sign in")).toBeDefined();
+		await act(async () => {
+			buttonByText("Sign up").click();
+		});
+		expect(openExternalUrl).toHaveBeenCalledWith(getClineSignUpUrl());
+		expect(
+			invoke.mock.calls.some(
+				([command]) => command === "run_provider_oauth_login",
+			),
+		).toBe(false);
 	});
 
 	it("lets the user cancel a pending browser sign-in", async () => {

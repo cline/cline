@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getClineSignUpUrl } from "@/lib/cline-signup-url";
 import type { ComposioIntegrationSummary } from "@/lib/composio-types";
 
 const mocks = vi.hoisted(() => ({
@@ -445,7 +446,7 @@ describe("installed connectors", () => {
 		);
 		expect(mocks.refresh).toHaveBeenCalled();
 		await act(async () => button("Create account")?.click());
-		expect(mocks.openExternalUrl).toHaveBeenCalledWith("https://app.cline.bot");
+		expect(mocks.openExternalUrl).toHaveBeenCalledWith(getClineSignUpUrl());
 	});
 
 	it("explains the beta rollout when signed in without connector access", async () => {
