@@ -199,6 +199,25 @@ export interface PluginSetupContext {
 	 * it); identity and common-property setters are no-ops.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * The session's working directory. Use it instead of `process.cwd()`:
+	 * plugins loaded in the Hub share one process across sessions.
+	 */
+	cwd?: string;
+	/**
+	 * Sends a plugin event (for example `steer_message`) to the session that
+	 * set the plugin up. Replaces `globalThis.__clinePluginHost.emitEvent`,
+	 * which is kept as a shim.
+	 */
+	emitEvent?: (name: string, payload?: unknown) => void;
+	/**
+	 * Registers cleanup to run when the session that set the plugin up ends.
+	 * Plugins loaded in the Hub share its process, so anything a plugin starts
+	 * for a session (child processes, sockets, listeners on shared emitters)
+	 * must be stopped here. Timers the plugin creates during its own calls
+	 * are cleared by the host automatically.
+	 */
+	onDispose?: (cleanup: () => void | Promise<void>) => void;
 }
 
 const ExtensionCapabilityOptions = [

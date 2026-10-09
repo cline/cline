@@ -32,7 +32,9 @@ import {
 	setActiveCliSession,
 	writeErr,
 	writeln,
+	writeWarn,
 } from "../utils/output";
+import { formatPluginIssueWarnings } from "../utils/plugin-issues";
 import type { Config } from "../utils/types";
 import { shouldShowCliUsageCost } from "../utils/usage-cost-display";
 import { setActiveRuntimeAbort } from "./active-runtime";
@@ -307,6 +309,9 @@ export async function runAgent(
 		});
 
 		activeSessionId = started.sessionId;
+		for (const warning of formatPluginIssueWarnings(started.pluginIssues)) {
+			writeWarn(warning);
+		}
 		setActiveCliSession({
 			manifest: started.manifest,
 		});

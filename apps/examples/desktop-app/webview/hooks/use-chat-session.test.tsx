@@ -5034,6 +5034,116 @@ describe("useChatSession", () => {
 		expect(userMessages[0]?.content).toBe("First prompt");
 	});
 
+	it("shows plugin failures from session start and later notices in the chat", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true, queued: true };
+					}
+				}
+				if (command === "read_session_messages") {
+					// Saved history never contains the plugin warnings.
+					return [
+						{
+							id: "saved-user",
+							sessionId: args?.sessionId,
+							role: "user",
+							content: "First prompt",
+							createdAt: 1,
+						},
+						{
+							id: "saved-answer",
+							sessionId: args?.sessionId,
+							role: "assistant",
+							content: "Saved answer",
+							createdAt: Date.now() + 60_000,
+						},
+					];
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "info",
+					message:
+						'Plugin "broken-setup" failed during setup: boom (/p/setup.ts). Its tools and hooks are unavailable.',
+					metadata: { pluginIssue: { name: "broken-setup", state: "failed" } },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			// Ordinary core logs stay out of the transcript.
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({ level: "info", message: "compacting" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const pluginMessages = current.messages.filter(
+			(message) => message.meta?.messageKind === "plugin_issue",
+		);
+		expect(pluginMessages.map((message) => message.role)).toEqual([
+			"status",
+			"status",
+		]);
+		expect(pluginMessages[0]?.content).toContain('Plugin "broken-import"');
+		expect(pluginMessages[1]?.content).toContain('Plugin "broken-setup"');
+		expect(
+			current.messages.some((message) => message.content === "compacting"),
+		).toBe(false);
+
+		// Finishing the turn replaces the live transcript with saved history;
+		// the warnings must survive that.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 3,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+		expect(
+			current.messages.some((message) => message.content === "Saved answer"),
+		).toBe(true);
+		expect(
+			current.messages
+				.filter((message) => message.meta?.messageKind === "plugin_issue")
+				.map((message) => message.content.slice(0, 22)),
+		).toEqual(['Plugin "broken-import"', 'Plugin "broken-setup" ']);
+	});
+
 	it("explains a failed turn with the latest core error log", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

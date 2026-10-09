@@ -605,13 +605,151 @@ Design implications:
 `packages/core/src/extensions` is split by concern:
 
 - `extensions/config`: config loaders, parsers, watchers, and watcher projections such as runtime slash-command expansion
-- `extensions/plugin`: runtime plugin discovery, loading, and sandboxing
+- `extensions/plugin`: runtime plugin discovery, loading, the in-process plugin registry, and the opt-in sandbox
 - `extensions/context`: core-owned context/message pipeline concerns such as compaction
 
 Design implications:
 
 - avoid mixing config discovery code into runtime/plugin code
 - avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
+
+#### Plugin execution
+
+Plugins load in the host process through one `PluginRegistry` per process
+(`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). In the
+Hub daemon that registry is Hub-owned: the daemon discovers and imports global
+and workspace plugins at startup, so status is known before any session
+exists. Each session then gets its own copy of every plugin module: the first
+session claims the copy imported at startup, and later sessions re-evaluate the
+module (reusing jiti's transform cache, so this costs roughly the module's
+evaluation time, not a babel transform). Plugins written for the per-session
+sandbox keep state at module level, often one plugin object per import that
+refuses a second `setup()`; one shared copy would break them.
+The session bootstrap, plugin tool listing (`listPluginToolsWithDiagnostics`),
+plugin MCP settings sync, and plugin slash commands all load through the same
+registry. There is no `node` or `bun` child process, so plugins work in the
+compiled CLI, the Hub it starts, and VS Code/Electron without a runtime on
+`PATH`, and plugins can use the host runtime's globals (`Bun` under the
+Bun-built Hub).
+
+Each session gets its own guarded view of the plugins it enabled:
+
+- `StartSessionInput.plugins` (`session.create` payload `plugins`) is shaped
+  like `toolPolicies`: `"*"` sets the default and named entries override it.
+  Plugins are enabled unless a policy turns them off. Tools, hooks, rules, and
+  providers come only from enabled plugins; plugin tools still go through
+  `toolPolicies`.
+- `setup()` runs once per session with a context that carries the session's
+  `cwd`, `session.sessionId`, and `emitEvent`. Plugin tools also receive `cwd`
+  and `emitEvent` in their call context. `globalThis.__clinePluginHost.emitEvent`
+  remains as a shim for sandbox-era plugins and routes to the calling session
+  through async context.
+- Every import (4 s), setup (4 s), hook (3 s), and tool, command, rule
+  content, and message-builder call (60 s, or a tool's own `timeoutMs`) is
+  wrapped with a timeout and error capture. `resolveAndLoadAgentPlugins`
+  overrides (`importTimeoutMs`, `hookTimeoutMs`, `contributionTimeoutMs`)
+  apply per session. A failing tool or command throws its error back to the
+  caller. A failing hook follows `hookErrorMode` (`"ignore"` by default;
+  `"throw"` rethrows). A failing rule contributes no text, and a failing
+  message builder leaves the messages unchanged. Calls into a copy that is
+  turned off, whose setup failed, or whose session ended are refused.
+- Registrations are buffered and validated (capabilities, automation event
+  types) during setup, so a setup that throws contributes nothing. If the host
+  still rejects a registration while committing, the copy's setup is recorded
+  as failed and the error is rethrown so the contribution registry discards
+  what was already committed.
+- Each copy owns its cleanup. `ctx.onDispose(fn)` registers cleanup that runs
+  when the session releases the copy (session stop, dispose, or a failed
+  start). The registry also records timers (`setTimeout`, `setInterval`,
+  `setImmediate`) created while the copy's code runs, including at import, and
+  clears them on release; a released copy cannot schedule new ones. Host
+  callbacks handed to plugins (`emitEvent`, `automation`, `logger`,
+  `telemetry`, a tool's `emitUpdate`) run outside the copy's scope so timers
+  the host creates are never cleared with the plugin. Not tracked: child
+  processes, sockets, listeners on shared emitters, timers from `node:timers`
+  imports, and timers created by host modules a plugin imports directly.
+  Plugins must stop those in `ctx.onDispose`.
+
+The registry tracks one status per plugin: `loading`, `ready`, `degraded`,
+`failed`, or `disabled`. It records the last error with its phase (`discover`,
+`import`, `setup`, `dispose`, `hook:<name>`, `tool:<name>`, `command:<name>`,
+`rule:<id>`, `messageBuilder:<name>`, or `uncaught`), message, stack, plugin
+path, timestamp, and session, plus error and timeout counts.
+
+Plugins are bound to a session when it starts. A plugin that is added,
+changed, or reloaded reaches only sessions started afterwards; a running
+session keeps the plugins, and the plugin code, it started with, even if its
+`setup()` first runs on a later turn. Restarting a session (a CLI mode switch,
+resuming it, or the Hub rebuilding a missing session) is a new start and gets
+the current plugins. A change is detected by a content fingerprint of the
+plugin's entry file and every file it reaches through relative static imports
+(`fingerprintPluginSources`), so edits outside the entry file count too.
+Side-effect imports at the start of a statement are followed too. Files
+reached only through dynamic imports, `require()` of computed paths, or
+`node_modules` are not fingerprinted. A plugin whose import failed is
+therefore also retried when a session starts, at most every 30 s
+(`DEFAULT_PLUGIN_FAILED_IMPORT_RETRY_MS`), so fixing any of those recovers it
+without a reload; `plugins.reload` applies a change immediately. The
+fingerprint is a non-cryptographic checksum: it only has to notice edits.
+
+Failures are counted per generation. A generation is one import of the
+module; `plugins.reload` or a fingerprint change starts a new one.
+Sessions started afterwards get copies of the new generation, and running
+sessions keep the copy they set up, which stays callable. Import failures,
+discovery failures, and five consecutive call failures turn off one
+generation for every session using it, so a broken reload cannot turn off
+copies that still work, and failures in an old copy cannot change the status
+of the new one (status always describes the current generation). An
+attributed uncaught error turns off every live generation, because a stack
+cannot tell copies of the same file apart. A `setup()` failure is per
+session: that session loses its copy (no tools or hooks), the status shows
+`failed` with the error, only that session is told, other sessions keep
+their working copies, and the next session tries setup again; a successful
+setup returns the status to `ready`.
+
+Status is surfaced, never only logged:
+
+- `plugins.list` / `plugins.status` return each plugin's status, last error,
+  and the sessions using it; `plugins.reload` re-imports one plugin by name or
+  path without restarting the Hub. `cline hub plugins [--reload <plugin>]`
+  wraps these.
+- The Hub broadcasts `plugin.status_changed` to attached clients.
+- `session.create` replies and `session.created` events carry `pluginIssues`
+  for plugins the session asked for but does not have: failed, disabled in
+  settings (`reason: "settings"`), or turned off by the session's policy
+  (`reason: "session_policy"`).
+  `StartSessionResult.pluginIssues` exposes the same list to SDK hosts.
+- Because `setup()` and hooks run on the first turn, after the start reply,
+  later degraded/failed transitions reach each affected session as a status
+  notice (`AgentNoticeEvent` with `metadata.pluginIssue`).
+- Registry logs are structured lines with `pluginName`, `phase`, and
+  `sessionId`; in the Hub they go through `logHubMessage`.
+- Settings listings (`listPluginToolsWithDiagnostics`, `CoreSettingsService`)
+  report failed plugins with their state and `loadError`. Their inspection
+  cache is keyed on each plugin's registry status, so a plugin a running
+  session turned off is never answered from an earlier clean inspection.
+
+The daemon's `uncaughtException` / `unhandledRejection` handlers first ask the
+registry to attribute the error: when its stack points into a known plugin root
+(the package directory for package plugins, the file itself for drop-in files),
+that plugin is marked `failed` and the Hub keeps running. Other errors still go
+to `shutdownFatal`.
+
+Accepted risks of in-process execution: plugins share the process (globals,
+`process.env`, native resources) even though module state is per session, and
+a plugin stuck in a synchronous loop freezes the Hub. Timeouts cannot interrupt
+synchronous code; a call that overran its limit is logged once it returns.
+
+#### Opt-in sandbox
+
+`mode: "sandbox"` on `resolveAndLoadAgentPlugins`, or `CLINE_PLUGIN_MODE=sandbox`,
+keeps the previous subprocess sandbox. It needs a `node` or `bun` runtime on
+`PATH` when the host is not itself `node` or `bun`. In sandbox mode no plugin
+code runs in the host process: the Hub daemon skips its startup preload, and
+plugin tool listing and MCP settings sync inspect plugins through a sandbox
+too. The session `plugins` policy applies as well: plugins whose file name
+the policy turns off are not passed to the sandbox, and plugins matched only
+by their exported `name` are dropped after the sandbox imports them.
 
 Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -628,7 +766,7 @@ Design implications:
 - sandbox process count scales with recently active sessions, not every session
   observed since hub startup
 - eviction never interrupts an in-flight plugin call
-- in-process plugin state is ephemeral across idle eviction; durable plugin
+- sandboxed plugin state is ephemeral across idle eviction; durable plugin
   state belongs in persistent storage
 - a sandbox must never outlive its owning hub process
 
@@ -893,7 +1031,7 @@ completed turn. Report and cleanup failures are logged separately.
 **I want to understand the agent loop and tool execution:**
 - Start: `packages/agents/src/agent.ts` — the stateless runtime loop
 - Then: `packages/agents/src/agent-step.ts` — individual iteration steps
-- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery and sandboxing
+- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery, the in-process registry, and the opt-in sandbox
 
 **I want to understand session persistence and state:**
 - Start: `packages/core/src/runtime/host/local-runtime-host.ts` — local session lifecycle
