@@ -12,9 +12,13 @@ import type { AiSdkProviderOptionsTarget } from "./provider-options-types";
 
 export type AiSdkReasoning = NonNullable<CallSettings["reasoning"]>;
 
-/** The AI SDK adapter a request goes through, and the model it targets. */
+/**
+ * The model a request targets and, when known, the AI SDK adapter it goes
+ * through. The adapter is only needed to fit a level to the model's
+ * advertised effort ladder.
+ */
 export interface PortableReasoningWire {
-	adapter: AiSdkProviderOptionsTarget;
+	adapter?: AiSdkProviderOptionsTarget;
 	context: GatewayProviderContext;
 }
 
@@ -27,21 +31,6 @@ export interface PortableReasoningWire {
 const VERBATIM_REASONING_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
 	"cline",
 	"openai-compatible",
-]);
-
-const PORTABLE_REASONING_PROVIDERS = new Set([
-	"anthropic",
-	"bedrock",
-	"deepseek",
-	"fireworks",
-	"gemini",
-	"google",
-	"groq",
-	"openai-native",
-	"openai-codex",
-	"ollama",
-	"vertex",
-	"xai",
 ]);
 
 const NON_PORTABLE_REASONING_PROVIDERS = new Set([
@@ -71,6 +60,7 @@ function snapToAdvertisedEffort(
 	if (
 		level === "none" ||
 		level === "provider-default" ||
+		!wire.adapter ||
 		!VERBATIM_REASONING_ADAPTERS.has(wire.adapter)
 	) {
 		return level;
@@ -87,26 +77,41 @@ function snapToAdvertisedEffort(
 
 /**
  * Resolve reasoning intent owned by the AI SDK's portable top-level option.
- * Pass `wire` to fit the level to the target model's advertised efforts.
+ * Pass `wire` to skip disabling reasoning on models known not to reason, and
+ * to fit the level to the target model's advertised efforts.
  */
 export function resolvePortableReasoning(
 	request: GatewayStreamRequest,
 	wire?: PortableReasoningWire,
 ): AiSdkReasoning | undefined {
-	const level = resolvePortableLevel(request);
+	const level = resolvePortableLevel(request, wire?.context);
 	return level && wire ? snapToAdvertisedEffort(level, wire) : level;
+}
+
+/**
+ * A model without known capabilities may reason, so only a capability list
+ * that omits reasoning rules it out.
+ */
+function mayReason(context: GatewayProviderContext | undefined): boolean {
+	const capabilities = context?.model.capabilities;
+	return !capabilities || capabilities.includes("reasoning");
 }
 
 function resolvePortableLevel(
 	request: GatewayStreamRequest,
+	context: GatewayProviderContext | undefined,
 ): AiSdkReasoning | undefined {
 	const reasoning = request.reasoning;
 	if (!reasoning) {
 		return undefined;
 	}
-	const fullySupported = PORTABLE_REASONING_PROVIDERS.has(request.providerId);
 	if (reasoning.enabled === false) {
-		return fullySupported ? "none" : undefined;
+		// Adapters that forward the level verbatim (`reasoning_effort`) would
+		// otherwise send nothing, leaving default-on reasoning models thinking.
+		return NON_PORTABLE_REASONING_PROVIDERS.has(request.providerId) ||
+			!mayReason(context)
+			? undefined
+			: "none";
 	}
 	if (typeof reasoning.budgetTokens === "number") {
 		return undefined;
@@ -123,20 +128,57 @@ function resolvePortableLevel(
 		: undefined;
 }
 
+/** Provider-option keys that carry a native reasoning control. */
+const NATIVE_REASONING_CONTROL_KEYS = [
+	"effort",
+	"reasoning",
+	"reasoningEffort",
+	"think",
+	"thinking",
+	"thinkingConfig",
+] as const;
+
+export function hasNativeReasoningControls(
+	providerOptions: Record<string, unknown>,
+): boolean {
+	return Object.values(providerOptions).some(
+		(bucket) =>
+			!!bucket &&
+			typeof bucket === "object" &&
+			NATIVE_REASONING_CONTROL_KEYS.some((key) => key in bucket),
+	);
+}
+
+/**
+ * A disable rides the portable option only when no provider-option rule
+ * already encodes it natively, so a request never carries both shapes.
+ */
+export function reconcilePortableReasoning(
+	level: AiSdkReasoning | undefined,
+	providerOptions: Record<string, unknown>,
+): AiSdkReasoning | undefined {
+	return level === "none" && hasNativeReasoningControls(providerOptions)
+		? undefined
+		: level;
+}
+
 /**
  * Remove portable intent before provider options are composed. AI SDK ignores
  * top-level reasoning whenever reasoning controls also occur in providerOptions.
+ * A disable is kept: providers with native toggles (GLM, MiniMax, Kimi,
+ * OpenRouter) still encode it, and it agrees with the portable "none".
  */
 export function withoutPortableReasoning(
 	request: GatewayStreamRequest,
+	context?: GatewayProviderContext,
 ): GatewayStreamRequest {
-	const normalizedRequest =
-		request.reasoning?.enabled === false &&
-		(request.reasoning.effort !== undefined ||
-			request.reasoning.budgetTokens !== undefined)
+	if (request.reasoning?.enabled === false) {
+		return request.reasoning.effort !== undefined ||
+			request.reasoning.budgetTokens !== undefined
 			? { ...request, reasoning: { enabled: false } }
 			: request;
-	return resolvePortableReasoning(normalizedRequest)
-		? { ...normalizedRequest, reasoning: undefined }
-		: normalizedRequest;
+	}
+	return resolvePortableReasoning(request, context ? { context } : undefined)
+		? { ...request, reasoning: undefined }
+		: request;
 }
