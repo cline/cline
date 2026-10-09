@@ -18,7 +18,13 @@ export type TerminalTab = {
 	/** xterm renders into this element; the panel moves it into place. */
 	element: HTMLDivElement;
 	opened: boolean;
-	spawned: boolean;
+	/** "new" allows (re)starting; "exited" tabs are about to be removed. */
+	status: "new" | "starting" | "running" | "exited";
+	/** Native shell handle; null until spawned and after exit. */
+	pty: {
+		write: (data: string) => void;
+		resize: (cols: number, rows: number) => void;
+	} | null;
 };
 
 type PtyEvent =
@@ -42,8 +48,14 @@ export function subscribeTerminalTabs(listener: () => void): () => void {
 }
 
 export function normalizeTerminalCwd(cwd: string): string {
-	const trimmed = cwd.trim().replace(/[\\/]+$/, "");
-	return trimmed || "~";
+	const trimmed = cwd.trim();
+	if (!trimmed) return "~";
+	const stripped = trimmed.replace(/[\\/]+$/, "");
+	// Filesystem roots keep their separator: "/" and "C:\" are directories,
+	// "" and "C:" are not.
+	if (!stripped) return trimmed.slice(0, 1);
+	if (/^[A-Za-z]:$/.test(stripped)) return `${stripped}\\`;
+	return stripped;
 }
 
 const EMPTY: TerminalTab[] = [];
@@ -180,8 +192,13 @@ export function createTerminalTab(cwd: string): TerminalTab {
 		fit,
 		element,
 		opened: false,
-		spawned: false,
+		status: "new",
+		pty: null,
 	};
+	// Registered once here rather than per spawn attempt, so a retried start
+	// cannot stack listeners and send every keystroke twice.
+	term.onData((data) => tab.pty?.write(data));
+	term.onResize(({ cols, rows }) => tab.pty?.resize(cols, rows));
 	tabsByCwd.set(key, [...existing, tab]);
 	activeIdByCwd.set(key, tab.id);
 	emit();
@@ -209,10 +226,11 @@ function removeTab(tab: TerminalTab): void {
 }
 
 export async function killTerminalTab(tab: TerminalTab): Promise<void> {
-	const wasSpawned = tab.spawned;
-	tab.spawned = false;
+	const wasLive = tab.status === "starting" || tab.status === "running";
+	tab.status = "exited";
+	tab.pty = null;
 	removeTab(tab);
-	if (wasSpawned && isTauriAvailable()) {
+	if (wasLive && isTauriAvailable()) {
 		const { invoke } = await import("@tauri-apps/api/core");
 		await invoke("terminal_kill", { id: tab.id }).catch(() => {
 			// Already gone.
@@ -235,9 +253,10 @@ export function applyTerminalTheme(): void {
  * how editors treat a finished terminal.
  */
 export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
-	if (tab.spawned) return;
-	tab.spawned = true;
+	if (tab.status !== "new") return;
+	tab.status = "starting";
 	if (!isTauriAvailable()) {
+		tab.status = "exited";
 		tab.term.writeln(
 			"\x1b[2mThe integrated terminal needs the desktop app; it is unavailable in browser mode.\x1b[0m",
 		);
@@ -250,23 +269,24 @@ export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
 			tab.term.write(event.data);
 			return;
 		}
-		if (!tab.spawned) return;
-		tab.spawned = false;
+		if (tab.status === "exited") return;
+		tab.status = "exited";
+		tab.pty = null;
 		// Let the shell's final output land before the tab goes away.
 		window.setTimeout(() => void removeTab(tab), 150);
 	};
-	tab.term.onData((data) => {
-		if (!tab.spawned) return;
-		void invoke("terminal_write", { id: tab.id, data }).catch(() => {
-			// The shell exited between the keystroke and the write.
-		});
-	});
-	tab.term.onResize(({ cols, rows }) => {
-		if (!tab.spawned) return;
-		void invoke("terminal_resize", { id: tab.id, cols, rows }).catch(() => {
-			// Resize races with exit; nothing to do.
-		});
-	});
+	tab.pty = {
+		write: (data) => {
+			void invoke("terminal_write", { id: tab.id, data }).catch(() => {
+				// The shell exited between the keystroke and the write.
+			});
+		},
+		resize: (cols, rows) => {
+			void invoke("terminal_resize", { id: tab.id, cols, rows }).catch(() => {
+				// Resize races with exit; nothing to do.
+			});
+		},
+	};
 	try {
 		await invoke("terminal_spawn", {
 			options: {
@@ -277,8 +297,11 @@ export async function spawnTerminalTab(tab: TerminalTab): Promise<void> {
 			},
 			onEvent: channel,
 		});
+		if (tab.status === "starting") tab.status = "running";
 	} catch (error) {
-		tab.spawned = false;
+		// Back to "new" so showing the tab again retries the spawn.
+		tab.status = "new";
+		tab.pty = null;
 		const message = error instanceof Error ? error.message : String(error);
 		tab.term.writeln(`\x1b[31m${message}\x1b[0m`);
 	}

@@ -10,7 +10,10 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { clampTerminalPanelHeight } from "@/lib/terminal-panel-state";
+import {
+	clampTerminalPanelHeight,
+	TERMINAL_PANEL_MIN_HEIGHT,
+} from "@/lib/terminal-panel-state";
 import {
 	activeTerminalTabId,
 	applyTerminalTheme,
@@ -114,6 +117,8 @@ function TerminalPanelForCwd({
 	}, [activeTab]);
 
 	useEffect(() => {
+		// Tabs kept alive while the panel was hidden missed any theme change.
+		applyTerminalTheme();
 		const observer = new MutationObserver(applyTerminalTheme);
 		observer.observe(document.documentElement, {
 			attributes: true,
@@ -157,13 +162,33 @@ function TerminalPanelForCwd({
 	return (
 		<section
 			aria-label="Terminal"
-			className="relative flex shrink-0 flex-col border-t border-border/70 bg-background"
+			className="relative flex max-h-[80%] shrink-0 flex-col border-t border-border/70 bg-background"
 			style={{ height }}
 		>
+			{/* biome-ignore lint/a11y/useSemanticElements: a separator role is the ARIA pattern for a resize splitter */}
 			<div
-				aria-hidden="true"
-				className="group absolute inset-x-0 -top-1.5 z-10 h-3 cursor-row-resize"
+				aria-label="Resize terminal"
+				aria-orientation="horizontal"
+				aria-valuemin={TERMINAL_PANEL_MIN_HEIGHT}
+				aria-valuenow={height}
+				className="group absolute inset-x-0 -top-1.5 z-10 h-3 cursor-row-resize outline-none focus-visible:[&>div]:bg-primary"
+				onKeyDown={(event) => {
+					const step = event.shiftKey ? 80 : 16;
+					const delta =
+						event.key === "ArrowUp"
+							? step
+							: event.key === "ArrowDown"
+								? -step
+								: 0;
+					if (!delta) return;
+					event.preventDefault();
+					onHeightChange(
+						clampTerminalPanelHeight(height + delta, window.innerHeight),
+					);
+				}}
 				onPointerDown={handleResizeStart}
+				role="separator"
+				tabIndex={0}
 			>
 				<div className="absolute left-1/2 top-1/2 h-[3px] w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border transition-colors group-hover:bg-primary/60" />
 			</div>
@@ -171,6 +196,7 @@ function TerminalPanelForCwd({
 			    it so it reads as attached to the terminal below. */}
 			<div className="flex h-9 shrink-0 items-end gap-1 border-b border-border/60 bg-sidebar/50 px-2">
 				<div className="flex min-w-0 items-end gap-0.5">
+					{/* Tabs shrink and truncate rather than overflow, so + and hide stay reachable. */}
 					{tabs.map((tab) => (
 						<TerminalTabButton
 							active={tab.id === activeTab?.id}
@@ -222,11 +248,11 @@ function TerminalTabButton({
 	onClose: () => void;
 }) {
 	return (
-		<div className={cn("group/tab relative shrink-0", active && "-mb-px")}>
+		<div className={cn("group/tab relative min-w-0", active && "-mb-px")}>
 			<button
 				aria-current={active ? "true" : undefined}
 				className={cn(
-					"inline-flex h-8 items-center gap-1.5 rounded-t-md border border-b-0 pl-2.5 pr-7 text-xs",
+					"inline-flex h-8 w-full items-center gap-1.5 rounded-t-md border border-b-0 pl-2.5 pr-7 text-xs",
 					active
 						? "border-border/60 bg-background text-foreground"
 						: "border-transparent text-muted-foreground hover:bg-surface-hover/60 hover:text-foreground",
@@ -234,8 +260,8 @@ function TerminalTabButton({
 				onClick={onSelect}
 				type="button"
 			>
-				<SquareTerminal className="size-3.5" />
-				<span className="max-w-40 truncate">{tab.label}</span>
+				<SquareTerminal className="size-3.5 shrink-0" />
+				<span className="min-w-0 max-w-40 truncate">{tab.label}</span>
 			</button>
 			<button
 				aria-label={`Close ${tab.label}`}

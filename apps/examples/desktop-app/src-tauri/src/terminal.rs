@@ -18,9 +18,13 @@ pub enum TerminalEvent {
     Exit { code: Option<u32> },
 }
 
+/// The writer has its own lock: a write blocks when the shell stops reading
+/// (a large paste into a sleeping command), and kill/exit must not wait on it.
+type SharedWriter = Arc<Mutex<Box<dyn Write + Send>>>;
+
 struct TerminalSession {
     master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    writer: SharedWriter,
     killer: Box<dyn ChildKiller + Send + Sync>,
 }
 
@@ -108,19 +112,29 @@ fn login_shell_supported(shell: &str) -> bool {
     )
 }
 
-/// Splits off any incomplete trailing UTF-8 sequence so multi-byte characters
-/// that straddle a read boundary are not emitted as replacement characters.
+/// Decodes as much as possible, replacing invalid bytes, but holds back an
+/// incomplete trailing sequence so a multi-byte character split across two
+/// reads is not emitted as replacement characters.
 fn split_utf8(bytes: Vec<u8>) -> (String, Vec<u8>) {
-    match std::str::from_utf8(&bytes) {
-        Ok(text) => (text.to_string(), Vec::new()),
-        Err(error) => {
-            let valid = error.valid_up_to();
-            let carry_len = bytes.len() - valid;
-            if error.error_len().is_none() && carry_len < 4 {
-                let text = String::from_utf8_lossy(&bytes[..valid]).into_owned();
-                (text, bytes[valid..].to_vec())
-            } else {
-                (String::from_utf8_lossy(&bytes).into_owned(), Vec::new())
+    let mut text = String::new();
+    let mut rest: &[u8] = &bytes;
+    loop {
+        match std::str::from_utf8(rest) {
+            Ok(valid) => {
+                text.push_str(valid);
+                return (text, Vec::new());
+            }
+            Err(error) => {
+                let valid = error.valid_up_to();
+                text.push_str(std::str::from_utf8(&rest[..valid]).unwrap_or_default());
+                match error.error_len() {
+                    // Unexpected end of input: the rest is a sequence still in flight.
+                    None => return (text, rest[valid..].to_vec()),
+                    Some(invalid) => {
+                        text.push('\u{FFFD}');
+                        rest = &rest[valid + invalid..];
+                    }
+                }
             }
         }
     }
@@ -175,7 +189,7 @@ pub fn terminal_spawn(
             options.id.clone(),
             TerminalSession {
                 master: pair.master,
-                writer,
+                writer: Arc::new(Mutex::new(writer)),
                 killer,
             },
         ) {
@@ -184,6 +198,8 @@ pub fn terminal_spawn(
     }
 
     let id = options.id;
+    let reader_sessions = sessions.clone();
+    let reader_id = id.clone();
     std::thread::Builder::new()
         .name(format!("pty-reader-{id}"))
         .spawn(move || {
@@ -203,13 +219,23 @@ pub fn terminal_spawn(
                 }
             }
             let code = child.wait().ok().map(|status| status.exit_code());
-            sessions
+            reader_sessions
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
-                .remove(&id);
+                .remove(&reader_id);
             let _ = on_event.send(TerminalEvent::Exit { code });
         })
-        .map_err(|error| format!("Failed to start the terminal reader: {error}"))?;
+        .map_err(|error| {
+            // Without a reader nobody would notice the shell exit; don't leave it running.
+            if let Some(mut session) = sessions
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&id)
+            {
+                let _ = session.killer.kill();
+            }
+            format!("Failed to start the terminal reader: {error}")
+        })?;
 
     Ok(())
 }
@@ -220,12 +246,15 @@ pub fn terminal_write(
     id: String,
     data: String,
 ) -> Result<(), String> {
-    let mut sessions = state.sessions.lock().unwrap_or_else(|e| e.into_inner());
-    let session = sessions
-        .get_mut(&id)
+    let writer = state
+        .sessions
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&id)
+        .map(|session| session.writer.clone())
         .ok_or_else(|| "The terminal is no longer running.".to_string())?;
-    session
-        .writer
+    let mut writer = writer.lock().unwrap_or_else(|e| e.into_inner());
+    writer
         .write_all(data.as_bytes())
         .map_err(|error| error.to_string())
 }
@@ -283,6 +312,16 @@ mod tests {
     fn split_utf8_replaces_invalid_bytes_instead_of_stalling() {
         let (text, carry) = split_utf8(vec![b'a', 0xFF, b'b']);
         assert_eq!(text, "a\u{FFFD}b");
+        assert!(carry.is_empty());
+    }
+
+    #[test]
+    fn split_utf8_keeps_incomplete_suffix_after_invalid_bytes() {
+        let (text, carry) = split_utf8(vec![b'a', 0xFF, 0xC3]);
+        assert_eq!(text, "a\u{FFFD}");
+        assert_eq!(carry, vec![0xC3]);
+        let (text, carry) = split_utf8([carry, vec![0xA9]].concat());
+        assert_eq!(text, "é");
         assert!(carry.is_empty());
     }
 

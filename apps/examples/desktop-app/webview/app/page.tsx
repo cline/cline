@@ -348,7 +348,11 @@ export default function Home() {
 	});
 	useEffect(() => {
 		setTerminalAvailable(isTauriAvailable());
-		setTerminalPanel(readTerminalPanelState());
+		const stored = readTerminalPanelState();
+		setTerminalPanel({
+			...stored,
+			height: clampTerminalPanelHeight(stored.height, window.innerHeight),
+		});
 	}, []);
 	const updateTerminalPanel = useCallback(
 		(patch: Partial<TerminalPanelState>) => {
