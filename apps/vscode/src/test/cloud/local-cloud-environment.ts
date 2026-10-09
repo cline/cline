@@ -597,7 +597,13 @@ export async function startLocalCloudEnvironment(
 						active.clients.add(downstream)
 						downstream.once("close", () => {
 							active.clients.delete(downstream)
-							if (active.clients.size === 0 && options.suspendIdleAfterMs !== undefined && !disposing) {
+							// Like the hosted control plane, only resumable sandboxes are suspended.
+							if (
+								active.clients.size === 0 &&
+								active.record.sandboxType === "resumable" &&
+								options.suspendIdleAfterMs !== undefined &&
+								!disposing
+							) {
 								active.suspendTimer = setTimeout(
 									() => void suspendSession(active.record.id).catch(() => undefined),
 									options.suspendIdleAfterMs,
