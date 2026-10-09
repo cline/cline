@@ -27,6 +27,8 @@ export const HUB_DRAINING_ERROR_CODE = "hub_draining";
 
 /** Commands refused while the Hub is draining (all of them admit new work). */
 const DRAIN_REFUSED_COMMANDS = new Set<string>([
+	"device.start",
+	"device.pair",
 	"session.create",
 	"session.restore",
 	"session.fork",

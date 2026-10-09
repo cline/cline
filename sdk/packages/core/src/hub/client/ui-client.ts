@@ -11,6 +11,7 @@ import type {
 	CoreSettingsToggleInput,
 } from "../../settings";
 import { NodeHubClient } from "../client";
+import type { DeviceServiceState } from "../devices/controller";
 
 export interface HubUIClientOptions {
 	address: string;
@@ -38,6 +39,20 @@ export class HubUIClient {
 		});
 	}
 
+	/** Shared device service controls, available to any authenticated app. */
+	async devices(
+		action: "status" | "start" | "stop" | "pair" = "status",
+	): Promise<DeviceServiceState> {
+		await this.client.connect();
+		const reply = await this.client.command(`device.${action}`);
+		return reply.payload?.deviceService as unknown as DeviceServiceState;
+	}
+	subscribeDevices(listener: (state: DeviceServiceState) => void): () => void {
+		return this.client.subscribe((event) => {
+			if (event.event === "device.changed" && event.payload?.deviceService)
+				listener(event.payload.deviceService as unknown as DeviceServiceState);
+		});
+	}
 	async connect(): Promise<void> {
 		await this.client.connect();
 	}

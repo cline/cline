@@ -3,7 +3,7 @@ import {
 	CORE_BUILD_VERSION,
 	type HubUIClient,
 } from "@cline/core";
-import type { DeviceBridgeController } from "./device-bridge";
+import type { DeviceServiceState } from "@cline/core/hub";
 import type { WebviewHubEvent } from "../webview-protocol";
 import type {
 	BrowserPeer,
@@ -25,7 +25,7 @@ export class HubContext {
 	readonly pendingToolApprovals = new Map<string, PendingToolApproval>();
 	readonly events: WebviewHubEvent[] = [];
 
-	deviceBridge?: DeviceBridgeController;
+	deviceService?: DeviceServiceState;
 	hubUrl = "";
 	hubAuthToken = "";
 	hubHealthy = false;

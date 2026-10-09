@@ -1062,16 +1062,23 @@ and teammates. The parent’s `subagent_<name>` delegation call still follows th
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
 
-## Device SDK and bridge host
+## Standalone device SDK and hub device service
 
 `@cline/device` is an independent leaf package containing the device wire protocol,
 ESP-IDF firmware components, board profiles, and the versioned avatar catalog. Its
 root export is browser-compatible; its separate `assets` export provides Node
 resource paths. It does not import the agent runtime or the bridge application.
 
-`apps/device-bridge` imports the protocol and mounts SDK avatars while owning hub
-session projection, transcription providers, pairing persistence, and LAN servers.
-The hub dashboard embeds this host runtime through `@cline/device-bridge`, so
-bridge lifecycle remains a host concern. CLI packaging copies the browser UI and
-SDK avatars into one distributable `device-web` directory. Firmware builds compile
-manifest-selected sprites into their private board build directories.
+The shared hub daemon owns `core/src/hub/devices`: one Node HTTP/WebSocket
+listener plus an optional HTTPS browser listener. The device service uses the
+hub's native command transport and event subscriptions inside the same process;
+there is no loopback hub client or separate bridge application. Pairing and
+session routing live here; firmware continues to use its compact device protocol.
+
+All authenticated apps can call `device.status`, `device.start`, `device.stop`,
+and `device.pair`, or use `HubUIClient.devices()` and `subscribeDevices()`. The
+`device.changed` event publishes status across clients. The dashboard observes
+this service and never stops it when the dashboard closes. Hub shutdown waits
+for device listeners and subscriptions to close; startup errors are exposed as
+service state without failing the hub. The standalone `../device-sdk` directory
+can be extracted into a separate repository without agent dependencies.

@@ -82,7 +82,11 @@
 		"simple-git": "3.36.0",
 		"ws": "^8.20.0",
 		"yaml": "^2.8.2",
-		"zod": "^4.3.6"
+		"zod": "^4.3.6",
+		"@cline/device": "workspace:*",
+		"@ai-sdk/gateway": "^4.0.64",
+		"@ai-sdk/openai": "^4.0.47",
+		"ai": "^7.0.79"
 	},
 	"peerDependencies": {
 		"posthog-node": "^5.8.0"

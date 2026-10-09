@@ -127,6 +127,11 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 		displayName: "Cline Hub Server",
 	});
 	await ctx.uiClient.connect();
+	ctx.deviceService = await ctx.uiClient.devices();
+	ctx.uiClient.subscribeDevices((state) => {
+		ctx.deviceService = state;
+		broadcastHubState(ctx);
+	});
 
 	ctx.uiClient.subscribeUI({
 		onNotify(payload: HubUINotifyPayload) {
@@ -262,8 +267,6 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 }
 
 export async function restartHub(ctx: HubContext): Promise<void> {
-	const restartBridge = ctx.deviceBridge?.snapshot().status === "running";
-	await ctx.deviceBridge?.stop();
 	ctx.broadcast({
 		type: "notification",
 		title: "Hub restarting",
@@ -277,7 +280,6 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 		console.warn("stopLocalHubServerGracefully failed:", error);
 	}
 	await attachHub(ctx);
-	if (restartBridge) await ctx.deviceBridge?.start();
 	broadcastHubState(ctx);
 	ctx.broadcast({
 		type: "notification",

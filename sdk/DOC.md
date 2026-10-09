@@ -354,4 +354,18 @@ acknowledgement and never retries automatically. It also exports
 `PromptTarget`, `PromptResult`, `parseDeviceMessage`, and the single-line `clip` helper. The root API is independent
 of the host and agent runtime. `@cline/device/assets` exports Node paths
 `AVATAR_ROOT` and `FIRMWARE_ROOT`; `@cline/device/assets/manifest.json` exports the
-versioned catalog. See [the device SDK reference](packages/device/README.md).
+versioned catalog. See [the device SDK reference](../device-sdk/README.md).
+
+### Shared device service
+
+The shared daemon starts the device service by default. Set `CLINE_DEVICE_ENABLED=false`
+to disable automatic startup. `CLINE_DEVICE_HOST`, `CLINE_DEVICE_PORT`,
+`CLINE_DEVICE_WEB_PORT`, `CLINE_DEVICE_WORKSPACE`, and `CLINE_DEVICE_WEB_ROOT`
+configure its listeners and resources. Pairing records and TLS files live under
+`<Cline data dir>/devices/`.
+
+Any app's `HubUIClient` can call `devices("status" | "start" | "stop" | "pair")`
+and `subscribeDevices(listener)`. These map to authenticated hub commands
+`device.status`, `device.start`, `device.stop`, `device.pair` and the
+`device.changed` event. Dashboard shutdown does not stop the service. A listener
+port conflict appears as device state `error`; the hub remains available.

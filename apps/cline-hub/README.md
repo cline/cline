@@ -114,4 +114,9 @@ Sessions running on the previous hub are stopped along with the hub. Other clien
 
 This is an example dashboard, not a production admin tool. Exposing it on a LAN or tunnel lets anyone with the invite secret list clients/sessions on your hub, drive sessions, and restart the hub. Use a long random `ROOM_SECRET`, only share the URL with trusted participants, and stop the process when you are done. The hub and agent runtime remain owned by the host machine.
 
-The Device bridge panel includes **Pair device**, which generates a single-use six-digit code valid for five minutes. Enter it in the device’s setup page. Active codes appear in the dashboard and clear after pairing or expiry. Pairing is available for bridges started from the dashboard.
+The **Devices** panel observes the shared hub’s device service, which starts
+with the hub. **Pair device** generates a single-use six-digit code valid for
+five minutes. Enter it in the device setup page. Active codes clear after pairing
+or expiry. Endpoints and connected devices are visible here; closing the dashboard
+does not stop them. **Enable devices** / **Disable devices** control the shared
+service for every app connected to this hub.

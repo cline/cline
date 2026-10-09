@@ -1,0 +1,58 @@
+name: device-firmware-test
+
+on:
+    pull_request:
+        paths:
+            - "**"
+            - ".github/workflows/firmware.yml"
+    push:
+        branches: [main]
+        paths:
+            - "**"
+            - ".github/workflows/firmware.yml"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    application:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.4.2"
+            - run: bun test
+              working-directory: .
+    build:
+        runs-on: ubuntu-latest
+        container: espressif/idf:v5.5.2
+        strategy:
+            fail-fast: false
+            matrix:
+                board: [waveshare-s3-epaper-154, waveshare-s3-175c, m5stack-cardputer-adv]
+        steps:
+            - uses: actions/checkout@v4
+            - name: Build board profile
+              shell: bash
+              working-directory: firmware
+              run: |
+                  . "$IDF_PATH/export.sh"
+                  idf.py -B "build/${{ matrix.board }}" -D "CLINE_BOARD=${{ matrix.board }}" build
+            - uses: oven-sh/setup-bun@v2
+              if: matrix.board == 'm5stack-cardputer-adv'
+              with:
+                  bun-version: "1.4.2"
+            - name: Package M5Launcher app
+              if: matrix.board == 'm5stack-cardputer-adv'
+              run: bun firmware/tools/launcher.ts firmware/build/m5stack-cardputer-adv
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: cline-${{ matrix.board }}
+                  path: |
+                      firmware/build/${{ matrix.board }}/cline_device.bin
+                      firmware/build/${{ matrix.board }}/bootloader/bootloader.bin
+                      firmware/build/${{ matrix.board }}/partition_table/partition-table.bin
+                      firmware/build/${{ matrix.board }}/flasher_args.json
+                      firmware/build/${{ matrix.board }}/launcher/

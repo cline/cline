@@ -24,7 +24,7 @@ export function hubStatePayload(ctx: HubContext): WebviewHubState {
 	);
 	return {
 		type: "hub_state",
-		deviceBridge: ctx.deviceBridge?.snapshot(),
+		deviceService: ctx.deviceService,
 		connected: Boolean(ctx.cline && ctx.uiClient),
 		hubUrl: ctx.hubUrl,
 		hubStartedAt: ctx.hubStartedAt,

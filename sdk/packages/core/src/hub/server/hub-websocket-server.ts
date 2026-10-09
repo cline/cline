@@ -779,6 +779,8 @@ export async function startHubWebSocketServer(
 		throw error;
 	}
 
+	await transport.startDevices(url);
+
 	try {
 		await writeHubDiscovery(owner.discoveryPath, {
 			hubId,

@@ -278,6 +278,16 @@ async function main(): Promise<void> {
 				telemetry: daemonTelemetry.telemetry,
 			}),
 			cronOptions: { workspaceRoot: options.cwd },
+			devices:
+				process.env.CLINE_DEVICE_ENABLED === "false"
+					? false
+					: {
+							host: process.env.CLINE_DEVICE_HOST ?? "0.0.0.0",
+							port: Number(process.env.CLINE_DEVICE_PORT ?? 25470),
+							webPort: Number(process.env.CLINE_DEVICE_WEB_PORT ?? 25471),
+							workspace: process.env.CLINE_DEVICE_WORKSPACE,
+							log: (message) => console.log(`[hub-devices] ${message}`),
+						},
 		});
 	} catch (error) {
 		// Losing the singleton race to a live Hub is expected, not a failure.

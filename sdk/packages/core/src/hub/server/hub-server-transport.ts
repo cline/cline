@@ -45,6 +45,7 @@ import {
 } from "../../tasks";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
+import { HubDeviceService } from "../devices/controller";
 import type { HubConnectionAuthority } from "./command-transport";
 import {
 	handleApprovalRespond,
@@ -101,9 +102,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -270,8 +271,25 @@ export class HubServerTransport implements NativeHubTransport {
 	private runQueue?: HubRunQueue;
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
+	private readonly deviceService: HubDeviceService;
+	private deviceHubUrl = "";
+	async startDevices(hubUrl: string): Promise<void> {
+		this.deviceHubUrl = hubUrl;
+		if (this.options.devices) await this.deviceService.start(hubUrl);
+	}
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.deviceService = new HubDeviceService(
+			this,
+			options.devices || {},
+			() => {
+				this.publish(
+					buildHubEvent("device.changed", {
+						deviceService: this.deviceService.snapshot(),
+					}),
+				);
+			},
+		);
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
@@ -710,6 +728,7 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async stop(): Promise<void> {
+		await this.deviceService.stop();
 		if (this.eventLogPruneTimer) {
 			clearInterval(this.eventLogPruneTimer);
 			this.eventLogPruneTimer = undefined;
@@ -791,6 +810,24 @@ export class HubServerTransport implements NativeHubTransport {
 			return await this.taskCommands.handleCommand(envelope, authority);
 		}
 		switch (envelope.command) {
+			case "device.status":
+				return okReply(envelope, {
+					deviceService: this.deviceService.snapshot(),
+				});
+			case "device.pair":
+				return okReply(envelope, { deviceService: this.deviceService.pair() });
+			case "device.start": {
+				await this.deviceService.start(this.deviceHubUrl);
+				return okReply(envelope, {
+					deviceService: this.deviceService.snapshot(),
+				});
+			}
+			case "device.stop": {
+				await this.deviceService.stop();
+				return okReply(envelope, {
+					deviceService: this.deviceService.snapshot(),
+				});
+			}
 			case "client.register": {
 				const reply = handleClientRegister(this.ctx, envelope);
 				this.tasks.notifyAutomationReadinessChanged();

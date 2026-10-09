@@ -12,11 +12,14 @@ import type {
 import type { SessionHistorySearchOptions } from "../../session/search";
 import type { CoreSettingsService } from "../../settings";
 import type { AgendaTaskManagerOptions } from "../../tasks";
+import type { DeviceServiceOptions } from "../devices/controller";
 import type { HubOwnerContext } from "../discovery";
 import type { HubEventLogOptions } from "./hub-event-log";
 import type { HubRunQueueOptions } from "./hub-run-queue";
 
 export interface HubWebSocketServerOptions {
+	/** Hub-owned device listener. The shared daemon enables it by default. */
+	devices?: DeviceServiceOptions | false;
 	/** Hub-owned full-text session history index configuration. */
 	sessionSearchOptions?: SessionHistorySearchOptions;
 	/** Workspace authority assigned by the Hub to authenticated clients. */

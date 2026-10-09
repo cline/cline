@@ -18,9 +18,9 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 ### Device SDK
 
 `@cline/device` owns protocol contracts, firmware components, board profiles, and
-avatar assets. Run `bun -F @cline/device build|test|typecheck` from `sdk/`.
-Firmware commands and hardware requirements are in [its README](packages/device/README.md).
-`apps/device-bridge` remains the host application; provider and session behavior
+avatar assets. Run `bun run build`, `bun test`, and `bun run typecheck` from `device-sdk/`.
+Firmware commands and hardware requirements are in [its README](../device-sdk/README.md).
+`core/src/hub/devices` owns the hub service; provider and session behavior
 belongs there rather than in the hardware SDK.
 
 ### Apps

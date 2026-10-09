@@ -67,7 +67,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@cline/core": "workspace:*",
-        "@cline/device-bridge": "workspace:*",
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
       },
@@ -130,21 +129,6 @@
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.56.1",
         "vite": "^8.0.0",
-      },
-    },
-    "apps/device-bridge": {
-      "name": "@cline/device-bridge",
-      "version": "0.0.0",
-      "bin": {
-        "cline-device-bridge": "./src/main.ts",
-      },
-      "dependencies": {
-        "@ai-sdk/gateway": "^4.0.64",
-        "@ai-sdk/openai": "^4.0.47",
-        "@cline/core": "workspace:*",
-        "@cline/device": "workspace:*",
-        "@cline/shared": "workspace:*",
-        "ai": "^7.0.79",
       },
     },
     "apps/examples/cli-agent": {
@@ -630,6 +614,15 @@
         "lightningcss-win32-x64-msvc": "1.29.2",
       },
     },
+    "device-sdk": {
+      "name": "@cline/device",
+      "version": "0.0.90",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "@types/node": "^25.3.5",
+        "typescript": "^5.9.3",
+      },
+    },
     "sdk/examples": {
       "name": "examples",
       "dependencies": {
@@ -669,7 +662,10 @@
       "name": "@cline/core",
       "version": "0.0.90",
       "dependencies": {
+        "@ai-sdk/gateway": "^4.0.64",
+        "@ai-sdk/openai": "^4.0.47",
         "@cline/agents": "workspace:*",
+        "@cline/device": "workspace:*",
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -684,6 +680,7 @@
         "@opentelemetry/sdk-trace-base": "^2.6.1",
         "@opentelemetry/sdk-trace-node": "^2.6.1",
         "@opentelemetry/semantic-conventions": "^1.40.0",
+        "ai": "^7.0.79",
         "jiti": "^2.7.0",
         "nanoid": "^5.1.7",
         "node-machine-id": "^1.1.12",
@@ -702,10 +699,6 @@
       "optionalPeers": [
         "posthog-node",
       ],
-    },
-    "sdk/packages/device": {
-      "name": "@cline/device",
-      "version": "0.0.90",
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
@@ -1118,9 +1111,7 @@
 
     "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
 
-    "@cline/device": ["@cline/device@workspace:sdk/packages/device"],
-
-    "@cline/device-bridge": ["@cline/device-bridge@workspace:apps/device-bridge"],
+    "@cline/device": ["@cline/device@workspace:device-sdk"],
 
     "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
 

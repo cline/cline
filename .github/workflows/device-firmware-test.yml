@@ -3,12 +3,12 @@ name: device-firmware-test
 on:
     pull_request:
         paths:
-            - "sdk/packages/device/**"
+            - "device-sdk/**"
             - ".github/workflows/device-firmware-test.yml"
     push:
         branches: [main]
         paths:
-            - "sdk/packages/device/**"
+            - "device-sdk/**"
             - ".github/workflows/device-firmware-test.yml"
     workflow_dispatch:
 
@@ -23,8 +23,8 @@ jobs:
             - uses: oven-sh/setup-bun@v2
               with:
                   bun-version: "1.4.2"
-            - run: bun -F @cline/device test
-              working-directory: sdk
+            - run: bun test
+              working-directory: device-sdk
     build:
         runs-on: ubuntu-latest
         container: espressif/idf:v5.5.2
@@ -36,7 +36,7 @@ jobs:
             - uses: actions/checkout@v4
             - name: Build board profile
               shell: bash
-              working-directory: sdk/packages/device/firmware
+              working-directory: device-sdk/firmware
               run: |
                   . "$IDF_PATH/export.sh"
                   idf.py -B "build/${{ matrix.board }}" -D "CLINE_BOARD=${{ matrix.board }}" build
@@ -46,13 +46,13 @@ jobs:
                   bun-version: "1.4.2"
             - name: Package M5Launcher app
               if: matrix.board == 'm5stack-cardputer-adv'
-              run: bun sdk/packages/device/firmware/tools/launcher.ts sdk/packages/device/firmware/build/m5stack-cardputer-adv
+              run: bun device-sdk/firmware/tools/launcher.ts device-sdk/firmware/build/m5stack-cardputer-adv
             - uses: actions/upload-artifact@v4
               with:
                   name: cline-${{ matrix.board }}
                   path: |
-                      sdk/packages/device/firmware/build/${{ matrix.board }}/cline_device.bin
-                      sdk/packages/device/firmware/build/${{ matrix.board }}/bootloader/bootloader.bin
-                      sdk/packages/device/firmware/build/${{ matrix.board }}/partition_table/partition-table.bin
-                      sdk/packages/device/firmware/build/${{ matrix.board }}/flasher_args.json
-                      sdk/packages/device/firmware/build/${{ matrix.board }}/launcher/
+                      device-sdk/firmware/build/${{ matrix.board }}/cline_device.bin
+                      device-sdk/firmware/build/${{ matrix.board }}/bootloader/bootloader.bin
+                      device-sdk/firmware/build/${{ matrix.board }}/partition_table/partition-table.bin
+                      device-sdk/firmware/build/${{ matrix.board }}/flasher_args.json
+                      device-sdk/firmware/build/${{ matrix.board }}/launcher/

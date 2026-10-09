@@ -220,20 +220,12 @@ export type WebviewHubEvent = {
 	timestamp: number;
 };
 
-export type WebviewDeviceBridgeState = {
-	status: "stopped" | "starting" | "running" | "external" | "error";
-	hubUrl?: string;
-	hubConnected?: boolean;
-	deviceEndpoint?: string;
-	browserEndpoint?: string;
-	devices: string[];
-	error?: string;
-	pairing?: { code: string; expiresAt: number };
-};
+export type WebviewDeviceServiceState =
+	import("@cline/core/hub").DeviceServiceState;
 
 export type WebviewHubState = {
 	type: "hub_state";
-	deviceBridge?: WebviewDeviceBridgeState;
+	deviceService?: WebviewDeviceServiceState;
 	connected: boolean;
 	hubUrl?: string;
 	hubStartedAt?: string;
@@ -251,9 +243,9 @@ export type WebviewHubState = {
 export type WebviewInboundMessage =
 	| { type: "ready" }
 	| { type: "restart_hub" }
-	| { type: "start_device_bridge" }
-	| { type: "stop_device_bridge" }
-	| { type: "pair_device_bridge" }
+	| { type: "start_device_service" }
+	| { type: "stop_device_service" }
+	| { type: "pair_device_service" }
 	| {
 			type: "desktopCommand";
 			id: string;

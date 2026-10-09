@@ -47,6 +47,10 @@ export * from "./client/ui-client";
 export * from "./daemon";
 export * from "./daemon/runtime-handlers";
 export * from "./daemon/start-shared-server";
+export type {
+	DeviceServiceOptions,
+	DeviceServiceState,
+} from "./devices/controller";
 export * from "./discovery";
 export * from "./discovery/defaults";
 export * from "./discovery/instance-lock";

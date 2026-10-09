@@ -11,11 +11,9 @@ import {
 	inviteUrl,
 	port,
 	publicUrl,
-	providerSettingsManager,
 	roomSecret,
 	webviewDistDir,
 } from "./server/deps";
-import { DeviceBridgeController } from "./server/device-bridge";
 import { handleDesktopCommand } from "./server/desktop-commands";
 import {
 	createJsonResponse,
@@ -88,16 +86,11 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	let stopped = false;
 
 	await attachHub(ctx);
-	ctx.deviceBridge = new DeviceBridgeController({
-		hub: () => ({ url: ctx.hubUrl, authToken: ctx.hubAuthToken }),
-		changed: () => broadcastHubState(ctx),
-		webviewDistDir,
-		providers: providerSettingsManager,
-	});
-	await ctx.deviceBridge.refresh();
+	ctx.deviceService = await ctx.uiClient?.devices();
 	const healthInterval = setInterval(() => {
 		void (async () => {
-			await Promise.all([syncHubHealth(ctx), ctx.deviceBridge?.refresh()]);
+			await syncHubHealth(ctx);
+			ctx.deviceService = await ctx.uiClient?.devices();
 			broadcastHubState(ctx);
 		})();
 	}, 5_000);
@@ -251,12 +244,12 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 							frame.checkpointRunCount,
 							syncClientsAndSessions,
 						);
-					} else if (frame.type === "start_device_bridge") {
-						await ctx.deviceBridge?.start();
-					} else if (frame.type === "stop_device_bridge") {
-						await ctx.deviceBridge?.stop();
-					} else if (frame.type === "pair_device_bridge") {
-						ctx.deviceBridge?.pair();
+					} else if (frame.type === "start_device_service") {
+						ctx.deviceService = await ctx.uiClient?.devices("start");
+					} else if (frame.type === "stop_device_service") {
+						ctx.deviceService = await ctx.uiClient?.devices("stop");
+					} else if (frame.type === "pair_device_service") {
+						ctx.deviceService = await ctx.uiClient?.devices("pair");
 					} else if (frame.type === "restart_hub") {
 						await restartHub(ctx);
 					}
@@ -290,7 +283,6 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 			try {
 				server.stop(true);
 			} finally {
-				await ctx.deviceBridge?.stop();
 				await detachHub(ctx);
 			}
 		},

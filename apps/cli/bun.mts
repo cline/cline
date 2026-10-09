@@ -151,18 +151,18 @@ copyFileSync(coreBootstrapPath, cliBootstrapPath);
 if (existsSync(hubWebviewDistPath)) {
 	mkdirSync(dirname(cliHubWebviewDistPath), { recursive: true });
 	cpSync(hubWebviewDistPath, cliHubWebviewDistPath, { recursive: true });
-	rmSync(join(rootDir, "dist/cline-hub/device-web"), {
-		recursive: true,
-		force: true,
-	});
-	cpSync(
-		join(repoRoot, "apps/device-bridge/web"),
-		join(rootDir, "dist/cline-hub/device-web"),
-		{ recursive: true },
-	);
-	cpSync(
-		join(repoRoot, "sdk/packages/device/assets/avatars"),
-		join(rootDir, "dist/cline-hub/device-web/avatars"),
-		{ recursive: true },
-	);
 }
+rmSync(join(rootDir, "dist/cline-hub/device-web"), {
+	recursive: true,
+	force: true,
+});
+cpSync(
+	join(repoRoot, "device-sdk/web"),
+	join(rootDir, "dist/cline-hub/device-web"),
+	{ recursive: true },
+);
+cpSync(
+	join(repoRoot, "device-sdk/assets/avatars"),
+	join(rootDir, "dist/cline-hub/device-web/avatars"),
+	{ recursive: true },
+);

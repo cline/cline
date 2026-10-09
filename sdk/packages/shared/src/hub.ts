@@ -18,6 +18,10 @@ export const MIN_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 
 export type HubCapabilityName =
+	| "device.status"
+	| "device.start"
+	| "device.stop"
+	| "device.pair"
 	| "client.register"
 	| "client.list"
 	| "session.create"
@@ -48,6 +52,10 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"device.status",
+	"device.start",
+	"device.stop",
+	"device.pair",
 	"client.register",
 	"client.list",
 	"session.create",
@@ -520,6 +528,10 @@ export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
+	| "device.status"
+	| "device.start"
+	| "device.stop"
+	| "device.pair"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"
@@ -650,6 +662,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "device.changed"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"

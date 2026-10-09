@@ -61,7 +61,7 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
-import { DeviceBridgeCard } from "./components/views/device-bridge-card";
+import { DeviceServiceCard } from "./components/views/device-service-card";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
@@ -588,9 +588,8 @@ function HomeView({
 				</AlertDialogContent>
 			</AlertDialog>
 
-			<DeviceBridgeCard
-				state={hubState.deviceBridge}
-				hubUrl={hubState.hubUrl}
+			<DeviceServiceCard
+				state={hubState.deviceService}
 				connected={hubState.connected}
 			/>
 
