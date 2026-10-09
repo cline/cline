@@ -1109,6 +1109,247 @@ describe("session replay e2e", () => {
 		}
 	}, 600_000);
 
+	it("imports an exported ATIF trajectory back into a bundle that replays like the original", async () => {
+		const { env: importEnv } = await hubTestEnv("import");
+		const repo = path.join(root, "import-repo");
+		mkdirSync(repo, { recursive: true });
+		const git = (...args: string[]) =>
+			execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
+		git("init", "--quiet");
+		git("config", "user.email", "replay@example.com");
+		git("config", "user.name", "Replay");
+		writeFileSync(path.join(repo, "notes.txt"), "committed\n");
+		git("add", ".");
+		git("commit", "--quiet", "-m", "base");
+		const cli = (args: string[]) =>
+			runCli(args, { cwd: workspace, env: importEnv, timeoutMs: 120_000 });
+
+		try {
+			fakeModelScript = "recorded";
+			const recorded = await runCli(
+				["-y", "--record-session", "Run echo for me"],
+				{ cwd: repo, env: importEnv, timeoutMs: 120_000 },
+			);
+			expect(recorded.status, recorded.stderr).toBe(0);
+			const sessionId = await onlySessionId(importEnv);
+			const bundleDir = path.join(root, "import-original");
+			const exported = await cli([
+				"session",
+				"export",
+				sessionId,
+				"--bundle",
+				bundleDir,
+			]);
+			expect(exported.status, exported.stderr).toBe(0);
+			const trajectoryPath = path.join(root, "import-trajectory.json");
+			const atif = await cli([
+				"session",
+				"export",
+				bundleDir,
+				"--format",
+				"atif",
+				"--out",
+				trajectoryPath,
+			]);
+			expect(atif.status, atif.stderr).toBe(0);
+
+			const importedDir = path.join(root, "import-restored");
+			const imported = await cli([
+				"session",
+				"import",
+				trajectoryPath,
+				"--format",
+				"atif",
+				"--out",
+				importedDir,
+				"--json",
+			]);
+			expect(imported.status, imported.stderr).toBe(0);
+			expect(JSON.parse(imported.stdout)).toMatchObject({
+				bundleDir: importedDir,
+				rootSessionId: sessionId,
+				restored: "extra.cline",
+				unmapped: [],
+				warnings: [],
+			});
+			expect(
+				readFileSync(path.join(importedDir, "manifest.json"), "utf8"),
+			).toBe(readFileSync(path.join(bundleDir, "manifest.json"), "utf8"));
+			const validated = await cli(["session", "validate", importedDir]);
+			expect(validated.status, validated.stderr).toBe(0);
+
+			const diff = await cli(["session", "diff", bundleDir, importedDir]);
+			expect(diff.status, `${diff.stdout}\n${diff.stderr}`).toBe(0);
+			expect(diff.stdout).toContain(
+				"Result: no divergence across 2 iterations",
+			);
+			expect(diff.stderr).toBe("");
+
+			const playback = async (target: string) => {
+				const played = await cli([
+					"session",
+					"replay",
+					target,
+					"--format",
+					"json",
+				]);
+				expect(played.status, played.stderr).toBe(0);
+				return played.stdout;
+			};
+			const original = await playback(bundleDir);
+			expect(original.trim().split("\n")).toHaveLength(2);
+			expect(await playback(importedDir)).toBe(original);
+			expect(await playback(trajectoryPath)).toBe(original);
+
+			// The restored recording lines up with the live requests the same
+			// way the original does (strict, by request).
+			const rerunJson = async (target: string, out: string) => {
+				const run = await cli([
+					"session",
+					"replay",
+					target,
+					"--mode",
+					"rerun",
+					"--format",
+					"json",
+					"--out",
+					out,
+				]);
+				expect(run.status, `${run.stderr}\n${run.stdout}`).toBe(0);
+				return JSON.parse(run.stdout);
+			};
+			const originalReport = await rerunJson(
+				bundleDir,
+				path.join(root, "import-rerun-original"),
+			);
+			const strictOut = path.join(root, "import-rerun-strict");
+			const strictReport = await rerunJson(trajectoryPath, strictOut);
+			expect(strictReport).toMatchObject({
+				recorded: {
+					bundleDir: path.join(strictOut, "recorded"),
+					sessionId,
+				},
+				live: { validated: true },
+				workspace: { method: "checkpoint", source: repo },
+				options: { requestMatching: "strict" },
+				comparison: { diverged: false, iterations: { recorded: 2, live: 2 } },
+			});
+			expect(strictReport.matches).toEqual(originalReport.matches);
+			for (const { match } of strictReport.matches as Array<{
+				match: string;
+			}>) {
+				expect(["exact", "equivalent"]).toContain(match);
+			}
+			expect(strictReport.comparison.divergences).toEqual(
+				originalReport.comparison.divergences,
+			);
+
+			// Without the extra.cline data the file reads like another agent's:
+			// no recording, no workspace path, responses served by call index.
+			const stripCline = (value: unknown): unknown => {
+				if (Array.isArray(value)) return value.map(stripCline);
+				if (!value || typeof value !== "object") return value;
+				return Object.fromEntries(
+					Object.entries(value)
+						.map(([key, child]): [string, unknown] => {
+							if (key !== "extra" || !child || typeof child !== "object") {
+								return [key, stripCline(child)];
+							}
+							const { cline: _cline, ...rest } = child as Record<
+								string,
+								unknown
+							>;
+							return [key, Object.keys(rest).length > 0 ? rest : undefined];
+						})
+						.filter(([, child]) => child !== undefined),
+				);
+			};
+			const foreignPath = path.join(root, "import-foreign.json");
+			writeFileSync(
+				foreignPath,
+				JSON.stringify(
+					stripCline(JSON.parse(readFileSync(trajectoryPath, "utf8"))),
+				),
+			);
+			const foreignDir = path.join(root, "import-foreign");
+			const foreign = await cli([
+				"session",
+				"import",
+				foreignPath,
+				"--out",
+				foreignDir,
+				"--json",
+			]);
+			expect(foreign.status, foreign.stderr).toBe(0);
+			expect(JSON.parse(foreign.stdout)).toMatchObject({
+				restored: "steps",
+				rootSessionId: sessionId,
+			});
+			const foreignManifest = JSON.parse(
+				readFileSync(path.join(foreignDir, "manifest.json"), "utf8"),
+			);
+			expect(foreignManifest.sessions[0]).toMatchObject({
+				source: "atif-import",
+				recording: null,
+				workspaceRoot: "",
+			});
+
+			const noWorkspace = await cli([
+				"session",
+				"replay",
+				foreignDir,
+				"--mode",
+				"rerun",
+				"--format",
+				"json",
+				"--out",
+				path.join(root, "import-rerun-no-workspace"),
+			]);
+			expect(noWorkspace.status).toBe(2);
+			expect(noWorkspace.stderr).toContain("Pass --workspace <path>");
+
+			const foreignOut = path.join(root, "import-rerun-foreign");
+			const foreignRerun = await cli([
+				"session",
+				"replay",
+				foreignDir,
+				"--mode",
+				"rerun",
+				"--workspace",
+				repo,
+				"--provider",
+				"openai-compatible",
+				"--model",
+				"fake-model",
+				"--format",
+				"json",
+				"--out",
+				foreignOut,
+			]);
+			expect(
+				foreignRerun.status,
+				`${foreignRerun.stderr}\n${foreignRerun.stdout}`,
+			).toBe(0);
+			const foreignReport = JSON.parse(foreignRerun.stdout);
+			expect(foreignReport).toMatchObject({
+				workspace: { method: "copy", source: repo },
+				options: { provider: "openai-compatible", model: "fake-model" },
+				comparison: { diverged: false, iterations: { recorded: 2, live: 2 } },
+			});
+			expect(
+				foreignReport.matches.map((match: { match: string }) => match.match),
+			).toEqual(["call-index", "call-index"]);
+			expect(
+				foreignReport.comparison.divergences.filter(
+					(divergence: { counted: boolean }) => divergence.counted,
+				),
+			).toEqual([]);
+		} finally {
+			fakeModelScript = "recorded";
+			await runCli(["hub", "stop"], { cwd: workspace, env: importEnv });
+		}
+	}, 600_000);
+
 	// Needs a container runtime and an image with bun and git, e.g. one built
 	// FROM oven/bun:1 with git installed; the repository is mounted read-only.
 	it.skipIf(!process.env.CLINE_E2E_CONTAINER_IMAGE)(
