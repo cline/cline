@@ -32,7 +32,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const userIdRef = useRef<string | undefined>(undefined)
 	const switchRequestRef = useRef<object | null>(null)
 	// A switch that reported an error may still commit on the server. Its error is
-	// retracted once a later auth refresh shows the requested account active.
+	// retracted once the newest read shows the requested account active.
 	const unconfirmedSwitchRef = useRef<{ organizationId: string | undefined } | null>(null)
 	const [accountSwitch, setAccountSwitch] = useState<ClineAuthContextType["accountSwitch"]>(null)
 	const [accountSwitchError, setAccountSwitchError] = useState<string | null>(null)
@@ -46,6 +46,12 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			const response = await AccountServiceClient.getUserOrganizations(EmptyRequest.create())
 			if (requestId === organizationsRequestIdRef.current) {
 				setUserOrganizations((old) => (deepEqual(response.organizations, old) ? old : response.organizations))
+				const unconfirmed = unconfirmedSwitchRef.current
+				const activeId = response.organizations.find((org) => org.active)?.organizationId ?? undefined
+				if (unconfirmed && activeId === unconfirmed.organizationId) {
+					unconfirmedSwitchRef.current = null
+					setAccountSwitchError(null)
+				}
 			}
 			return response.organizations
 		} catch (error) {
@@ -140,17 +146,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				// this on uid changes leaves stale `active` flags — which reset the
 				// account view's org dropdown on remount. The deepEqual guard in
 				// getUserOrganizations prevents no-op re-renders.
-				void getUserOrganizations().then((organizations) => {
-					const unconfirmed = unconfirmedSwitchRef.current
-					if (
-						unconfirmed &&
-						organizations &&
-						(organizations.find((org) => org.active)?.organizationId ?? undefined) === unconfirmed.organizationId
-					) {
-						unconfirmedSwitchRef.current = null
-						setAccountSwitchError(null)
-					}
-				})
+				getUserOrganizations()
 
 				setUser((oldUser) => (oldUser?.uid !== responseUser.uid ? responseUser : oldUser))
 			},

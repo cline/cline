@@ -234,6 +234,63 @@ describe("ClineAuthProvider", () => {
 		expect(screen.getByTestId("organizations-state")).toHaveTextContent("org-next")
 	})
 
+	it("retracts the error when the switch's own confirmation read shows the requested account", async () => {
+		grpcMocks.getUserOrganizations.mockResolvedValue({
+			organizations: [{ organizationId: "org-next", active: true, memberId: "m", name: "Next", roles: [] }],
+		})
+		grpcMocks.setUserOrganization.mockRejectedValue(new Error("Account switch was not confirmed within 10 seconds"))
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch"))
+		})
+		expect(screen.getByTestId("switch-state")).toHaveTextContent("settled")
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("none")
+	})
+
+	it("does not let an outdated read retract a current switch error", async () => {
+		const activeOld = {
+			organizations: [{ organizationId: "org-old", active: true, memberId: "m", name: "Old", roles: [] }],
+		}
+		const outdated = createDeferred<UserOrganizationsResponse>()
+		grpcMocks.getUserOrganizations
+			.mockResolvedValueOnce(activeOld)
+			.mockReturnValueOnce(outdated.promise)
+			.mockResolvedValue(activeOld)
+		grpcMocks.setUserOrganization.mockRejectedValue(new Error("Account switch was not confirmed within 10 seconds"))
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		// A refresh starts a read that will answer late.
+		act(() => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch"))
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("not confirmed")
+
+		await act(async () => {
+			outdated.resolve({
+				organizations: [{ organizationId: "org-next", active: true, memberId: "m", name: "Next", roles: [] }],
+			})
+			await outdated.promise
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("not confirmed")
+		expect(screen.getByTestId("organizations-state")).toHaveTextContent("org-old")
+	})
+
 	it("does not report a background profile read as a failed account switch", async () => {
 		grpcMocks.getUserOrganizations.mockRejectedValue(new Error("offline"))
 		render(
