@@ -984,6 +984,24 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("unknown")
 		})
 
+		it("keeps a suspended sandbox's last outcome through the control plane's housekeeping touches", async () => {
+			const globalState: Record<string, unknown> = {}
+			await rememberCompleted(globalState)
+
+			const connect = vi.spyOn(CloudSessionHost, "connect").mockClear()
+			const { coordinator, cloudSessions } = makeCoordinator({ stateManager: makeStateManager(globalState) as never })
+			const touchedLater = new Date(Date.now() + 30 * 60_000).toISOString()
+			cloudSessions.listSessions.mockResolvedValue([
+				{ ...finished, status: "suspended", updatedAt: touchedLater },
+				{ ...finished, id: "ses-never-seen", status: "suspended", updatedAt: touchedLater },
+			])
+
+			const rows = await coordinator.listHistoryRecords()
+			expect(rows.map((row) => row.metadata?.cloudStatus)).toEqual(["completed", "idle"])
+			await coordinator.resolveStatuses(rows.map((row) => row.sessionId))
+			expect(connect).not.toHaveBeenCalled()
+		})
+
 		it("does not remember an active status", async () => {
 			const globalState: Record<string, unknown> = {}
 			connectReporting("running")
