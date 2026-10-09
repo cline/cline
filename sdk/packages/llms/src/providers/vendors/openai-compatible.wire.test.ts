@@ -11,8 +11,14 @@
 //   2. the gateway never sends less effort than asked just because the
 //      nearest advertised level cannot be expressed through the AI SDK's
 //      portable reasoning setting;
-//   3. models the catalog does not describe get the requested level as-is.
-import type { GatewayStreamRequest, ModelReasoningOption } from "@cline/shared";
+//   3. models the catalog does not describe get the requested level as-is;
+//   4. disabling reasoning sends `none`, since default-on reasoning models
+//      otherwise keep thinking, except to models known not to reason.
+import type {
+	GatewayStreamRequest,
+	ModelInfo,
+	ModelReasoningOption,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { createGateway } from "../gateway";
 
@@ -29,10 +35,14 @@ const KIMI_K3_EFFORTS: readonly ModelReasoningOption[] = [
  * so the gateway resolves it as an unlisted id with no catalog facts.
  */
 async function wireBody(input: {
+	providerId?: string;
 	modelId: string;
 	reasoning: GatewayStreamRequest["reasoning"];
 	reasoningOptions: readonly ModelReasoningOption[] | undefined;
+	capabilities?: ModelInfo["capabilities"];
 }): Promise<Record<string, unknown>> {
+	const providerId = input.providerId ?? PROVIDER_ID;
+	const configuredModel = input.reasoningOptions || input.capabilities;
 	let body: Record<string, unknown> | undefined;
 	const fetchStub = (async (_input, init) => {
 		body = JSON.parse((init?.body as string) ?? "{}");
@@ -44,19 +54,21 @@ async function wireBody(input: {
 	const gateway = createGateway({
 		providerConfigs: [
 			{
-				providerId: PROVIDER_ID,
+				providerId,
 				apiKey: "test-key",
 				fetch: fetchStub,
 				// A config model overrides a builtin of the same id, so these
 				// definitions decide what the gateway sees regardless of the catalog.
-				...(input.reasoningOptions
+				...(configuredModel
 					? {
 							models: [
 								{
 									id: input.modelId,
 									name: input.modelId,
-									capabilities: ["text", "reasoning"],
-									reasoningOptions: input.reasoningOptions,
+									capabilities: input.capabilities ?? ["text", "reasoning"],
+									...(input.reasoningOptions
+										? { reasoningOptions: input.reasoningOptions }
+										: {}),
 								},
 							],
 						}
@@ -64,13 +76,13 @@ async function wireBody(input: {
 			},
 		],
 	});
-	if (!input.reasoningOptions) {
+	if (!configuredModel) {
 		expect(
-			gateway.listModels(PROVIDER_ID).map((model) => model.id),
+			gateway.listModels(providerId).map((model) => model.id),
 		).not.toContain(input.modelId);
 	}
 	for await (const _event of await gateway.stream({
-		providerId: PROVIDER_ID,
+		providerId,
 		modelId: input.modelId,
 		reasoning: input.reasoning,
 		maxTokens: 16,
@@ -132,5 +144,35 @@ describe("OpenAI-compatible reasoning effort wire contract", () => {
 			reasoningOptions: undefined,
 		});
 		expect(body.reasoning_effort).toBe(effort);
+	});
+});
+
+describe("OpenAI-compatible reasoning disable wire contract", () => {
+	it("sends none for a model the catalog does not list", async () => {
+		const body = await wireBody({
+			modelId: "example/reasoning-model",
+			reasoning: { enabled: false },
+			reasoningOptions: undefined,
+		});
+		expect(body.reasoning_effort).toBe("none");
+	});
+
+	it("sends none for a model that advertises reasoning", async () => {
+		const body = await wireBody({
+			modelId: KIMI_K3_ID,
+			reasoning: { enabled: false },
+			reasoningOptions: KIMI_K3_EFFORTS,
+		});
+		expect(body.reasoning_effort).toBe("none");
+	});
+
+	it("sends nothing to a model known not to reason", async () => {
+		const body = await wireBody({
+			modelId: "example/non-reasoning-model",
+			reasoning: { enabled: false },
+			reasoningOptions: undefined,
+			capabilities: ["text"],
+		});
+		expect(body).not.toHaveProperty("reasoning_effort");
 	});
 });
