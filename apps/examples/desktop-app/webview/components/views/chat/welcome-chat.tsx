@@ -79,6 +79,8 @@ export function WelcomeScreen({
 	workIn,
 	onWorkInChange,
 	onOpenSession,
+	terminalToggle,
+	bottomInset = 0,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -99,8 +101,27 @@ export function WelcomeScreen({
 	workIn?: WorkIn;
 	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
+	/** Rendered at the end of the workspace controls row. */
+	terminalToggle?: ReactNode;
+	/** Height taken from the pane below (the terminal drawer). */
+	bottomInset?: number;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
+	// The welcome column pads the hero from the top of the window, so a drawer
+	// opening underneath pushes the composer below the fold; bring it back.
+	const composerRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const composer = composerRef.current;
+		if (!active || bottomInset <= 0 || !composer) return;
+		// Observing the composer (fires once on observe) covers both the
+		// initial mount and later layout settling, e.g. the setup notice or
+		// workspace controls arriving after the first paint.
+		const observer = new ResizeObserver(() => {
+			composer.scrollIntoView({ block: "end" });
+		});
+		observer.observe(composer);
+		return () => observer.disconnect();
+	}, [active, bottomInset]);
 	const cloudScope = user
 		? JSON.stringify([
 				getClineEnvironmentConfig().appBaseUrl,
@@ -465,7 +486,7 @@ export function WelcomeScreen({
 			welcome={active}
 			body={body}
 			bodyClassName="cline-view-enter"
-			composer={composer}
+			composer={<div ref={composerRef}>{composer}</div>}
 			notice={notice && !showCloudOnboarding ? notice : null}
 			hideWelcomeComposer={showCloudOnboarding}
 			welcomeHeader={
@@ -505,6 +526,9 @@ export function WelcomeScreen({
 							<p className="mt-2 text-xs text-destructive">
 								Sign in failed: {signInError}
 							</p>
+						) : null}
+						{terminalToggle ? (
+							<div className="ml-auto shrink-0">{terminalToggle}</div>
 						) : null}
 					</div>
 				</div>

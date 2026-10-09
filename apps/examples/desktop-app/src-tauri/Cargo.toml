@@ -15,6 +15,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["sync", "time"] }
+portable-pty = "0.9"
 # gtk3 instead of the default xdg-portal backend on Linux: the portal needs a
 # D-Bus session and an xdg-desktop-portal backend, and when either is missing
 # pick_folder() returns None, which the app reads as "cancelled". The app is a
