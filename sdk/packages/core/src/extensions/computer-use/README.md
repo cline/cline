@@ -215,11 +215,6 @@ observatory lives in `src/extensions/computer-observability/`.
   in-flight requests and reconnects lazily on the next call.
 - No persisted setting/UI toggle; env-var opt-in only, matching this being a
   proof of concept.
-- The Anthropic `anthropic-beta: computer-use-2025-11-24` header is sent
-  unconditionally for the direct `anthropic` provider (see
-  `sdk/packages/llms/src/providers/routing/anthropic-compatible.ts`) rather
-  than gated on whether the `computer` tool is actually part of the current
-  request. Fine for this proof of concept; revisit before shipping.
 - Display dimensions are a construction-time snapshot; a resize after
   startup leaves the tool description stale. Fixing this properly means the
   backend reporting dimensions with each screenshot and the tool description
