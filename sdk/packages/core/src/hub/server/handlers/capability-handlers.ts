@@ -1,4 +1,8 @@
-import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
+import type {
+	HubCommandEnvelope,
+	HubEventEnvelope,
+	HubReplyEnvelope,
+} from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import { logHubMessage } from "../hub-server-logging";
 import { errorReply, type HubTransportContext, okReply } from "./context";
@@ -11,6 +15,9 @@ export async function requestCapability(
 	targetClientId: string,
 	onProgress?: (payload: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown> | undefined> {
+	if (!targetClientId && capabilityName !== "tool_executor.askQuestion") {
+		throw new Error("Only askQuestion can be owned by a session");
+	}
 	const requestId = createSessionId("capreq_");
 	const startedAt = performance.now();
 	logHubMessage("info", "capability.request.start", {
@@ -20,10 +27,16 @@ export async function requestCapability(
 		targetClientId,
 	});
 	return await new Promise((resolve, reject) => {
+		const requestedEvent = ctx.buildEvent(
+			"capability.requested",
+			{ requestId, targetClientId, capabilityName, payload },
+			sessionId,
+		);
 		ctx.pendingCapabilityRequests.set(requestId, {
 			sessionId,
 			targetClientId,
 			capabilityName,
+			...(!targetClientId ? { requestedEvent } : {}),
 			onProgress,
 			resolve: (result) => {
 				logHubMessage(result.ok ? "info" : "warn", "capability.request.end", {
@@ -47,18 +60,7 @@ export async function requestCapability(
 				resolve(result.payload);
 			},
 		});
-		ctx.publish(
-			ctx.buildEvent(
-				"capability.requested",
-				{
-					requestId,
-					targetClientId,
-					capabilityName,
-					payload,
-				},
-				sessionId,
-			),
-		);
+		ctx.publish(requestedEvent);
 		logHubMessage("info", "capability.request.published", {
 			requestId,
 			sessionId,
@@ -66,6 +68,17 @@ export async function requestCapability(
 			targetClientId,
 		});
 	});
+}
+
+export function pendingQuestionEvents(
+	ctx: HubTransportContext,
+	sessionId?: string,
+): HubEventEnvelope[] {
+	return [...ctx.pendingCapabilityRequests.values()].flatMap((pending) =>
+		pending.requestedEvent && (!sessionId || pending.sessionId === sessionId)
+			? [pending.requestedEvent]
+			: [],
+	);
 }
 
 export function handleCapabilityProgress(
@@ -216,7 +229,13 @@ export function handleCapabilityRespond(
 		return okReply(envelope, { requestId, ignored: true });
 	}
 	const responderClientId = envelope.clientId?.trim() || "";
-	if (responderClientId !== pending.targetClientId) {
+	const sessionQuestion =
+		!pending.targetClientId &&
+		pending.capabilityName === "tool_executor.askQuestion";
+	if (
+		!responderClientId ||
+		(!sessionQuestion && responderClientId !== pending.targetClientId)
+	) {
 		return errorReply(
 			envelope,
 			"capability_wrong_client",
@@ -224,8 +243,8 @@ export function handleCapabilityRespond(
 		);
 	}
 	if (
-		envelope.sessionId?.trim() &&
-		envelope.sessionId.trim() !== pending.sessionId
+		(sessionQuestion || envelope.sessionId?.trim()) &&
+		envelope.sessionId?.trim() !== pending.sessionId
 	) {
 		return errorReply(
 			envelope,

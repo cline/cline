@@ -2533,6 +2533,11 @@ export async function handleChatSessionCommand(
 		}
 		switch (request.action) {
 			case "start": {
+				if (request.attachments?.userFiles?.length) {
+					throw new Error(
+						"File attachments are not supported in cloud sessions",
+					);
+				}
 				const requestedSessionId = String(
 					request.config?.sessionId ?? request.config?.session_id ?? "",
 				).trim();
@@ -2563,6 +2568,11 @@ export async function handleChatSessionCommand(
 					repoUrl,
 					modelId,
 					...(initialPrompt ? { initialPrompt } : {}),
+					userImages: request.attachments?.userImages,
+					mode:
+						request.config?.mode === "plan" || request.config?.mode === "yolo"
+							? request.config.mode
+							: "act",
 					...(branch ? { branch } : {}),
 					...(typeof request.config?.thinking === "boolean"
 						? { thinking: request.config.thinking }

@@ -57,6 +57,7 @@ import {
 	handleCapabilityProgress,
 	handleCapabilityRequest,
 	handleCapabilityRespond,
+	pendingQuestionEvents,
 	requestCapability as requestCapabilityHandler,
 } from "./handlers/capability-handlers";
 import {
@@ -101,9 +102,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -1125,27 +1126,24 @@ export class HubServerTransport implements NativeHubTransport {
 		const entry = { sessionId: options?.sessionId, listener };
 		current.add(entry);
 		this.listeners.set(clientId, current);
-		// Re-issue pending approvals so a (re)connecting client can answer a
-		// request raised while it was away instead of leaving the turn parked.
-		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
-		if (pending.length > 0) {
-			queueMicrotask(() => {
-				const listeners = this.listeners.get(clientId);
-				if (!listeners?.has(entry)) {
-					return;
+		// Replay unresolved user input when a viewer reconnects.
+		queueMicrotask(() => {
+			if (!this.listeners.get(clientId)?.has(entry)) return;
+			const pending = [
+				...pendingApprovalEvents(this.ctx, options?.sessionId),
+				...pendingQuestionEvents(this.ctx, options?.sessionId),
+			];
+			for (const event of pending) {
+				try {
+					entry.listener(event);
+				} catch (error) {
+					logHubBoundaryError(
+						"listener threw while replaying pending input",
+						error,
+					);
 				}
-				for (const event of pending) {
-					try {
-						entry.listener(event);
-					} catch (error) {
-						logHubBoundaryError(
-							"listener threw while re-issuing pending approval",
-							error,
-						);
-					}
-				}
-			});
-		}
+			}
+		});
 		return () => {
 			const listeners = this.listeners.get(clientId);
 			if (!listeners) {
