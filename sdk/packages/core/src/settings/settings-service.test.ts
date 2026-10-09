@@ -614,6 +614,27 @@ Use the browser.`,
 		).toBe(true);
 	});
 
+	it("marks a plugin that fails to set up as failed and explains why", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-plugins-"));
+		tempRoots.push(tempRoot);
+		process.env.HOME = tempRoot;
+		setHomeDir(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(tempRoot, "settings.json");
+		const pluginRoot = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginRoot, { recursive: true });
+		const pluginPath = join(pluginRoot, "broken-setup.ts");
+		await writeFile(
+			pluginPath,
+			'export default { name: "broken-setup", manifest: { capabilities: ["tools"] }, setup() { throw new Error("no api key"); } };',
+		);
+
+		const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+		const plugin = snapshot.plugins.find((item) => item.path === pluginPath);
+
+		expect(plugin?.contributions?.inspectionStatus).toBe("failed");
+		expect(plugin?.loadError).toBe("Failed during setup: no api key");
+	});
+
 	it("does not use a shared plugin search-root package name for standalone plugins", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-plugins-"));
 		tempRoots.push(tempRoot);

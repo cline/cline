@@ -249,15 +249,19 @@ export default {
 };
 `,
 		);
+		const told: string[] = [];
 		const load = (sessionId: string) =>
 			registry.loadForSession({
 				sessionId,
 				pluginPaths: [path],
 				setupContext: { session: { sessionId } },
+				onIssue: (issue) => told.push(`${sessionId}:${issue.state}`),
 			});
 		const [tool] = (await setUp((await load("good")).extensions[0])).tools;
 		await setUp((await load("bad")).extensions[0]);
 		expect(registry.get(path)[0]?.lastError?.phase).toBe("setup");
+		// Only the session whose setup failed is told; "good" still works.
+		expect(told).toEqual(["bad:failed"]);
 
 		await expect(tool?.execute({}, toolContext)).resolves.toBe("ok");
 		const later = await setUp((await load("later")).extensions[0]);

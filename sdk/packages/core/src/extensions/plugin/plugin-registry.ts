@@ -989,7 +989,7 @@ export class PluginRegistry {
 		this.log("warn", "plugin.error", entry, {
 			phase,
 			sessionId: options.sessionId,
-			message,
+			errorMessage: message,
 			timedOut,
 			stack,
 		});
@@ -1022,7 +1022,10 @@ export class PluginRegistry {
 		const changed = entry.state !== next;
 		this.setState(entry, next, true);
 		const issue = this.toIssue(entry, "error");
-		const notified = changed ? [...entry.issueListeners.values()] : [];
+		// A per-session failure (setup) concerns only the calling session;
+		// other sessions' copies still work, so do not tell them otherwise.
+		const notified =
+			changed && !options.state ? [...entry.issueListeners.values()] : [];
 		if (options.notify && !notified.includes(options.notify)) {
 			notified.push(options.notify);
 		}
@@ -1092,7 +1095,7 @@ export class PluginRegistry {
 		}
 		const detail = typeof fields.phase === "string" ? ` (${fields.phase})` : "";
 		const message =
-			typeof fields.message === "string" ? `: ${fields.message}` : "";
+			typeof fields.errorMessage === "string" ? `: ${fields.errorMessage}` : "";
 		this.logger?.log(`[plugins] ${event} ${entry.name}${detail}${message}`, {
 			severity: "warn",
 			...metadata,
