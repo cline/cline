@@ -3460,6 +3460,148 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	function createAbortedSessionFixture(sessionId: string) {
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((_resolve, reject) => {
+				rejectRun = (error: Error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "woken result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn().mockImplementation(() => {
+				rejectRun?.(new Error("aborted by user"));
+			}),
+			notifyPendingUserMessage: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		return { manager, agent, runStarted, sentPrompts };
+	}
+
+	it("wakes an idle session that was stopped by the user when a steer arrives", async () => {
+		const sessionId = "sess-steer-wakes-aborted-session";
+		const { manager, runStarted, sentPrompts } =
+			createAbortedSessionFixture(sessionId);
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.abort(sessionId);
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(await manager.getSession(sessionId)).toMatchObject({
+			status: "idle",
+		});
+
+		// A plugin or connector steering a session the user stopped must start
+		// a turn in it rather than sit in the queue waiting for one.
+		await manager.runTurn({
+			sessionId,
+			prompt: "wake up",
+			delivery: "steer",
+		});
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">wake up</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
+	it("keeps a steer sent while the user's stop is settling and runs it afterwards", async () => {
+		const sessionId = "sess-steer-during-abort-window";
+		const { manager, runStarted, sentPrompts } =
+			createAbortedSessionFixture(sessionId);
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		// abort() flags the session before the rejected run has settled;
+		// the steer lands inside that window.
+		const aborting = manager.abort(sessionId);
+		await manager.runTurn({
+			sessionId,
+			prompt: "steer during abort",
+			delivery: "steer",
+		});
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map((p) => p.prompt),
+		).toEqual(["steer during abort"]);
+		await aborting;
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">steer during abort</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
 	it("drops queued prompts when a session is stopped mid-turn, even if shutdown is slow", async () => {
 		const sessionId = "sess-stop-drops-queued-prompts";
 		const manifest = createManifest(sessionId);
@@ -3558,15 +3700,18 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		const stopping = manager.stopSession(sessionId);
-		// A prompt sent while teardown is in progress is refused, so the
-		// caller can report the loss instead of showing it as queued.
-		await expect(
-			manager.runTurn({
-				sessionId,
-				prompt: "queued during stop",
-				delivery: "queue",
-			}),
-		).rejects.toThrow("is shutting down");
+		// A prompt sent while teardown is in progress is refused, whatever its
+		// delivery, so the caller can report the loss instead of showing it
+		// as queued.
+		for (const delivery of ["queue", "steer"] as const) {
+			await expect(
+				manager.runTurn({
+					sessionId,
+					prompt: `${delivery} during stop`,
+					delivery,
+				}),
+			).rejects.toThrow("is shutting down");
+		}
 		await stopping;
 		await expect(firstTurn).resolves.toMatchObject({
 			finishReason: "aborted",
