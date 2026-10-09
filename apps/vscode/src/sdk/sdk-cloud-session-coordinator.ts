@@ -37,6 +37,7 @@ import {
 import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import {
+	type CloudProvisioningPhase,
 	CloudSessionError,
 	type CloudSessionRecord,
 	type CloudSessionsService,
@@ -103,6 +104,17 @@ function describeExpiredCloudSession(
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
+
+function provisioningPhaseText(phase: CloudProvisioningPhase, sandboxLabel: string): string | undefined {
+	switch (phase) {
+		case "cloning_repo":
+			return `Cloning ${sandboxLabel} into the cloud sandbox…`
+		case "agent_starting":
+			return "Starting the agent in the cloud sandbox…"
+		default:
+			return undefined
+	}
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
 	return new Promise((resolve, reject) => {
@@ -171,6 +183,8 @@ export interface SdkCloudSessionCoordinatorOptions {
 	/** Forgets the previous turn's completion signal so a new cloud turn's phase is computed fresh. */
 	clearTurnOutcome: () => void
 	postStateToWebview: () => Promise<void>
+	/** Brings the chat view forward, dismissing History or any other view covering it. */
+	showChatView: () => Promise<void>
 	invalidateHistoryCache: () => void
 	resolveContextMentions: (text: string) => Promise<string>
 	telemetry?: ITelemetryService
@@ -259,6 +273,13 @@ export class SdkCloudSessionCoordinator {
 		}
 		if (rest === "failed") {
 			return "failed"
+		}
+		if (rest === "suspended") {
+			// A suspended sandbox runs nothing, so there is nothing to resolve over a
+			// socket (it would be refused). Keep the last outcome seen here, even
+			// though the control plane keeps touching updatedAt while it sleeps.
+			const known = entry.agentStatus ?? this.rememberedStatuses()[entry.record.id]?.status
+			return known && isSettled(known) ? known : "idle"
 		}
 		return entry.agentStatus ?? "unknown"
 	}
@@ -403,7 +424,9 @@ export class SdkCloudSessionCoordinator {
 	private toHistoryRecord(entry: CloudSessionEntry): SessionHistoryRecord {
 		const { record } = entry
 		const status = this.statusOf(entry)
-		const title = entry.title ?? record.title?.trim() ?? ""
+		// The control plane's title wins so renames from the dashboard show up; the
+		// local one covers the moment before this window's own rename lands.
+		const title = record.title?.trim() || entry.title || ""
 		return {
 			sessionId: record.id,
 			source: "vscode",
@@ -740,10 +763,12 @@ export class SdkCloudSessionCoordinator {
 				(await CloudSessionHost.connect({
 					outerSessionId: sessionId,
 					taskId,
+					sandboxType: record.sandboxType ?? record.metadata.sandboxType,
 					socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
 					getAuthToken: this.options.getAuthToken,
 					requestToolApproval: this.options.requestToolApproval,
 					telemetry: this.options.telemetry,
+					restoreConfig: () => this.cloudSessionConfig(record.metadata.modelId ?? this.nextCloudModelId()),
 					onStatusChange: (status) => {
 						// A replaced account entry must never receive its predecessor's events.
 						if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
@@ -798,7 +823,7 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	private notifyFinished(entry: CloudSessionEntry, status: CloudSessionStatus): void {
-		const title = entry.title ?? entry.record.title?.trim() ?? entry.record.repoContext.repoUrl ?? entry.record.id
+		const title = entry.record.title?.trim() || entry.title || entry.record.repoContext.repoUrl || entry.record.id
 		const label = status === "failed" ? "Cloud task failed" : "Cloud task finished"
 		HostProvider.window
 			.showMessage({
@@ -979,6 +1004,38 @@ export class SdkCloudSessionCoordinator {
 		return this.cancelPendingStart()
 	}
 
+	/** The sandbox session config a start uses, and that a resumed sandbox rebuilds its conversation with. */
+	private async cloudSessionConfig(modelId: string): Promise<StartSessionInput["config"]> {
+		const {
+			apiKey: _apiKey,
+			knownModels: _knownModels,
+			providerConfig,
+			...config
+		} = await this.options.sessionConfigBuilder.build({
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			mode: CLOUD_SESSION_MODE,
+			runtime: {
+				modelSelection: { providerId: "cline", modelId },
+				platform: "linux",
+			},
+		})
+		return {
+			...config,
+			// The sandbox bills inference server-side, so the user's account token
+			// (the Cline provider key) must never be shipped into it. It resolves
+			// Cline models itself, so the local catalog (~150 KB) stays home too.
+			...(providerConfig ? { providerConfig: { ...providerConfig, apiKey: undefined, knownModels: undefined } } : {}),
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			mode: CLOUD_SESSION_MODE,
+			enableTools: true,
+			checkpoint: { enabled: false },
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+		}
+	}
+
 	private async startCloudTaskInScope(
 		input: CloudTaskInput,
 		modelId: string,
@@ -1009,6 +1066,15 @@ export class SdkCloudSessionCoordinator {
 		}
 		const title = input.prompt.trim().split("\n")[0]?.trim().slice(0, 120) || input.prompt.trim()
 		const repoLabel = input.repoUrl.replace(/^https:\/\/github\.com\//, "")
+		const sandboxLabel = `${repoLabel}${input.branch ? ` (${input.branch})` : ""}`
+		const provisioningRow = (text: string): ClineMessage => ({
+			ts: startedAt + 1,
+			type: "say",
+			say: "text",
+			text,
+			partial: false,
+		})
+		const provisioningEvent = { type: "status", payload: { sessionId: provisionalId, status: "running" } } as const
 
 		this.options.messages.appendAndEmit(
 			[
@@ -1020,15 +1086,9 @@ export class SdkCloudSessionCoordinator {
 					...(input.images?.length ? { images: input.images } : {}),
 					partial: false,
 				},
-				{
-					ts: startedAt + 1,
-					type: "say",
-					say: "text",
-					text: `Starting a cloud sandbox for ${repoLabel}${input.branch ? ` (${input.branch})` : ""}…`,
-					partial: false,
-				},
+				provisioningRow(`Starting a cloud sandbox for ${sandboxLabel}…`),
 			],
-			{ type: "status", payload: { sessionId: provisionalId, status: "running" } },
+			provisioningEvent,
 		)
 		this.options.clearTurnOutcome()
 		this.options.setTurnPhase("streaming")
@@ -1039,16 +1099,9 @@ export class SdkCloudSessionCoordinator {
 		let host: SdkSessionHost | undefined
 		let sent = false
 		try {
-			const config = await this.options.sessionConfigBuilder.build({
-				cwd: CLOUD_WORKSPACE_ROOT,
-				workspaceRoot: CLOUD_WORKSPACE_ROOT,
-				mode: CLOUD_SESSION_MODE,
-				runtime: {
-					modelSelection: { providerId: "cline", modelId },
-					platform: "linux",
-				},
-			})
+			const config = await this.cloudSessionConfig(modelId)
 			if (isStale()) return undefined
+			let shownPhase: CloudProvisioningPhase | undefined
 			const record = await this.options.cloudSessions.createSession(
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
@@ -1057,6 +1110,13 @@ export class SdkCloudSessionCoordinator {
 					this.rememberPendingStart(id)
 				},
 				cancelSignal,
+				(phase) => {
+					const text = phase === shownPhase ? undefined : provisioningPhaseText(phase, sandboxLabel)
+					if (!text || isStale()) return
+					shownPhase = phase
+					// Same ts: the progress row is updated in place, not appended.
+					this.options.messages.appendAndEmit([provisioningRow(text)], provisioningEvent)
+				},
 			)
 			sessionId = record.id
 			if (isStale()) return sessionId
@@ -1073,17 +1133,7 @@ export class SdkCloudSessionCoordinator {
 			host = await this.connect(entry)
 			if (isStale()) return sessionId
 			const startInput: StartSessionInput = {
-				config: {
-					...config,
-					cwd: CLOUD_WORKSPACE_ROOT,
-					workspaceRoot: CLOUD_WORKSPACE_ROOT,
-					mode: CLOUD_SESSION_MODE,
-					sessionId: record.id,
-					enableTools: true,
-					checkpoint: { enabled: false },
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
-				},
+				config: { ...config, sessionId: record.id },
 				interactive: true,
 				prompt: undefined,
 				userImages: input.images,
@@ -1210,6 +1260,14 @@ export class SdkCloudSessionCoordinator {
 		// Pin the host so a concurrent status resolution or idle sweep does not
 		// close it between connecting and installing the task that owns it.
 		entry.pinned++
+		// The resume notice is posted as its own render. Whatever replaces it must
+		// start a new epoch right before it is installed, with no await between, or
+		// the webview merges it into the notice instead of replacing it.
+		let showedResumeNotice = false
+		const installReplacingNotice = () => {
+			if (showedResumeNotice) this.options.resetMessageTranslator()
+			return this.installTask(sessionId)
+		}
 		try {
 			this.options.resetMessageTranslator()
 			const status = this.statusOf(entry)
@@ -1219,7 +1277,9 @@ export class SdkCloudSessionCoordinator {
 			if (status === "expired") {
 				messages = await this.renderExpired(entry)
 				if (isStale()) return historyItem
-			} else if (status === "failed" && !entry.host) {
+			} else if (entry.record.status?.toLowerCase() === "failed" && !entry.host) {
+				// Only the control plane's record says the sandbox failed; a remembered
+				// "failed" is the last agent turn's outcome, and that conversation can continue.
 				messages.push({
 					ts: Date.now(),
 					type: "say",
@@ -1228,7 +1288,14 @@ export class SdkCloudSessionCoordinator {
 					partial: false,
 				})
 			} else {
-				const host = await this.connect(entry)
+				let host = await this.connectUnlessSuspended(entry)
+				if (!host) {
+					if (isStale()) return historyItem
+					showedResumeNotice = true
+					await this.resume(entry, historyItem.task)
+					if (isStale()) return historyItem
+					host = await this.connect(entry)
+				}
 				if (isStale()) {
 					return historyItem
 				}
@@ -1259,7 +1326,7 @@ export class SdkCloudSessionCoordinator {
 					text: "",
 				})
 			}
-			const task = this.installTask(sessionId)
+			const task = installReplacingNotice()
 			if (finalized.length > 0) {
 				task.messageStateHandler.addMessages(finalized)
 			}
@@ -1279,7 +1346,7 @@ export class SdkCloudSessionCoordinator {
 			Logger.error("[CloudSessions] Failed to open cloud task:", error)
 			const { messages, deleted } = await this.explainConnectFailure(entry, error)
 			if (isStale()) return historyItem
-			const task = this.installTask(sessionId)
+			const task = installReplacingNotice()
 			task.messageStateHandler.addMessages(messages)
 			this.options.setTurnPhase("idle")
 			if (deleted) {
@@ -1295,6 +1362,54 @@ export class SdkCloudSessionCoordinator {
 			entry.pinned--
 		}
 		return historyItem
+	}
+
+	/**
+	 * Connects to a session's sandbox, or returns undefined when the control
+	 * plane has suspended it. The listed record may predate the suspension, so
+	 * a refused connection asks the control plane for the live status.
+	 */
+	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
+		if (entry.record.status?.toLowerCase() === "suspended") return undefined
+		try {
+			return await this.connect(entry)
+		} catch (error) {
+			const live = await this.options.cloudSessions.getStatus(entry.record.id).catch(() => undefined)
+			if (live?.status?.toLowerCase() === "suspended") return undefined
+			throw error
+		}
+	}
+
+	/**
+	 * Wakes a suspended sandbox so it accepts connections again. The task view
+	 * shows a notice meanwhile, and the composer stays disabled because the
+	 * session reads as provisioning until the sandbox is back.
+	 */
+	private async resume(entry: CloudSessionEntry, title: string): Promise<void> {
+		const suspended = entry.record
+		const resuming = { ...suspended, status: "provisioning" }
+		entry.record = resuming
+		const startedAt = Date.now()
+		this.installTask(suspended.id).messageStateHandler.addMessages([
+			{ ts: startedAt, type: "say", say: "task", text: title, partial: false },
+			{ ts: startedAt + 1, type: "say", say: "text", text: "Resuming the cloud sandbox…", partial: false },
+		])
+		await this.options.postStateToWebview()
+		// Opened from History, the chat view (and this notice) stays covered until
+		// the open completes, which is after the whole resume. Show it now.
+		await this.options.showChatView()
+		try {
+			await this.options.cloudSessions.resumeSession(suspended.id)
+		} catch (error) {
+			if (entry.record === resuming) entry.record = suspended
+			throw error
+		}
+		entry.record = { ...entry.record, status: "ready" }
+		// A host kept from before the suspension still believes the conversation's
+		// runtime is live; the resumed Hub has none, so reconnect from scratch.
+		const retained = entry.host
+		entry.host = undefined
+		await retained?.dispose("resumed").catch(() => undefined)
 	}
 
 	/**

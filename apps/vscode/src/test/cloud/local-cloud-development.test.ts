@@ -171,7 +171,8 @@ describe("local cloud development ownership", () => {
 				repositories: [{ id: 2, fullName: "cline/organization-fixture" }],
 			})
 			expect(await service.listBranches(2)).toEqual(["main", "organization-fixture"])
-			await expect(service.listBranches(1)).rejects.toMatchObject({ status: 404 })
+			// A repository outside the account scope has no branches to offer, rather than an error.
+			expect(await service.listBranches(1)).toEqual([])
 			expect(await service.listSessions()).toEqual([])
 			expect(await service.getSession(personalSession.id)).toBeUndefined()
 			const organizationSession = await service.createSession({
@@ -188,7 +189,7 @@ describe("local cloud development ownership", () => {
 
 			await switchAccount(null)
 			expect(await service.getGitHubConnection()).toEqual(personal)
-			await expect(service.listBranches(2)).rejects.toMatchObject({ status: 404 })
+			expect(await service.listBranches(2)).toEqual([])
 			expect(await service.listSessions()).toEqual([
 				expect.objectContaining({ id: personalSession.id, title: "Personal history" }),
 			])

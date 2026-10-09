@@ -123,6 +123,12 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				providerId: "cline",
 				modelId: "fixture-model",
 				apiKey: "fixture-key",
+				providerConfig: {
+					providerId: "cline",
+					modelId: "fixture-model",
+					knownModels: { "catalog-model": { id: "catalog-model" } },
+				},
+				knownModels: { "catalog-model": { id: "catalog-model" } },
 				cwd: "/workspace",
 				workspaceRoot: "/workspace",
 				systemPrompt: "normal Cline guidance",
@@ -158,6 +164,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),
+		showChatView: vi.fn(async () => {}),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: async (prompt: string) => {
 			await wait("prompt")
@@ -313,6 +320,18 @@ describe("originating-account cloud cleanup", () => {
 		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
 		await f.coordinator.reset(f.changeScope)
 		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
+		await f.coordinator.dispose()
+	})
+
+	it("never sends the local model catalog into the sandbox", async () => {
+		const f = fixture("prompt")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		f.barrier.resolve()
+		expect(await starting).toBe(f.record.id)
+		const config = vi.mocked(f.host.start).mock.calls[0]?.[0]?.config
+		expect(config?.providerConfig).toMatchObject({ providerId: "cline", modelId: "fixture-model" })
+		expect(JSON.stringify(config)).not.toContain("catalog-model")
 		await f.coordinator.dispose()
 	})
 
