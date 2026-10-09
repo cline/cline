@@ -1039,7 +1039,11 @@ export class SdkCloudSessionCoordinator {
 		let host: SdkSessionHost | undefined
 		let sent = false
 		try {
-			const config = await this.options.sessionConfigBuilder.build({
+			const {
+				apiKey: _apiKey,
+				providerConfig,
+				...config
+			} = await this.options.sessionConfigBuilder.build({
 				cwd: CLOUD_WORKSPACE_ROOT,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				mode: CLOUD_SESSION_MODE,
@@ -1075,6 +1079,9 @@ export class SdkCloudSessionCoordinator {
 			const startInput: StartSessionInput = {
 				config: {
 					...config,
+					// The sandbox bills inference server-side, so the user's account token
+					// (the Cline provider key) must never be shipped into it.
+					...(providerConfig ? { providerConfig: { ...providerConfig, apiKey: undefined } } : {}),
 					cwd: CLOUD_WORKSPACE_ROOT,
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
 					mode: CLOUD_SESSION_MODE,
