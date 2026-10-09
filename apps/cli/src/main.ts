@@ -1006,7 +1006,12 @@ export async function runCli(): Promise<void> {
 				persistedProviderConfig,
 			);
 			knownModels = resolvedProviderConfig?.knownModels;
-			providerDefaultModelId = resolvedProviderConfig?.modelId || undefined;
+			// Only Cline-backed providers declare a curated default (the first
+			// recommended model). Other manifests may expose a placeholder like
+			// "default", so they keep falling back to the first catalog entry.
+			if (provider === "cline" || provider === "cline-pass") {
+				providerDefaultModelId = resolvedProviderConfig?.modelId || undefined;
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			writeln(

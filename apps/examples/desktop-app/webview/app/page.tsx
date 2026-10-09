@@ -1502,12 +1502,17 @@ function ChatThreadPane({
 			setProviderModelContextWindows(nextContextWindows);
 			setHasConnectedProvider(anyConnected);
 			// A fresh install boots on the shared fallback model before the
-			// catalog is known. Once it is, prefer the provider's own default
-			// (for Cline, the first recommended model) unless a selection was
-			// already remembered for this provider.
+			// catalog is known. Once it is, a new Cline chat prefers the
+			// provider's own default (the first recommended model) unless a
+			// selection was already remembered.
 			setConfig((prev) => {
 				const catalogDefault = defaultModelByProvider[prev.provider];
-				if (!catalogDefault || prev.model !== DEFAULT_CHAT_CONFIG.model) {
+				if (
+					!catalogDefault ||
+					prev.sessionId ||
+					prev.provider !== DEFAULT_CHAT_CONFIG.provider ||
+					prev.model !== DEFAULT_CHAT_CONFIG.model
+				) {
 					return prev;
 				}
 				const remembered = readModelSelectionStorageFromWindow(
