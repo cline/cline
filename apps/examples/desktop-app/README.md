@@ -32,9 +32,11 @@ when you click refresh.
 
 This requires GitHub CLI (`gh`) installed and authenticated with `gh auth login`,
 and a GitHub.com `origin` remote (HTTPS or SSH). The row is hidden for the
-default branch, detached HEAD, and unsupported repositories. If the branch
-has no PR, **Create PR** opens GitHub's comparison form; push your commits
-before submitting the form. The app does not push commits or submit PRs itself.
+default branch, detached HEAD, and unsupported repositories. **Create PR**
+appears only when the current branch exists on `origin` and has no PR, and
+opens GitHub's comparison form. Local-only branches stay hidden until pushed
+and the status refreshes. Push any additional local commits before submitting
+the form; the app does not push commits or submit PRs itself.
 
 Missing or unauthenticated GitHub CLI also hides the row. Availability checks
 are shared across workspaces and cached for five minutes, so unavailable CLI
