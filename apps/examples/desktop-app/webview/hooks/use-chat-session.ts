@@ -139,6 +139,38 @@ function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
 
+/** A visible status line for a plugin the session could not fully use. */
+function makePluginIssueMessage(
+	sid: string | null,
+	content: string,
+): ChatMessage {
+	return {
+		id: makeId("plugin"),
+		sessionId: sid,
+		role: "status",
+		content,
+		createdAt: Date.now(),
+		meta: { messageKind: "plugin_issue" },
+	};
+}
+
+/** The notice text when a core log chunk reports a plugin issue. */
+function readPluginIssueWarning(chunk: string): string | undefined {
+	try {
+		const parsed = JSON.parse(chunk) as {
+			message?: unknown;
+			metadata?: { pluginIssue?: unknown };
+		};
+		return parsed.metadata?.pluginIssue &&
+			typeof parsed.message === "string" &&
+			parsed.message.trim()
+			? parsed.message.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function makeErrorChatMessage(
 	sid: string | null,
 	content: string,
@@ -1982,6 +2014,12 @@ export function useChatSession(environmentId: string) {
 			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
 				dispatchCoreLog(payload.chunk);
+				// Plugin failures after the session started (setup and hooks run
+				// on the first turn) are shown in the chat, not only logged.
+				const pluginWarning = readPluginIssueWarning(payload.chunk);
+				if (pluginWarning) {
+					addMessage(makePluginIssueMessage(payload.sessionId, pluginWarning));
+				}
 				// Remember the latest error so a failed turn can explain itself:
 				// the runtime reports the underlying cause (e.g. an auth failure)
 				// here rather than on the turn-completion event.
@@ -2641,6 +2679,9 @@ export function useChatSession(environmentId: string) {
 			}
 			setSessionId(id);
 			setIsCloudSessionExpired(false);
+			for (const warning of payload.pluginWarnings ?? []) {
+				addMessage(makePluginIssueMessage(id, warning));
+			}
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
 			// actually dispatched.
@@ -2656,7 +2697,7 @@ export function useChatSession(environmentId: string) {
 			setHydratedHistorySessionId(null);
 			return id;
 		},
-		[environmentId, postSession],
+		[addMessage, environmentId, postSession],
 	);
 
 	// ---- Actions ----
