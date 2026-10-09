@@ -167,6 +167,17 @@ export function ProjectFilesPanel({
 	const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
 		null,
 	);
+	// Bumped per path whenever its cache entry is dropped, so a read that was
+	// already in flight cannot land on top of a fresher one.
+	const readGenerationRef = useRef(new Map<string, number>());
+	const invalidateReads = useCallback((paths: Iterable<string>) => {
+		for (const path of paths) {
+			readGenerationRef.current.set(
+				path,
+				(readGenerationRef.current.get(path) ?? 0) + 1,
+			);
+		}
+	}, []);
 
 	// Session edits keyed by absolute path, so the tree and tabs can mark them
 	// and the viewer can switch into diff mode for them.
@@ -242,8 +253,9 @@ export function ProjectFilesPanel({
 	const refresh = useCallback(() => {
 		for (const path of expanded) void loadDirectory(path);
 		void refreshGitStatus();
+		invalidateReads(readGenerationRef.current.keys());
 		setFiles(new Map());
-	}, [expanded, loadDirectory, refreshGitStatus]);
+	}, [expanded, invalidateReads, loadDirectory, refreshGitStatus]);
 
 	useEffect(() => {
 		const handleResize = () => setWidth((current) => clampPanelWidth(current));
@@ -264,6 +276,7 @@ export function ProjectFilesPanel({
 	useEffect(() => {
 		if (!diffSignature) return;
 		void refreshGitStatus();
+		invalidateReads(diffsByPath.keys());
 		setFiles((current) => {
 			if (current.size === 0) return current;
 			const next = new Map(current);
@@ -303,6 +316,7 @@ export function ProjectFilesPanel({
 
 	const closeFile = useCallback(
 		(path: string) => {
+			invalidateReads([path]);
 			setFiles((current) => {
 				if (!current.has(path)) return current;
 				const next = new Map(current);
@@ -324,6 +338,9 @@ export function ProjectFilesPanel({
 	useEffect(() => {
 		if (!activeFile || files.get(activeFile)) return;
 		const path = activeFile;
+		const generation = (readGenerationRef.current.get(path) ?? 0) + 1;
+		readGenerationRef.current.set(path, generation);
+		const isCurrent = () => readGenerationRef.current.get(path) === generation;
 		setFiles((current) => new Map(current).set(path, { loading: true }));
 		desktopClient
 			.invoke<{ content: string | null; truncated: boolean }>(
@@ -331,6 +348,7 @@ export function ProjectFilesPanel({
 				{ environmentId, workspaceRoot, path },
 			)
 			.then((result) => {
+				if (!isCurrent()) return;
 				setFiles((current) =>
 					new Map(current).set(path, {
 						content: result.content,
@@ -340,6 +358,7 @@ export function ProjectFilesPanel({
 				);
 			})
 			.catch((error) => {
+				if (!isCurrent()) return;
 				setFiles((current) =>
 					new Map(current).set(path, {
 						loading: false,

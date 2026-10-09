@@ -171,6 +171,30 @@ describe("ProjectFilesPanel", () => {
 		expect(reads()).toBe(2);
 	});
 
+	it("ignores a read that was in flight when the cache was dropped", async () => {
+		await render();
+		let resolveStale: (value: unknown) => void = () => {};
+		// The next invoke is the README read; hold it open past the refresh.
+		invokeMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveStale = resolve;
+				}),
+		);
+		await click(button(/^README\.md/));
+		await click(
+			container.querySelector('[aria-label="Refresh files"]') as Element,
+		);
+		expect(
+			container.querySelector('[data-testid="file-contents"]')?.textContent,
+		).toContain("/repo/README.md");
+		await act(async () => {
+			resolveStale({ content: "stale contents", truncated: false });
+			await Promise.resolve();
+		});
+		expect(container.textContent).not.toContain("stale contents");
+	});
+
 	it("closes from its own header button", async () => {
 		const onClose = vi.fn();
 		await render(onClose);
