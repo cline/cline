@@ -237,22 +237,40 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
-	resolvePendingAskQuestion(prompt: string | undefined): boolean {
+	async resolvePendingAskQuestion(
+		prompt: string | undefined,
+		images?: string[],
+		files?: string[],
+		deliverAttachments?: (isCurrent: () => boolean) => Promise<void>,
+	): Promise<boolean> {
 		if (!this.pendingAskResolve) {
 			return false
 		}
 
 		const resolve = this.pendingAskResolve
+		const hasAttachments = !!(images?.length || files?.length)
+		if (hasAttachments && deliverAttachments) {
+			await deliverAttachments(() => this.pendingAskResolve === resolve)
+			// Cancellation may have settled this question while input was prepared.
+			// Never resolve a replacement question with the old response.
+			if (this.pendingAskResolve !== resolve) {
+				return true
+			}
+		}
 		this.pendingAskResolve = undefined
 		const responseText = prompt ?? ""
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
-		if (responseText) {
+		// Core echoes steered input, including its attachments, when consumed.
+		// Keep exactly one user response in the visible transcript.
+		if ((responseText || hasAttachments) && !(hasAttachments && deliverAttachments)) {
 			const userMessage: ClineMessage = {
 				ts: this.nextMessageTs(),
 				type: "say",
 				say: "user_feedback",
 				text: responseText,
+				images,
+				files,
 				partial: false,
 			}
 			this.options.messages.appendAndEmit([userMessage], {

@@ -99,6 +99,7 @@ import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
+import { messagesToAgentMessages } from "../config/agent-message-codec";
 import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
@@ -108,6 +109,7 @@ import {
 } from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
+import { buildInitialUserContent } from "../orchestration/user-input-builder";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
@@ -814,14 +816,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionPolicy: runtime.completionPolicy,
-			consumePendingUserMessage: () => {
+			consumePendingUserMessage: async () => {
 				const entry = this.pendingPromptsController.consumeSteer(sessionId);
-				return entry
-					? formatModePrompt(
-							entry.prompt,
-							entry.mode ?? configWithProvider.mode,
-						)
-					: undefined;
+				if (!entry) return undefined;
+				const prompt = formatModePrompt(
+					entry.prompt,
+					entry.mode ?? configWithProvider.mode,
+				);
+				if (!entry.userImages?.length && !entry.userFiles?.length) {
+					return prompt;
+				}
+				const content = await buildInitialUserContent(
+					prompt,
+					entry.userImages,
+					entry.userFiles,
+					loadUserFileContent,
+				);
+				return messagesToAgentMessages([
+					{ id: crypto.randomUUID(), role: "user", content },
+				])[0];
 			},
 			logger: runtime.logger ?? configWithProvider.logger,
 			extensionContext: configWithProvider.extensionContext,

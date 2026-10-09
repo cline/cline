@@ -73,12 +73,36 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		if (this.options.interactions.resolvePendingAskQuestion(prompt)) {
+		const task = this.options.getTask()
+		if (
+			await this.options.interactions.resolvePendingAskQuestion(prompt, images, files, async (isCurrent) => {
+				const activeSession = this.options.sessions.getActiveSession()
+				if (!activeSession) {
+					throw new Error("No active session to receive the question attachments")
+				}
+				const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
+				if (!isCurrent()) {
+					return
+				}
+				if (this.options.sessions.getActiveSession() !== activeSession) {
+					throw new Error("Session changed while preparing the question attachments")
+				}
+				// Steer delivers multimodal input inside the current run, after the
+				// question's tool result and before the next model request. Await the
+				// enqueue before unblocking the question so it cannot miss that boundary.
+				await activeSession.sdkHost.send({
+					sessionId: activeSession.sessionId,
+					prompt: resolvedPrompt,
+					userImages: images,
+					userFiles: files,
+					delivery: "steer",
+				})
+			})
+		) {
 			return
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()
-		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
 			await this.queueToActiveSession(activeSession, task?.taskId, prompt, images, files)

@@ -350,12 +350,60 @@ describe("SdkInteractionCoordinator", () => {
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
 		await new Promise((resolve) => setTimeout(resolve, 1))
-		expect(coordinator.resolvePendingAskQuestion("yes")).toBe(true)
+		expect(await coordinator.resolvePendingAskQuestion("yes")).toBe(true)
 		await expect(answerPromise).resolves.toBe("yes")
 		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
 			{ type: "ask", ask: "followup" },
 			{ type: "say", say: "user_feedback", text: "yes" },
 		])
+	})
+
+	it("keeps a question pending if delivering its attachments fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const answer = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		const deliver = vi.fn().mockRejectedValueOnce(new Error("Could not enqueue")).mockResolvedValue(undefined)
+
+		await expect(coordinator.resolvePendingAskQuestion("yes", ["image"], undefined, deliver)).rejects.toThrow(
+			"Could not enqueue",
+		)
+		expect(await coordinator.resolvePendingAskQuestion("yes", ["image"], undefined, deliver)).toBe(true)
+		await expect(answer).resolves.toBe("yes")
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
+	})
+
+	it("does not resolve a replacement question while preparing attachments", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const answer = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		let finishDelivery!: () => void
+		let isCurrent!: () => boolean
+		const submission = coordinator.resolvePendingAskQuestion("old answer", ["image"], undefined, (check) => {
+			isCurrent = check
+			return new Promise<void>((resolve) => {
+				finishDelivery = resolve
+			})
+		})
+		coordinator.clearPending("Cancelled")
+		await expect(answer).resolves.toBe("")
+		const nextAnswer = coordinator.handleAskQuestion("Next?", ["A"], undefined)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(isCurrent()).toBe(false)
+		finishDelivery()
+		expect(await submission).toBe(true)
+		expect(await coordinator.resolvePendingAskQuestion("new answer")).toBe(true)
+		await expect(nextAnswer).resolves.toBe("new answer")
 	})
 
 	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
