@@ -30,7 +30,11 @@ import {
 	resolveCredentialError,
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
-import { canReplaceFailedTurn } from "@/hooks/chat-session/history-reconciliation";
+import {
+	canReplaceFailedTurn,
+	PLUGIN_ISSUE_MESSAGE_KIND,
+	withLivePluginIssues,
+} from "@/hooks/chat-session/history-reconciliation";
 import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
@@ -150,7 +154,7 @@ function makePluginIssueMessage(
 		role: "status",
 		content,
 		createdAt: Date.now(),
-		meta: { messageKind: "plugin_issue" },
+		meta: { messageKind: PLUGIN_ISSUE_MESSAGE_KIND },
 	};
 }
 
@@ -999,7 +1003,7 @@ export function useChatSession(environmentId: string) {
 				// until canonical history contains this run's terminal error.
 				if (!canReplaceFailedTurn(sessionMessages, historyMessages))
 					return prev;
-				return historyMessages;
+				return withLivePluginIssues(sessionMessages, historyMessages);
 			});
 		},
 		[],

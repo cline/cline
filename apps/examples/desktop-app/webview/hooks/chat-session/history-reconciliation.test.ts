@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { canReplaceFailedTurn } from "./history-reconciliation";
+import {
+	canReplaceFailedTurn,
+	withLivePluginIssues,
+} from "./history-reconciliation";
 
 const row = (
 	id: string,
@@ -41,6 +44,54 @@ describe("failed turn history reconciliation", () => {
 		const old = [row("u1", "user"), row("e1", "error")];
 		expect(canReplaceFailedTurn([...old, row("live", "error")], old)).toBe(
 			false,
+		);
+	});
+});
+
+describe("withLivePluginIssues", () => {
+	const message = (
+		id: string,
+		createdAt: number,
+		extra: Partial<ChatMessage> = {},
+	): ChatMessage => ({
+		id,
+		sessionId: "s1",
+		role: "assistant",
+		content: id,
+		createdAt,
+		...extra,
+	});
+	const warning = (id: string, createdAt: number) =>
+		message(id, createdAt, {
+			role: "status",
+			meta: { messageKind: "plugin_issue" },
+		});
+
+	it("keeps live plugin warnings in their place when history replaces the transcript", () => {
+		const history = [
+			message("user-1", 10, { role: "user" }),
+			message("answer-1", 30),
+		];
+		const merged = withLivePluginIssues(
+			[
+				warning("start-warning", 5),
+				message("streamed", 20),
+				warning("notice", 25),
+			],
+			history,
+		);
+		expect(merged.map((item) => item.id)).toEqual([
+			"start-warning",
+			"user-1",
+			"notice",
+			"answer-1",
+		]);
+	});
+
+	it("returns history unchanged when there are no live warnings", () => {
+		const history = [message("answer-1", 30)];
+		expect(withLivePluginIssues([message("streamed", 20)], history)).toBe(
+			history,
 		);
 	});
 });

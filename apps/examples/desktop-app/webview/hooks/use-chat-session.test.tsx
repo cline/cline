@@ -5053,8 +5053,27 @@ describe("useChatSession", () => {
 						};
 					}
 					if (request?.action === "send") {
-						return { ok: true };
+						return { ok: true, queued: true };
 					}
+				}
+				if (command === "read_session_messages") {
+					// Saved history never contains the plugin warnings.
+					return [
+						{
+							id: "saved-user",
+							sessionId: args?.sessionId,
+							role: "user",
+							content: "First prompt",
+							createdAt: 1,
+						},
+						{
+							id: "saved-answer",
+							sessionId: args?.sessionId,
+							role: "assistant",
+							content: "Saved answer",
+							createdAt: Date.now() + 60_000,
+						},
+					];
 				}
 				return [];
 			},
@@ -5102,6 +5121,27 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.some((message) => message.content === "compacting"),
 		).toBe(false);
+
+		// Finishing the turn replaces the live transcript with saved history;
+		// the warnings must survive that.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 3,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+		expect(
+			current.messages.some((message) => message.content === "Saved answer"),
+		).toBe(true);
+		expect(
+			current.messages
+				.filter((message) => message.meta?.messageKind === "plugin_issue")
+				.map((message) => message.content.slice(0, 22)),
+		).toEqual(['Plugin "broken-import"', 'Plugin "broken-setup" ']);
 	});
 
 	it("explains a failed turn with the latest core error log", async () => {
