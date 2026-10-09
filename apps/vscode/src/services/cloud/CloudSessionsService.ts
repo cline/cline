@@ -154,8 +154,9 @@ export class CloudSessionsService {
 				repositories: [...result.repositories].sort((a, b) => a.fullName.localeCompare(b.fullName)),
 			}
 		} catch (error) {
+			// The SDK's 412 link is always Personal's; an organization connects from its own page.
 			if (error instanceof CloudSessionError && error.code === "github_not_connected") {
-				return { connected: false, connectUrl: error.connectUrl ?? this.githubConnectUrl(), repositories: [] }
+				return { connected: false, connectUrl: this.githubConnectUrl(), repositories: [] }
 			}
 			throw error
 		}
