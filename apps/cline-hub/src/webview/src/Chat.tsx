@@ -1485,12 +1485,12 @@ export default function Chat({
 								enableSpawn,
 								enableTeams,
 								enableTools,
-								maxIterations: parseMaxIterations(maxIterations),
+								maxIterations: parseMaxIterations(maxIterations) ?? null,
 								model: model || undefined,
 								mode,
 								provider: provider || undefined,
 								reasonLevel: effectiveReasonLevel,
-								systemPrompt: systemPrompt.trim() || undefined,
+								systemPrompt: systemPrompt.trim(),
 							},
 						});
 					}}

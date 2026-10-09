@@ -80,7 +80,7 @@ function buildSessionStartInput(
 	options?: {
 		mode?: "act" | "plan";
 		systemPrompt?: string;
-		maxIterations?: number;
+		maxIterations?: number | null;
 		reasonLevel?: WebviewReasonLevel;
 		enableTools?: boolean;
 		enableSpawn?: boolean;
@@ -105,7 +105,7 @@ function buildSessionStartInput(
 			systemPrompt: options?.systemPrompt ?? "",
 			mode,
 			...reasoningOptions,
-			maxIterations: options?.maxIterations,
+			maxIterations: options?.maxIterations ?? undefined,
 			enableTools: options?.enableTools !== false,
 			enableSpawnAgent: options?.enableSpawn !== false,
 			enableAgentTeams: options?.enableTeams === true,
@@ -122,6 +122,9 @@ function buildSessionStartInput(
 			reasonLevel: options?.reasonLevel,
 			autoApproveTools: options?.autoApproveTools,
 			...(options?.sessionMetadata ?? {}),
+			enableTools: options?.enableTools !== false,
+			enableSpawn: options?.enableSpawn !== false,
+			enableTeams: options?.enableTeams === true,
 		},
 		...(options?.initialMessages
 			? { initialMessages: options.initialMessages }
@@ -138,6 +141,7 @@ function buildStartInputFromSession(
 	options?: {
 		sessionMetadata?: Record<string, unknown>;
 		initialMessages?: MessageWithMetadata[];
+		config?: WebviewConfig;
 	},
 ) {
 	const metadata =
@@ -145,28 +149,47 @@ function buildStartInputFromSession(
 			? session.metadata
 			: {};
 	const mode = metadata.mode === "plan" ? "plan" : "act";
+	const overrides = Object.fromEntries(
+		Object.entries(options?.config ?? {}).filter(
+			([, value]) => value !== undefined,
+		),
+	);
 	return buildSessionStartInput(
 		{
 			workspaceRoot: session.workspaceRoot,
 			cwd: session.cwd,
-			providerId: session.provider,
-			modelId: session.model,
+			providerId: options?.config?.provider ?? session.provider,
+			modelId: options?.config?.model ?? session.model,
 		},
 		{
 			mode,
 			systemPrompt: asString(metadata.systemPrompt),
 			maxIterations: asNumber(metadata.maxIterations),
 			reasonLevel: asWebviewReasonLevel(metadata.reasonLevel),
-			enableTools: session.enableTools,
-			enableSpawn: session.enableSpawn,
-			enableTeams: session.enableTeams,
+			enableTools:
+				typeof metadata.enableTools === "boolean"
+					? metadata.enableTools
+					: session.enableTools,
+			enableSpawn:
+				typeof metadata.enableSpawn === "boolean"
+					? metadata.enableSpawn
+					: session.enableSpawn,
+			enableTeams:
+				typeof metadata.enableTeams === "boolean"
+					? metadata.enableTeams
+					: session.enableTeams,
 			autoApproveTools:
 				typeof metadata.autoApproveTools === "boolean"
 					? metadata.autoApproveTools
 					: undefined,
 			teamName: session.teamName,
 			source: session.source,
-			sessionMetadata: { ...metadata, ...(options?.sessionMetadata ?? {}) },
+			...overrides,
+			sessionMetadata: {
+				...metadata,
+				...overrides,
+				...(options?.sessionMetadata ?? {}),
+			},
 			initialMessages: options?.initialMessages,
 		},
 	);
@@ -273,8 +296,65 @@ export async function sendMessage(
 		await createSession(ctx, peer, text, config, attachments);
 		return;
 	}
+	const sessionId = peer.selectedSessionId;
+	const cline = ctx.cline;
+	if (config) {
+		const session = await cline.get(sessionId);
+		if (!session) throw new Error(`Session ${sessionId} was not found.`);
+		const previous = buildStartInputFromSession(session);
+		const next = buildStartInputFromSession(session, { config });
+		if (
+			JSON.stringify([previous.config, previous.toolPolicies]) !==
+			JSON.stringify([next.config, next.toolPolicies])
+		) {
+			if (session.status === "running" || session.status === "pending") {
+				throw new Error(
+					"Stop the current turn before changing session settings.",
+				);
+			}
+			// Policies and registered tools are fixed at runtime construction. Seed
+			// the replacement with the same conversation before sending this turn.
+			const [messages, compactionState] = await Promise.all([
+				cline.readLiveMessages(sessionId),
+				cline.readSessionCompactionState(sessionId),
+			]);
+			const restart = async (input: ClineCoreStartInput) => {
+				const result = await cline.start({
+					...input,
+					config: { ...input.config, sessionId },
+					initialMessages: messages,
+					initialCompactionState: compactionState,
+				});
+				if (result.sessionId !== sessionId) {
+					throw new Error(`Session settings changed session id ${sessionId}.`);
+				}
+				// A read-only resume retains the original manifest. Persist the
+				// effective connection and browser options for fork/restore/resume.
+				await cline.updateSessionConnection(sessionId, {
+					providerId: input.config.providerId,
+					modelId: input.config.modelId,
+				});
+				const current = await cline.get(sessionId);
+				await cline.update(sessionId, {
+					metadata: { ...current?.metadata, ...input.sessionMetadata },
+				});
+			};
+			await cline.stop(sessionId);
+			try {
+				await restart(next);
+			} catch (error) {
+				await cline.stop(sessionId);
+				await restart(previous);
+				throw error;
+			}
+			const updated = await cline.get(sessionId);
+			const tracked = updated ? trackSession(updated) : undefined;
+			if (tracked) ctx.sessions.set(sessionId, tracked);
+			broadcastHubState(ctx);
+		}
+	}
 	await ctx.cline.send({
-		sessionId: peer.selectedSessionId,
+		sessionId,
 		prompt: text,
 		mode: config?.mode === "plan" ? "plan" : "act",
 		userImages: attachments?.userImages,
