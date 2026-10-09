@@ -536,6 +536,52 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
+	it("re-sends saved rules when restoring a rules-based session", async () => {
+		const f = resumableFixture();
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Saved work" },
+		];
+		f.setMessages(messages);
+		const saved = toHubSessionRecord({
+			sessionId: "inner",
+			isSubagent: false,
+			status: "idle",
+			source: "dashboard",
+			interactive: true,
+			startedAt: record.createdAt,
+			updatedAt: record.updatedAt,
+			workspaceRoot: "/workspace",
+			cwd: "/workspace",
+			provider: "cline",
+			model: "model",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			metadata: { mode: "act", rules: "Saved rules" },
+		});
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection") {
+				throw Object.assign(new Error("session not found: inner"), {
+					code: "session_not_found",
+				});
+			}
+			if (args[0] === "session.get") {
+				return { version: "v1", ok: true, payload: { session: saved } };
+			}
+			return original(...args);
+		});
+		await f.controller.attach(record.id);
+		const restored = f.commands.find((c) => c.command === "session.create")
+			?.payload as { sessionConfig: Record<string, unknown> };
+		expect(restored.sessionConfig).toMatchObject({
+			sessionId: "inner",
+			systemPrompt: "",
+			rules: "Saved rules",
+		});
+		await f.controller.dispose();
+	});
+
 	it("attaches when the runtime reports a concurrent restore conflict", async () => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
@@ -1132,7 +1178,7 @@ describe("CloudSessionController neutral host contract", () => {
 		["standard", "standard", undefined, true],
 		["resumable", "resumable", undefined, false],
 		["resumable metadata", undefined, "resumable", false],
-	] as const)("scopes automatic Git backups for %s sessions", async (_label, sandboxType, metadataType, autoPush) => {
+	] as const)("sends cloud rules with the Git backup policy for %s sessions", async (_label, sandboxType, metadataType, autoPush) => {
 		const f = fixture({ pendingInitialTasks: new Map([[record.id, {}]]) });
 		f.api.list.mockResolvedValue([
 			{
@@ -1144,10 +1190,19 @@ describe("CloudSessionController neutral host contract", () => {
 		f.setHasInner(false);
 		try {
 			await f.controller.send(record.id, "First prompt");
-			const { sessionConfig } = f.commands.find(
+			const { cwd, sessionConfig, metadata } = f.commands.find(
 				(c) => c.command === "session.create",
-			)!.payload as { sessionConfig: { systemPrompt: string } };
-			const prompt = sessionConfig.systemPrompt;
+			)!.payload as {
+				cwd: string;
+				sessionConfig: { cwd: string; rules: string; systemPrompt?: string };
+				metadata: { rules?: string };
+			};
+			const prompt = sessionConfig.rules;
+			expect(cwd).toBe("/workspace");
+			expect(sessionConfig.cwd).toBe(cwd);
+			expect(sessionConfig.systemPrompt).toBeUndefined();
+			expect(metadata.rules).toBe(prompt);
+			expect(prompt).toContain("must never run `gh auth login`");
 			expect(prompt).toContain("branch `cline/inner`");
 			expect(prompt).toContain("never commit directly to the default branch");
 			expect(prompt).toContain("Do not force-push or amend commits");
@@ -1559,10 +1614,14 @@ describe("seeded cloud handoff controller", () => {
 			},
 		});
 		expect(f.controller.getSnapshot(record.id)?.transcriptKnown).toBe(false);
-		const prompt = (
-			f.calls.find((call) => call.name === "session.create")?.payload
-				?.sessionConfig as Record<string, unknown>
-		).systemPrompt as string;
+		const createPayload = f.calls.find((call) => call.name === "session.create")
+			?.payload as {
+			sessionConfig: Record<string, unknown>;
+			metadata: Record<string, unknown>;
+		};
+		expect(createPayload.sessionConfig.systemPrompt).toBeUndefined();
+		const prompt = createPayload.sessionConfig.rules as string;
+		expect(createPayload.metadata.rules).toBe(prompt);
 		expect(prompt).toContain("egress proxy");
 		expect(prompt).toContain("must never run `gh auth login`");
 		expect(prompt).toContain("fresh Linux clone");
