@@ -3,6 +3,7 @@ import {
 	CHARS_PER_TOKEN,
 	estimateTokens,
 	type MessageWithMetadata,
+	sliceHeadAtCodePointBoundary,
 } from "@cline/shared";
 
 export { CHARS_PER_TOKEN, estimateTokens };
@@ -85,7 +86,7 @@ export function truncateText(text: string, limit: number): string {
 	if (text.length <= limit) {
 		return text;
 	}
-	return `${text.slice(0, limit)}\n...[truncated ${text.length - limit} chars]`;
+	return `${sliceHeadAtCodePointBoundary(text, limit)}\n...[truncated ${text.length - limit} chars]`;
 }
 
 export function flattenToolResultContent(
