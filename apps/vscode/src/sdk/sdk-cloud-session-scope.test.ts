@@ -123,7 +123,13 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				providerId: "cline",
 				modelId: "fixture-model",
 				apiKey: "fixture-key",
-				providerConfig: { providerId: "cline", modelId: "fixture-model", apiKey: "fixture-key" },
+				providerConfig: {
+					providerId: "cline",
+					modelId: "fixture-model",
+					apiKey: "fixture-key",
+					knownModels: { "catalog-model": { id: "catalog-model" } },
+				},
+				knownModels: { "catalog-model": { id: "catalog-model" } },
 				cwd: "/workspace",
 				workspaceRoot: "/workspace",
 				systemPrompt: "normal Cline guidance",
@@ -334,7 +340,7 @@ describe("originating-account cloud cleanup", () => {
 		await f.coordinator.dispose()
 	})
 
-	it("never sends the user's provider key into the sandbox", async () => {
+	it("never sends the user's provider key or the local model catalog into the sandbox", async () => {
 		const f = fixture("prompt")
 		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
@@ -343,6 +349,7 @@ describe("originating-account cloud cleanup", () => {
 		const config = vi.mocked(f.host.start).mock.calls[0]?.[0]?.config
 		expect(config?.providerConfig).toMatchObject({ providerId: "cline", modelId: "fixture-model" })
 		expect(JSON.stringify(config)).not.toContain("fixture-key")
+		expect(JSON.stringify(config)).not.toContain("catalog-model")
 		await f.coordinator.dispose()
 	})
 
