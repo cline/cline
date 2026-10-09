@@ -8,6 +8,9 @@ const runtime = vi.hoisted(() => ({
 	pendingUpdate: vi.fn(),
 	pendingDelete: vi.fn(),
 	listSessions: vi.fn(),
+	updateSessionConnection: vi.fn(),
+	readSessionMessages: vi.fn(),
+	startSession: vi.fn(async (input: { config: { sessionId: string } }) => ({ sessionId: input.config.sessionId })),
 }))
 
 vi.mock("@cline/core", () => ({
@@ -15,7 +18,9 @@ vi.mock("@cline/core", () => ({
 		pendingPrompts = { list: runtime.pendingList, update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = vi.fn(async () => undefined)
 		listSessions = runtime.listSessions
-		startSession = vi.fn(async (input: { config: { sessionId: string } }) => ({ sessionId: input.config.sessionId }))
+		updateSessionConnection = runtime.updateSessionConnection
+		readSessionMessages = runtime.readSessionMessages
+		startSession = runtime.startSession
 		subscribe(listener: (event: unknown) => void) {
 			runtime.listeners.push(listener)
 			return vi.fn()
@@ -35,6 +40,57 @@ describe("CloudSessionHost status", () => {
 		runtime.pendingUpdate.mockReset()
 		runtime.pendingDelete.mockReset()
 		runtime.listSessions.mockReset().mockResolvedValue([{ sessionId: "inner-session", status: "idle" }])
+		runtime.updateSessionConnection.mockReset().mockResolvedValue(undefined)
+		runtime.readSessionMessages.mockReset().mockResolvedValue([])
+		runtime.startSession.mockClear()
+	})
+
+	it("rebuilds the runtime a resumed sandbox lost from its saved conversation before the first turn", async () => {
+		const saved = [{ role: "user", content: "first prompt" }]
+		runtime.updateSessionConnection.mockRejectedValueOnce(
+			Object.assign(new Error("session not found: inner-session"), { code: "session_not_found" }),
+		)
+		runtime.readSessionMessages.mockResolvedValue(saved)
+		runtime.runTurn.mockResolvedValue({ finishReason: "completed" })
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model", systemPrompt: "guidance" }) as never,
+		})
+
+		await host.send({ sessionId: "ses-outer", prompt: "follow-up" })
+		await host.send({ sessionId: "ses-outer", prompt: "another" })
+
+		expect(runtime.startSession).toHaveBeenCalledOnce()
+		expect(runtime.startSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: saved,
+				config: expect.objectContaining({ sessionId: "inner-session", modelId: "sandbox-model" }),
+				toolPolicies: { "*": { enabled: true, autoApprove: true } },
+			}),
+		)
+		expect(runtime.updateSessionConnection).toHaveBeenCalledOnce()
+		expect(runtime.runTurn).toHaveBeenCalledTimes(2)
+	})
+
+	it("leaves a live runtime alone and surfaces other probe failures", async () => {
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model" }) as never,
+		})
+		runtime.updateSessionConnection.mockRejectedValueOnce(new Error("connection closed"))
+		await expect(host.send({ sessionId: "ses-outer", prompt: "follow-up" })).rejects.toThrow("connection closed")
+		expect(runtime.runTurn).not.toHaveBeenCalled()
+
+		runtime.runTurn.mockResolvedValue({ finishReason: "completed" })
+		await host.send({ sessionId: "ses-outer", prompt: "follow-up" })
+		expect(runtime.startSession).not.toHaveBeenCalled()
+		expect(runtime.runTurn).toHaveBeenCalledOnce()
 	})
 
 	it.each([

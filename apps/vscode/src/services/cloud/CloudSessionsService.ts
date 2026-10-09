@@ -421,6 +421,21 @@ export class CloudSessionsService {
 		throw new CloudSessionError("request_failed", "Timed out waiting for the cloud sandbox to become ready.")
 	}
 
+	/**
+	 * Wakes a suspended (resumable) sandbox and resolves once it accepts
+	 * connections again. The control plane refuses sockets to a suspended
+	 * sandbox with 409 until it has been resumed.
+	 */
+	async resumeSession(sessionId: string): Promise<void> {
+		try {
+			await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}/resume`, { method: "POST" })
+		} catch (error) {
+			// 409: another client already resumed it, or the resume is still in flight.
+			if (!(error instanceof CloudSessionError) || error.status !== 409) throw error
+		}
+		await this.waitUntilReady(sessionId)
+	}
+
 	async deleteSession(sessionId: string): Promise<void> {
 		await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}`, { method: "DELETE" })
 	}
