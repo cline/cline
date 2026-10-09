@@ -1400,6 +1400,11 @@ export class SdkCloudSessionCoordinator {
 			throw error
 		}
 		entry.record = { ...entry.record, status: "ready" }
+		// A host kept from before the suspension still believes the conversation's
+		// runtime is live; the resumed Hub has none, so reconnect from scratch.
+		const retained = entry.host
+		entry.host = undefined
+		await retained?.dispose("resumed").catch(() => undefined)
 	}
 
 	/**
