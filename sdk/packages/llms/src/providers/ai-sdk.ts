@@ -2090,8 +2090,9 @@ async function createProviderModule(
  * returned empty response"), so a single transient flake kills the task.
  * The same telemetry shows mid-stream network deaths (UND_ERR_SOCKET,
  * body/headers timeouts, ECONNRESET) as the dominant network-class run
- * killer — the AI SDK's own retry covers only request initiation, so once a
- * stream has started nothing else retries. Retrying here — the one
+ * killer — the AI SDK's `maxRetries` covers only request initiation.
+ * Vendors can separately enable `streamRetries` for provider error parts.
+ * Retrying pre-content network interruptions here — the one
  * composition point every AI SDK vendor flows through — turns those flakes
  * into non-events while leaving the runtime's loud failure in place for
  * models that are persistently empty or connections that are truly down.
@@ -2329,6 +2330,7 @@ function createAiSdkProvider(
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
 							maxRetries: MODEL_REQUEST_MAX_RETRIES,
+							streamRetries: provider.streamRetries,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
 								...aiSdkTelemetry,
