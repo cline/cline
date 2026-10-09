@@ -420,10 +420,14 @@ export function computeNewEditorContent(
 	const normalizedNewText = normalizeLineEndings(input.new_text ?? "", eol)
 	const occurrences = normalizedOldText.length === 0 ? 0 : originalContent.split(normalizedOldText).length - 1
 	if (occurrences === 0) {
-		throw new Error(`No replacement performed: text not found in ${filePath}.`)
+		throw new Error(
+			`No replacement performed: text not found in ${filePath}. Re-read the current file and retry with an exact, unique old_text from the latest contents.`,
+		)
 	}
 	if (occurrences > 1) {
-		throw new Error(`No replacement performed: multiple occurrences of text found in ${filePath}.`)
+		throw new Error(
+			`No replacement performed: multiple occurrences of text found in ${filePath}. Re-read the current file and retry with a smaller, unique old_text from the latest contents.`,
+		)
 	}
 	// Replacer function so "$"-sequences in new_text are inserted literally, as the executor does.
 	return originalContent.replace(normalizedOldText, () => normalizedNewText)
