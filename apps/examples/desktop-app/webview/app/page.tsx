@@ -53,7 +53,10 @@ import {
 } from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	DEFAULT_CHAT_CONFIG,
+	getInitialChatConfig,
+} from "@/hooks/chat-session/constants";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -1460,6 +1463,7 @@ function ChatThreadPane({
 			const next: Record<string, { apiKey: string; auth?: ProviderAuthInfo }> =
 				{};
 			const nextContextWindows: Record<string, Record<string, number>> = {};
+			const defaultModelByProvider: Record<string, string> = {};
 			let anyConnected = false;
 			for (const provider of payload.providers ?? []) {
 				const id = provider.id?.trim();
@@ -1470,6 +1474,10 @@ function ChatThreadPane({
 					apiKey: provider.apiKey?.trim() ?? "",
 					auth: provider.auth,
 				};
+				const defaultModelId = provider.defaultModelId?.trim();
+				if (defaultModelId) {
+					defaultModelByProvider[id] = defaultModelId;
+				}
 				if (isProviderConnected(provider)) {
 					anyConnected = true;
 				}
@@ -1493,6 +1501,20 @@ function ChatThreadPane({
 			setProviderCredentials(next);
 			setProviderModelContextWindows(nextContextWindows);
 			setHasConnectedProvider(anyConnected);
+			// A fresh install boots on the shared fallback model before the
+			// catalog is known. Once it is, prefer the provider's own default
+			// (for Cline, the first recommended model) unless a selection was
+			// already remembered for this provider.
+			setConfig((prev) => {
+				const catalogDefault = defaultModelByProvider[prev.provider];
+				if (!catalogDefault || prev.model !== DEFAULT_CHAT_CONFIG.model) {
+					return prev;
+				}
+				const remembered = readModelSelectionStorageFromWindow(
+					prev.executionTarget,
+				).lastModelByProvider[prev.provider];
+				return remembered ? prev : { ...prev, model: catalogDefault };
+			});
 		} catch {
 			// Keep current config if provider catalog cannot be read.
 		} finally {
@@ -1500,7 +1522,7 @@ function ChatThreadPane({
 				setProvidersLoaded(true);
 			}
 		}
-	}, []);
+	}, [setConfig]);
 
 	useEffect(() => {
 		void loadProviderCredentials();
