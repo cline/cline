@@ -378,6 +378,7 @@
 		"test:integration": "bun run compile-tests && vscode-test",
 		"test:unit": "bun scripts/run-bun-unit-tests.ts",
 		"test:vitest": "vitest run --config vitest.config.ts",
+		"test:cloud": "vitest run --config vitest.cloud.config.ts",
 		"test:vitest:watch": "vitest --config vitest.config.ts",
 		"test:bun": "bun scripts/run-bun-tests.ts",
 		"test:bun:unit": "bun scripts/run-bun-unit-tests.ts",
@@ -385,6 +386,7 @@
 		"test:sca-server": "bun --watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "bun scripts/testing-platform-orchestrator.ts",
 		"dev:mcp-oauth-test-server": "bun src/dev/mcp-oauth-test-server/server.ts",
+		"dev:cloud-sessions": "bun src/dev/local-cloud-server.ts",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e": "bun run build:production && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:ui": "bun scripts/interactive-playwright.ts",
@@ -429,6 +431,7 @@
 		"@types/sinon": "^21.0.0",
 		"@types/turndown": "^5.0.5",
 		"@types/vscode": "1.101.0",
+		"@types/ws": "^8.18.1",
 		"@vscode/test-cli": "^0.0.12",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.0",
@@ -454,7 +457,8 @@
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5.4.5",
-		"vitest": "^4.0.17"
+		"vitest": "^4.0.17",
+		"ws": "^8.20.0"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",

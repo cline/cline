@@ -1,6 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
+import { CloudTaskBadge } from "@/components/cloud/CloudTaskBadge"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -34,6 +35,23 @@ interface TaskHeaderProps {
 
 const BUTTON_CLASS = "max-h-3 border-0 font-bold bg-transparent hover:opacity-100 text-foreground"
 
+/**
+ * Whether the header may show the task's cost. A cloud task is billed by the
+ * cloud service, so its cost is shown only when the sandbox reported usage;
+ * the local provider's cost display setting does not apply to it, and an
+ * unknown cloud charge must not render as a confirmed $0.0000.
+ */
+export function isTaskCostAvailable(input: {
+	isCloudTask: boolean
+	cloudUsageAvailable: boolean | undefined
+	localCostAvailable: boolean
+}): boolean {
+	if (input.isCloudTask) {
+		return input.cloudUsageAvailable === true
+	}
+	return input.localCostAvailable
+}
+
 const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
 	tokensIn,
@@ -56,6 +74,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		environment,
 		workspaceRoots,
 		platform,
+		currentCloudTask,
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
@@ -103,15 +122,21 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	// mirrors the CLI's `shouldShowCliUsageCost` consumer and removes the
 	// previous extension-side hard-coded "openai-codex" check.
 	const usageCostDisplay = useProviderUsageCostDisplay(modeFields.apiProvider)
-	const isCostAvailable =
-		(totalCost &&
-			modeFields.apiProvider === "openai" &&
-			modeFields.openAiModelInfo?.inputPrice &&
-			modeFields.openAiModelInfo?.outputPrice) ||
-		(modeFields.apiProvider !== "vscode-lm" &&
-			modeFields.apiProvider !== "ollama" &&
-			modeFields.apiProvider !== "lmstudio" &&
-			usageCostDisplay === "show")
+	const isCostAvailable = isTaskCostAvailable({
+		isCloudTask: !!currentCloudTask,
+		cloudUsageAvailable: currentTaskItem?.cloudUsageAvailable,
+		localCostAvailable:
+			!!(
+				totalCost &&
+				modeFields.apiProvider === "openai" &&
+				modeFields.openAiModelInfo?.inputPrice &&
+				modeFields.openAiModelInfo?.outputPrice
+			) ||
+			(modeFields.apiProvider !== "vscode-lm" &&
+				modeFields.apiProvider !== "ollama" &&
+				modeFields.apiProvider !== "lmstudio" &&
+				usageCostDisplay === "show"),
+	})
 
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
@@ -170,11 +195,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 					</div>
 					<div className="inline-flex items-center justify-end select-none shrink-0">
-						<TaskWorkingDirectoryBadge
-							platform={platform}
-							taskCwd={currentTaskItem?.cwdOnTaskInitialization}
-							workspaceRoots={workspaceRoots}
-						/>
+						{currentCloudTask ? (
+							<CloudTaskBadge cloudTask={currentCloudTask} />
+						) : (
+							<TaskWorkingDirectoryBadge
+								platform={platform}
+								taskCwd={currentTaskItem?.cwdOnTaskInitialization}
+								workspaceRoots={workspaceRoots}
+							/>
+						)}
 						{isCostAvailable && (
 							<div
 								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"

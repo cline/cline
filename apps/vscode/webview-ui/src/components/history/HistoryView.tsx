@@ -8,6 +8,7 @@ import { GroupedVirtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useResolvedCloudStatuses } from "@/hooks/useResolvedCloudStatuses"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatSize } from "@/utils/format"
 import ViewHeader from "../common/ViewHeader"
@@ -33,13 +34,14 @@ const HISTORY_FILTERS = {
 	mostRelevant: "Most Relevant",
 	workspaceOnly: "Workspace Only",
 	favoritesOnly: "Favorites Only",
+	cloudOnly: "Cloud Only",
 }
 
 const HISTORY_PAGE_SIZE = 50
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
+	const { taskHistory, onRelinquishControl, environment, cloudSessionsEnabled } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -47,12 +49,22 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
+	const [showCloudOnly, setShowCloudOnly] = useState(false)
 
 	// Keep track of pending favorite toggle operations
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 
 	// Load filtered task history with gRPC
 	const [tasks, setTasks] = useState<TaskItem[]>([])
+	const resolvedCloudStatuses = useResolvedCloudStatuses(tasks)
+	const tasksWithResolvedCloudStatuses = useMemo(
+		() =>
+			tasks.map((task) => {
+				const cloudStatus = resolvedCloudStatuses.get(task.id)
+				return cloudStatus ? { ...task, cloudStatus } : task
+			}),
+		[resolvedCloudStatuses, tasks],
+	)
 	const [hasMoreTasks, setHasMoreTasks] = useState(false)
 	const [nextHistoryOffset, setNextHistoryOffset] = useState(0)
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false)
@@ -78,6 +90,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						searchQuery: searchQuery || undefined,
 						sortBy: sortOption,
 						currentWorkspaceOnly: showCurrentWorkspaceOnly,
+						cloudOnly: showCloudOnly,
 						limit: HISTORY_PAGE_SIZE,
 						offset,
 					}),
@@ -111,7 +124,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}
 			}
 		},
-		[showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption],
+		[showFavoritesOnly, showCurrentWorkspaceOnly, showCloudOnly, searchQuery, sortOption],
 	)
 
 	const loadMoreTaskHistory = useCallback(() => {
@@ -127,7 +140,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setHasMoreTasks(false)
 		setNextHistoryOffset(0)
 		loadTaskHistory(0)
-	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
+	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly, showCloudOnly])
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
@@ -269,7 +282,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [fetchTotalTasksSize, loadTaskHistory])
 
 	const fuse = useMemo(() => {
-		return new Fuse(tasks, {
+		return new Fuse(tasksWithResolvedCloudStatuses, {
 			keys: ["task"],
 			threshold: 0.6,
 			shouldSort: true,
@@ -283,7 +296,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})
-	}, [tasks])
+	}, [tasksWithResolvedCloudStatuses])
 
 	const taskHistorySearchResults = useMemo(() => {
 		const results = searchQuery
@@ -291,7 +304,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					.search(searchQuery)
 					?.filter(({ matches }) => matches && matches.length)
 					.map(({ item }) => item)
-			: tasks
+			: tasksWithResolvedCloudStatuses
 
 		results.sort((a, b) => {
 			switch (sortOption) {
@@ -434,6 +447,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
 							} else if (value === "favoritesOnly") {
 								setShowFavoritesOnly(!showFavoritesOnly)
+							} else if (value === "cloudOnly") {
+								setShowCloudOnly(!showCloudOnly)
 							}
 						}}
 						value={sortOption}>
@@ -445,14 +460,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								const isSortOption = ["newest", "oldest", "mostExpensive", "mostTokens", "mostRelevant"].includes(
 									key,
 								)
-								const isFilterOption = ["workspaceOnly", "favoritesOnly"].includes(key)
+								const isFilterOption = ["workspaceOnly", "favoritesOnly", "cloudOnly"].includes(key)
+								if (key === "cloudOnly" && !cloudSessionsEnabled) {
+									return null
+								}
 								const isSelected = isSortOption
 									? sortOption === key
 									: key === "workspaceOnly"
 										? showCurrentWorkspaceOnly
 										: key === "favoritesOnly"
 											? showFavoritesOnly
-											: false
+											: key === "cloudOnly"
+												? showCloudOnly
+												: false
 								const isDisabled = key === "mostRelevant" && !searchQuery
 
 								return (
@@ -465,7 +485,11 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											{isFilterOption && (
 												<span
 													className={`codicon ${
-														key === "workspaceOnly" ? "codicon-folder" : "codicon-star-full"
+														key === "workspaceOnly"
+															? "codicon-folder"
+															: key === "cloudOnly"
+																? "codicon-cloud"
+																: "codicon-star-full"
 													} ${isSelected ? "text-button-background" : ""}`}
 												/>
 											)}

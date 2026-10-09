@@ -76,6 +76,11 @@ export interface SessionConfigInput {
 	workspaceRoot?: string
 	/** Current mode (act/plan) */
 	mode?: Mode
+	/** Runtime identity when execution happens outside the extension host. */
+	runtime?: {
+		modelSelection: { providerId: string; modelId: string }
+		platform: string
+	}
 }
 
 /** Active session state tracked by the factory */
@@ -880,7 +885,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// builds or other hosts may carry SDK catalog spellings (e.g.
 		// `openai-compatible`); fold them back to the legacy spelling the
 		// provider-keyed maps below are keyed by.
-		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		const modeProvider =
+			input.runtime?.modelSelection.providerId ??
+			(mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider)
 		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
 
 		if (providerId) {
@@ -888,7 +895,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			apiKey = resolveApiKey(providerId, apiConfig)
 
 			// Resolve model ID
-			modelId = resolveModelId(providerId, mode, apiConfig)
+			modelId = input.runtime?.modelSelection.modelId ?? resolveModelId(providerId, mode, apiConfig)
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
@@ -1013,7 +1020,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			metadata: workspaceMetadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
-			platform: process.platform,
+			platform: input.runtime?.platform ?? process.platform,
 			// The extension never exposes switch_to_act_mode (unlike the CLI):
 			// matching the legacy extension, the user must flip the Plan/Act
 			// toggle themselves, so the plan contract must not tell the model to
@@ -1142,7 +1149,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				cwd,
 				workspaceName: resolveWorkspaceName(workspaceRoot),
 				ide: "VS Code",
-				platform: process.platform,
+				platform: input.runtime?.platform ?? process.platform,
 				mode: mode === "plan" ? "plan" : "act",
 			},
 			logger: sdkLogger,

@@ -30,7 +30,7 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -262,10 +262,22 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				}
 
 				if (messages.length === 0) {
+					// Cloud selected means cloud requested, even without a repository: the
+					// extension refuses an incomplete cloud request rather than running the
+					// task locally behind a Cloud label.
+					const runInCloud = !!cloudSessionsEnabled && cloudTaskTarget?.target === "cloud"
 					const request = NewTaskRequest.create({
 						text: messageToSend,
 						images,
-						files,
+						// Local file paths cannot be read from a cloud sandbox.
+						files: runInCloud ? [] : files,
+						...(runInCloud
+							? {
+									executionTarget: "cloud",
+									cloudRepoUrl: cloudTaskTarget.repoUrl,
+									cloudBranch: cloudTaskTarget.branch,
+								}
+							: {}),
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
@@ -391,10 +403,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 				}
 
-				// New tasks clear optimistically before the RPC; the repeated success cleanup is idempotent.
+				// Every send path clears the draft before its RPC. Do not clear it again
+				// here: the RPC can take a while (a cloud task provisions its sandbox
+				// first) and the user may have typed a new draft in the meantime.
 				if (messageSent) {
-					clearSentMessageState()
-
 					// Reset auto-scroll
 					if ("disableAutoScrollRef" in chatState) {
 						;(chatState as any).disableAutoScrollRef.current = false
@@ -423,6 +435,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			setPendingUserMessage,
 			setPendingResponse,
 			chatState,
+			cloudSessionsEnabled,
+			cloudTaskTarget,
 		],
 	)
 

@@ -57,6 +57,16 @@ export class SdkTaskControlCoordinator {
 
 	constructor(private readonly options: SdkTaskControlCoordinatorOptions) {}
 
+	/**
+	 * Allocates a task-view generation for a task-open flow that runs outside
+	 * this coordinator (cloud sessions). The returned predicate reports whether
+	 * a newer showTaskWithId/clearTask has superseded the caller.
+	 */
+	claimTaskViewGeneration(): () => boolean {
+		const generation = ++this.taskViewGeneration
+		return () => generation !== this.taskViewGeneration
+	}
+
 	async cancelClineTaskOnSignOut(isClineManagedProvider: boolean): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!isClineManagedProvider || !activeSession?.isRunning) {
@@ -109,10 +119,17 @@ export class SdkTaskControlCoordinator {
 		Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 	}
 
-	async clearTask(): Promise<void> {
+	/**
+	 * Clears the task view under a new task-view generation and returns that
+	 * generation's fence. A caller installing a task next (a cloud open or
+	 * start) keeps this fence rather than claiming again after the await: a
+	 * selection made while the view was clearing must win over it.
+	 */
+	async clearTask(): Promise<() => boolean> {
 		// Supersede any in-flight showTaskWithId so it cannot re-install a task
 		// after the user cleared the view (e.g. clicked New Task).
 		const generation = ++this.taskViewGeneration
+		const isSuperseded = () => generation !== this.taskViewGeneration
 		this.options.interactions.clearPending("Task cleared")
 		await this.options.rebuilds.runTaskTransition(async () => {
 			if (generation !== this.taskViewGeneration) {
@@ -133,6 +150,7 @@ export class SdkTaskControlCoordinator {
 			await this.options.clearTaskSettings()
 			this.options.resetMessageTranslator()
 		})
+		return isSuperseded
 	}
 
 	/**

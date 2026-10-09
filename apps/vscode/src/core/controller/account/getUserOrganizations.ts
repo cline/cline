@@ -9,13 +9,23 @@ import type { Controller } from "../index"
  * @returns User credits data response
  */
 export async function getUserOrganizations(controller: Controller, _request: EmptyRequest): Promise<UserOrganizationsResponse> {
+	let timer: ReturnType<typeof setTimeout> | undefined
 	try {
 		if (!controller.accountService) {
 			throw new Error("Account service not available")
 		}
 
 		// Fetch user organizations from the account service
-		const organizations = await controller.accountService.fetchUserOrganizationsRPC()
+		const organizations = await Promise.race([
+			controller.accountService.fetchUserOrganizationsRPC(),
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("Account confirmation timed out. Check your connection and try again.")),
+					10_000,
+				)
+			}),
+		])
+		if (!organizations) throw new Error("Could not confirm the active account. Check your connection and try again.")
 
 		return UserOrganizationsResponse.create({
 			organizations:
@@ -29,7 +39,7 @@ export async function getUserOrganizations(controller: Controller, _request: Emp
 					}),
 				) || [],
 		})
-	} catch (error) {
-		throw error
+	} finally {
+		clearTimeout(timer)
 	}
 }
