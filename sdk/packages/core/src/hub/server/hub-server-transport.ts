@@ -15,6 +15,7 @@ import {
 	captureSdkError,
 	createSessionId,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	validateHubCommandPayload,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
@@ -101,16 +102,19 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
 import { HubRunQueue } from "./hub-run-queue";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
 import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
-import type { HubWebSocketServerOptions } from "./hub-server-options";
+import type {
+	HubPayloadValidationMode,
+	HubWebSocketServerOptions,
+} from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
 import {
@@ -270,8 +274,12 @@ export class HubServerTransport implements NativeHubTransport {
 	private runQueue?: HubRunQueue;
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
+	private readonly payloadValidation: HubPayloadValidationMode;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.payloadValidation = resolvePayloadValidationMode(
+			options.payloadValidation ?? process.env.CLINE_HUB_PAYLOAD_VALIDATION,
+		);
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
@@ -787,6 +795,10 @@ export class HubServerTransport implements NativeHubTransport {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
 		}
+		const invalid = this.checkPayload(envelope);
+		if (invalid) {
+			return invalid;
+		}
 		if (isAgendaTaskCommand(envelope.command)) {
 			return await this.taskCommands.handleCommand(envelope, authority);
 		}
@@ -944,6 +956,41 @@ export class HubServerTransport implements NativeHubTransport {
 				return reply;
 			}
 		}
+	}
+
+	/** Returns the rejection for a payload that breaks the Hub contract. */
+	private checkPayload(
+		envelope: HubCommandEnvelope,
+	): HubReplyEnvelope | undefined {
+		if (this.payloadValidation === "off") {
+			return undefined;
+		}
+		const result = validateHubCommandPayload(
+			envelope.command,
+			envelope.payload,
+		);
+		if (result.ok) {
+			return undefined;
+		}
+		logHubMessage("warn", "hub command payload violates the contract", {
+			command: envelope.command,
+			clientId: envelope.clientId,
+			issues: result.issues,
+			enforced: this.payloadValidation === "enforce",
+		});
+		if (this.payloadValidation === "warn") {
+			return undefined;
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: false,
+			error: {
+				code: "invalid_payload",
+				message: result.message,
+				details: { command: envelope.command, issues: result.issues },
+			},
+		};
 	}
 
 	private captureFailedReply(
@@ -1225,4 +1272,11 @@ function shouldCaptureHubReplyError(code: string): boolean {
 		code === "hub_command_timeout" ||
 		code.endsWith("_failed")
 	);
+}
+
+function resolvePayloadValidationMode(
+	value: string | undefined,
+): HubPayloadValidationMode {
+	const normalized = value?.trim().toLowerCase();
+	return normalized === "warn" || normalized === "off" ? normalized : "enforce";
 }
