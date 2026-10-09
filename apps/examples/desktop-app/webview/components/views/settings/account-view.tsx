@@ -285,7 +285,6 @@ export function AccountView() {
 			await loadOverview();
 			setActiveTab("overview");
 		},
-		onError: resetAccountData,
 		onSettled: () => {
 			invalidateProviderCatalogCache();
 			void refreshAccount();

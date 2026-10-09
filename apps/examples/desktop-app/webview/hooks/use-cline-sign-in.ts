@@ -4,11 +4,9 @@ import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 
 export function useClineSignIn({
 	onSuccess,
-	onError,
 	onSettled,
 }: {
 	onSuccess: (signal: AbortSignal) => Promise<void>;
-	onError?: () => void;
 	onSettled?: () => void;
 }) {
 	const controller = useRef<AbortController | null>(null);
@@ -32,7 +30,6 @@ export function useClineSignIn({
 		} catch (error) {
 			if (!attempt.signal.aborted) {
 				setError(error instanceof Error ? error.message : String(error));
-				onError?.();
 			}
 		} finally {
 			controller.current = null;
