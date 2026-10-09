@@ -77,7 +77,7 @@ export type WebviewConfig = {
 	model?: string;
 	mode?: "act" | "plan";
 	systemPrompt?: string;
-	maxIterations?: number;
+	maxIterations?: number | null;
 	reasonLevel?: WebviewReasonLevel;
 	enableTools?: boolean;
 	enableSpawn?: boolean;
