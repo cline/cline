@@ -286,7 +286,10 @@ async function main(): Promise<void> {
 			// not a live Hub for this owner. Record what it is so the fix can
 			// target the actual cause instead of guessing.
 			const context = isAddressInUseError(error)
-				? await describeAddressInUse(error, endpoint)
+				? await describeAddressInUse(error, endpoint).catch(() => ({
+						bind_port: endpoint.port,
+						occupant_probe_status: "unavailable",
+					}))
 				: undefined;
 			if (context) {
 				process.stderr.write(

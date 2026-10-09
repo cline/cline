@@ -127,6 +127,27 @@ describe("runDoctorCommand", () => {
 		}
 	});
 
+	it("continues diagnostics when the Hub does not respond", async () => {
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			pid: 4242,
+		});
+		mockProbeHubServer.mockResolvedValue({ status: "timeout" });
+		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd: process.cwd(), json: true },
+			{ writeln: (text) => output.push(text ?? ""), writeErr: () => {} },
+		);
+		expect(code).toBe(0);
+		expect(JSON.parse(output[0] ?? "")).toMatchObject({
+			hubHealthy: false,
+			hubProbeStatus: "timeout",
+			hubPid: 4242,
+			listeningPids: [],
+		});
+	});
+
 	it("does not report hub processes as stale cli processes", async () => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue({
@@ -135,9 +156,12 @@ describe("runDoctorCommand", () => {
 			pid: 50174,
 		});
 		mockProbeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			port: 25463,
-			pid: 50174,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				port: 25463,
+				pid: 50174,
+			},
 		});
 		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
 			if (command === "lsof") {
@@ -205,9 +229,12 @@ describe("runDoctorCommand", () => {
 			pid: 50174,
 		});
 		mockProbeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			port: 25463,
-			pid: 50174,
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				port: 25463,
+				pid: 50174,
+			},
 		});
 		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
 			if (command === "lsof") {
@@ -262,10 +289,13 @@ describe("runDoctorCommand", () => {
 			coreVersion: "0.0.63",
 		});
 		mockProbeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			port: 25463,
-			pid: 50174,
-			coreVersion: "0.0.64",
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				port: 25463,
+				pid: 50174,
+				coreVersion: "0.0.64",
+			},
 		});
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 
@@ -300,7 +330,7 @@ describe("runDoctorCommand", () => {
 			port: 25463,
 			pid: 50000,
 		});
-		mockProbeHubServer.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue({ status: "unreachable" });
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 
 		const startupLockDir = `${discoveryPath}.lock`;
@@ -357,7 +387,7 @@ describe("runDoctorCommand", () => {
 	it("doctor --fix stops connector adapters and reports counts in JSON", async () => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue(undefined);
-		mockProbeHubServer.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue({ status: "unreachable" });
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 2,
@@ -390,7 +420,7 @@ describe("runDoctorCommand", () => {
 	it("doctor --fix kills stale code sidecar processes", async () => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue(undefined);
-		mockProbeHubServer.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue({ status: "unreachable" });
 		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
 			if (
 				command === "pgrep" &&

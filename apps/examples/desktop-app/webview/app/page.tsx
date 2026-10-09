@@ -42,6 +42,7 @@ import { EnvironmentSelector } from "@/components/views/chat/environment-selecto
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import { SiteLoader } from "@/components/views/loading/SiteLoader";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
@@ -57,6 +58,7 @@ import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -299,6 +301,19 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	const readiness = useDesktopReadiness();
+	return (
+		<SiteLoader readiness={readiness}>
+			<HomeShell readiness={readiness} />
+		</SiteLoader>
+	);
+}
+
+function HomeShell({
+	readiness,
+}: {
+	readiness: ReturnType<typeof useDesktopReadiness>;
+}) {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
 	const { current: promptDrafts } = useRef(new Map<string, string>());
@@ -798,6 +813,10 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const refreshHistory = sessionHistory.refreshSessions;
+	useEffect(() => {
+		if (readiness.hub.state === "ready") void refreshHistory();
+	}, [readiness.hub.state, refreshHistory]);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;

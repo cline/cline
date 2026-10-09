@@ -11,6 +11,7 @@ import { SqliteSessionStore } from "../../services/storage/sqlite-session-store"
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { CoreSessionService } from "../../session/services/session-service";
+import { waitForAbortable } from "../../utils/abort";
 import { LocalRuntimeHost } from "./local-runtime-host";
 import type { RuntimeHost, RuntimeHostMode } from "./runtime-host";
 
@@ -137,6 +138,7 @@ export async function resolveSessionBackend(
 export async function createRuntimeHost(
 	options: ClineCoreOptions,
 ): Promise<RuntimeHost> {
+	options.signal?.throwIfAborted();
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);
@@ -165,14 +167,19 @@ export async function createRuntimeHost(
 		let startupError: unknown;
 		const hubUrl =
 			explicitEndpoint ||
-			(await ensureCompatibleLocalHubUrl({
-				strategy: options.hub?.strategy ?? "require-hub",
-				workspaceRoot: options.hub?.workspaceRoot,
-				cwd: options.hub?.cwd,
-				onStartupError: (error) => {
-					startupError = error;
-				},
-			}));
+			(await waitForAbortable(
+				ensureCompatibleLocalHubUrl({
+					signal: options.signal,
+					strategy: options.hub?.strategy ?? "require-hub",
+					workspaceRoot: options.hub?.workspaceRoot,
+					cwd: options.hub?.cwd,
+					onStartupError: (error) => {
+						startupError = error;
+					},
+				}),
+				options.signal,
+			));
+		options.signal?.throwIfAborted();
 		if (!hubUrl) {
 			// Keep the reason in the message: telemetry and logs record the
 			// message, and without it every startup failure looks identical.

@@ -51,7 +51,11 @@ function mockDiscovery(options: DiscoveryMockOptions): void {
 				? { resolveHubBuildIdentity: () => options.selfIdentity }
 				: {}),
 			readHubDiscovery: vi.fn(async () => options.record),
-			probeHubServer: vi.fn(async () => options.probe),
+			probeHubServer: vi.fn(async () =>
+				options.probe
+					? { status: "healthy", hub: options.probe }
+					: { status: "unreachable" },
+			),
 		};
 	});
 }
@@ -356,7 +360,10 @@ describe("watchManagedHubBuildMismatch", () => {
 				...actual,
 				resolveHubBuildId: () => "current-build",
 				readHubDiscovery: vi.fn(async () => liveRecord),
-				probeHubServer: vi.fn(async () => probeResult),
+				probeHubServer: vi.fn(async () => ({
+					status: "healthy",
+					hub: probeResult,
+				})),
 			};
 		});
 		const { watchManagedHubBuildMismatch } = await import(
@@ -412,7 +419,10 @@ describe("watchManagedHubBuildMismatch", () => {
 				...actual,
 				resolveHubBuildId: () => "current-build",
 				readHubDiscovery: vi.fn(async () => liveRecord),
-				probeHubServer: vi.fn(async () => probeResult),
+				probeHubServer: vi.fn(async () => ({
+					status: "healthy",
+					hub: probeResult,
+				})),
 			};
 		});
 		const { watchManagedHubBuildMismatch } = await import(
@@ -469,7 +479,10 @@ describe("watchManagedHubBuildMismatch", () => {
 				...actual,
 				resolveHubBuildId: () => "current-build",
 				readHubDiscovery: vi.fn(async () => liveRecord),
-				probeHubServer: vi.fn(async () => probeResult),
+				probeHubServer: vi.fn(async () => ({
+					status: "healthy",
+					hub: probeResult,
+				})),
 			};
 		});
 		const { watchManagedHubBuildMismatch } = await import(

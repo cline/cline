@@ -55,6 +55,23 @@ describe("createHubCommand", () => {
 		}
 	});
 
+	it("reports a slow Hub without failing the status command", async () => {
+		mockReadHubDiscovery.mockResolvedValue({ url: "ws://127.0.0.1:25463/hub" });
+		mockProbeHubServer.mockResolvedValue({ status: "timeout" });
+		const output: string[] = [];
+		const exit = vi.fn();
+		const cmd = createHubCommand(
+			{ writeln: (text) => output.push(text ?? ""), writeErr: () => {} },
+			exit,
+		);
+		await cmd.parseAsync(["status"], { from: "user" });
+		expect(JSON.parse(output[0] ?? "")).toMatchObject({
+			running: false,
+			probeStatus: "timeout",
+		});
+		expect(exit).not.toHaveBeenCalledWith(1);
+	});
+
 	it("includes uptime in hub status output", async () => {
 		vi.spyOn(Date, "now").mockReturnValue(
 			new Date("2026-01-01T00:01:05.000Z").getTime(),
@@ -66,11 +83,14 @@ describe("createHubCommand", () => {
 			startedAt: "2026-01-01T00:00:00.000Z",
 		});
 		mockProbeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			port: 25463,
-			pid: 50174,
-			startedAt: "2026-01-01T00:00:00.000Z",
-			coreVersion: "0.0.62",
+			status: "healthy",
+			hub: {
+				url: "ws://127.0.0.1:25463/hub",
+				port: 25463,
+				pid: 50174,
+				startedAt: "2026-01-01T00:00:00.000Z",
+				coreVersion: "0.0.62",
+			},
 		});
 
 		const output: string[] = [];

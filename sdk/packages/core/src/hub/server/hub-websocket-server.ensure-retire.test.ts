@@ -133,10 +133,13 @@ describe("ensureHubWebSocketServer retire path", () => {
 			pid: 4242,
 		});
 		probeHubServer.mockResolvedValue({
-			url: STALE_URL,
-			protocolVersion: "v1",
-			buildId: "old-build",
-			pid: 4242,
+			status: "healthy",
+			hub: {
+				url: STALE_URL,
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 4242,
+			},
 		});
 		hubHasLiveSessions.mockResolvedValue(true);
 		verifyHubConnection.mockResolvedValue(true);
@@ -165,10 +168,13 @@ describe("ensureHubWebSocketServer retire path", () => {
 			pid: 4242,
 		});
 		probeHubServer.mockResolvedValue({
-			url: STALE_URL,
-			protocolVersion: "v1",
-			buildId: "old-build",
-			pid: 4242,
+			status: "healthy",
+			hub: {
+				url: STALE_URL,
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 4242,
+			},
 		});
 		hubHasLiveSessions.mockResolvedValue(false);
 		retireDiscoveredHub.mockResolvedValue(true);
@@ -195,7 +201,7 @@ describe("ensureHubWebSocketServer retire path", () => {
 			url: STALE_URL,
 			authToken: "gone-token",
 		});
-		probeHubServer.mockResolvedValue(undefined);
+		probeHubServer.mockResolvedValue({ status: "unreachable" });
 
 		const result = await ensureHubWebSocketServer(ensureOptions(owner));
 		if (result.server) {
