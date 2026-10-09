@@ -3675,18 +3675,23 @@ describe("LocalRuntimeHost", () => {
 		});
 		const submitted: string[] = [];
 		let lastQueueSnapshot: string[] | undefined;
+		let discarded: string[] | undefined;
 		manager.subscribe((event) => {
 			if (event.type === "pending_prompt_submitted") {
 				submitted.push(event.payload.prompt);
 			}
 			if (event.type === "pending_prompts") {
 				lastQueueSnapshot = event.payload.prompts.map((p) => p.prompt);
+				if (event.payload.discarded) {
+					discarded = event.payload.discarded.map((p) => p.prompt);
+				}
 			}
 		});
+		const capture = vi.fn();
 
 		await manager.startSession(
 			normalizeStartInput({
-				config: createConfig({ sessionId }),
+				config: createConfig({ sessionId, telemetry: { capture } as never }),
 				interactive: true,
 			}),
 		);
@@ -3721,6 +3726,19 @@ describe("LocalRuntimeHost", () => {
 		expect(sentPrompts).toHaveLength(1);
 		expect(submitted).toEqual([]);
 		expect(lastQueueSnapshot).toEqual([]);
+		// The discard is observable: the entries ride on the snapshot that
+		// empties the queue, and telemetry counts them.
+		expect(discarded).toEqual(["queued before stop"]);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: CORE_TELEMETRY_EVENTS.SESSION.PENDING_PROMPTS_DISCARDED,
+				properties: expect.objectContaining({
+					sessionId,
+					count: 1,
+					reason: "session_teardown",
+				}),
+			}),
+		);
 		const statuses = sessionService.updateSessionStatus.mock.calls.map(
 			(call) => call[1],
 		);

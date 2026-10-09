@@ -47,6 +47,7 @@ import {
 	captureAgentTeamCreated,
 	captureConversationTurnEvent,
 	captureModeSwitch,
+	capturePendingPromptsDiscarded,
 	captureTaskCompleted,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
@@ -1195,7 +1196,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// brought to a full stop.
 		session.aborting = true;
 		if (session.drainingPendingPrompts) {
-			this.pendingPromptsController.discardQueue(session);
+			this.discardPendingPrompts(session, "queue_abort");
 		}
 		const teamRuntime = session.runtime.teamRuntime;
 		try {
@@ -2472,7 +2473,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 */
 	private beginTeardown(session: ActiveSession): void {
 		session.shuttingDown = true;
-		this.pendingPromptsController.discardQueue(session);
+		this.discardPendingPrompts(session, "session_teardown");
+	}
+
+	private discardPendingPrompts(
+		session: ActiveSession,
+		reason: "queue_abort" | "session_teardown",
+	): void {
+		const discarded = this.pendingPromptsController.discardQueue(session);
+		if (discarded.length === 0) return;
+		capturePendingPromptsDiscarded(session.config.telemetry, {
+			sessionId: session.sessionId,
+			count: discarded.length,
+			reason,
+		});
 	}
 
 	private async releaseSessionRuntime(
