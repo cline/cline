@@ -163,6 +163,7 @@ Owns everything that reads a session recording or replay bundle:
   rerun engine that drives a live session against the recording
 - ATIF export: converting a bundle to an ATIF v1.7 trajectory, and the
   vendored ATIF schema and validator
+- ATIF import: converting an ATIF trajectory back into a bundle
 
 Design rules:
 
@@ -1190,7 +1191,39 @@ links). `validateAtifTrajectory` checks a trajectory against a JSON Schema
 generated from Harbor's Pydantic models at a pinned commit, plus the models'
 cross-field rules. The CLI exposes it as `cline session export <id|bundle>
 --format atif [--out <path>]`. The session package README has the field
-mapping and what is not carried over.
+mapping and what is not carried over. Each trajectory also carries its
+session's exact bundle data in `extra.cline.replay` (transcript, events,
+compaction, and for recorded sessions request records and blobs), which the
+import uses to restore the bundle.
+
+### Session ATIF import
+
+`importAtifTrajectory` / `importAtifTrajectoryToBundle` (`@cline/session`)
+turn an ATIF trajectory into a schema v2 bundle, so playback, rerun and
+`session diff` read imports through the same bundle reader and nothing
+downstream knows about ATIF. The input is checked with
+`validateAtifTrajectory` first (`AtifImportError` otherwise).
+
+- A trajectory Cline exported is restored from `extra.cline`: entries,
+  recordings, environment, redaction and the replay data. The restored bundle
+  is exported again without the replay data and kept only when its user and
+  agent steps match the file's across the subagent tree, so an edited step
+  cannot slip in stale recording data. The restored bundle's manifest and
+  files are identical to the original's.
+- Any other trajectory is rebuilt from its steps (`source: "atif-import"`,
+  `recording: null`): system prompt, user and assistant messages, thinking,
+  tool calls, observation results as `tool_result` blocks, per-step metrics,
+  and embedded subagent trajectories as child sessions linked from the tool
+  call that started them. Messages get `id`, `ts` and `iteration`.
+  Observation and mid-session system messages carry `userRunSpan: 0` so they
+  are not counted as prompts.
+
+`import-report.json` sits next to the manifest without being indexed, so a
+restored bundle's manifest stays byte-identical. It lists the sessions, what
+could not be carried (`unmapped`) and what was interpreted (`assumptions`).
+The CLI exposes this as `cline session import <file> [--format atif]
+[--out <dir>] [--force]`, and `cline session replay` accepts an ATIF file in
+place of a bundle.
 
 ### Session replay source and comparison
 
@@ -1205,7 +1238,10 @@ Replay reads recordings through two pieces in `@cline/session`, and nothing in
   `seq`, and the `metadata.toolEnvironment` facts of a tool call. Served items
   are consumed, so retried requests and reused tool call ids resolve to
   successive records. Requests are described with `describeLiveModelRequest`,
-  which hashes exactly as the recorder does.
+  which hashes exactly as the recorder does. A session without request
+  records (an import from another agent) has no match keys; its source runs
+  in `call-index` mode, serving responses built from the transcript
+  (`sessionReplayModelCallsFromTranscript`) in call order.
 - `compareSessionReplayIteration` / `compareSessionReplaySessions` compare
   iterations structurally (parsed messages, canonical JSON, messages aligned by
   content hash) and report divergences of kind `request-model`,
@@ -1213,6 +1249,10 @@ Replay reads recordings through two pieces in `@cline/session`, and nothing in
   `assistant-text`, `tool-calls`, `tool-results`, `decisions` and
   `iteration-count`, each with per-entry content hashes and excerpts. Callers
   choose which kinds count; uncounted divergences are still reported.
+  Request kinds are compared only when both sides have a request record and
+  decisions only when both sides recorded decisions, each with a warning
+  otherwise. Tool results of an ATIF import are compared by text, because
+  ATIF keeps only the text.
 
 Both take a strictness. `strict` sources throw `SessionReplayMismatchError` on
 a request that is neither an exact nor a field-order-equivalent match, and on
@@ -1237,9 +1277,9 @@ supplies the core, the approval prompt and the output formats.
   starting checkpoint's base commit and, for stash checkpoints
   (`refs/cline/checkpoints/...`), the snapshot's tracked and untracked changes
   are applied. With `inPlace` the workspace is used as is, with warnings when
-  it is not at the starting checkpoint. Every missing piece (redacted or
-  absent workspace path, no checkpoint, not a git repository, checkpoint not
-  in the source) raises `SessionReplayEnvironmentError` saying what to pass
+  it is not at the starting checkpoint. Every missing piece (redacted,
+  absent or unrecorded workspace path, no checkpoint, not a git repository,
+  checkpoint not in the source) raises `SessionReplayEnvironmentError` saying what to pass
   instead; the only fallback is an explicit `workspace` for a bundle without
   a checkpoint, which is copied as it is now, with a warning.
 - `createSessionReplayPathMap` maps the recorded workspace root to the live
@@ -1252,7 +1292,8 @@ supplies the core, the approval prompt and the output formats.
 - `collectSessionReplayRerunTurns` lists the user turns to send, each paired
   with the recorded `prompt_delivered` decision (source and mode). Steered
   prompts and compaction summaries are not turns and are reported as
-  warnings.
+  warnings. When the bundle records no session mode (no recording segment),
+  the CLI starts the rerun in the first turn's mode and lists that as a gap.
 - `createSessionReplayRerun` drives the turns on a recording-enabled core,
   answers approvals with the next recorded `approval_resolved` decision (in
   `seq` order) for the same tool call id, else the same tool name, or asks a
