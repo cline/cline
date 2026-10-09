@@ -64,7 +64,7 @@
 		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",
 		"test:e2e:tuistory": "vitest run --config vitest.tuistory.e2e.config.ts",
 		"test:watch": "vitest --config vitest.config.ts",
-		"test:e2e:cli:tui": "cd src/tests && tui-test",
+		"test:e2e:cli:tui": "vitest run --config vitest.tui-test.config.ts",
 		"link": "bun unlink && bun link"
 	},
 	"dependencies": {
@@ -99,7 +99,7 @@
 	"devDependencies": {
 		"@cline/core": "workspace:*",
 		"@cline/shared": "workspace:*",
-		"@microsoft/tui-test": "^0.0.2",
+		"@microsoft/tui-test": "0.1.0",
 		"@types/bun": "^1.4.2",
 		"@types/react": "19.2.14",
 		"tuistory": "^0.10.1",

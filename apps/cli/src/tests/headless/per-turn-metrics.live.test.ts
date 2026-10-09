@@ -18,7 +18,6 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "@microsoft/tui-test";
 import {
 	CLINE_BIN,
 	EXIT_CODE_SUCCESS,
@@ -26,6 +25,7 @@ import {
 } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import { expectExitCode, expectVisible } from "../helpers/terminal.js";
+import { test } from "../helpers/test.js";
 
 function findMessagesArtifacts(root: string): string[] {
 	if (!existsSync(root)) return [];
