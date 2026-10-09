@@ -134,6 +134,40 @@ describe("createAgentModelFromApiHandler", () => {
 		]);
 	});
 
+	it("drops the held usage snapshot when the stream errors mid-flight", async () => {
+		// A request that dies mid-stream never produced its final totals, so the
+		// intermediate cumulative snapshot is intentionally not forwarded:
+		// emitting it would let the runtime account partial totals (or an
+		// under-reported prefix) against a failed request. This pins that
+		// decision — change it only together with the runtime's usage
+		// accounting, never as an isolated adapter tweak.
+		const handler = fakeHandler(
+			[
+				{
+					type: "usage",
+					inputTokens: 1000,
+					outputTokens: 0,
+					cacheReadTokens: 400,
+					id: "x",
+				},
+				{ type: "text", text: "partial", id: "x" },
+				{ type: "text", text: " more", id: "x" },
+			],
+			{ throwAfter: 2 },
+		);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+
+		expect(events.filter((e) => e.type === "usage")).toEqual([]);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "boom",
+		});
+		// Content delivered before the failure still reaches the consumer.
+		expect(events[0]).toEqual({ type: "text-delta", text: "partial" });
+	});
+
 	it("maps tool_calls (object args) to a tool-call-delta event", async () => {
 		const handler = fakeHandler([
 			{
