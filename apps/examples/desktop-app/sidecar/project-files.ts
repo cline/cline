@@ -33,14 +33,6 @@ export type ProjectFileResult = {
 	truncated: boolean;
 };
 
-export type GitStatusResult = {
-	environmentId: string;
-	/** Absolute repository root, or null when `cwd` is not inside a repo. */
-	root: string | null;
-	/** Repo-root-relative paths mapped to a porcelain status code (M, A, D, ?, R). */
-	entries: Record<string, string>;
-};
-
 function sortEntries(entries: ProjectEntry[]): ProjectEntry[] {
 	return entries.sort((left, right) =>
 		left.kind !== right.kind
@@ -131,26 +123,6 @@ export function readLocalProjectFile(
 	};
 }
 
-export function parseGitStatusPorcelain(
-	output: string,
-): Record<string, string> {
-	const entries: Record<string, string> = {};
-	// `-z` output: `XY path\0` records, renames add an `origin\0` record after.
-	const records = output.split("\0");
-	for (let index = 0; index < records.length; index++) {
-		const record = records[index];
-		if (record.length < 4) continue;
-		const x = record[0];
-		const y = record[1];
-		const path = record.slice(3);
-		const code =
-			x === "?" ? "?" : x === "R" || y === "R" ? "R" : y !== " " ? y : x;
-		entries[path] = code;
-		if (code === "R") index++;
-	}
-	return entries;
-}
-
 // `ls -p` marks directories with a trailing slash; names themselves cannot
 // contain `/`, so the marker is unambiguous. Newlines in names are not
 // supported over SSH.
@@ -232,20 +204,4 @@ export async function readProjectFile(
 			: result.stdout,
 		truncated,
 	};
-}
-
-export async function getGitStatus(
-	runGit: (args: string[]) => Promise<string | undefined>,
-	environmentId: string,
-): Promise<GitStatusResult> {
-	const root = (await runGit(["rev-parse", "--show-toplevel"]))?.trim();
-	if (!root) return { environmentId, root: null, entries: {} };
-	const output =
-		(await runGit([
-			"status",
-			"--porcelain=v1",
-			"-z",
-			"--untracked-files=all",
-		])) ?? "";
-	return { environmentId, root, entries: parseGitStatusPorcelain(output) };
 }

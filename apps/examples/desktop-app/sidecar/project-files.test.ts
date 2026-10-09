@@ -3,10 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-	getGitStatus,
 	listLocalProjectEntries,
 	PROJECT_FILE_READ_LIMIT_BYTES,
-	parseGitStatusPorcelain,
 	parseRemoteListing,
 	readLocalProjectFile,
 } from "./project-files";
@@ -79,27 +77,6 @@ describe("readLocalProjectFile", () => {
 		const result = readLocalProjectFile(root, big);
 		expect(result.truncated).toBe(true);
 		expect(result.content?.length).toBe(PROJECT_FILE_READ_LIMIT_BYTES);
-	});
-});
-
-describe("parseGitStatusPorcelain", () => {
-	it("maps porcelain -z records to one status code per path", () => {
-		const output =
-			" M src/a.ts\0A  src/b.ts\0?? new.txt\0R  new-name.ts\0old-name.ts\0D  gone.ts\0";
-		expect(parseGitStatusPorcelain(output)).toEqual({
-			"src/a.ts": "M",
-			"src/b.ts": "A",
-			"new.txt": "?",
-			"new-name.ts": "R",
-			"gone.ts": "D",
-		});
-	});
-});
-
-describe("getGitStatus", () => {
-	it("reports no root outside a repository", async () => {
-		const result = await getGitStatus(async () => undefined, "local");
-		expect(result).toEqual({ environmentId: "local", root: null, entries: {} });
 	});
 });
 
