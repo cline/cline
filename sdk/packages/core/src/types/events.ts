@@ -50,6 +50,8 @@ export interface SessionPendingPrompt {
 export interface SessionPendingPromptsEvent {
 	sessionId: string;
 	prompts: SessionPendingPrompt[];
+	/** Prompts removed from the queue without being sent, so a client can offer them back. */
+	discarded?: SessionPendingPrompt[];
 }
 
 export interface SessionPendingPromptSubmittedEvent {
