@@ -757,16 +757,19 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		return 0;
 	}
 
-	function serializeForAiSdk(messages: Message[]): string {
+	function formatForAiSdk(messages: Message[]) {
 		const agentMessages = messagesToAgentMessages(messages);
-		const aiSdkMessages = formatMessagesForAiSdk(
+		return formatMessagesForAiSdk(
 			undefined,
 			agentMessages.map(({ role, content }) => ({
 				role,
 				content,
 			})) as unknown as AiSdkFormatterMessage[],
 		);
-		return JSON.stringify(aiSdkMessages);
+	}
+
+	function serializeForAiSdk(messages: Message[]): string {
+		return JSON.stringify(formatForAiSdk(messages));
 	}
 
 	function firstToolOperationResult(
@@ -1224,10 +1227,15 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 
 		const built = builder.buildForApi(messages);
 		const serialized = JSON.stringify(built);
-		const providerPayload = serializeForAiSdk(built);
+		const aiSdkMessages = formatForAiSdk(built);
+		const providerPayload = JSON.stringify(aiSdkMessages);
+		const toolResults = aiSdkMessages
+			.flatMap(({ content }) => (Array.isArray(content) ? content : []))
+			.filter((part) => part.type === "tool-result");
 
 		for (const older of screenshots.slice(0, -1)) {
 			expect(serialized).not.toContain(older);
+			expect(providerPayload).not.toContain(older);
 		}
 		expect(serialized).toContain(screenshots.at(-1));
 		expect(serialized.match(/older computer screenshot omitted/g)).toHaveLength(
@@ -1236,8 +1244,35 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain(
 			"[media omitted: invalid or exceeds size limit]",
 		);
-		expect(providerPayload.match(/"type":"image-data"/g)).toHaveLength(1);
+		expect(toolResults).toEqual(
+			screenshots.map((data, index) => ({
+				type: "tool-result",
+				toolCallId: `computer_${index}`,
+				toolName: "computer",
+				output: {
+					type: "content",
+					value:
+						index === screenshots.length - 1
+							? [
+									{
+										type: "file",
+										data: { type: "data", data },
+										mediaType: "image/png",
+									},
+								]
+							: [
+									{
+										type: "text",
+										text: "[older computer screenshot omitted; superseded by the current screen]",
+									},
+								],
+				},
+			})),
+		);
 		expect(providerPayload).toContain(screenshots.at(-1));
+		expect(providerPayload).not.toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
 	});
 
 	it("reserves the newest computer screenshot before unrelated historical media", () => {
