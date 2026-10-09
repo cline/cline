@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
+import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkFollowupCoordinator, type SdkFollowupCoordinatorOptions } from "./sdk-followup-coordinator"
+import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -36,8 +38,119 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("answer")
 
-		expect(options.interactions.resolvePendingAskQuestion).toHaveBeenCalledWith("answer")
+		expect(options.interactions.resolvePendingAskQuestion).toHaveBeenCalledWith(
+			"answer",
+			undefined,
+			undefined,
+			expect.any(Function),
+		)
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it.each([
+		{ prompt: "Use this screenshot", images: ["data:image/png;base64,abc"], files: undefined },
+		{ prompt: "Use this file", images: undefined, files: ["/workspace/spec.txt"] },
+		{ prompt: undefined, images: ["data:image/png;base64,abc"], files: ["/workspace/spec.txt"] },
+	])("steers question attachments before resolving the answer: $prompt", async ({ prompt, images, files }) => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		const interactions = new SdkInteractionCoordinator({
+			messages: options.messages,
+			getSessionId: () => activeSession.sessionId,
+			postStateToWebview: options.postStateToWebview,
+		})
+		options.interactions = interactions as typeof options.interactions
+		const answer = interactions.handleAskQuestion("Which implementation?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledOnce())
+		let releaseSend!: () => void
+		activeSession.sdkHost.send.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseSend = resolve
+				}),
+		)
+		const answered = vi.fn()
+		void answer.then(answered)
+
+		const submission = coordinator.askResponse(prompt, images, files)
+		await vi.waitFor(() => expect(activeSession.sdkHost.send).toHaveBeenCalledOnce())
+		expect(activeSession.sdkHost.send).toHaveBeenCalledWith({
+			sessionId: activeSession.sessionId,
+			prompt: prompt ? `resolved: ${prompt}` : "",
+			userImages: images,
+			userFiles: files,
+			delivery: "steer",
+		})
+		expect(answered).not.toHaveBeenCalled()
+		releaseSend()
+		await submission
+		await expect(answer).resolves.toBe(prompt ?? "")
+		// Core's pending_prompt_submitted event owns the response bubble;
+		// the interaction coordinator emits only the original question.
+		expect(options.messages.appendAndEmit).toHaveBeenCalledOnce()
+		const submitted = translateSessionEvent(
+			{
+				type: "pending_prompt_submitted",
+				payload: {
+					id: "question-response",
+					delivery: "steer",
+					attachmentCount: (images?.length ?? 0) + (files?.length ?? 0),
+					sessionId: activeSession.sessionId,
+					prompt: prompt ?? "",
+					userImages: images,
+					userFiles: files,
+				},
+			},
+			new MessageTranslatorState(),
+		)
+		expect(submitted.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: prompt ?? "",
+				images,
+				files,
+			}),
+		])
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+	})
+
+	it("does not enqueue attachments for a question cancelled during mention resolution", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		const interactions = new SdkInteractionCoordinator({
+			messages: options.messages,
+			getSessionId: () => activeSession.sessionId,
+			postStateToWebview: options.postStateToWebview,
+		})
+		options.interactions = interactions as typeof options.interactions
+		const answer = interactions.handleAskQuestion("Which implementation?", ["A", "B"], undefined)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		let resolveMentions!: (prompt: string) => void
+		options.resolveContextMentions.mockImplementation(
+			() =>
+				new Promise<string>((resolve) => {
+					resolveMentions = resolve
+				}),
+		)
+		const submission = coordinator.askResponse("Use @file", ["image"])
+		await vi.waitFor(() => expect(options.resolveContextMentions).toHaveBeenCalledOnce())
+		interactions.clearPending("Cancelled")
+		resolveMentions("resolved mentions")
+		await submission
+		await expect(answer).resolves.toBe("")
+		expect(activeSession.sdkHost.send).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("keeps the submitted task identity while checking pending questions", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, task: makeTask("session-123") })
+		const submission = coordinator.askResponse("answer")
+		options.getTask.mockReturnValue(makeTask("new-task"))
+		await submission
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
 	})
 
 	it("sends a follow-up to an idle active session", async () => {
@@ -185,6 +298,7 @@ describe("SdkFollowupCoordinator", () => {
 		const sendPromise = coordinator.askResponse("sent during rebuild")
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		await vi.waitFor(() => expect(runExclusive).toBeDefined())
 
 		await runExclusive?.()
 		await sendPromise

@@ -244,7 +244,7 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.showTaskWithId("new-task")
 
 		await expect(questionPromise).resolves.toBe("")
-		expect(interactions.resolvePendingAskQuestion("late answer")).toBe(false)
+		expect(await interactions.resolvePendingAskQuestion("late answer")).toBe(false)
 	})
 
 	it("shows a legacy task with a warning and a resume ask", async () => {
