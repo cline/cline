@@ -92,9 +92,9 @@ The CLI and Desktop run every hook they find. To stop a hook, move or delete its
 
 ## Known Problems
 
-- In the CLI and Desktop, `UserPromptSubmit` hooks don't run for the messages you send. In yolo mode (`-y`) they run for Cline's own reminders instead, and `userPromptSubmit.prompt` holds the reminder text. To act on each message, use `TaskStart`.
-- In the CLI and Desktop, `TaskCancel` hooks don't run when you cancel. Use `SessionShutdown`, which does.
-- When the CLI runs a session in the [hub](/cli/cli-reference#hub), `TaskStart` and `TaskResume` can swap. The hub uses the choice of the CLI command that started it: after `cline --id` starts the hub, new sessions run `TaskResume`, and after a new session starts it, resumed sessions run `TaskStart`.
+- In the CLI and Desktop, `UserPromptSubmit` hooks don't run for the messages you send. In yolo mode (`-y`) they run for Cline's own reminders instead, and `userPromptSubmit.prompt` holds the reminder text. To act on each message, use `TaskStart` ([#14963](https://github.com/cline/cline/issues/14963)).
+- In the CLI and Desktop, `TaskCancel` hooks don't run when you cancel. Use `SessionShutdown`, which does ([#14962](https://github.com/cline/cline/issues/14962)).
+- When the CLI runs a session in the [hub](/cli/cli-reference#hub), `TaskStart` and `TaskResume` can swap. The hub uses the choice of the CLI command that started it: after `cline --id` starts the hub, new sessions run `TaskResume`, and after a new session starts it, resumed sessions run `TaskStart` ([#14961](https://github.com/cline/cline/issues/14961)).
 - On Windows, the CLI doesn't run `.ps1` hooks for events that don't wait for a reply, such as `TaskStart` ([#14767](https://github.com/cline/cline/issues/14767)).
 
 ## Examples
