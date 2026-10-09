@@ -39,6 +39,7 @@ import {
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
+	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -208,7 +209,9 @@ export function SettingsView({
 			setProviderCatalogError(message);
 			setProviders([]);
 		} finally {
-			setProvidersLoading(false);
+			if (generation === catalogGenerationRef.current) {
+				setProvidersLoading(false);
+			}
 		}
 		return true;
 	}, [setProvidersWithCache]);
@@ -222,6 +225,17 @@ export function SettingsView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
+
+	useEffect(() => {
+		return subscribeToProviderCatalogInvalidation(() => {
+			providerCatalogCache = null;
+			// Navigation triggers the next load; refetching here would loop when
+			// this view publishes a provider-model refresh through the same event.
+			// Discard an in-flight response from before the invalidation so it
+			// cannot restore stale provider connection state.
+			catalogGenerationRef.current += 1;
+		});
+	}, []);
 
 	/**
 	 * Silently refreshes view state from the authoritative catalog after a
