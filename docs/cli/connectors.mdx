@@ -141,15 +141,14 @@ also starts a Discord gateway listener for mentions, replies, reactions, and DMs
       --public-key <KEY> \
       --base-url <URL> \
       --port 8788 \
-      --cwd /path/to/repo \
-      --enable-tools
+      --cwd /path/to/repo
     ```
 
     `--app-id` is an alias for `--application-id`, and `--token` is an alias for
     `--bot-token`.
 
-    `--enable-tools` allows the agent to inspect files, run commands, edit code,
-    and prepare PRs from Discord. Omit it if the bot should only chat.
+    The agent can inspect files, run commands, edit code, and prepare PRs from
+    Discord. Add `--no-tools` if the bot should only chat.
   </Step>
 
   <Step title="Configure the Discord interactions endpoint">
@@ -224,7 +223,7 @@ cline connect discord \
 Requires a service account credentials JSON file and public base URL.
 
 ```bash
-cline connect gchat --credentials <JSON> --base-url <URL>
+cline connect gchat --credentials-json <JSON> --base-url <URL>
 ```
 
 ## WhatsApp
@@ -232,7 +231,7 @@ cline connect gchat --credentials <JSON> --base-url <URL>
 Requires a phone number ID, access token, app secret, webhook verify token, and public base URL.
 
 ```bash
-cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --base-url <URL>
+cline connect whatsapp --phone-number-id <ID> --access-token <TOKEN> --app-secret <SECRET> --verify-token <VERIFY_TOKEN> --base-url <URL>
 ```
 
 ## Linear
@@ -240,7 +239,7 @@ cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --b
 Requires an API key, webhook signing secret, and public base URL.
 
 ```bash
-cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
+cline connect linear --api-key <KEY> --webhook-secret <SECRET> --base-url <URL>
 ```
 
 ## Managing Connectors

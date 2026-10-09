@@ -111,5 +111,89 @@ describe("ClineError", () => {
 			const result = ClineError.getErrorType(err)
 			;(result !== ClineErrorType.ClineFreePromotionEnded).should.be.true()
 		})
+
+		describe("HTTP status", () => {
+			// A BYOK provider answering with a bare status: the message carries
+			// no auth / rate-limit wording, so the status alone decides.
+			const withStatus = (status: number, message = `Request failed with status code ${status}`) =>
+				new ClineError({ message, status }, "qwen3-coder", "openai-compatible")
+
+			it("classifies 401 and 403 as Auth", () => {
+				for (const status of [401, 403]) {
+					ClineError.getErrorType(withStatus(status))!.should.equal(ClineErrorType.Auth)
+				}
+			})
+
+			it("leaves 407 on the generic row: the proxy rejected credentials, not the provider", () => {
+				;(ClineError.getErrorType(withStatus(407)) === undefined).should.be.true()
+			})
+
+			it("classifies 402 as Balance, not Auth", () => {
+				ClineError.getErrorType(withStatus(402))!.should.equal(ClineErrorType.Balance)
+			})
+
+			it("classifies 404, 405 and 410 as NotFound, not Auth", () => {
+				for (const status of [404, 405, 410]) {
+					ClineError.getErrorType(withStatus(status))!.should.equal(ClineErrorType.NotFound)
+				}
+			})
+
+			it("leaves 400, 413 and 422 unclassified so the generic row shows the real status", () => {
+				for (const status of [400, 413, 422]) {
+					;(ClineError.getErrorType(withStatus(status)) === undefined).should.be.true()
+				}
+			})
+
+			it("still classifies 429 by its rate-limit wording", () => {
+				ClineError.getErrorType(withStatus(429, "Error 429: Too many requests"))!.should.equal(ClineErrorType.RateLimit)
+			})
+
+			it("lets the HTTP status override axios' ERR_BAD_REQUEST code", () => {
+				// axios stamps ERR_BAD_REQUEST on every 4xx; a 404 carrying it is
+				// still a not-found answer.
+				const err = new ClineError({
+					message: "Request failed with status code 404",
+					status: 404,
+					code: "ERR_BAD_REQUEST",
+				})
+
+				ClineError.getErrorType(err)!.should.equal(ClineErrorType.NotFound)
+			})
+
+			it("keeps ERR_BAD_REQUEST without a status as Auth", () => {
+				const err = new ClineError({ message: "Request failed", code: "ERR_BAD_REQUEST" })
+
+				ClineError.getErrorType(err)!.should.equal(ClineErrorType.Auth)
+			})
+
+			it("keeps message-based auth detection for status-less errors", () => {
+				ClineError.getErrorType(new ClineError("Invalid API key"))!.should.equal(ClineErrorType.Auth)
+			})
+
+			it("keeps message-based auth detection for statuses outside the dedicated sets", () => {
+				// Gemini answers an invalid key with HTTP 400, not 401; only the
+				// wording identifies it as a credential problem.
+				const err = new ClineError(
+					{ message: "API key not valid. Please pass a valid API key.", status: 400 },
+					"gemini-2.5-pro",
+					"gemini",
+				)
+
+				ClineError.getErrorType(err)!.should.equal(ClineErrorType.Auth)
+			})
+
+			it("classifies a serialized 404 payload parsed by the webview as NotFound", () => {
+				// llama-swap answers 404 for a model id it no longer serves.
+				const payload = JSON.stringify({
+					message: 'model "qwen3-coder" not found',
+					status: 404,
+					providerId: "openai-compatible",
+				})
+
+				const err = ClineError.parse(payload)!
+				ClineError.getErrorType(err)!.should.equal(ClineErrorType.NotFound)
+				err.isErrorType(ClineErrorType.Auth).should.be.false()
+			})
+		})
 	})
 })
