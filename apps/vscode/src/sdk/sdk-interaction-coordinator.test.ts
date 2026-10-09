@@ -358,6 +358,117 @@ describe("SdkInteractionCoordinator", () => {
 		])
 	})
 
+	it("accepts an ask_question response as soon as the ask is emitted", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn(() => new Promise<void>(() => {})),
+			setTurnPhase,
+		})
+		let accepted = false
+		messages.onSessionEvent(() => {
+			if (task.messageStateHandler.getClineMessages().length === 1) {
+				accepted = coordinator.resolvePendingAskQuestion("yes")
+			}
+		})
+
+		const answer = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
+
+		expect(accepted).toBe(true)
+		await expect(answer).resolves.toBe("yes")
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it.each(["Task cancelled", "Task switched"])("settles ask_question during its state post on %s", async (reason) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let releasePost!: () => void
+		const postStateToWebview = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					releasePost = resolve
+				}),
+		)
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+		})
+		let result: string | undefined
+		const answer = coordinator.handleAskQuestion("Continue?", [], undefined).then((value) => {
+			result = value
+		})
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledOnce())
+
+		coordinator.clearPending(reason)
+		await vi.waitFor(() => expect(result).toBe(""))
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
+
+		releasePost()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(coordinator.resolvePendingAskQuestion("new task input")).toBe(false)
+		await answer
+	})
+
+	it.each(["resolves", "rejects"])("keeps a later ask when a cleared ask's state post %s", async (outcome) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let releaseFirstPost!: () => void
+		let rejectFirstPost!: (error: Error) => void
+		const postStateToWebview = vi
+			.fn<() => Promise<void>>()
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((resolve, reject) => {
+						releaseFirstPost = resolve
+						rejectFirstPost = reject
+					}),
+			)
+			.mockResolvedValue(undefined)
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			setTurnPhase,
+		})
+		const firstAnswer = coordinator.handleAskQuestion("Old question?", [], undefined)
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(1))
+		coordinator.clearPending("Task switched")
+		await expect(firstAnswer).resolves.toBe("")
+
+		const secondAnswer = coordinator.handleAskQuestion("New question?", [], undefined)
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(2))
+		const secondAskTs = task.messageStateHandler.getClineMessages()[1].ts
+		if (outcome === "resolves") {
+			releaseFirstPost()
+		} else {
+			rejectFirstPost(new Error("Task changed while building webview state"))
+		}
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_followup", secondAskTs)
+		expect(coordinator.resolvePendingAskQuestion("new answer")).toBe(true)
+		await expect(secondAnswer).resolves.toBe("new answer")
+	})
+
+	it("rejects and clears the ask whose state post fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const error = new Error("Failed to build webview state")
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockRejectedValue(error),
+			setTurnPhase,
+		})
+
+		await expect(coordinator.handleAskQuestion("Continue?", [], undefined)).rejects.toBe(error)
+		expect(coordinator.resolvePendingAskQuestion("late answer")).toBe(false)
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
 	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()

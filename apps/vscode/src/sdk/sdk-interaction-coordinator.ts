@@ -165,16 +165,35 @@ export class SdkInteractionCoordinator {
 			partial: false,
 		}
 
+		// Install before emitting the ask so responses and task teardown can settle it
+		// even while the full webview state is still being built.
+		let resolveAnswer!: (answer: string) => void
+		let rejectAnswer!: (reason: unknown) => void
+		const answer = new Promise<string>((resolve, reject) => {
+			resolveAnswer = resolve
+			rejectAnswer = reject
+		})
+		this.pendingAskResolve = resolveAnswer
+		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
+
 		this.options.messages.appendAndEmit([askMessage], {
 			type: "status",
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
-		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
-		await this.options.postStateToWebview()
 
-		return new Promise<string>((resolve) => {
-			this.pendingAskResolve = resolve
-		})
+		void Promise.resolve()
+			.then(() => this.options.postStateToWebview())
+			.catch((error) => {
+				// A cleared/answered ask may already have been replaced by a new one.
+				if (this.pendingAskResolve !== resolveAnswer) {
+					return
+				}
+				this.pendingAskResolve = undefined
+				this.options.setTurnPhase?.("streaming")
+				rejectAnswer(error)
+			})
+
+		return answer
 	}
 
 	resolvePendingToolApproval(
