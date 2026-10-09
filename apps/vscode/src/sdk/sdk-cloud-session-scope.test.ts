@@ -123,6 +123,13 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				providerId: "cline",
 				modelId: "fixture-model",
 				apiKey: "fixture-key",
+				providerConfig: {
+					providerId: "cline",
+					modelId: "fixture-model",
+					apiKey: "fixture-key",
+					knownModels: { "catalog-model": { id: "catalog-model" } },
+				},
+				knownModels: { "catalog-model": { id: "catalog-model" } },
 				cwd: "/workspace",
 				workspaceRoot: "/workspace",
 				systemPrompt: "normal Cline guidance",
@@ -255,6 +262,23 @@ describe("originating-account cloud cleanup", () => {
 		await f.coordinator.dispose()
 	})
 
+	it("cancels a still-provisioning start instead of waiting for it to boot", async () => {
+		const f = fixture("readiness", "org-origin")
+		f.setReadinessStatus("provisioning")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		f.barrier.resolve()
+		// The user left the provisioning view for a local task before the change.
+		f.options.setTask({ taskId: "local-task" } as TaskProxy)
+		await f.coordinator.reset(f.changeScope)
+		expect(await starting).toBe(f.record.id)
+		expect(f.changeScope).toHaveBeenCalledOnce()
+		expect(f.requests.filter((request) => request.method === "DELETE")).toEqual([
+			expect.objectContaining({ token: `Bearer ${f.origin.token}` }),
+		])
+		await f.coordinator.dispose()
+	})
+
 	it("reports rejected cleanup once without exposing response text or retrying as the successor", async () => {
 		const f = fixture("create")
 		f.setDeletionStatus(401)
@@ -313,6 +337,19 @@ describe("originating-account cloud cleanup", () => {
 		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
 		await f.coordinator.reset(f.changeScope)
 		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
+		await f.coordinator.dispose()
+	})
+
+	it("never sends the user's provider key or the local model catalog into the sandbox", async () => {
+		const f = fixture("prompt")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		f.barrier.resolve()
+		expect(await starting).toBe(f.record.id)
+		const config = vi.mocked(f.host.start).mock.calls[0]?.[0]?.config
+		expect(config?.providerConfig).toMatchObject({ providerId: "cline", modelId: "fixture-model" })
+		expect(JSON.stringify(config)).not.toContain("fixture-key")
+		expect(JSON.stringify(config)).not.toContain("catalog-model")
 		await f.coordinator.dispose()
 	})
 

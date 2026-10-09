@@ -35,21 +35,18 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "@cline/core"
+import { buildCloudSessionSystemPrompt } from "@cline/core/cloud"
 import type { AgentResult, ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
 import { CLOUD_SESSION_MODE, CLOUD_WORKSPACE_ROOT, type CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 
-export const CLOUD_GITHUB_AUTH_SYSTEM_PROMPT =
-	"IMPORTANT: GitHub API authentication is handled automatically by the infrastructure. " +
-	"A secrets-proxy sidecar injects the necessary authentication credentials into all GitHub API requests. " +
-	"You do NOT need to set up, configure, or manage any authentication tokens, API keys, or credentials for GitHub API calls. " +
-	"Simply make your GitHub API calls normally — authentication will be injected transparently."
-
 export interface CloudSessionHostOptions {
 	outerSessionId: string
 	/** Canonical `tsk-…` id shared by runtime requests, transcripts and history snapshots. */
 	taskId: string
+	/** A temporary (standard) sandbox's agent is told to push its work as it goes. */
+	sandboxType?: "standard" | "resumable"
 	socketUrl: string
 	getAuthToken: () => Promise<string | null | undefined>
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
@@ -57,6 +54,18 @@ export interface CloudSessionHostOptions {
 	onStatusChange?: (status: CloudSessionStatus) => void
 	/** Sandbox workspace root. Hosted sandboxes use /workspace. */
 	workspaceRoot?: string
+	/**
+	 * The session config to rebuild the conversation's runtime with when a
+	 * resumed sandbox has the conversation saved but no longer running.
+	 */
+	restoreConfig?: () => Promise<StartSessionInput["config"]>
+}
+
+const AUTO_APPROVE_ALL = { "*": { enabled: true, autoApprove: true } }
+
+function isMissingSessionError(error: unknown, sessionId: string): boolean {
+	const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown }
+	return code === "session_not_found" || message === `session not found: ${sessionId}`
 }
 
 export function mapAgentStatus(status: string): CloudSessionStatus | undefined {
@@ -110,6 +119,8 @@ export class CloudSessionHost implements SdkSessionHost {
 	private readonly statusUnsubscribe: () => void
 	private disposed = false
 	private statusObservation = {}
+	/** Whether the inner session is known to have a live runtime on this connection's Hub. */
+	private innerSessionLive = false
 
 	private constructor(
 		private readonly options: CloudSessionHostOptions,
@@ -259,8 +270,6 @@ export class CloudSessionHost implements SdkSessionHost {
 		if (this.innerSessionId) {
 			throw new Error("This cloud session already has a conversation.")
 		}
-		const workspaceRoot = this.options.workspaceRoot ?? CLOUD_WORKSPACE_ROOT
-		const cwd = input.config.cwd?.trim() || workspaceRoot
 		// The control plane snapshots the outer session and canonical task ids
 		// together. Keep that task id for every artifact this Hub session writes.
 		const plannedId = this.taskId
@@ -269,18 +278,11 @@ export class CloudSessionHost implements SdkSessionHost {
 		try {
 			const result = await this.host.startSession({
 				...input,
-				config: {
-					...input.config,
-					sessionId: plannedId,
-					cwd,
-					workspaceRoot,
-					systemPrompt: input.config.systemPrompt
-						? `${CLOUD_GITHUB_AUTH_SYSTEM_PROMPT}\n\n${input.config.systemPrompt}`
-						: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
-				},
-				toolPolicies: { "*": { enabled: true, autoApprove: true } },
+				config: this.sandboxSessionConfig(input.config, plannedId),
+				toolPolicies: AUTO_APPROVE_ALL,
 			})
 			this.innerSessionId = result.sessionId
+			this.innerSessionLive = true
 			this.modelId = input.config.modelId
 			return { ...result, sessionId: this.outerSessionId }
 		} catch (error) {
@@ -290,8 +292,53 @@ export class CloudSessionHost implements SdkSessionHost {
 		}
 	}
 
+	private sandboxSessionConfig(config: StartSessionInput["config"], sessionId: string): StartSessionInput["config"] {
+		const workspaceRoot = this.options.workspaceRoot ?? CLOUD_WORKSPACE_ROOT
+		// The same sandbox guidance (GitHub access, work branch) every cloud client sends.
+		const guidance = buildCloudSessionSystemPrompt({
+			id: this.outerSessionId,
+			sandboxType: this.options.sandboxType,
+			metadata: { taskId: this.taskId },
+		})
+		return {
+			...config,
+			sessionId,
+			cwd: config.cwd?.trim() || workspaceRoot,
+			workspaceRoot,
+			systemPrompt: config.systemPrompt ? `${guidance}\n\n${config.systemPrompt}` : guidance,
+		}
+	}
+
+	/**
+	 * A resumed sandbox restarts its Hub with the conversation saved on disk but
+	 * no runtime, so a turn would fail with "session not found". Rebuild the
+	 * runtime from the saved messages before the first turn on this connection.
+	 */
+	private async ensureInnerSessionLive(
+		sessionId: string,
+		restoreConfig: NonNullable<CloudSessionHostOptions["restoreConfig"]>,
+	): Promise<void> {
+		try {
+			await this.host.updateSessionConnection(sessionId, {})
+		} catch (error) {
+			if (!isMissingSessionError(error, sessionId)) throw error
+			const initialMessages = await this.host.readSessionMessages(sessionId)
+			if (initialMessages.length === 0) throw new Error("This cloud session's saved conversation is unavailable.")
+			const config = this.sandboxSessionConfig(await restoreConfig(), sessionId)
+			try {
+				await this.host.startSession({ config, initialMessages, interactive: true, toolPolicies: AUTO_APPROVE_ALL })
+			} catch (restoreError) {
+				// Another client restored it first.
+				if ((restoreError as { code?: unknown })?.code !== "session_already_exists") throw restoreError
+			}
+		}
+		this.innerSessionLive = true
+	}
+
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const sessionId = this.toInner(input.sessionId)
+		const { restoreConfig } = this.options
+		if (restoreConfig && !this.innerSessionLive) await this.ensureInnerSessionLive(sessionId, restoreConfig)
 		this.setStatus("running")
 		try {
 			return await this.host.runTurn({
