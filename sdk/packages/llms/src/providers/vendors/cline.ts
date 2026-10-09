@@ -285,6 +285,5 @@ export async function createClineProviderModule(
 			return result;
 		},
 		executesModelTools: true,
-		retryStreamErrors: true,
 	};
 }

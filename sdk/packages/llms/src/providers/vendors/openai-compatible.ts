@@ -276,7 +276,6 @@ export async function createOpenAICompatibleProviderModule(
 				})
 			: undefined;
 	return {
-		retryStreamErrors: true,
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
 		// `role:"tool"` messages whose `output.type === 'content'` carries
 		// image-data parts get split into a placeholder text + a synthetic

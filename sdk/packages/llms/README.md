@@ -13,8 +13,9 @@ AI SDK-backed handler creation for supported LLM backends.
 
 ## Stream recovery
 
-The OpenAI-compatible and Cline adapters enable AI SDK stream retries with
-the same budget as request-start retries (`MODEL_REQUEST_MAX_RETRIES`):
+AI SDK language adapters use the same budget for stream and request-start
+retries. Vendor factories can override it with `maxRetries`; the default is
+`MODEL_REQUEST_MAX_RETRIES`:
 five retries per model step, or six total attempts including the initial attempt.
 This includes OpenRouter, Cline Pass, and custom endpoints using those adapters.
 Provider error parts, including EOF without a finish reason, restart the current
@@ -24,7 +25,6 @@ retries retain their separate budgets.
 Already-emitted text and reasoning remain visible and may repeat across attempts.
 The AI SDK isolates failed-attempt tool calls before client-side execution, but
 provider-executed work can repeat. Retries can add latency and provider cost.
-Native adapters retain their existing retry policies.
 
 ## Installation
 

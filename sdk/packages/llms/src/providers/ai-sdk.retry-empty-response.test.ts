@@ -17,6 +17,7 @@ import {
 	createOpenAICompatibleProvider,
 	withEmptyResponseRetry,
 } from "./ai-sdk";
+import * as openAICompatibleVendor from "./vendors/openai-compatible";
 
 /**
  * Integration tests proving `createRetryEmptyResponseMiddleware` is engaged
@@ -264,6 +265,26 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		});
 	});
 
+	it.each([0, 1])("honors a vendor retry budget of %i", async (maxRetries) => {
+		const createModule =
+			openAICompatibleVendor.createOpenAICompatibleProviderModule;
+		const factory = vi
+			.spyOn(openAICompatibleVendor, "createOpenAICompatibleProviderModule")
+			.mockImplementation(async (...args) => ({
+				...(await createModule(...args)),
+				maxRetries,
+			}));
+		try {
+			const { fetchMock, events } = await run([
+				chunk({ role: "assistant", content: "Partial answer" }),
+			]);
+			expect(fetchMock).toHaveBeenCalledTimes(maxRetries + 1);
+			expect(finishEvents(events)[0]).toMatchObject({ reason: "error" });
+		} finally {
+			factory.mockRestore();
+		}
+	});
+
 	it("retries an empty turn and streams the successful attempt", async () => {
 		const { fetchMock, events } = await run([emptySse, textSse]);
 
@@ -478,7 +499,7 @@ describe("anthropic wire format", () => {
 		return { fetchMock, events };
 	}
 
-	it("does not enable stream retries for native Anthropic errors", async () => {
+	it("uses the default stream retry budget for native Anthropic errors", async () => {
 		const { fetchMock, events } = await run([
 			sse([
 				messageStart,
@@ -489,8 +510,9 @@ describe("anthropic wire format", () => {
 			]),
 			textSse,
 		]);
-		expect(fetchMock).toHaveBeenCalledOnce();
-		expect(finishEvents(events)[0]).toMatchObject({ reason: "error" });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(hasTextDelta(events, "hello")).toBe(true);
+		expect(finishEvents(events)[0]).toMatchObject({ reason: "stop" });
 	});
 
 	it("retries an empty turn and streams the successful attempt", async () => {
