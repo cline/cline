@@ -255,6 +255,23 @@ describe("originating-account cloud cleanup", () => {
 		await f.coordinator.dispose()
 	})
 
+	it("cancels a still-provisioning start instead of waiting for it to boot", async () => {
+		const f = fixture("readiness", "org-origin")
+		f.setReadinessStatus("provisioning")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		f.barrier.resolve()
+		// The user left the provisioning view for a local task before the change.
+		f.options.setTask({ taskId: "local-task" } as TaskProxy)
+		await f.coordinator.reset(f.changeScope)
+		expect(await starting).toBe(f.record.id)
+		expect(f.changeScope).toHaveBeenCalledOnce()
+		expect(f.requests.filter((request) => request.method === "DELETE")).toEqual([
+			expect.objectContaining({ token: `Bearer ${f.origin.token}` }),
+		])
+		await f.coordinator.dispose()
+	})
+
 	it("reports rejected cleanup once without exposing response text or retrying as the successor", async () => {
 		const f = fixture("create")
 		f.setDeletionStatus(401)
