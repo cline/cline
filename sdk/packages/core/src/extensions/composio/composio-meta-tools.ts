@@ -19,6 +19,15 @@ export const CONNECTORS_API_PATH = "/api/v1/connectors";
 /** Session creation runs during session bootstrap, so it must not stall it. */
 const META_TOOL_SESSION_TIMEOUT_MS = 5_000;
 
+// These tools form one search/connect/execute flow. Their provider descriptions
+// reference each other, so a partial session cannot be exposed to the agent.
+const REQUIRED_META_TOOL_SLUGS = [
+	"COMPOSIO_SEARCH_TOOLS",
+	"COMPOSIO_MANAGE_CONNECTIONS",
+	"COMPOSIO_WAIT_FOR_CONNECTIONS",
+	"COMPOSIO_MULTI_EXECUTE_TOOL",
+] as const;
+
 export type ConnectorsAuth = { baseUrl: string; token: string };
 
 export type ComposioMetaTool = {
@@ -75,13 +84,19 @@ export async function createComposioMetaToolSession(
 		if (typeof sessionId !== "string" || !sessionId || !Array.isArray(tools)) {
 			return undefined;
 		}
-		return {
-			sessionId,
-			tools: tools.filter(
-				(tool): tool is ComposioMetaTool =>
-					typeof tool?.slug === "string" && tool.slug.length > 0,
-			),
-		};
+		const metaTools = tools.filter(
+			(tool): tool is ComposioMetaTool =>
+				typeof tool?.slug === "string" && tool.slug.length > 0,
+		);
+		const slugs = new Set(metaTools.map((tool) => tool.slug));
+		const missing = REQUIRED_META_TOOL_SLUGS.filter((slug) => !slugs.has(slug));
+		if (missing.length > 0) {
+			options?.log?.(
+				`composio-tools: meta-tool session missing required tools: ${missing.join(", ")}`,
+			);
+			return undefined;
+		}
+		return { sessionId, tools: metaTools };
 	} catch {
 		return undefined;
 	}

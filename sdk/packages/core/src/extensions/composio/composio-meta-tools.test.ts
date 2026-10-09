@@ -4,6 +4,13 @@ import {
 	executeComposioMetaTool,
 } from "./composio-meta-tools";
 
+const sessionTools = [
+	{ slug: "COMPOSIO_SEARCH_TOOLS" },
+	{ slug: "COMPOSIO_MANAGE_CONNECTIONS" },
+	{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
+	{ slug: "COMPOSIO_MULTI_EXECUTE_TOOL" },
+];
+
 const auth = { baseUrl: "https://api.cline.bot", token: "cline_token_123" };
 
 afterEach(() => {
@@ -19,10 +26,7 @@ describe("createComposioMetaToolSession", () => {
 						success: true,
 						data: {
 							sessionId: "trs_1",
-							tools: [
-								{ slug: "COMPOSIO_MANAGE_CONNECTIONS" },
-								{ name: "no slug" },
-							],
+							tools: [...sessionTools, { name: "no slug" }],
 						},
 					}),
 				),
@@ -31,7 +35,7 @@ describe("createComposioMetaToolSession", () => {
 
 		expect(await createComposioMetaToolSession(auth)).toEqual({
 			sessionId: "trs_1",
-			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
+			tools: sessionTools,
 		});
 		const [url, init] = fetchMock.mock.calls[0] as unknown as [
 			string,
@@ -44,6 +48,41 @@ describe("createComposioMetaToolSession", () => {
 		expect((init.headers as Record<string, string>).authorization).toBe(
 			"Bearer cline_token_123",
 		);
+	});
+
+	it.each(
+		sessionTools.map((tool) => tool.slug),
+	)("rejects a session missing %s", async (missingSlug) => {
+		vi.stubGlobal("fetch", async () =>
+			Response.json({
+				data: {
+					sessionId: "trs_1",
+					tools: sessionTools.filter((tool) => tool.slug !== missingSlug),
+				},
+			}),
+		);
+		const log = vi.fn();
+		expect(await createComposioMetaToolSession(auth, { log })).toBeUndefined();
+		expect(log).toHaveBeenCalledWith(expect.stringContaining(missingSlug));
+	});
+
+	it("rejects connection tools whose description requires unavailable search", async () => {
+		vi.stubGlobal("fetch", async () =>
+			Response.json({
+				data: {
+					sessionId: "trs_1",
+					tools: [
+						{
+							slug: "COMPOSIO_MANAGE_CONNECTIONS",
+							description:
+								"First call COMPOSIO_SEARCH_TOOLS for the user's query.",
+						},
+						{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
+					],
+				},
+			}),
+		);
+		expect(await createComposioMetaToolSession(auth)).toBeUndefined();
 	});
 
 	it("returns undefined without logging when there are no connectable toolkits", async () => {
