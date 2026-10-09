@@ -40,6 +40,11 @@ const WORKSPACE_EXPORT_CONDITIONS = [
 
 export interface ImportPluginModuleOptions {
 	useCache?: boolean;
+	/**
+	 * Evaluate the module again (no module cache) but reuse jiti's on-disk
+	 * transform cache, so a fresh per-session copy skips the babel transform.
+	 */
+	freshModule?: boolean;
 }
 
 function collectWorkspaceAliases(root: string): Record<string, string> {
@@ -697,8 +702,8 @@ export async function importPluginModule(
 		: undefined;
 	const jiti = createJiti(pluginPath, {
 		alias: sortedAliases,
-		cache: options.useCache,
-		requireCache: options.useCache,
+		cache: options.freshModule ? true : options.useCache,
+		requireCache: options.freshModule ? false : options.useCache,
 		esmResolve: true,
 		interopDefault: false,
 		nativeModules: [...BUILTIN_MODULES],

@@ -60,7 +60,19 @@ interface PluginEntry {
 	attributionRoot: string;
 	name: string;
 	state: PluginRuntimeState;
+	/**
+	 * Set when the plugin is turned off for every session: import or discovery
+	 * failed, a stray error was attributed to it, or calls kept failing. A
+	 * `setup()` failure alone is per session and does not set this.
+	 */
+	blocked: boolean;
+	/** The imported module, read for metadata (name, manifest, hooks). */
 	extension?: AgentExtension;
+	/**
+	 * An imported copy no session has used yet. The first session claims it;
+	 * later sessions import their own copy so module state is per session.
+	 */
+	spare?: AgentExtension;
 	/** Bumped on every (re)import; wrappers from older generations stop recording. */
 	generation: number;
 	fingerprint?: string;
@@ -73,6 +85,12 @@ interface PluginEntry {
 	issueListeners: Map<string, (issue: SessionPluginIssue) => void>;
 	loading?: Promise<void>;
 	updatedAt: number;
+}
+
+/** One session's copy of a plugin module. */
+interface PluginInstance {
+	extension: AgentExtension;
+	setupFailed: boolean;
 }
 
 interface PluginCallScope {
@@ -248,10 +266,6 @@ function isPluginEnabledByPolicy(
 	return policy["*"]?.enabled ?? true;
 }
 
-function isCallable(state: PluginRuntimeState): boolean {
-	return state === "ready" || state === "degraded";
-}
-
 const pluginCallScope = new AsyncLocalStorage<PluginCallScope>();
 let lastPluginCallScope: PluginCallScope | undefined;
 
@@ -278,11 +292,12 @@ export function installPluginHostShim(): void {
 }
 
 /**
- * Loads plugin modules once per process and hands each session a guarded
- * view of the plugins it enabled. Every import, setup, hook, tool, and
- * command call is wrapped with a timeout and error capture, and the result is
- * recorded per plugin so failures are visible instead of silently dropping
- * the plugin's tools.
+ * Tracks plugins for the whole process and hands each session a guarded copy
+ * of the plugins it enabled. Each session gets its own import of the module,
+ * matching the per-session sandbox plugins were written for. Every import,
+ * setup, hook, tool, and command call is wrapped with a timeout and error
+ * capture, and the result is recorded per plugin so failures are visible
+ * instead of silently dropping the plugin's tools.
  */
 export class PluginRegistry {
 	private readonly entries = new Map<string, PluginEntry>();
@@ -341,6 +356,7 @@ export class PluginRegistry {
 		const matches = this.match(nameOrPath);
 		for (const entry of matches) {
 			entry.fingerprint = undefined;
+			entry.blocked = false;
 			entry.lastError = undefined;
 			entry.errorCount = 0;
 			entry.timeoutCount = 0;
@@ -416,6 +432,7 @@ export class PluginRegistry {
 			const entry = this.ensureEntry(pluginPath);
 			if (entry.state !== "disabled") {
 				entry.extension = undefined;
+				entry.spare = undefined;
 				this.setState(entry, "disabled");
 			}
 		}
@@ -435,7 +452,7 @@ export class PluginRegistry {
 				derivePluginName(pluginPath, entry.attributionRoot),
 			];
 			const enabledByPolicy = isPluginEnabledByPolicy(input.policy, names);
-			if (!isCallable(entry.state) || !entry.extension) {
+			if (entry.blocked || entry.state === "disabled" || !entry.extension) {
 				// A broken plugin the session turned off is not this session's
 				// problem; report it as disabled rather than as a failure.
 				if (!enabledByPolicy) {
@@ -483,17 +500,33 @@ export class PluginRegistry {
 			loadedByName.set(entry.name, { entry, order: order++ });
 		}
 
-		const selected = [...loadedByName.values()].sort(
+		const ordered = [...loadedByName.values()].sort(
 			(left, right) => left.order - right.order,
 		);
+		const selected: Array<{ entry: PluginEntry; instance: PluginInstance }> =
+			[];
+		for (const { entry } of ordered) {
+			const generation = entry.generation;
+			try {
+				const extension = await this.claimInstance(entry, input.exportName);
+				selected.push({ entry, instance: { extension, setupFailed: false } });
+			} catch (error) {
+				this.recordFailure(entry, generation, "import", error, {
+					fatal: true,
+					sessionId,
+				});
+				failures.push(this.toInitializationFailure(entry));
+				issues.push(this.toIssue(entry, "error"));
+			}
+		}
 		if (sessionId) {
 			for (const { entry } of selected) {
 				entry.sessions.add(sessionId);
 				if (input.onIssue) entry.issueListeners.set(sessionId, input.onIssue);
 			}
 		}
-		const extensions = selected.map(({ entry }) =>
-			this.wrapForSession(entry, input),
+		const extensions = selected.map(({ entry, instance }) =>
+			this.wrapForSession(entry, instance, input),
 		);
 		let released = false;
 		return {
@@ -535,6 +568,7 @@ export class PluginRegistry {
 				attributionRoot,
 				name: derivePluginName(absolute, attributionRoot),
 				state: "loading",
+				blocked: false,
 				generation: 0,
 				errorCount: 0,
 				timeoutCount: 0,
@@ -574,6 +608,31 @@ export class PluginRegistry {
 		return entry;
 	}
 
+	/**
+	 * Hands a session its own copy of the plugin module. Plugins written for
+	 * the per-session sandbox keep state at module level (one plugin object
+	 * per import), so sharing one copy across sessions would break them.
+	 */
+	private async claimInstance(
+		entry: PluginEntry,
+		exportName: string | undefined,
+	): Promise<AgentExtension> {
+		const spare = entry.spare;
+		if (spare) {
+			entry.spare = undefined;
+			return spare;
+		}
+		return runWithTimeout(
+			() =>
+				loadAgentPluginFromPath(entry.pluginPath, {
+					exportName,
+					freshModule: true,
+				}),
+			this.importTimeoutMs,
+			`Plugin import of ${entry.pluginPath}`,
+		);
+	}
+
 	private async importEntry(
 		entry: PluginEntry,
 		fingerprint: string,
@@ -583,6 +642,8 @@ export class PluginRegistry {
 		const generation = entry.generation;
 		entry.fingerprint = fingerprint;
 		entry.extension = undefined;
+		entry.spare = undefined;
+		entry.blocked = false;
 		entry.consecutiveFailures = 0;
 		this.setState(entry, "loading", true);
 		const startedAt = Date.now();
@@ -591,13 +652,14 @@ export class PluginRegistry {
 				() =>
 					loadAgentPluginFromPath(entry.pluginPath, {
 						exportName,
-						useCache: false,
+						freshModule: true,
 					}),
 				this.importTimeoutMs,
 				`Plugin import of ${entry.pluginPath}`,
 			);
 			if (generation !== entry.generation) return;
 			entry.extension = extension;
+			entry.spare = extension;
 			entry.name = extension.name;
 			this.setState(entry, "ready");
 			this.log("info", "plugin.import.ready", entry, {
@@ -611,9 +673,10 @@ export class PluginRegistry {
 
 	private wrapForSession(
 		entry: PluginEntry,
+		instance: PluginInstance,
 		input: PluginSessionLoadInput,
 	): AgentExtension {
-		const extension = entry.extension as AgentExtension;
+		const extension = instance.extension;
 		const generation = entry.generation;
 		const sessionId = input.sessionId;
 		const emitEvent = input.emitEvent
@@ -629,10 +692,17 @@ export class PluginRegistry {
 		const wrapped: AgentExtension & { __clinePluginPath?: string } = {
 			...extension,
 			__clinePluginPath: entry.pluginPath,
-			hooks: this.wrapHooks(entry, generation, extension.hooks, scope, input),
+			hooks: this.wrapHooks(
+				entry,
+				generation,
+				instance,
+				extension.hooks,
+				scope,
+				input,
+			),
 			setup: originalSetup
 				? async (api, ctx) => {
-						if (!isCallable(entry.state)) return;
+						if (entry.blocked) return;
 						const sessionContext = {
 							...(input.setupContext?.session ?? {}),
 							...(ctx.session ?? {}),
@@ -650,7 +720,7 @@ export class PluginRegistry {
 						await this.runSetup(
 							entry,
 							generation,
-							extension,
+							instance,
 							(bufferedApi) => originalSetup(bufferedApi, setupContext),
 							api,
 							scope,
@@ -665,7 +735,7 @@ export class PluginRegistry {
 	private async runSetup(
 		entry: PluginEntry,
 		generation: number,
-		extension: AgentExtension,
+		instance: PluginInstance,
 		invoke: (api: SetupApi) => void | Promise<void>,
 		api: SetupApi,
 		scope: PluginCallScope,
@@ -676,7 +746,9 @@ export class PluginRegistry {
 			commands: [] as AgentExtensionCommand[],
 			calls: [] as Array<(target: SetupApi) => void>,
 		};
-		const capabilities = new Set<string>(extension.manifest.capabilities);
+		const capabilities = new Set<string>(
+			instance.extension.manifest.capabilities,
+		);
 		const requireCapability = (capability: string, method: string) => {
 			if (!capabilities.has(capability)) {
 				throw new Error(`${method} requires the "${capability}" capability`);
@@ -720,15 +792,28 @@ export class PluginRegistry {
 				`Plugin "${entry.name}" setup`,
 			);
 		} catch (error) {
+			// Setup failure only costs this session its copy of the plugin;
+			// other sessions keep theirs, and the next session tries again.
+			instance.setupFailed = true;
 			this.recordFailure(entry, generation, "setup", error, {
-				fatal: true,
 				sessionId: input.sessionId,
+				state: "failed",
+				notify: input.onIssue,
 			});
 			return;
 		}
+		if (
+			generation === entry.generation &&
+			!entry.blocked &&
+			entry.state === "failed"
+		) {
+			this.setState(entry, "ready");
+		}
 		this.warnIfSlow(entry, "setup", startedAt, this.setupTimeoutMs, input);
 		for (const tool of pending.tools) {
-			api.registerTool(this.wrapTool(entry, generation, tool, scope, input));
+			api.registerTool(
+				this.wrapTool(entry, generation, instance, tool, scope, input),
+			);
 		}
 		for (const command of pending.commands) {
 			api.registerCommand(
@@ -743,6 +828,7 @@ export class PluginRegistry {
 	private wrapHooks(
 		entry: PluginEntry,
 		generation: number,
+		instance: PluginInstance,
 		hooks: ExtensionHooks | undefined,
 		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
@@ -753,7 +839,7 @@ export class PluginRegistry {
 			if (typeof hook !== "function") continue;
 			const phase: PluginErrorPhase = `hook:${hookName}`;
 			wrapped[hookName] = async (...args: unknown[]) => {
-				if (!isCallable(entry.state) || generation !== entry.generation) {
+				if (!this.isUsable(entry, generation, instance)) {
 					return undefined;
 				}
 				const startedAt = Date.now();
@@ -784,6 +870,7 @@ export class PluginRegistry {
 	private wrapTool(
 		entry: PluginEntry,
 		generation: number,
+		instance: PluginInstance,
 		tool: AgentTool,
 		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
@@ -793,7 +880,7 @@ export class PluginRegistry {
 		return {
 			...tool,
 			execute: async (toolInput: unknown, context: AgentToolContext) => {
-				if (!isCallable(entry.state)) {
+				if (!this.isUsable(entry, generation, instance)) {
 					const reason = entry.lastError
 						? `: ${entry.lastError.phase}: ${entry.lastError.message}`
 						: "";
@@ -860,6 +947,21 @@ export class PluginRegistry {
 		};
 	}
 
+	/**
+	 * Whether a session's copy may still be called. Calls stop when the plugin
+	 * is blocked for everyone, when this copy's setup failed, or when a reload
+	 * replaced the module this copy came from.
+	 */
+	private isUsable(
+		entry: PluginEntry,
+		generation: number,
+		instance: PluginInstance,
+	): boolean {
+		return (
+			!entry.blocked && !instance.setupFailed && generation === entry.generation
+		);
+	}
+
 	private recordSuccess(entry: PluginEntry, generation: number): void {
 		if (generation === entry.generation) {
 			entry.consecutiveFailures = 0;
@@ -872,9 +974,14 @@ export class PluginRegistry {
 		phase: PluginErrorPhase,
 		error: unknown,
 		options: {
+			/** Turn the plugin off for every session. */
 			fatal?: boolean;
+			/** Force this state without blocking (per-session setup failure). */
+			state?: PluginRuntimeState;
 			sessionId?: string;
 			messagePrefix?: string;
+			/** Tell the calling session even if the state did not change. */
+			notify?: (issue: SessionPluginIssue) => void;
 		},
 	): void {
 		const { message, stack } = toErrorParts(error);
@@ -901,16 +1008,25 @@ export class PluginRegistry {
 			...(options.sessionId ? { sessionId: options.sessionId } : {}),
 			...(timedOut ? { timedOut } : {}),
 		};
-		const next: PluginRuntimeState =
-			options.fatal || entry.consecutiveFailures >= this.failureThreshold
-				? "failed"
-				: "degraded";
-		if (next === "failed") entry.extension = undefined;
+		const block =
+			options.fatal === true ||
+			(!options.state && entry.consecutiveFailures >= this.failureThreshold);
+		const next: PluginRuntimeState = block
+			? "failed"
+			: (options.state ?? "degraded");
+		if (block) {
+			entry.blocked = true;
+			entry.extension = undefined;
+			entry.spare = undefined;
+		}
 		const changed = entry.state !== next;
 		this.setState(entry, next, true);
-		if (!changed) return;
 		const issue = this.toIssue(entry, "error");
-		for (const onIssue of entry.issueListeners.values()) {
+		const notified = changed ? [...entry.issueListeners.values()] : [];
+		if (options.notify && !notified.includes(options.notify)) {
+			notified.push(options.notify);
+		}
+		for (const onIssue of notified) {
 			try {
 				onIssue(issue);
 			} catch {

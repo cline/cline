@@ -182,18 +182,87 @@ describe("PluginRegistry", () => {
 			sessionId: "s1",
 		});
 
-		// The next session is told up front instead of losing tools silently.
+		// Setup failure is per session: the next session gets a fresh copy,
+		// tries again, and is told about its own failure.
+		const told: string[] = [];
 		const next = await registry.loadForSession({
 			sessionId: "s2",
 			pluginPaths: [broken, good],
+			onIssue: (issue) => told.push(`${issue.name}:${issue.state}`),
 		});
 		expect(next.extensions.map((extension) => extension.name)).toEqual([
+			"throws-in-setup",
 			"good",
 		]);
-		expect(next.issues[0]).toMatchObject({
-			name: "throws-in-setup",
-			state: "failed",
+		expect((await setUp(next.extensions[0])).tools).toEqual([]);
+		expect(told).toEqual(["throws-in-setup:failed"]);
+	});
+
+	it("gives each session its own copy of the plugin module", async () => {
+		// Plugins written for the per-session sandbox build one plugin object
+		// per import and refuse a second setup().
+		const path = await write(
+			"one-setup-per-module.js",
+			`let setupDone = false;
+export default {
+	name: "one-setup",
+	manifest: { capabilities: ["tools"] },
+	setup(api, ctx) {
+		if (setupDone) throw new Error("Create a separate handle for each session");
+		setupDone = true;
+		const owner = ctx.session?.sessionId;
+		api.registerTool({ name: "owner", description: "", inputSchema: {}, execute: () => owner });
+	},
+};
+`,
+		);
+		const tools: AgentTool[] = [];
+		for (const sessionId of ["s1", "s2", "s3"]) {
+			const loaded = await registry.loadForSession({
+				sessionId,
+				pluginPaths: [path],
+				setupContext: { session: { sessionId } },
+			});
+			tools.push(...(await setUp(loaded.extensions[0])).tools);
+		}
+
+		expect(registry.get(path)[0]).toMatchObject({
+			state: "ready",
+			errorCount: 0,
+			sessionIds: ["s1", "s2", "s3"],
 		});
+		await expect(
+			Promise.all(tools.map((tool) => tool.execute({}, toolContext))),
+		).resolves.toEqual(["s1", "s2", "s3"]);
+	});
+
+	it("keeps other sessions working when one session's setup fails", async () => {
+		const path = await write(
+			"session-picky.js",
+			`export default {
+	name: "session-picky",
+	manifest: { capabilities: ["tools"] },
+	setup(api, ctx) {
+		if (ctx.session?.sessionId === "bad") throw new Error("not for this session");
+		api.registerTool({ name: "picky", description: "", inputSchema: {}, execute: () => "ok" });
+	},
+};
+`,
+		);
+		const load = (sessionId: string) =>
+			registry.loadForSession({
+				sessionId,
+				pluginPaths: [path],
+				setupContext: { session: { sessionId } },
+			});
+		const [tool] = (await setUp((await load("good")).extensions[0])).tools;
+		await setUp((await load("bad")).extensions[0]);
+		expect(registry.get(path)[0]?.lastError?.phase).toBe("setup");
+
+		await expect(tool?.execute({}, toolContext)).resolves.toBe("ok");
+		const later = await setUp((await load("later")).extensions[0]);
+		expect(later.tools).toHaveLength(1);
+		expect(registry.get(path)[0]?.state).toBe("ready");
 	});
 
 	it("notifies every session using a plugin when it degrades or fails", async () => {

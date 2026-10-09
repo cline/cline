@@ -618,7 +618,13 @@ Design implications:
 Plugins load in the host process through one `PluginRegistry` per process
 (`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). In the
 Hub daemon that registry is Hub-owned: the daemon discovers and imports global
-and workspace plugins once at startup, and every session reuses those modules.
+and workspace plugins at startup, so status is known before any session
+exists. Each session then gets its own copy of every plugin module: the first
+session claims the copy imported at startup, and later sessions re-evaluate the
+module (reusing jiti's transform cache, so this costs roughly the module's
+evaluation time, not a babel transform). Plugins written for the per-session
+sandbox keep state at module level, often one plugin object per import that
+refuses a second `setup()`; one shared copy would break them.
 The session bootstrap, plugin tool listing (`listPluginToolsWithDiagnostics`),
 plugin MCP settings sync, and plugin slash commands all load through the same
 registry. There is no `node` or `bun` child process, so plugins work in the
@@ -648,10 +654,14 @@ The registry tracks one status per plugin: `loading`, `ready`, `degraded`,
 `failed`, or `disabled`. It records the last error with its phase (`discover`,
 `import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or
 `uncaught`), message, stack, plugin path, timestamp, and session, plus error
-and timeout counts. Import, setup, and attributed uncaught errors mark a plugin
-`failed`. A hook or tool failure marks it `degraded`, and five consecutive
-failures mark it `failed`. A `failed` plugin is no longer called until it is
-reloaded or its entry file changes.
+and timeout counts. Import failures, discovery failures, and attributed
+uncaught errors mark a plugin `failed` and turn it off for every session. A
+hook or tool failure marks it `degraded`, and five consecutive failures turn it
+off for every session as well. A turned-off plugin is not called again until it
+is reloaded or its entry file changes. A `setup()` failure is per session: that
+session loses its copy (no tools or hooks), the status shows `failed` with the
+error, other sessions keep their working copies, and the next session tries
+setup again; a successful setup returns the status to `ready`.
 
 Status is surfaced, never only logged:
 
@@ -675,9 +685,9 @@ registry to attribute the error: when its stack points into a known plugin root
 that plugin is marked `failed` and the Hub keeps running. Other errors still go
 to `shutdownFatal`.
 
-Accepted risks of in-process execution: plugins share process state across
-sessions (setup runs per session, but module state is shared), and a plugin
-stuck in a synchronous loop freezes the Hub. Timeouts cannot interrupt
+Accepted risks of in-process execution: plugins share the process (globals,
+`process.env`, native resources) even though module state is per session, and
+a plugin stuck in a synchronous loop freezes the Hub. Timeouts cannot interrupt
 synchronous code; a call that overran its limit is logged once it returns.
 
 #### Opt-in sandbox

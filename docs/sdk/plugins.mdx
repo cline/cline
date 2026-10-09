@@ -98,9 +98,9 @@ Plugin files export an `AgentPlugin`.
 
 ## How Plugins Run
 
-File-based plugins load in the host process. When sessions run through the hub, the hub imports each plugin once and every session reuses it. No separate `node` or `bun` process is started, so plugins work in the compiled CLI and the hub without a runtime on `PATH`, and a plugin can use the host runtime's globals, such as `Bun` under the Bun-built hub.
+File-based plugins load in the host process. Each session gets its own copy of every plugin module, as it did with the old per-session sandbox, so module-level state is never shared between sessions. No separate `node` or `bun` process is started, so plugins work in the compiled CLI and the hub without a runtime on `PATH`, and a plugin can use the host runtime's globals, such as `Bun` under the Bun-built hub.
 
-Plugins share one process. `setup()` runs once per session, but module-level state is shared across sessions, and a plugin stuck in a synchronous loop blocks the hub. Keep per-session state inside `setup()` and use `ctx.cwd` rather than `process.cwd()`.
+Plugins still share one process: globals, `process.env`, and the working directory are common to every session, and a plugin stuck in a synchronous loop blocks the hub. Use `ctx.cwd` rather than `process.cwd()`.
 
 The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
 
@@ -141,11 +141,11 @@ The host wraps every plugin call and records what goes wrong, so a broken plugin
 | Call | Timeout | On failure |
 |------|---------|------------|
 | Import | 4 s (`CLINE_PLUGIN_IMPORT_TIMEOUT_MS`) | Plugin is `failed` |
-| `setup()` | 4 s | Plugin is `failed`; none of its registrations are kept |
+| `setup()` | 4 s | That session loses the plugin (none of its registrations are kept) and the status shows `failed`; other sessions keep working, and the next session tries again |
 | Hook | 3 s | Plugin is `degraded`; the run continues unless `hookErrorMode` is `"throw"` |
 | Tool | 60 s, or the tool's `timeoutMs` | The error goes back to the model as a tool error; plugin is `degraded` |
 
-Five failures in a row turn a `degraded` plugin `failed`. A `failed` plugin isn't called again until it is reloaded or its entry file changes. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
+Five failures in a row turn a `degraded` plugin `failed`. An import failure, or five hook/tool failures in a row, turns the plugin off for every session until it is reloaded or its entry file changes. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
 
 Each plugin has a status of `loading`, `ready`, `degraded`, `failed`, or `disabled`. Its last error records the phase (`discover`, `import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or `uncaught`), the message, the stack, the plugin path, and a timestamp. The status also counts errors and timeouts.
 

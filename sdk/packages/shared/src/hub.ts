@@ -493,8 +493,9 @@ export interface HubSessionSearchHit {
  * - `loading`: the module is being imported.
  * - `ready`: imported and set up without errors.
  * - `degraded`: a hook or tool call failed; the plugin is still called.
- * - `failed`: import or setup failed, a stray error was attributed to it, or
- *   calls kept failing. The host stops calling it until it is reloaded.
+ * - `failed`: the last setup failed, or the plugin is off for every session
+ *   because its import failed, a stray error was attributed to it, or calls
+ *   kept failing. Only a setup failure lets the next session try again.
  * - `disabled`: turned off in settings; never imported.
  */
 export type PluginRuntimeState =
