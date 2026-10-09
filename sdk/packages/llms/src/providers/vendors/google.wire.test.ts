@@ -126,6 +126,24 @@ describe("Gemini thinking wire contract", () => {
 		});
 	});
 
+	it("disables thinking at the lowest level the model advertises", async () => {
+		const config = await generationConfig({
+			...LEVEL_MODEL,
+			reasoning: { enabled: false },
+		});
+		expect(config.thinkingConfig).toEqual({ thinkingLevel: "low" });
+	});
+
+	it("leaves an unlisted model's thinking level alone when disabling", async () => {
+		// The adapter would otherwise guess a minimum level from the model id,
+		// which the model may reject.
+		const config = await generationConfig({
+			modelId: "gemini-unlisted-model",
+			reasoning: { enabled: false },
+		});
+		expect(config).not.toHaveProperty("thinkingConfig");
+	});
+
 	it("sends no thinkingBudget to a model the catalog does not describe", async () => {
 		const budgetOnly = await generationConfig({
 			modelId: "gemini-unlisted-model",

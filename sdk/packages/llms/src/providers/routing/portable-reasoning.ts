@@ -76,6 +76,39 @@ function snapToAdvertisedEffort(
 }
 
 /**
+ * Adapters that turn "none" into the model's lowest thinking level, guessed
+ * from the model id, instead of forwarding it. The guess can be a level the
+ * model rejects.
+ */
+const LOWEST_LEVEL_DISABLE_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
+	"google",
+	"vertex",
+]);
+
+/**
+ * Fit a disable to what the model accepts: "none" when it can turn reasoning
+ * off, otherwise its lowest advertised effort. A model the catalog does not
+ * describe keeps "none", except on adapters that would guess a level for it.
+ */
+function fitDisableToModel(
+	wire: PortableReasoningWire,
+): AiSdkReasoning | undefined {
+	const controls = getModelReasoningControls(
+		wire.context.model.reasoningOptions,
+	);
+	if (!controls) {
+		return wire.adapter && LOWEST_LEVEL_DISABLE_ADAPTERS.has(wire.adapter)
+			? undefined
+			: "none";
+	}
+	if (controls.supportsOff) {
+		return "none";
+	}
+	const lowest = controls.efforts[0];
+	return lowest ? toPortableLevel(lowest) : undefined;
+}
+
+/**
  * Resolve reasoning intent owned by the AI SDK's portable top-level option.
  * Pass `wire` to skip disabling reasoning on models known not to reason, and
  * to fit the level to the target model's advertised efforts.
@@ -85,7 +118,12 @@ export function resolvePortableReasoning(
 	wire?: PortableReasoningWire,
 ): AiSdkReasoning | undefined {
 	const level = resolvePortableLevel(request, wire?.context);
-	return level && wire ? snapToAdvertisedEffort(level, wire) : level;
+	if (!level || !wire) {
+		return level;
+	}
+	return level === "none"
+		? fitDisableToModel(wire)
+		: snapToAdvertisedEffort(level, wire);
 }
 
 /**
