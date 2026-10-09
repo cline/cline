@@ -23,6 +23,15 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
 - `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
 
+### Device SDK
+
+- `@cline/device`: host-independent device protocol, ESP-IDF firmware components,
+  board profiles, and versioned avatar assets. No dependency on agent packages.
+- `apps/device-bridge`: host session projection, transcription, pairing storage,
+  servers, and browser UI. Dashboard controls embed its host runtime.
+- Keep hardware assets and firmware in `packages/device`; hosts consume the
+  protocol through package exports and mount/copy assets from the SDK.
+
 ### Dependency Direction
 
 ```mermaid

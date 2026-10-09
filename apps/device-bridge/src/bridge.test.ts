@@ -41,6 +41,10 @@ class FakeHub implements HubPort {
 	}
 	/** Emit the run's start before startTask resolves, like the real hub. */
 	startEmitsRun = false;
+	async startCloudTask(p: string, ws?: string) {
+		this.calls.push(`cloud:${p}@${ws}`);
+		return "ses-cloud";
+	}
 	async startTask(p: string, ws?: string) {
 		this.calls.push(ws ? `start:${p}@${ws}` : `start:${p}`);
 		if (this.startEmitsRun) this.emit("run.started", "new-session");
@@ -57,7 +61,7 @@ afterEach(() => {
 async function setup(transcript = "run the tests") {
 	const hub = new FakeHub();
 	const registry = new DeviceRegistry(
-		join(mkdtempSync(join(tmpdir(), "pet-")), "d.json"),
+		join(mkdtempSync(join(tmpdir(), "device-")), "d.json"),
 	);
 	const wavs: Uint8Array[] = []; // concatenated PCM per recording
 	const bridge = new DeviceBridge({
@@ -112,6 +116,103 @@ async function setup(transcript = "run the tests") {
 }
 
 describe("DeviceBridge", () => {
+	it("routes typed prompts locally, as follow-ups, as new tasks, and to cloud", async () => {
+		const { hub, pair, send, next, wavs } = await setup();
+		await pair();
+		hub.emit("session.created", "s1", {
+			session: { workspaceRoot: "/code/app" },
+		});
+		send({ t: "prompt", id: "1", text: '  print "hello"  ' });
+		expect(await next((m) => m.t === "prompt" && m.id === "1")).toMatchObject({
+			status: "submitted",
+			target: "new",
+		});
+		hub.emit("run.started", "s1");
+		send({ t: "prompt", id: "2", text: "continue" });
+		expect(await next((m) => m.t === "prompt" && m.id === "2")).toMatchObject({
+			target: "followup",
+			session: "s1",
+		});
+		send({ t: "prompt", id: "3", text: "parallel task", target: "new" });
+		expect(await next((m) => m.t === "prompt" && m.id === "3")).toMatchObject({
+			target: "new",
+		});
+		send({ t: "prompt", id: "4", text: "cloud session: build it" });
+		expect(await next((m) => m.t === "prompt" && m.id === "4")).toMatchObject({
+			target: "cloud",
+			session: "ses-cloud",
+		});
+		expect(hub.calls).toEqual([
+			'start:print "hello"@/code/app',
+			"followup:s1:continue",
+			"start:parallel task@/code/app",
+			"cloud:build it@/code/app",
+		]);
+		expect(wavs).toEqual([]);
+	});
+	it("returns typed errors and does not resubmit duplicate request IDs", async () => {
+		const { hub, pair, send, next } = await setup();
+		await pair();
+		send({ t: "prompt", id: "1", text: "cloud session" });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			id: "1",
+			status: "error",
+		});
+		hub.startTask = async () => {
+			throw new Error("Hub unavailable");
+		};
+		send({ t: "prompt", id: "2", text: "test" });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			id: "2",
+			status: "error",
+			reason: "Hub unavailable",
+		});
+		let release!: (id: string) => void;
+		hub.startTask = async (text) => {
+			hub.calls.push(text);
+			return new Promise((resolve) => {
+				release = resolve;
+			});
+		};
+		send({ t: "prompt", id: "3", text: "one task" });
+		send({ t: "prompt", id: "3", text: "one task" });
+		send({ t: "prompt", id: "4", text: "second task" });
+		expect(await next((m) => m.t === "prompt" && m.id === "4")).toMatchObject({
+			status: "error",
+		});
+		release("s-new");
+		expect(await next((m) => m.t === "prompt" && m.id === "3")).toMatchObject({
+			status: "submitted",
+		});
+		send({ t: "prompt", id: "3", text: "one task" });
+		expect(await next((m) => m.t === "prompt" && m.id === "3")).toMatchObject({
+			status: "submitted",
+		});
+		expect(hub.calls).toEqual(["one task"]);
+	});
+	it("keeps typed submission separate from an active voice recording", async () => {
+		const { hub, pair, send, next } = await setup();
+		await pair();
+		send({ t: "voice_start" });
+		await next((m) => m.state === "listening");
+		send({ t: "prompt", id: "1", text: "run tests" });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			status: "error",
+		});
+		expect(hub.calls).toEqual([]);
+		send({ t: "voice_cancel" });
+		await next((m) => m.t === "voice" && m.status === "cancelled");
+		send({ t: "prompt", id: "2", text: "run tests" });
+		expect(await next((m) => m.t === "prompt" && m.id === "2")).toMatchObject({
+			status: "submitted",
+		});
+	});
+	it("requires authentication for typed prompts", async () => {
+		const { hub, send, next } = await setup();
+		send({ t: "prompt", id: "1", text: "test" });
+		expect(await next((m) => m.t === "auth_error")).toBeTruthy();
+		expect(hub.calls).toEqual([]);
+	});
 	it("rejects unauthenticated commands", async () => {
 		const { send, next } = await setup();
 		send({ t: "abort" });
@@ -161,6 +262,26 @@ describe("DeviceBridge", () => {
 		send({ t: "abort" });
 		await Bun.sleep(30);
 		expect(hub.calls).toEqual(["approve:a1", "deny:a2", "abort:s1"]);
+	});
+
+	it("pushes live counters without a stats request or device tap", async () => {
+		const { hub, pair, next } = await setup();
+		await pair();
+		expect(await next((m) => m.t === "stats")).toMatchObject({
+			sessions: 0,
+			today: 0,
+		});
+		hub.emit("session.updated", "s1", { session: { status: "running" } });
+		expect(await next((m) => m.t === "stats")).toMatchObject({
+			sessions: 1,
+			today: 1,
+		});
+		hub.emit("run.started", "s1");
+		hub.emit("run.completed", "s1");
+		expect(await next((m) => m.t === "stats")).toMatchObject({
+			sessions: 0,
+			today: 1,
+		});
 	});
 
 	it("records, transcribes and starts a new task when idle", async () => {
@@ -221,6 +342,66 @@ describe("DeviceBridge", () => {
 			await next((m) => m.t === "voice" && m.status === "submitted"),
 		).toMatchObject({ target: "new", session: "new-session" });
 		expect(hub.calls).toEqual(["start:write the changelog@/code/app"]);
+	});
+
+	it("routes a cloud session prefix to a new cloud task even while local work runs", async () => {
+		const { hub, pair, next, send, ws } = await setup(
+			"Cloud session: fix the build",
+		);
+		await pair();
+		hub.emit("session.created", "s1", {
+			session: { workspaceRoot: "/code/app" },
+		});
+		hub.emit("run.started", "s1");
+		send({ t: "voice_start" });
+		for (let i = 0; i < 4; i++) ws.send(new Uint8Array(2 + 4000));
+		send({ t: "voice_end" });
+		expect(
+			await next((m) => m.t === "voice" && m.status === "transcribed"),
+		).toMatchObject({ target: "cloud", text: "fix the build" });
+		send({ t: "voice_confirm" });
+		expect(
+			await next((m) => m.t === "voice" && m.status === "submitted"),
+		).toMatchObject({ target: "cloud", session: "ses-cloud" });
+		expect(hub.calls).toEqual(["cloud:fix the build@/code/app"]);
+	});
+
+	it("does not replace a new recording when cloud provisioning finishes", async () => {
+		const { hub, pair, next, send, ws } = await setup(
+			"cloud session, fix the build",
+		);
+		let finish!: (session: string) => void;
+		hub.startCloudTask = async () =>
+			await new Promise<string>((resolve) => {
+				finish = resolve;
+			});
+		await pair();
+		send({ t: "voice_start" });
+		await next((m) => m.state === "listening");
+		for (let i = 0; i < 4; i++) ws.send(new Uint8Array(2 + 4000));
+		send({ t: "voice_end" });
+		await next((m) => m.t === "voice" && m.status === "transcribed");
+		send({ t: "voice_confirm" });
+		send({ t: "voice_start" });
+		await next((m) => m.state === "listening");
+		finish("ses-cloud");
+		await Bun.sleep(10);
+		send({ t: "voice_cancel" });
+		expect(
+			await next((m) => m.t === "voice" && m.status === "cancelled"),
+		).toBeTruthy();
+	});
+
+	it("requires a task after the cloud session prefix", async () => {
+		const { hub, pair, next, send, ws } = await setup("cloud session.");
+		await pair();
+		send({ t: "voice_start" });
+		for (let i = 0; i < 4; i++) ws.send(new Uint8Array(2 + 4000));
+		send({ t: "voice_end" });
+		expect(
+			await next((m) => m.t === "voice" && m.status === "error"),
+		).toMatchObject({ text: 'Use "cloud session" followed by your task' });
+		expect(hub.calls).toEqual([]);
 	});
 
 	it("starts new voice tasks in the most recent session's workspace", async () => {

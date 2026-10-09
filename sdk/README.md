@@ -306,3 +306,10 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 ## License
 
 [Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+
+## Device SDK
+
+[`@cline/device`](packages/device/README.md) provides the device protocol, ESP-IDF
+firmware, board profiles, and versioned avatars for Cline companions. It is
+independent of the agent runtime. The [device bridge host app](../apps/device-bridge)
+connects devices to hub sessions and provides transcription and browser UI.

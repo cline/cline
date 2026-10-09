@@ -1,0 +1,14 @@
+{
+	"m5stack-cardputer-adv": {
+		"name": "M5Stack Cardputer ADV",
+		"launcher": true
+	},
+	"waveshare-s3-epaper-154": {
+		"name": "Waveshare ESP32-S3 e-Paper 1.54",
+		"launcher": false
+	},
+	"waveshare-s3-175c": {
+		"name": "Waveshare ESP32-S3 Touch AMOLED 1.75C (round)",
+		"launcher": false
+	}
+}

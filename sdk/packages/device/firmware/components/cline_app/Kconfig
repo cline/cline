@@ -1,0 +1,41 @@
+menu "Cline Device"
+
+    config DEVICE_AVATAR_ID
+        string "Avatar ID from the shared manifest (empty = defaultAvatar)"
+        default ""
+
+    config DEVICE_FW_VERSION
+        string "Firmware version reported to the bridge"
+        default "0.1.0"
+
+    config DEVICE_NAME
+        string "Device name shown in the bridge's device list"
+        default "cline-device-175c" if DEVICE_BOARD_AMOLED_175C
+        default "cline-device"
+
+    config DEVICE_BRIDGE_DEFAULT_PORT
+        int "Bridge port when a manual host has no :port"
+        default 25470
+
+    menu "Behaviour"
+        config DEVICE_WORK_FPS
+            int "Working animation frames per second (2-4)"
+            range 1 4
+            default 3
+        config DEVICE_FULL_REFRESH_EVERY
+            int "Full (anti-ghosting) refresh after this many partial refreshes"
+            default 30
+        config DEVICE_SLEEP_MIN
+            int "Minutes idle before the device falls asleep (display stops refreshing)"
+            default 5
+        config DEVICE_DEEP_SLEEP_MIN
+            int "Minutes asleep before chip deep sleep (0 = never; wake via button/touch)"
+            depends on DEVICE_BOARD_EPAPER_154
+            default 0
+        config DEVICE_MAX_RECORDING_S
+            int "Maximum push-to-talk recording length (seconds)"
+            range 5 60
+            default 30
+    endmenu
+
+endmenu

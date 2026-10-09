@@ -2,7 +2,7 @@
 	"name": "@cline/device-bridge",
 	"version": "0.0.0",
 	"private": true,
-	"description": "LAN WebSocket bridge between the Cline hub and the Cline Pet e-ink desk companion.",
+	"description": "LAN WebSocket bridge between the Cline hub and the Cline Device e-ink desk companion.",
 	"type": "module",
 	"bin": {
 		"cline-device-bridge": "./src/main.ts"
@@ -17,6 +17,11 @@
 		"@ai-sdk/openai": "^4.0.47",
 		"@cline/core": "workspace:*",
 		"@cline/shared": "workspace:*",
-		"ai": "^7.0.79"
+		"ai": "^7.0.79",
+		"@cline/device": "workspace:*"
+	},
+	"exports": {
+		".": "./src/runtime.ts",
+		"./status": "./src/status.ts"
 	}
 }

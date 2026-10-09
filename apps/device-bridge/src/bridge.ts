@@ -1,6 +1,3 @@
-import type { HubEventEnvelope } from "@cline/shared";
-import type { ServerWebSocket } from "bun";
-import type { DeviceRegistry } from "./pairing";
 import {
 	AUDIO_BITS,
 	AUDIO_CHANNELS,
@@ -11,17 +8,21 @@ import {
 	type DeviceToBridge,
 	MAX_RECORDING_BYTES,
 	PROTOCOL_VERSION,
+	type PromptResult,
+	type PromptTarget,
 	parseDeviceMessage,
-	type VoiceTarget,
-} from "./protocol";
-import { PetStateProjector } from "./state";
+} from "@cline/device";
+import type { HubEventEnvelope } from "@cline/shared";
+import type { ServerWebSocket } from "bun";
+import type { DeviceRegistry } from "./pairing";
+import { DeviceStateProjector } from "./state";
 
 const TRANSCRIPT_MAX = 120;
 const HELLO_TIMEOUT_MS = 10_000;
 const THINKING_TIMEOUT_MS = 30_000;
 const MIN_RECORDING_BYTES = AUDIO_SAMPLE_RATE * 2 * 0.3; // 300 ms
 
-/** The hub operations the bridge needs. Implemented over the hub client in main.ts. */
+/** The hub operations the bridge needs. Implemented over the hub client in runtime.ts. */
 export interface HubPort {
 	subscribe(listener: (event: HubEventEnvelope) => void): () => void;
 	onConnectionChange(listener: (online: boolean) => void): () => void;
@@ -33,6 +34,7 @@ export interface HubPort {
 	 * as observed from hub events; the implementation decides precedence.
 	 */
 	startTask(prompt: string, recentWorkspace?: string): Promise<string>;
+	startCloudTask(prompt: string, recentWorkspace?: string): Promise<string>;
 }
 
 /**
@@ -85,7 +87,7 @@ type VoiceSession =
 			phase: "pending";
 			owner: DeviceSocket;
 			text: string;
-			target: VoiceTarget;
+			target: PromptTarget;
 			session?: string;
 			timer: ReturnType<typeof setTimeout>;
 	  };
@@ -96,9 +98,15 @@ type VoiceSession =
  */
 export class DeviceBridge {
 	private readonly devices = new Set<DeviceSocket>();
-	private readonly projector: PetStateProjector;
+	private readonly projector: DeviceStateProjector;
 	private voice?: VoiceSession;
+	private voiceRevision = 0;
+	private readonly prompts = new WeakMap<
+		DeviceSocket,
+		{ id: string; result?: PromptResult }
+	>();
 	private lastSent = "";
+	private lastStats = "";
 	private transientTimer?: ReturnType<typeof setTimeout>;
 	private thinkingTimer?: ReturnType<typeof setTimeout>;
 	private readonly disposers: Array<() => void> = [];
@@ -106,7 +114,7 @@ export class DeviceBridge {
 	private readonly log: (message: string) => void;
 
 	constructor(private readonly options: BridgeOptions) {
-		this.projector = new PetStateProjector(options.now);
+		this.projector = new DeviceStateProjector(options.now);
 		this.cancelWindowMs = options.cancelWindowMs ?? 3_000;
 		this.log = options.log ?? (() => {});
 		this.disposers.push(
@@ -128,6 +136,12 @@ export class DeviceBridge {
 	}
 
 	// ---- WebSocket handlers (wired to Bun.serve in server.ts) ---------------
+
+	connectedDevices(): string[] {
+		return [...this.devices]
+			.filter((ws) => ws.data.authed)
+			.map((ws) => ws.data.name ?? "cline-device");
+	}
 
 	onOpen(ws: DeviceSocket): void {
 		ws.data.helloTimer = setTimeout(
@@ -170,7 +184,7 @@ export class DeviceBridge {
 
 	private handleAuth(ws: DeviceSocket, msg: DeviceToBridge): void {
 		if (msg.t === "pair") {
-			const name = msg.name ?? "cline-pet";
+			const name = msg.name ?? "cline-device";
 			const token = this.options.registry.pair(msg.code.trim(), name);
 			if (!token) {
 				this.send(ws, { t: "auth_error", reason: "bad_code" });
@@ -204,6 +218,7 @@ export class DeviceBridge {
 		this.log(`device connected: ${name}`);
 		this.send(ws, { t: "welcome", v: PROTOCOL_VERSION, name });
 		this.send(ws, this.projector.snapshot());
+		this.send(ws, { t: "stats", ...this.projector.stats() });
 	}
 
 	// ---- Commands -----------------------------------------------------------
@@ -213,6 +228,9 @@ export class DeviceBridge {
 		msg: DeviceToBridge,
 	): Promise<void> {
 		switch (msg.t) {
+			case "prompt":
+				await this.submitPrompt(ws, msg);
+				return;
 			case "approve":
 			case "deny":
 				await this.options.hub.respondApproval(msg.id, msg.t === "approve");
@@ -244,6 +262,88 @@ export class DeviceBridge {
 			case "pair":
 				return;
 		}
+	}
+
+	private promptRoute(text: string, forceNew: boolean) {
+		text = text.trim();
+		const cloud = /^cloud\s+session(?=$|[\s:,.!?])/i.test(text);
+		if (cloud) text = text.replace(/^cloud\s+session[\s:,.!?]*/i, "").trim();
+		if (!text) throw new Error('Use "cloud session" followed by your task');
+		const session =
+			cloud || forceNew ? undefined : this.projector.activeSessionId();
+		const target: PromptTarget = cloud ? "cloud" : session ? "followup" : "new";
+		return { text, target, session };
+	}
+
+	private async deliverPrompt(route: {
+		text: string;
+		target: PromptTarget;
+		session?: string;
+	}) {
+		// A voice target may have ended during its cancellation window.
+		if (
+			route.target === "followup" &&
+			route.session &&
+			this.projector.activeSessionId() === route.session
+		) {
+			await this.options.hub.sendFollowup(route.session, route.text);
+			return { session: route.session, target: "followup" as const };
+		}
+		const target: PromptTarget = route.target === "cloud" ? "cloud" : "new";
+		const session =
+			target === "cloud"
+				? await this.options.hub.startCloudTask(
+						route.text,
+						this.projector.recentWorkspace(),
+					)
+				: await this.options.hub.startTask(
+						route.text,
+						this.projector.recentWorkspace(),
+					);
+		return { session, target };
+	}
+
+	private async submitPrompt(
+		ws: DeviceSocket,
+		msg: Extract<DeviceToBridge, { t: "prompt" }>,
+	) {
+		const previous = this.prompts.get(ws);
+		if (previous?.id === msg.id) {
+			if (previous.result) this.send(ws, previous.result);
+			return;
+		}
+		if ((previous && !previous.result) || this.voice) {
+			this.send(ws, {
+				t: "prompt",
+				id: msg.id,
+				status: "error",
+				reason: "Another prompt is being prepared",
+			});
+			return;
+		}
+		const pending: { id: string; result?: PromptResult } = { id: msg.id };
+		this.prompts.set(ws, pending);
+		try {
+			const route = this.promptRoute(msg.text, msg.target === "new");
+			const delivered = await this.deliverPrompt(route);
+			pending.result = {
+				t: "prompt",
+				id: msg.id,
+				status: "submitted",
+				...delivered,
+			};
+		} catch (error) {
+			pending.result = {
+				t: "prompt",
+				id: msg.id,
+				status: "error",
+				reason: clip(
+					error instanceof Error ? error.message : String(error),
+					80,
+				),
+			};
+		}
+		this.send(ws, pending.result);
 	}
 
 	// ---- Voice --------------------------------------------------------------
@@ -329,8 +429,15 @@ export class DeviceBridge {
 			return;
 		}
 
-		const session = forceNew ? undefined : this.projector.activeSessionId();
-		const target: VoiceTarget = session ? "followup" : "new";
+		let route: ReturnType<DeviceBridge["promptRoute"]>;
+		try {
+			route = this.promptRoute(text, forceNew);
+		} catch (error) {
+			this.voiceFailed(ws, (error as Error).message);
+			return;
+		}
+		const { target, session } = route;
+		text = route.text;
 		const shown = clip(text, TRANSCRIPT_MAX);
 		this.voice = {
 			phase: "pending",
@@ -356,43 +463,34 @@ export class DeviceBridge {
 		const voice = this.voice;
 		if (voice?.phase !== "pending") return;
 		this.voice = undefined;
+		const revision = this.voiceRevision;
+		if (voice.target === "cloud")
+			this.send(voice.owner, {
+				t: "voice",
+				status: "starting",
+				target: "cloud",
+			});
 		let submittedTo: string | undefined;
 		try {
-			let session = voice.session;
-			// Re-check: the targeted session may have ended during the cancel window.
-			if (
-				voice.target === "followup" &&
-				session &&
-				this.projector.activeSessionId() === session
-			) {
-				await this.options.hub.sendFollowup(session, voice.text);
+			const { session, target } = await this.deliverPrompt(voice);
+			if (revision === this.voiceRevision)
 				this.send(voice.owner, {
 					t: "voice",
 					status: "submitted",
-					target: "followup",
+					target,
 					session,
 				});
-			} else {
-				session = await this.options.hub.startTask(
-					voice.text,
-					this.projector.recentWorkspace(),
-				);
-				this.send(voice.owner, {
-					t: "voice",
-					status: "submitted",
-					target: "new",
-					session,
-				});
-			}
 			submittedTo = session;
 			this.log(`voice prompt submitted to ${session}`);
 		} catch (error) {
-			this.voiceFailed(
-				voice.owner,
-				error instanceof Error ? error.message : String(error),
-			);
+			const reason = error instanceof Error ? error.message : String(error);
+			if (revision === this.voiceRevision)
+				this.voiceFailed(voice.owner, reason);
+			else this.log(`earlier voice submission failed: ${reason}`);
 			return;
 		}
+		// Provisioning may finish after a new recording has begun.
+		if (revision !== this.voiceRevision) return;
 		// The turn usually starts while we wait for the hub to accept the
 		// prompt, so its start event may already be in: show it working now.
 		if (submittedTo && this.projector.isRunning(submittedTo)) {
@@ -401,7 +499,7 @@ export class DeviceBridge {
 			return;
 		}
 		// Otherwise stay "thinking" until the hub reports the turn running,
-		// with a fallback so a silent hub can't leave the pet thinking forever.
+		// with a fallback so a silent hub can't leave the device thinking forever.
 		this.projector.setVoice({
 			phase: "thinking",
 			transcript: clip(voice.text, TRANSCRIPT_MAX),
@@ -410,7 +508,7 @@ export class DeviceBridge {
 		this.broadcastState();
 		clearTimeout(this.thinkingTimer);
 		this.thinkingTimer = setTimeout(() => {
-			if (!this.voice) {
+			if (!this.voice && revision === this.voiceRevision) {
 				this.projector.setVoice(undefined);
 				this.broadcastState();
 			}
@@ -418,6 +516,7 @@ export class DeviceBridge {
 	}
 
 	private cancelVoice(notify: boolean): void {
+		this.voiceRevision++;
 		const voice = this.voice;
 		if (!voice) return;
 		if (voice.phase === "recording" || voice.phase === "transcribing")
@@ -440,6 +539,12 @@ export class DeviceBridge {
 	// ---- Output -------------------------------------------------------------
 
 	private broadcastState(): void {
+		const stats = { t: "stats" as const, ...this.projector.stats() };
+		const statsEncoded = JSON.stringify(stats);
+		if (statsEncoded !== this.lastStats) {
+			this.lastStats = statsEncoded;
+			for (const ws of this.devices) ws.send(statsEncoded);
+		}
 		const state = this.projector.snapshot();
 		const encoded = JSON.stringify(state);
 		// E-ink refreshes are expensive: never resend an identical state.

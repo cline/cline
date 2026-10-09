@@ -61,6 +61,7 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
+import { DeviceBridgeCard } from "./components/views/device-bridge-card";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
@@ -587,6 +588,12 @@ function HomeView({
 				</AlertDialogContent>
 			</AlertDialog>
 
+			<DeviceBridgeCard
+				state={hubState.deviceBridge}
+				hubUrl={hubState.hubUrl}
+				connected={hubState.connected}
+			/>
+
 			<div className="grid max-w-[86rem] grid-cols-2 gap-6 max-[1100px]:grid-cols-1">
 				<section
 					id="connected-clients-section"
@@ -622,7 +629,9 @@ function HomeView({
 											{[
 												client.clientType,
 												client.version ? `v${client.version}` : undefined,
-												client.pid !== undefined ? `pid ${client.pid}` : undefined,
+												client.pid !== undefined
+													? `pid ${client.pid}`
+													: undefined,
 											]
 												.filter(Boolean)
 												.join(" · ")}

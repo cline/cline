@@ -1,8 +1,8 @@
 /*
- * Cline Pet: browser client for the device bridge.
+ * Cline Device: browser client for the device bridge.
  *
  * Speaks the same protocol as the ESP32 firmware (see ../README.md and
- * ../src/protocol.ts): JSON text frames plus binary audio frames of
+ * ../../../sdk/packages/device/src/protocol.ts): JSON text frames plus binary audio frames of
  * [u16 LE sequence][1024 x s16le mono @ 16 kHz]. No build step, no
  * dependencies, so the folder can be wrapped as a Tauri / Android WebView app
  * as-is. Point a wrapped copy at a bridge with ?bridge=wss://host:25471.
@@ -11,17 +11,17 @@
 	const SAMPLE_RATE = 16000;
 	const FRAME_SAMPLES = 1024;
 	const MIN_PTT_MS = 300;
-	const ABORT_HOLD_MS = 1500;
-	const NOTICE_MS = 4000;
 	const WANDER_MS = 2400;
+	const WELCOME_TEXT =
+		"Hold to talk. Start with “cloud session” to run your task in the cloud.";
 	const STORE = {
-		token: "clinePet.token",
-		bridge: "clinePet.bridge",
-		pet: "clinePet.pet",
+		token: "clineDevice.token",
+		bridge: "clineDevice.bridge",
+		avatar: "clineDevice.avatar",
 	};
 
 	const LABELS = {
-		idle: "CLINE PET",
+		idle: "",
 		working: "WORKING",
 		waiting: "NEEDS YOU",
 		listening: "LISTENING",
@@ -34,6 +34,7 @@
 	const $ = (id) => document.getElementById(id);
 	const el = {
 		app: $("app"),
+		info: $("info"),
 		label: $("label"),
 		counters: $("counters"),
 		menuWrap: $("menu-wrap"),
@@ -41,10 +42,16 @@
 		menu: $("menu"),
 		menuNew: $("menu-new"),
 		menuUnpair: $("menu-unpair"),
-		pet: $("pet"),
+		avatar: $("avatar"),
 		sprite: $("sprite"),
 		bubble: $("bubble"),
-		tool: $("tool"),
+		speech: $("speech"),
+		speechKind: $("speech-kind"),
+		speechText: $("speech-text"),
+		bridgeHelp: $("bridge-help"),
+		sessionActions: $("session-actions"),
+		newSession: $("new-session"),
+		stopSession: $("stop-session"),
 		text: $("text"),
 		pair: $("pair"),
 		code: $("code"),
@@ -84,39 +91,48 @@
 	// ---- View model ---------------------------------------------------------
 	const view = {
 		link: "connecting", // connecting | pairing | online | offline
-		pet: { state: "offline", approval: null },
+		device: { state: "offline", approval: null },
 		answered: null, // approval id we already responded to
-		notice: null, // { text, until }
-		pending: null, // { text, newTask, until }
+		notice: null, // { text }, replaced by the next visible activity
+		pending: null, // { text, target, until }
 		recording: null, // { newTask }
+		activity: null,
 		armNew: false, // menu → New session: next recording starts a new task
 		stats: null,
 		wander: 0,
 	};
 
-	// ---- Pet sprites ----------------------------------------------------------
-	let petDir = "pets/cline/";
-	let petStates = {};
+	// ---- Device sprites ----------------------------------------------------------
+	let avatarStates = {};
 
-	async function loadPet() {
-		const name =
-			new URLSearchParams(location.search).get("pet") ??
-			store.get(STORE.pet) ??
-			"cline";
-		petDir = `pets/${encodeURIComponent(name)}/`;
+	async function loadAvatar() {
 		try {
-			const res = await fetch(`${petDir}pet.json`, { cache: "no-cache" });
-			petStates = (await res.json()).states ?? {};
-		} catch {
-			petStates = {};
+			const res = await fetch("avatars/manifest.json", { cache: "no-cache" });
+			if (!res.ok) throw new Error("Avatar manifest unavailable");
+			const manifest = await res.json();
+			if (manifest.schemaVersion !== 1)
+				throw new Error("Unsupported avatar schema");
+			const requested =
+				new URLSearchParams(location.search).get("avatar") ??
+				store.get(STORE.avatar);
+			const avatar =
+				manifest.avatars[requested] ?? manifest.avatars[manifest.defaultAvatar];
+			const variant = avatar.variants[manifest.devices.browser.variant];
+			if (!variant || !["gif", "png", "webp"].includes(variant.format))
+				throw new Error("Avatar has no browser image variant");
+			avatarStates = variant.states;
+		} catch (error) {
+			console.error("Unable to load avatar", error);
+			avatarStates = {};
 		}
 		render();
 	}
 
 	function spriteFor(state) {
-		const entry = petStates[state] ?? petStates.idle ?? "idle.gif";
-		if (!Array.isArray(entry)) return entry;
-		return entry[view.wander % entry.length];
+		const frames = avatarStates[state] ?? avatarStates.idle;
+		return frames?.length
+			? `avatars/${frames[view.wander % frames.length]}`
+			: null;
 	}
 
 	// ---- Bridge connection ----------------------------------------------------
@@ -166,7 +182,7 @@
 			ws = null;
 			stopRecording(true);
 			view.link = "offline"; // reconnect re-enters pairing if still unpaired
-			view.pet = { state: "offline", approval: null };
+			view.device = { state: "offline", approval: null };
 			render();
 			retryTimer = setTimeout(connect, retryMs);
 			retryMs = Math.min(retryMs * 2, 10000);
@@ -198,7 +214,16 @@
 				);
 				break;
 			case "state":
-				view.pet = msg;
+				view.device = msg;
+				if (msg.activity) {
+					if (
+						!view.activity ||
+						view.activity.kind !== msg.activity.kind ||
+						view.activity.text !== msg.activity.text
+					)
+						view.notice = null;
+					view.activity = msg.activity;
+				}
 				if (msg.state !== "waiting") view.answered = null;
 				if (msg.state !== "thinking") view.pending = null;
 				break;
@@ -221,18 +246,24 @@
 				const ms = msg.cancel_ms || 3000;
 				view.pending = {
 					text: msg.text ?? "",
-					newTask: msg.target === "new",
+					target: msg.target,
 					until: Date.now() + ms,
 				};
 				tickCountdown();
 				break;
 			}
+			case "starting":
+				view.pending = null;
+				notice("Starting cloud session…");
+				break;
 			case "submitted":
 				view.pending = null;
 				notice(
-					msg.target === "new"
-						? "Started a new task"
-						: "Sent to the current task",
+					msg.target === "cloud"
+						? "Started a cloud session"
+						: msg.target === "new"
+							? "Started a new task"
+							: "Sent to the current task",
 				);
 				break;
 			case "cancelled":
@@ -246,8 +277,7 @@
 	}
 
 	function notice(text) {
-		view.notice = { text, until: Date.now() + NOTICE_MS };
-		setTimeout(render, NOTICE_MS + 50);
+		view.notice = { text };
 	}
 
 	function tickCountdown() {
@@ -260,14 +290,19 @@
 	function displayState() {
 		if (view.link !== "online") return "offline";
 		if (view.recording) return "listening";
-		return view.pet.state ?? "idle";
+		if (view.armNew) return "idle";
+		return view.device.state ?? "idle";
 	}
 
 	function render() {
 		const now = Date.now();
-		if (view.notice && view.notice.until <= now) view.notice = null;
 		const state = displayState();
-		const pet = view.pet;
+		const device = view.device;
+		const welcome =
+			view.link === "online" &&
+			state === "idle" &&
+			!view.pending &&
+			(view.armNew || (!view.activity && !view.notice));
 		el.app.dataset.state = state;
 
 		el.label.textContent =
@@ -281,21 +316,42 @@
 				? `<b>${Number(view.stats.sessions)}</b> active · <b>${Number(view.stats.today)}</b> today`
 				: "";
 
-		const src = petDir + spriteFor(state);
-		if (el.sprite.getAttribute("src") !== src)
+		const src = spriteFor(state);
+		el.sprite.hidden = !src;
+		if (src && el.sprite.getAttribute("src") !== src)
 			el.sprite.setAttribute("src", src);
 		el.bubble.hidden = state !== "waiting";
 
 		// Body text: notice > pending transcript > state-specific detail.
-		el.tool.hidden = !(state === "working" && pet.tool);
-		el.tool.textContent = pet.tool ?? "";
-		el.text.textContent = bodyText(state, pet);
+		const activity = welcome
+			? { kind: "status", text: WELCOME_TEXT }
+			: view.notice
+				? { kind: "status", text: view.notice.text }
+				: view.activity;
+		el.speech.hidden =
+			!activity || view.link !== "online" || state === "offline";
+		el.speechKind.textContent =
+			activity?.kind === "tool"
+				? "TOOL CALL"
+				: activity?.kind === "thinking"
+					? "THINKING"
+					: activity?.kind === "text"
+						? "CLINE"
+						: "STATUS";
+		el.speechText.textContent = activity?.text ?? "";
+		el.speech.dataset.kind = activity?.kind ?? "status";
+		el.text.textContent = bodyText(state, device);
+		el.label.hidden = !el.label.textContent;
+		el.text.hidden = !el.text.textContent;
+		el.info.hidden = el.label.hidden && el.text.hidden;
 
 		// Controls.
 		const showPair = view.link === "pairing";
 		el.pair.hidden = !showPair;
 		const showApproval =
-			state === "waiting" && pet.approval && pet.approval.id !== view.answered;
+			state === "waiting" &&
+			device.approval &&
+			device.approval.id !== view.answered;
 		el.approval.hidden = !showApproval;
 		el.confirm.hidden = !view.pending;
 		if (view.pending) {
@@ -309,6 +365,13 @@
 			setMenu(false);
 		}
 		el.menuWrap.hidden = !online;
+		el.sessionActions.hidden = !online || state === "offline" || welcome;
+		el.menuNew.hidden = welcome;
+		el.stopSession.hidden =
+			!device.session || !["working", "waiting"].includes(device.state);
+		el.newSession.disabled = !!view.recording;
+		el.bridgeHelp.hidden = state !== "offline" || view.link === "pairing";
+		el.counters.hidden = view.link !== "online";
 		el.talk.hidden = !online || showApproval || !!view.pending;
 		const canTalk = view.link === "online";
 		el.mic.disabled = !canTalk && !view.recording;
@@ -319,7 +382,7 @@
 			: view.armNew
 				? "Hold to talk · new session"
 				: "Hold to talk";
-		el.newOff.hidden = !view.armNew || !!view.recording;
+		el.newOff.hidden = !view.armNew || !!view.recording || welcome;
 
 		el.menuNew.disabled = !canTalk;
 		el.menuUnpair.disabled = !store.get(STORE.token);
@@ -329,33 +392,34 @@
 		el.status.hidden = !status;
 	}
 
-	function bodyText(state, pet) {
-		if (view.notice) return view.notice.text;
+	function bodyText(state, device) {
 		if (view.pending) {
-			return `${view.pending.newTask ? "New task" : "Follow-up"}: “${view.pending.text}”`;
+			return `${view.pending.target === "cloud" ? "Cloud session" : view.pending.target === "new" ? "New task" : "Follow-up"}: “${view.pending.text}”`;
 		}
 		if (view.link === "pairing")
-			return "Enter the 6-digit code from the bridge.";
+			return view.notice?.text ?? "Enter the 6-digit code from the bridge.";
 		if (view.link === "connecting") return "Connecting to the bridge…";
 		if (view.link === "offline")
-			return "Make sure the bridge is running on your laptop.";
+			return "Start the bridge, then open its HTTPS address. This page will reconnect automatically.";
 		switch (state) {
 			case "waiting":
-				return pet.approval?.summary ?? "Approval needed";
+				return device.approval?.summary ?? "Approval needed";
 			case "listening":
 				return view.recording?.newTask
 					? "New task: release to send"
 					: "Listening… release to send";
 			case "thinking":
-				return pet.transcript ? `“${pet.transcript}”` : "Thinking…";
+				return device.transcript ? `“${device.transcript}”` : "Thinking…";
 			case "done":
-				return pet.reply ?? "Task complete";
+				return device.reply ?? "Task complete";
 			case "error":
-				return pet.err ?? "Something failed";
+				return device.err ?? "Something failed";
 			case "working":
-				return "Hold the pet to stop";
+				return view.armNew
+					? "Hold to talk to start a new session"
+					: "Hold to talk to send a follow-up";
 			default:
-				return "Hold to talk to Cline";
+				return "";
 		}
 	}
 
@@ -551,7 +615,7 @@
 	el.approve.addEventListener("click", () => answer(true));
 	el.deny.addEventListener("click", () => answer(false));
 	function answer(approved) {
-		const id = view.pet.approval?.id;
+		const id = view.device.approval?.id;
 		if (!id || !send({ t: approved ? "approve" : "deny", id })) return;
 		view.answered = id;
 		notice(approved ? "Approved" : "Denied");
@@ -565,25 +629,22 @@
 	});
 	el.voiceSend.addEventListener("click", () => send({ t: "voice_confirm" }));
 
-	// Pet: tap for stats, hold while working to stop the task.
-	let holdTimer = null;
-	let held = false;
-	el.pet.addEventListener("pointerdown", () => {
-		held = false;
-		if (displayState() !== "working") return;
-		holdTimer = setTimeout(() => {
-			held = true;
-			if (send({ t: "abort" })) notice("Stopping…");
-			render();
-		}, ABORT_HOLD_MS);
+	// Session actions are visible; the device remains a shortcut to refresh stats.
+	el.avatar.addEventListener("click", () => send({ t: "stats" }));
+	el.stopSession.addEventListener("click", () => {
+		if (send({ t: "abort" })) notice("Stopping…");
+		render();
 	});
-	const release = () => clearTimeout(holdTimer);
-	el.pet.addEventListener("pointerup", release);
-	el.pet.addEventListener("pointercancel", release);
-	el.pet.addEventListener("click", () => {
-		if (held) return;
-		if (send({ t: "stats" })) view.notice = null;
-	});
+	function newSession() {
+		setMenu(false);
+		view.armNew = true;
+		view.activity = null;
+		if (view.pending) send({ t: "voice_cancel" });
+		view.pending = null;
+		notice(WELCOME_TEXT);
+		render();
+	}
+	el.newSession.addEventListener("click", newSession);
 
 	el.pair.addEventListener("submit", (e) => {
 		e.preventDefault();
@@ -611,12 +672,7 @@
 		if (e.key === "Escape") setMenu(false);
 	});
 
-	el.menuNew.addEventListener("click", () => {
-		setMenu(false);
-		view.armNew = true;
-		notice("Hold to talk to start a new session");
-		render();
-	});
+	el.menuNew.addEventListener("click", newSession);
 	el.newOff.addEventListener("click", () => {
 		view.armNew = false;
 		render();
@@ -643,14 +699,14 @@
 	}
 
 	// ---- Housekeeping -------------------------------------------------------
-	// Wander between the working animations so the pet moves around.
+	// Wander between the working animations so the device moves around.
 	setInterval(() => {
 		if (displayState() !== "working") return;
 		view.wander++;
 		render();
 	}, WANDER_MS);
 
-	// Keep the screen on while visible, like a desk pet should.
+	// Keep the screen on while visible, like a desk device should.
 	let wakeLock = null;
 	async function keepAwake() {
 		try {
@@ -673,7 +729,7 @@
 		void keepAwake();
 	});
 
-	void loadPet();
+	void loadAvatar();
 	void keepAwake();
 	connect();
 })();

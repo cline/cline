@@ -1,0 +1,15 @@
+dependencies:
+  espressif/esp_codec_dev: "~1.5"
+  waveshare/esp32_s3_touch_amoled_1_75c:
+    version: "3.0.0"
+    rules:
+      - if: '$CONFIG{DEVICE_BOARD_ID} == "waveshare-s3-175c"'
+  espressif/esp_lvgl_adapter:
+    version: "0.6.4"
+    rules:
+      - if: '$CONFIG{DEVICE_BOARD_ID} == "waveshare-s3-175c"'
+  lvgl/lvgl:
+    version: "9.5.0"
+    public: true
+    rules:
+      - if: '$CONFIG{DEVICE_BOARD_ID} in ["waveshare-s3-175c", "m5stack-cardputer-adv"]'

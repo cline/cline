@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createSocket, type Socket } from "node:dgram";
 import { hostname, networkInterfaces } from "node:os";
 
-export const SERVICE_TYPE = "_clinepet._tcp";
+export const SERVICE_TYPE = "_clinedevice._tcp";
 const MDNS_ADDR = "224.0.0.251";
 const MDNS_PORT = 5353;
 const TTL = 120;
@@ -36,7 +36,7 @@ export function lanIPv4Addresses(): string[] {
 }
 
 /**
- * Advertise the bridge as `<instance>._clinepet._tcp.local`.
+ * Advertise the bridge as `<instance>._clinedevice._tcp.local`.
  * macOS already runs mDNSResponder on :5353, so register through `dns-sd`
  * there; elsewhere run a tiny built-in responder.
  */

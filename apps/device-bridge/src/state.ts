@@ -3,8 +3,8 @@ import {
 	clip,
 	type DeviceStateMessage,
 	type PendingApproval,
-	type PetState,
-} from "./protocol";
+	type DeviceState,
+} from "@cline/device";
 
 const TOOL_LABEL_MAX = 24;
 const SUMMARY_MAX = 60;
@@ -36,7 +36,7 @@ function parseInput(input: unknown): unknown {
 	}
 }
 
-/** Label shown under the pet while a tool runs. Bash tools show the command. */
+/** Label shown under the device while a tool runs. Bash tools show the command. */
 export function toolLabel(toolName: string, input?: unknown): string {
 	const command = pickString(parseInput(input), COMMAND_KEYS);
 	return clip(command ?? toolName, TOOL_LABEL_MAX);
@@ -84,10 +84,10 @@ export type VoiceOverlay =
 	  };
 
 /**
- * Folds hub events into the single compact state the pet displays.
+ * Folds hub events into the single compact state the device displays.
  * Pure apart from the injected clock, so it is unit-testable.
  */
-export class PetStateProjector {
+export class DeviceStateProjector {
 	private readonly sessions = new Map<string, SessionView>();
 	private readonly approvals = new Map<
 		string,
@@ -98,7 +98,11 @@ export class PetStateProjector {
 	private voice?: VoiceOverlay;
 	private hubOnline = false;
 	private workspace?: { path: string; at: number };
+	private activity?: DeviceStateMessage["activity"];
+	private activitySession?: string;
+	private activityText = "";
 	private tasksToday = 0;
+	private readonly countedToday = new Set<string>();
 	private today = "";
 
 	constructor(private readonly now: () => number = Date.now) {}
@@ -125,18 +129,25 @@ export class PetStateProjector {
 			case "run.started":
 			case "iteration.started":
 				if (!sessionId) return false;
-				this.touch(sessionId).running = true;
+				this.beginRun(sessionId);
 				this.clearVoiceIfAwaiting(sessionId);
-				if (event.event === "run.started") this.countTask();
+				if (event.event === "run.started")
+					this.showActivity(sessionId, "status", "Working…");
 				return true;
 			case "tool.started": {
 				if (!sessionId) return false;
-				const view = this.touch(sessionId);
-				view.running = true;
+				const view = this.beginRun(sessionId);
 				this.clearVoiceIfAwaiting(sessionId);
 				view.tool = toolLabel(
 					String(payload.toolName ?? "tool"),
 					payload.input,
+				);
+				this.showActivity(
+					sessionId,
+					"tool",
+					pickString(parseInput(payload.input), COMMAND_KEYS) ??
+						pickString(parseInput(payload.input), PATH_KEYS) ??
+						String(payload.toolName ?? "tool"),
 				);
 				return true;
 			}
@@ -145,12 +156,30 @@ export class PetStateProjector {
 				this.touch(sessionId).tool = undefined;
 				return true;
 			}
+			case "assistant.delta":
+			case "reasoning.delta": {
+				if (!sessionId || typeof payload.text !== "string" || !payload.text)
+					return false;
+				this.beginRun(sessionId);
+				const kind = event.event === "reasoning.delta" ? "thinking" : "text";
+				const previous =
+					this.activitySession === sessionId && this.activity?.kind === kind
+						? this.activityText
+						: "";
+				this.showActivity(
+					sessionId,
+					kind,
+					(previous + payload.text).slice(-240),
+				);
+				return true;
+			}
 			case "assistant.finished":
 				if (sessionId && typeof payload.text === "string") {
 					const line = lastLine(payload.text);
 					if (line) this.replies.set(sessionId, line);
+					this.showActivity(sessionId, "text", payload.text);
 				}
-				return false;
+				return true;
 			case "approval.requested": {
 				const id = String(payload.approvalId ?? "");
 				if (!id) return false;
@@ -211,9 +240,9 @@ export class PetStateProjector {
 				if (!sessionId || typeof session?.status !== "string") return false;
 				const status = session.status;
 				if (status === "running") {
-					const view = this.touch(sessionId);
-					const changed = !view.running;
-					view.running = true;
+					const changed = !this.isRunning(sessionId);
+					this.beginRun(sessionId);
+					if (changed) this.showActivity(sessionId, "status", "Working…");
 					this.clearVoiceIfAwaiting(sessionId);
 					return changed;
 				}
@@ -256,9 +285,17 @@ export class PetStateProjector {
 		}
 		if (outcome === "aborted") {
 			this.replies.delete(sessionId);
+			this.showActivity(sessionId, "status", "Stopped");
 			return true;
 		}
 		const failed = outcome === "failed";
+		this.showActivity(
+			sessionId,
+			failed ? "status" : "text",
+			failed
+				? String(error ?? "Task failed")
+				: (this.replies.get(sessionId) ?? "Task complete"),
+		);
 		this.transient = {
 			state: failed ? "error" : "done",
 			session: sessionId,
@@ -312,6 +349,13 @@ export class PetStateProjector {
 	}
 
 	snapshot(): DeviceStateMessage {
+		return {
+			...this.stateSnapshot(),
+			...(this.activity ? { activity: this.activity } : {}),
+		};
+	}
+
+	private stateSnapshot(): DeviceStateMessage {
 		if (!this.hubOnline)
 			return { t: "state", state: "offline", approval: null };
 
@@ -326,7 +370,7 @@ export class PetStateProjector {
 		}
 
 		if (this.voice) {
-			const state: PetState = this.voice.phase;
+			const state: DeviceState = this.voice.phase;
 			return {
 				t: "state",
 				state,
@@ -373,6 +417,24 @@ export class PetStateProjector {
 		}
 	}
 
+	private showActivity(
+		sessionId: string,
+		kind: NonNullable<DeviceStateMessage["activity"]>["kind"],
+		text: string,
+	): void {
+		this.activitySession = sessionId;
+		this.activityText = text;
+		this.activity = { kind, text: clip(text, 240) };
+	}
+
+	private beginRun(sessionId: string): SessionView {
+		const view = this.touch(sessionId);
+		if (!view.running) this.countTask(sessionId);
+		view.running = true;
+		this.clearVoiceIfAwaiting(sessionId);
+		return view;
+	}
+
 	private touch(sessionId: string): SessionView {
 		let view = this.sessions.get(sessionId);
 		if (!view) {
@@ -388,11 +450,14 @@ export class PetStateProjector {
 		if (day !== this.today) {
 			this.today = day;
 			this.tasksToday = 0;
+			this.countedToday.clear();
 		}
 	}
 
-	private countTask(): void {
+	private countTask(sessionId: string): void {
 		this.rollDay();
+		if (this.countedToday.has(sessionId)) return;
+		this.countedToday.add(sessionId);
 		this.tasksToday++;
 	}
 }

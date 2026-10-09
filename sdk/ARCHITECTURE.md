@@ -1061,3 +1061,17 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+## Device SDK and bridge host
+
+`@cline/device` is an independent leaf package containing the device wire protocol,
+ESP-IDF firmware components, board profiles, and the versioned avatar catalog. Its
+root export is browser-compatible; its separate `assets` export provides Node
+resource paths. It does not import the agent runtime or the bridge application.
+
+`apps/device-bridge` imports the protocol and mounts SDK avatars while owning hub
+session projection, transcription providers, pairing persistence, and LAN servers.
+The hub dashboard embeds this host runtime through `@cline/device-bridge`, so
+bridge lifecycle remains a host concern. CLI packaging copies the browser UI and
+SDK avatars into one distributable `device-web` directory. Firmware builds compile
+manifest-selected sprites into their private board build directories.

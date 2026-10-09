@@ -8,7 +8,7 @@ import {
 import type { StreamingAudioTranscriptionSession } from "@cline/shared";
 import { experimental_streamTranscribe as streamTranscribe } from "ai";
 import type { Transcriber, TranscriptionStream } from "./bridge";
-import { AUDIO_SAMPLE_RATE } from "./protocol";
+import { AUDIO_SAMPLE_RATE } from "@cline/device";
 import { pcmToWav } from "./wav";
 
 /*

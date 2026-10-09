@@ -30,17 +30,15 @@
 	display: none !important;
 }
 
-/* The pet is a single, fixed screen: nothing scrolls. */
+/* Fill the viewport; short screens can scroll to every control. */
 html,
 body {
-	height: 100%;
+	min-height: 100%;
 	margin: 0;
-	overflow: hidden;
+	overflow-x: hidden;
 	overscroll-behavior: none;
 }
 body {
-	position: fixed;
-	inset: 0;
 	background: var(--bg);
 	color: var(--text);
 	font:
@@ -58,15 +56,14 @@ body {
 main {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	min-height: 100dvh;
 	width: 100%;
-	max-width: 520px;
+	max-width: 960px;
 	margin: 0 auto;
 	padding: calc(10px + env(safe-area-inset-top))
 		max(16px, env(safe-area-inset-right))
 		calc(10px + env(safe-area-inset-bottom))
 		max(16px, env(safe-area-inset-left));
-	overflow: hidden;
 }
 
 /* ---- Header: counters (left), menu (right) ------------------------------ */
@@ -82,9 +79,7 @@ main {
 	color: var(--muted);
 	font-size: 14px;
 	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow-wrap: anywhere;
 }
 .counters b {
 	color: var(--text);
@@ -145,18 +140,18 @@ main {
 	color: var(--danger);
 }
 
-/* ---- Stage: pet centred, info + controls directly under it --------------- */
+/* ---- Stage: device centred, info + controls directly under it --------------- */
 .stage {
 	flex: 1 1 auto;
-	min-height: 0;
+	min-height: min-content;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	gap: 14px;
-	overflow: hidden;
+	gap: clamp(8px, 2dvh, 20px);
+	padding: 12px 0;
 }
-.pet {
+.avatar {
 	position: relative;
 	flex: 0 1 auto;
 	min-height: 0;
@@ -167,19 +162,19 @@ main {
 	padding: 0;
 	cursor: pointer;
 }
-.pet img {
+.avatar img {
 	display: block;
 	/* Shrinks with the viewport height so controls always fit below. */
-	height: clamp(120px, 34dvh, 300px);
-	width: auto;
-	max-width: 70vw;
+	height: clamp(64px, 30dvh, 300px);
+	width: min(70vw, 300px);
+	max-width: 100%;
 	object-fit: contain;
 	image-rendering: pixelated;
 	transition:
 		filter 0.3s,
 		opacity 0.3s;
 }
-[data-state="offline"] .pet img {
+[data-state="offline"] .avatar img {
 	filter: grayscale(1);
 	opacity: 0.45;
 }
@@ -215,30 +210,11 @@ main {
 	font-size: 13px;
 	color: var(--accent);
 }
-.tool {
-	max-width: 100%;
-	padding: 4px 10px;
-	border-radius: 8px;
-	background: var(--panel);
-	font:
-		14px ui-monospace,
-		SFMono-Regular,
-		Menlo,
-		monospace;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
 .text {
 	margin: 0;
-	max-width: 100%;
+	max-width: 640px;
 	color: var(--muted);
 	overflow-wrap: anywhere;
-	/* Long replies/summaries are clamped instead of scrolling the page. */
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 3;
-	overflow: hidden;
 }
 [data-state="waiting"] .text {
 	color: var(--text);
@@ -367,7 +343,128 @@ main {
 	color: var(--danger);
 	font-size: 13px;
 	font-weight: 600;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	overflow-wrap: anywhere;
+}
+
+button {
+	cursor: pointer;
+}
+button:focus-visible,
+input:focus-visible {
+	outline: 3px solid var(--accent);
+	outline-offset: 3px;
+}
+@media (max-width: 320px) {
+	main {
+		padding-inline: max(8px, env(safe-area-inset-left));
+	}
+	.pair {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.btn {
+		padding-inline: 8px;
+	}
+	.row {
+		flex-wrap: wrap;
+	}
+}
+@media (min-width: 600px) and (max-height: 540px) {
+	.stage {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-content: center;
+	}
+	.avatar {
+		grid-column: 1;
+		grid-row: 1 / 4;
+	}
+	.avatar img {
+		height: min(60dvh, 300px);
+		width: 100%;
+	}
+	.info,
+	.controls,
+	.status {
+		grid-column: 2;
+	}
+	.controls {
+		justify-self: center;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.bubble {
+		animation: none;
+	}
+	.avatar img {
+		transition: none;
+	}
+}
+
+.speech {
+	position: relative;
+	flex: none;
+	width: min(100%, 640px);
+	height: clamp(100px, 18dvh, 168px);
+	display: flex;
+	flex-direction: column;
+	padding: 14px 18px;
+	border: 1px solid var(--border);
+	border-radius: 18px;
+	background: var(--panel);
+	text-align: left;
+}
+.speech::after {
+	content: "";
+	position: absolute;
+	bottom: -9px;
+	left: calc(50% - 8px);
+	width: 16px;
+	height: 16px;
+	background: var(--panel);
+	border-right: 1px solid var(--border);
+	border-bottom: 1px solid var(--border);
+	transform: rotate(45deg);
+}
+.speech p {
+	margin: 6px 0 0;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+	min-height: 0;
+	flex: 1;
+	overflow-y: auto;
+}
+.speech[data-kind="tool"] p {
+	font-family: ui-monospace, monospace;
+}
+.bridge-help {
+	width: min(100%, 640px);
+	text-align: center;
+}
+.bridge-help p {
+	margin: 0 0 8px;
+	color: var(--muted);
+}
+.bridge-help code {
+	display: block;
+	padding: 12px;
+	border-radius: 12px;
+	background: var(--panel);
+	overflow-wrap: anywhere;
+	user-select: text;
+	-webkit-user-select: text;
+}
+.btn.stop {
+	color: var(--danger);
+}
+@media (min-width: 600px) and (max-height: 540px) {
+	.speech {
+		grid-column: 1 / -1;
+		grid-row: 1;
+	}
+	.avatar {
+		grid-row: 2 / 5;
+	}
+	.bridge-help {
+		grid-column: 2;
+	}
 }

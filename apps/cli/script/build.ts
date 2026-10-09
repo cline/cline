@@ -327,6 +327,20 @@ for (const item of targets) {
 			recursive: true,
 		});
 		cpSync(hubWebviewDist, hubWebviewDest, { recursive: true });
+		rmSync(join(cliDir, `dist/${dirName}/cline-hub/device-web`), {
+			recursive: true,
+			force: true,
+		});
+		cpSync(
+			join(rootDir, "apps/device-bridge/web"),
+			join(cliDir, `dist/${dirName}/cline-hub/device-web`),
+			{ recursive: true },
+		);
+		cpSync(
+			join(rootDir, "sdk/packages/device/assets/avatars"),
+			join(cliDir, `dist/${dirName}/cline-hub/device-web/avatars`),
+			{ recursive: true },
+		);
 	}
 
 	// Generate platform package.json

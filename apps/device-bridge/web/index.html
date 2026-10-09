@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 	<meta name="theme-color" content="#14121f">
-	<title>Cline Pet</title>
+	<title>Cline Device</title>
 	<link rel="manifest" href="manifest.webmanifest">
 	<link rel="stylesheet" href="style.css">
 </head>
@@ -25,18 +25,29 @@
 
 		<section class="stage">
 			<p id="status" class="status" role="status" hidden></p>
-			<button id="pet" class="pet" type="button" aria-label="Cline Pet. Tap for stats, hold to stop the running task.">
+			<div id="speech" class="speech" role="status" hidden>
+				<span id="speech-kind" class="label"></span>
+				<p id="speech-text"></p>
+			</div>
+			<button id="avatar" class="avatar" type="button" aria-label="Cline Device. Tap for stats.">
 				<img id="sprite" alt="" draggable="false">
 				<span id="bubble" class="bubble" hidden>!</span>
 			</button>
 
-			<div class="info" aria-live="polite">
+			<div id="info" class="info" aria-live="polite">
 				<span id="label" class="label">CONNECTING</span>
-				<span id="tool" class="tool" hidden></span>
 				<p id="text" class="text"></p>
 			</div>
 
+			<div id="bridge-help" class="bridge-help" hidden>
+				<p>Run this from the Cline repo on your laptop:</p>
+				<code>bun run --cwd apps/device-bridge start -- --pair</code>
+			</div>
 			<div class="controls">
+				<div id="session-actions" class="row" hidden>
+					<button id="new-session" class="btn" type="button" aria-label="Start a new session"><span aria-hidden="true">＋</span> New session</button>
+					<button id="stop-session" class="btn stop" type="button" hidden><span aria-hidden="true">■</span> Stop</button>
+				</div>
 				<!-- Pairing (first run, or after the token is revoked) -->
 				<form id="pair" class="pair" hidden>
 					<input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="123456" aria-label="Pairing code" required>

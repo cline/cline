@@ -4,6 +4,7 @@ A browser dashboard for the local Cline hub. Open it to see who's connected, wha
 
 ## Capabilities
 
+- **Device bridge** panel: start/stop the Cline Device bridge on this dashboard's hub, view device/browser endpoints and connected devices, and detect bridges using a different hub
 - live list of connected hub clients (from `HubUIClient.subscribeUI`)
 - live list of active sessions with status, model, and titles
 - click a session to view its message history and stream new assistant output
@@ -112,3 +113,5 @@ Sessions running on the previous hub are stopped along with the hub. Other clien
 ## Security warning
 
 This is an example dashboard, not a production admin tool. Exposing it on a LAN or tunnel lets anyone with the invite secret list clients/sessions on your hub, drive sessions, and restart the hub. Use a long random `ROOM_SECRET`, only share the URL with trusted participants, and stop the process when you are done. The hub and agent runtime remain owned by the host machine.
+
+The Device bridge panel includes **Pair device**, which generates a single-use six-digit code valid for five minutes. Enter it in the device’s setup page. Active codes appear in the dashboard and clear after pairing or expiry. Pairing is available for bridges started from the dashboard.

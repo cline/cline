@@ -15,6 +15,14 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 | `@cline/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
 | `@cline/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@cline/core/hub`, `@cline/core/hub/daemon-entry`) |
 
+### Device SDK
+
+`@cline/device` owns protocol contracts, firmware components, board profiles, and
+avatar assets. Run `bun -F @cline/device build|test|typecheck` from `sdk/`.
+Firmware commands and hardware requirements are in [its README](packages/device/README.md).
+`apps/device-bridge` remains the host application; provider and session behavior
+belongs there rather than in the hardware SDK.
+
 ### Apps
 
 - `apps/cli`: CLI host and local hub management

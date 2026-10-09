@@ -1,4 +1,4 @@
-import { AUDIO_BITS, AUDIO_CHANNELS, AUDIO_SAMPLE_RATE } from "./protocol";
+import { AUDIO_BITS, AUDIO_CHANNELS, AUDIO_SAMPLE_RATE } from "@cline/device";
 
 /** Wraps raw PCM in a 44-byte RIFF/WAVE header so STT providers accept it. */
 export function pcmToWav(

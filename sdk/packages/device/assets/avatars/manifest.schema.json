@@ -1,0 +1,181 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "Cline avatar assets",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schemaVersion", "defaultAvatar", "devices", "avatars"],
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"schemaVersion": {
+			"const": 1
+		},
+		"defaultAvatar": {
+			"type": "string",
+			"minLength": 1
+		},
+		"devices": {
+			"type": "object",
+			"minProperties": 1,
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["variant", "renderer"],
+				"properties": {
+					"variant": {
+						"type": "string",
+						"minLength": 1
+					},
+					"renderer": {
+						"enum": ["mono-1bit", "mono-tinted", "image"]
+					}
+				}
+			}
+		},
+		"avatars": {
+			"type": "object",
+			"minProperties": 1,
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["name", "variants"],
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"variants": {
+						"type": "object",
+						"minProperties": 1,
+						"additionalProperties": {
+							"$ref": "#/$defs/variant"
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"variant": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["version", "format", "width", "height", "states"],
+			"properties": {
+				"version": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"format": {
+					"enum": ["txt", "png", "gif", "webp"]
+				},
+				"width": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"height": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"states": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": [
+						"idle",
+						"working",
+						"waiting",
+						"listening",
+						"thinking",
+						"done",
+						"error",
+						"sleeping",
+						"offline"
+					],
+					"properties": {
+						"idle": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"working": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"waiting": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"listening": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"thinking": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"done": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"error": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"sleeping": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"offline": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 255,
+							"items": {
+								"type": "string",
+								"minLength": 1
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

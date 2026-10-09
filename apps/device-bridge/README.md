@@ -1,13 +1,13 @@
-# Cline Pet
+# Cline Device
 
-A Tamagotchi-style e-ink desk companion for the Cline hub. The pet mirrors what
+A Tamagotchi-style e-ink desk companion for the Cline hub. The device mirrors what
 your agents are doing, lets you approve or deny tool calls with a tap, and lets
 you speak prompts to Cline with push-to-talk.
 
 ```
  ESP32-S3 + 1.54" e-ink            your laptop
 ┌──────────────────────┐   LAN    ┌───────────────────────────┐      ┌────────────┐
-│ firmware/            │◄────────►│ @cline/device-bridge      │◄────►│ Cline hub  │
+│ @cline/device        │◄────────►│ @cline/device-bridge      │◄────►│ Cline hub  │
 │ sprites, touch, mic  │  ws +    │ (hub client, STT, pairing,│  hub │ (sessions, │
 └──────────────────────┘  mDNS    │  mDNS, device protocol)   │  ws  │ approvals) │
                                   └───────────────────────────┘      └────────────┘
@@ -20,7 +20,7 @@ The bridge is an ordinary hub client, like the CLI connectors and the
 
 - It uses `NodeHubClient` to subscribe to hub events. It registers the
   `approval.respond` capability, so sessions stay interactive and approvals
-  are routed to it while a pet is connected.
+  are routed to it while a device is connected.
 - It uses `HubSessionClient` for approvals, abort, follow-up messages and new
   tasks.
 - It transcribes speech the same way the desktop app's voice button does,
@@ -32,6 +32,23 @@ The bridge is an ordinary hub client, like the CLI connectors and the
   ElevenLabs transports are supported. If `providers.json` points at a
   batch-only model, the bridge falls back to `transcribeConfiguredVoiceInput()`
   after you release the button.
+
+## Starting from the hub dashboard
+
+From this checkout, run `bun run cli dashboard`, then click **Start bridge** in
+Home's **Device bridge** panel. The bridge uses that dashboard's hub connection;
+the panel shows its device WebSocket and browser device URLs and live connected
+device names. **Stop bridge** releases its ports. Restarting the hub restarts a
+dashboard-owned bridge against the new hub connection.
+
+If you already started a bridge in another terminal, the panel reports it as
+**Started separately**. It also warns if its hub URL differs from the dashboard's.
+Stop that standalone bridge before starting one from the dashboard. Older running
+bridges must be restarted to expose their endpoint and device status. Keep the
+dashboard and bridge in the same checkout/build; separate builds can discover
+different local hub instances. The CLI development command uses hub port
+25466, while the standalone bridge defaults to 25463 unless
+`CLINE_BUILD_ENV=development` is set. Dashboard startup passes its hub explicitly.
 
 ## Running the bridge
 
@@ -45,124 +62,155 @@ bun run --cwd apps/device-bridge start -- --pair
 |---|---|---|
 | `--pair` | on when no devices are paired | Print a one-time 6-digit pairing code, valid for 5 minutes. |
 | `--workspace <dir>` | your most recent Cline workspace | Pin the workspace used when a voice prompt starts a new task. |
-| `--port <n>` | `25470` | Device WebSocket port. You can also set `CLINE_PET_PORT`. |
+| `--port <n>` | `25470` | Device WebSocket port. You can also set `CLINE_DEVICE_PORT`. |
 | `--host <addr>` | `0.0.0.0` | Bind address. Use a specific LAN IP to narrow exposure. |
-| `--no-mdns` | | Don't advertise `_clinepet._tcp`. |
-| `--web-port <n>` | `25471` | HTTPS port for the browser pet. |
-| `--no-web` | | Don't serve the browser pet. |
+| `--no-mdns` | | Don't advertise `_clinedevice._tcp`. |
+| `--web-port <n>` | `25471` | HTTPS port for the browser device. |
+| `--no-web` | | Don't serve the browser device. |
 | `--list-devices`, `--revoke <name>` | | Manage paired devices. |
 
 The bridge starts the local hub if it isn't already running. New tasks use
 your last-used provider and model. Paired devices are stored, with tokens
 hashed, in `~/.cline/data/device-bridge/devices.json` with mode 0600.
 
+## Device SDK
+
+[`@cline/device`](../../sdk/packages/device/README.md) owns the reusable protocol,
+ESP-IDF firmware, board profiles, and versioned avatar catalog. This app owns the
+host process, hub session projection, transcription, pairing storage, HTTP/WebSocket
+servers, and browser UI. Both the standalone bridge and dashboard use this same
+host runtime. The SDK has no dependency on Cline's agent runtime or bridge app.
+
 ## Flashing the firmware
 
-The firmware is an ESP-IDF 5.3+ project in [`firmware/`](firmware).
+From the repository root, use the interactive device menu:
 
 ```bash
-cd apps/device-bridge/firmware
-idf.py set-target esp32s3
-idf.py menuconfig        # Cline Pet → check every pin against your board
-idf.py build flash monitor
+# Activate your installed ESP-IDF environment first.
+source ~/esp/esp-idf-v5.5.2/export.sh
+bun run device
 ```
 
-The defaults in `main/Kconfig.projbuild` match the **Waveshare
-ESP32-S3-(Touch-)ePaper-1.54**, V1 and V2. They're taken from
-[waveshareteam/ESP32-S3-ePaper-1.54](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54):
+Select the board, then build, flash, open the monitor, configure firmware, or
+export a Cardputer M5Launcher app. Flash and monitor actions detect USB serial
+ports; you can refresh detection or enter a port manually. `q` cancels a menu.
+`bun run device --list` prints supported boards without starting a build.
 
-- **E-paper:** SSD1681 on SPI (MOSI 13, SCLK 12, CS 11, DC 10, RST 9, BUSY 8),
-  powered by GPIO6, active low.
-- **Touch:** FT6336 at `0x38` on I2C (SDA 47, SCL 48), with RST 7 and INT 21.
-- **Mic:** the ES8311 codec, through `esp_codec_dev`. I2S uses MCLK 14, BCLK 15,
-  WS 38 and DIN 16. Codec power is GPIO42, active low, and the rail is only on
-  while recording. The speaker amp (GPIO46) is held off.
-- **Battery latch:** GPIO17 is driven high at boot, so the board stays on when
-  it's unplugged.
-- **Push-to-talk:** the BOOT button (GPIO0) starts a new parallel task; the
-  on-screen mic follows up on the running task.
+The script always runs ESP-IDF in the firmware project with the selected board's
+build directory. Plain `idf.py flash` is blocked: select a board explicitly and use its matching
+build directory. The menu sets both for you.
+For Cardputer with M5Launcher, choose **Build M5Launcher app**, copy the generated
+`.bin` to the SD card, and install it in Launcher. A direct firmware flash replaces
+the launcher and its installed firmware.
 
-For other boards, change the pins and the mic type in `idf.py menuconfig` under
-**Cline Pet**.
+
+The firmware is an ESP-IDF **5.5.2+** project with independent board profiles.
+After sourcing ESP-IDF's `export.sh`, run from the repository root:
+
+```bash
+bun sdk/packages/device/firmware/tools/build.ts waveshare-s3-175c build flash monitor
+# Or the existing e-paper board:
+bun sdk/packages/device/firmware/tools/build.ts waveshare-s3-epaper-154 build flash monitor
+```
+
+Profiles have separate configurations and build directories. The 1.75C uses
+Waveshare's BSP for its round 466×466 AMOLED, touch and dual microphone; e-paper
+retains its SSD1681/FT6336/ES8311 drivers. See the
+[device profiles and extension guide](../../sdk/packages/device/firmware/devices/README.md) for hardware,
+configuration, component boundaries and adding boards or renderers.
+
+Both native surfaces show live counters and persistent activity above the
+avatar. **+ New** returns home and arms the next utterance as a new session;
+**Stop** stops the current session. BOOT records a new session, while the
+on-screen mic follows up unless New was selected. Say **cloud session** at the
+start of an utterance to route it to the cloud. All device-started sessions use
+YOLO mode.
 
 ## Pairing
 
-1. On first boot the pet shows **SETUP** and opens the Wi-Fi network
-   `ClinePet-XXXX`.
+1. On first boot the device shows **SETUP** and opens the Wi-Fi network
+   `ClineDevice-XXXX`.
 2. Join it from your phone. The setup page should pop up; if it doesn't, open
    `http://192.168.4.1`.
 3. On the laptop, run the bridge with `--pair` and note the 6-digit code.
 4. Enter your Wi-Fi name and password and the pairing code. Optionally give a
-   bridge `host:port`; if you leave it blank, the pet discovers the bridge
+   bridge `host:port`; if you leave it blank, the device discovers the bridge
    over mDNS.
-5. The pet reboots, finds the bridge via `_clinepet._tcp`, and sends
+5. The device reboots, finds the bridge via `_clinedevice._tcp`, and sends
    `pair{code}`. It stores the token it gets back and uses it from then on.
 
 To pair again or change Wi-Fi, **hold anywhere on the screen for 8 seconds**.
 That wipes the settings and returns to setup. A revoked token produces
-`auth_error`, and the pet shows "pairing needed".
+`auth_error`, and the device shows "pairing needed".
 
 ## Using it
 
-| Pet | When | Touch |
+The screen has a plain **Cline** header with connection status on the right,
+the avatar in the middle, and **Today Sessions: <count>** underneath. The footer says **How can I help?** with **Hold to talk** beneath it. Hold
+the footer to speak; BOOT starts a new parallel task.
+
+| Device | When | Touch |
 |---|---|---|
-| Working: bounces, shows the tool label | An agent turn or tool is running | Hold the pet for 2 s to abort |
+| Working: bounces, shows the tool label | An agent turn or tool is running | Hold the device for 2 s to abort |
 | Waiting: waves with a "!" | A tool needs approval | **APPROVE** / **DENY** |
-| Listening: tall ears | You're holding the mic button | Release to send |
+| Listening: tall ears | You're holding the voice control | Release to send |
 | Thinking: thought bubble | Transcribing, or the transcript is in its cancel window | **CANCEL** / **SEND** |
 | Celebrate | A task completed; the last line of the reply is shown | |
 | Dizzy | A run failed; the error label is shown | |
-| Asleep: "Zzz" | Idle for `PET_SLEEP_MIN` minutes; the display stops refreshing | Tap to wake |
+| Asleep: "Zzz" | Idle for `DEVICE_SLEEP_MIN` minutes; the display stops refreshing | Tap to wake |
 | Ghost | The bridge or Wi-Fi is unreachable | |
-| Idle | Nothing running | Tap the pet for a stats card |
+| Idle | Nothing running | Tap the device for a stats card |
 
 **Push-to-talk:** hold a button while you speak, then release. Which button
 you hold decides where the prompt goes:
 
 | Button | While a task is running | When nothing is running |
 |---|---|---|
-| On-screen mic (bottom-right) | Follow-up to that task | New task |
+| On-screen **Hold to talk** footer | Follow-up to that task | New task |
 | BOOT button | **New parallel task** | New task |
 
 - The mic and I2S clocks only run while you hold it. There's no wake word.
 - Presses shorter than 300 ms are discarded.
-- Recording stops on its own at `PET_MAX_RECORDING_S`.
+- Recording stops on its own at `DEVICE_MAX_RECORDING_S`.
 
-## Browser pet (phone or desktop)
+## Browser device (phone or desktop)
 
-The bridge also serves a browser version of the pet from [`web/`](web), with
+The bridge also serves a browser version of the device from [`web/`](web), with
 animated GIFs on an LCD screen instead of 1-bit sprites. It uses the same
 device protocol as the board (pairing, approvals, push-to-talk and parallel
-tasks) and pairs as its own device, so it can run next to the e-ink pet.
+tasks) and pairs as its own device, so it can run next to the e-ink device.
 
 1. Start the bridge. It prints the address:
-   `browser pet: https://<laptop-ip>:25471/`.
+   `browser device: https://<laptop-ip>:25471/`.
 2. Open that address on your phone (same Wi-Fi as the laptop). The certificate
    is self-signed, so accept the browser warning once. Browsers only allow
-   the microphone on HTTPS pages, which is why the pet is served there.
+   the microphone on HTTPS pages, which is why the device is served there.
 3. Enter a pairing code from `start -- --pair`.
 
-The screen is one fixed, non-scrolling view: session counters at the top
-left, a ⋯ menu at the top right, the pet in the middle, and the controls
-directly under it.
+The screen adapts to the viewport and scrolls on small screens. Live session
+counters appear at the top left, with a ⋯ menu at the top right. A speech bubble
+above the device keeps the latest status, tool call, thinking trace, or assistant text
+visible until another update replaces it. Disconnected screens show the bridge
+startup command.
 
 | Control | Action |
 |---|---|
 | Hold **Hold to talk** | Voice prompt: follow-up to the running task, or a new task if idle |
-| ⋯ → **New session**, then hold **Hold to talk** | The next voice prompt starts a new parallel session (tap the chip to cancel) |
+| **＋ New session**, then hold **Hold to talk** | The next voice prompt starts a new parallel session (tap the chip to cancel) |
 | ⋯ → **Unpair** | Forget this device's token and return to pairing |
 | **Approve** / **Deny** | Answer a tool approval |
 | **Cancel** / **Send** | During the 3 s window after a transcript appears |
-| Tap the pet | Refresh the counters |
-| Hold the pet 1.5 s while it's working | Stop the task |
+| Tap the device | Refresh the counters |
+| **Stop** | Stop the current task |
 | Hold Space (Shift+Space for a new session) | Push-to-talk on a desktop browser |
 
 On the laptop itself, `http://localhost:25470/` also works with the mic,
 because browsers treat localhost as secure.
 
-**Pets.** Each folder in `web/pets/` is a character: GIFs plus a `pet.json`
-mapping states to files. A state can list several GIFs to rotate through, as
-`working` does. Pick another pet with `?pet=<folder>`.
+**Avatars.** [`assets/avatars/manifest.json`](../../sdk/packages/device/assets/avatars/manifest.json) is the
+shared catalog for browser and hardware avatars. It selects a versioned variant
+for each device and lists ordered assets for every state. Pick another registered
+avatar with `?avatar=<id>`. See [the catalog guide](../../sdk/packages/device/assets/avatars/README.md).
 
 **Wrapping it as an app later.** `web/` is plain HTML, CSS and JS with no build
 step or dependencies, so it can be loaded as-is into a Tauri mobile app or an
@@ -178,7 +226,7 @@ regenerated when the laptop's LAN address changes (accept the warning again).
 There's one WebSocket per device at `ws://<bridge>:25470/device`. Text frames
 are JSON objects of at most 1 KB, with a `t` field giving the message type.
 Binary frames carry audio. The source of truth is
-[`src/protocol.ts`](src/protocol.ts).
+[`@cline/device` protocol](../../sdk/packages/device/src/protocol.ts).
 
 ### Handshake
 
@@ -186,9 +234,9 @@ The device must send `hello` or `pair` within 10 seconds of connecting.
 
 ```jsonc
 → {"t":"hello","token":"<device token>","fw":"0.1.0"}
-→ {"t":"pair","code":"123456","name":"desk-pet"}     // first time only
-← {"t":"paired","token":"…","name":"desk-pet"}       // after pair; store it
-← {"t":"welcome","v":1,"name":"desk-pet"}
+→ {"t":"pair","code":"123456","name":"desk-device"}     // first time only
+← {"t":"paired","token":"…","name":"desk-device"}       // after pair; store it
+← {"t":"welcome","v":1,"name":"desk-device"}
 ← {"t":"auth_error","reason":"bad_code|unknown_token|not_authenticated"}  // then close
 ```
 
@@ -232,6 +280,7 @@ every frame means something worth redrawing.
 {"t":"approve","id":"ap_1"}  {"t":"deny","id":"ap_1"}
 {"t":"abort"}                // aborts the active session
 {"t":"stats"}
+{"t":"prompt","id":"1","text":"Run the tests","target":"auto"} // typed, immediate submission
 {"t":"voice_start","rate":16000,"bits":16,"ch":1}               // follow up, or new task if idle
 {"t":"voice_start","rate":16000,"bits":16,"ch":1,"target":"new"} // always a new parallel task
 <binary audio frames>
@@ -239,6 +288,13 @@ every frame means something worth redrawing.
 {"t":"voice_confirm"}        // submit now, skipping the rest of the cancel window
 {"t":"voice_cancel"}         // also valid during the cancel window
 ```
+
+Typed prompts require a nonempty request ID (up to 32 characters) and text (up to
+384 characters). `target: "new"` starts a parallel session; `auto` follows up or
+starts one if idle. A `cloud session` prefix uses cloud execution. The bridge
+returns `{"t":"prompt","id":"1","status":"submitted","target":"new","session":"..."}`
+or `status: "error"` with `reason`. The latest request ID is deduplicated within
+each connection. Devices retain drafts on errors and never retry automatically.
 
 ### Audio framing
 
@@ -273,25 +329,44 @@ task. Otherwise:
   new session in the workspace you last used Cline in, taken from hub session events or session history at startup, or in `--workspace` if you pin one. It uses your last-used provider and model, and
   sends the transcript as its first prompt.
 
+- **Cloud session (`target: "cloud"`):** start your recording with “cloud session”,
+  followed by the task, for example “cloud session, fix the build”. This works
+  from Android/the browser device and both e-ink and color devices. The bridge
+  strips that prefix and starts a new cloud task even if a local task is running.
+  The same transcript preview and cancel window apply. Sign into Cline before
+  starting the hub; the bridge refreshes those saved credentials as needed.
+  It uses the most recent local workspace (or `--workspace`), its GitHub remote
+  and upstream branch, and your Cline model (or the recommended cloud model).
+  Push the branch first: cloud clones the remote and does not upload local edits.
+  Your GitHub repository must be connected to your Cline account. Cloud events,
+  approvals, follow-ups, and Stop use the same device controls as local tasks.
+
+The browser layout adapts to phones, tablets, desktop windows, and short landscape
+screens. Small screens and enlarged text can scroll to reach controls; Android's
+keyboard resizes the layout, and safe-area insets keep controls clear of cutouts.
+
+All sessions started from a device run in YOLO mode with tool auto-approval enabled,
+including local tasks and cloud sessions. Follow-ups preserve the session mode.
+
 The bridge checks again at submit time. If the targeted session ended during
 the cancel window, it starts a new task instead. `voice/submitted` always
 reports the target and session that were actually used.
 
-## Refresh and power policy (firmware)
+## Refresh and power policy (e-paper firmware)
 
 - **No-change frames are skipped:** the framebuffer is compared with the last
   frame, and identical frames are never pushed to the panel.
 - **Animation is choppy by design:**
-  - Working runs at `PET_WORK_FPS` (default 3) with partial refreshes.
-  - Waiting and celebrate run at 2 fps.
+  - Working runs at `DEVICE_WORK_FPS` (default 3) with partial refreshes.
+  - Waiting and done run at 2 fps.
   - Idle blinks every few seconds.
   - Other moods are static.
-- **Ghosting:** a full refresh runs every `PET_FULL_REFRESH_EVERY` partials
-  (default 30) and whenever the pet wakes.
-- **Sleep:** the pet draws a final clean frame, puts the panel controller to
+- **Ghosting:** a full refresh runs every `DEVICE_FULL_REFRESH_EVERY` partials
+  (default 30) and whenever the device wakes.
+- **Sleep:** the device draws a final clean frame, puts the panel controller to
   sleep, and switches Wi-Fi to max modem sleep. It doesn't refresh until a
   touch or a non-idle state.
-- **Deep sleep:** `PET_DEEP_SLEEP_MIN > 0` puts the chip into deep sleep after
+- **Deep sleep:** `DEVICE_DEEP_SLEEP_MIN > 0` puts the chip into deep sleep after
   that long asleep. The button or touch INT wakes it, and it reconnects.
 - **Tasks:**
   - `ui` handles the display and state machine.
@@ -302,28 +377,35 @@ reports the target and session that were actually used.
   They communicate through one queue, so a slow network send never blocks
   touch handling.
 
+The color surface uses LVGL with small internal DMA buffers, 5 fps working
+animation, persistent activity, and a layout kept inside the round screen.
+Display sleep preserves touch wake and the bridge connection.
+
 ## Swapping sprites
 
-Sprites are 1-bit images in `firmware/sprites/`, named `<mood>_<frame>.txt` or
-`<mood>_<frame>.png`.
+Edit [`assets/avatars/manifest.json`](../../sdk/packages/device/assets/avatars/manifest.json), the single mapping
+of avatars, versions, formats, state frames, and device selections. Files live
+beside it under each avatar's versioned variant folder.
 
-- **Moods:** `idle`, `working`, `waiting`, `listening`, `thinking`,
-  `celebrate`, `error`, `sleeping`, `offline`.
-- **Frames:** numbered from 0. Any mood without frames falls back to `idle`.
-- **`.txt`:** ASCII art where `#` is black and `.` is white. The placeholders
-  are 32×32.
-- **`.png`:** any size; dark pixels become black. Needs Pillow.
-- **Size:** 32×32 sprites are drawn at 3× (96 px). If you change the size,
-  change `SPRITE_SCALE` in `main/ui.c` to match.
+- E-paper selects `mono-v1`: 96×96 TXT frames, `#` black and `.` white.
+- Cardputer and round AMOLED currently select the same frames with color tinting.
+- Browser selects `animated-v1`: the existing full-color GIF animations.
+
+Firmware builds validate the catalog and generate `sprites.h` inside that board's
+build directory automatically. There is no generated header to maintain in source.
+TXT/PNG variants work with the current firmware renderers; animated GIF/WebP
+variants require an image renderer and currently work in the browser only.
+PNG compilation and WebP validation require Pillow in the build's Python environment.
 
 ```bash
-cd apps/device-bridge/firmware
-python3 tools/sprites.py          # regenerates main/sprites.h
-python3 tools/make_placeholders.py   # optional: regenerate the stock pet
+python3 sdk/packages/device/firmware/tools/sprites.py --check
+# Optional: regenerate stock monochrome expressions, then build normally.
+python3 sdk/packages/device/firmware/tools/make_placeholders.py
 ```
 
-Keep the frame count small, since every frame is a partial refresh. The stock
-set is 14 frames of 128 bytes each.
+See [the catalog guide](../../sdk/packages/device/assets/avatars/README.md) for adding a variant or selecting
+one for a device. Animation cadence and screen layout remain renderer settings,
+so e-paper refresh policy stays independent of GIF playback.
 
 ## Development
 
@@ -332,16 +414,30 @@ bun run --cwd apps/device-bridge test        # protocol, projection, pairing, mD
 bun run --cwd apps/device-bridge typecheck
 ```
 
-`src/state.ts` (`PetStateProjector`) is the only place where hub events become
-pet states. If you add a state, update it, `protocol.ts`, `firmware/main/app.h`
-and the `parse_state` table in `firmware/main/protocol.c` together.
+`src/state.ts` (`DeviceStateProjector`) is the only place where hub events become
+device states. If you add a state, update it, `sdk/packages/device/src/protocol.ts`, `sdk/packages/device/firmware/components/cline_model/include/app.h`
+and the `parse_state` table in `sdk/packages/device/firmware/components/cline_transport/protocol.c` together.
 
 ### Security notes
 
-- **LAN only.** The bridge has no cloud dependency. It binds `0.0.0.0` so the
+- **LAN devices.** Local tasks use the local hub; cloud tasks use the Cline API and cloud hub. The bridge binds `0.0.0.0` so the
   board can reach it; use `--host` to narrow that.
 - **Authentication.** Every connection must authenticate within 10 seconds.
   Pairing codes are 6 digits, single-use, expire after 5 minutes, and lock
   out after 5 failed attempts. Device tokens are 192-bit and stored as hashes.
 - **No transport encryption.** Traffic is plain `ws://`, including audio and
   approval summaries. Run the bridge only on networks you trust.
+
+Configuration uses `CLINE_DEVICE_HOST`, `CLINE_DEVICE_PORT`,
+`CLINE_DEVICE_WEB_PORT`, and `CLINE_DEVICE_WORKSPACE`. Firmware configuration
+symbols use `DEVICE_*`, setup Wi-Fi is named `ClineDevice-XXXX`, and bridge
+discovery uses `_clinedevice._tcp`. Restart the bridge/dashboard and flash the
+updated firmware together. Firmware stores Wi-Fi and pairing under the
+`device` NVS namespace; enter setup and pair again after updating from an earlier
+build. The browser also uses new `clineDevice.*` storage keys and requires
+pairing again.
+
+For a Cardputer ADV with M5Launcher already installed, use
+`bun sdk/packages/device/firmware/tools/build.ts m5stack-cardputer-adv launcher`
+instead of `flash`. Copy the resulting application-only `.bin` to SD and install
+it through the launcher. See [launcher installation](../../sdk/packages/device/firmware/devices/README.md#install-cardputer-adv-through-m5launcher).

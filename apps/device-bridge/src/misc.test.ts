@@ -1,28 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, statSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AVATAR_ROOT } from "@cline/device/assets";
 import { buildResponse, parseQuestions, readName } from "./mdns";
 import { DeviceRegistry } from "./pairing";
-import { parseDeviceMessage } from "./protocol";
 import { resolveWebFile, WEB_ROOT } from "./server";
 import { createPcmResampler } from "./transcribe";
 import { pcmToWav } from "./wav";
-
-describe("parseDeviceMessage", () => {
-	it("accepts valid commands and rejects junk", () => {
-		expect(parseDeviceMessage('{"t":"approve","id":"a1"}')).toEqual({
-			t: "approve",
-			id: "a1",
-		});
-		expect(parseDeviceMessage('{"t":"approve"}')).toBeUndefined();
-		expect(parseDeviceMessage('{"t":"nope"}')).toBeUndefined();
-		expect(parseDeviceMessage("not json")).toBeUndefined();
-		expect(
-			parseDeviceMessage(`{"t":"abort","x":"${"a".repeat(2000)}"}`),
-		).toBeUndefined();
-	});
-});
 
 describe("pcmToWav", () => {
 	it("writes a 16 kHz mono 16-bit header", () => {
@@ -37,20 +22,21 @@ describe("pcmToWav", () => {
 });
 
 describe("DeviceRegistry", () => {
-	const file = () => join(mkdtempSync(join(tmpdir(), "pet-")), "devices.json");
+	const file = () =>
+		join(mkdtempSync(join(tmpdir(), "device-")), "devices.json");
 
 	it("pairs once with a valid code and authenticates the token", () => {
 		const path = file();
 		const reg = new DeviceRegistry(path);
 		const { code } = reg.issueCode();
 		expect(
-			reg.pair("000000" === code ? "111111" : "000000", "pet"),
+			reg.pair("000000" === code ? "111111" : "000000", "device"),
 		).toBeUndefined();
-		const token = reg.pair(code, "pet");
+		const token = reg.pair(code, "device");
 		expect(token).toBeString();
-		expect(reg.pair(code, "pet")).toBeUndefined(); // single use
+		expect(reg.pair(code, "device")).toBeUndefined(); // single use
 		expect(new DeviceRegistry(path).authenticate(token as string)?.name).toBe(
-			"pet",
+			"device",
 		);
 		expect(reg.authenticate("bogus")).toBeUndefined();
 		expect(statSync(path).mode & 0o777).toBe(0o600);
@@ -61,23 +47,23 @@ describe("DeviceRegistry", () => {
 		const reg = new DeviceRegistry(file(), () => now);
 		const { code } = reg.issueCode();
 		now += 6 * 60_000;
-		expect(reg.pair(code, "pet")).toBeUndefined();
+		expect(reg.pair(code, "device")).toBeUndefined();
 		const fresh = reg.issueCode().code;
 		const wrong = fresh === "999999" ? "000000" : "999999";
-		for (let i = 0; i < 5; i++) reg.pair(wrong, "pet");
-		expect(reg.pair(fresh, "pet")).toBeUndefined();
+		for (let i = 0; i < 5; i++) reg.pair(wrong, "device");
+		expect(reg.pair(fresh, "device")).toBeUndefined();
 	});
 });
 
 describe("mdns", () => {
 	it("answers with PTR/SRV/TXT/A records that round-trip names", () => {
 		const res = buildResponse(
-			{ instance: "Cline Pet Bridge", port: 25470, txt: { v: "1" } },
+			{ instance: "Cline Device Bridge", port: 25470, txt: { v: "1" } },
 			"laptop",
 			["192.168.1.5"],
 		);
 		expect(res.readUInt16BE(6)).toBe(4);
-		expect(readName(res, 12)[0]).toBe("_clinepet._tcp.local");
+		expect(readName(res, 12)[0]).toBe("_clinedevice._tcp.local");
 		expect(res.includes(Buffer.from([192, 168, 1, 5]))).toBe(true);
 	});
 
@@ -85,8 +71,8 @@ describe("mdns", () => {
 		const q = Buffer.concat([
 			Buffer.from([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
 			Buffer.from([
-				9,
-				...Buffer.from("_clinepet"),
+				Buffer.byteLength("_clinedevice"),
+				...Buffer.from("_clinedevice"),
 				4,
 				...Buffer.from("_tcp"),
 				5,
@@ -96,7 +82,7 @@ describe("mdns", () => {
 			Buffer.from([0, 12, 0, 1]),
 		]);
 		expect(parseQuestions(q)).toEqual([
-			{ name: "_clinepet._tcp.local", type: 12 },
+			{ name: "_clinedevice._tcp.local", type: 12 },
 		]);
 		const r = Buffer.from(q);
 		r.writeUInt16BE(0x8400, 2);
@@ -127,16 +113,33 @@ describe("createPcmResampler", () => {
 });
 
 describe("resolveWebFile", () => {
-	it("serves the pet page and assets", () => {
+	it("serves the device page and assets", () => {
 		expect(resolveWebFile("/")).toBe(join(WEB_ROOT, "index.html"));
-		expect(resolveWebFile("/pets/cline/idle.gif")).toBe(
-			join(WEB_ROOT, "pets/cline/idle.gif"),
+		expect(resolveWebFile("/avatars/cline/animated-v1/idle.gif")).toBe(
+			join(AVATAR_ROOT, "cline/animated-v1/idle.gif"),
 		);
+	});
+	it("serves SDK assets in development and assembled assets in a packaged host", () => {
+		const root = mkdtempSync(join(tmpdir(), "device-web-"));
+		try {
+			expect(resolveWebFile("/avatars/manifest.json", root)).toBe(
+				join(AVATAR_ROOT, "manifest.json"),
+			);
+			cpSync(AVATAR_ROOT, join(root, "avatars"), { recursive: true });
+			expect(resolveWebFile("/avatars/manifest.json", root)).toBe(
+				join(root, "avatars/manifest.json"),
+			);
+			expect(resolveWebFile("/avatars/cline/animated-v1/idle.gif", root)).toBe(
+				join(root, "avatars/cline/animated-v1/idle.gif"),
+			);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 	it("refuses traversal and missing files", () => {
 		expect(resolveWebFile("/../package.json")).toBeUndefined();
 		expect(resolveWebFile("/%2e%2e/package.json")).toBeUndefined();
-		expect(resolveWebFile("/pets/../../src/main.ts")).toBeUndefined();
+		expect(resolveWebFile("/avatars/../../src/main.ts")).toBeUndefined();
 		expect(resolveWebFile("/nope.js")).toBeUndefined();
 		expect(resolveWebFile("/%E0%A4%A")).toBeUndefined();
 	});

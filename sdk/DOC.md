@@ -343,3 +343,15 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+## Device SDK
+
+`@cline/device` exports device message types, audio and protocol limits,
+including `MAX_PROMPT_LENGTH` (384) and typed prompt/result frames. Typed prompts
+carry a request ID, text, and optional `auto`/`new` routing; the bridge acknowledges
+submission or error by request ID. The Cardputer editor clears drafts only after
+acknowledgement and never retries automatically. It also exports
+`PromptTarget`, `PromptResult`, `parseDeviceMessage`, and the single-line `clip` helper. The root API is independent
+of the host and agent runtime. `@cline/device/assets` exports Node paths
+`AVATAR_ROOT` and `FIRMWARE_ROOT`; `@cline/device/assets/manifest.json` exports the
+versioned catalog. See [the device SDK reference](packages/device/README.md).

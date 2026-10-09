@@ -1,0 +1,141 @@
+menu "Cline hardware"
+choice DEVICE_BOARD
+    prompt "Board"
+    default DEVICE_BOARD_EPAPER_154
+config DEVICE_BOARD_EPAPER_154
+    bool "Waveshare ESP32-S3 Touch ePaper 1.54"
+config DEVICE_BOARD_AMOLED_175C
+    bool "Waveshare ESP32-S3 Touch AMOLED 1.75C"
+config DEVICE_BOARD_CARDPUTER_ADV
+    bool "M5Stack Cardputer ADV"
+endchoice
+config DEVICE_BOARD_ID
+    string
+    default "m5stack-cardputer-adv" if DEVICE_BOARD_CARDPUTER_ADV
+    default "waveshare-s3-175c" if DEVICE_BOARD_AMOLED_175C
+    default "waveshare-s3-epaper-154"
+config DEVICE_SURFACE_EPAPER
+    bool
+    default y if DEVICE_BOARD_EPAPER_154
+config DEVICE_SURFACE_COLOR
+    bool
+    default y if DEVICE_BOARD_AMOLED_175C || DEVICE_BOARD_CARDPUTER_ADV
+if DEVICE_BOARD_EPAPER_154
+    # ---------------------------------------------------------------------
+    # Pin map. Defaults match the Waveshare ESP32-S3-(Touch-)ePaper-1.54
+    # (V1 and V2), taken from waveshareteam/ESP32-S3-ePaper-1.54 examples.
+    # ---------------------------------------------------------------------
+    menu "E-paper pins (SPI)"
+        config DEVICE_EPD_MOSI
+            int "MOSI"
+            default 13
+        config DEVICE_EPD_SCLK
+            int "SCLK"
+            default 12
+        config DEVICE_EPD_CS
+            int "CS"
+            default 11
+        config DEVICE_EPD_DC
+            int "DC"
+            default 10
+        config DEVICE_EPD_RST
+            int "RST"
+            default 9
+        config DEVICE_EPD_BUSY
+            int "BUSY"
+            default 8
+        config DEVICE_EPD_PWR
+            int "Panel power enable GPIO (-1 = none)"
+            default 6
+        config DEVICE_EPD_PWR_ACTIVE_LEVEL
+            int "Panel power enable active level"
+            range 0 1
+            default 0
+    endmenu
+
+    menu "Touch (I2C)"
+        config DEVICE_I2C_SDA
+            int "SDA"
+            default 47
+        config DEVICE_I2C_SCL
+            int "SCL"
+            default 48
+        config DEVICE_TOUCH_ADDR
+            hex "Touch controller address (FT6336 0x38, CST816 0x15)"
+            default 0x38
+        config DEVICE_TOUCH_RST
+            int "Touch RST (-1 = none)"
+            default 7
+        config DEVICE_TOUCH_INT
+            int "Touch INT, also a deep-sleep wake source (-1 = none)"
+            default 21
+        config DEVICE_TOUCH_SWAP_XY
+            bool "Swap X/Y"
+            default n
+        config DEVICE_TOUCH_INVERT_X
+            bool "Invert X"
+            default n
+        config DEVICE_TOUCH_INVERT_Y
+            bool "Invert Y"
+            default n
+    endmenu
+
+    menu "Microphone (I2S)"
+        choice DEVICE_MIC_TYPE
+            prompt "Microphone type"
+            default DEVICE_MIC_ES8311
+            config DEVICE_MIC_ES8311
+                bool "ES8311 codec (Waveshare ePaper-1.54)"
+            config DEVICE_MIC_STD
+                bool "Standard I2S MEMS mic (INMP441-style)"
+            config DEVICE_MIC_PDM
+                bool "PDM MEMS mic"
+        endchoice
+        config DEVICE_MIC_MCLK
+            int "MCLK (-1 = unused; the ES8311 needs it)"
+            default 14
+        config DEVICE_MIC_SCK
+            int "BCLK (PDM: CLK)"
+            default 15
+        config DEVICE_MIC_WS
+            int "WS / LRCLK (ignored for PDM)"
+            default 38
+        config DEVICE_MIC_SD
+            int "DIN (data from mic/codec to the ESP32)"
+            default 16
+        config DEVICE_MIC_GAIN_DB
+            int "ES8311 input gain (dB)"
+            depends on DEVICE_MIC_ES8311
+            range 0 42
+            default 30
+        config DEVICE_MIC_RIGHT_SLOT
+            bool "Mic outputs on the right slot (L/R pin high)"
+            depends on DEVICE_MIC_STD
+            default n
+        config DEVICE_MIC_GAIN_SHIFT
+            int "Digital gain as a left shift (0-4) for 32-bit slot mics"
+            depends on DEVICE_MIC_STD
+            range 0 4
+            default 2
+        config DEVICE_AUDIO_PWR
+            int "Audio/codec power enable GPIO (-1 = none)"
+            default 42
+        config DEVICE_AUDIO_PWR_ACTIVE_LEVEL
+            int "Audio power enable active level"
+            range 0 1
+            default 0
+        config DEVICE_SPEAKER_PA
+            int "Speaker amplifier enable GPIO, held off (-1 = none)"
+            default 46
+    endmenu
+
+    config DEVICE_VBAT_HOLD
+        int "Battery power-latch GPIO, driven high at boot (-1 = none)"
+        default 17
+
+    config DEVICE_PTT_BUTTON
+        int "Push-to-talk button GPIO, active low (-1 = none; 0 = BOOT)"
+        default 0
+
+endif
+endmenu

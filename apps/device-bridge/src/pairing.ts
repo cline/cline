@@ -65,10 +65,16 @@ export class DeviceRegistry {
 		return { code: value, expiresAt: this.code.expiresAt };
 	}
 
+	/** Active code for the local dashboard; never publish it in LAN health. */
+	pairingCode(): { code: string; expiresAt: number } | undefined {
+		if (!this.code || this.code.expiresAt <= this.now()) return undefined;
+		return { code: this.code.value, expiresAt: this.code.expiresAt };
+	}
+
 	/** Returns a new device token on success. Codes are single-use. */
 	pair(code: string, name: string): string | undefined {
 		const current = this.code;
-		if (!current || current.expiresAt < this.now()) return undefined;
+		if (!current || current.expiresAt <= this.now()) return undefined;
 		current.attempts++;
 		if (current.attempts > MAX_PAIR_ATTEMPTS) {
 			this.code = undefined;
@@ -80,7 +86,7 @@ export class DeviceRegistry {
 		this.code = undefined;
 		const token = randomBytes(24).toString("base64url");
 		this.devices.push({
-			name: name.slice(0, 32) || "cline-pet",
+			name: name.slice(0, 32) || "cline-device",
 			tokenHash: hashToken(token),
 			pairedAt: new Date(this.now()).toISOString(),
 		});

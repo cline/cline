@@ -18,6 +18,7 @@
 	"dependencies": {
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
-		"@cline/shared": "workspace:*"
+		"@cline/shared": "workspace:*",
+		"@cline/device-bridge": "workspace:*"
 	}
 }

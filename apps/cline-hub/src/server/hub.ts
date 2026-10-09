@@ -23,7 +23,14 @@ import {
 import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import type { SessionContext } from "./types";
-import { asRecord, asString, basename, clientMetadata, isActiveSession, isVisibleClient } from "./utils";
+import {
+	asRecord,
+	asString,
+	basename,
+	clientMetadata,
+	isActiveSession,
+	isVisibleClient,
+} from "./utils";
 
 export async function syncHubHealth(ctx: HubContext): Promise<void> {
 	if (!ctx.hubUrl) {
@@ -255,6 +262,8 @@ export async function detachHub(ctx: HubContext): Promise<void> {
 }
 
 export async function restartHub(ctx: HubContext): Promise<void> {
+	const restartBridge = ctx.deviceBridge?.snapshot().status === "running";
+	await ctx.deviceBridge?.stop();
 	ctx.broadcast({
 		type: "notification",
 		title: "Hub restarting",
@@ -268,6 +277,7 @@ export async function restartHub(ctx: HubContext): Promise<void> {
 		console.warn("stopLocalHubServerGracefully failed:", error);
 	}
 	await attachHub(ctx);
+	if (restartBridge) await ctx.deviceBridge?.start();
 	broadcastHubState(ctx);
 	ctx.broadcast({
 		type: "notification",

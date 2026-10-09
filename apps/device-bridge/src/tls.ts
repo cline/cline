@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Self-signed certificate for the browser pet. Phones only expose the mic to
- * pages on a secure origin, so the web pet is served over HTTPS; the
+ * Self-signed certificate for the browser device. Phones only expose the mic to
+ * pages on a secure origin, so the web device is served over HTTPS; the
  * certificate covers localhost plus the laptop's current LAN addresses and is
  * regenerated when those change. Requires `openssl` on PATH.
  */
@@ -36,7 +36,7 @@ export function ensureSelfSignedCert(
 				"-days",
 				"825",
 				"-subj",
-				"/CN=Cline Pet Bridge",
+				"/CN=Cline Device Bridge",
 				"-addext",
 				`subjectAltName=${sans}`,
 				"-keyout",

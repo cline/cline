@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { HubEventEnvelope } from "@cline/shared";
 import {
 	approvalSummary,
-	PetStateProjector,
+	DeviceStateProjector,
 	TRANSIENT_MS,
 	toolLabel,
 } from "./state";
@@ -16,7 +16,7 @@ const ev = (
 
 function setup() {
 	let now = 1_000;
-	const p = new PetStateProjector(() => now);
+	const p = new DeviceStateProjector(() => now);
 	p.setHubOnline(true);
 	return { p, advance: (ms: number) => (now += ms) };
 }
@@ -39,9 +39,9 @@ describe("labels", () => {
 	});
 });
 
-describe("PetStateProjector", () => {
+describe("DeviceStateProjector", () => {
 	it("is offline until the hub connects", () => {
-		const p = new PetStateProjector();
+		const p = new DeviceStateProjector();
 		expect(p.snapshot().state).toBe("offline");
 	});
 
@@ -214,5 +214,54 @@ describe("turn end without run.completed", () => {
 		const { p } = setup();
 		p.apply(status("s1", "idle"));
 		expect(p.snapshot().state).toBe("idle");
+	});
+});
+
+describe("live activity and counters", () => {
+	it("counts sessions from running status or text before tools and avoids duplicate starts", () => {
+		const { p } = setup();
+		p.apply(ev("session.updated", "s1", { session: { status: "running" } }));
+		p.apply(ev("run.started", "s1"));
+		p.apply(ev("iteration.started", "s1"));
+		p.apply(ev("assistant.delta", "s2", { text: "Hello" }));
+		expect(p.stats()).toEqual({ sessions: 2, today: 2 });
+		p.setHubOnline(false);
+		p.setHubOnline(true);
+		p.apply(ev("session.updated", "s1", { session: { status: "running" } }));
+		expect(p.stats()).toEqual({ sessions: 1, today: 2 });
+	});
+
+	it("retains a tool call after it finishes and replaces it with streamed thinking and text", () => {
+		const { p, advance } = setup();
+		p.apply(
+			ev("tool.started", "s1", {
+				toolName: "bash",
+				input: { command: "bun run build:sdk" },
+			}),
+		);
+		p.apply(ev("tool.finished", "s1"));
+		advance(60_000);
+		expect(p.snapshot().activity).toEqual({
+			kind: "tool",
+			text: "bun run build:sdk",
+		});
+		p.apply(ev("reasoning.delta", "s1", { text: "I am " }));
+		p.apply(ev("reasoning.delta", "s1", { text: "checking the build" }));
+		expect(p.snapshot().activity).toEqual({
+			kind: "thinking",
+			text: "I am checking the build",
+		});
+		p.apply(ev("assistant.delta", "s1", { text: "The build passed." }));
+		expect(p.snapshot().activity).toEqual({
+			kind: "text",
+			text: "The build passed.",
+		});
+		p.apply(ev("assistant.finished", "s1", { text: "All tests passed." }));
+		p.apply(ev("run.completed", "s1"));
+		advance(TRANSIENT_MS + 1);
+		expect(p.snapshot()).toMatchObject({
+			state: "idle",
+			activity: { kind: "text", text: "All tests passed." },
+		});
 	});
 });
