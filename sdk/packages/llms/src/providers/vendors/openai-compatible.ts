@@ -276,8 +276,7 @@ export async function createOpenAICompatibleProviderModule(
 				})
 			: undefined;
 	return {
-		// Three total attempts for provider errors, including EOF without a finish.
-		streamRetries: 2,
+		retryStreamErrors: true,
 		// Wrap each constructed model with `splitToolImagesMiddleware` so
 		// `role:"tool"` messages whose `output.type === 'content'` carries
 		// image-data parts get split into a placeholder text + a synthetic

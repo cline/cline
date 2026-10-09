@@ -2330,7 +2330,9 @@ function createAiSdkProvider(
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
 							maxRetries: MODEL_REQUEST_MAX_RETRIES,
-							streamRetries: provider.streamRetries,
+							streamRetries: provider.retryStreamErrors
+								? MODEL_REQUEST_MAX_RETRIES
+								: undefined,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
 								...aiSdkTelemetry,

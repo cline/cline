@@ -285,7 +285,6 @@ export async function createClineProviderModule(
 			return result;
 		},
 		executesModelTools: true,
-		// Three total attempts for provider errors, including EOF without a finish.
-		streamRetries: 2,
+		retryStreamErrors: true,
 	};
 }

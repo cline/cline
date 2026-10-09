@@ -36,11 +36,11 @@ export interface ProviderFactoryResult {
 	/** AI SDK executes provider-defined client tools and continues model steps. */
 	executesModelTools?: boolean;
 	/**
-	 * AI SDK retries for provider error parts after streaming starts. This is
-	 * additional to the initial attempt; leave unset to disable stream retries.
+	 * Enable AI SDK retries for provider error parts after streaming starts,
+	 * using the same retry budget as request-start failures.
 	 * Already-emitted non-tool output remains visible across attempts.
 	 */
-	streamRetries?: number;
+	retryStreamErrors?: boolean;
 	/**
 	 * Policy for the gateway-level transient-failure retry. Every vendor
 	 * model is wrapped with `createRetryEmptyResponseMiddleware` at the

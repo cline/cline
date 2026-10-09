@@ -182,15 +182,15 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		it.each([
 			{ reasoning_content: "Thinking" },
 			{ content: "Partial answer" },
-		])("recovers EOF after %j on the third attempt", async (delta) => {
+		])("recovers EOF after %j on the sixth attempt", async (delta) => {
 			const partialSse = chunk({ role: "assistant", ...delta });
 			const { fetchMock, events } = await run(
-				[partialSse, partialSse, textSse],
+				[...Array<string>(5).fill(partialSse), textSse],
 				[],
 				providerId,
 			);
 
-			expect(fetchMock).toHaveBeenCalledTimes(3);
+			expect(fetchMock).toHaveBeenCalledTimes(6);
 			expect(
 				events.filter(
 					(event) =>
@@ -203,24 +203,24 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 								? delta.reasoning_content
 								: delta.content),
 				),
-			).toHaveLength(2);
+			).toHaveLength(5);
 			expect(hasTextDelta(events, "hello")).toBe(true);
 			expect(finishEvents(events)).toEqual([
 				expect.objectContaining({
 					reason: "stop",
-					requestId: "request-3",
+					requestId: "request-6",
 					error: undefined,
 				}),
 			]);
 		});
 
-		it("surfaces persistent EOF after three attempts", async () => {
+		it("surfaces persistent EOF after six attempts", async () => {
 			const { fetchMock, events } = await run(
 				[chunk({ role: "assistant", content: "Partial answer" })],
 				[],
 				providerId,
 			);
-			expect(fetchMock).toHaveBeenCalledTimes(3);
+			expect(fetchMock).toHaveBeenCalledTimes(6);
 			expect(finishEvents(events)).toEqual([
 				expect.objectContaining({
 					reason: "error",
