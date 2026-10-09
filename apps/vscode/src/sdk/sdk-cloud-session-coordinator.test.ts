@@ -71,6 +71,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		deleteSession: vi.fn(async (_sessionId: string) => undefined),
 		renameSession: vi.fn(async () => undefined),
 		getStatus: vi.fn(async (): Promise<{ status?: string }> => ({ status: "ready" })),
+		resumeSession: vi.fn(async (_sessionId: string) => undefined),
 		getHistory: vi.fn(async (): Promise<unknown[] | null> => []),
 		dashboardUrl: vi.fn((id: string) => `https://example.test/${id}`),
 		sessionSocketUrl: vi.fn((id: string) => `ws://127.0.0.1/${id}`),
@@ -1000,6 +1001,35 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect(rows.map((row) => row.metadata?.cloudStatus)).toEqual(["completed", "idle"])
 			await coordinator.resolveStatuses(rows.map((row) => row.sessionId))
 			expect(connect).not.toHaveBeenCalled()
+		})
+
+		it.each([
+			"ready",
+			"suspended",
+		])("reopens a %s task whose last turn failed instead of reporting a failed sandbox", async (recordStatus) => {
+			const globalState: Record<string, unknown> = {
+				cloudSessionStatuses: { [finished.id]: { status: "failed", observedAt: Date.now() } },
+			}
+			const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValue({
+				status: "failed",
+				readMessages: async () => [{ role: "user", content: "original prompt" }],
+				dispose: vi.fn(async () => {}),
+			} as unknown as CloudSessionHost)
+			const { coordinator, cloudSessions, options } = makeCoordinator({
+				stateManager: makeStateManager(globalState) as never,
+				sessions: { attachExistingSession: async () => {} } as never,
+			})
+			cloudSessions.listSessions.mockResolvedValue([{ ...finished, status: recordStatus }])
+			expect((await coordinator.listHistoryRecords())[0].metadata?.cloudStatus).toBe("failed")
+
+			await coordinator.openCloudTask(finished.id)
+
+			expect(cloudSessions.resumeSession).toHaveBeenCalledTimes(recordStatus === "suspended" ? 1 : 0)
+			expect(connect).toHaveBeenCalledOnce()
+			const shown = JSON.stringify(options.getTask()?.messageStateHandler.getClineMessages())
+			expect(shown).toContain("original prompt")
+			expect(shown).not.toContain("failed to start")
+			await coordinator.dispose()
 		})
 
 		it("does not remember an active status", async () => {
