@@ -297,18 +297,24 @@ export class PendingPromptsController {
 	 * just "stop this response", so the remainder must not auto-run — and
 	 * when the session starts tearing down.
 	 */
-	discardQueue(session: ActiveSession): void {
-		if (session.pendingPrompts.length === 0) return;
+	discardQueue(session: ActiveSession): SessionPendingPrompt[] {
+		if (session.pendingPrompts.length === 0) return [];
+		const discarded = snapshotPrompts(session);
 		this.service.clear(session);
-		this.emitPrompts(session);
+		this.emitPrompts(session, discarded);
+		return discarded;
 	}
 
-	emitPrompts(session: ActiveSession): void {
+	emitPrompts(
+		session: ActiveSession,
+		discarded?: SessionPendingPrompt[],
+	): void {
 		this.deps.emit({
 			type: "pending_prompts",
 			payload: {
 				sessionId: session.sessionId,
 				prompts: snapshotPrompts(session),
+				...(discarded?.length ? { discarded } : {}),
 			},
 		});
 	}
