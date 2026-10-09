@@ -4,16 +4,24 @@ sidebarTitle: "Plugins"
 description: "Install and manage plugins that extend Cline with custom tools, hooks, and capabilities."
 ---
 <Warning>
-  This feature currently only applies to Cline SDK, CLI, and Kanban. This feature is not applicable on VSCode and JetBrains Extension for now.
+  Plugins work in the Cline CLI and the SDK. The VS Code and JetBrains extensions don't load plugins. Cline Desktop lists plugins in its Marketplace, but the packaged app doesn't load them yet ([#14695](https://github.com/cline/cline/issues/14695)).
 </Warning>
 
 Plugins extend Cline with custom tools, lifecycle hooks, slash commands, and more. They can be installed globally (available in all sessions) or per-project.
 
 ## Installing Plugins via CLI
 
-The `cline plugin install` command installs plugins from four source types:
+The `cline plugin install` command (or `cline plugin i`) installs plugins from five kinds of source:
 
 <Tabs>
+  <Tab title="Official Plugin">
+    ```bash
+    cline plugin install web-search
+    cline plugin install typescript-lsp
+    ```
+
+    A plain name installs a plugin from Cline's [official plugins repository](https://github.com/cline/plugins). The name is the plugin's folder under `plugins/` there.
+  </Tab>
   <Tab title="File URL">
     ```bash
     cline plugin install https://github.com/owner/repo/blob/main/plugins/my-plugin.ts
@@ -36,12 +44,20 @@ The `cline plugin install` command installs plugins from four source types:
     cline plugin install https://github.com/owner/repo.git@v1.2.0
     cline plugin install https://github.com/owner/repo.git@main
     ```
+
+    For a repository written without a scheme, such as `github.com/owner/repo`, add `--git`:
+
+    ```bash
+    cline plugin install --git github.com/owner/repo
+    ```
   </Tab>
   <Tab title="npm Package">
     ```bash
     cline plugin install npm:@scope/my-plugin
     cline plugin install --npm my-plugin
     ```
+
+    Use the `npm:` prefix or `--npm`. Without either, a plain name is read as an official plugin.
   </Tab>
   <Tab title="Local Path">
     ```bash
@@ -58,20 +74,31 @@ Additional flags:
 
 | Flag | Description |
 |------|-------------|
+| `--npm` | Treat the source as an npm package |
+| `--git` | Treat the source as a git repository |
 | `--force` | Replace an existing install for the same source |
 | `--json` | Output the result as JSON (useful for scripting) |
-| `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory |
+| `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory, and resolve a relative local path from `<path>` |
 
-After installation, confirm the plugin is loaded by running `cline config` and checking the plugin tab.
+To see the plugins Cline finds, run `cline config plugins`, or run `cline config` and open the **Plugins** tab. Cline loads plugins when a session starts, so start a new session after you install one. The first session after you install a TypeScript plugin can fail to load it ([#14887](https://github.com/cline/cline/pull/14887)); the next session loads it.
+
+### Uninstalling Plugins
+
+```bash
+cline plugin uninstall web-search
+cline plugin remove ./my-plugin
+```
+
+`cline plugin uninstall` (or `remove`) takes the plugin's name, its installed folder name, or its path. It searches the global plugin folders and the `.cline/plugins` folder of the current directory, or of `<path>` with `--cwd <path>`. If more than one plugin matches, it removes none and lists their paths; pass one of the paths instead.
 
 ### Example: TypeScript Navigation Plugin
 
-The [typescript-lsp-plugin](https://github.com/cline/typescript-lsp-plugin) is a good reference for how plugins work. It adds a `goto_definition` tool that uses the TypeScript Language Service API to resolve symbol definitions through imports, re-exports, and type aliases.
+The `typescript-lsp` plugin is a good reference for how plugins work. It adds a `goto_definition` tool that uses the TypeScript Language Service API to resolve symbol definitions through imports, re-exports, and type aliases.
 
 Install it with:
 
 ```bash
-cline plugin install https://github.com/cline/typescript-lsp-plugin.git
+cline plugin install typescript-lsp
 ```
 
 Once installed, Cline can call `goto_definition` with a file path and line number to find where symbols are defined, which is much more precise than text search.
@@ -131,6 +158,7 @@ Plugins are stored in the `plugins` directory at two levels:
 ~/.cline/
   plugins/                     # Global plugins
     _installed/                # Managed by `cline plugin install`
+      official/                # Official plugins
       npm/                     # npm-sourced plugins
       git/                     # git-sourced plugins
       remote/                  # file URL-sourced plugins
@@ -140,7 +168,7 @@ Plugins are stored in the `plugins` directory at two levels:
   plugins/                     # Project-scoped plugins
 ```
 
-Global plugins (`~/.cline/plugins/`) are available across all sessions. Project plugins (`.cline/plugins/` in your repo) are available only when working in that project.
+Global plugins (`~/.cline/plugins/`) are available across all sessions. Project plugins (`.cline/plugins/` in your repo) are available only when working in that project. Cline also loads plugins from `~/Documents/Cline/Plugins/`.
 
 ## Writing Plugins
 

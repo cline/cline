@@ -87,7 +87,7 @@ Commands:
 | `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose with `/model`, or else the provider's default |
 | `--compaction <mode>` | Context compaction mode: `agentic`, `basic` or `off` (default: `agentic`) |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before exiting (default: `3`) |
-| `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |
+| `--hooks-dir <path>` | Has no effect in this release ([#14766](https://github.com/cline/cline/issues/14766)). See [Hooks](/customization/hooks#where-hooks-live) for the folders Cline reads |
 | `--acp` | Run in Agent Client Protocol (ACP) mode for [editor integration](/usage/acp) |
 | `-i, --tui` | Open the terminal user interface (TUI) for interactive sessions |
 | `--id <session-id>` | Resume an existing session by ID |
@@ -213,12 +213,16 @@ cat payload.json | cline hook
 
 ### `plugin`
 
-Manage Cline plugins. Install plugins from file URLs, npm, git repositories, or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
+Manage Cline plugins. Install plugins by official name, or from npm, git repositories, file URLs or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
 
 ```bash
 cline plugin install <source>  # Install a plugin
 cline plugin i <source>        # Shorthand alias
+cline plugin uninstall <name>  # Remove a plugin
+cline plugin remove <name>     # Same as uninstall
 ```
+
+`cline plugin install` options:
 
 | Option | Description |
 |--------|-------------|
@@ -228,10 +232,12 @@ cline plugin i <source>        # Shorthand alias
 | `--json` | Output result as JSON |
 | `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory |
 
-Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescript-lsp-plugin):
+`cline plugin uninstall` takes a plugin's package name, installed folder name or path, and accepts `--json` and `--cwd <path>`. It searches the global plugin folders and the `.cline/plugins` folder of the current directory, or of `<path>` with `--cwd`.
+
+A plain name installs a plugin from Cline's [official plugins repository](https://github.com/cline/plugins). Try it with the TypeScript navigation plugin:
 
 ```bash
-cline plugin install https://github.com/cline/typescript-lsp-plugin.git
+cline plugin install typescript-lsp
 ```
 
 ### `schedule`
@@ -327,7 +333,7 @@ cline kanban
 | `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_SANDBOX` | Enable sandbox mode |
-| `CLINE_HOOKS_DIR` | Additional hooks directory |
+| `CLINE_HOOKS_DIR` | Has no effect in this release ([#14766](https://github.com/cline/cline/issues/14766)) |
 | `CLINE_LOG_PATH` | CLI log file (default: `~/.cline/data/logs/cline.log`). `cline doctor log` opens it |
 | `CLINE_BUILD_ENV` | Set to `development` for debug features |
 | `CLINE_DEBUG_PORT_BASE` | Base port for Node.js inspector |
