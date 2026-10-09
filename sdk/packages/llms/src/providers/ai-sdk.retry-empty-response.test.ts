@@ -17,6 +17,8 @@ import {
 	createOpenAICompatibleProvider,
 	withEmptyResponseRetry,
 } from "./ai-sdk";
+import { createGatewayApiHandler } from "./compat";
+import type { ApiStreamChunk } from "./stream";
 
 /**
  * Integration tests proving `createRetryEmptyResponseMiddleware` is engaged
@@ -247,6 +249,73 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(events.some((event) => event.type === "text-delta")).toBe(false);
 		expect(finishEvents(events)).toHaveLength(1);
+	});
+
+	it.each([
+		{ reasoning_content: "Thinking" },
+		{ content: "Partial answer" },
+	])("reports EOF after %j as an unknown finish for continuation", async (delta) => {
+		const { fetchMock, events } = await run([
+			chunk({ role: "assistant", ...delta }),
+		]);
+
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "reasoning_content" in delta ? "reasoning-delta" : "text-delta",
+				text:
+					"reasoning_content" in delta
+						? delta.reasoning_content
+						: delta.content,
+			}),
+		);
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({
+				reason: "unknown",
+				error: "Response stream ended without a finish reason.",
+			}),
+		]);
+	});
+
+	it("reports EOF as a failure to ApiHandler consumers", async () => {
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			apiKey: "test-key",
+			baseUrl: "http://fake.local/v1",
+			modelId: "test-model",
+			fetch: queuedFetch([
+				chunk({ role: "assistant", content: "Partial answer" }),
+			]) as unknown as typeof fetch,
+		});
+		const chunks: ApiStreamChunk[] = [];
+		for await (const part of handler.createMessage("", [
+			{ role: "user", content: "Hi" },
+		])) {
+			chunks.push(part);
+		}
+
+		expect(chunks.at(-1)).toMatchObject({
+			type: "done",
+			success: false,
+			error: "Response stream ended without a finish reason.",
+		});
+	});
+
+	it.each([
+		[
+			"provider error with the same message",
+			'data: {"error":{"message":"Response stream ended without a finish reason.","code":504}}\n\n',
+		],
+		["invalid response data", 'data: {"choices":"invalid"}\n\n'],
+	])("keeps %s as an error", async (_name, body) => {
+		const { fetchMock, events } = await run([
+			chunk({ role: "assistant", reasoning_content: "Thinking" }) + body,
+		]);
+
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({ reason: "error", error: expect.any(String) }),
+		]);
 	});
 
 	it("retries a pre-content mid-stream network death and recovers without surfacing an error", async () => {
