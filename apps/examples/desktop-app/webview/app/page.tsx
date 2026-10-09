@@ -151,6 +151,7 @@ import {
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
+	pruneMissingWorkspacePaths,
 	readWorkspaceSelectionFromWindow,
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
@@ -1645,13 +1646,26 @@ function ChatThreadPane({
 			// The active workspace can be an excluded path (restored session,
 			// process cwd fallback); it renders via its own registration in the
 			// selector and welcome screen instead of joining the catalog.
-			return filterWorkspacePaths(
+			const merged = filterWorkspacePaths(
 				mergeWorkspacePaths(
 					knownWorkspacePaths,
 					readWorkspaceSelectionFromWindow(environmentId).workspaces,
 					[preferred, current],
 				),
 			);
+			// A deleted folder would otherwise stay listed forever, since both the
+			// stored list and session history keep remembering it. Only checked
+			// locally: on a remote environment every check is a round trip.
+			if (environmentId !== LOCAL_WORKSPACE_ENVIRONMENT_ID) {
+				return merged;
+			}
+			return pruneMissingWorkspacePaths(merged, async (path) => {
+				const validation = await desktopClient.invoke<{ valid?: boolean }>(
+					"validate_workspace_directory",
+					{ environmentId, path },
+				);
+				return validation.valid === true;
+			});
 		},
 		[environmentId, knownWorkspacePaths],
 	);
@@ -1703,6 +1717,9 @@ function ChatThreadPane({
 				})
 				.catch(() => ({ valid: false, path: undefined }));
 			if (validation.valid !== true) {
+				// Drop the entry now if its folder is gone, rather than leaving it
+				// in the list to fail again.
+				void refreshWorkspaces();
 				return false;
 			}
 			if (requestId !== workspaceSelectionRequestRef.current) {
