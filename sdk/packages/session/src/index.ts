@@ -6,6 +6,20 @@ export {
 	exportSessionReplayBundleToAtif,
 } from "./atif/atif-export";
 export {
+	ATIF_IMPORT_REPORT_FILE,
+	ATIF_IMPORT_REPORT_FORMAT,
+	ATIF_IMPORT_REPORT_VERSION,
+	ATIF_IMPORT_SOURCE,
+	AtifImportError,
+	type AtifImportReport,
+	type AtifImportUnmapped,
+	type ImportAtifTrajectoryOptions,
+	type ImportAtifTrajectoryResult,
+	type ImportAtifTrajectoryToBundleResult,
+	importAtifTrajectory,
+	importAtifTrajectoryToBundle,
+} from "./atif/atif-import";
+export {
 	ATIF_SCHEMA_VERSION,
 	type AtifAgent,
 	type AtifContent,
