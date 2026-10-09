@@ -646,6 +646,9 @@ export class SdkCloudSessionCoordinator {
 
 	/** Changes account scope as one boundary: invalidate, detach, dispose, mutate scope, then reopen reads. */
 	async reset(changeScope?: () => Promise<void>): Promise<void> {
+		// A provisioning start belongs to the old account. Stop its readiness poll
+		// so the drain below waits for its DELETE, not for the sandbox to boot.
+		this.cancelPendingStart()
 		this.scopeGeneration++
 		this.statusResolutionAttempts.clear()
 		this.cancelAbandonedStartsRecheck()
