@@ -12,6 +12,7 @@ import {
 	type SessionMessagesArtifactUploader,
 } from "@cline/core";
 import {
+	clearMaterializedRemoteConfigRuntime,
 	getClineEnvironmentConfig,
 	type RemoteConfigBundle,
 	RemoteConfigSchema,
@@ -19,13 +20,16 @@ import {
 import { getCliTelemetryService } from "./telemetry";
 
 const initializedRemoteConfigKeys = new Set<string>();
-let cliRemoteConfigBundlePromise:
-	| Promise<RemoteConfigBundle | undefined>
-	| undefined;
+const ENTERPRISE_PLUGIN_NAME = "enterprise";
+type CliRemoteConfigResult =
+	| { status: "configured"; bundle: RemoteConfigBundle }
+	| { status: "disabled" }
+	| { status: "unavailable" };
 
-async function loadCliRemoteConfigBundle(): Promise<
-	RemoteConfigBundle | undefined
-> {
+let cliRemoteConfigBundlePromise: Promise<CliRemoteConfigResult> | undefined;
+let cliRemoteConfigPreparation: Promise<void> = Promise.resolve();
+
+async function loadCliRemoteConfigBundle(): Promise<CliRemoteConfigResult> {
 	cliRemoteConfigBundlePromise ??= loadCliRemoteConfigBundleUncached().finally(
 		() => {
 			cliRemoteConfigBundlePromise = undefined;
@@ -34,14 +38,12 @@ async function loadCliRemoteConfigBundle(): Promise<
 	return await cliRemoteConfigBundlePromise;
 }
 
-async function loadCliRemoteConfigBundleUncached(): Promise<
-	RemoteConfigBundle | undefined
-> {
+async function loadCliRemoteConfigBundleUncached(): Promise<CliRemoteConfigResult> {
 	const manager = new ProviderSettingsManager();
 	const settings = manager.getProviderSettings("cline");
 	const authToken = resolveLocalClineAuthToken(settings)?.trim();
 	if (!authToken) {
-		return undefined;
+		return { status: "unavailable" };
 	}
 
 	const service = new ClineAccountService({
@@ -49,26 +51,32 @@ async function loadCliRemoteConfigBundleUncached(): Promise<
 			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 		getAuthToken: async () => authToken,
 	});
-	const response = await service.fetchRemoteConfig().catch(() => null);
+	const response = await service.fetchRemoteConfig().catch(() => undefined);
+	if (response === null || response?.enabled === false) {
+		return { status: "disabled" };
+	}
 	if (!response?.enabled || !response.value?.trim()) {
-		return undefined;
+		return { status: "unavailable" };
 	}
 
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(response.value);
 	} catch {
-		return undefined;
+		return { status: "unavailable" };
 	}
 	const remoteConfigResult = RemoteConfigSchema.safeParse(parsed);
 	if (!remoteConfigResult.success) {
-		return undefined;
+		return { status: "unavailable" };
 	}
 
 	return {
-		source: "cline-account",
-		version: response.organizationId?.trim() || "remote-config",
-		remoteConfig: remoteConfigResult.data,
+		status: "configured",
+		bundle: {
+			source: "cline-account",
+			version: response.organizationId?.trim() || "remote-config",
+			remoteConfig: remoteConfigResult.data,
+		},
 	};
 }
 
@@ -146,14 +154,36 @@ export async function prepareCliEnterpriseIntegration(
 	if (!workspacePath) {
 		return undefined;
 	}
-	const bundle = await loadCliRemoteConfigBundle();
-	if (!bundle) {
+	// Fetch and disk reconciliation share a queue so an older enabled start
+	// cannot recreate instructions after a later disabled start clears them.
+	const preparation = cliRemoteConfigPreparation.then(() =>
+		prepareCliRemoteConfig(workspacePath),
+	);
+	cliRemoteConfigPreparation = preparation.then(
+		() => {},
+		() => {},
+	);
+	return preparation;
+}
+
+async function prepareCliRemoteConfig(workspacePath: string) {
+	const result = await loadCliRemoteConfigBundle();
+	if (result.status === "disabled") {
+		// Reconcile disk instructions before the runtime starts rule discovery.
+		await clearMaterializedRemoteConfigRuntime({
+			workspacePath,
+			pluginName: ENTERPRISE_PLUGIN_NAME,
+		});
 		return undefined;
 	}
+	if (result.status === "unavailable") {
+		return undefined;
+	}
+	const { bundle } = result;
 	captureRemoteConfigInitialized(bundle);
 	return prepareRemoteConfigCoreIntegration({
 		workspacePath,
-		pluginName: "enterprise",
+		pluginName: ENTERPRISE_PLUGIN_NAME,
 		controlPlane: {
 			name: "cline-account",
 			async fetchBundle() {
@@ -167,7 +197,8 @@ export async function prepareCliEnterpriseIntegration(
 export async function resolveCliSessionMetadata(
 	sessionId?: string,
 ): Promise<Record<string, unknown> | undefined> {
-	const bundle = await loadCliRemoteConfigBundle();
+	const result = await loadCliRemoteConfigBundle();
+	const bundle = result.status === "configured" ? result.bundle : undefined;
 	if (bundle) {
 		captureRemoteConfigInitialized(bundle);
 	}
