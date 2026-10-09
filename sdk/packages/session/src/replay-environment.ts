@@ -57,6 +57,7 @@ export class SessionReplayEnvironmentError extends Error {
 	readonly code:
 		| "workspace-missing"
 		| "workspace-redacted"
+		| "workspace-unknown"
 		| "not-a-repo"
 		| "checkpoint-missing"
 		| "no-checkpoint"
@@ -172,7 +173,12 @@ export function describeSessionReplayEnvironment(input: {
 		);
 	}
 	const resolved = resolveWorkspaceRoot(entry.workspaceRoot, input.session);
-	if (isRedactedValue(entry.workspaceRoot) && !resolved.resolvedWorkspaceRoot) {
+	if (!entry.workspaceRoot) {
+		gaps.push("no workspace path (the bundle does not record one)");
+	} else if (
+		isRedactedValue(entry.workspaceRoot) &&
+		!resolved.resolvedWorkspaceRoot
+	) {
 		gaps.push("the workspace path is redacted and not recoverable");
 	}
 	const image =
@@ -319,6 +325,12 @@ export async function rebuildSessionReplayWorkspace(
 		: undefined;
 	const recordedRoot = environment.resolvedWorkspaceRoot;
 	const source = override ?? recordedRoot;
+	if (!source && !environment.workspaceRoot) {
+		throw new SessionReplayEnvironmentError(
+			"workspace-unknown",
+			"The bundle does not record the workspace the session ran in (for example, a session imported from another agent's trajectory). Pass --workspace <path> to rerun in a copy of a workspace you choose, or --in-place to run in it directly.",
+		);
+	}
 	if (!source) {
 		throw new SessionReplayEnvironmentError(
 			"workspace-redacted",
@@ -335,6 +347,9 @@ export async function rebuildSessionReplayWorkspace(
 	}
 	const sourceKind = override ? "override" : "recorded";
 	const cwdIn = (root: string) => {
+		if (!environment.workspaceRoot || !environment.cwd) {
+			return root;
+		}
 		if (environment.cwdRelative === null) {
 			warnings.push(
 				`The recorded cwd ${environment.cwd} is outside the workspace root; using the workspace root.`,

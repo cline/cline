@@ -384,6 +384,35 @@ describe("rebuildSessionReplayWorkspace", () => {
 		expect(rebuilt.warnings[0]).toContain("no starting checkpoint");
 	});
 
+	it("needs --workspace when the bundle records no workspace, and copies it without a cwd warning", async () => {
+		const unknown = {
+			workspaceRoot: "",
+			cwd: "",
+			resolvedWorkspaceRoot: undefined,
+			resolvedFrom: undefined,
+			cwdRelative: null,
+		};
+		const error = await rebuildSessionReplayWorkspace({
+			environment: environmentFor(undefined, unknown),
+			parentDir: join(root, "out"),
+		}).catch((caught: unknown) => caught);
+		expect((error as SessionReplayEnvironmentError).code).toBe(
+			"workspace-unknown",
+		);
+		expect((error as Error).message).toContain("--workspace <path>");
+
+		const rebuilt = await rebuildSessionReplayWorkspace({
+			environment: environmentFor(undefined, unknown),
+			parentDir: join(root, "out"),
+			workspace: repo,
+		});
+		expect(rebuilt.method).toBe("copy");
+		expect(rebuilt.cwd).toBe(rebuilt.root);
+		expect(rebuilt.warnings).toEqual([
+			`The bundle has no starting checkpoint; copied ${repo} as it is now.`,
+		]);
+	});
+
 	it("refuses to write into a non-empty target", async () => {
 		const checkpoint = stashCheckpoint();
 		mkdirSync(join(root, "out", "proj"), { recursive: true });
