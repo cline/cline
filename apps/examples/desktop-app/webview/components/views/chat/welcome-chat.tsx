@@ -15,6 +15,7 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
@@ -28,7 +29,6 @@ import {
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type { WorkIn } from "@/lib/work-in-selection";
 import {
@@ -108,8 +108,18 @@ export function WelcomeScreen({
 				activeOrganization?.organizationId ?? null,
 			])
 		: null;
-	const [signingIn, setSigningIn] = useState(false);
-	const [signInError, setSignInError] = useState<string | null>(null);
+	const {
+		signIn,
+		cancelSignIn,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn({
+		onSuccess: async () => {
+			invalidateProviderCatalogCache();
+			await refreshAccount();
+		},
+	});
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
@@ -425,25 +435,6 @@ export function WelcomeScreen({
 		repoUrl,
 	]);
 
-	const signIn = async () => {
-		if (signingIn) return;
-		setSigningIn(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
-			invalidateProviderCatalogCache();
-			await refreshAccount();
-		} catch (error) {
-			setSignInError(error instanceof Error ? error.message : String(error));
-		} finally {
-			setSigningIn(false);
-		}
-	};
-
 	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
 		? null
 		: !signedIn
@@ -513,6 +504,8 @@ export function WelcomeScreen({
 				cloudOnboardingVariant !== null ? (
 					<div className="mt-4 w-full">
 						<CloudOnboardingCard
+							cancelling={cancelling}
+							onCancelSignIn={() => void cancelSignIn()}
 							checking={cloudSetupChecking}
 							onConnect={() =>
 								void (cloudOnboardingVariant === "not_connected"

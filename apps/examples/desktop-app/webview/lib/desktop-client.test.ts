@@ -111,6 +111,82 @@ afterEach(() => {
 });
 
 describe("DesktopClient command deadlines", () => {
+	it.each([
+		"success",
+		"failure",
+	])("waits for queued Cline cancellation %s before another screen signs in", async (outcome) => {
+		const { cancelClineOAuthLogin, runProviderOAuthLogin } = await import(
+			"./provider-connection"
+		);
+		const controller = new AbortController();
+		const oldLogin = runProviderOAuthLogin("cline", controller.signal);
+		const rejected = expect(oldLogin).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		await vi.advanceTimersByTimeAsync(0);
+		controller.abort();
+		const cancel = cancelClineOAuthLogin();
+		const cancelled =
+			outcome === "success"
+				? expect(cancel).resolves.toEqual({
+						provider: "cline",
+						cancelled: false,
+					})
+				: expect(cancel).rejects.toThrow("Cancellation failed");
+		await vi.advanceTimersByTimeAsync(100);
+		const socket = await connectLatestSocket();
+		await rejected;
+
+		// A fresh screen shares the cancellation even though its local hook is idle.
+		const newLogin = runProviderOAuthLogin("cline");
+		await vi.advanceTimersByTimeAsync(0);
+		expect(socket.sent).toHaveLength(0);
+		await vi.advanceTimersByTimeAsync(400);
+		expect(socket.sent.map((raw) => JSON.parse(raw).command)).toEqual([
+			"cancel_provider_oauth_login",
+		]);
+		if (outcome === "success") {
+			socket.respond({ provider: "cline", cancelled: false });
+		} else {
+			socket.onmessage?.({
+				data: JSON.stringify({
+					type: "response",
+					id: socket.lastRequest().id,
+					ok: false,
+					error: "Cancellation failed",
+				}),
+			});
+		}
+		await cancelled;
+		await vi.advanceTimersByTimeAsync(0);
+		expect(socket.sent.map((raw) => JSON.parse(raw).command)).toEqual([
+			"cancel_provider_oauth_login",
+			"run_provider_oauth_login",
+		]);
+		const result = { provider: "cline", accessToken: "test-token" };
+		socket.respond(result);
+		await expect(newLogin).resolves.toEqual(result);
+	});
+
+	it("does not send a cancelled sign-in after reconnecting", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const controller = new AbortController();
+		const login = desktopClient.invoke(
+			"run_provider_oauth_login",
+			{ provider: "cline" },
+			{ signal: controller.signal },
+		);
+		const rejected = expect(login).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.abort();
+		const socket = await connectLatestSocket();
+		await rejected;
+		expect(socket.sent).toHaveLength(0);
+	});
+
 	it("sends the displayed revision for Agenda approval, cancellation, and run", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const approval = desktopClient.approveAgendaTask({

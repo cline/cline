@@ -26,6 +26,7 @@ import {
 import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-github-step";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -34,7 +35,6 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import {
 	CLINE_DASHBOARD_URL,
 	getProviderApiKeyUrl,
@@ -336,79 +336,29 @@ function ConnectStep({
 	onSkip: () => void;
 }) {
 	const { user, refreshAccount } = useAccount();
-	const [signingIn, setSigningIn] = useState(false);
-	const deviceUserCode = useOAuthUserCode(signingIn);
-	const [signInError, setSignInError] = useState<string | null>(null);
-	const [clineApiKey, setClineApiKey] = useState("");
-	const [clineKeySaving, setClineKeySaving] = useState(false);
-	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
-
-	// Increments whenever the user cancels a pending browser sign-in so a
-	// stale OAuth round-trip (which can dangle until the transport timeout)
-	// cannot advance or error the UI after the user has moved on.
-	const signInAttemptRef = useRef(0);
-
-	const signInWithCline = useCallback(async () => {
-		signInAttemptRef.current += 1;
-		const attempt = signInAttemptRef.current;
-		setSigningIn(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				// The browser round-trip routinely outlives the default command
-				// deadline; the sidecar bounds the flow by device-code expiry.
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
-			if (signInAttemptRef.current !== attempt) {
-				// The sign-in completed after the user cancelled but before the
-				// backend processed the cancellation, so credentials were saved.
-				// Refresh the account so the card reflects the real signed-in
-				// state instead of silently diverging from disk.
+	const {
+		signIn: signInWithCline,
+		cancelSignIn: cancelSignInWithCline,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn({
+		onSuccess: async (signal) => {
+			if (signal.aborted) {
+				// Credentials may have been saved before cancellation reached the backend.
 				void refreshAccount();
 				return;
 			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
-			onConnected({ kind: "cline" });
-		} catch (error) {
-			if (signInAttemptRef.current !== attempt) {
-				return;
-			}
-			setSignInError(getErrorMessage(error));
-		} finally {
-			// The login may have persisted credentials; drop the short-lived
-			// catalog cache so the app reloads them instead of a pre-save copy.
-			invalidateProviderCatalogCache();
-			if (signInAttemptRef.current === attempt) {
-				setSigningIn(false);
-			}
-		}
-	}, [onConnected, refreshAccount]);
-
-	const cancelSignInWithCline = useCallback(() => {
-		signInAttemptRef.current += 1;
-		setSigningIn(false);
-		// Cancel the backend browser round-trip so a later-completed
-		// authorization in the abandoned tab can never persist credentials.
-		// Retry transient delivery failures; if the transport itself is gone,
-		// the sidecar cancels pending logins when the connection closes.
-		void (async () => {
-			for (let attempt = 0; attempt < 3; attempt++) {
-				try {
-					await desktopClient.invoke("cancel_provider_oauth_login", {
-						provider: "cline",
-					});
-					return;
-				} catch {
-					await new Promise((resolve) =>
-						setTimeout(resolve, 250 * (attempt + 1)),
-					);
-				}
-			}
-		})();
-	}, []);
+			if (!signal.aborted) onConnected({ kind: "cline" });
+		},
+		onSettled: invalidateProviderCatalogCache,
+	});
+	const deviceUserCode = useOAuthUserCode(signingIn);
+	const [clineApiKey, setClineApiKey] = useState("");
+	const [clineKeySaving, setClineKeySaving] = useState(false);
+	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
 
 	const connectWithClineApiKey = useCallback(async () => {
 		const key = clineApiKey.trim();
@@ -630,7 +580,8 @@ function ConnectStep({
 							</Button>
 							{signingIn ? (
 								<Button
-									onClick={cancelSignInWithCline}
+									disabled={cancelling}
+									onClick={() => void cancelSignInWithCline()}
 									size="md"
 									tone="neutral"
 									type="button"
