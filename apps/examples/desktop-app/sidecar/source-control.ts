@@ -132,9 +132,11 @@ export function parseStatus(output: string): ParsedStatus {
 			continue;
 		}
 		if (x === "!" && y === "!") continue;
-		// Renames and copies carry the original path in the next record.
-		const renamed = x === "R" || x === "C" || y === "R" || y === "C";
-		const originalPath = renamed ? records[++index] : undefined;
+		// Renames and copies carry the original path in the next record. Only
+		// renames keep it: unstaging a copy must not touch its source file.
+		const hasOrigin = x === "R" || x === "C" || y === "R" || y === "C";
+		const origin = hasOrigin ? records[++index] : undefined;
+		const originalPath = x === "R" || y === "R" ? origin : undefined;
 		const entry = (status: SourceControlStatus): ParsedStatusEntry =>
 			originalPath ? { path, originalPath, status } : { path, status };
 		if (

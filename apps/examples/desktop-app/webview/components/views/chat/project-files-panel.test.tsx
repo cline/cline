@@ -55,7 +55,8 @@ const { invokeMock, sourceControlState } = vi.hoisted(() => {
 				case "read_project_file":
 					return { content: `// ${args?.path}\n`, truncated: false };
 				case "get_source_control_state":
-					return sourceControlState;
+					// A fresh object per call, as the transport would deliver.
+					return { ...sourceControlState };
 				case "get_git_file_diff":
 					return {
 						oldText: `old ${args?.path}`,
@@ -403,11 +404,11 @@ describe("ProjectFilesPanel files view", () => {
 		expect(reads()).toBe(2);
 	});
 
-	it("ignores a read that was in flight when the cache was dropped", async () => {
+	it("ignores a read that was in flight when its tab was closed", async () => {
 		await render();
 		await showFiles();
 		let resolveStale: (value: unknown) => void = () => {};
-		// The next invoke is the README read; hold it open past the refresh.
+		// The next invoke is the README read; hold it open past the close.
 		invokeMock.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
@@ -415,15 +416,53 @@ describe("ProjectFilesPanel files view", () => {
 				}),
 		);
 		await click(button(/^README\.md/));
-		await click(byLabel("Refresh", container));
-		expect(
-			container.querySelector('[data-testid="file-contents"]')?.textContent,
-		).toContain("/repo/README.md");
+		await click(byLabel("Close README.md", container));
 		await act(async () => {
 			resolveStale({ content: "stale contents", truncated: false });
 			await Promise.resolve();
 		});
+		await click(button(/^README\.md/));
 		expect(container.textContent).not.toContain("stale contents");
+		expect(
+			container.querySelector('[data-testid="file-contents"]')?.textContent,
+		).toContain("/repo/README.md");
+	});
+
+	it("lets a slow read finish and re-reads once afterwards", async () => {
+		vi.useFakeTimers();
+		try {
+			await render();
+			await showFiles();
+			let resolveSlow: (value: unknown) => void = () => {};
+			invokeMock.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveSlow = resolve;
+					}),
+			);
+			await click(button(/^README\.md/));
+			const reads = () =>
+				invokeMock.mock.calls.filter(
+					([command]) => command === "read_project_file",
+				).length;
+			expect(reads()).toBe(1);
+			// A poll lands while the read is still pending.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(reads()).toBe(1);
+			await act(async () => {
+				resolveSlow({ content: "slow contents", truncated: false });
+				await Promise.resolve();
+			});
+			// The late response is kept, then one follow-up read refreshes it.
+			expect(reads()).toBe(2);
+			expect(
+				container.querySelector('[data-testid="file-contents"]')?.textContent,
+			).toContain("/repo/README.md");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("closes from its own header button", async () => {

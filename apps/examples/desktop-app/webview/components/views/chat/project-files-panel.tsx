@@ -347,14 +347,12 @@ export function ProjectFilesPanel({
 		[environmentId, workspaceRoot],
 	);
 
-	// Drops cached contents too, so files edited outside the app re-read.
+	// The new repository snapshot marks cached contents stale, so files
+	// edited outside the app re-read without blanking the viewer first.
 	const refresh = useCallback(() => {
 		for (const path of expanded) void loadDirectory(path);
 		void sourceControl.refresh();
-		invalidateReads(readGenerationRef.current.keys());
-		setFiles(new Map());
-		setGitDiffs(new Map());
-	}, [expanded, invalidateReads, loadDirectory, sourceControl.refresh]);
+	}, [expanded, loadDirectory, sourceControl.refresh]);
 
 	useEffect(() => {
 		const handleResize = () => setWidth((current) => clampPanelWidth(current));
@@ -476,7 +474,9 @@ export function ProjectFilesPanel({
 	useEffect(() => {
 		if (!activePath || effectiveMode !== "file") return;
 		const existing = files.get(activePath);
-		if (existing && !existing.stale) return;
+		// A read already in flight is left to finish; if a snapshot marked it
+		// stale meanwhile, it stays stale on completion and re-reads then.
+		if (existing && (existing.loading || !existing.stale)) return;
 		const path = activePath;
 		const generation = (readGenerationRef.current.get(path) ?? 0) + 1;
 		readGenerationRef.current.set(path, generation);
@@ -500,6 +500,7 @@ export function ProjectFilesPanel({
 						content: result.content,
 						truncated: result.truncated,
 						loading: false,
+						stale: current.get(path)?.stale ?? false,
 					}),
 				);
 			})
@@ -524,7 +525,7 @@ export function ProjectFilesPanel({
 			return;
 		}
 		const existing = gitDiffs.get(gitDiffKey);
-		if (existing && !existing.stale) return;
+		if (existing && (existing.loading || !existing.stale)) return;
 		const key = gitDiffKey;
 		const generation = (readGenerationRef.current.get(key) ?? 0) + 1;
 		readGenerationRef.current.set(key, generation);
@@ -555,7 +556,11 @@ export function ProjectFilesPanel({
 			.then((result) => {
 				if (!isCurrent()) return;
 				setGitDiffs((current) =>
-					new Map(current).set(key, { ...result, loading: false }),
+					new Map(current).set(key, {
+						...result,
+						loading: false,
+						stale: current.get(key)?.stale ?? false,
+					}),
 				);
 			})
 			.catch((error) => {

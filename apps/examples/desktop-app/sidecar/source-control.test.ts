@@ -56,6 +56,14 @@ describe("parseStatus", () => {
 		expect(status.untracked).toEqual(["new.txt"]);
 	});
 
+	it("does not attach the source path to copies", () => {
+		const status = parseStatus("## main\0C  copy.ts\0src.ts\0M  after.ts\0");
+		expect(status.staged).toEqual([
+			{ path: "copy.ts", status: "A" },
+			{ path: "after.ts", status: "M" },
+		]);
+	});
+
 	it("handles a branch without upstream and detached heads", () => {
 		expect(parseStatus("## main")).toMatchObject({
 			branch: "main",
