@@ -979,6 +979,8 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
+				// Keep every tool call paired with a result before ending the run.
+				this.throwIfAborted();
 				if (
 					finishReason === "unknown" &&
 					!toolMessages.some((toolMessage) =>
@@ -2534,15 +2536,25 @@ export class AgentRuntime {
 		prepared: PreparedToolExecution,
 	): Promise<AgentMessage> {
 		const startedAt = new Date();
-		await this.emit({
-			type: "tool-started",
-			snapshot: this.snapshot(),
-			iteration: this.state.iteration,
-			toolCall: prepared.toolCall,
-		});
+		const started = !this.abortController?.signal.aborted;
+		if (started) {
+			await this.emit({
+				type: "tool-started",
+				snapshot: this.snapshot(),
+				iteration: this.state.iteration,
+				toolCall: prepared.toolCall,
+			});
+		}
+		// Event handlers may abort while tool-started is being awaited.
+		const cancelledBeforeExecution = this.abortController?.signal.aborted;
 
 		let result: AgentToolResult;
-		if (prepared.skipReason) {
+		if (cancelledBeforeExecution) {
+			result = {
+				output: { error: this.normalizeAbortError().message },
+				isError: true,
+			};
+		} else if (prepared.skipReason) {
 			result = {
 				output: { error: prepared.skipReason },
 				isError: true,
@@ -2588,7 +2600,7 @@ export class AgentRuntime {
 		const endedAt = new Date();
 		const durationMs = Math.max(0, endedAt.getTime() - startedAt.getTime());
 
-		if (prepared.tool) {
+		if (prepared.tool && !cancelledBeforeExecution) {
 			for (const hook of this.hooks.afterTool) {
 				const after = (await hook({
 					snapshot: this.snapshot(),
@@ -2625,13 +2637,15 @@ export class AgentRuntime {
 			},
 		]);
 
-		await this.emit({
-			type: "tool-finished",
-			snapshot: this.snapshot(),
-			iteration: this.state.iteration,
-			toolCall: prepared.toolCall,
-			message,
-		});
+		if (started) {
+			await this.emit({
+				type: "tool-finished",
+				snapshot: this.snapshot(),
+				iteration: this.state.iteration,
+				toolCall: prepared.toolCall,
+				message,
+			});
+		}
 
 		return message;
 	}
