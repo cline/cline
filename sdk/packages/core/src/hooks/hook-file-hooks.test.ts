@@ -944,4 +944,55 @@ describe("createHookConfigFileHooks", () => {
 			await rm(outputPath, { force: true });
 		}
 	});
+
+	it("dispatches TaskCancel (agent_abort) when a run is aborted without an error", async () => {
+		// Regression: a real abort yields result.error === undefined (see
+		// AgentRuntime.execute), so afterRun passed reason=undefined into
+		// runSessionShutdown and isAbortReason(undefined) is false — the
+		// TaskCancel hook never ran, only SessionShutdown did.
+		const outputPath = join(
+			tmpdir(),
+			`hooks-abort-taskcancel-${Date.now()}.json`,
+		);
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskCancel.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').writeFileSync(${JSON.stringify(outputPath)}, data);});\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.afterRun).toBeTypeOf("function");
+			await hooks?.afterRun?.({
+				snapshot: beforeToolContext().snapshot,
+				result: {
+					agentId: "agent_1",
+					runId: "run_1",
+					status: "aborted",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: beforeToolContext().snapshot.usage,
+					error: undefined,
+				},
+			});
+
+			const payload = JSON.parse(await waitForFile(outputPath, 8000)) as {
+				hookName: string;
+				reason?: string;
+			};
+			expect(payload.hookName).toBe("agent_abort");
+			expect(payload.reason).toBe("aborted");
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
 });
