@@ -230,7 +230,7 @@ export function ReplayView(props: {
 					{`Session replay · ${entry.sessionId}${entry.title ? ` · ${entry.title}` : ""}`}
 				</text>
 				<text fg="gray">
-					{`${entry.model} (${entry.provider}) · ${entry.status}${entry.exitCode !== null ? ` (exit ${entry.exitCode})` : ""} · started ${entry.startedAt}`}
+					{`${entry.model || "unknown model"}${entry.provider ? ` (${entry.provider})` : ""} · ${entry.status}${entry.exitCode !== null ? ` (exit ${entry.exitCode})` : ""} · started ${entry.startedAt}`}
 				</text>
 			</box>
 			<scrollbox ref={scrollboxRef} flexGrow={1}>
