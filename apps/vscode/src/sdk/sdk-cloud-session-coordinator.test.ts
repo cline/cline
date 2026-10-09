@@ -8,7 +8,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ClineEnv } from "@/config"
 import { resetClineRecommendedModelsCacheForTests } from "@/core/controller/models/refreshClineRecommendedModels"
 import { HostProvider } from "@/hosts/host-provider"
-import { CloudSessionError, type CloudSessionRecord, type CreateCloudSessionInput } from "@/services/cloud/CloudSessionsService"
+import {
+	type CloudProvisioningPhase,
+	CloudSessionError,
+	type CloudSessionRecord,
+	type CreateCloudSessionInput,
+} from "@/services/cloud/CloudSessionsService"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { CloudSessionHost } from "./cloud-session-host"
@@ -42,6 +47,7 @@ const EXITED_PID = 2_147_483_646
 const record: CloudSessionRecord = {
 	id: "ses-stale",
 	status: "active",
+	sandboxUrl: "",
 	repoContext: { repoUrl: "https://github.com/cline/fixture", branch: "main" },
 	metadata: { modelId: "fixture-model", taskId: "tsk-stale" },
 	createdAt: new Date(0).toISOString(),
@@ -65,8 +71,12 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 	const cloudSessions = {
 		listSessions: vi.fn<() => Promise<CloudSessionRecord[]>>(async () => []),
 		createSession: vi.fn(
-			async (_input: CreateCloudSessionInput, _onProvisioning?: (sessionId: string) => void, _signal?: AbortSignal) =>
-				record,
+			async (
+				_input: CreateCloudSessionInput,
+				_onProvisioning?: (sessionId: string) => void,
+				_signal?: AbortSignal,
+				_onPhase?: (phase: CloudProvisioningPhase) => void,
+			) => record,
 		),
 		deleteSession: vi.fn(async (_sessionId: string) => undefined),
 		renameSession: vi.fn(async () => undefined),
@@ -145,6 +155,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect.objectContaining({ modelId: "act-cloud-model" }),
 			expect.any(Function),
 			expect.any(AbortSignal),
+			expect.any(Function),
 		)
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith(expect.objectContaining({ mode: "act" }))
 		expect(startNewSession).toHaveBeenCalledWith(
@@ -152,6 +163,52 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			host,
 			expect.any(Function),
 		)
+		await coordinator.dispose()
+	})
+
+	it("updates the provisioning row in place as the sandbox reports its phase", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning, _signal, onPhase) => {
+			onProvisioning?.(record.id)
+			for (const phase of ["cloning_repo", "cloning_repo", "agent_starting", "ready"] as const) onPhase?.(phase)
+			return record
+		})
+
+		await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl!, branch: "main" })()
+
+		const rows = vi
+			.mocked(options.messages.appendAndEmit)
+			.mock.calls.flatMap(([messages]) => messages.filter((message) => message.say === "text"))
+		expect(rows.map((row) => row.text)).toEqual([
+			"Starting a cloud sandbox for cline/fixture (main)…",
+			"Cloning cline/fixture (main) into the cloud sandbox…",
+			"Starting the agent in the cloud sandbox…",
+		])
+		expect(new Set(rows.map((row) => row.ts)).size).toBe(1)
+		await coordinator.dispose()
+	})
+
+	it("titles History rows from the control plane so dashboard renames of tasks started here show up", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions } = makeCoordinator({
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+		await coordinator.beginCloudTask({ prompt: "Original prompt", repoUrl: record.repoContext.repoUrl! })()
+		cloudSessions.listSessions.mockResolvedValue([{ ...record, title: "Renamed on the web" }])
+		// Past the list cache, as on the next poll.
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+		expect((await coordinator.listHistoryRecords())[0].metadata?.title).toBe("Renamed on the web")
 		await coordinator.dispose()
 	})
 
@@ -643,6 +700,7 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			expect.objectContaining({ modelId: shown }),
 			expect.any(Function),
 			expect.any(AbortSignal),
+			expect.any(Function),
 		)
 		// The fresh list is for the next task: once the displayed task is gone the composer offers it.
 		await fetched.promise

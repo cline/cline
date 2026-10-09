@@ -37,6 +37,7 @@ import {
 import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import {
+	type CloudProvisioningPhase,
 	CloudSessionError,
 	type CloudSessionRecord,
 	type CloudSessionsService,
@@ -103,6 +104,17 @@ function describeExpiredCloudSession(
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
+
+function provisioningPhaseText(phase: CloudProvisioningPhase, sandboxLabel: string): string | undefined {
+	switch (phase) {
+		case "cloning_repo":
+			return `Cloning ${sandboxLabel} into the cloud sandbox…`
+		case "agent_starting":
+			return "Starting the agent in the cloud sandbox…"
+		default:
+			return undefined
+	}
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
 	return new Promise((resolve, reject) => {
@@ -416,7 +428,9 @@ export class SdkCloudSessionCoordinator {
 	private toHistoryRecord(entry: CloudSessionEntry): SessionHistoryRecord {
 		const { record } = entry
 		const status = this.statusOf(entry)
-		const title = entry.title ?? record.title?.trim() ?? ""
+		// The control plane's title wins so renames from the dashboard show up; the
+		// local one covers the moment before this window's own rename lands.
+		const title = record.title?.trim() || entry.title || ""
 		return {
 			sessionId: record.id,
 			source: "vscode",
@@ -818,7 +832,7 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	private notifyFinished(entry: CloudSessionEntry, status: CloudSessionStatus): void {
-		const title = entry.title ?? entry.record.title?.trim() ?? entry.record.repoContext.repoUrl ?? entry.record.id
+		const title = entry.record.title?.trim() || entry.title || entry.record.repoContext.repoUrl || entry.record.id
 		const label = status === "failed" ? "Cloud task failed" : "Cloud task finished"
 		HostProvider.window
 			.showMessage({
@@ -1059,6 +1073,15 @@ export class SdkCloudSessionCoordinator {
 		}
 		const title = input.prompt.trim().split("\n")[0]?.trim().slice(0, 120) || input.prompt.trim()
 		const repoLabel = input.repoUrl.replace(/^https:\/\/github\.com\//, "")
+		const sandboxLabel = `${repoLabel}${input.branch ? ` (${input.branch})` : ""}`
+		const provisioningRow = (text: string): ClineMessage => ({
+			ts: startedAt + 1,
+			type: "say",
+			say: "text",
+			text,
+			partial: false,
+		})
+		const provisioningEvent = { type: "status", payload: { sessionId: provisionalId, status: "running" } } as const
 
 		this.options.messages.appendAndEmit(
 			[
@@ -1070,15 +1093,9 @@ export class SdkCloudSessionCoordinator {
 					...(input.images?.length ? { images: input.images } : {}),
 					partial: false,
 				},
-				{
-					ts: startedAt + 1,
-					type: "say",
-					say: "text",
-					text: `Starting a cloud sandbox for ${repoLabel}${input.branch ? ` (${input.branch})` : ""}…`,
-					partial: false,
-				},
+				provisioningRow(`Starting a cloud sandbox for ${sandboxLabel}…`),
 			],
-			{ type: "status", payload: { sessionId: provisionalId, status: "running" } },
+			provisioningEvent,
 		)
 		this.options.clearTurnOutcome()
 		this.options.setTurnPhase("streaming")
@@ -1091,6 +1108,7 @@ export class SdkCloudSessionCoordinator {
 		try {
 			const config = await this.cloudSessionConfig(modelId)
 			if (isStale()) return undefined
+			let shownPhase: CloudProvisioningPhase | undefined
 			const record = await this.options.cloudSessions.createSession(
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
@@ -1099,6 +1117,13 @@ export class SdkCloudSessionCoordinator {
 					this.rememberPendingStart(id)
 				},
 				cancelSignal,
+				(phase) => {
+					const text = phase === shownPhase ? undefined : provisioningPhaseText(phase, sandboxLabel)
+					if (!text || isStale()) return
+					shownPhase = phase
+					// Same ts: the progress row is updated in place, not appended.
+					this.options.messages.appendAndEmit([provisioningRow(text)], provisioningEvent)
+				},
 			)
 			sessionId = record.id
 			if (isStale()) return sessionId
