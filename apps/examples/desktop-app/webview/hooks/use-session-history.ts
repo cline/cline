@@ -543,12 +543,19 @@ function updateSessionById(
 function mergeDiscoveredSessions(
 	current: SessionHistoryItem[],
 	discovered: SessionHistoryItem[],
+	beforeRefresh: SessionHistoryItem[],
 ): SessionHistoryItem[] {
 	if (current.length === 0) {
 		return discovered;
 	}
 	const currentById = new Map(
 		current.map((session) => [sessionKey(session), session]),
+	);
+	const titlesBeforeRefresh = new Map(
+		beforeRefresh.map((session) => [
+			sessionKey(session),
+			getSessionMetadataTitle(session.metadata),
+		]),
 	);
 	return discovered.map((session) => {
 		const existing = currentById.get(sessionKey(session));
@@ -560,7 +567,13 @@ function mergeDiscoveredSessions(
 			return session;
 		}
 		const incomingTitle = getSessionMetadataTitle(session.metadata);
-		if (incomingTitle === existingTitle) {
+		// Cloud refreshes may include web renames; retain cached titles for other runtimes.
+		if (
+			incomingTitle === existingTitle ||
+			(session.origin === "cloud" &&
+				incomingTitle &&
+				existingTitle === titlesBeforeRefresh.get(sessionKey(session)))
+		) {
 			return session;
 		}
 		return {
@@ -779,6 +792,7 @@ export function useSessionHistory({
 		cloudScopeInvalidatedRef.current = false;
 		const refreshPromise = (async (): Promise<boolean> => {
 			lastRefreshStartedAtRef.current = Date.now();
+			const sessionsBeforeRefresh = sessionsRef.current;
 			const limit = fetchLimitRef.current;
 			refreshLimitRef.current = limit;
 			try {
@@ -826,6 +840,7 @@ export function useSessionHistory({
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
 					topLevelSessions,
+					sessionsBeforeRefresh,
 				);
 
 				setSessions((current) =>
@@ -1165,14 +1180,21 @@ export function useSessionHistory({
 				return;
 			}
 			const nextTitle = detail.title.trim();
+			const withTitle = (session: SessionHistoryItem) => ({
+				...session,
+				metadata: {
+					...(session.metadata ?? {}),
+					title: nextTitle || undefined,
+				},
+			});
+			// Refresh continuations can run before React commits this update.
+			sessionsRef.current = updateSessionById(
+				sessionsRef.current,
+				sessionId,
+				withTitle,
+			);
 			setSessions((current) =>
-				updateSessionById(current, sessionId, (session) => ({
-					...session,
-					metadata: {
-						...(session.metadata ?? {}),
-						title: nextTitle || undefined,
-					},
-				})),
+				updateSessionById(current, sessionId, withTitle),
 			);
 			setThreads((current) =>
 				updateThreadById(current, sessionId, (thread) => ({

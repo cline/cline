@@ -26,6 +26,13 @@ const GOAL_ENTRY = {
 	install: { args: ["goal"] },
 };
 
+const SKILL_ENTRY = {
+	id: "example-skill",
+	type: "skill",
+	name: "Example Skill",
+	install: { args: ["https://github.com/cline/skills.git"] },
+};
+
 let tempClineDir: string;
 let previousClineDir: string | undefined;
 
@@ -43,6 +50,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+	vi.unstubAllEnvs();
 	if (previousClineDir === undefined) {
 		delete process.env.CLINE_DIR;
 	} else {
@@ -201,5 +209,48 @@ describe("official plugin install detection", () => {
 		} as JsonRecord);
 
 		expect(result.installedKeys).toEqual([]);
+	});
+});
+
+describe("skill install failures", () => {
+	it("explains the missing Git dependency when the skills CLI cannot spawn git", async () => {
+		vi.stubEnv("HOME", tempClineDir);
+		const spawnCommand = vi.fn().mockResolvedValue({
+			exitCode: 1,
+			stdout: "",
+			stderr:
+				"Failed to clone https://github.com/cline/skills.git: Error: spawn git ENOENT",
+		});
+
+		await expect(
+			installMarketplaceEntry({ entry: SKILL_ENTRY }, { spawnCommand }),
+		).rejects.toThrow(
+			/Git is required to install this skill\. Install Git, make sure it is on PATH, and retry\./,
+		);
+		expect(spawnCommand).toHaveBeenCalledWith("npx", [
+			"-y",
+			"skills@latest",
+			"add",
+			"https://github.com/cline/skills.git",
+			"-g",
+			"-a",
+			"cline",
+			"-y",
+		]);
+	});
+
+	it("keeps unrelated CLI errors without Git guidance", async () => {
+		vi.stubEnv("HOME", tempClineDir);
+		const spawnCommand = vi.fn().mockResolvedValue({
+			exitCode: 1,
+			stdout: "",
+			stderr: "Network request failed",
+		});
+
+		await expect(
+			installMarketplaceEntry({ entry: SKILL_ENTRY }, { spawnCommand }),
+		).rejects.toThrow(
+			"Skill install failed with exit code 1:\nNetwork request failed",
+		);
 	});
 });

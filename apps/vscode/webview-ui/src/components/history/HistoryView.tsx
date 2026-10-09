@@ -39,7 +39,7 @@ const HISTORY_PAGE_SIZE = 50
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
+	const { taskHistory, environment } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -173,13 +173,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		},
 		[showFavoritesOnly, showCurrentWorkspaceOnly, loadTaskHistory],
 	)
-
-	// Use the onRelinquishControl hook instead of message event
-	useEffect(() => {
-		return onRelinquishControl(() => {
-			setDeleteAllDisabled(false)
-		})
-	}, [onRelinquishControl])
 
 	const { totalTasksSize, setTotalTasksSize } = extensionStateContext
 

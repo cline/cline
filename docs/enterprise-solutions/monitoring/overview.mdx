@@ -10,7 +10,7 @@ Cline includes optional monitoring capabilities for organizations that want to t
 
 <CardGroup cols={2}> 
   <Card title="Cline Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
-    Built-in anonymous usage tracking that helps improve Cline (opt-in)
+    Built-in usage and error telemetry that helps improve Cline (on by default)
   </Card>
 
   <Card title="Prompt Storage" icon="database" href="/enterprise-solutions/monitoring/prompt-storage">
@@ -28,14 +28,14 @@ Cline includes optional monitoring capabilities for organizations that want to t
 
 ## Cline Telemetry
 
-Cline includes opt-in telemetry for anonymous usage tracking:
+Cline sends usage and error telemetry by default:
 
 - Feature usage patterns
-- Task completion rates  
+- Task completion rates
 - Error occurrences
 - Performance metrics
 
-Users can enable or disable telemetry in Cline settings. All data is anonymous and does not include code content, file paths, or sensitive information.
+Users can turn telemetry off in Cline's settings. Cline's telemetry doesn't include your code, file contents or prompts, except for requests to the Cline and ClinePass providers.
 
 See [Cline Telemetry](/enterprise-solutions/monitoring/telemetry) for configuration details.
 
@@ -58,7 +58,7 @@ See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for setup in
 ## Use Cases
 
 ### When to Use Cline Telemetry
-- You want to help improve Cline through anonymous usage data
+- You want to help improve Cline with usage data
 - No additional setup required
 - Suitable for most users
 
@@ -75,8 +75,8 @@ See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for setup in
 Decide whether basic telemetry or OpenTelemetry integration fits your needs
 </Step>
 
-<Step title="Enable Telemetry">
-For basic telemetry, enable it in Cline settings. For OpenTelemetry, see the configuration guide.
+<Step title="Configure Telemetry">
+Cline Telemetry is on by default. For OpenTelemetry, see the configuration guide.
 </Step>
 
 <Step title="Verify Data Collection">
@@ -89,18 +89,10 @@ Confirm telemetry is being collected as expected
 All Cline monitoring features are designed with privacy in mind:
 
 <CardGroup cols={2}>
-  <Card title="Anonymous" icon="user-secret">
-    No personal information collected
-  </Card>
-  
   <Card title="Optional" icon="toggle-on">
-    Users can disable at any time
+    Users can turn telemetry off at any time
   </Card>
-  
-  <Card title="Local First" icon="laptop">
-    Code never leaves your machine
-  </Card>
-  
+
   <Card title="Transparent" icon="code">
     Open source - see what's collected
   </Card>

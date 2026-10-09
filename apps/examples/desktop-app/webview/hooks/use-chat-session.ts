@@ -61,7 +61,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
-import { formatRunError } from "@/lib/run-error";
+import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -1999,6 +1999,16 @@ export function useChatSession(environmentId: string) {
 					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);
+					// The sidecar is re-creating the session on a restarted hub;
+					// hold the turn open with a status instead of an error.
+					const hubReconnect = (
+						parsed.metadata as { hubReconnect?: unknown } | undefined
+					)?.hubReconnect;
+					if (hubReconnect === "started") {
+						setActivityLabel("Reconnecting to Cline Hub...");
+					} else if (hubReconnect === "finished") {
+						setActivityLabel(null);
+					}
 					if (summaryActivity) {
 						setActivityLabel(
 							summaryActivity.phase === "started"
@@ -3146,7 +3156,11 @@ export function useChatSession(environmentId: string) {
 				// rendered as an assistant bubble (canonical rehydration would
 				// silently wipe it, leaving the user with a blank chat).
 				const isErrorResult = result?.finishReason === "error";
-				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
+				// A hub-restart notice is shown as its own bubble below.
+				const assistantText =
+					isErrorResult || result?.hubInterrupted
+						? ""
+						: (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -3505,6 +3519,19 @@ export function useChatSession(environmentId: string) {
 						promptTaken = withdrawPrompt();
 					}
 				} else if (result?.finishReason === "aborted") {
+					// Canonical history keeps a trailing error-role bubble until a
+					// saved error replaces it, so the resend notice is not wiped
+					// when the rebuilt session's history is applied.
+					if (result.hubInterrupted && !newerTurnOwnsStatus) {
+						setMessages((prev) =>
+							sliceMessages([
+								...prev,
+								makeErrorChatMessage(activeSessionId, result.text, {
+									messageKind: HUB_INTERRUPTED_MESSAGE_KIND,
+								}),
+							]),
+						);
+					}
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus("cancelled");
