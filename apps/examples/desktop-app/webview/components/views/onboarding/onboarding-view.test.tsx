@@ -551,6 +551,38 @@ describe("OnboardingView", () => {
 		});
 	});
 
+	it("stays on Welcome when sign-in completes after Back", async () => {
+		await render();
+		await act(async () => buttonByText("Get started").click());
+		let finishLogin!: () => void;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise<void>((resolve) => {
+					finishLogin = resolve;
+				});
+			}
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			return {};
+		});
+		await act(async () => buttonByText("Sign in").click());
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Back"]')
+				?.click();
+		});
+		expect(buttonByText("Get started")).toBeDefined();
+		await act(async () => finishLogin());
+		expect(buttonByText("Get started")).toBeDefined();
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(invoke).not.toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		await act(async () => buttonByText("Get started").click());
+		expect(container.textContent).toContain("Signed in as");
+	});
+
 	it("keeps sign-in busy during account refresh and does not advance after Cancel", async () => {
 		await render();
 		await act(async () => buttonByText("Get started").click());

@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
-import { desktopClient } from "@/lib/desktop-client";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
+import { useEffect, useRef, useState } from "react";
+import {
+	cancelClineOAuthLogin,
+	runProviderOAuthLogin,
+} from "@/lib/provider-connection";
 
 export function useClineSignIn({
 	onSuccess,
@@ -14,6 +16,8 @@ export function useClineSignIn({
 	const [cancelling, setCancelling] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	useEffect(() => () => controller.current?.abort(), []);
+
 	async function signIn() {
 		if (controller.current || cancelling) return;
 		const attempt = new AbortController();
@@ -21,11 +25,7 @@ export function useClineSignIn({
 		setPending(true);
 		setError(null);
 		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal: attempt.signal },
-			);
+			await runProviderOAuthLogin("cline", attempt.signal);
 			await onSuccess(attempt.signal);
 		} catch (error) {
 			if (!attempt.signal.aborted) {
@@ -44,9 +44,7 @@ export function useClineSignIn({
 		setCancelling(true);
 		setError(null);
 		try {
-			await desktopClient.invoke("cancel_provider_oauth_login", {
-				provider: "cline",
-			});
+			await cancelClineOAuthLogin();
 		} catch (error) {
 			setError(
 				`Could not cancel sign-in: ${error instanceof Error ? error.message : String(error)}`,
