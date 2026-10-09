@@ -1018,6 +1018,7 @@ export class SdkCloudSessionCoordinator {
 	private async cloudSessionConfig(modelId: string): Promise<StartSessionInput["config"]> {
 		const {
 			apiKey: _apiKey,
+			knownModels: _knownModels,
 			providerConfig,
 			...config
 		} = await this.options.sessionConfigBuilder.build({
@@ -1032,8 +1033,9 @@ export class SdkCloudSessionCoordinator {
 		return {
 			...config,
 			// The sandbox bills inference server-side, so the user's account token
-			// (the Cline provider key) must never be shipped into it.
-			...(providerConfig ? { providerConfig: { ...providerConfig, apiKey: undefined } } : {}),
+			// (the Cline provider key) must never be shipped into it. It resolves
+			// Cline models itself, so the local catalog (~150 KB) stays home too.
+			...(providerConfig ? { providerConfig: { ...providerConfig, apiKey: undefined, knownModels: undefined } } : {}),
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			mode: CLOUD_SESSION_MODE,
