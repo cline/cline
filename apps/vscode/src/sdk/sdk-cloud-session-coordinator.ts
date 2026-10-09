@@ -1259,7 +1259,9 @@ export class SdkCloudSessionCoordinator {
 			if (status === "expired") {
 				messages = await this.renderExpired(entry)
 				if (isStale()) return historyItem
-			} else if (status === "failed" && !entry.host) {
+			} else if (entry.record.status?.toLowerCase() === "failed" && !entry.host) {
+				// Only the control plane's record says the sandbox failed; a remembered
+				// "failed" is the last agent turn's outcome, and that conversation can continue.
 				messages.push({
 					ts: Date.now(),
 					type: "say",
