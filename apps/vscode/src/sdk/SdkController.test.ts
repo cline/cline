@@ -532,3 +532,84 @@ describe("resolveWorkspaceManagerPaths", () => {
 		expect(resolveWorkspaceManagerPaths([], "  ")).toEqual([])
 	})
 })
+
+describe("SDK task-history pagination", () => {
+	function makeController() {
+		const records = Array.from({ length: 101 }, (_, index) => ({
+			sessionId: `task-${index}`,
+			updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 101 - index)).toISOString(),
+			prompt: index === 100 ? "Find the oldest target" : `Task ${index}`,
+			cwd: index === 100 ? "/workspace" : "/other",
+			metadata: {
+				isFavorited: index === 100,
+				totalCost: index === 100 ? 100 : 1,
+				tokensIn: index === 100 ? 1000 : 1,
+			},
+		}))
+		const listHistory = vi.fn(async (options: { limit?: number; offset?: number }) =>
+			records.slice(options.offset ?? 0, (options.offset ?? 0) + (options.limit ?? records.length)),
+		)
+		return { taskHistory: { listHistory }, getWorkspaceRoot: async () => "/workspace" }
+	}
+
+	const request = {
+		metadata: undefined,
+		favoritesOnly: false,
+		currentWorkspaceOnly: false,
+		searchQuery: "",
+		sortBy: "newest",
+		limit: 50,
+		offset: 0,
+	}
+
+	it.each([
+		"newest",
+		"oldest",
+		"mostExpensive",
+		"mostTokens",
+	])("returns every task exactly once when paging by %s", async (sortBy) => {
+		const controller = makeController()
+		const pages = await Promise.all(
+			[0, 50, 100].map((offset) =>
+				SdkController.prototype.getTaskHistory.call(controller as never, { ...request, sortBy, offset }),
+			),
+		)
+		const ids = pages.flatMap((page) => page.tasks.map((task) => task.id))
+		expect(ids).toHaveLength(101)
+		expect(new Set(ids).size).toBe(101)
+		expect([...ids].sort()).toEqual(Array.from({ length: 101 }, (_, index) => `task-${index}`).sort())
+		expect(pages.map((page) => page.hasMore)).toEqual([true, true, false])
+		if (sortBy !== "newest") {
+			expect(ids[0]).toBe("task-100")
+		}
+	})
+
+	it.each([
+		{ favoritesOnly: true },
+		{ currentWorkspaceOnly: true },
+		{ searchQuery: "OLDEST TARGET" },
+	])("filters the entire metadata history before paging: %j", async (filter) => {
+		const controller = makeController()
+		const first = await SdkController.prototype.getTaskHistory.call(controller as never, { ...request, ...filter })
+		expect(first.tasks.map((task) => task.id)).toEqual(["task-100"])
+		expect(first.hasMore).toBe(false)
+		const second = await SdkController.prototype.getTaskHistory.call(controller as never, {
+			...request,
+			...filter,
+			offset: 50,
+		})
+		expect(second.tasks).toEqual([])
+		expect(second.hasMore).toBe(false)
+		expect(controller.taskHistory.listHistory).toHaveBeenCalledWith({ hydrate: false })
+	})
+
+	it("reports no further page for an empty search result", async () => {
+		const controller = makeController()
+		const page = await SdkController.prototype.getTaskHistory.call(controller as never, {
+			...request,
+			searchQuery: "missing",
+		})
+		expect(page.tasks).toEqual([])
+		expect(page.hasMore).toBe(false)
+	})
+})
