@@ -62,6 +62,10 @@ interface OwnedSandbox {
 	readyTimer?: ReturnType<typeof setTimeout>
 	/** Transcript snapshot served by GET /history once the sandbox is gone. */
 	archive?: SdkMessage[]
+	/** Client sockets currently bridged to this sandbox's Hub. */
+	clients: Set<WebSocket>
+	/** Pending idle suspension after the last client disconnected. */
+	suspendTimer?: ReturnType<typeof setTimeout>
 }
 
 export interface LocalCloudEnvironment {
@@ -71,6 +75,12 @@ export interface LocalCloudEnvironment {
 	readonly modelFetch: typeof fetch
 	readonly sessions: ReadonlyMap<string, OwnedSandbox>
 	activateSession(sessionId: string): Promise<OwnedSandbox>
+	/**
+	 * Suspend a resumable sandbox like the hosted control plane does after it
+	 * idles: its Hub stops (dropping every client and live runtime) but its disk,
+	 * including the saved conversation, survives until POST /resume.
+	 */
+	suspendSession(sessionId: string): Promise<void>
 	/** Drop only the client transport; the sandbox continues running. */
 	disconnectClients(): void
 	dispose(): Promise<void>
@@ -171,6 +181,8 @@ export async function startLocalCloudEnvironment(
 		insufficientCredits?: boolean
 		/** Every session socket upgrade is refused, so a start fails after the sandbox is ready. */
 		refuseSessionSockets?: boolean
+		/** Suspend a sandbox this long after its last client disconnects. Default: never. */
+		suspendIdleAfterMs?: number
 	} = {},
 ): Promise<LocalCloudEnvironment> {
 	const accessToken = options.accessToken ?? `local-cloud-${randomUUID()}`
@@ -206,6 +218,7 @@ export async function startLocalCloudEnvironment(
 				organizationId: null,
 				root: await mkdtemp(path.join(root, "sandbox-")),
 				archive: archived ? archivedTranscript(taskId, twoDaysAgo) : undefined,
+				clients: new Set(),
 			})
 		}
 	}
@@ -258,6 +271,44 @@ export async function startLocalCloudEnvironment(
 	}
 
 	let apiBaseUrl = ""
+	// The hosted sandbox is listening by the time /status says ready. Start the
+	// Hub as the session becomes ready rather than on the first socket upgrade:
+	// a cold start can outlast the client's connect timeout.
+	const provision = (owned: OwnedSandbox) => {
+		const becomeReady = () => {
+			if (sessions.get(owned.record.id) !== owned) return
+			owned.record.status = "ready"
+			owned.record.sandboxUrl = apiBaseUrl
+			owned.record.updatedAt = new Date().toISOString()
+			void activateSession(owned.record.id).catch(() => undefined)
+		}
+		if (provisioningDelayMs > 0) {
+			owned.readyTimer = setTimeout(() => {
+				owned.readyTimer = undefined
+				becomeReady()
+			}, provisioningDelayMs)
+		} else {
+			becomeReady()
+		}
+	}
+	const suspendSession = async (sessionId: string): Promise<void> => {
+		const owned = sessions.get(sessionId)
+		if (!owned) throw new Error(`Unknown local cloud session ${sessionId}`)
+		clearTimeout(owned.suspendTimer)
+		owned.suspendTimer = undefined
+		await activations.get(sessionId)?.catch(() => undefined)
+		owned.record.status = "suspended"
+		owned.record.updatedAt = new Date().toISOString()
+		const { hub, sessionStore } = owned
+		owned.hub = undefined
+		owned.sessionStore = undefined
+		try {
+			await hub?.close()
+		} finally {
+			sessionStore?.close()
+		}
+	}
+
 	const server: Server = createServer(async (req, res) => {
 		try {
 			const url = new URL(req.url ?? "/", apiBaseUrl)
@@ -381,26 +432,9 @@ export async function startLocalCloudEnvironment(
 					createdAt: now,
 					updatedAt: now,
 				}
-				const owned: OwnedSandbox = { record, organizationId, root: sandboxRoot }
+				const owned: OwnedSandbox = { record, organizationId, root: sandboxRoot, clients: new Set() }
 				sessions.set(id, owned)
-				// The hosted sandbox is listening by the time /status says ready. Start
-				// the Hub as the session becomes ready rather than on the first socket
-				// upgrade: a cold start can outlast the client's connect timeout.
-				const becomeReady = () => {
-					if (sessions.get(id) !== owned) return
-					record.status = "ready"
-					record.sandboxUrl = apiBaseUrl
-					record.updatedAt = new Date().toISOString()
-					void activateSession(id).catch(() => undefined)
-				}
-				if (provisioningDelayMs > 0) {
-					owned.readyTimer = setTimeout(() => {
-						owned.readyTimer = undefined
-						becomeReady()
-					}, provisioningDelayMs)
-				} else {
-					becomeReady()
-				}
+				provision(owned)
 				return json(res, 200, {
 					success: true,
 					data: {
@@ -411,10 +445,17 @@ export async function startLocalCloudEnvironment(
 				})
 			}
 
-			const match = url.pathname.match(/^\/api\/v1\/session\/([^/]+)(?:\/(status|history))?$/)
+			const match = url.pathname.match(/^\/api\/v1\/session\/([^/]+)(?:\/(status|history|resume))?$/)
 			if (!match) return json(res, 404, { error: "Not found" })
 			const owned = sessions.get(decodeURIComponent(match[1]))
 			if (!owned) return json(res, 404, { error: "Session not found" })
+			if (match[2] === "resume" && req.method === "POST") {
+				if (owned.record.status !== "suspended") return json(res, 409, { error: "session is not suspended" })
+				owned.record.status = "provisioning"
+				owned.record.updatedAt = new Date().toISOString()
+				provision(owned)
+				return json(res, 200, { success: true, data: owned.record })
+			}
 			if (match[2] === "status" && req.method === "GET") {
 				return json(res, 200, {
 					success: true,
@@ -446,6 +487,7 @@ export async function startLocalCloudEnvironment(
 			if (req.method === "DELETE") {
 				sessions.delete(owned.record.id)
 				clearTimeout(owned.readyTimer)
+				clearTimeout(owned.suspendTimer)
 				await activations.get(owned.record.id)?.catch(() => undefined)
 				await owned.hub?.close()
 				owned.sessionStore?.close()
@@ -487,6 +529,13 @@ export async function startLocalCloudEnvironment(
 			)
 			return
 		}
+		if (owned.record.status === "suspended") {
+			const body = JSON.stringify({ error: "session is suspended; resume it before connecting" })
+			socket.end(
+				`HTTP/1.1 409 Conflict\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`,
+			)
+			return
+		}
 		if (options.refuseSessionSockets) {
 			socket.write("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n")
 			socket.destroy()
@@ -515,6 +564,18 @@ export async function startLocalCloudEnvironment(
 					wss.handleUpgrade(request, socket, head, (downstream: WebSocket) => {
 						bridgedSockets.add(downstream)
 						bridge(downstream)
+						clearTimeout(active.suspendTimer)
+						active.suspendTimer = undefined
+						active.clients.add(downstream)
+						downstream.once("close", () => {
+							active.clients.delete(downstream)
+							if (active.clients.size === 0 && options.suspendIdleAfterMs !== undefined && !disposing) {
+								active.suspendTimer = setTimeout(
+									() => void suspendSession(active.record.id).catch(() => undefined),
+									options.suspendIdleAfterMs,
+								)
+							}
+						})
 						downstream.on("message", (data: RawData, binary: boolean) => upstream.send(data, { binary }))
 						upstream.on("message", (data: RawData, binary: boolean) => downstream.send(data, { binary }))
 						downstream.once("close", () => upstream.close())
@@ -537,8 +598,9 @@ export async function startLocalCloudEnvironment(
 			try {
 				await Promise.allSettled(activations.values())
 				const results = await Promise.allSettled(
-					[...sessions.values()].map(async ({ hub, sessionStore, readyTimer }) => {
+					[...sessions.values()].map(async ({ hub, sessionStore, readyTimer, suspendTimer }) => {
 						clearTimeout(readyTimer)
+						clearTimeout(suspendTimer)
 						try {
 							await hub?.close()
 						} finally {
@@ -578,6 +640,7 @@ export async function startLocalCloudEnvironment(
 		modelFetch,
 		sessions,
 		activateSession,
+		suspendSession,
 		disconnectClients,
 		dispose,
 	}
