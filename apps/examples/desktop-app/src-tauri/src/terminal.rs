@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
@@ -19,7 +20,12 @@ pub enum TerminalEvent {
     Exit { code: Option<u32> },
 }
 
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
+
 struct TerminalSession {
+    /// Distinguishes a respawn under the same id, so a late exit from the
+    /// previous shell's reader cannot evict its replacement from the map.
+    generation: u64,
     master: Box<dyn MasterPty + Send>,
     /// Input is queued to a per-session writer thread: a write blocks when the
     /// shell stops reading (a large paste into a sleeping command), and that
@@ -199,12 +205,14 @@ pub fn terminal_spawn(
             format!("Failed to start the terminal writer: {error}")
         })?;
 
+    let generation = NEXT_GENERATION.fetch_add(1, Ordering::Relaxed);
     let sessions = state.sessions.clone();
     {
         let mut map = sessions.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(mut previous) = map.insert(
             options.id.clone(),
             TerminalSession {
+                generation,
                 master: pair.master,
                 input,
                 killer,
@@ -236,10 +244,15 @@ pub fn terminal_spawn(
                 }
             }
             let code = child.wait().ok().map(|status| status.exit_code());
-            reader_sessions
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .remove(&reader_id);
+            {
+                let mut map = reader_sessions.lock().unwrap_or_else(|e| e.into_inner());
+                if map
+                    .get(&reader_id)
+                    .is_some_and(|session| session.generation == generation)
+                {
+                    map.remove(&reader_id);
+                }
+            }
             let _ = on_event.send(TerminalEvent::Exit { code });
         })
         .map_err(|error| {
