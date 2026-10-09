@@ -2108,6 +2108,20 @@ describe("ChatMessages transcript navigation", () => {
 
 	it("keeps the reader's position when assistant output arrives after navigating away", async () => {
 		mockTranscriptLayout();
+		// jsdom has no ResizeObserver; capture the scroller's observers so the
+		// test can deliver the resize that real content growth would trigger.
+		const resizeCallbacks: ResizeObserverCallback[] = [];
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				constructor(callback: ResizeObserverCallback) {
+					resizeCallbacks.push(callback);
+				}
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
 		await renderMessages(messages, { status: "running" });
 		// Let the initial scroll-to-end settle before simulating reader input.
 		await act(async () => {
@@ -2132,6 +2146,19 @@ describe("ChatMessages transcript navigation", () => {
 			{ status: "running", streamingMessageId: "assistant-2" },
 		);
 		expect(viewport.scrollTop).toBe(100);
+		// The streamed answer grows the transcript; the scroller must not treat
+		// that resize as a reason to follow the end.
+		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+			2000,
+		);
+		expect(resizeCallbacks.length).toBeGreaterThan(0);
+		await act(async () => {
+			for (const callback of resizeCallbacks) {
+				callback([], {} as ResizeObserver);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport.scrollTop).toBe(100);
 	});
 
 	it("anchors a newly submitted prompt near the top of the viewport", async () => {
@@ -2154,6 +2181,46 @@ describe("ChatMessages transcript navigation", () => {
 		const viewport = container.querySelector<HTMLElement>(
 			'[data-slot="message-scroller-viewport"]',
 		);
+		expect(viewport?.scrollTop).toBe(1512);
+	});
+
+	it("stays on the new prompt when the activity row is swapped for the first answer in a saved session", async () => {
+		const newPrompt: ChatMessage = {
+			id: "user-3",
+			sessionId: "session-1",
+			role: "user",
+			content: "New prompt",
+			createdAt: 5,
+		};
+		const firstAnswer: ChatMessage = {
+			id: "assistant-3",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Streaming answer",
+			createdAt: 6,
+		};
+		mockTranscriptLayout([...messages, newPrompt, firstAnswer]);
+		// Saved history arrives after the provider mounted on a loading row.
+		await renderMessages([], { isSessionSwitching: true });
+		await renderMessages(messages);
+		await renderMessages([...messages, newPrompt], { status: "running" });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		expect(viewport?.scrollTop).toBe(1512);
+		// The "Thinking..." row unmounts in the same commit the answer row mounts,
+		// so the transcript's child count is unchanged. The upstream heuristic for
+		// that case must not re-anchor to a history prompt the reader already saw.
+		await renderMessages([...messages, newPrompt, firstAnswer], {
+			status: "running",
+			streamingMessageId: firstAnswer.id,
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
 		expect(viewport?.scrollTop).toBe(1512);
 	});
 
