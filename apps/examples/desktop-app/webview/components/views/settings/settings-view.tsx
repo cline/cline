@@ -65,6 +65,7 @@ import { AboutContent } from "./about-view";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
+import { CodeReviewsContent } from "./code-reviews-view";
 import { CustomizeView } from "./customize-view";
 import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
@@ -635,6 +636,8 @@ export function SettingsView({
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
+		) : activeNav === "CodeReviews" ? (
+			<CodeReviewsContent />
 		) : activeNav === "Import" ? (
 			<ImportContent />
 		) : activeNav === "Remote" ? (
