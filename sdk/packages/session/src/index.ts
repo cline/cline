@@ -1,4 +1,5 @@
 export {
+	ATIF_CLINE_REPLAY_DATA_VERSION,
 	type AtifExportBundle,
 	type ExportSessionReplayAtifOptions,
 	type ExportSessionReplayAtifResult,

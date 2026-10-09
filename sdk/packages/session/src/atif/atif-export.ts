@@ -44,7 +44,17 @@ export interface ExportSessionReplayAtifOptions {
 	agentVersion?: string;
 	/** Emit the session's system prompt as its first step (default true). */
 	includeSystemPrompt?: boolean;
+	/**
+	 * Embed each session's exact transcript, events, compaction state and
+	 * recording in `extra.cline.replay` (default true), so importing the
+	 * trajectory restores the bundle exactly. Without it, an import rebuilds
+	 * sessions from the steps and loses the recording.
+	 */
+	includeReplayData?: boolean;
 }
+
+/** Version of the `extra.cline.replay` payload written by the exporter. */
+export const ATIF_CLINE_REPLAY_DATA_VERSION = 1;
 
 export interface ExportSessionReplayAtifResult {
 	trajectory: AtifTrajectory;
@@ -912,10 +922,26 @@ function sessionExtra(
 	unattachedEvents: readonly SessionReplayEvent[],
 ): AtifExtra {
 	const { recording, ...entry } = session.entry;
-	const { manifest } = state.bundle;
+	const { manifest, redaction } = state.bundle;
 	return {
 		cline: {
 			session: entry,
+			...(state.options.includeReplayData !== false
+				? {
+						replay: {
+							version: ATIF_CLINE_REPLAY_DATA_VERSION,
+							transcript: session.transcript,
+							events: session.events,
+							...(session.compaction ? { compaction: session.compaction } : {}),
+							...(recording
+								? {
+										requests: session.requests,
+										blobs: [...session.blobs.values()],
+									}
+								: {}),
+						},
+					}
+				: {}),
 			...(recording
 				? {
 						recording: {
@@ -936,11 +962,19 @@ function sessionExtra(
 							sourceSchemaVersion: state.bundle.sourceSchemaVersion,
 							createdAt: manifest.createdAt,
 							producer: manifest.producer,
+							sessions: manifest.sessions.map((item) => item.sessionId),
 							redaction: {
-								enabled: state.bundle.redaction.enabled,
-								removedCount: state.bundle.redaction.redactions.length,
-								covered: state.bundle.redaction.covered,
-								notCovered: state.bundle.redaction.notCovered,
+								enabled: redaction.enabled,
+								removedCount: redaction.redactions.length,
+								covered: redaction.covered,
+								notCovered: redaction.notCovered,
+								...(state.options.includeReplayData !== false
+									? {
+											ruleset: redaction.ruleset,
+											rules: redaction.rules,
+											redactions: redaction.redactions,
+										}
+									: {}),
 							},
 							...(manifest.environment
 								? { environment: manifest.environment }
@@ -1335,7 +1369,9 @@ function finalMetrics(
  * sessions in the bundle are embedded as `subagent_trajectories` and
  * referenced from the tool call that started them. Cline data without an
  * ATIF field (decisions, hook and runtime events, match keys, environment
- * facts, session metadata) is kept under `extra.cline`.
+ * facts, session metadata) is kept under `extra.cline`, and each
+ * trajectory's `extra.cline.replay` carries the session's exact bundle data
+ * for {@link importAtifTrajectory} (see `includeReplayData`).
  */
 export function exportSessionReplayBundleToAtif(
 	bundle: AtifExportBundle,
