@@ -355,12 +355,22 @@ export async function runSessionRerun(
 		provider: input.provider,
 		model: input.model,
 	});
-	const mode =
+	const gaps = [...environment.gaps];
+	let mode: "act" | "plan" | "yolo" =
 		environment.mode === "plan" || environment.mode === "yolo"
 			? environment.mode
 			: "act";
+	if (environment.mode === null) {
+		const firstTurnMode =
+			replay.collectSessionReplayRerunTurns(session).turns[0]?.mode;
+		if (firstTurnMode) {
+			mode = firstTurnMode;
+			gaps.push(
+				`the session mode was not recorded; the rerun started in ${mode}, the mode of the first prompt`,
+			);
+		}
+	}
 	const toolPolicies = rerunToolPolicies(environment);
-	const gaps = [...environment.gaps];
 	if (!toolPolicies.recorded) {
 		gaps.push(
 			"tool policies were not recorded; the CLI default (auto-approve) was used",
