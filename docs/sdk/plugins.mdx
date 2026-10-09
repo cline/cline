@@ -159,51 +159,32 @@ To read status:
 
 Plugins can also be installed from file URLs, npm, git, or local paths using `cline plugin install`. See [Plugins](/customization/plugins) for install commands, the manifest format, and directory layout.
 
-## Hook Stages
+## Hooks
 
-Hook stages include:
+Plugin hooks are functions in the plugin's `hooks` object. Each one receives a context with the current runtime `snapshot` (agent id, conversation id, iteration, messages, usage), and some can return a result that changes what happens next.
 
-```txt
-input
-runtime_event
-session_start
-run_start
-iteration_start
-turn_start
-before_agent_start
-tool_call_before
-tool_call_after
-turn_end
-stop_error
-iteration_end
-run_end
-session_shutdown
-error
-```
+| Hook | When it runs | It can return |
+|------|--------------|---------------|
+| `beforeRun` | Before a run starts | `stop` and `reason` to end the run; `appendContext` to add text the model sees on its first request |
+| `afterRun` | After a run ends, with its `result` | Nothing; use it for metrics, notifications, cleanup |
+| `beforeModel` | Before each model request, with the `request` | `messages`, `tools`, or `options` to change the request; `stop` and `reason` to end the run |
+| `afterModel` | After each model response, with the `assistantMessage` and `finishReason` | `stop` and `reason` |
+| `beforeTool` | Before a tool runs, with the `tool`, `toolCall`, and `input` | `skip` and `reason` to block the call (the reason goes back to the model); `input` to replace the input; `policy` (for example `{ autoApprove: false }`) to require approval; `appendContext`; `stop` |
+| `afterTool` | After a tool runs, with the `result` and timing | `result` to replace the result; `appendContext`; `stop` and `reason` |
+| `onEvent` | For runtime events | Nothing |
 
-Common stages:
+To block dangerous tool calls, return `{ skip: true, reason }` from `beforeTool`, or require approval with `{ policy: { autoApprove: false } }`.
 
-| Stage | Use for |
-|-------|---------|
-| `before_agent_start` | Inject context or modify prompt/messages |
-| `run_start` | Logging, timers, rate limits |
-| `tool_call_before` | Audit or block tool calls |
-| `tool_call_after` | Log results, trigger side effects |
-| `run_end` | Metrics, notifications, cleanup |
-| `error` | Error reporting |
+### When a hook fails
 
-## Hook Policies
+Each plugin hook call has a 3-second timeout. If a hook throws, rejects, or times out, the session's `hookErrorMode` decides what happens:
 
-Hook policies control execution behavior:
+| `hookErrorMode` | Effect |
+|-----------------|--------|
+| `"ignore"` (default) | The failure is recorded and reported, and the run continues as if the hook returned nothing |
+| `"throw"` | The error is rethrown and the run fails |
 
-| Field | Meaning |
-|-------|---------|
-| `mode` | `"blocking"` or `"async"` |
-| `timeoutMs` | Hook timeout |
-| `retries` | Retry count |
-| `retryDelayMs` | Delay between retries |
-| `maxConcurrency` | Concurrent hook executions |
-| `queueLimit` | Queue size before dropping |
+A hook that keeps failing marks its plugin `degraded`, then `failed` after five failures in a row. See [Plugin Status and Errors](#plugin-status-and-errors).
 
 ## Build a Plugin
 
