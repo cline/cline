@@ -2212,6 +2212,155 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
+	it.each([
+		"sequential",
+		"parallel",
+	] as const)("cancels pending %s tools while retaining completed results for continuation", async (executionMode) => {
+		const started = Promise.withResolvers<void>();
+		const finish = Promise.withResolvers<void>();
+		const executePending = vi.fn(async () => "should not execute");
+		const calls = ["wait", "pending_1", "pending_2"];
+		const model = new ScriptedModel([
+			() => [
+				...calls.map((toolCallId) => ({
+					type: "tool-call-delta" as const,
+					toolCallId,
+					toolName: toolCallId === "wait" ? "wait" : "pending",
+					inputText: "{}",
+				})),
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(
+					request.messages
+						.filter((message) => message.role === "tool")
+						.map((message) => message.content[0]),
+				).toEqual(
+					calls.map((toolCallId) => expect.objectContaining({ toolCallId })),
+				);
+				return [
+					{ type: "text-delta", text: "continued" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const toolEvents: AgentRuntimeEvent[] = [];
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "wait",
+					description: "Finish an already-started operation",
+					inputSchema: { type: "object" },
+					lifecycle: { completesRun: true },
+					async execute() {
+						started.resolve();
+						await finish.promise;
+						return "finished";
+					},
+				},
+				{
+					name: "pending",
+					description: "Operation that must remain unstarted",
+					inputSchema: { type: "object" },
+					executionMode,
+					execute: executePending,
+				},
+			],
+		});
+		runtime.subscribe((event) => {
+			if (event.type === "tool-started" || event.type === "tool-finished") {
+				toolEvents.push(event);
+			}
+		});
+		const run = runtime.run("Run tools");
+		await started.promise;
+		runtime.abort("user cancelled");
+		finish.resolve();
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		expect(executePending).not.toHaveBeenCalled();
+		expect(model.requests).toHaveLength(1);
+		expect(runtime.snapshot().pendingToolCalls).toEqual([]);
+		expect(toolEvents.map((event) => event.type)).toEqual([
+			"tool-started",
+			"tool-finished",
+		]);
+		expect(
+			result.messages
+				.filter((message) => message.role === "tool")
+				.map((message) => message.content[0]),
+		).toEqual([
+			expect.objectContaining({ toolCallId: "wait", output: "finished" }),
+			...calls.slice(1).map((toolCallId) =>
+				expect.objectContaining({
+					toolCallId,
+					isError: true,
+					output: { error: "user cancelled" },
+				}),
+			),
+		]);
+		expect((await runtime.continue("Continue")).status).toBe("completed");
+		expect(model.requests).toHaveLength(2);
+	});
+
+	it.each([
+		"sequential",
+		"parallel",
+	] as const)("does not execute %s tools after cancellation in an awaited start handler", async (executionMode) => {
+		const execute = vi.fn(async () => "should not execute");
+		const afterTool = vi.fn();
+		const runtime = new AgentRuntime({
+			model: new ScriptedModel([
+				() => [
+					{
+						type: "tool-call-delta",
+						toolCallId: "pending",
+						toolName: "pending",
+						inputText: "{}",
+					},
+					{ type: "finish", reason: "tool-calls" },
+				],
+			]),
+			tools: [
+				{
+					name: "pending",
+					description: "Operation that must remain unstarted",
+					inputSchema: { type: "object" },
+					executionMode,
+					execute,
+				},
+			],
+			hooks: {
+				afterTool,
+				async onEvent(event) {
+					if (event.type === "tool-started") {
+						await Promise.resolve();
+						runtime.abort("user cancelled");
+					}
+				},
+			},
+		});
+		const toolEvents: string[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "tool-started" || event.type === "tool-finished") {
+				toolEvents.push(event.type);
+			}
+		});
+		const result = await runtime.run("Run tools");
+
+		expect(result.status).toBe("aborted");
+		expect(execute).not.toHaveBeenCalled();
+		expect(afterTool).not.toHaveBeenCalled();
+		expect(toolEvents).toEqual(["tool-started", "tool-finished"]);
+		expect(result.messages.at(-1)?.content[0]).toMatchObject({
+			toolCallId: "pending",
+			isError: true,
+			output: { error: "user cancelled" },
+		});
+	});
+
 	it("executes a tool call and continues the loop", async () => {
 		const model = new ScriptedModel([
 			() => [
