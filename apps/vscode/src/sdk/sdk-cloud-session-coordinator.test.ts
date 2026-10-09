@@ -1090,6 +1090,37 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			await coordinator.dispose()
 		})
 
+		it("reconnects from scratch after resuming a sandbox whose host was kept from before it suspended", async () => {
+			const host = (id: string) =>
+				({
+					id,
+					status: "completed",
+					readMessages: async () => [{ role: "user", content: "original prompt" }],
+					dispose: vi.fn(async () => {}),
+				}) as unknown as CloudSessionHost & { id: string }
+			const before = host("before")
+			const after = host("after")
+			const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before).mockResolvedValueOnce(after)
+			const attached: unknown[] = []
+			const { coordinator, cloudSessions } = makeCoordinator({
+				sessions: { attachExistingSession: async ({ sdkHost }: { sdkHost: unknown }) => attached.push(sdkHost) } as never,
+			})
+			cloudSessions.listSessions.mockResolvedValue([finished])
+			await coordinator.openCloudTask(finished.id)
+
+			cloudSessions.listSessions.mockResolvedValue([{ ...finished, status: "suspended" }])
+			// History lists the account again (past the cache) and sees the suspension.
+			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+			await coordinator.listHistoryRecords()
+			await coordinator.openCloudTask(finished.id)
+
+			expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+			expect(before.dispose).toHaveBeenCalled()
+			expect(connect).toHaveBeenCalledTimes(2)
+			expect(attached).toEqual([before, after])
+			await coordinator.dispose()
+		})
+
 		it("does not remember an active status", async () => {
 			const globalState: Record<string, unknown> = {}
 			connectReporting("running")
