@@ -2423,7 +2423,6 @@ export class Controller {
 		await this.clearTask()
 
 		const taskHistory = await this.taskHistory.listHistory({ hydrate: false })
-		const totalTasks = taskHistory.length
 
 		const userChoice = (
 			await HostProvider.window.showMessage(
@@ -2474,9 +2473,7 @@ export class Controller {
 
 		const tasksDeleted = await this.taskHistory.deleteAllTaskHistory()
 		await this.postStateToWebview()
-		return DeleteAllTaskHistoryCount.create({
-			tasksDeleted: tasksDeleted || totalTasks,
-		})
+		return DeleteAllTaskHistoryCount.create({ tasksDeleted })
 	}
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
