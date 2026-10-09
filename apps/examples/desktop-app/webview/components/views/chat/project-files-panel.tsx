@@ -73,15 +73,28 @@ type FileState = {
 	truncated?: boolean;
 	loading: boolean;
 	error?: string;
+	/** Keep showing it, but re-read on next use. */
+	stale?: boolean;
 };
 
 type GitDiffState = {
 	oldText?: string;
 	newText?: string;
 	binary?: boolean;
+	truncated?: boolean;
 	loading: boolean;
 	error?: string;
+	stale?: boolean;
 };
+
+function markStale<T extends { stale?: boolean }>(
+	cache: Map<string, T>,
+): Map<string, T> {
+	if (cache.size === 0) return cache;
+	const next = new Map<string, T>();
+	for (const [key, entry] of cache) next.set(key, { ...entry, stale: true });
+	return next;
+}
 
 type PanelView = "source-control" | "files";
 
@@ -276,26 +289,23 @@ export function ProjectFilesPanel({
 		() => new Set(Array.from(diffsByPath.keys(), toRelative)),
 		[diffsByPath, toRelative],
 	);
-	// A fresh repository snapshot means every cached git diff may be stale.
-	const stateSignature = useMemo(() => {
-		const state = sourceControl.state;
-		if (!state) return "";
-		return [...state.staged, ...state.unstaged, ...state.untracked]
-			.map(
-				(file) =>
-					`${file.path}:${file.status}:${file.additions}:${file.deletions}`,
-			)
-			.join("|");
-	}, [sourceControl.state]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: stateSignature is the trigger
+	// Every repository snapshot may carry new contents even when counts match
+	// (one changed line swapped for another), so cached views go stale and
+	// the active one re-reads while still showing what it had.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the snapshot object is the trigger
 	useEffect(() => {
-		invalidateReads(
-			Array.from(readGenerationRef.current.keys()).filter((key) =>
-				key.startsWith("diff:"),
-			),
-		);
-		setGitDiffs(new Map());
-	}, [stateSignature]);
+		setGitDiffs(markStale);
+		setFiles(markStale);
+	}, [sourceControl.state]);
+	// Files outside the browsable workspace (a repository above it) are read
+	// against the repository root instead.
+	const rootFor = useCallback(
+		(path: string) =>
+			path.startsWith(workspaceRoot.replace(/[\\/]+$/, "")) || !repoRoot
+				? workspaceRoot
+				: repoRoot,
+		[repoRoot, workspaceRoot],
+	);
 
 	const loadDirectory = useCallback(
 		async (path: string) => {
@@ -418,11 +428,18 @@ export function ProjectFilesPanel({
 
 	const closeFile = useCallback(
 		(path: string) => {
-			invalidateReads([path, `diff:${path}:staged`, `diff:${path}:worktree`]);
+			const diffKeys = [`diff:${path}:staged`, `diff:${path}:worktree`];
+			invalidateReads([path, ...diffKeys]);
 			setFiles((current) => {
 				if (!current.has(path)) return current;
 				const next = new Map(current);
 				next.delete(path);
+				return next;
+			});
+			setGitDiffs((current) => {
+				if (!diffKeys.some((key) => current.has(key))) return current;
+				const next = new Map(current);
+				for (const key of diffKeys) next.delete(key);
 				return next;
 			});
 			setTabs((current) => {
@@ -457,17 +474,24 @@ export function ProjectFilesPanel({
 		activePath && activeScope ? `diff:${activePath}:${activeScope}` : null;
 
 	useEffect(() => {
-		if (!activePath || effectiveMode !== "file" || files.get(activePath))
-			return;
+		if (!activePath || effectiveMode !== "file") return;
+		const existing = files.get(activePath);
+		if (existing && !existing.stale) return;
 		const path = activePath;
 		const generation = (readGenerationRef.current.get(path) ?? 0) + 1;
 		readGenerationRef.current.set(path, generation);
 		const isCurrent = () => readGenerationRef.current.get(path) === generation;
-		setFiles((current) => new Map(current).set(path, { loading: true }));
+		setFiles((current) =>
+			new Map(current).set(path, {
+				...current.get(path),
+				loading: true,
+				stale: false,
+			}),
+		);
 		desktopClient
 			.invoke<{ content: string | null; truncated: boolean }>(
 				"read_project_file",
-				{ environmentId, workspaceRoot, path },
+				{ environmentId, workspaceRoot: rootFor(path), path },
 			)
 			.then((result) => {
 				if (!isCurrent()) return;
@@ -488,37 +512,46 @@ export function ProjectFilesPanel({
 					}),
 				);
 			});
-	}, [activePath, effectiveMode, environmentId, files, workspaceRoot]);
+	}, [activePath, effectiveMode, environmentId, files, rootFor]);
 
 	useEffect(() => {
 		if (
 			!gitDiffKey ||
 			!activePath ||
 			!activeScope ||
-			effectiveMode !== "diff" ||
-			gitDiffs.get(gitDiffKey)
+			effectiveMode !== "diff"
 		) {
 			return;
 		}
+		const existing = gitDiffs.get(gitDiffKey);
+		if (existing && !existing.stale) return;
 		const key = gitDiffKey;
 		const generation = (readGenerationRef.current.get(key) ?? 0) + 1;
 		readGenerationRef.current.set(key, generation);
 		const isCurrent = () => readGenerationRef.current.get(key) === generation;
-		setGitDiffs((current) => new Map(current).set(key, { loading: true }));
+		setGitDiffs((current) =>
+			new Map(current).set(key, {
+				...current.get(key),
+				loading: true,
+				stale: false,
+			}),
+		);
 		desktopClient
-			.invoke<{ oldText?: string; newText: string; binary: boolean }>(
-				"get_git_file_diff",
-				{
-					environmentId,
-					cwd: workspaceRoot,
-					path: toRelative(activePath),
-					staged: activeScope === "staged",
-					originalPath:
-						activeScope === "staged"
-							? changesByPath.get(activePath)?.staged?.originalPath
-							: undefined,
-				},
-			)
+			.invoke<{
+				oldText?: string;
+				newText: string;
+				binary: boolean;
+				truncated: boolean;
+			}>("get_git_file_diff", {
+				environmentId,
+				cwd: workspaceRoot,
+				path: toRelative(activePath),
+				staged: activeScope === "staged",
+				originalPath:
+					activeScope === "staged"
+						? changesByPath.get(activePath)?.staged?.originalPath
+						: undefined,
+			})
 			.then((result) => {
 				if (!isCurrent()) return;
 				setGitDiffs((current) =>
@@ -547,9 +580,13 @@ export function ProjectFilesPanel({
 	]);
 
 	const runAction = useCallback(
-		async (action: SourceControlAction) => {
+		async (action: SourceControlAction): Promise<boolean> => {
 			try {
 				await sourceControl.runAction(action);
+				// Discards and commits change what is on disk and in the index.
+				setFiles(markStale);
+				setGitDiffs(markStale);
+				return true;
 			} catch (error) {
 				toast({
 					variant: "destructive",
@@ -561,6 +598,7 @@ export function ProjectFilesPanel({
 								: "Git command failed",
 					description: error instanceof Error ? error.message : String(error),
 				});
+				return false;
 			}
 		},
 		[sourceControl.runAction],
@@ -568,16 +606,19 @@ export function ProjectFilesPanel({
 	const confirmDiscard = useCallback(async () => {
 		const files = pendingDiscard;
 		setPendingDiscard([]);
-		await runAction({
+		const untracked = files.filter((file) => file.status === "?");
+		const ok = await runAction({
 			type: "discard",
 			paths: files
 				.filter((file) => file.status !== "?")
 				.map((file) => file.path),
-			untrackedPaths: files
-				.filter((file) => file.status === "?")
-				.map((file) => file.path),
+			untrackedPaths: untracked.map((file) => file.path),
 		});
-	}, [pendingDiscard, runAction]);
+		// Discarded untracked files no longer exist, so their tabs go too.
+		if (ok) {
+			for (const file of untracked) closeFile(toAbsolute(file.path));
+		}
+	}, [closeFile, pendingDiscard, runAction, toAbsolute]);
 
 	const handleCopyPath = useCallback(async () => {
 		if (!activePath) return;
@@ -1012,17 +1053,24 @@ export function ProjectFilesPanel({
 						</div>
 						<div className="cline-chat-selectable min-h-0 flex-1 overflow-auto">
 							{effectiveMode === "diff" && activeScope ? (
-								activeGitDiff?.loading || !activeGitDiff ? (
+								!activeGitDiff ||
+								(activeGitDiff.loading &&
+									activeGitDiff.newText === undefined) ? (
 									<Spinner />
 								) : activeGitDiff.error ? (
 									<ErrorText>{activeGitDiff.error}</ErrorText>
 								) : activeGitDiff.binary ? (
 									<Centered>Binary file</Centered>
+								) : activeGitDiff.truncated ? (
+									<Centered className="p-6 text-center">
+										This file is larger than 1 MB; open it in your editor to
+										review the change.
+									</Centered>
 								) : (
 									<div className="p-3">
 										<ToolFileDiff
 											background="var(--background)"
-											key={`${gitDiffKey}:${stateSignature}`}
+											key={`${gitDiffKey}:${activeGitDiff.oldText?.length ?? -1}:${activeGitDiff.newText?.length ?? -1}`}
 											newText={activeGitDiff.newText ?? ""}
 											oldText={activeGitDiff.oldText}
 											path={activePath}
@@ -1048,7 +1096,9 @@ export function ProjectFilesPanel({
 										);
 									})}
 								</div>
-							) : activeFileState?.loading || !activeFileState ? (
+							) : !activeFileState ||
+								(activeFileState.loading &&
+									activeFileState.content === undefined) ? (
 								<Spinner />
 							) : activeFileState.error ? (
 								<ErrorText>{activeFileState.error}</ErrorText>

@@ -3592,17 +3592,28 @@ export async function handleCommand(
 					: undefined;
 			return await getGitFileDiff(
 				git,
-				async (relative) =>
-					(
-						await readProjectFile(
-							ctx,
-							binding,
-							root,
-							binding.kind === "local"
-								? join(root, relative)
-								: posix.join(root, relative),
-						)
-					).content,
+				async (relative) => {
+					const absolute =
+						binding.kind === "local"
+							? join(root, relative)
+							: posix.join(root, relative);
+					// A deleted file has nothing on the working side.
+					if (binding.kind === "local" && !existsSync(absolute)) {
+						return { content: "", truncated: false };
+					}
+					try {
+						const file = await readProjectFile(ctx, binding, root, absolute);
+						return { content: file.content, truncated: file.truncated };
+					} catch (error) {
+						if (
+							binding.kind === "ssh" &&
+							/no such file/i.test(error instanceof Error ? error.message : "")
+						) {
+							return { content: "", truncated: false };
+						}
+						throw error;
+					}
+				},
 				binding.environmentId,
 				path,
 				args?.staged === true,

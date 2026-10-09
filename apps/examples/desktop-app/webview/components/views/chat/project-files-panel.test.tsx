@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionFileDiff } from "@/lib/session-diff";
 import { ProjectFilesPanel } from "./project-files-panel";
 
-const { invokeMock } = vi.hoisted(() => {
+const { invokeMock, sourceControlState } = vi.hoisted(() => {
 	const sourceControlState = {
 		environmentId: "local",
 		root: "/repo",
@@ -69,7 +69,7 @@ const { invokeMock } = vi.hoisted(() => {
 			}
 		},
 	);
-	return { invokeMock };
+	return { invokeMock, sourceControlState };
 });
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -262,6 +262,55 @@ describe("ProjectFilesPanel source control view", () => {
 			push: false,
 		});
 		expect((byLabel("Commit message") as HTMLTextAreaElement).value).toBe("");
+	});
+
+	it("keeps the commit message when the commit fails", async () => {
+		await render();
+		const message = byLabel("Commit message") as HTMLTextAreaElement;
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set?.call(message, "wip");
+			message.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		invokeMock.mockImplementationOnce(async (command: string) => {
+			if (command === "run_source_control_action") {
+				throw new Error("pre-commit hook failed");
+			}
+			return null;
+		});
+		await click(button(/^Commit$/));
+		expect((byLabel("Commit message") as HTMLTextAreaElement).value).toBe(
+			"wip",
+		);
+	});
+
+	it("offers to publish a branch that has no upstream", async () => {
+		const previous = { ...sourceControlState };
+		Object.assign(sourceControlState, { hasUpstream: false, ahead: 0 });
+		try {
+			await render();
+			await click(button(/Publish branch/));
+			expect(actionCalls()).toContainEqual({ type: "push" });
+		} finally {
+			Object.assign(sourceControlState, previous);
+		}
+	});
+
+	it("restarts a diff read after closing the tab mid-flight", async () => {
+		await render();
+		invokeMock.mockImplementationOnce(() => new Promise(() => {}));
+		await click(button(/^README\.md/));
+		await click(byLabel("Close README.md", container));
+		await click(button(/^README\.md/));
+		const diffReads = invokeMock.mock.calls.filter(
+			([command]) => command === "get_git_file_diff",
+		);
+		expect(diffReads).toHaveLength(2);
+		expect(
+			container.querySelector('[data-testid="file-diff"]')?.textContent,
+		).toContain("README.md");
 	});
 
 	it("confirms before discarding and splits untracked paths", async () => {

@@ -47,7 +47,14 @@ export type GitFileDiff = {
 	oldText?: string;
 	newText: string;
 	binary: boolean;
+	/** The working copy exceeded the read cap, so a diff would be misleading. */
+	truncated: boolean;
 };
+
+/** Working-tree read: null content for binary, empty for a missing file. */
+export type WorkingFileReader = (
+	path: string,
+) => Promise<{ content: string | null; truncated: boolean }>;
 
 const COMMIT_LIMIT = 15;
 const UNTRACKED_COUNT_LIMIT = 40;
@@ -199,7 +206,8 @@ export function parseLog(
 			shortSha,
 			subject: subject ?? "",
 			relativeDate: relativeDate ?? "",
-			pushed: hasUpstream ? !unpushed.has(sha) : true,
+			// Without an upstream nothing has been published yet.
+			pushed: hasUpstream && !unpushed.has(sha),
 		});
 	}
 	return commits;
@@ -311,7 +319,7 @@ export async function getSourceControlState(
  */
 export async function getGitFileDiff(
 	git: GitRunner,
-	readWorkingFile: (path: string) => Promise<string | null>,
+	readWorkingFile: WorkingFileReader,
 	environmentId: string,
 	path: string,
 	staged: boolean,
@@ -336,6 +344,7 @@ export async function getGitFileDiff(
 			oldText,
 			newText: newText ?? "",
 			binary: isBinary(oldText, newText),
+			truncated: false,
 		};
 	}
 	const [oldText, working] = await Promise.all([
@@ -346,8 +355,9 @@ export async function getGitFileDiff(
 		environmentId,
 		path,
 		oldText,
-		newText: working ?? "",
-		binary: working === null || isBinary(oldText, working),
+		newText: working.content ?? "",
+		binary: working.content === null || isBinary(oldText, working.content),
+		truncated: working.truncated,
 	};
 }
 
@@ -395,18 +405,34 @@ export function parseSourceControlAction(value: unknown): SourceControlAction {
 	}
 }
 
-async function push(git: GitRunner): Promise<void> {
-	try {
-		await git(["push"]);
-	} catch (error) {
-		// No upstream yet: publish the branch instead of failing.
-		if (/no upstream|set-upstream|has no upstream/i.test(String(error))) {
-			await git(["push", "-u", "origin", "HEAD"]);
-		} else {
-			throw error;
-		}
-	}
+async function hasUpstream(git: GitRunner): Promise<boolean> {
+	return git([
+		"rev-parse",
+		"--abbrev-ref",
+		"--symbolic-full-name",
+		"@{u}",
+	]).then(
+		() => true,
+		() => false,
+	);
 }
+
+async function hasHead(git: GitRunner): Promise<boolean> {
+	return git(["rev-parse", "--verify", "--quiet", "HEAD"]).then(
+		() => true,
+		() => false,
+	);
+}
+
+async function push(git: GitRunner): Promise<void> {
+	// A branch without an upstream is published rather than failing.
+	if (await hasUpstream(git)) await git(["push"]);
+	else await git(["push", "-u", "origin", "HEAD"]);
+}
+
+// Filenames are data, never patterns: without this, `draft*.txt` would also
+// match (and discard) every other file the glob covers.
+const LITERAL = "--literal-pathspecs";
 
 export async function runSourceControlAction(
 	git: GitRunner,
@@ -414,19 +440,34 @@ export async function runSourceControlAction(
 ): Promise<void> {
 	switch (action.type) {
 		case "stage":
-			if (action.paths.length) await git(["add", "--", ...action.paths]);
+			if (action.paths.length) {
+				await git([LITERAL, "add", "--", ...action.paths]);
+			}
 			return;
 		case "unstage":
 			if (action.paths.length) {
-				await git(["restore", "--staged", "--", ...action.paths]);
+				// Before the first commit there is no HEAD to restore from; drop
+				// the entries from the index and leave the working files alone.
+				if (await hasHead(git)) {
+					await git([LITERAL, "restore", "--staged", "--", ...action.paths]);
+				} else {
+					await git([
+						LITERAL,
+						"rm",
+						"--cached",
+						"--quiet",
+						"--",
+						...action.paths,
+					]);
+				}
 			}
 			return;
 		case "discard":
 			if (action.paths.length) {
-				await git(["restore", "--worktree", "--", ...action.paths]);
+				await git([LITERAL, "restore", "--worktree", "--", ...action.paths]);
 			}
 			if (action.untrackedPaths.length) {
-				await git(["clean", "-f", "--", ...action.untrackedPaths]);
+				await git([LITERAL, "clean", "-f", "--", ...action.untrackedPaths]);
 			}
 			return;
 		case "commit": {

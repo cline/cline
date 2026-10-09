@@ -1,5 +1,11 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -95,8 +101,9 @@ describe("parseLog", () => {
 			["a", false],
 			["b", true],
 		]);
-		expect(parseLog(output, new Set(), false).every((c) => c.pushed)).toBe(
-			true,
+		// Without an upstream nothing counts as published.
+		expect(parseLog(output, new Set(), false).some((c) => c.pushed)).toBe(
+			false,
 		);
 	});
 });
@@ -133,6 +140,10 @@ describe("parseSourceControlAction", () => {
 describe("against a real repository", () => {
 	let root: string;
 	let git: GitRunner;
+	const readWorking = async (path: string) => ({
+		content: readFileSync(join(root, path), "utf8"),
+		truncated: false,
+	});
 
 	beforeEach(async () => {
 		root = mkdtempSync(join(tmpdir(), "cline-source-control-"));
@@ -189,7 +200,7 @@ describe("against a real repository", () => {
 	});
 
 	it("diffs the working tree against the index and the index against HEAD", async () => {
-		const read = async (path: string) => readFileSync(join(root, path), "utf8");
+		const read = readWorking;
 		const worktree = await getGitFileDiff(git, read, "local", "a.ts", false);
 		expect(worktree.oldText).toBe("one\ntwo\n");
 		expect(worktree.newText).toBe("one\nchanged\nthree\n");
@@ -208,7 +219,7 @@ describe("against a real repository", () => {
 	});
 
 	it("tracks staged renames back to their original path", async () => {
-		const read = async (path: string) => readFileSync(join(root, path), "utf8");
+		const read = readWorking;
 		// a.ts has unstaged edits; move the committed version so git sees a
 		// pure rename in the index.
 		await git(["checkout", "--", "a.ts"]);
@@ -244,12 +255,85 @@ describe("against a real repository", () => {
 	});
 
 	it("flags a staged change as binary when either side has NUL bytes", async () => {
-		const read = async (path: string) => readFileSync(join(root, path), "utf8");
+		const read = readWorking;
 		writeFileSync(join(root, "b.ts"), Buffer.from([0x62, 0x00, 0x69, 0x6e]));
 		await git(["add", "b.ts"]);
 		const diff = await getGitFileDiff(git, read, "local", "b.ts", true);
 		expect(diff.oldText).toBe("keep\n");
 		expect(diff.binary).toBe(true);
+	});
+
+	it("previews an unstaged deletion and flags truncated working copies", async () => {
+		rmSync(join(root, "a.ts"));
+		const deleted = await getGitFileDiff(
+			git,
+			async () => ({ content: "", truncated: false }),
+			"local",
+			"a.ts",
+			false,
+		);
+		expect(deleted.oldText).toBe("one\ntwo\n");
+		expect(deleted.newText).toBe("");
+		const truncated = await getGitFileDiff(
+			git,
+			async () => ({ content: "one\n", truncated: true }),
+			"local",
+			"new.txt",
+			false,
+		);
+		expect(truncated.truncated).toBe(true);
+	});
+
+	it("treats filenames literally when staging and discarding", async () => {
+		writeFileSync(join(root, "draft*.txt"), "glob\n");
+		writeFileSync(join(root, "draft1.txt"), "keep me\n");
+		await runSourceControlAction(git, { type: "stage", paths: ["draft*.txt"] });
+		let state = await getSourceControlState(git, "local");
+		expect(state.staged.map((file) => file.path)).toEqual([
+			"b.ts",
+			"draft*.txt",
+		]);
+		expect(state.untracked.map((file) => file.path)).toContain("draft1.txt");
+		await runSourceControlAction(git, {
+			type: "unstage",
+			paths: ["draft*.txt"],
+		});
+		await runSourceControlAction(git, {
+			type: "discard",
+			paths: [],
+			untrackedPaths: ["draft*.txt"],
+		});
+		state = await getSourceControlState(git, "local");
+		expect(existsSync(join(root, "draft*.txt"))).toBe(false);
+		expect(existsSync(join(root, "draft1.txt"))).toBe(true);
+	});
+
+	it("unstages before the first commit by dropping index entries", async () => {
+		const fresh = mkdtempSync(join(tmpdir(), "cline-first-commit-"));
+		const freshGit: GitRunner = async (args) =>
+			(await execFileAsync("git", args, { cwd: fresh, encoding: "utf8" }))
+				.stdout;
+		try {
+			await freshGit(["init", "-q", "-b", "main"]);
+			writeFileSync(join(fresh, "first.ts"), "hello\n");
+			await runSourceControlAction(freshGit, {
+				type: "stage",
+				paths: ["first.ts"],
+			});
+			expect(
+				(await getSourceControlState(freshGit, "local")).staged,
+			).toHaveLength(1);
+			await runSourceControlAction(freshGit, {
+				type: "unstage",
+				paths: ["first.ts"],
+			});
+			const state = await getSourceControlState(freshGit, "local");
+			expect(state.staged).toEqual([]);
+			expect(state.untracked.map((file) => file.path)).toEqual(["first.ts"]);
+			expect(existsSync(join(fresh, "first.ts"))).toBe(true);
+		} finally {
+			rmSync(fresh, { recursive: true, force: true });
+		}
 	});
 
 	it("stages, unstages, discards, and commits", async () => {

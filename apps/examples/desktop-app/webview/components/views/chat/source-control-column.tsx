@@ -52,7 +52,8 @@ type SourceControlColumnProps = {
 	sessionPaths: Set<string>;
 	selected: { path: string; scope: DiffScope } | null;
 	onOpen: (file: SourceControlFile, scope: DiffScope) => void;
-	onAction: (action: SourceControlAction) => Promise<void>;
+	/** Resolves true when git accepted the action. */
+	onAction: (action: SourceControlAction) => Promise<boolean>;
 	/** Discards are destructive; the host confirms before running them. */
 	onRequestDiscard: (files: SourceControlFile[]) => void;
 };
@@ -79,8 +80,10 @@ export function SourceControlColumn({
 	const commit = useCallback(
 		async (push: boolean) => {
 			if (!canCommit) return;
-			await onAction({ type: "commit", message: message.trim(), push });
-			setMessage("");
+			// A rejected hook or missing identity keeps the message for retry.
+			if (await onAction({ type: "commit", message: message.trim(), push })) {
+				setMessage("");
+			}
 		},
 		[canCommit, message, onAction],
 	);
@@ -275,7 +278,8 @@ export function SourceControlColumn({
 						</Group>
 						<Group
 							actions={
-								state.ahead > 0 ? (
+								state.ahead > 0 ||
+								(!state.hasUpstream && state.commits.length > 0) ? (
 									<Button
 										className="h-5 gap-1 px-1.5 text-[10.5px]"
 										disabled={busy}
@@ -284,7 +288,10 @@ export function SourceControlColumn({
 										type="button"
 										variant="ghost"
 									>
-										<ArrowUp className="size-3" /> Push {state.ahead}
+										<ArrowUp className="size-3" />
+										{state.hasUpstream
+											? `Push ${state.ahead}`
+											: "Publish branch"}
 									</Button>
 								) : null
 							}
