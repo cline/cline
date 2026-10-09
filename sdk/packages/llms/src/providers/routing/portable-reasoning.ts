@@ -113,9 +113,6 @@ function resolvePortableLevel(
 			? undefined
 			: "none";
 	}
-	if (typeof reasoning.budgetTokens === "number") {
-		return undefined;
-	}
 	if (reasoning.effort) {
 		if (NON_PORTABLE_REASONING_PROVIDERS.has(request.providerId)) {
 			return undefined;
@@ -150,23 +147,23 @@ export function hasNativeReasoningControls(
 }
 
 /**
- * A disable rides the portable option only when no provider-option rule
- * already encodes it natively, so a request never carries both shapes.
+ * The portable option applies only when no provider-option rule already
+ * encodes reasoning natively (an exact budget, a native toggle), so a request
+ * never carries both shapes.
  */
 export function reconcilePortableReasoning(
 	level: AiSdkReasoning | undefined,
 	providerOptions: Record<string, unknown>,
 ): AiSdkReasoning | undefined {
-	return level === "none" && hasNativeReasoningControls(providerOptions)
-		? undefined
-		: level;
+	return hasNativeReasoningControls(providerOptions) ? undefined : level;
 }
 
 /**
  * Remove portable intent before provider options are composed. AI SDK ignores
  * top-level reasoning whenever reasoning controls also occur in providerOptions.
- * A disable is kept: providers with native toggles (GLM, MiniMax, Kimi,
- * OpenRouter) still encode it, and it agrees with the portable "none".
+ * A disable or an exact budget is kept: providers with native toggles (GLM,
+ * MiniMax, Kimi, OpenRouter) or budget fields still encode it, and
+ * `reconcilePortableReasoning` then drops the portable value.
  */
 export function withoutPortableReasoning(
 	request: GatewayStreamRequest,
@@ -177,6 +174,9 @@ export function withoutPortableReasoning(
 			request.reasoning.budgetTokens !== undefined
 			? { ...request, reasoning: { enabled: false } }
 			: request;
+	}
+	if (typeof request.reasoning?.budgetTokens === "number") {
+		return request;
 	}
 	return resolvePortableReasoning(request, context ? { context } : undefined)
 		? { ...request, reasoning: undefined }

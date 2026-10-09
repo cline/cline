@@ -36,12 +36,23 @@ describe("resolvePortableReasoning", () => {
 		expect(resolvePortableReasoning(request(reasoning))).toBe(expected);
 	});
 
-	it("leaves an exact token budget to provider-specific options", () => {
+	it("keeps the effort beside an exact budget for providers that cannot take one", () => {
 		expect(
 			resolvePortableReasoning(
 				request({ enabled: true, effort: "high", budgetTokens: 12_000 }),
 			),
-		).toBeUndefined();
+		).toBe("high");
+	});
+
+	it("leaves an exact budget in the request for provider rules", () => {
+		const budget = request({
+			enabled: true,
+			effort: "high",
+			budgetTokens: 12_000,
+		});
+		expect(withoutPortableReasoning(budget).reasoning).toEqual(
+			budget.reasoning,
+		);
 	});
 
 	it("gives explicit disable precedence over an exact token budget", () => {
@@ -97,7 +108,7 @@ describe("resolvePortableReasoning", () => {
 		});
 	});
 
-	it("defers a disable to a native provider control", () => {
+	it("defers to a native provider control", () => {
 		expect(
 			reconcilePortableReasoning("none", {
 				zai: { thinking: { type: "disabled" } },
@@ -110,7 +121,12 @@ describe("resolvePortableReasoning", () => {
 		).toBe("none");
 		expect(
 			reconcilePortableReasoning("high", {
-				zai: { thinking: { type: "enabled" } },
+				google: { thinkingConfig: { thinkingBudget: 4096 } },
+			}),
+		).toBeUndefined();
+		expect(
+			reconcilePortableReasoning("high", {
+				"custom-provider": { strictJsonSchema: false },
 			}),
 		).toBe("high");
 	});
