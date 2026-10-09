@@ -1098,15 +1098,13 @@ export function importAtifTrajectory(
 		const restored = restoreFromClineExtra(trajectory);
 		if (restored.ok) {
 			const stepsBySession = new Map(
-				flatten(trajectory).map((item) => [
-					str(clineOf(item)?.session && (clineOf(item)?.session as never)) ??
-						(isRecord(clineOf(item)?.session)
-							? String(
-									(clineOf(item)?.session as Record<string, unknown>).sessionId,
-								)
-							: ""),
-					item,
-				]),
+				flatten(trajectory).map((item) => {
+					const session = clineOf(item)?.session;
+					return [
+						isRecord(session) ? (str(session.sessionId) ?? "") : "",
+						item,
+					];
+				}),
 			);
 			return {
 				bundle: restored.bundle,
