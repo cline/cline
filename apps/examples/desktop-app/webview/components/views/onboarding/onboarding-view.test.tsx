@@ -551,6 +551,30 @@ describe("OnboardingView", () => {
 		});
 	});
 
+	it("keeps sign-in busy during account refresh and does not advance after Cancel", async () => {
+		await render();
+		await act(async () => buttonByText("Get started").click());
+		let finishRefresh!: (user: { email: string; displayName: string }) => void;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return await new Promise((resolve) => {
+					finishRefresh = resolve;
+				});
+			}
+			return {};
+		});
+		await act(async () => buttonByText("Sign in").click());
+		expect(buttonByText("Waiting for browser...").disabled).toBe(true);
+		await act(async () => buttonByText("Cancel").click());
+		expect(buttonByText("Waiting for browser...").disabled).toBe(true);
+		await act(async () =>
+			finishRefresh({ email: "dev@example.com", displayName: "Dev" }),
+		);
+		expect(container.textContent).toContain("Signed in as");
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(buttonByText("Continue").disabled).toBe(false);
+	});
+
 	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
 		const onComplete = await render();
 		await act(async () => {

@@ -15,6 +15,7 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
@@ -28,7 +29,6 @@ import {
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type { WorkIn } from "@/lib/work-in-selection";
 import {
@@ -108,11 +108,18 @@ export function WelcomeScreen({
 				activeOrganization?.organizationId ?? null,
 			])
 		: null;
-	const [signInPending, setSignInPending] = useState(false);
-	const [cancelling, setCancelling] = useState(false);
-	const signInController = useRef<AbortController | null>(null);
-	const signingIn = signInPending || cancelling;
-	const [signInError, setSignInError] = useState<string | null>(null);
+	const {
+		signIn,
+		cancelSignIn,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn({
+		onSuccess: async () => {
+			invalidateProviderCatalogCache();
+			await refreshAccount();
+		},
+	});
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
@@ -427,48 +434,6 @@ export function WelcomeScreen({
 		onRepoUrlChange,
 		repoUrl,
 	]);
-
-	const signIn = async () => {
-		if (signingIn) return;
-		const controller = new AbortController();
-		signInController.current = controller;
-		setSignInPending(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal: controller.signal },
-			);
-			invalidateProviderCatalogCache();
-			await refreshAccount();
-		} catch (error) {
-			if (!controller.signal.aborted) {
-				setSignInError(error instanceof Error ? error.message : String(error));
-			}
-		} finally {
-			signInController.current = null;
-			setSignInPending(false);
-		}
-	};
-
-	const cancelSignIn = async () => {
-		if (!signInController.current || cancelling) return;
-		signInController.current.abort();
-		setCancelling(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke("cancel_provider_oauth_login", {
-				provider: "cline",
-			});
-		} catch (error) {
-			setSignInError(
-				`Could not cancel sign-in: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		} finally {
-			setCancelling(false);
-		}
-	};
 
 	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
 		? null

@@ -26,6 +26,7 @@ import {
 import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-github-step";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -34,7 +35,6 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import {
 	CLINE_DASHBOARD_URL,
 	getProviderApiKeyUrl,
@@ -336,70 +336,29 @@ function ConnectStep({
 	onSkip: () => void;
 }) {
 	const { user, refreshAccount } = useAccount();
-	const [signInPending, setSignInPending] = useState(false);
-	const [cancelling, setCancelling] = useState(false);
-	const signInController = useRef<AbortController | null>(null);
-	const signingIn = signInPending || cancelling;
-	const deviceUserCode = useOAuthUserCode(signingIn);
-	const [signInError, setSignInError] = useState<string | null>(null);
-	const [clineApiKey, setClineApiKey] = useState("");
-	const [clineKeySaving, setClineKeySaving] = useState(false);
-	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
-
-	const signInWithCline = useCallback(async () => {
-		if (signingIn) return;
-		const controller = new AbortController();
-		signInController.current = controller;
-		setSignInPending(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				// The browser round-trip routinely outlives the default command
-				// deadline; the sidecar bounds the flow by device-code expiry.
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal: controller.signal },
-			);
-			if (controller.signal.aborted) {
-				// The sign-in completed after the user cancelled but before the
-				// backend processed the cancellation, so credentials were saved.
-				// Refresh the account so the card reflects the real signed-in
-				// state instead of silently diverging from disk.
+	const {
+		signIn: signInWithCline,
+		cancelSignIn: cancelSignInWithCline,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn({
+		onSuccess: async (signal) => {
+			if (signal.aborted) {
+				// Credentials may have been saved before cancellation reached the backend.
 				void refreshAccount();
 				return;
 			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
-			if (!controller.signal.aborted) onConnected({ kind: "cline" });
-		} catch (error) {
-			if (controller.signal.aborted) {
-				return;
-			}
-			setSignInError(getErrorMessage(error));
-		} finally {
-			// The login may have persisted credentials; drop the short-lived
-			// catalog cache so the app reloads them instead of a pre-save copy.
-			invalidateProviderCatalogCache();
-			signInController.current = null;
-			setSignInPending(false);
-		}
-	}, [onConnected, refreshAccount, signingIn]);
-
-	const cancelSignInWithCline = async () => {
-		if (!signInController.current || cancelling) return;
-		signInController.current.abort();
-		setCancelling(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke("cancel_provider_oauth_login", {
-				provider: "cline",
-			});
-		} catch (error) {
-			setSignInError(`Could not cancel sign-in: ${getErrorMessage(error)}`);
-		} finally {
-			setCancelling(false);
-		}
-	};
+			if (!signal.aborted) onConnected({ kind: "cline" });
+		},
+		onSettled: invalidateProviderCatalogCache,
+	});
+	const deviceUserCode = useOAuthUserCode(signingIn);
+	const [clineApiKey, setClineApiKey] = useState("");
+	const [clineKeySaving, setClineKeySaving] = useState(false);
+	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
 
 	const connectWithClineApiKey = useCallback(async () => {
 		const key = clineApiKey.trim();
