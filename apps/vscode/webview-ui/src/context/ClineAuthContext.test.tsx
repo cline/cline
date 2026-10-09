@@ -197,6 +197,43 @@ describe("ClineAuthProvider", () => {
 		expect(await result).toBe(true)
 	})
 
+	it("retracts an unconfirmed switch error once a later refresh shows the requested account", async () => {
+		const activeOld = {
+			organizations: [{ organizationId: "org-old", active: true, memberId: "m", name: "Old", roles: [] }],
+		}
+		const activeNext = {
+			organizations: [{ organizationId: "org-next", active: true, memberId: "m", name: "Next", roles: [] }],
+		}
+		grpcMocks.getUserOrganizations.mockResolvedValue(activeOld)
+		grpcMocks.setUserOrganization.mockRejectedValue(new Error("Account switch was not confirmed within 10 seconds"))
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		await act(async () => {
+			fireEvent.click(screen.getByText("Switch"))
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("not confirmed")
+
+		// An unrelated refresh while the server is still on the old account keeps the error.
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("not confirmed")
+
+		// The late PUT commits and the extension's auth refresh lands on the new account.
+		grpcMocks.getUserOrganizations.mockResolvedValue(activeNext)
+		await act(async () => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		expect(screen.getByTestId("switch-error")).toHaveTextContent("none")
+		expect(screen.getByTestId("organizations-state")).toHaveTextContent("org-next")
+	})
+
 	it("does not report a background profile read as a failed account switch", async () => {
 		grpcMocks.getUserOrganizations.mockRejectedValue(new Error("offline"))
 		render(

@@ -31,6 +31,9 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const organizationsRequestIdRef = useRef(0)
 	const userIdRef = useRef<string | undefined>(undefined)
 	const switchRequestRef = useRef<object | null>(null)
+	// A switch that reported an error may still commit on the server. Its error is
+	// retracted once a later auth refresh shows the requested account active.
+	const unconfirmedSwitchRef = useRef<{ organizationId: string | undefined } | null>(null)
 	const [accountSwitch, setAccountSwitch] = useState<ClineAuthContextType["accountSwitch"]>(null)
 	const [accountSwitchError, setAccountSwitchError] = useState<string | null>(null)
 
@@ -63,6 +66,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			switchRequestRef.current = request
 			setAccountSwitch({ organizationId, slow: false })
 			setAccountSwitchError(null)
+			unconfirmedSwitchRef.current = null
 			const timer = setTimeout(() => {
 				if (switchRequestRef.current === request) setAccountSwitch({ organizationId, slow: true })
 			}, 10_000)
@@ -72,6 +76,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				succeeded = true
 			} catch (error) {
 				if (switchRequestRef.current === request) {
+					unconfirmedSwitchRef.current = { organizationId }
 					setAccountSwitchError(error instanceof Error ? error.message : String(error))
 				}
 			} finally {
@@ -115,6 +120,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				if (userIdRef.current !== responseUser?.uid) {
 					userIdRef.current = responseUser?.uid
 					switchRequestRef.current = null
+					unconfirmedSwitchRef.current = null
 					setAccountSwitch(null)
 					setAccountSwitchError(null)
 					setUserOrganizations(null)
@@ -134,7 +140,17 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				// this on uid changes leaves stale `active` flags — which reset the
 				// account view's org dropdown on remount. The deepEqual guard in
 				// getUserOrganizations prevents no-op re-renders.
-				getUserOrganizations()
+				void getUserOrganizations().then((organizations) => {
+					const unconfirmed = unconfirmedSwitchRef.current
+					if (
+						unconfirmed &&
+						organizations &&
+						(organizations.find((org) => org.active)?.organizationId ?? undefined) === unconfirmed.organizationId
+					) {
+						unconfirmedSwitchRef.current = null
+						setAccountSwitchError(null)
+					}
+				})
 
 				setUser((oldUser) => (oldUser?.uid !== responseUser.uid ? responseUser : oldUser))
 			},
