@@ -51,10 +51,16 @@ function sortEntries(entries: ProjectEntry[]): ProjectEntry[] {
 	);
 }
 
+// Keeps the explorer coherent: every listed or read path sits under the root
+// the tree was opened with. Symlinks are followed on purpose (bun's
+// node_modules/.bun layout, links to sibling checkouts); this is the user's
+// own filesystem shown back to them, not a sandbox.
 function assertInsideRoot(root: string, path: string, isPosix: boolean): void {
 	const rel = isPosix ? posix.relative(root, path) : relative(root, path);
 	if (
-		rel.startsWith("..") ||
+		rel === ".." ||
+		rel.startsWith("../") ||
+		rel.startsWith("..\\") ||
 		(isPosix ? posix.isAbsolute(rel) : isAbsolute(rel))
 	) {
 		throw new Error("Path is outside the workspace");
@@ -215,12 +221,14 @@ export async function readProjectFile(
 	if (result.stdout.includes("\0")) {
 		return { environmentId, path, content: null, truncated: false };
 	}
-	const truncated = result.stdout.length > PROJECT_FILE_READ_LIMIT_BYTES;
+	// `head` capped bytes, not characters: multibyte text decodes shorter.
+	const bytes = Buffer.from(result.stdout, "utf8");
+	const truncated = bytes.length > PROJECT_FILE_READ_LIMIT_BYTES;
 	return {
 		environmentId,
 		path,
 		content: truncated
-			? result.stdout.slice(0, PROJECT_FILE_READ_LIMIT_BYTES)
+			? bytes.subarray(0, PROJECT_FILE_READ_LIMIT_BYTES).toString("utf8")
 			: result.stdout,
 		truncated,
 	};

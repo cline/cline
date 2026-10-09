@@ -44,6 +44,17 @@ describe("listLocalProjectEntries", () => {
 		expect(() => listLocalProjectEntries(root, tmpdir())).toThrow(
 			/outside the workspace/,
 		);
+		expect(() => listLocalProjectEntries(root, join(root, ".."))).toThrow(
+			/outside the workspace/,
+		);
+	});
+
+	it("accepts entries whose names merely start with two dots", () => {
+		mkdirSync(join(root, "..notes"));
+		writeFileSync(join(root, "..notes", "a.txt"), "x");
+		expect(
+			listLocalProjectEntries(root, join(root, "..notes")).entries,
+		).toHaveLength(1);
 	});
 });
 

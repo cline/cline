@@ -157,6 +157,20 @@ describe("ProjectFilesPanel", () => {
 		).toContain("/repo/README.md");
 	});
 
+	it("re-reads open files on refresh", async () => {
+		await render();
+		await click(button(/^README\.md/));
+		const reads = () =>
+			invokeMock.mock.calls.filter(
+				([command]) => command === "read_project_file",
+			).length;
+		expect(reads()).toBe(1);
+		await click(
+			container.querySelector('[aria-label="Refresh files"]') as Element,
+		);
+		expect(reads()).toBe(2);
+	});
+
 	it("closes from its own header button", async () => {
 		const onClose = vi.fn();
 		await render(onClose);

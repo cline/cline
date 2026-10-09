@@ -2081,9 +2081,14 @@ export async function handleCommand(
 			typeof args?.path === "string" ? args.path : undefined,
 		);
 	}
-	// Project explorer: paths are confined to the session's workspace root so
-	// the webview cannot browse or read outside the folder the user opened.
+	// Project explorer. The desktop UI picks the workspace it browses (the
+	// same connection that selects workspaces via validate/pick), so the root
+	// is a coherence check for the tree rather than a sandbox; raw file access
+	// is limited to that trusted connection, like agenda task execution.
 	if (command === "list_project_entries" || command === "read_project_file") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("project files require a trusted desktop connection");
+		}
 		const binding = getCommandRuntimeBinding(ctx, args);
 		const root = String(args?.workspaceRoot ?? "").trim();
 		if (!root) throw new Error("workspaceRoot is required");

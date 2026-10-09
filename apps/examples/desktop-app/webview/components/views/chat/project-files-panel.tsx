@@ -64,6 +64,12 @@ const DEFAULT_PANEL_WIDTH = 640;
 const MIN_PANEL_WIDTH = 420;
 const EXPLORER_WIDTH = 220;
 
+// Leave the conversation column at least as wide as the composer needs.
+function clampPanelWidth(width: number): number {
+	const maxWidth = Math.max(MIN_PANEL_WIDTH, window.innerWidth - 760);
+	return Math.min(maxWidth, Math.max(MIN_PANEL_WIDTH, width));
+}
+
 const STATUS_CLASS: Record<string, string> = {
 	M: "text-amber-500",
 	A: "text-chart-2",
@@ -142,7 +148,9 @@ export function ProjectFilesPanel({
 	fileDiffs,
 	onClose,
 }: ProjectFilesPanelProps) {
-	const [width, setWidth] = useState(DEFAULT_PANEL_WIDTH);
+	const [width, setWidth] = useState(() =>
+		clampPanelWidth(DEFAULT_PANEL_WIDTH),
+	);
 	const [directories, setDirectories] = useState<Map<string, DirectoryState>>(
 		() => new Map(),
 	);
@@ -230,10 +238,18 @@ export function ProjectFilesPanel({
 		}
 	}, [environmentId, workspaceRoot]);
 
+	// Drops cached contents too, so files edited outside the app re-read.
 	const refresh = useCallback(() => {
 		for (const path of expanded) void loadDirectory(path);
 		void refreshGitStatus();
+		setFiles(new Map());
 	}, [expanded, loadDirectory, refreshGitStatus]);
+
+	useEffect(() => {
+		const handleResize = () => setWidth((current) => clampPanelWidth(current));
+		window.addEventListener("resize", handleResize);
+		return () => window.removeEventListener("resize", handleResize);
+	}, []);
 
 	useEffect(() => {
 		void loadDirectory(workspaceRoot);
@@ -287,6 +303,12 @@ export function ProjectFilesPanel({
 
 	const closeFile = useCallback(
 		(path: string) => {
+			setFiles((current) => {
+				if (!current.has(path)) return current;
+				const next = new Map(current);
+				next.delete(path);
+				return next;
+			});
 			setOpenFiles((current) => {
 				const index = current.indexOf(path);
 				const next = current.filter((item) => item !== path);
@@ -375,17 +397,7 @@ export function ProjectFilesPanel({
 	const handleResizeMove = (event: React.PointerEvent<HTMLDivElement>) => {
 		const drag = dragStateRef.current;
 		if (!drag) return;
-		// Leave the conversation column at least as wide as the composer needs.
-		const maxWidth = Math.max(MIN_PANEL_WIDTH, window.innerWidth - 760);
-		setWidth(
-			Math.min(
-				maxWidth,
-				Math.max(
-					MIN_PANEL_WIDTH,
-					drag.startWidth + (drag.startX - event.clientX),
-				),
-			),
-		);
+		setWidth(clampPanelWidth(drag.startWidth + (drag.startX - event.clientX)));
 	};
 	const handleResizeEnd = () => {
 		dragStateRef.current = null;
