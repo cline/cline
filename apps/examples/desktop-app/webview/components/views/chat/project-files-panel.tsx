@@ -12,7 +12,10 @@ import {
 	Folder,
 	FolderOpen,
 	Loader2,
+	Minus,
+	Plus,
 	RefreshCw,
+	Undo2,
 	X,
 } from "lucide-react";
 import {
@@ -23,12 +26,33 @@ import {
 	useRef,
 	useState,
 } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	type SourceControlAction,
+	type SourceControlFile,
+	useSourceControl,
+} from "@/hooks/use-source-control";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import type { SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
+import {
+	BranchIndicator,
+	type DiffScope,
+	SOURCE_CONTROL_STATUS_CLASS,
+	SourceControlColumn,
+} from "./source-control-column";
 
 type ProjectEntry = {
 	name: string;
@@ -50,6 +74,24 @@ type FileState = {
 	error?: string;
 };
 
+type GitDiffState = {
+	oldText?: string;
+	newText?: string;
+	binary?: boolean;
+	loading: boolean;
+	error?: string;
+};
+
+type PanelView = "source-control" | "files";
+
+type Tab = {
+	/** Absolute path. */
+	path: string;
+	mode: "file" | "diff";
+	/** Which side of the index a diff opened from source control compares. */
+	scope: DiffScope | null;
+};
+
 type ProjectFilesPanelProps = {
 	environmentId: string;
 	/** Absolute folder the tree is rooted at. */
@@ -60,23 +102,19 @@ type ProjectFilesPanelProps = {
 	onClose: () => void;
 };
 
-const DEFAULT_PANEL_WIDTH = 640;
-const MIN_PANEL_WIDTH = 420;
-const EXPLORER_WIDTH = 220;
+const DEFAULT_PANEL_WIDTH = 680;
+const MIN_PANEL_WIDTH = 440;
+const COLUMN_WIDTH = 280;
+const VIEWS: Array<{ id: PanelView; label: string }> = [
+	{ id: "source-control", label: "Source Control" },
+	{ id: "files", label: "Files" },
+];
 
 // Leave the conversation column at least as wide as the composer needs.
 function clampPanelWidth(width: number): number {
 	const maxWidth = Math.max(MIN_PANEL_WIDTH, window.innerWidth - 760);
 	return Math.min(maxWidth, Math.max(MIN_PANEL_WIDTH, width));
 }
-
-const STATUS_CLASS: Record<string, string> = {
-	M: "text-amber-500",
-	A: "text-chart-2",
-	"?": "text-chart-2",
-	R: "text-sky-500",
-	D: "text-destructive",
-};
 
 function relativeTo(root: string, path: string): string {
 	const base = root.replace(/[\\/]+$/, "");
@@ -87,6 +125,11 @@ function relativeTo(root: string, path: string): string {
 
 function baseName(path: string): string {
 	return path.split(/[\\/]/).pop() ?? path;
+}
+
+function joinPath(root: string, relative: string): string {
+	const separator = root.includes("\\") && !root.includes("/") ? "\\" : "/";
+	return `${root.replace(/[\\/]+$/, "")}${separator}${relative.replace(/^[\\/]/, "")}`;
 }
 
 // Same recovery as @cline/ui's ToolFileDiff: under StrictMode a freshly
@@ -136,11 +179,6 @@ function FileContents({ path, contents }: { path: string; contents: string }) {
 	);
 }
 
-function joinPath(root: string, relative: string): string {
-	const separator = root.includes("\\") && !root.includes("/") ? "\\" : "/";
-	return `${root.replace(/[\\/]+$/, "")}${separator}${relative.replace(/^[\\/]/, "")}`;
-}
-
 export function ProjectFilesPanel({
 	environmentId,
 	workspaceRoot,
@@ -148,6 +186,7 @@ export function ProjectFilesPanel({
 	fileDiffs,
 	onClose,
 }: ProjectFilesPanelProps) {
+	const [view, setView] = useState<PanelView>("source-control");
 	const [width, setWidth] = useState(() =>
 		clampPanelWidth(DEFAULT_PANEL_WIDTH),
 	);
@@ -157,30 +196,32 @@ export function ProjectFilesPanel({
 	const [expanded, setExpanded] = useState<Set<string>>(
 		() => new Set([workspaceRoot]),
 	);
-	const [gitStatus, setGitStatus] = useState<Record<string, string>>({});
-	const [openFiles, setOpenFiles] = useState<string[]>([]);
-	const [activeFile, setActiveFile] = useState<string | null>(null);
+	const [tabs, setTabs] = useState<Tab[]>([]);
+	const [activePath, setActivePath] = useState<string | null>(null);
 	const [files, setFiles] = useState<Map<string, FileState>>(() => new Map());
-	const [mode, setMode] = useState<"file" | "diff">("file");
+	const [gitDiffs, setGitDiffs] = useState<Map<string, GitDiffState>>(
+		() => new Map(),
+	);
 	const [copied, setCopied] = useState(false);
 	const [opening, setOpening] = useState(false);
+	const [pendingDiscard, setPendingDiscard] = useState<SourceControlFile[]>([]);
 	const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(
 		null,
 	);
-	// Bumped per path whenever its cache entry is dropped, so a read that was
+	// Bumped per key whenever its cache entry is dropped, so a read that was
 	// already in flight cannot land on top of a fresher one.
 	const readGenerationRef = useRef(new Map<string, number>());
-	const invalidateReads = useCallback((paths: Iterable<string>) => {
-		for (const path of paths) {
+	const invalidateReads = useCallback((keys: Iterable<string>) => {
+		for (const key of keys) {
 			readGenerationRef.current.set(
-				path,
-				(readGenerationRef.current.get(path) ?? 0) + 1,
+				key,
+				(readGenerationRef.current.get(key) ?? 0) + 1,
 			);
 		}
 	}, []);
 
 	// Session edits keyed by absolute path, so the tree and tabs can mark them
-	// and the viewer can switch into diff mode for them.
+	// and the viewer can fall back to their hunks for files git cannot diff.
 	const diffsByPath = useMemo(() => {
 		const map = new Map<string, SessionFileDiff>();
 		for (const diff of fileDiffs) {
@@ -188,6 +229,72 @@ export function ProjectFilesPanel({
 		}
 		return map;
 	}, [cwd, fileDiffs]);
+	const diffSignature = fileDiffs
+		.map((diff) => `${diff.path}:${diff.additions}:${diff.deletions}`)
+		.join("|");
+
+	const sourceControl = useSourceControl({
+		environmentId,
+		cwd: workspaceRoot,
+		enabled: true,
+		refreshKey: diffSignature,
+	});
+	const repoRoot = sourceControl.state?.root ?? null;
+	const toAbsolute = useCallback(
+		(relative: string) => (repoRoot ? joinPath(repoRoot, relative) : relative),
+		[repoRoot],
+	);
+	const toRelative = useCallback(
+		(absolute: string) =>
+			repoRoot ? relativeTo(repoRoot, absolute).replace(/\\/g, "/") : absolute,
+		[repoRoot],
+	);
+	// Per absolute path: how git sees it right now.
+	const changesByPath = useMemo(() => {
+		const map = new Map<
+			string,
+			{ staged?: SourceControlFile; worktree?: SourceControlFile }
+		>();
+		const state = sourceControl.state;
+		if (!state?.root) return map;
+		for (const file of state.staged) {
+			map.set(toAbsolute(file.path), {
+				...map.get(toAbsolute(file.path)),
+				staged: file,
+			});
+		}
+		for (const file of [...state.unstaged, ...state.untracked]) {
+			map.set(toAbsolute(file.path), {
+				...map.get(toAbsolute(file.path)),
+				worktree: file,
+			});
+		}
+		return map;
+	}, [sourceControl.state, toAbsolute]);
+	const sessionRelativePaths = useMemo(
+		() => new Set(Array.from(diffsByPath.keys(), toRelative)),
+		[diffsByPath, toRelative],
+	);
+	// A fresh repository snapshot means every cached git diff may be stale.
+	const stateSignature = useMemo(() => {
+		const state = sourceControl.state;
+		if (!state) return "";
+		return [...state.staged, ...state.unstaged, ...state.untracked]
+			.map(
+				(file) =>
+					`${file.path}:${file.status}:${file.additions}:${file.deletions}`,
+			)
+			.join("|");
+	}, [sourceControl.state]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: stateSignature is the trigger
+	useEffect(() => {
+		invalidateReads(
+			Array.from(readGenerationRef.current.keys()).filter((key) =>
+				key.startsWith("diff:"),
+			),
+		);
+		setGitDiffs(new Map());
+	}, [stateSignature]);
 
 	const loadDirectory = useCallback(
 		async (path: string) => {
@@ -229,33 +336,14 @@ export function ProjectFilesPanel({
 		[environmentId, workspaceRoot],
 	);
 
-	const refreshGitStatus = useCallback(async () => {
-		try {
-			const result = await desktopClient.invoke<{
-				root: string | null;
-				entries: Record<string, string>;
-			}>("get_git_status", { environmentId, cwd: workspaceRoot });
-			if (!result.root) {
-				setGitStatus({});
-				return;
-			}
-			const byAbsolutePath: Record<string, string> = {};
-			for (const [relative, status] of Object.entries(result.entries)) {
-				byAbsolutePath[joinPath(result.root, relative)] = status;
-			}
-			setGitStatus(byAbsolutePath);
-		} catch {
-			// Plain folders and hosts without git simply show no status.
-		}
-	}, [environmentId, workspaceRoot]);
-
 	// Drops cached contents too, so files edited outside the app re-read.
 	const refresh = useCallback(() => {
 		for (const path of expanded) void loadDirectory(path);
-		void refreshGitStatus();
+		void sourceControl.refresh();
 		invalidateReads(readGenerationRef.current.keys());
 		setFiles(new Map());
-	}, [expanded, invalidateReads, loadDirectory, refreshGitStatus]);
+		setGitDiffs(new Map());
+	}, [expanded, invalidateReads, loadDirectory, sourceControl.refresh]);
 
 	useEffect(() => {
 		const handleResize = () => setWidth((current) => clampPanelWidth(current));
@@ -265,17 +353,12 @@ export function ProjectFilesPanel({
 
 	useEffect(() => {
 		void loadDirectory(workspaceRoot);
-		void refreshGitStatus();
-	}, [loadDirectory, refreshGitStatus, workspaceRoot]);
+	}, [loadDirectory, workspaceRoot]);
 
-	// Agent edits change git status and may create files in open folders.
-	const diffSignature = fileDiffs
-		.map((diff) => `${diff.path}:${diff.additions}:${diff.deletions}`)
-		.join("|");
+	// Agent edits may create files in open folders and change open contents.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: diffSignature is the trigger
 	useEffect(() => {
 		if (!diffSignature) return;
-		void refreshGitStatus();
 		invalidateReads(diffsByPath.keys());
 		setFiles((current) => {
 			if (current.size === 0) return current;
@@ -307,37 +390,75 @@ export function ProjectFilesPanel({
 		[directories, expanded, loadDirectory],
 	);
 
-	const openFile = useCallback((path: string) => {
-		setOpenFiles((current) =>
-			current.includes(path) ? current : [...current, path],
+	const openTab = useCallback((tab: Tab) => {
+		setTabs((current) => {
+			const index = current.findIndex((item) => item.path === tab.path);
+			if (index === -1) return [...current, tab];
+			const next = [...current];
+			next[index] = tab;
+			return next;
+		});
+		setActivePath(tab.path);
+	}, []);
+	const openFile = useCallback(
+		(path: string) => openTab({ path, mode: "file", scope: null }),
+		[openTab],
+	);
+	const openChange = useCallback(
+		(file: SourceControlFile, scope: DiffScope) =>
+			openTab({ path: toAbsolute(file.path), mode: "diff", scope }),
+		[openTab, toAbsolute],
+	);
+	const setTabMode = useCallback((path: string, mode: Tab["mode"]) => {
+		setTabs((current) =>
+			current.map((tab) => (tab.path === path ? { ...tab, mode } : tab)),
 		);
-		setActiveFile(path);
 	}, []);
 
 	const closeFile = useCallback(
 		(path: string) => {
-			invalidateReads([path]);
+			invalidateReads([path, `diff:${path}:staged`, `diff:${path}:worktree`]);
 			setFiles((current) => {
 				if (!current.has(path)) return current;
 				const next = new Map(current);
 				next.delete(path);
 				return next;
 			});
-			setOpenFiles((current) => {
-				const index = current.indexOf(path);
-				const next = current.filter((item) => item !== path);
-				if (activeFile === path) {
-					setActiveFile(next[Math.min(index, next.length - 1)] ?? null);
+			setTabs((current) => {
+				const index = current.findIndex((tab) => tab.path === path);
+				const next = current.filter((tab) => tab.path !== path);
+				if (activePath === path) {
+					setActivePath(next[Math.min(index, next.length - 1)]?.path ?? null);
 				}
 				return next;
 			});
 		},
-		[activeFile],
+		[activePath, invalidateReads],
 	);
 
+	const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
+	const activeChange = activePath ? changesByPath.get(activePath) : undefined;
+	const activeSessionDiff = activePath
+		? diffsByPath.get(activePath)
+		: undefined;
+	// Prefer the side the tab was opened from; otherwise whichever git has.
+	const activeScope: DiffScope | null = activeChange
+		? activeTab?.scope && activeChange[activeTab.scope]
+			? activeTab.scope
+			: activeChange.worktree
+				? "worktree"
+				: "staged"
+		: null;
+	const canDiff = Boolean(activeScope || activeSessionDiff);
+	const effectiveMode: Tab["mode"] =
+		activeTab?.mode === "diff" && canDiff ? "diff" : "file";
+	const gitDiffKey =
+		activePath && activeScope ? `diff:${activePath}:${activeScope}` : null;
+
 	useEffect(() => {
-		if (!activeFile || files.get(activeFile)) return;
-		const path = activeFile;
+		if (!activePath || effectiveMode !== "file" || files.get(activePath))
+			return;
+		const path = activePath;
 		const generation = (readGenerationRef.current.get(path) ?? 0) + 1;
 		readGenerationRef.current.set(path, generation);
 		const isCurrent = () => readGenerationRef.current.get(path) === generation;
@@ -366,16 +487,96 @@ export function ProjectFilesPanel({
 					}),
 				);
 			});
-	}, [activeFile, environmentId, files, workspaceRoot]);
+	}, [activePath, effectiveMode, environmentId, files, workspaceRoot]);
 
-	const activeDiff = activeFile ? diffsByPath.get(activeFile) : undefined;
-	const effectiveMode = activeDiff ? mode : "file";
-	const activeState = activeFile ? files.get(activeFile) : undefined;
+	useEffect(() => {
+		if (
+			!gitDiffKey ||
+			!activePath ||
+			!activeScope ||
+			effectiveMode !== "diff" ||
+			gitDiffs.get(gitDiffKey)
+		) {
+			return;
+		}
+		const key = gitDiffKey;
+		const generation = (readGenerationRef.current.get(key) ?? 0) + 1;
+		readGenerationRef.current.set(key, generation);
+		const isCurrent = () => readGenerationRef.current.get(key) === generation;
+		setGitDiffs((current) => new Map(current).set(key, { loading: true }));
+		desktopClient
+			.invoke<{ oldText?: string; newText: string; binary: boolean }>(
+				"get_git_file_diff",
+				{
+					environmentId,
+					cwd: workspaceRoot,
+					path: toRelative(activePath),
+					staged: activeScope === "staged",
+				},
+			)
+			.then((result) => {
+				if (!isCurrent()) return;
+				setGitDiffs((current) =>
+					new Map(current).set(key, { ...result, loading: false }),
+				);
+			})
+			.catch((error) => {
+				if (!isCurrent()) return;
+				setGitDiffs((current) =>
+					new Map(current).set(key, {
+						loading: false,
+						error: error instanceof Error ? error.message : String(error),
+					}),
+				);
+			});
+	}, [
+		activePath,
+		activeScope,
+		effectiveMode,
+		environmentId,
+		gitDiffKey,
+		gitDiffs,
+		toRelative,
+		workspaceRoot,
+	]);
+
+	const runAction = useCallback(
+		async (action: SourceControlAction) => {
+			try {
+				await sourceControl.runAction(action);
+			} catch (error) {
+				toast({
+					variant: "destructive",
+					title:
+						action.type === "commit"
+							? "Commit failed"
+							: action.type === "push"
+								? "Push failed"
+								: "Git command failed",
+					description: error instanceof Error ? error.message : String(error),
+				});
+			}
+		},
+		[sourceControl.runAction],
+	);
+	const confirmDiscard = useCallback(async () => {
+		const files = pendingDiscard;
+		setPendingDiscard([]);
+		await runAction({
+			type: "discard",
+			paths: files
+				.filter((file) => file.status !== "?")
+				.map((file) => file.path),
+			untrackedPaths: files
+				.filter((file) => file.status === "?")
+				.map((file) => file.path),
+		});
+	}, [pendingDiscard, runAction]);
 
 	const handleCopyPath = useCallback(async () => {
-		if (!activeFile) return;
+		if (!activePath) return;
 		try {
-			await navigator.clipboard.writeText(activeFile);
+			await navigator.clipboard.writeText(activePath);
 			setCopied(true);
 			window.setTimeout(() => setCopied(false), 1600);
 		} catch {
@@ -385,15 +586,15 @@ export function ProjectFilesPanel({
 				description: "The file path could not be copied to the clipboard.",
 			});
 		}
-	}, [activeFile]);
+	}, [activePath]);
 
 	const handleOpenInEditor = useCallback(async () => {
-		if (!activeFile) return;
+		if (!activePath) return;
 		setOpening(true);
 		try {
 			await desktopClient.invoke("open_file_in_editor", {
 				environmentId,
-				path: activeFile,
+				path: activePath,
 			});
 		} catch (error) {
 			toast({
@@ -407,7 +608,7 @@ export function ProjectFilesPanel({
 		} finally {
 			setOpening(false);
 		}
-	}, [activeFile, environmentId]);
+	}, [activePath, environmentId]);
 
 	const handleResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
 		dragStateRef.current = { startX: event.clientX, startWidth: width };
@@ -446,14 +647,15 @@ export function ProjectFilesPanel({
 				{state.entries.map((entry) => {
 					const isDirectory = entry.kind === "directory";
 					const isExpanded = isDirectory && expanded.has(entry.path);
-					const status = gitStatus[entry.path];
+					const change = changesByPath.get(entry.path);
+					const status = (change?.worktree ?? change?.staged)?.status;
 					const changedBySession = diffsByPath.has(entry.path);
 					return (
 						<div key={entry.path}>
 							<button
 								className={cn(
 									"group flex h-7 w-full items-center gap-1.5 rounded-md pr-2 text-left text-xs text-foreground/90 hover:bg-surface-hover",
-									entry.path === activeFile && "bg-primary/15 text-foreground",
+									entry.path === activePath && "bg-primary/15 text-foreground",
 								)}
 								onClick={() =>
 									isDirectory
@@ -485,7 +687,9 @@ export function ProjectFilesPanel({
 								<span
 									className={cn(
 										"min-w-0 flex-1 truncate",
-										status && !isDirectory && STATUS_CLASS[status],
+										status &&
+											!isDirectory &&
+											SOURCE_CONTROL_STATUS_CLASS[status],
 									)}
 								>
 									{entry.name}
@@ -500,7 +704,7 @@ export function ProjectFilesPanel({
 									<span
 										className={cn(
 											"w-3 shrink-0 text-center font-mono text-[10px] font-medium",
-											STATUS_CLASS[status],
+											SOURCE_CONTROL_STATUS_CLASS[status],
 										)}
 									>
 										{status}
@@ -523,6 +727,22 @@ export function ProjectFilesPanel({
 		);
 	};
 
+	const activeFileState = activePath ? files.get(activePath) : undefined;
+	const activeGitDiff = gitDiffKey ? gitDiffs.get(gitDiffKey) : undefined;
+	const activeChangeFile =
+		activeScope && activeChange ? activeChange[activeScope] : undefined;
+	const activeStat = activeChangeFile
+		? {
+				additions: activeChangeFile.additions ?? 0,
+				deletions: activeChangeFile.deletions ?? 0,
+			}
+		: activeSessionDiff
+			? {
+					additions: activeSessionDiff.additions,
+					deletions: activeSessionDiff.deletions,
+				}
+			: null;
+
 	return (
 		<aside
 			className="relative col-start-2 row-span-2 row-start-1 flex min-h-0 border-l border-border bg-background"
@@ -538,35 +758,86 @@ export function ProjectFilesPanel({
 			/>
 			<div
 				className="flex shrink-0 flex-col border-r border-border bg-sidebar/40"
-				style={{ width: EXPLORER_WIDTH }}
+				style={{ width: COLUMN_WIDTH }}
 			>
-				<div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/70 px-2">
-					<span
-						className="min-w-0 flex-1 truncate px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-						title={workspaceRoot}
+				<div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border/70 px-2">
+					<div
+						aria-label="Panel view"
+						className="flex h-7 items-center rounded-md bg-secondary p-0.5 text-[11px]"
+						role="tablist"
 					>
-						{baseName(workspaceRoot) || "Files"}
+						{VIEWS.map((item) => (
+							<button
+								aria-selected={view === item.id}
+								className={cn(
+									"h-6 rounded-[5px] px-2 whitespace-nowrap",
+									view === item.id
+										? "bg-background text-foreground shadow-xs"
+										: "text-muted-foreground hover:text-foreground",
+								)}
+								key={item.id}
+								onClick={() => setView(item.id)}
+								role="tab"
+								type="button"
+							>
+								{item.label}
+							</button>
+						))}
+					</div>
+					<span className="ml-auto flex min-w-0 items-center gap-1">
+						<BranchIndicator state={sourceControl.state} />
+						<Button
+							aria-label="Refresh"
+							className="size-6 shrink-0 text-muted-foreground"
+							onClick={refresh}
+							size="icon-sm"
+							type="button"
+							variant="ghost"
+						>
+							<RefreshCw
+								className={cn(
+									"size-3",
+									sourceControl.loading && "animate-spin",
+								)}
+							/>
+						</Button>
 					</span>
-					<Button
-						aria-label="Refresh files"
-						className="size-6 text-muted-foreground"
-						onClick={refresh}
-						size="icon-sm"
-						type="button"
-						variant="ghost"
-					>
-						<RefreshCw className="size-3" />
-					</Button>
 				</div>
-				<div className="min-h-0 flex-1 overflow-auto px-1 py-1">
-					{renderEntries(workspaceRoot, 0)}
-				</div>
+				{view === "source-control" ? (
+					<SourceControlColumn
+						busy={sourceControl.busy}
+						error={sourceControl.error}
+						loading={sourceControl.loading}
+						onAction={runAction}
+						onOpen={openChange}
+						onRequestDiscard={setPendingDiscard}
+						selected={
+							activePath && activeScope
+								? { path: toRelative(activePath), scope: activeScope }
+								: null
+						}
+						sessionPaths={sessionRelativePaths}
+						state={sourceControl.state}
+					/>
+				) : (
+					<div className="min-h-0 flex-1 overflow-auto px-1 py-1">
+						<div
+							className="truncate px-2 pb-1 pt-0.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground"
+							title={workspaceRoot}
+						>
+							{baseName(workspaceRoot)}
+						</div>
+						{renderEntries(workspaceRoot, 0)}
+					</div>
+				)}
 			</div>
 			<div className="flex min-w-0 flex-1 flex-col">
 				<div className="flex h-9 shrink-0 items-stretch border-b border-border bg-card">
 					<div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
-						{openFiles.map((path) => {
-							const isActive = path === activeFile;
+						{tabs.map((tab) => {
+							const isActive = tab.path === activePath;
+							const dirty =
+								changesByPath.has(tab.path) || diffsByPath.has(tab.path);
 							return (
 								<div
 									className={cn(
@@ -574,24 +845,26 @@ export function ProjectFilesPanel({
 										isActive &&
 											"bg-background text-foreground shadow-[inset_0_1px_0_var(--primary)]",
 									)}
-									key={path}
+									key={tab.path}
 								>
 									<button
 										className="flex items-center gap-1.5"
-										onClick={() => setActiveFile(path)}
-										title={path}
+										onClick={() => setActivePath(tab.path)}
+										title={tab.path}
 										type="button"
 									>
 										<File className="size-3 shrink-0" />
-										<span className="max-w-40 truncate">{baseName(path)}</span>
-										{diffsByPath.has(path) ? (
+										<span className="max-w-40 truncate">
+											{baseName(tab.path)}
+										</span>
+										{dirty ? (
 											<span className="size-1.5 shrink-0 rounded-full bg-primary" />
 										) : null}
 									</button>
 									<button
-										aria-label={`Close ${baseName(path)}`}
+										aria-label={`Close ${baseName(tab.path)}`}
 										className="rounded p-0.5 opacity-0 hover:bg-surface-hover group-hover:opacity-100 focus-visible:opacity-100"
-										onClick={() => closeFile(path)}
+										onClick={() => closeFile(tab.path)}
 										type="button"
 									>
 										<X className="size-3" />
@@ -611,22 +884,80 @@ export function ProjectFilesPanel({
 						<X className="size-3.5" />
 					</Button>
 				</div>
-				{activeFile ? (
+				{activePath && activeTab ? (
 					<>
 						<div className="flex h-8 shrink-0 items-center gap-2 overflow-hidden whitespace-nowrap border-b border-border/60 px-3 text-[11px] text-muted-foreground">
-							<span className="min-w-0 truncate font-mono" title={activeFile}>
-								{relativeTo(workspaceRoot, activeFile)}
+							<span className="min-w-0 truncate font-mono" title={activePath}>
+								{relativeTo(workspaceRoot, activePath)}
 							</span>
-							{activeDiff ? (
+							{activeStat ? (
 								<span className="shrink-0 font-mono">
-									<span className="text-chart-2">+{activeDiff.additions}</span>{" "}
+									<span className="text-chart-2">+{activeStat.additions}</span>{" "}
 									<span className="text-destructive">
-										-{activeDiff.deletions}
+										-{activeStat.deletions}
 									</span>
 								</span>
 							) : null}
+							{activeScope === "staged" ? (
+								<span className="shrink-0 rounded bg-secondary px-1.5 py-px text-[10px]">
+									staged
+								</span>
+							) : null}
 							<span className="ml-auto flex shrink-0 items-center gap-1">
-								{activeDiff ? (
+								{activeChange?.worktree ? (
+									<>
+										<Button
+											aria-label="Discard changes"
+											className="h-6 gap-1 px-1.5 text-[10.5px]"
+											disabled={sourceControl.busy}
+											onClick={() =>
+												activeChange.worktree &&
+												setPendingDiscard([activeChange.worktree])
+											}
+											size="sm"
+											type="button"
+											variant="ghost"
+										>
+											<Undo2 className="size-3" /> Discard
+										</Button>
+										<Button
+											aria-label="Stage file"
+											className="h-6 gap-1 px-1.5 text-[10.5px]"
+											disabled={sourceControl.busy}
+											onClick={() =>
+												activeChange.worktree &&
+												void runAction({
+													type: "stage",
+													paths: [activeChange.worktree.path],
+												})
+											}
+											size="sm"
+											type="button"
+											variant="ghost"
+										>
+											<Plus className="size-3" /> Stage
+										</Button>
+									</>
+								) : activeChange?.staged ? (
+									<Button
+										aria-label="Unstage file"
+										className="h-6 gap-1 px-1.5 text-[10.5px]"
+										disabled={sourceControl.busy}
+										onClick={() =>
+											activeChange.staged &&
+											void runAction({
+												type: "unstage",
+												paths: [activeChange.staged.path],
+											})
+										}
+										size="sm"
+										type="button"
+										variant="ghost"
+									>
+										<Minus className="size-3" /> Unstage
+									</Button>
+								) : null}
+								{canDiff ? (
 									<div className="flex h-6 items-center rounded-md bg-secondary p-0.5">
 										{(["file", "diff"] as const).map((item) => (
 											<button
@@ -638,7 +969,7 @@ export function ProjectFilesPanel({
 														: "text-muted-foreground",
 												)}
 												key={item}
-												onClick={() => setMode(item)}
+												onClick={() => setTabMode(activePath, item)}
 												type="button"
 											>
 												{item}
@@ -674,9 +1005,27 @@ export function ProjectFilesPanel({
 							</span>
 						</div>
 						<div className="cline-chat-selectable min-h-0 flex-1 overflow-auto">
-							{effectiveMode === "diff" && activeDiff ? (
+							{effectiveMode === "diff" && activeScope ? (
+								activeGitDiff?.loading || !activeGitDiff ? (
+									<Spinner />
+								) : activeGitDiff.error ? (
+									<ErrorText>{activeGitDiff.error}</ErrorText>
+								) : activeGitDiff.binary ? (
+									<Centered>Binary file</Centered>
+								) : (
+									<div className="p-3">
+										<ToolFileDiff
+											background="var(--background)"
+											key={`${gitDiffKey}:${stateSignature}`}
+											newText={activeGitDiff.newText ?? ""}
+											oldText={activeGitDiff.oldText}
+											path={activePath}
+										/>
+									</div>
+								)
+							) : effectiveMode === "diff" && activeSessionDiff ? (
 								<div className="flex flex-col gap-3 p-3">
-									{activeDiff.hunks.map((hunk, index) => {
+									{activeSessionDiff.hunks.map((hunk, index) => {
 										const isCompleteNewContents =
 											hunk.old.length === 0 &&
 											hunk.oldStart === 1 &&
@@ -685,34 +1034,28 @@ export function ProjectFilesPanel({
 											<ToolFileDiff
 												background="var(--background)"
 												fragment={!isCompleteNewContents}
-												key={`${activeFile}-${index}-${hunk.oldStart}-${hunk.newStart}`}
+												key={`${activePath}-${index}-${hunk.oldStart}-${hunk.newStart}`}
 												newText={hunk.new}
 												oldText={isCompleteNewContents ? undefined : hunk.old}
-												path={activeFile}
+												path={activePath}
 											/>
 										);
 									})}
 								</div>
-							) : activeState?.loading || !activeState ? (
-								<div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-									<Loader2 className="size-4 animate-spin" />
-								</div>
-							) : activeState.error ? (
-								<div className="p-4 text-xs text-destructive">
-									{activeState.error}
-								</div>
-							) : activeState.content === null ? (
-								<div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-									Binary file
-								</div>
+							) : activeFileState?.loading || !activeFileState ? (
+								<Spinner />
+							) : activeFileState.error ? (
+								<ErrorText>{activeFileState.error}</ErrorText>
+							) : activeFileState.content === null ? (
+								<Centered>Binary file</Centered>
 							) : (
 								<>
 									<FileContents
-										contents={activeState.content ?? ""}
-										key={activeFile}
-										path={activeFile}
+										contents={activeFileState.content ?? ""}
+										key={activePath}
+										path={activePath}
 									/>
-									{activeState.truncated ? (
+									{activeFileState.truncated ? (
 										<div className="border-t border-border/60 px-3 py-2 text-[11px] text-muted-foreground">
 											File truncated to the first 1 MB.
 										</div>
@@ -722,11 +1065,74 @@ export function ProjectFilesPanel({
 						</div>
 					</>
 				) : (
-					<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
-						Select a file to view it
-					</div>
+					<Centered className="p-6 text-center">
+						{view === "source-control"
+							? "Select a change to review it"
+							: "Select a file to view it"}
+					</Centered>
 				)}
 			</div>
+			<AlertDialog
+				onOpenChange={(open) => {
+					if (!open) setPendingDiscard([]);
+				}}
+				open={pendingDiscard.length > 0}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{pendingDiscard.length === 1
+								? `Discard changes to ${baseName(pendingDiscard[0]?.path ?? "")}?`
+								: `Discard changes to ${pendingDiscard.length} files?`}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{pendingDiscard.some((file) => file.status === "?")
+								? "Modified files revert to their last committed contents and untracked files are deleted. This cannot be undone."
+								: "The files revert to their last committed contents. This cannot be undone."}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => void confirmDiscard()}
+						>
+							Discard
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</aside>
+	);
+}
+
+function Spinner() {
+	return (
+		<Centered>
+			<Loader2 className="size-4 animate-spin" />
+		</Centered>
+	);
+}
+
+function ErrorText({ children }: { children: React.ReactNode }) {
+	return <div className="p-4 text-xs text-destructive">{children}</div>;
+}
+
+function Centered({
+	children,
+	className,
+}: {
+	children: React.ReactNode;
+	className?: string;
+}) {
+	return (
+		<div
+			className={cn(
+				"flex h-full flex-1 items-center justify-center text-xs text-muted-foreground",
+				className,
+			)}
+		>
+			{children}
+		</div>
 	);
 }
