@@ -711,7 +711,9 @@ export class SdkTaskHistory {
 	}
 
 	async deleteAllTaskHistory(options: { preserveFavorites?: boolean } = {}): Promise<number> {
-		const history = await this.listHistory({ hydrate: false })
+		// Cloud sessions are account-wide control-plane records (possibly started from
+		// another client), so bulk-clearing local history must never delete them.
+		const history = (await this.listHistory({ hydrate: false })).filter((item) => !this.isCloudTask(item.sessionId))
 		const tasksToDelete = options.preserveFavorites
 			? history.filter(
 					(item) =>
