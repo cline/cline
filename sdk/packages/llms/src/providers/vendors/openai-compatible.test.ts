@@ -113,6 +113,21 @@ describe("withMaxCompletionTokensForReasoningModels", () => {
 		});
 	});
 
+	it("uses max_completion_tokens for Cerebras model ids", () => {
+		const body = withMaxCompletionTokensForReasoningModels(
+			{
+				model: "gemma-4-31b",
+				max_tokens: 8_192,
+			},
+			true,
+		);
+
+		expect(body).toEqual({
+			model: "gemma-4-31b",
+			max_completion_tokens: 8_192,
+		});
+	});
+
 	it("leaves bodies without a string model id untouched", () => {
 		const body = { max_tokens: 8_192 };
 

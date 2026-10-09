@@ -32,6 +32,7 @@ const VERBATIM_REASONING_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
 const PORTABLE_REASONING_PROVIDERS = new Set([
 	"anthropic",
 	"bedrock",
+	"cerebras",
 	"deepseek",
 	"fireworks",
 	"gemini",
