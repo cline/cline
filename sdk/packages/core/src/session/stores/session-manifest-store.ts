@@ -8,7 +8,7 @@ import {
 import { readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
-import type { BasicLogger } from "@cline/shared";
+import type { BasicLogger, MessageChildSessionLink } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
 import { nowIso, SessionArtifacts } from "../../services/session-artifacts";
 import {
@@ -21,6 +21,10 @@ import type {
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
 } from "../../types/session";
+import {
+	annotateCompactionMessages,
+	annotatePersistedMessages,
+} from "../models/message-annotations";
 import {
 	parseSessionCompactionState,
 	type SessionCompactionState,
@@ -88,6 +92,11 @@ function sessionRowFromManifest(
 
 export class SessionManifestStore {
 	readonly artifacts: SessionArtifacts;
+	private readonly childSessionLinks = new Map<
+		string,
+		Map<string, MessageChildSessionLink[]>
+	>();
+	private readonly seededChildSessionLinks = new Set<string>();
 
 	constructor(
 		private readonly adapter: SessionPersistenceAdapter,
@@ -217,6 +226,76 @@ export class SessionManifestStore {
 		return adopted;
 	}
 
+	/**
+	 * Records that `link.toolCallId` started `link.sessionId`. The link is
+	 * written onto the assistant message holding that tool call the next time
+	 * any session in the root's tree persists its messages.
+	 */
+	recordChildSessionLink(
+		rootSessionId: string,
+		link: MessageChildSessionLink,
+	): void {
+		if (!rootSessionId || !link.toolCallId || !link.sessionId) {
+			return;
+		}
+		const byToolCall =
+			this.childSessionLinks.get(rootSessionId) ??
+			new Map<string, MessageChildSessionLink[]>();
+		const links = byToolCall.get(link.toolCallId) ?? [];
+		if (!links.some((existing) => existing.sessionId === link.sessionId)) {
+			links.push({ ...link });
+		}
+		byToolCall.set(link.toolCallId, links);
+		this.childSessionLinks.set(rootSessionId, byToolCall);
+	}
+
+	/**
+	 * Messages lose `childSessions` when they are restored into a runtime, so
+	 * the links already written for a session are read back from its messages
+	 * file before this process first rewrites it.
+	 */
+	private async seedChildSessionLinks(
+		rootSessionId: string,
+		sessionId: string,
+		path: string,
+	): Promise<void> {
+		if (this.seededChildSessionLinks.has(sessionId)) {
+			return;
+		}
+		this.seededChildSessionLinks.add(sessionId);
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(await readFile(path, "utf8"));
+		} catch {
+			return;
+		}
+		const messages = (parsed as { messages?: unknown } | null)?.messages;
+		if (!Array.isArray(messages)) {
+			return;
+		}
+		for (const message of messages) {
+			const links = (message as { childSessions?: unknown } | null)
+				?.childSessions;
+			if (!Array.isArray(links)) {
+				continue;
+			}
+			for (const link of links) {
+				const candidate = link as Partial<MessageChildSessionLink> | null;
+				if (
+					typeof candidate?.toolCallId === "string" &&
+					typeof candidate.sessionId === "string" &&
+					(candidate.kind === "subagent" || candidate.kind === "teammate")
+				) {
+					this.recordChildSessionLink(rootSessionId, {
+						toolCallId: candidate.toolCallId,
+						sessionId: candidate.sessionId,
+						kind: candidate.kind,
+					});
+				}
+			}
+		}
+	}
+
 	async persistSessionMessages(
 		sessionId: string,
 		messages: LlmsProviders.MessageWithMetadata[],
@@ -227,10 +306,15 @@ export class SessionManifestStore {
 			typeof row.messagesPath === "string" && row.messagesPath.trim().length > 0
 				? row.messagesPath
 				: this.artifacts.sessionMessagesPath(sessionId);
+		const rootSessionId = row.parentSessionId?.trim() || sessionId;
+		await this.seedChildSessionLinks(rootSessionId, sessionId, path);
+		const childLinks = this.childSessionLinks.get(rootSessionId);
 		const payload = buildMessagesFilePayload({
 			updatedAt: nowIso(),
 			context: resolveMessagesFileContext(row),
-			messages: messages as StoredMessageWithMetadata[],
+			messages: annotatePersistedMessages(messages, {
+				childSessionLinks: (toolCallId) => childLinks?.get(toolCallId),
+			}) as StoredMessageWithMetadata[],
 			systemPrompt,
 		});
 		const contents = `${JSON.stringify(payload, null, 2)}\n`;
@@ -307,7 +391,10 @@ export class SessionManifestStore {
 		state: SessionCompactionState,
 	): Promise<void> {
 		const path = this.resolveCompactionPath(sessionId);
-		const payload = SessionCompactionStateSchema.parse(state);
+		const payload = SessionCompactionStateSchema.parse({
+			...state,
+			messages: annotateCompactionMessages(state.messages),
+		});
 		await writeFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
 		this.updateCompactionPath(sessionId, path);
 	}

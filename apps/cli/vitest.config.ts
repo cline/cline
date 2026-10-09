@@ -31,6 +31,13 @@ export default defineConfig({
 				replacement: resolve(rootDir, "../../sdk/packages/llms/src/$1"),
 			},
 			{
+				find: /^@cline\/session$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/session/src/index.ts",
+				),
+			},
+			{
 				find: /^@cline\/shared\/(.+)$/,
 				replacement: resolve(rootDir, "../../sdk/packages/shared/src/$1"),
 			},

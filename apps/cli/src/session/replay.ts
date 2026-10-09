@@ -8,7 +8,7 @@ import {
 	type SessionReplayModelCall,
 	type SessionReplayToolCall,
 	selectSessionReplayIterations,
-} from "@cline/core";
+} from "@cline/session";
 import { c, formatUsd } from "../utils/output";
 
 export interface LoadedSessionReplay {
@@ -380,9 +380,9 @@ export function formatReplayHeaderText(
 			c.bold,
 			`Session replay ${entry.sessionId}${entry.title ? ` · ${entry.title}` : ""}`,
 		),
-		`  model: ${entry.model} (${entry.provider}) · status: ${entry.status}${exit} · source: ${entry.source}`,
+		`  model: ${entry.model || "unknown"}${entry.provider ? ` (${entry.provider})` : ""} · status: ${entry.status}${exit} · source: ${entry.source}`,
 		`  started: ${entry.startedAt}${entry.endedAt ? ` · ended: ${entry.endedAt}` : ""}`,
-		`  cwd: ${entry.cwd}`,
+		...(entry.cwd ? [`  cwd: ${entry.cwd}`] : []),
 		`  iterations: ${range} · messages: ${entry.counts.messages} · events: ${entry.counts.events} · redaction: ${redaction}`,
 		...(entry.recording
 			? [

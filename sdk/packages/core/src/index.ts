@@ -469,7 +469,10 @@ export {
 	createRuntimeHost as createSessionHost,
 	resolveSessionBackend,
 } from "./runtime/host/host";
-export { LocalRuntimeHost } from "./runtime/host/local-runtime-host";
+export {
+	LocalRuntimeHost,
+	SESSION_RECORDING_REQUIRES_HUB_MESSAGE,
+} from "./runtime/host/local-runtime-host";
 export type {
 	CommandExecutionRuntimeService,
 	PendingPromptMutationResult,
@@ -732,6 +735,7 @@ export {
 	type ProviderConfigFields,
 } from "./services/providers/provider-config-fields";
 export { isProviderSettingsUsable } from "./services/providers/provider-readiness";
+export { sessionHookLogFileName } from "./services/session-artifacts";
 export * from "./services/session-import";
 export {
 	type MigrateLegacyProviderSettingsOptions,
@@ -869,11 +873,13 @@ export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,
+	parseSubSessionId,
+	parseTeamTaskSubSessionId,
 	sanitizeSessionToken,
 } from "./session/models/session-graph";
 export type { SessionManifest } from "./session/models/session-manifest";
 export type { SessionRow } from "./session/models/session-row";
-export * from "./session/replay";
+export * from "./session/recording";
 export * from "./session/search";
 export type {
 	CreateRootSessionWithArtifactsInput,
@@ -1102,6 +1108,7 @@ export {
 	parseSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
+	SessionCompactionStateSchema,
 } from "./session/models/session-compaction";
 // Compatibility barrel (legacy imports).
 export type { RuntimeEnvironment } from "./types";

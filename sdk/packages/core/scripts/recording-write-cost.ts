@@ -26,7 +26,7 @@ import type {
 import {
 	describeRecordedProvider,
 	SessionRecorder,
-} from "../src/session/replay/session-recorder";
+} from "../src/session/recording/session-recorder";
 
 const SYSTEM_PROMPT_BYTES = 30_000;
 const TOOL_COUNT = 20;

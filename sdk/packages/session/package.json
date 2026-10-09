@@ -1,0 +1,46 @@
+{
+	"name": "@cline/session",
+	"description": "Session replay for the Cline SDK: bundle export, validation, playback and comparison",
+	"version": "0.0.91",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/session"
+	},
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "bun run test:unit && bun run test:e2e",
+		"test:unit": "vitest run --config vitest.config.ts",
+		"test:e2e": "vitest run --config vitest.e2e.config.ts",
+		"test:watch": "vitest --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@cline/core": "workspace:*",
+		"@cline/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"ajv": "^8.20.0"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [
+		"dist",
+		"!dist/**/*.d.ts.map"
+	],
+	"license": "Apache-2.0"
+}

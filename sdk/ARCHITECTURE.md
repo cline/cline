@@ -29,6 +29,7 @@ flowchart LR
   llms["@cline/llms"]
   agents["@cline/agents"]
   core["@cline/core"]
+  session["@cline/session"]
   apps["Host Apps"]
 
   llms --> shared
@@ -37,7 +38,10 @@ flowchart LR
   core --> agents
   core --> llms
   core --> shared
+  session --> core
+  session --> shared
   apps --> core
+  apps --> session
 ```
 
 ## Package Responsibilities
@@ -146,6 +150,25 @@ Design rules:
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
+
+### `@cline/session`
+
+Owns everything that reads a session recording or replay bundle:
+
+- bundle export, IO, validation, schema migrations and redaction
+- reading and merging a recording, and resolving recorded request messages
+- iteration projection and event descriptions for playback
+- the replay source, request snapshots, and compare/divergence reports
+- rerun: rebuilding a recorded workspace, recorded/live path mapping, and the
+  rerun engine that drives a live session against the recording
+- ATIF export: converting a bundle to an ATIF v1.7 trajectory, and the
+  vendored ATIF schema and validator
+- ATIF import: converting an ATIF trajectory back into a bundle
+
+Design rules:
+
+- `session` sits above `core`; `core`, `agents`, `llms` and `shared` never import it.
+- Writers (the core recorder) and readers share only the schemas, constants and hash helpers in `@cline/shared` (`session-replay/`).
 
 ## Runtime Flows
 
@@ -954,6 +977,7 @@ The following packages are published to npm:
 - `@cline/llms` — provider integrations and model manifests
 - `@cline/agents` — the agent loop and tool orchestration
 - `@cline/core` — the main SDK with session management, hub, and configuration
+- `@cline/session` — session replay bundles, playback, replay source, and comparison
 
 ### Internal Apps
 
@@ -1056,8 +1080,19 @@ gets half that budget, bounding the combined wait to 7.5 seconds.
 
 ### Session recording
 
-`core/src/session/replay` owns opt-in session recording for replay. Recording
-happens only in the hub. A session is recorded when its
+Recording is split by who writes and who reads:
+
+- `core/src/session/recording` is the write side: `SessionRecorder` (behind the
+  `SessionHostRecorder` seam the runtime host, tool path and hub projector
+  call), tool environment fact collection, hook `seq`, and the
+  `recording.enabled` gate. It only appends records.
+- `shared/src/session-replay` holds what both sides need: the recording and
+  bundle schemas, the schema and match key version constants, the
+  tool environment fact types, and the message/match key hash helpers.
+- `@cline/session` is the read side (export, bundle IO, playback, replay source,
+  comparison). Core never imports it.
+
+Recording happens only in the hub. A session is recorded when its
 `CoreSessionConfig.recording.enabled` is `true` and it runs on one of the hub's
 own `LocalRuntimeHost`s (the `session.create` host and the schedule host), which
 are constructed with `recordSessions: true`. Any other `LocalRuntimeHost` (local
@@ -1090,8 +1125,8 @@ The recorder observes the model adapter and runtime events rather than logs:
 - `requests.jsonl` holds one record per model call, with outcome, usage, retry
   attempt, a credential-free provider summary, and the request as content
   hashes. Each request stores only the messages after the prefix it shares with
-  the previous call (`messagePrefix`); `resolveRecordedRequestMessages` rebuilds
-  full request lists. Message blobs omit per-request ids and timestamps, so
+  the previous call (`messagePrefix`); `resolveRecordedRequestMessages` in
+  `@cline/session` rebuilds full request lists. Message blobs omit per-request ids and timestamps, so
   identical history deduplicates in `blobs.jsonl`.
 - `request.matchKey` hashes the system prompt, tool definitions, and each
   message's role and content under `cline-replay-match-v1`; replay matching
@@ -1109,17 +1144,91 @@ The recorder observes the model adapter and runtime events rather than logs:
   recorder adds it through `afterTool` result metadata; the agents package only
   carries that metadata onto the tool message.
 
-`exportSessionReplayBundle` copies a recording into bundle schemaVersion 2
+`exportSessionReplayBundle` (`@cline/session`) copies a recording into bundle
+schemaVersion 2
 (`sessions/<id>/requests/requests.jsonl` and `blobs.jsonl`, redacted like the
 rest of the bundle, and decision events merged into `events.jsonl`), and uses
 each segment's `leadAgentId` to separate root hook lines from subagent and
 teammate lines. Version 1 bundles migrate on read. Subagent and teammate model
 calls and approvals, and compaction summarizer calls, are not recorded yet.
+With `includeChildSessions` the export also writes the root's subagent and
+teammate sessions as further `sessions[]` entries, found through
+`childSessions` links (recursively) and the source's optional
+`listChildSessions`.
+
+Independently of recording, the manifest store (the single writer of session
+message files) annotates every persisted `MessageWithMetadata` with optional
+fields that readers use instead of heuristics:
+
+- `id` and `ts` on every message: the writer fills a missing `id`, and a
+  missing `ts` from the nearest neighbour's (`ConversationStore` already gives
+  appended messages a stable id and timestamp);
+- `iteration` on each model call's assistant message and the tool results
+  that answer it, numbered with `groupSessionMessageIterations` from
+  `@cline/shared` so it matches bundle iteration indexes;
+- `childSessions` (`{ toolCallId, sessionId, kind }`) on assistant messages
+  whose `spawn_agent`, configured subagent or `team_run_task` call started a
+  child session. The tools pass the parent tool call id to the subagent and
+  team task lifecycle callbacks, and the team child session manager records
+  the link when it creates the child;
+- `compactionSummary: true` on compaction summaries, in the transcript and the
+  compaction sidecar.
+
+All fields are optional: older message files still read, and the bundle
+format stays at schemaVersion 2.
+
+### Session ATIF export
+
+`exportSessionReplayBundleToAtif` (`@cline/session`) converts a bundle into
+one ATIF v1.7 trajectory (Harbor's Agent Trajectory Interchange Format) for
+the root session: one agent step per iteration with its tool calls and their
+results, user steps for prompts, system steps for the system prompt, injected
+messages and compactions, and subagent and teammate sessions nested as
+`subagent_trajectories` referenced from the tool call that started them. Cline
+data without an ATIF field stays under `extra.cline`. It reads only the
+bundle, so it works on redacted bundles and older bundles (with inferred child
+links). `validateAtifTrajectory` checks a trajectory against a JSON Schema
+generated from Harbor's Pydantic models at a pinned commit, plus the models'
+cross-field rules. The CLI exposes it as `cline session export <id|bundle>
+--format atif [--out <path>]`. The session package README has the field
+mapping and what is not carried over. Each trajectory also carries its
+session's exact bundle data in `extra.cline.replay` (transcript, events,
+compaction, and for recorded sessions request records and blobs), which the
+import uses to restore the bundle.
+
+### Session ATIF import
+
+`importAtifTrajectory` / `importAtifTrajectoryToBundle` (`@cline/session`)
+turn an ATIF trajectory into a schema v2 bundle, so playback, rerun and
+`session diff` read imports through the same bundle reader and nothing
+downstream knows about ATIF. The input is checked with
+`validateAtifTrajectory` first (`AtifImportError` otherwise).
+
+- A trajectory Cline exported is restored from `extra.cline`: entries,
+  recordings, environment, redaction and the replay data. The restored bundle
+  is exported again without the replay data and kept only when its user and
+  agent steps match the file's across the subagent tree, so an edited step
+  cannot slip in stale recording data. The restored bundle's manifest and
+  files are identical to the original's.
+- Any other trajectory is rebuilt from its steps (`source: "atif-import"`,
+  `recording: null`): system prompt, user and assistant messages, thinking,
+  tool calls, observation results as `tool_result` blocks, per-step metrics,
+  and embedded subagent trajectories as child sessions linked from the tool
+  call that started them. Messages get `id`, `ts` and `iteration`.
+  Observation and mid-session system messages carry `userRunSpan: 0` so they
+  are not counted as prompts.
+
+`import-report.json` sits next to the manifest without being indexed, so a
+restored bundle's manifest stays byte-identical. It lists the sessions, what
+could not be carried (`unmapped`) and what was interpreted (`assumptions`).
+The CLI exposes this as `cline session import <file> [--format atif]
+[--out <dir>] [--force]`, and `cline session replay` accepts an ATIF file in
+place of a bundle.
 
 ### Session replay source and comparison
 
-Replay reads recordings through two pieces in `core/src/session/replay`, and
-nothing in `@cline/agents` knows about either:
+Replay reads recordings through two pieces in `@cline/session`, and nothing in
+`@cline/agents`, `@cline/llms` or `@cline/core` knows about either:
 
 - `SessionReplaySource` (`createSessionReplaySource`, `openSessionReplaySource`)
   answers what the loop would ask a recording: the recorded model response for
@@ -1129,7 +1238,10 @@ nothing in `@cline/agents` knows about either:
   `seq`, and the `metadata.toolEnvironment` facts of a tool call. Served items
   are consumed, so retried requests and reused tool call ids resolve to
   successive records. Requests are described with `describeLiveModelRequest`,
-  which hashes exactly as the recorder does.
+  which hashes exactly as the recorder does. A session without request
+  records (an import from another agent) has no match keys; its source runs
+  in `call-index` mode, serving responses built from the transcript
+  (`sessionReplayModelCallsFromTranscript`) in call order.
 - `compareSessionReplayIteration` / `compareSessionReplaySessions` compare
   iterations structurally (parsed messages, canonical JSON, messages aligned by
   content hash) and report divergences of kind `request-model`,
@@ -1137,6 +1249,10 @@ nothing in `@cline/agents` knows about either:
   `assistant-text`, `tool-calls`, `tool-results`, `decisions` and
   `iteration-count`, each with per-entry content hashes and excerpts. Callers
   choose which kinds count; uncounted divergences are still reported.
+  Request kinds are compared only when both sides have a request record and
+  decisions only when both sides recorded decisions, each with a warning
+  otherwise. Tool results of an ATIF import are compared by text, because
+  ATIF keeps only the text.
 
 Both take a strictness. `strict` sources throw `SessionReplayMismatchError` on
 a request that is neither an exact nor a field-order-equivalent match, and on
@@ -1144,6 +1260,61 @@ misses; `strict` reports set `failed` when a counted kind diverged. `lenient`
 sources serve the fallback record with its divergences and return misses, and
 `lenient` reports never fail. The CLI exposes the comparison as
 `cline session diff <recorded> <live>`.
+
+### Session rerun
+
+A rerun runs a recorded session again with a live model and live tools, and
+uses the recording only as the oracle it is compared against. The pieces live
+in `@cline/session`; the CLI (`cline session replay <bundle> --mode rerun`)
+supplies the core, the approval prompt and the output formats.
+
+- `rebuildSessionReplayWorkspace` rebuilds the workspace the session started
+  in as a fresh clone under the rerun's output directory. A bundle carries
+  checkpoint refs, not files, so the source repository (at the recorded path,
+  or named by `workspace`) must be on this machine. The clone uses
+  `--shared`, or `--local` with `standalone` so it still works where the
+  source's object store is not visible (a container). HEAD is detached at the
+  starting checkpoint's base commit and, for stash checkpoints
+  (`refs/cline/checkpoints/...`), the snapshot's tracked and untracked changes
+  are applied. With `inPlace` the workspace is used as is, with warnings when
+  it is not at the starting checkpoint. Every missing piece (redacted,
+  absent or unrecorded workspace path, no checkpoint, not a git repository,
+  checkpoint not in the source) raises `SessionReplayEnvironmentError` saying what to pass
+  instead; the only fallback is an explicit `workspace` for a bundle without
+  a checkpoint, which is copied as it is now, with a warning.
+- `createSessionReplayPathMap` maps the recorded workspace root to the live
+  one in what a rerun sends (prompts, system prompt), and
+  `mapSessionReplaySessionData` maps live session data back (including blob
+  content hashes) before comparison, so a rerun in a different directory
+  compares clean.
+- `compareSessionReplayEnv` compares the recording header's allow-listed
+  environment with the live one and reports differences as warnings.
+- `collectSessionReplayRerunTurns` lists the user turns to send, each paired
+  with the recorded `prompt_delivered` decision (source and mode). Steered
+  prompts and compaction summaries are not turns and are reported as
+  warnings. When the bundle records no session mode (no recording segment),
+  the CLI starts the rerun in the first turn's mode and lists that as a gap.
+- `createSessionReplayRerun` drives the turns on a recording-enabled core,
+  answers approvals with the next recorded `approval_resolved` decision (in
+  `seq` order) for the same tool call id, else the same tool name, or asks a
+  caller-supplied `decideApproval`, compares each finished iteration with
+  `compareSessionReplayIteration`, and produces a
+  `SessionReplayRerunReport` (`rerun-report.json`,
+  `writeSessionReplayRerunReport`). `untilDivergence` stops at the first
+  counted divergence (checked early on each tool call start); the report
+  attributes the stop to the earliest counted divergence across iterations
+  even when a later tool call was seen first.
+- `resolveSessionReplayRerunKinds` picks the counted kinds:
+  `SESSION_REPLAY_RERUN_DIVERGENCE_KINDS` (everything but `assistant-text`),
+  minus `request-model` and `request-system-prompt` for a model override
+  (`relaxed`), minus every request kind for `lenient`, then `ignore` and
+  `count` (`count` wins).
+
+The CLI's container runner (`--in-container`) rebuilds the workspace
+standalone on the host, mounts it at the recorded workspace path, applies the
+recorded allow-listed environment (except `PATH` and redacted values) with a
+tmpfs `HOME`, and runs the inner CLI with `--in-place`; host paths in the inner
+report are rewritten back to host paths.
 
 ### Configured subagent approvals
 

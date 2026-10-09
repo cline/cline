@@ -1,16 +1,19 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { MessageWithMetadata } from "@cline/core";
 import {
 	createSessionReplayRedactor,
 	type ExportSessionReplayBundleResult,
-	type MessageWithMetadata,
+	validateAtifTrajectory,
+	validateSessionReplayBundle,
 	writeSessionReplayBundle,
-} from "@cline/core";
+} from "@cline/session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	runSessionDiff,
 	runSessionExport,
+	runSessionImport,
 	runSessionReplay,
 	runSessionValidate,
 } from "./session";
@@ -133,6 +136,7 @@ async function writeTestBundle(
 }
 
 beforeEach(async () => {
+	mockedExportSessionReplay.mockReset();
 	root = await mkdtemp(join(tmpdir(), "cli-session-replay-"));
 	bundleDir = join(root, "bundle");
 	await writeTestBundle(bundleDir);
@@ -284,9 +288,13 @@ describe("runSessionReplay", () => {
 			});
 			return { code, err: err.join("\n") };
 		};
-		expect(await run({ mode: "rerun" })).toEqual({
+		expect(await run({ mode: "mock" })).toEqual({
 			code: 1,
-			err: 'Unsupported replay mode "rerun". Supported modes: playback.',
+			err: 'Unsupported replay mode "mock". Supported modes: playback, rerun.',
+		});
+		expect(await run({ rerun: { untilDivergence: true } })).toEqual({
+			code: 1,
+			err: "--until-divergence needs --mode rerun.",
 		});
 		expect(await run({ format: "tui" })).toMatchObject({ code: 1 });
 		expect(await run({ from: "0" })).toEqual({
@@ -301,6 +309,90 @@ describe("runSessionReplay", () => {
 		expect(await run({ sessionId: "nope" })).toEqual({
 			code: 1,
 			err: "Session nope is not in this bundle (available: sess_1).",
+		});
+	});
+});
+
+describe("runSessionReplay --mode rerun", () => {
+	const rerun = async (
+		flags: Record<string, unknown> = {},
+		overrides: Record<string, unknown> = {},
+	) => {
+		const { io, err } = createIo();
+		const code = await runSessionReplay({
+			bundleDir,
+			mode: "rerun",
+			format: "json",
+			io,
+			isInteractiveTTY: false,
+			rerun: { out: join(root, "out"), ...flags },
+			...overrides,
+		});
+		return { code, err: err.join("\n") };
+	};
+
+	it("rejects flags that do not apply or conflict, with exit 2", async () => {
+		expect(await rerun({}, { from: "2", step: true })).toEqual({
+			code: 2,
+			err: "--from, --step apply to playback only; a rerun always starts from the first iteration.",
+		});
+		expect(await rerun({ untilDivergence: true, continue: true })).toEqual({
+			code: 2,
+			err: "--until-divergence and --continue cannot be combined.",
+		});
+		expect(
+			await rerun({ image: "node:22", containerArgs: ["--volume=/a:/a"] }),
+		).toEqual({
+			code: 2,
+			err: "--image, --container-arg need --in-container.",
+		});
+		expect(
+			await rerun(
+				{ interactive: true },
+				{ format: "tui", isInteractiveTTY: true },
+			),
+		).toMatchObject({ code: 2, err: expect.stringContaining("--interactive") });
+		expect(await rerun({ ignore: "tools" })).toEqual({
+			code: 2,
+			err: expect.stringContaining(
+				'Unknown divergence kind "tools" in --ignore.',
+			),
+		});
+		expect(await rerun({ ignore: "decisions", count: "decisions" })).toEqual({
+			code: 2,
+			err: "decisions cannot be both ignored (--ignore) and counted (--count).",
+		});
+	});
+
+	it("starts from the root session only", async () => {
+		expect(await rerun({}, { sessionId: "sess_2" })).toEqual({
+			code: 2,
+			err: "Session sess_2 is not in the bundle. Its root session is sess_1.",
+		});
+	});
+
+	it("fails clearly when the recorded workspace is not on this machine", async () => {
+		const result = await rerun();
+		expect(result.code).toBe(2);
+		expect(result.err).toContain(
+			"The recorded workspace /repo is not on this machine.",
+		);
+		expect(result.err).toContain("pass --workspace <path>");
+	});
+
+	it("refuses to write into a non-empty --out", async () => {
+		await mkdir(join(root, "out"));
+		await writeFile(join(root, "out", "keep.txt"), "x");
+		expect(await rerun()).toEqual({
+			code: 2,
+			err: `${join(root, "out")} already exists and is not empty; pass --out <dir> to write the rerun elsewhere.`,
+		});
+	});
+
+	it("needs an image to rerun in a container", async () => {
+		expect(await rerun({ inContainer: true })).toEqual({
+			code: 2,
+			err: "--in-container needs --image <image>: the bundle does not name the image the session ran in (bundles carry no image digest).",
 		});
 	});
 });
@@ -398,6 +490,528 @@ describe("runSessionExport", () => {
 		expect(code).toBe(1);
 		expect(err).toEqual(["Session x not found."]);
 	});
+
+	it("requires --bundle for bundle exports and rejects --out", async () => {
+		const missing = createIo();
+		expect(
+			await runSessionExport({
+				sessionId: "sess_1",
+				redact: true,
+				overwrite: false,
+				outputMode: "text",
+				io: missing.io,
+			}),
+		).toBe(1);
+		expect(missing.err).toEqual(["session export requires --bundle <dir>"]);
+		const withOut = createIo();
+		expect(
+			await runSessionExport({
+				sessionId: "sess_1",
+				bundleDir: "b",
+				out: "t.json",
+				redact: true,
+				overwrite: false,
+				outputMode: "text",
+				io: withOut.io,
+			}),
+		).toBe(1);
+		expect(withOut.err[0]).toMatch(/--out is only used with --format atif/);
+		expect(mockedExportSessionReplay).not.toHaveBeenCalled();
+	});
+});
+
+describe("runSessionExport --format atif", () => {
+	const atif = (
+		overrides: Partial<Parameters<typeof runSessionExport>[0]> &
+			Pick<Parameters<typeof runSessionExport>[0], "io">,
+	) =>
+		runSessionExport({
+			sessionId: bundleDir,
+			format: "atif",
+			redact: true,
+			overwrite: false,
+			outputMode: "text",
+			...overrides,
+		});
+
+	it("writes a bundle's trajectory to stdout", async () => {
+		const { io, out, err } = createIo();
+		const stdout = captureStdout();
+		let code: number;
+		try {
+			code = await atif({ io });
+		} finally {
+			stdout.restore();
+		}
+		expect(code).toBe(0);
+		expect(err).toEqual([]);
+		expect(out).toEqual([]);
+		const trajectory = JSON.parse(stdout.lines().join("\n"));
+		expect(validateAtifTrajectory(trajectory)).toEqual({
+			ok: true,
+			errors: [],
+		});
+		expect(trajectory).toMatchObject({
+			schema_version: "ATIF-v1.7",
+			session_id: "sess_1",
+			agent: { name: "cline", version: "0.0.0", model_name: "fake-model" },
+			final_metrics: {
+				total_prompt_tokens: 230,
+				total_completion_tokens: 28,
+				total_cost_usd: 0.001,
+				total_steps: 3,
+			},
+		});
+		expect(
+			trajectory.steps.map((step: { source: string }) => step.source),
+		).toEqual(["user", "agent", "agent"]);
+		expect(mockedExportSessionReplay).not.toHaveBeenCalled();
+	});
+
+	it("writes --out, refuses to replace it without --force and reports JSON", async () => {
+		const target = join(root, "out", "trajectory.json");
+		const first = createIo();
+		expect(await atif({ io: first.io, out: target })).toBe(0);
+		expect(first.out).toEqual([
+			`Exported session sess_1 as ATIF-v1.7 to ${target}`,
+			"  3 steps · 0 subagent trajectories · 230 prompt / 28 completion tokens · $0.0010",
+		]);
+		expect(
+			validateAtifTrajectory(JSON.parse(await readFile(target, "utf8"))).ok,
+		).toBe(true);
+
+		const again = createIo();
+		expect(await atif({ io: again.io, out: target })).toBe(1);
+		expect(again.err).toEqual([
+			`${target} already exists; pass --force to replace it`,
+		]);
+
+		const forced = createIo();
+		const stdout = captureStdout();
+		try {
+			expect(
+				await atif({
+					io: forced.io,
+					out: target,
+					overwrite: true,
+					outputMode: "json",
+				}),
+			).toBe(0);
+		} finally {
+			stdout.restore();
+		}
+		expect(JSON.parse(stdout.lines()[0] ?? "")).toMatchObject({
+			sessionId: "sess_1",
+			format: "atif",
+			schemaVersion: "ATIF-v1.7",
+			out: target,
+			bundleDir,
+			steps: 3,
+			subagentTrajectories: 0,
+			warnings: [],
+		});
+	});
+
+	it("exports a session id through a temporary bundle with its child sessions", async () => {
+		let tempBundle = "";
+		mockedExportSessionReplay.mockImplementation(async (input) => {
+			tempBundle = input.bundleDir;
+			await writeTestBundle(input.bundleDir);
+			return {
+				warnings: ["No hook audit log was found for this session."],
+			} as unknown as ExportSessionReplayBundleResult;
+		});
+		const target = join(root, "trajectory.json");
+		const { io, out, err } = createIo();
+		expect(await atif({ io, sessionId: "sess_1", out: target })).toBe(0);
+		expect(mockedExportSessionReplay).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "sess_1",
+				redact: true,
+				includeChildSessions: true,
+			}),
+		);
+		expect(tempBundle).not.toBe("");
+		await expect(readFile(join(tempBundle, "manifest.json"))).rejects.toThrow();
+		expect(err).toEqual([
+			"warning: No hook audit log was found for this session.",
+		]);
+		expect(out[0]).toBe(`Exported session sess_1 as ATIF-v1.7 to ${target}`);
+	});
+
+	it("keeps the intermediate bundle when --bundle is given", async () => {
+		const kept = join(root, "kept");
+		mockedExportSessionReplay.mockImplementation(async (input) => {
+			await writeTestBundle(input.bundleDir);
+			return { warnings: [] } as unknown as ExportSessionReplayBundleResult;
+		});
+		const target = join(root, "trajectory.json");
+		const { io, out } = createIo();
+		expect(
+			await atif({
+				io,
+				sessionId: "sess_1",
+				bundleDir: kept,
+				redact: false,
+				out: target,
+			}),
+		).toBe(0);
+		expect(mockedExportSessionReplay).toHaveBeenCalledWith(
+			expect.objectContaining({ bundleDir: kept, redact: false }),
+		);
+		expect(out.at(-1)).toBe(`  bundle: ${kept}`);
+		await expect(
+			readFile(join(kept, "manifest.json"), "utf8"),
+		).resolves.toContain("sess_1");
+	});
+
+	it("returns 1 for unusable inputs", async () => {
+		const plainDir = join(root, "plain");
+		await mkdir(plainDir);
+		const noManifest = createIo();
+		expect(await atif({ io: noManifest.io, sessionId: plainDir })).toBe(1);
+		expect(noManifest.err[0]).toMatch(/is a directory without manifest\.json/);
+
+		const bundleAndBundle = createIo();
+		expect(
+			await atif({ io: bundleAndBundle.io, bundleDir: join(root, "x") }),
+		).toBe(1);
+		expect(bundleAndBundle.err[0]).toMatch(
+			/--bundle writes a new bundle and cannot be used/,
+		);
+
+		const empty = createIo();
+		expect(await atif({ io: empty.io, sessionId: "  " })).toBe(1);
+		expect(empty.err).toEqual([
+			"session export requires <session-id> or <bundle>",
+		]);
+
+		mockedExportSessionReplay.mockRejectedValue(
+			new Error("Session y not found."),
+		);
+		const failed = createIo();
+		expect(await atif({ io: failed.io, sessionId: "y" })).toBe(1);
+		expect(failed.err).toEqual(["Session y not found."]);
+	});
+});
+
+const FOREIGN_TRAJECTORY = {
+	schema_version: "ATIF-v1.7",
+	session_id: "foreign-run",
+	agent: {
+		name: "other-agent",
+		version: "2.0.0",
+		model_name: "other-model",
+		tool_definitions: [{ type: "function", function: { name: "bash" } }],
+	},
+	steps: [
+		{
+			step_id: 1,
+			timestamp: "2026-03-01T10:00:00.000Z",
+			source: "user",
+			message: "Count the files",
+		},
+		{
+			step_id: 2,
+			timestamp: "2026-03-01T10:00:02.000Z",
+			source: "agent",
+			message: "Listing them.",
+			tool_calls: [
+				{
+					tool_call_id: "tc_1",
+					function_name: "bash",
+					arguments: { command: "ls | wc -l" },
+				},
+			],
+			observation: { results: [{ source_call_id: "tc_1", content: "2" }] },
+			metrics: { prompt_tokens: 50, completion_tokens: 10 },
+		},
+		{
+			step_id: 3,
+			timestamp: "2026-03-01T10:00:04.000Z",
+			source: "agent",
+			message: "There are 2 files.",
+			metrics: { prompt_tokens: 70, completion_tokens: 6 },
+		},
+	],
+};
+
+async function writeJsonFile(path: string, value: unknown): Promise<string> {
+	await writeFile(path, JSON.stringify(value), "utf8");
+	return path;
+}
+
+describe("runSessionImport", () => {
+	const importFile = (
+		overrides: Partial<Parameters<typeof runSessionImport>[0]> &
+			Pick<Parameters<typeof runSessionImport>[0], "io" | "file">,
+	) =>
+		runSessionImport({
+			overwrite: false,
+			outputMode: "text",
+			...overrides,
+		});
+
+	it("imports a foreign trajectory next to the file and lists what it could not carry", async () => {
+		const file = await writeJsonFile(
+			join(root, "foreign.json"),
+			FOREIGN_TRAJECTORY,
+		);
+		const { io, out, err } = createIo();
+		expect(await importFile({ io, file })).toBe(0);
+		const target = join(root, "foreign.bundle");
+		expect(err).toEqual([
+			"warning: 1 ATIF value(s) could not be carried into the bundle; see the import report.",
+		]);
+		expect(out).toEqual([
+			`Imported ATIF-v1.7 trajectory from other-agent 2.0.0 to ${target}`,
+			"  rebuilt from the steps · 1 session · 4 messages · root foreign-run",
+			"  recording: none (replay serves model responses by call index)",
+			"  not carried:",
+			"    - agent.tool_definitions (1): Tool definitions are part of recorded requests, which an import cannot create.",
+			`  report: ${join(target, "import-report.json")}`,
+		]);
+		expect((await validateSessionReplayBundle(target)).ok).toBe(true);
+		const report = JSON.parse(
+			await readFile(join(target, "import-report.json"), "utf8"),
+		);
+		expect(report).toMatchObject({
+			format: "cline.atif-import-report",
+			restored: "steps",
+			rootSessionId: "foreign-run",
+		});
+	});
+
+	it("restores a Cline export exactly, so session diff finds no divergence", async () => {
+		const file = join(root, "exported.json");
+		const exported = createIo();
+		const stdout = captureStdout();
+		try {
+			expect(
+				await runSessionExport({
+					sessionId: bundleDir,
+					format: "atif",
+					out: file,
+					redact: true,
+					overwrite: false,
+					outputMode: "text",
+					io: exported.io,
+				}),
+			).toBe(0);
+		} finally {
+			stdout.restore();
+		}
+		const target = join(root, "restored");
+		const { io } = createIo();
+		const json = captureStdout();
+		try {
+			expect(
+				await importFile({ io, file, out: target, outputMode: "json" }),
+			).toBe(0);
+		} finally {
+			json.restore();
+		}
+		expect(JSON.parse(json.lines()[0] ?? "")).toMatchObject({
+			file,
+			format: "atif",
+			bundleDir: target,
+			schemaVersion: 2,
+			atifSchemaVersion: "ATIF-v1.7",
+			rootSessionId: "sess_1",
+			restored: "extra.cline",
+			unmapped: [],
+			warnings: [],
+		});
+		expect(await readFile(join(target, "manifest.json"), "utf8")).toBe(
+			await readFile(join(bundleDir, "manifest.json"), "utf8"),
+		);
+		const diff = createIo();
+		expect(
+			await runSessionDiff({
+				recordedDir: bundleDir,
+				liveDir: target,
+				outputMode: "text",
+				io: diff.io,
+			}),
+		).toBe(0);
+	});
+
+	it("needs --force to replace a non-empty target", async () => {
+		const file = await writeJsonFile(
+			join(root, "foreign.json"),
+			FOREIGN_TRAJECTORY,
+		);
+		const target = join(root, "foreign.bundle");
+		await mkdir(target);
+		await writeFile(join(target, "notes.txt"), "keep");
+		const refused = createIo();
+		expect(await importFile({ io: refused.io, file })).toBe(1);
+		expect(refused.err).toEqual([
+			`${target} is not empty; pass --force to replace an existing bundle there, or --out <dir> to write elsewhere.`,
+		]);
+
+		const notBundle = createIo();
+		expect(await importFile({ io: notBundle.io, file, overwrite: true })).toBe(
+			1,
+		);
+		expect(notBundle.err[0]).toContain("does not contain a session replay");
+		expect(await readFile(join(target, "notes.txt"), "utf8")).toBe("keep");
+
+		const other = join(root, "other.bundle");
+		expect(await importFile({ io: createIo().io, file, out: other })).toBe(0);
+		expect(
+			await importFile({
+				io: createIo().io,
+				file,
+				out: other,
+				overwrite: true,
+			}),
+		).toBe(0);
+	});
+
+	it("exits 2 for files that are missing, not JSON or not ATIF", async () => {
+		const run = async (file: string) => {
+			const { io, err } = createIo();
+			return { code: await importFile({ io, file }), err };
+		};
+		expect(await run(join(root, "missing.json"))).toEqual({
+			code: 2,
+			err: [`${join(root, "missing.json")} does not exist.`],
+		});
+		expect(await run(bundleDir)).toEqual({
+			code: 2,
+			err: [`${bundleDir} is not a file.`],
+		});
+		const broken = join(root, "broken.json");
+		await writeFile(broken, '{"schema_version": ', "utf8");
+		const notJson = await run(broken);
+		expect(notJson.code).toBe(2);
+		expect(notJson.err[0]).toMatch(/broken\.json is not valid JSON: /);
+		const traces = await writeJsonFile(join(root, "traces.json"), [{}]);
+		expect(await run(traces)).toEqual({
+			code: 2,
+			err: [
+				`${traces} is not a valid ATIF trajectory:`,
+				"  - (root): expected object, got array",
+			],
+		});
+		const noSteps = await writeJsonFile(join(root, "no-steps.json"), {
+			...FOREIGN_TRAJECTORY,
+			steps: undefined,
+		});
+		const invalid = await run(noSteps);
+		expect(invalid.code).toBe(2);
+		expect(invalid.err[0]).toBe(`${noSteps} is not a valid ATIF trajectory:`);
+		expect(invalid.err.length).toBeGreaterThan(1);
+		await expect(readFile(join(root, "no-steps.bundle"))).rejects.toThrow();
+	});
+
+	it("rejects an unknown format", async () => {
+		const { io, err } = createIo();
+		expect(
+			await importFile({ io, file: join(root, "x.json"), format: "csv" }),
+		).toBe(1);
+		expect(err).toEqual([
+			'Unsupported import format "csv". Supported formats: atif.',
+		]);
+	});
+});
+
+describe("runSessionReplay with an ATIF file", () => {
+	it("plays the trajectory through a temporary bundle", async () => {
+		const file = await writeJsonFile(
+			join(root, "foreign.json"),
+			FOREIGN_TRAJECTORY,
+		);
+		const { io, err } = createIo();
+		const stdout = captureStdout();
+		try {
+			expect(
+				await runSessionReplay({
+					bundleDir: file,
+					format: "json",
+					io,
+					isInteractiveTTY: false,
+				}),
+			).toBe(0);
+		} finally {
+			stdout.restore();
+		}
+		expect(err).toEqual([
+			"warning: 1 ATIF value(s) could not be carried into the bundle; see the import report.",
+		]);
+		const records = stdout.lines().map((line) => JSON.parse(line));
+		expect(records).toHaveLength(2);
+		expect(records[0]).toMatchObject({
+			sessionId: "foreign-run",
+			prompt: { text: "Count the files" },
+			assistant: { text: "Listing them." },
+			toolCalls: [{ id: "tc_1", name: "bash", result: { text: "2" } }],
+			usage: { inputTokens: 50, outputTokens: 10 },
+		});
+		expect(records[1]).toMatchObject({
+			assistant: { text: "There are 2 files." },
+		});
+	});
+
+	it("exits 2 for an invalid file in playback and rerun", async () => {
+		const traces = await writeJsonFile(join(root, "traces.json"), [{}]);
+		for (const mode of ["playback", "rerun"]) {
+			const { io, err } = createIo();
+			expect(
+				await runSessionReplay({
+					bundleDir: traces,
+					mode,
+					format: "text",
+					io,
+					isInteractiveTTY: false,
+					...(mode === "rerun" ? { rerun: { out: join(root, "out") } } : {}),
+				}),
+			).toBe(2);
+			expect(err[0]).toBe(`${traces} is not a valid ATIF trajectory:`);
+		}
+		await expect(readFile(join(root, "out", "recorded"))).rejects.toThrow();
+	});
+
+	it("imports into <out>/recorded for a rerun, which asks for --workspace", async () => {
+		const file = await writeJsonFile(
+			join(root, "foreign.json"),
+			FOREIGN_TRAJECTORY,
+		);
+		const out = join(root, "out");
+		const { io, err } = createIo();
+		expect(
+			await runSessionReplay({
+				bundleDir: file,
+				mode: "rerun",
+				format: "text",
+				io,
+				isInteractiveTTY: false,
+				rerun: { out },
+			}),
+		).toBe(2);
+		expect(err.at(-1)).toContain(
+			"The bundle does not record the workspace the session ran in",
+		);
+		expect((await validateSessionReplayBundle(join(out, "recorded"))).ok).toBe(
+			true,
+		);
+
+		const again = createIo();
+		expect(
+			await runSessionReplay({
+				bundleDir: file,
+				mode: "rerun",
+				format: "text",
+				io: again.io,
+				isInteractiveTTY: false,
+				rerun: { out },
+			}),
+		).toBe(2);
+		expect(again.err).toEqual([
+			`${out} already exists and is not empty; pass --out <dir> to write the rerun elsewhere.`,
+		]);
+	});
 });
 
 describe("runSessionDiff", () => {
@@ -424,6 +1038,7 @@ describe("runSessionDiff", () => {
 		expect(out.at(-1)).toBe("Result: no divergence across 2 iterations");
 		expect(err).toEqual([
 			"warning: request comparison skipped for 2 of 2 iterations: no recorded request on one side (record sessions with --record-session)",
+			"warning: decision comparison skipped for 2 of 2 iterations: no recorded decisions on one side (record sessions with --record-session)",
 		]);
 	});
 

@@ -111,6 +111,41 @@ describe("createSpawnAgentTool", () => {
 		);
 	});
 
+	it("reports the parent tool call id to the lifecycle callbacks", async () => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		runMock.mockResolvedValue({
+			text: "done",
+			iterations: 1,
+			finishReason: "completed",
+			usage: { inputTokens: 1, outputTokens: 1 },
+		});
+		const onSubAgentStart = vi.fn();
+		const onSubAgentEnd = vi.fn();
+		const tool = createSpawnAgentTool({
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "mock-model",
+			}),
+			onSubAgentStart,
+			onSubAgentEnd,
+		});
+
+		await tool.execute(
+			{ systemPrompt: "You are focused", task: "Do delegated work" },
+			{ agentId: "parent-1", iteration: 1, toolCallId: "call_7" },
+		);
+
+		expect(onSubAgentStart).toHaveBeenCalledWith(
+			expect.objectContaining({
+				subAgentId: "sub-agent-1",
+				toolCallId: "call_7",
+			}),
+		);
+		expect(onSubAgentEnd).toHaveBeenCalledWith(
+			expect.objectContaining({ toolCallId: "call_7" }),
+		);
+	});
+
 	it("passes extension hooks through delegated config", async () => {
 		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
 		runMock.mockResolvedValue({

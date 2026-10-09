@@ -498,8 +498,11 @@ export function createAgentTeamsTools(
 			description:
 				"Route a delegated task to a teammate. Choose sync (wait) or async (run in background).",
 			inputSchema: zodToJsonSchema(TeamRunTaskInputSchema),
-			execute: async (input) => {
+			execute: async (input, context) => {
 				const validatedInput = validateWithZod(TeamRunTaskInputSchema, input);
+				const linkedToolCall = context?.toolCallId
+					? { toolCallId: context.toolCallId }
+					: {};
 				if (validatedInput.runMode === "async") {
 					const run = options.runtime.startTeammateRun(
 						validatedInput.agentId,
@@ -509,6 +512,7 @@ export function createAgentTeamsTools(
 							fromAgentId: options.requesterId,
 							continueConversation:
 								validatedInput.continueConversation || undefined,
+							...linkedToolCall,
 						},
 					);
 					return validateWithZod(TeamRunTaskToolResultSchema, {
@@ -539,6 +543,7 @@ export function createAgentTeamsTools(
 						fromAgentId: options.requesterId,
 						continueConversation:
 							validatedInput.continueConversation || undefined,
+						...linkedToolCall,
 					})
 					.then((result) =>
 						validateWithZod(TeamRunTaskToolResultSchema, {

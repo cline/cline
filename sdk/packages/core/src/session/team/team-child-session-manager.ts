@@ -277,10 +277,18 @@ export class TeamChildSessionManager {
 		rootSessionId: string,
 		agentId: string,
 		message: string,
+		toolCallId?: string,
 	): Promise<void> {
 		const root = await this.adapter.getSession(rootSessionId);
 		if (!root) return;
 		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
+		if (toolCallId) {
+			this.manifestStore.recordChildSessionLink(rootSessionId, {
+				toolCallId,
+				sessionId,
+				kind: "teammate",
+			});
+		}
 		const startedAt = nowIso();
 		const { messagesPath } = this.manifestStore.artifacts.subagentArtifactPaths(
 			sessionId,
@@ -369,6 +377,13 @@ export class TeamChildSessionManager {
 		rootSessionId: string,
 		context: SubAgentStartContext,
 	): Promise<void> {
+		if (context.toolCallId) {
+			this.manifestStore.recordChildSessionLink(rootSessionId, {
+				toolCallId: context.toolCallId,
+				sessionId: makeSubSessionId(rootSessionId, context.subAgentId),
+				kind: "subagent",
+			});
+		}
 		const subSessionId = await this.upsertSubagentSession({
 			agentId: context.subAgentId,
 			parentAgentId: context.parentAgentId,

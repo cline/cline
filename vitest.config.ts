@@ -6,6 +6,7 @@ export default defineConfig({
 			"sdk/packages/agents/vitest.config.ts",
 			"sdk/packages/core/vitest.config.ts",
 			"sdk/packages/llms/vitest.config.ts",
+			"sdk/packages/session/vitest.config.ts",
 			"sdk/packages/shared/vitest.config.ts",
 			"sdk/packages/ui/vitest.config.ts",
 			"apps/cli/vitest.config.ts",

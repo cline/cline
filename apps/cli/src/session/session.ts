@@ -1,7 +1,6 @@
 import type {
 	AgentConfig,
 	BasicLogger,
-	ExportSessionReplayBundleResult,
 	RuntimeCapabilities,
 	RuntimeHostMode,
 	SessionHistoryRecord,
@@ -9,10 +8,13 @@ import type {
 } from "@cline/core";
 import {
 	ClineCore,
-	exportSessionReplayBundle,
 	listSessionHistoryFromBackend,
 	resolveSessionBackend,
 } from "@cline/core";
+import {
+	type ExportSessionReplayBundleResult,
+	exportSessionReplayBundle,
+} from "@cline/session";
 import {
 	createCliMessagesArtifactUploader,
 	prepareCliEnterpriseIntegration,
@@ -197,12 +199,41 @@ export async function handleSessionHookEvent(
 	);
 }
 
+/** Upper bound on sessions scanned when looking up a root's children. */
+const CHILD_SESSION_SCAN_LIMIT = 10_000;
+
+/** Ids of every session below `rootSessionId`, following `parentSessionId`. */
+export function descendantSessionIds(
+	rootSessionId: string,
+	rows: ReadonlyArray<{ sessionId: string; parentSessionId?: string | null }>,
+): string[] {
+	const tree = new Set([rootSessionId]);
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const row of rows) {
+			if (
+				row.parentSessionId &&
+				tree.has(row.parentSessionId) &&
+				!tree.has(row.sessionId)
+			) {
+				tree.add(row.sessionId);
+				grew = true;
+			}
+		}
+	}
+	tree.delete(rootSessionId);
+	return [...tree];
+}
+
 export async function exportSessionReplay(input: {
 	sessionId: string;
 	bundleDir: string;
 	redact: boolean;
 	overwrite: boolean;
 	hostVersion?: string;
+	/** Add the root's subagent and teammate sessions to the bundle. */
+	includeChildSessions?: boolean;
 }): Promise<ExportSessionReplayBundleResult> {
 	return await withCliCore(
 		async (core) =>
@@ -213,9 +244,24 @@ export async function exportSessionReplay(input: {
 					getSession: core.get,
 					readMessages: core.readMessages,
 					readSessionCompactionState: core.readSessionCompactionState,
+					listChildSessions: async (rootSessionId) => {
+						const rows = await core.list(CHILD_SESSION_SCAN_LIMIT, {
+							includeSubagents: true,
+							hydrate: false,
+						});
+						const children = await Promise.all(
+							descendantSessionIds(rootSessionId, rows).map((sessionId) =>
+								core.get(sessionId),
+							),
+						);
+						return children.filter(
+							(child): child is SessionRecord => child !== undefined,
+						);
+					},
 				},
 				redact: input.redact,
 				overwrite: input.overwrite,
+				includeChildSessions: input.includeChildSessions === true,
 				producer: { host: "cline-cli", hostVersion: input.hostVersion },
 			}),
 		{ forceLocalBackend: true },

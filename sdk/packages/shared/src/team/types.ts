@@ -104,6 +104,8 @@ export interface TeamRunRecord {
 	maxRetries: number;
 	nextAttemptAt?: Date;
 	continueConversation?: boolean;
+	/** Tool call (`team_run_task`) that queued this run, when known. */
+	toolCallId?: string;
 	startedAt: Date;
 	endedAt?: Date;
 	leaseOwner?: string;
@@ -209,6 +211,8 @@ export interface RouteToTeammateOptions {
 	taskId?: string;
 	fromAgentId?: string;
 	continueConversation?: boolean;
+	/** Tool call that delegated the task; links the teammate session to it. */
+	toolCallId?: string;
 }
 
 export enum TeamMessageType {

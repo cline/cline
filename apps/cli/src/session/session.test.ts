@@ -359,3 +359,18 @@ describe("createCliCore", () => {
 		]);
 	});
 });
+
+describe("descendantSessionIds", () => {
+	it("collects children and grandchildren in any row order", async () => {
+		const { descendantSessionIds } = await import("./session");
+		const ids = descendantSessionIds("root", [
+			{ sessionId: "grandchild", parentSessionId: "child_a" },
+			{ sessionId: "child_a", parentSessionId: "root" },
+			{ sessionId: "child_b", parentSessionId: "root" },
+			{ sessionId: "other", parentSessionId: "elsewhere" },
+			{ sessionId: "top", parentSessionId: null },
+			{ sessionId: "root" },
+		]);
+		expect(ids.sort()).toEqual(["child_a", "child_b", "grandchild"]);
+	});
+});

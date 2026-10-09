@@ -1,9 +1,6 @@
 import "opentui-spinner/react";
-import {
-	isUserRunMessage,
-	type MessageWithMetadata,
-	type SessionReplayIteration,
-} from "@cline/core";
+import { isUserRunMessage, type MessageWithMetadata } from "@cline/core";
+import type { SessionReplayIteration } from "@cline/session";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -233,7 +230,7 @@ export function ReplayView(props: {
 					{`Session replay · ${entry.sessionId}${entry.title ? ` · ${entry.title}` : ""}`}
 				</text>
 				<text fg="gray">
-					{`${entry.model} (${entry.provider}) · ${entry.status}${entry.exitCode !== null ? ` (exit ${entry.exitCode})` : ""} · started ${entry.startedAt}`}
+					{`${entry.model || "unknown model"}${entry.provider ? ` (${entry.provider})` : ""} · ${entry.status}${entry.exitCode !== null ? ` (exit ${entry.exitCode})` : ""} · started ${entry.startedAt}`}
 				</text>
 			</box>
 			<scrollbox ref={scrollboxRef} flexGrow={1}>

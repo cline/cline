@@ -1,4 +1,4 @@
-import type { SessionReplayIteration } from "@cline/core";
+import type { SessionReplayIteration } from "@cline/session";
 import { describe, expect, it } from "vitest";
 import {
 	formatReplayDecisions,

@@ -51,6 +51,8 @@ export interface SubAgentStartContext {
 	conversationId: string;
 	parentAgentId: string;
 	input: SpawnAgentInput;
+	/** Parent tool call that started the subagent. */
+	toolCallId?: string;
 }
 
 export interface SubAgentEndContext {
@@ -58,6 +60,7 @@ export interface SubAgentEndContext {
 	conversationId: string;
 	parentAgentId: string;
 	input: SpawnAgentInput;
+	toolCallId?: string;
 	result?: SpawnAgentOutput;
 	agentResult?: AgentResult;
 	error?: Error;
@@ -143,6 +146,9 @@ export function createSpawnAgentTool(
 			const subAgentId = subAgent.getAgentId();
 			const conversationId = subAgent.getConversationId();
 			const parentAgentId = context.agentId;
+			const linkedToolCall = context.toolCallId
+				? { toolCallId: context.toolCallId }
+				: {};
 			if (config.onSubAgentStart) {
 				try {
 					await config.onSubAgentStart({
@@ -150,6 +156,7 @@ export function createSpawnAgentTool(
 						conversationId,
 						parentAgentId,
 						input,
+						...linkedToolCall,
 					});
 				} catch {
 					// Best-effort observer callback.
@@ -173,6 +180,7 @@ export function createSpawnAgentTool(
 							conversationId,
 							parentAgentId,
 							input,
+							...linkedToolCall,
 							result: output,
 							agentResult: result,
 						});
@@ -189,6 +197,7 @@ export function createSpawnAgentTool(
 							conversationId,
 							parentAgentId,
 							input,
+							...linkedToolCall,
 							error: error instanceof Error ? error : new Error(String(error)),
 						});
 					} catch {

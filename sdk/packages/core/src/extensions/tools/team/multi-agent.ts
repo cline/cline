@@ -131,7 +131,13 @@ export interface TaskResult {
 type TeamTaskEndStatus = "completed" | "failed" | "cancelled";
 
 export type TeamEvent =
-	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
+	| {
+			type: TeamMessageType.TaskStart;
+			agentId: string;
+			message: string;
+			/** Tool call that delegated the task, when it came from one. */
+			toolCallId?: string;
+	  }
 	| {
 			type: TeamMessageType.TaskEnd;
 			agentId: string;
@@ -1110,7 +1116,12 @@ export class AgentTeamsRuntime {
 		member.abortReason = undefined;
 		member.runningCount++;
 		member.status = "running";
-		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
+		this.emitEvent({
+			type: TeamMessageType.TaskStart,
+			agentId,
+			message,
+			...(options?.toolCallId ? { toolCallId: options.toolCallId } : {}),
+		});
 
 		try {
 			const unreadMail = this.listMailbox(agentId, {
@@ -1197,6 +1208,7 @@ export class AgentTeamsRuntime {
 			retryCount: 0,
 			maxRetries: Math.max(0, options?.maxRetries ?? 0),
 			continueConversation: options?.continueConversation,
+			...(options?.toolCallId ? { toolCallId: options.toolCallId } : {}),
 			startedAt: new Date(0),
 			leaseOwner: options?.leaseOwner,
 			heartbeatAt: undefined,
@@ -1316,6 +1328,7 @@ export class AgentTeamsRuntime {
 			const result = await this.routeToTeammate(run.agentId, runMessage, {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
+				...(run.toolCallId ? { toolCallId: run.toolCallId } : {}),
 			});
 			if (this.runs.get(run.id)?.status !== "running") {
 				return;

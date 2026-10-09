@@ -3,11 +3,16 @@ import type { CliOutputMode } from "../utils/types";
 import {
 	runSessionDiff,
 	runSessionExport,
+	runSessionImport,
 	runSessionReplay,
 	runSessionValidate,
 	SESSION_DIFF_FORMATS,
+	SESSION_EXPORT_FORMATS,
+	SESSION_IMPORT_FORMATS,
 	SESSION_REPLAY_FORMATS,
 	SESSION_REPLAY_MODES,
+	type SessionExportFormat,
+	type SessionRerunFlags,
 } from "./session";
 
 type SessionCommandIo = {
@@ -31,7 +36,7 @@ export function registerSessionCommand({
 }: RegisterSessionCommandOptions): void {
 	const sessionCmd = program
 		.command("session")
-		.description("Export, replay and compare recorded sessions")
+		.description("Export, import, replay and compare recorded sessions")
 		.option("--json", "Output as JSON")
 		.action(() => {
 			sessionCmd.outputHelp();
@@ -44,25 +49,46 @@ export function registerSessionCommand({
 			: "text";
 
 	const exportCmd = sessionCmd
-		.command("export <sessionId>")
-		.description("Export a session as a replay bundle directory")
-		.requiredOption("--bundle <dir>", "Directory to write the bundle to")
+		.command("export <session>")
+		.description(
+			"Export a session as a replay bundle directory, or a session or bundle as an ATIF trajectory (--format atif)",
+		)
+		.addOption(
+			new Option("--format <format>", "What to export")
+				.choices(SESSION_EXPORT_FORMATS)
+				.default("bundle"),
+		)
+		.option(
+			"--bundle <dir>",
+			"Directory to write the bundle to (required for --format bundle; with --format atif, keeps the intermediate bundle)",
+		)
+		.option(
+			"--out <path>",
+			"File to write the ATIF trajectory to (--format atif; default: stdout)",
+		)
 		.option(
 			"--no-redact",
 			"Keep values that match the sanitiser rules (secrets, ids, home paths)",
 		)
-		.option("--force", "Replace an existing bundle in the target directory")
+		.option(
+			"--force",
+			"Replace an existing bundle in the target directory, or an existing --out file",
+		)
 		.option("--json", "Output as JSON")
-		.action(async (sessionId: string) => {
+		.action(async (session: string) => {
 			const opts = exportCmd.opts<{
-				bundle: string;
+				format: SessionExportFormat;
+				bundle?: string;
+				out?: string;
 				redact: boolean;
 				force?: boolean;
 			}>();
 			setExitCode(
 				await runSessionExport({
-					sessionId,
-					bundleDir: opts.bundle,
+					sessionId: session,
+					format: opts.format,
+					...(opts.bundle !== undefined ? { bundleDir: opts.bundle } : {}),
+					...(opts.out !== undefined ? { out: opts.out } : {}),
 					redact: opts.redact !== false,
 					overwrite: opts.force === true,
 					outputMode: outputMode(exportCmd),
@@ -71,11 +97,50 @@ export function registerSessionCommand({
 			);
 		});
 
+	const importCmd = sessionCmd
+		.command("import <file>")
+		.description(
+			"Import an ATIF trajectory as a session replay bundle (exit 2: not a valid trajectory)",
+		)
+		.addOption(
+			new Option("--format <format>", "Format of the file")
+				.choices([...SESSION_IMPORT_FORMATS])
+				.default("atif"),
+		)
+		.option(
+			"--out <dir>",
+			"Directory to write the bundle to (default: <file>.bundle next to the file)",
+		)
+		.option("--force", "Replace an existing bundle in the target directory")
+		.option("--json", "Output as JSON")
+		.action(async (file: string) => {
+			const opts = importCmd.opts<{
+				format: string;
+				out?: string;
+				force?: boolean;
+			}>();
+			setExitCode(
+				await runSessionImport({
+					file,
+					format: opts.format,
+					...(opts.out !== undefined ? { out: opts.out } : {}),
+					overwrite: opts.force === true,
+					outputMode: outputMode(importCmd),
+					io,
+				}),
+			);
+		});
+
 	const replayCmd = sessionCmd
 		.command("replay <bundle>")
-		.description("Play back a session replay bundle")
+		.description(
+			"Play back a session replay bundle or an ATIF trajectory file, or rerun it live with --mode rerun (rerun exit 0: no divergence, 1: diverged, 2: error)",
+		)
 		.addOption(
-			new Option("--mode <mode>", "Replay mode")
+			new Option(
+				"--mode <mode>",
+				"playback shows the recording; rerun runs the session again in a rebuilt workspace and reports where it diverged",
+			)
 				.choices([...SESSION_REPLAY_MODES])
 				.default("playback"),
 		)
@@ -94,18 +159,83 @@ export function registerSessionCommand({
 		.option("--step", "Advance one iteration at a time")
 		.option(
 			"--session <id>",
-			"Session in the bundle to play (default: the bundle root)",
+			"Session in the bundle to play (default: the bundle root; a rerun always starts from the root)",
+		)
+		.option(
+			"--workspace <path>",
+			"Rerun: repository to restore the starting checkpoint from (default: the recorded workspace path)",
+		)
+		.option(
+			"--in-place",
+			"Rerun: run in the workspace itself instead of a fresh copy (files are changed)",
+		)
+		.option(
+			"--until-divergence",
+			"Rerun: stop at the first divergence that counts",
+		)
+		.option("--continue", "Rerun: run to the end (default)")
+		.option(
+			"--ignore <kinds>",
+			'Rerun: comma-separated divergence kinds that do not count, e.g. "request" (all request kinds)',
+		)
+		.option(
+			"--count <kinds>",
+			'Rerun: comma-separated divergence kinds that count in addition to the defaults, e.g. "assistant-text"',
+		)
+		.option(
+			"--lenient",
+			"Rerun: report request differences without counting them",
+		)
+		.option(
+			"--interactive",
+			"Rerun: ask for tool approvals and questions instead of answering from the recording",
+		)
+		.option(
+			"--model <id>",
+			"Rerun: model to run with (relaxes request matching to messages and tools)",
+		)
+		.option(
+			"--provider <id>",
+			"Rerun: provider to run with (relaxes request matching to messages and tools)",
+		)
+		.option(
+			"--out <dir>",
+			"Rerun: directory for the workspace copy, the rerun bundle and rerun-report.json, and for an ATIF file the imported bundle (default: <bundle>.rerun-<time> next to the bundle)",
+		)
+		.option(
+			"--in-container",
+			"Rerun: run inside a container with the workspace mounted at the recorded path and the recorded env set",
+		)
+		.option(
+			"--image <image>",
+			"Rerun in a container: image to run (required; bundles carry no image digest)",
+		)
+		.option(
+			"--container-runtime <bin>",
+			"Rerun in a container: runtime binary (default: docker)",
+		)
+		.option(
+			"--container-cli <command>",
+			"Rerun in a container: the Cline CLI command in the image (default: cline)",
+		)
+		.option(
+			"--container-arg <arg>",
+			"Rerun in a container: extra argument for `<runtime> run`, repeatable (e.g. --container-arg=--volume=/src:/src:ro)",
+			(value: string, previous: string[] = []) => [...previous, value],
 		)
 		.action(async (bundle: string) => {
-			const opts = replayCmd.opts<{
-				mode?: string;
-				format?: string;
-				from?: string;
-				to?: string;
-				speed?: string;
-				step?: boolean;
-				session?: string;
-			}>();
+			const opts = replayCmd.opts<
+				{
+					mode?: string;
+					format?: string;
+					from?: string;
+					to?: string;
+					speed?: string;
+					step?: boolean;
+					session?: string;
+					containerArg?: string[];
+				} & Omit<SessionRerunFlags, "containerArgs">
+			>();
 			setExitCode(
 				await runSessionReplay({
 					bundleDir: bundle,
@@ -116,6 +246,24 @@ export function registerSessionCommand({
 					speed: opts.speed,
 					step: opts.step === true,
 					sessionId: opts.session,
+					rerun: {
+						workspace: opts.workspace,
+						inPlace: opts.inPlace,
+						untilDivergence: opts.untilDivergence,
+						continue: opts.continue,
+						ignore: opts.ignore,
+						count: opts.count,
+						lenient: opts.lenient,
+						interactive: opts.interactive,
+						model: opts.model,
+						provider: opts.provider,
+						out: opts.out,
+						inContainer: opts.inContainer,
+						image: opts.image,
+						containerRuntime: opts.containerRuntime,
+						containerCli: opts.containerCli,
+						containerArgs: opts.containerArg,
+					},
 					io,
 					isInteractiveTTY: isInteractiveTTY(),
 				}),

@@ -162,6 +162,30 @@ export interface MessageWithMetadata extends Message {
 	};
 	/** Timestamp of when the message was created */
 	ts?: number;
+	/**
+	 * 1-based iteration this message belongs to, counted over the session's
+	 * full persisted transcript (see `groupSessionMessageIterations`). Set on
+	 * the assistant message of each model call and on the tool-result
+	 * messages that answer it; matches `sessions[].iterations[].index` in a
+	 * session replay bundle.
+	 */
+	iteration?: number;
+	/**
+	 * Sessions started by tool calls in this assistant message: a subagent
+	 * (`spawn_agent`, configured subagent tools) or a teammate task
+	 * (`team_run_task`). Lets readers link a tool call to the child
+	 * transcript without parsing sub-session ids.
+	 */
+	childSessions?: MessageChildSessionLink[];
+	/** True on a compaction summary that stands in for earlier history. */
+	compactionSummary?: boolean;
+}
+
+export interface MessageChildSessionLink {
+	/** `tool_use` block id in this message that started the child. */
+	toolCallId: string;
+	sessionId: string;
+	kind: "subagent" | "teammate";
 }
 
 /**

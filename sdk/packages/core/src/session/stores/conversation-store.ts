@@ -16,6 +16,21 @@ export function createConversationId(): string {
 	return `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * Appended messages keep a stable id and creation time; without them every
+ * conversion to agent messages would mint a fresh id and timestamp.
+ */
+function withIdentity(message: MessageWithMetadata): MessageWithMetadata {
+	if (message.id && typeof message.ts === "number") {
+		return message;
+	}
+	return {
+		...message,
+		id: message.id || crypto.randomUUID(),
+		ts: typeof message.ts === "number" ? message.ts : Date.now(),
+	};
+}
+
 export class ConversationStore {
 	private messages: MessageWithMetadata[] = [];
 	private conversationId = createConversationId();
@@ -36,14 +51,14 @@ export class ConversationStore {
 	}
 
 	appendMessage(message: MessageWithMetadata): void {
-		this.messages.push(message);
+		this.messages.push(withIdentity(message));
 	}
 
 	appendMessages(messages: readonly MessageWithMetadata[]): void {
 		if (messages.length === 0) {
 			return;
 		}
-		this.messages.push(...messages);
+		this.messages.push(...messages.map(withIdentity));
 	}
 
 	replaceMessages(messages: readonly MessageWithMetadata[]): void {
