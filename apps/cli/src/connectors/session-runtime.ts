@@ -102,6 +102,14 @@ export async function buildConnectorStartRequest(input: {
 		providerId: provider,
 		rules: input.systemRules,
 	});
+	// Providers without a bundled catalog (e.g. a local Ollama server that has
+	// not been queried yet) expose a "default" placeholder instead of a model.
+	const providerDefaultModel = (await Llms.getProviderCollection(provider))
+		?.provider?.defaultModelId;
+	const usableProviderDefault =
+		providerDefaultModel && providerDefaultModel !== "default"
+			? providerDefaultModel
+			: undefined;
 
 	return {
 		workspaceRoot: resolveWorkspaceRoot(cwd),
@@ -111,6 +119,7 @@ export async function buildConnectorStartRequest(input: {
 			input.options.model?.trim() ||
 			selectedProviderSettings?.model ||
 			input.defaultModel ||
+			usableProviderDefault ||
 			CLINE_DEFAULT_MODEL_ID,
 		mode: input.options.mode,
 		apiKey,
