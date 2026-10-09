@@ -4,6 +4,7 @@ export * from "../services/cloud-handoff";
 export * from "./api";
 export * from "./controller";
 export * from "./models";
+export * from "./prompt";
 export * from "./repositories";
 export * from "./snapshots";
 export {
