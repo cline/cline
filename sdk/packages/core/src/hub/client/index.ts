@@ -1418,7 +1418,9 @@ export async function requestHubShutdown(
 export async function stopLocalHubServerGracefully(
 	owner: HubOwnerContext = resolveDefaultHubOwnerContext(),
 ): Promise<boolean> {
-	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const discovery = await readHubDiscovery(owner.discoveryPath, {
+		onError: "throw",
+	});
 	if (!discovery?.url) {
 		return false;
 	}

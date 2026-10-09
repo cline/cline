@@ -90,11 +90,35 @@ function isRuntimeExecutable(value: string | undefined): boolean {
 	);
 }
 
+/**
+ * Whether `execPath` is this process's own `bun build --compile` executable.
+ * Such a binary can still act as the plain `bun` runtime for a child process
+ * when spawned with `BUN_BE_BUN=1`, so packaged hosts (the desktop sidecar, a
+ * compiled CLI) need neither node nor bun installed on the user's machine.
+ */
+export function isCompiledBunExecutable(
+	execPath: string | undefined,
+	host: { isBunRuntime?: boolean; selfExecPath?: string } = {},
+): boolean {
+	const isBunRuntime =
+		host.isBunRuntime ??
+		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
+	const selfExecPath = host.selfExecPath ?? process.execPath;
+	return (
+		isBunRuntime &&
+		!!execPath &&
+		execPath === selfExecPath &&
+		!isRuntimeExecutable(execPath)
+	);
+}
+
 export function resolveSubprocessRuntimeExecutable(
 	options: {
 		env?: NodeJS.ProcessEnv;
 		execPath?: string;
 		runtimeExecutable?: string;
+		/** Host facts for tests; defaults to the running process. */
+		host?: { isBunRuntime?: boolean; selfExecPath?: string };
 	} = {},
 ): string {
 	const env = options.env ?? process.env;
@@ -118,6 +142,10 @@ export function resolveSubprocessRuntimeExecutable(
 		if (trimmed && isRuntimeExecutable(trimmed)) {
 			return trimmed;
 		}
+	}
+
+	if (isCompiledBunExecutable(execPath, options.host)) {
+		return execPath;
 	}
 
 	return "node";
@@ -262,16 +290,17 @@ export class SubprocessSandbox {
 			name: this.options.name,
 			runtimeExecutable: this.options.runtimeExecutable,
 		});
-		const child = spawn(
-			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
-			command.slice(1),
-			{
-				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
-				// Prevent a console window from flashing on Windows.
-				windowsHide: true,
-			},
-		);
+		const executable =
+			command[0] ?? resolveSubprocessRuntimeExecutable(this.options);
+		const env = withResolvedClineBuildEnv(process.env);
+		const child = spawn(executable, command.slice(1), {
+			stdio: ["ignore", "ignore", "pipe", "ipc"],
+			env: isCompiledBunExecutable(executable)
+				? { ...env, BUN_BE_BUN: "1" }
+				: env,
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
+		});
 		this.process = child;
 		let stderrBuffer = "";
 		const appendStderr = (chunk: string) => {

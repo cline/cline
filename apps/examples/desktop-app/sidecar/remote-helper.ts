@@ -1,123 +1,144 @@
-import {
-	closeSync,
-	existsSync,
-	openSync,
-	readdirSync,
-	readSync,
-} from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { execFile } from "node:child_process";
+import { closeSync, existsSync, openSync, readSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import {
 	type RemoteHelperTarget,
 	remoteHelperBinaryFilename,
 } from "@cline/core";
+import { resolveDesktopCliPath } from "./cli-runtime";
+import { desktopRuntimeInstallers } from "./runtime-installer";
 
-// Tauri's Linux bundles (deb, rpm, AppImage) install binaries under `usr/bin`
-// and resources under `usr/lib/<productName>`. The product name differs per
-// release channel ("Cline", "Cline Beta"), so scan the sibling lib directory.
-function linuxResourceCandidates(
-	executableDirectory: string,
-	relativePath: string,
-): string[] {
-	const libDirectory = join(executableDirectory, "..", "lib");
-	try {
-		return readdirSync(libDirectory, { withFileTypes: true })
-			.filter((entry) => entry.isDirectory())
-			.map((entry) => join(libDirectory, entry.name, relativePath));
-	} catch {
-		return [];
-	}
-}
-
-const MACHO_FAT_MAGIC = 0xcafebabe;
-const MACHO_64_MAGIC = 0xfeedfacf;
-const MACHO_CPU_TYPE: Record<RemoteHelperTarget["arch"], number> = {
-	arm64: 0x0100000c,
-	x64: 0x01000007,
-};
-
-// Published desktop builds are universal, but `package:desktop:mac` and local
-// `tauri build` produce a thin host-arch sidecar that cannot run on a Mac of
-// the other architecture. A fat binary starts with a big-endian magic; a thin
-// 64-bit Mach-O starts with its little-endian magic followed by the cputype.
-function machoRunsOn(path: string, arch: RemoteHelperTarget["arch"]): boolean {
-	const header = Buffer.alloc(8);
+const execFileAsync = promisify(execFile);
+function isUniversalMacCli(path: string): boolean {
 	try {
 		const fd = openSync(path, "r");
 		try {
-			readSync(fd, header, 0, 8, 0);
+			const header = Buffer.alloc(4);
+			readSync(fd, header, 0, 4, 0);
+			return header.readUInt32BE(0) === 0xcafebabe;
 		} finally {
 			closeSync(fd);
 		}
 	} catch {
 		return false;
 	}
-	if (header.readUInt32BE(0) === MACHO_FAT_MAGIC) return true;
-	return (
-		header.readUInt32LE(0) === MACHO_64_MAGIC &&
-		header.readUInt32LE(4) === MACHO_CPU_TYPE[arch]
-	);
 }
 
-// macOS bundles carry no dedicated darwin helper: Tauri signs only externalBin
-// and the main binary, so a Mach-O under Contents/Resources would ship
-// unsigned and fail notarization. The sidecar already runs the shared helper
-// entrypoint (see index.ts) and is the signed, notarized, universal Mach-O in
-// the bundle, so it serves both x64 and arm64 Mac remotes from a Mac. Under
-// `tauri dev` the sidecar runs as a script, so use the compiled sidecar that
-// beforeDevCommand builds for the matching architecture instead.
-function macSidecarCandidates(
-	target: RemoteHelperTarget,
-	execPath: string,
-	cwd: string,
-): string[] {
-	const compiledSidecar = `code-sidecar-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
-	return [
-		...(basename(execPath).startsWith("code-sidecar") &&
-		machoRunsOn(execPath, target.arch)
-			? [execPath]
-			: []),
-		join(cwd, "src-tauri", "bin", compiledSidecar),
-		join(
-			cwd,
-			"apps",
-			"examples",
-			"desktop-app",
-			"src-tauri",
-			"bin",
-			compiledSidecar,
-		),
-	];
-}
-
-export function resolveDesktopRemoteHelper(
+/** Install an SSH runtime from the same release as the desktop backend. */
+export async function resolveDesktopRemoteHelper(
 	target: RemoteHelperTarget,
 	options: {
-		execPath?: string;
-		cwd?: string;
 		env?: NodeJS.ProcessEnv;
 		platform?: NodeJS.Platform;
+		arch?: string;
+		probeRuntime?: (path: string) => Promise<{ cpuBaseline?: boolean }>;
+		runInstaller?: (
+			script: string,
+			release: string,
+			target: string,
+			directory: string,
+		) => Promise<void>;
 	} = {},
-): string | undefined {
+): Promise<string | undefined> {
 	const env = options.env ?? process.env;
 	if (env.CLINE_REMOTE_HELPER_BINARY) return env.CLINE_REMOTE_HELPER_BINARY;
-	const filename = remoteHelperBinaryFilename(target);
-	const execPath = options.execPath ?? process.execPath;
-	const executableDirectory = dirname(execPath);
-	const cwd = options.cwd ?? process.cwd();
+	if (env.CLINE_REMOTE_HELPER_DIRECTORY) {
+		const path = join(
+			env.CLINE_REMOTE_HELPER_DIRECTORY,
+			remoteHelperBinaryFilename(target),
+		);
+		if (existsSync(path)) return path;
+	}
 	const platform = options.platform ?? process.platform;
-	const bundledPath = join("bin", "remote-helpers", filename);
-	return [
-		...(env.CLINE_REMOTE_HELPER_DIRECTORY
-			? [join(env.CLINE_REMOTE_HELPER_DIRECTORY, filename)]
-			: []),
-		...(target.platform === "darwin" && platform === "darwin"
-			? macSidecarCandidates(target, execPath, cwd)
-			: []),
-		join(executableDirectory, "remote-helpers", filename),
-		join(executableDirectory, bundledPath),
-		join(executableDirectory, "..", "Resources", bundledPath),
-		...linuxResourceCandidates(executableDirectory, bundledPath),
-		join(cwd, "src-tauri", bundledPath),
-		join(cwd, "apps", "examples", "desktop-app", "src-tauri", bundledPath),
-	].find(existsSync);
+	const arch = options.arch ?? process.arch;
+	const cli = resolveDesktopCliPath(env);
+	let portableCpu = target.platform !== "linux" || target.arch !== "x64";
+	if (!portableCpu && cli && platform === "linux" && arch === "x64") {
+		try {
+			const info = options.probeRuntime
+				? await options.probeRuntime(cli)
+				: JSON.parse(
+						(
+							await execFileAsync(cli, ["--runtime-info"], {
+								env: {
+									...env,
+									BUN_BE_BUN: undefined,
+									CLINE_NO_AUTO_UPDATE: "1",
+								},
+								timeout: 5000,
+							})
+						).stdout,
+					);
+			portableCpu = info.cpuBaseline === true;
+		} catch {}
+	}
+	const installerDir = env.CLINE_DESKTOP_INSTALLER_DIRECTORY;
+	const runtimeDir = env.CLINE_DESKTOP_RUNTIME_DIRECTORY;
+	if (installerDir && runtimeDir) {
+		const release = (
+			await readFile(join(installerDir, "release.txt"), "utf8")
+		).trim();
+		const triple =
+			target.platform === "darwin"
+				? "universal-apple-darwin"
+				: remoteHelperBinaryFilename(target).slice("cline-".length);
+		// The host CLI is shared with terminal use; never download a duplicate
+		// for an SSH target that this same executable can run on.
+		if (
+			cli &&
+			portableCpu &&
+			platform === target.platform &&
+			(arch === target.arch ||
+				(platform === "darwin" && isUniversalMacCli(cli)))
+		)
+			return cli;
+		const directory = join(runtimeDir, triple);
+		const run =
+			options.runInstaller ??
+			(async (script, release, triple, directory) => {
+				if (platform === "win32")
+					throw new Error(
+						"Standalone SSH downloads are not available on Windows; supply a local runtime directory",
+					);
+				await desktopRuntimeInstallers.run(
+					"/bin/bash",
+					[
+						script,
+						"--release",
+						release,
+						"--target",
+						triple,
+						"--install-dir",
+						directory,
+						"--no-modify-path",
+					],
+					env,
+				);
+			});
+		await run(join(installerDir, "install.sh"), release, triple, directory);
+		const installed = join(directory, "cline");
+		if (!existsSync(installed))
+			throw new Error(`CLI installer did not create ${installed}`);
+		return installed;
+	}
+	// Source development uses the locally compiled host CLI. Other targets
+	// can be supplied explicitly without depending on release infrastructure.
+	if (
+		cli &&
+		portableCpu &&
+		platform === target.platform &&
+		(arch === target.arch || (platform === "darwin" && isUniversalMacCli(cli)))
+	)
+		return cli;
+	if (
+		cli &&
+		platform === "darwin" &&
+		target.platform === "darwin" &&
+		existsSync(join(dirname(cli), "cline-cli-universal-apple-darwin"))
+	) {
+		return join(dirname(cli), "cline-cli-universal-apple-darwin");
+	}
+	return undefined;
 }

@@ -159,15 +159,20 @@ configuration variables are `CLINE_REMOTE_HELPER_BINARY`,
 `CLINE_REMOTE_HELPER_DIRECTORY`, `CLINE_SSH_PATH`, and
 `CLINE_SSH_KNOWN_HOSTS_FILE`.
 
-Clients package a matching self-contained helper using the
-`@cline/core/remote/helper-entry` executable entrypoint, compiled with Bun for the remote OS and
-architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
-filename (`cline-remote-helper-<target-triple>`). Linux and macOS on x64/arm64
-are supported. Helpers must include the same SDK build as the client; missing
-helpers produce an explicit error, without installing a runtime from the network.
-The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
-and the core detached-daemon sentinel. Agent tools and persistence run remotely;
-the host only manages SSH and forwards the authenticated hub connection.
+Remote Hubs are CLI-managed. Clients provide the self-contained Cline CLI
+binary (`apps/cli`, compiled with Bun) for each remote OS and architecture; the
+service stages it on the host and runs `cline hub ensure --json --discovery-path
+<path> ...` to start or reuse a loopback Hub, and `cline hub stop
+--discovery-path <path>` to stop it. Use `remoteHelperBinaryFilename({ platform,
+arch })` for the standard filename (`cline-<target-triple>`). Linux and macOS on
+x64/arm64 are supported. The CLI must be built from the same SDK build as the
+client. Core does not download runtimes; the desktop host installs its exact
+release’s CLI on demand before returning its path from `resolveHelperBinary`.
+Agent tools and persistence run remotely; the host only manages SSH and forwards the authenticated hub connection.
+
+Clients whose own process cannot host the Hub daemon can call
+`setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
+start are launched through the Cline CLI.
 
 ### Provider authentication metadata for host UIs
 

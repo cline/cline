@@ -82,9 +82,20 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
-the desktop start the same detached Hub when no CLI process has started it yet.
-Startup discovery and locking ensure concurrent clients converge on one Hub.
+The native shell probes existing CLIs using `--runtime-info` and reuses the
+native executable when its SDK build matches. Otherwise, the standalone CLI
+is installed/updated at `~/.cline/bin`, shared with terminal use. Incompatible
+external installs stop setup instead of creating a duplicate or rewriting
+package-managed files. Older desktops cannot downgrade a newer shared runtime.
+Release downloads are independently signed and SHA-256 verified. SSH uses the
+host CLI when possible, otherwise one shared cache per remote target under
+`~/.cline/remote-runtimes`. No CLI binaries are included in the app bundle.
+
+The packaged backend runs on that installed Cline CLI and has it start the Hub:
+`cline hub ensure` reuses a compatible healthy Hub or starts one, and the
+Hub daemon is that same CLI binary. Any Hub the backend itself has to start
+later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
+and locking ensure concurrent clients converge on one Hub.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards

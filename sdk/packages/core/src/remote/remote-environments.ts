@@ -4,7 +4,9 @@ import { constants, createReadStream } from "node:fs";
 import {
 	access,
 	chmod,
+	copyFile,
 	mkdir,
+	mkdtemp,
 	open,
 	readdir,
 	readFile,
@@ -13,8 +15,8 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
 
@@ -124,6 +126,9 @@ export interface RemoteEnvironmentDependencies {
 	): Promise<void>;
 	reservePort(): Promise<number>;
 	hashFile(path: string): Promise<string>;
+	snapshotHelper(
+		path: string,
+	): Promise<{ path: string; dispose(): Promise<void> }>;
 	resolveHelperBinary(target: RemoteHelperTarget): Promise<string | undefined>;
 	fileReadable(path: string): Promise<boolean>;
 	requestHubShutdown(url: string, authToken?: string): Promise<boolean>;
@@ -343,16 +348,10 @@ export class RemoteEnvironmentService {
 				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}-${createHash("sha256").update(profile.id).digest("hex").slice(0, 16)}.json`,
 			);
 			bootstrap = { helper: remoteHelper, discoveryPath };
-			const ensureResult = await this.execRemote(profile, {
-				command: remoteHelper,
-				args: [
-					"--remote-hub-ensure",
-					"--cwd",
-					inspection.home,
-					"--discovery-path",
-					discoveryPath,
-				],
-			});
+			const ensureResult = await this.execRemote(
+				profile,
+				remoteHubEnsureCommand(remoteHelper, inspection.home, discoveryPath),
+			);
 			const hub = parseRemoteHubResult(ensureResult.stdout);
 			const localPort = await this.dependencies.reservePort();
 			const tunnel = this.dependencies.spawnTunnel(
@@ -414,14 +413,10 @@ export class RemoteEnvironmentService {
 			if (bootstrap) {
 				try {
 					// An independent SSH command works even when forwarding never opened.
-					await this.execRemote(profile, {
-						command: bootstrap.helper,
-						args: [
-							"--remote-hub-stop",
-							"--discovery-path",
-							bootstrap.discoveryPath,
-						],
-					});
+					await this.execRemote(
+						profile,
+						remoteHubStopCommand(bootstrap.helper, bootstrap.discoveryPath),
+					);
 				} catch (failure) {
 					cleanupError = failure;
 					await this.persistPendingCleanup({ profile, ...bootstrap });
@@ -537,27 +532,32 @@ export class RemoteEnvironmentService {
 		if (!localHelper || !(await this.dependencies.fileReadable(localHelper))) {
 			throw new Error(
 				`Remote target ${inspection.platform}/${inspection.arch} is unsupported in SSH: ` +
-					"no compatible remote helper binary is available. Build the matching core remote helper and set " +
+					"no compatible Cline CLI binary is available. Build the Cline CLI for that target and set " +
 					"CLINE_REMOTE_HELPER_BINARY; network installers are intentionally not used.",
 			);
 		}
 
-		const hash = await this.dependencies.hashFile(localHelper);
-		const remoteDirectory = joinRemote(
-			inspection.home,
-			REMOTE_HELPER_DIRECTORY,
-		);
-		const remoteHelper = joinRemote(
-			remoteDirectory,
-			`cline-remote-helper-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
-		);
-		await this.installHelper(
-			profile,
-			localHelper,
-			remoteDirectory,
-			remoteHelper,
-		);
-		return remoteHelper;
+		const snapshot = await this.dependencies.snapshotHelper(localHelper);
+		try {
+			const hash = await this.dependencies.hashFile(snapshot.path);
+			const remoteDirectory = joinRemote(
+				inspection.home,
+				REMOTE_HELPER_DIRECTORY,
+			);
+			const remoteHelper = joinRemote(
+				remoteDirectory,
+				`cline-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
+			);
+			await this.installHelper(
+				profile,
+				snapshot.path,
+				remoteDirectory,
+				remoteHelper,
+			);
+			return remoteHelper;
+		} finally {
+			await snapshot.dispose();
+		}
 	}
 
 	private async installHelper(
@@ -866,10 +866,10 @@ export class RemoteEnvironmentService {
 							cleanupProfile,
 							await this.inspectRemote(cleanupProfile),
 						);
-			await this.execRemote(cleanupProfile, {
-				command: helper,
-				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
-			});
+			await this.execRemote(
+				cleanupProfile,
+				remoteHubStopCommand(helper, cleanup.discoveryPath),
+			);
 			await rm(path, { force: true });
 		}
 	}
@@ -949,6 +949,7 @@ function createDefaultDependencies(
 		waitForTunnel,
 		reservePort,
 		hashFile,
+		snapshotHelper,
 		resolveHelperBinary: async (target) => {
 			if (configuredHelper) {
 				return configuredHelper;
@@ -985,6 +986,7 @@ function createDefaultDependencies(
 	};
 }
 
+/** File name of the Cline CLI binary built for `target`, as clients bundle it. */
 export function remoteHelperBinaryFilename(target: RemoteHelperTarget): string {
 	const triple =
 		target.platform === "darwin"
@@ -994,7 +996,70 @@ export function remoteHelperBinaryFilename(target: RemoteHelperTarget): string {
 			: target.arch === "arm64"
 				? "aarch64-unknown-linux-gnu"
 				: "x86_64-unknown-linux-gnu";
-	return `cline-remote-helper-${triple}`;
+	return `cline-${triple}`;
+}
+
+/**
+ * Remote Hubs are CLI-managed: the staged Cline CLI starts (or reuses) a
+ * loopback Hub tracked by a discovery record that this client owns, so the
+ * user's own CLI Hub on that host is never read or stopped. The discovery
+ * path comes last so a stop command can be matched to the ensure it undoes.
+ */
+function remoteHubEnsureCommand(
+	cli: string,
+	cwd: string,
+	discoveryPath: string,
+): RemoteCommandInput {
+	return {
+		command: "env",
+		args: [
+			"CLINE_NO_AUTO_UPDATE=1",
+			cli,
+			"hub",
+			"ensure",
+			"--json",
+			"--allow-port-fallback",
+			"--no-connectors",
+			"--login-shell-path",
+			"--cwd",
+			cwd,
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"0",
+			"--pathname",
+			"/hub",
+			"--discovery-path",
+			discoveryPath,
+		],
+	};
+}
+
+const LEGACY_REMOTE_HELPER_PREFIX = "cline-remote-helper-";
+
+function remoteHubStopCommand(
+	cli: string,
+	discoveryPath: string,
+): RemoteCommandInput {
+	// Cleanup records persisted by earlier releases name the dedicated helper
+	// binary they staged, which only understands its own stop flag.
+	if (basename(cli).startsWith(LEGACY_REMOTE_HELPER_PREFIX)) {
+		return {
+			command: cli,
+			args: ["--remote-hub-stop", "--discovery-path", discoveryPath],
+		};
+	}
+	return {
+		command: "env",
+		args: [
+			"CLINE_NO_AUTO_UPDATE=1",
+			cli,
+			"hub",
+			"stop",
+			"--discovery-path",
+			discoveryPath,
+		],
+	};
 }
 
 export async function runRemoteProcess(
@@ -1171,6 +1236,23 @@ async function canConnect(port: number): Promise<boolean> {
 		socket.once("error", () => finish(false));
 		socket.once("timeout", () => finish(false));
 	});
+}
+
+export async function snapshotHelper(
+	path: string,
+): Promise<{ path: string; dispose(): Promise<void> }> {
+	const directory = await mkdtemp(join(tmpdir(), "cline-ssh-runtime-"));
+	const snapshot = join(directory, "cline");
+	try {
+		await copyFile(path, snapshot);
+	} catch (error) {
+		await rm(directory, { recursive: true, force: true });
+		throw error;
+	}
+	return {
+		path: snapshot,
+		dispose: () => rm(directory, { recursive: true, force: true }),
+	};
 }
 
 async function hashFile(path: string): Promise<string> {

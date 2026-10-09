@@ -660,7 +660,19 @@ export async function importPluginModule(
 	// instance so the loader sees raw exports.
 	const baseBabelTransform = loadJitiBabelTransform();
 	const babelTransform: JitiTransform | undefined = baseBabelTransform
-		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
+		? (opts) => {
+				// Babel installs a process-wide stack formatter during transformation.
+				// Keep it scoped to the compiler: Bun's formatter rejects the plain
+				// objects passed by Error subclasses in packages such as axios.
+				const prepareStackTrace = Error.prepareStackTrace;
+				const stackTraceLimit = Error.stackTraceLimit;
+				try {
+					return baseBabelTransform({ ...opts, interopDefault: true });
+				} finally {
+					Error.prepareStackTrace = prepareStackTrace;
+					Error.stackTraceLimit = stackTraceLimit;
+				}
+			}
 		: undefined;
 	const jiti = createJiti(pluginPath, {
 		alias: sortedAliases,
@@ -668,7 +680,15 @@ export async function importPluginModule(
 		requireCache: options.useCache,
 		esmResolve: true,
 		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
+		// Already compiled CommonJS host packages need no Babel transformation.
+		// Loading a bundled SDK through jiti would otherwise reparse the whole
+		// bundle on a cold cache, exhausting the plugin import timeout.
+		nativeModules: [
+			...BUILTIN_MODULES,
+			...Object.entries(sortedAliases)
+				.filter(([, target]) => extname(target) === ".cjs")
+				.map(([specifier]) => getPackageName(specifier)),
+		],
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns

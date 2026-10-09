@@ -31,6 +31,7 @@ import {
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
+import { desktopRuntimeInstallers } from "./runtime-installer";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -686,6 +687,7 @@ export async function disposeSidecarContext(
 	ctx: SidecarContext,
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
+	await desktopRuntimeInstallers.dispose();
 	const cleanup: Array<Promise<unknown>> = [];
 	const approvalCleanup: Array<Promise<unknown>> = [];
 

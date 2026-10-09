@@ -1,8 +1,9 @@
 !include "Win\RestartManager.nsh"
 
-; The Hub re-executes code-sidecar.exe as a detached daemon and outlives the
-; desktop. Stop users of both installed executables before replacing either:
-; stopping only the sidecar first leaves the desktop able to spawn it again.
+; Current releases download a versioned runtime outside the install directory.
+; Older installs bundled cline-cli.exe (backend and detached Hub), and earlier
+; releases bundled code-sidecar.exe. Stop users of these installed executables
+; before replacing the app; an old Hub may still be running during upgrade.
 ;
 ; Restart Manager identifies users of the exact files across architectures.
 ; Do not use Get-Process.Path: NSIS is x86 even for an x64 bundle, and x86
@@ -22,6 +23,11 @@
     ${EndIf}
 
     !insertmacro RestartManager_RegisterFile $1 "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${If} $0 != 0
+      Goto end_session
+    ${EndIf}
+
+    !insertmacro RestartManager_RegisterFile $1 "$INSTDIR\cline-cli.exe"
     ${If} $0 != 0
       Goto end_session
     ${EndIf}
@@ -64,6 +70,8 @@
     Abort
 
   done:
+    ; Nothing installs the earlier backend executable any more.
+    Delete "$INSTDIR\code-sidecar.exe"
     Pop $4
     Pop $3
     Pop $2

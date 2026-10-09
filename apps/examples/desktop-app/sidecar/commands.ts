@@ -325,8 +325,7 @@ function getRemoteEnvironmentService(
 	if (!ctx.remoteEnvironments) {
 		ctx.remoteEnvironments = new RemoteEnvironmentService({
 			dependencies: {
-				resolveHelperBinary: async (target) =>
-					resolveDesktopRemoteHelper(target),
+				resolveHelperBinary: resolveDesktopRemoteHelper,
 			},
 			onStatusChange: (status) => {
 				broadcastEvent(ctx, "remote_environment_status", status);

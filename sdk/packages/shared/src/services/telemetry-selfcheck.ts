@@ -1,6 +1,6 @@
 /**
  * Builds the `--telemetry-selfcheck` report (see index.ts). CI runs the
- * packaged sidecar with that flag and fails the publish unless the report
+ * packaged CLI and desktop backend with that flag and fails the publish unless the report
  * shows telemetry enabled with a usable OTLP endpoint, so the checks here
  * define what a release-grade build must prove.
  */

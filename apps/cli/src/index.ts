@@ -2,8 +2,10 @@
 
 import { isMainThread } from "node:worker_threads";
 import {
+	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
+	createClineTelemetryServiceConfig,
 	disableCurrentDirectoryExecutableSearch,
 	disposeAll,
 	ensureLoopbackProxyBypass,
@@ -19,6 +21,7 @@ import {
 import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
+import { getCliRuntimeInfo } from "./utils/runtime-info";
 
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.
@@ -32,6 +35,26 @@ ensureLoopbackProxyBypass();
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (process.argv.includes("--runtime-target")) {
+	process.stdout.write(`${getCliRuntimeInfo().target}\n`);
+} else if (process.argv.includes("--runtime-build-epoch")) {
+	process.stdout.write(`${getCliRuntimeInfo().buildEpochMs ?? 0}\n`);
+} else if (process.argv.includes("--runtime-path")) {
+	const info = getCliRuntimeInfo();
+	if (!info.compiled) process.exitCode = 1;
+	else process.stdout.write(`${info.executablePath}\n`);
+} else if (process.argv.includes("--runtime-build-id")) {
+	const info = getCliRuntimeInfo();
+	if (!info.compiled || !info.buildId) process.exitCode = 1;
+	else process.stdout.write(`${info.buildId}\n`);
+} else if (process.argv.includes("--runtime-info")) {
+	process.stdout.write(`${JSON.stringify(getCliRuntimeInfo())}\n`);
+} else if (process.argv.includes("--telemetry-selfcheck")) {
+	// Inspect the config embedded in this executable without starting a hub,
+	// loading user settings, or initializing telemetry exporters.
+	process.stdout.write(
+		`${JSON.stringify(buildTelemetrySelfcheckReport(createClineTelemetryServiceConfig()))}\n`,
+	);
 } else if (claimHubDaemonProcess()) {
 	// Claim rather than read: the sentinel is consumed here so the processes a
 	// daemon-hosted session spawns do not inherit it and try to become daemons.

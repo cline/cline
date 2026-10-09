@@ -1,6 +1,6 @@
 # Desktop App Example
 
-Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspecting Cline chat sessions.
+Tauri desktop shell + desktop backend (`sidecar/`) + Next.js UI for running and inspecting Cline chat sessions. The packaged app installs a self-contained Cline CLI runtime on first launch, then uses it to start the shared Hub and run the backend. No Node or Bun install is needed.
 
 ## Dev Commands
 
@@ -11,9 +11,9 @@ From `apps/examples/desktop-app/`:
 - `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
 - `bun run build:web` - build production web assets only (includes the shared UI build)
-- `bun run build` - build web assets and the sidecar binary
+- `bun run build` - build web assets and the desktop runtime
 - `bun run build:sidecar` - build the Bun sidecar bundle
-- `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
+- `bun run build:runtime` - compile the host Cline CLI release asset and bundle the backend and installer scripts into `src-tauri/bin/`
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
@@ -151,27 +151,27 @@ Desktop owns the settings UI and packaged helper resource lookup.
 The service stores host metadata at
 `~/.cline/data/settings/remote-environments.json` with mode `0600`. It stores an
 identity-file path, never private-key contents. On first connect it uploads a
-content-addressed, branch-matched, self-contained Hub helper under
-`~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
-random local loopback port. Linux x64 and arm64 helpers are bundled by
-`bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
-supported. A macOS desktop reaches macOS SSH hosts with its own signed
-universal sidecar, which runs the same helper entrypoint; Windows and Linux
-desktops need a locally built darwin helper passed through
-`CLINE_REMOTE_HELPER_BINARY`. The helper includes its own runtime (about 115 MB
-per helper) and must not be UPX-compressed; Bun reads its embedded code back
-from the executable at runtime, so a packed helper crashes with
-`SyntaxError: Invalid character: '\0'`. It is copied once per matching desktop
-build and cached, with no
-`apt`, `npm`, root access,
-global CLI install, or public Hub port. Disconnecting stops the desktop-owned
-remote Hub but leaves the helper cached for a faster reconnect. The helper
-imports the remote login-shell `PATH`, so user-installed Git, GitHub CLI, and
-MCP executables remain visible.
+content-addressed, branch-matched, self-contained Cline CLI binary under
+`~/.cline/remote/` and runs `cline hub ensure --json --discovery-path ...`
+there, which reuses a compatible healthy remote Hub or starts one bound to
+remote loopback. The desktop forwards it to a random local loopback port.
+On macOS and Linux desktops, Linux x64/arm64 and universal macOS runtimes
+download on demand from the same desktop release. Windows desktops bundle
+Linux x64/arm64 runtimes; macOS SSH hosts require a locally built runtime
+through `CLINE_REMOTE_HELPER_BINARY` or `CLINE_REMOTE_HELPER_DIRECTORY`.
+32-bit Raspberry Pi operating systems are not supported. The remote CLI includes its own runtime and is
+copied once per matching desktop build and cached, with no remote package
+manager, root access, global CLI install, or public Hub port.
+Do not UPX-compress or strip the CLI binaries: Bun reads its embedded code
+back from the executable at runtime, so compression corrupts lazy module loads.
+Disconnecting runs `cline hub stop` for the desktop-owned remote Hub but leaves
+the CLI cached for a faster reconnect. The remote Hub imports the remote
+login-shell `PATH` (`--login-shell-path`), so user-installed Git, GitHub CLI,
+and MCP executables remain visible.
 
 Each service instance uses its own discovery record, so an existing Cline CLI/Hub on the
 same account is neither replaced nor stopped. Both Hub processes can coexist
-while the desktop is connected; this isolation keeps the remote helper separate from the default CLI Hub.
+while the desktop is connected; this isolation keeps the desktop's remote Hub separate from the default CLI Hub.
 
 The desktop currently leaves file attachments and opening a remote file in a local
 editor disabled. Text, images, file mentions/search, Git branch operations,
@@ -238,14 +238,10 @@ sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL (x86_64)
 sudo dnf install ./Cline_<version>_aarch64.rpm   # Fedora / RHEL (arm64)
 ```
 
-The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
-sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
-`/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
-GNOME with the AppIndicator extension); without one the app still runs but the
-tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
-Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
-AppImage target is excluded from `tauri build` on Linux. A Linux desktop
-cannot use a Mac as an SSH remote host (see the changelog).
+The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry. The
+backend bundle and installer scripts live in `/usr/lib/Cline/`; the CLI lives
+in the user's app data directory. The tray icon needs a StatusNotifier host
+(KDE, XFCE, or GNOME with the AppIndicator extension).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -293,16 +289,20 @@ bun run package:desktop:mac
 
 The first signing run pops a keychain dialog — enter your macOS login password and click **Always Allow**. Notarization uploads the app to Apple's automated malware scan (typically 2–10 minutes) and staples the ticket. Artifacts land in `dist/desktop/`; share the `.dmg`. The DMG name takes its version from `src-tauri/tauri.conf.json`, the zip name from `package.json` — bump both.
 
-Do not remove `src-tauri/entitlements.plist` or the `bundle.macOS.entitlements` reference in `tauri.conf.json`: notarization requires the hardened runtime, which breaks the Bun-compiled sidecar (`SharedArrayBuffer is not defined`, surfacing in-app as "desktop backend endpoint not ready") unless the JIT entitlements are present.
+Do not remove `src-tauri/entitlements.plist` or the `bundle.macOS.entitlements` reference in `tauri.conf.json`: notarization requires the hardened runtime, which breaks the Bun-compiled Cline CLI (`SharedArrayBuffer is not defined`, surfacing in-app as "desktop backend endpoint not ready") unless the JIT entitlements are present.
 
 ## Runtime Overview
 
 Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
-2. The desktop backend starts the Bun sidecar, which discovers or starts the
-   canonical shared Cline Hub and exposes one websocket transport (`/transport`)
-   for desktop commands, queries, and pushed events.
+   In a packaged app the backend is `bin/desktop-backend/index.js`, executed by
+   the installed Cline CLI (`cline run`); `bun run dev` runs `sidecar/index.ts`
+   with Bun directly.
+2. The backend runs `cline hub ensure`, which reuses a compatible healthy
+   shared Cline Hub on loopback or starts one (the Hub daemon is the same CLI
+   binary). The backend then attaches to the Hub and exposes one websocket
+   transport (`/transport`) for desktop commands, queries, and pushed events.
 3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
 4. Tool approval updates are pushed from the backend instead of polled from the UI.
 5. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
@@ -320,10 +320,95 @@ Desktop transport envelope:
 - From the UI you can open a create form and add, pause/resume, trigger-now, and delete schedules.
 - The view is wired to the same scheduler APIs used by `cline schedule` through Tauri commands and `scripts/routine-schedules.ts`.
 
+## CLI runtime installation
+
+The macOS and Linux desktop bundles contain installer scripts, backend JS, and
+manifests identifying their release and SDK build. They contain no CLI executables.
+Before installing, desktop searches the terminal PATH and interactive login shell for
+`cline`, then probes `--runtime-info` to find its native executable and SDK
+identity. A compatible existing installation is reused directly, including
+package-manager installations; the desktop does not copy its binary.
+
+Standalone releases live under `~/.cline/packages/standalone/releases/`,
+including embedded plugin and dashboard resources. On macOS and Linux,
+`~/.local/bin/cline` links to the active release. Windows continues to bundle its
+CLI and Linux SSH runtimes; its standalone installer is a separate follow-up.
+On macOS and Linux, desktop and terminal use the same active installation. Updates validate the
+checksum, SDK identity, target, and build epoch before atomically switching the
+command. Older releases are retained for rollback and running processes; the
+installer never downgrades the active runtime automatically. A running Hub keeps
+its loaded runtime until the CLI's Hub startup flow replaces an incompatible Hub.
+
+A compatible package-managed CLI is reused by default. An incompatible or
+unrecognizable external installation stops setup with an update/removal
+instruction. Interactive manual installs identify common Homebrew, npm, and Bun
+locations and offer removal through the owning package manager. Unattended
+installs never uninstall packages. To choose a standalone installation while
+keeping an existing package, use `--replace-existing`; the installer reports
+PATH conflicts. Package-owned files and unrelated
+command entry points are never overwritten. Desktop never prompts for removal.
+
+Downloads come from the exact desktop release and are SHA-256 verified. The
+workflow publishes SDK build-ID and build-epoch sidecars and independently signed macOS/Windows
+executables. Cached installs work offline. Initial installs and incompatible
+standalone updates require internet access and Bash/curl on macOS and Linux.
+Linux requires glibc; x64 binaries use Bun's baseline runtime.
+
+SSH connections reuse the shared host CLI when it supports the remote target.
+Other architectures/platforms require their own executable, cached once per
+target at `~/.cline/remote-runtimes/<target>/cline` and updated in place. They are
+uploaded to the remote host using its content-addressed CLI staging mechanism.
+Linux x64 reuse requires a baseline CPU build; architecture alone is insufficient.
+Hashing and uploading use the same temporary snapshot to avoid races with updates.
+Development builds use locally compiled binaries and explicit SSH overrides.
+
+Each compiled CLI embeds its plugin sandbox bootstrap, jiti transform, and SDK
+runtime modules. They are extracted on first plugin use into
+`~/.cline/runtime/plugin-sandbox/<content-hash>`, so downloaded and SSH-uploaded
+executables support SDK plugins without Node or additional downloads. Different
+builds keep their support files isolated. Plugin subprocesses use the CLI's own
+embedded runtime. Desktop preserves certificate settings reported by an existing
+package-manager wrapper when launching its backend and Hub.
+
+The standalone CLI also embeds the built dashboard, including JavaScript, CSS,
+fonts, and images. `cline dashboard` extracts those files into
+`~/.cline/runtime/dashboard/<content-hash>` when no installed dashboard assets
+are available, so the single executable serves the dashboard offline.
+
+Installers recheck build age while holding the install lock. Unix locks record
+the owner's PID and start time so interrupted installs can recover.
+Recovery claims record their owners too; abandoned nested claims are recovered
+without removing a live contender's claim. Relative installation directories
+are made absolute before lock acquisition. Quitting
+desktop cancels pending installation without waiting for the download.
+
+For a standalone terminal install from a desktop release:
+
+```sh
+bash scripts/cli-installer/install.sh --version 0.0.43
+# Pin a beta or nightly explicitly:
+bash scripts/cli-installer/install.sh --release desktop-v0.0.43-beta.1
+# Test a local binary without downloading or changing shell configuration:
+bash scripts/cli-installer/install.sh --binary /path/to/cline --no-modify-path
+```
+
+
+
+Manual installs add the stable command directory to the user's PATH; desktop
+uses the same directory. A standalone Unix installation stays available when a
+project switches Node versions.
+Use `--no-modify-path` to leave shell profiles untouched. Explicit `--install-dir`
+(`-InstallDir`) installs are isolated runtime caches for other machines; they do
+not create a host command entry. Add `--managed` to select versioned
+releases with a custom host command directory. Windows standalone installation is reviewed separately.
+Nightly installers remain Actions artifacts, but their runtime assets are
+published to the corresponding nightly GitHub release for durable access.
+
 ## Key Files
 
 - [`src-tauri/src/main.rs`](./src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
-- [`sidecar/index.ts`](./sidecar/index.ts) - persistent Bun sidecar and Hub-daemon entry dispatch
+- [`sidecar/index.ts`](./sidecar/index.ts) - persistent desktop backend entrypoint
+- [`sidecar/cli-runtime.ts`](./sidecar/cli-runtime.ts) - installed Cline CLI runtime adoption and `hub ensure`
 - [`sidecar/chat-session.ts`](./sidecar/chat-session.ts) - shared-Hub chat session adapter
 - [`webview/lib/desktop-client.ts`](./webview/lib/desktop-client.ts) - typed desktop websocket client
 - [`webview/hooks/use-chat-session.ts`](./webview/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
@@ -364,7 +449,7 @@ credentials, request headers, recorded audio, or transcript contents.
 ## Troubleshooting
 
 - If live updates stall, verify the desktop backend websocket is connected and `chat_event` messages are arriving.
-- Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
+- Tauri restarts the desktop backend if its process exits and stops it on app teardown. The shared Hub keeps running for other clients.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
 - Linux with the proprietary NVIDIA driver: WebKitGTK's DMA-BUF renderer

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { arch, platform, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -59,6 +59,7 @@ describe("runDashboardCommand", () => {
 			| undefined;
 		const webviewDistDir = mkdtempSync(join(tmpdir(), "cline-webview-dist-"));
 		mkdirSync(webviewDistDir, { recursive: true });
+		writeFileSync(join(webviewDistDir, "index.html"), "<html></html>");
 		process.env.CLINE_HUB_WEBVIEW_DIST_DIR = webviewDistDir;
 
 		const exitCode = await runDashboardCommand({
@@ -165,6 +166,7 @@ describe("runDashboardCommand", () => {
 		);
 		mkdirSync(join(wrapperPath, ".."), { recursive: true });
 		mkdirSync(webviewDistDir, { recursive: true });
+		writeFileSync(join(webviewDistDir, "index.html"), "<html></html>");
 		process.env.CLINE_WRAPPER_PATH = wrapperPath;
 		delete process.env.CLINE_HUB_WEBVIEW_DIST_DIR;
 		let observedWebviewDistDir: string | undefined;

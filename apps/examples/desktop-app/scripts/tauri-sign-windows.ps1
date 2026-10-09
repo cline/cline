@@ -2,8 +2,9 @@
 #
 # Invoked by the Tauri bundler through `bundle > windows > signCommand` (the
 # desktop-publish workflow generates a config overlay pointing here), once per
-# binary it stages: the main app exe, the code-sidecar external binary, the
-# NSIS uninstaller, and the NSIS installer itself.
+# binary it stages: the main app exe, the
+# NSIS uninstaller, and the NSIS installer itself. The workflow also invokes
+# this script explicitly for the independently downloaded CLI runtime.
 #
 # Requirements (all provided by the desktop-publish Windows job):
 # - an azure/login OIDC session (jsign's token comes from `az account get-access-token`)

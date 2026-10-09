@@ -66,6 +66,9 @@ const kanbanMocks = vi.hoisted(() => ({
 const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
 }));
+const hubCommandMocks = vi.hoisted(() => ({
+	createHubCommand: vi.fn<typeof import("./commands/hub").createHubCommand>(),
+}));
 const connectMocks = vi.hoisted(() => ({
 	formatAdapterList: vi.fn(() => ""),
 	runCleanupConnectorInstance: vi.fn(async () => 0),
@@ -181,6 +184,9 @@ vi.mock("@cline/core", async () => {
 	>("../../../sdk/packages/core/src/services/global-settings");
 	return {
 		readGlobalSettings,
+		ensureDetachedHubServer: vi.fn(async () => ({
+			url: "ws://127.0.0.1:1234/hub",
+		})),
 		setSdkLogger: vi.fn(),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createUserInstructionConfigService: vi.fn(() => ({
@@ -218,6 +224,12 @@ vi.mock("./runtime/prompt", () => ({
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
+vi.mock("./commands/hub", async () => {
+	const actual =
+		await vi.importActual<typeof import("./commands/hub")>("./commands/hub");
+	hubCommandMocks.createHubCommand.mockImplementation(actual.createHubCommand);
+	return hubCommandMocks;
+});
 vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
@@ -318,6 +330,7 @@ describe("runCli lightweight command dispatch", () => {
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
 		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
+		hubCommandMocks.createHubCommand.mockClear();
 		connectMocks.formatAdapterList.mockReset();
 		connectMocks.formatAdapterList.mockReturnValue("");
 		connectMocks.runConnectAdapter.mockReset();
@@ -405,6 +418,29 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	}, 30_000);
+
+	it("does not capture an activation event for hub commands", async () => {
+		// The desktop app and the SSH remote flow run `cline hub ensure` on
+		// every launch/connect; those must not count as CLI activations.
+		process.argv = ["bun", "src/index.ts", "hub", "ensure", "--json"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(hubCommandMocks.createHubCommand).toHaveBeenCalledTimes(1);
+		expect(telemetryMocks.captureCliExtensionActivated).not.toHaveBeenCalled();
+	});
+
+	it("captures an activation event for regular commands", async () => {
+		process.argv = ["bun", "src/index.ts", "history", "--json"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(telemetryMocks.captureCliExtensionActivated).toHaveBeenCalledTimes(
+			1,
+		);
+	});
 
 	it.each([
 		"connect",
