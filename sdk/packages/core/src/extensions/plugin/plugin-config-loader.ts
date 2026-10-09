@@ -17,7 +17,9 @@ import {
 import { filterDisabledPluginPaths } from "../../services/global-settings";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import {
+	derivePluginNameFromPath,
 	getProcessPluginRegistry,
+	isPluginEnabledByPolicy,
 	type PluginHookErrorMode,
 	type PluginRegistry,
 } from "./plugin-registry";
@@ -368,6 +370,9 @@ export async function resolveAndLoadAgentPlugins(
 			hookErrorMode: options.hookErrorMode,
 			emitEvent: options.onEvent,
 			onIssue: options.onIssue,
+			importTimeoutMs: options.importTimeoutMs,
+			hookTimeoutMs: options.hookTimeoutMs,
+			callTimeoutMs: options.contributionTimeoutMs,
 			setupContext: {
 				session: options.session,
 				client: options.client,
@@ -388,14 +393,28 @@ export async function resolveAndLoadAgentPlugins(
 		};
 	}
 
-	const paths = resolveAgentPluginPaths(options);
+	// Apply the session policy before starting the sandbox so a plugin the
+	// session turned off is not imported at all when its file name matches;
+	// plugins named only by their exported `name` are filtered after import.
+	const policyIssues: SessionPluginIssue[] = [];
+	const paths = resolveAgentPluginPaths(options).filter((pluginPath) => {
+		const name = derivePluginNameFromPath(pluginPath);
+		if (isPluginEnabledByPolicy(options.policy, [name])) return true;
+		policyIssues.push({
+			name,
+			pluginPath,
+			state: "disabled",
+			reason: "session_policy",
+		});
+		return false;
+	});
 	if (paths.length === 0) {
 		return {
 			extensions: [],
 			failures: [],
 			warnings: [],
 			pluginPaths: [],
-			issues: [],
+			issues: policyIssues,
 		};
 	}
 	const sandboxed = await loadSandboxedPlugins({
@@ -415,26 +434,53 @@ export async function resolveAndLoadAgentPlugins(
 		workspaceInfo: options.workspaceInfo,
 		logger: options.logger,
 	});
+	const keptPaths = new Set<string>();
+	const extensions = (sandboxed.extensions ?? []).filter((extension) => {
+		const pluginPath = (extension as { __clinePluginPath?: string })
+			.__clinePluginPath;
+		const names = [
+			extension.name,
+			...(pluginPath ? [derivePluginNameFromPath(pluginPath)] : []),
+		];
+		if (isPluginEnabledByPolicy(options.policy, names)) {
+			if (pluginPath) keptPaths.add(resolve(pluginPath));
+			return true;
+		}
+		policyIssues.push({
+			name: extension.name,
+			pluginPath: pluginPath ?? extension.name,
+			state: "disabled",
+			reason: "session_policy",
+		});
+		return false;
+	});
 	return {
-		extensions: sandboxed.extensions ?? [],
+		extensions,
 		shutdown: sandboxed.shutdown,
 		failures: sandboxed.failures,
-		pluginPaths: sandboxed.pluginPaths,
+		pluginPaths: sandboxed.pluginPaths.filter((pluginPath) =>
+			keptPaths.has(resolve(pluginPath)),
+		),
 		warnings: sandboxed.warnings,
-		issues: sandboxed.failures.map((failure) => ({
-			name:
-				failure.pluginName ??
-				basename(failure.pluginPath, extname(failure.pluginPath)),
-			pluginPath: failure.pluginPath,
-			state: "failed" as const,
-			reason: "error" as const,
-			lastError: {
-				phase: failure.phase === "setup" ? "setup" : "import",
-				message: failure.message,
-				stack: failure.stack,
-				pluginPath: failure.pluginPath,
-				timestamp: Date.now(),
-			},
-		})),
+		issues: [
+			...policyIssues,
+			...sandboxed.failures.map(
+				(failure): SessionPluginIssue => ({
+					name:
+						failure.pluginName ??
+						basename(failure.pluginPath, extname(failure.pluginPath)),
+					pluginPath: failure.pluginPath,
+					state: "failed",
+					reason: "error",
+					lastError: {
+						phase: failure.phase === "setup" ? "setup" : "import",
+						message: failure.message,
+						stack: failure.stack,
+						pluginPath: failure.pluginPath,
+						timestamp: Date.now(),
+					},
+				}),
+			),
+		],
 	};
 }

@@ -5,7 +5,10 @@ import {
 	initVcr,
 	resolveClineBuildEnv,
 } from "@cline/shared";
-import { resolveAgentPluginPathsWithDiagnostics } from "../../extensions/plugin/plugin-config-loader";
+import {
+	resolveAgentPluginPathsWithDiagnostics,
+	resolvePluginExecutionMode,
+} from "../../extensions/plugin/plugin-config-loader";
 import {
 	getProcessPluginRegistry,
 	type PluginRegistry,
@@ -435,6 +438,11 @@ async function main(): Promise<void> {
 }
 
 async function preloadDaemonPlugins(cwd: string): Promise<void> {
+	// In sandbox mode plugins must never run inside the Hub process; each
+	// session starts its own sandbox instead.
+	if (resolvePluginExecutionMode() === "sandbox") {
+		return;
+	}
 	try {
 		const resolved = resolveAgentPluginPathsWithDiagnostics({
 			workspacePath: cwd,

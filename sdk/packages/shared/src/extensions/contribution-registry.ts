@@ -210,6 +210,14 @@ export interface PluginSetupContext {
 	 * which is kept as a shim.
 	 */
 	emitEvent?: (name: string, payload?: unknown) => void;
+	/**
+	 * Registers cleanup to run when the session that set the plugin up ends.
+	 * Plugins loaded in the Hub share its process, so anything a plugin starts
+	 * for a session (child processes, sockets, listeners on shared emitters)
+	 * must be stopped here. Timers the plugin creates during its own calls
+	 * are cleared by the host automatically.
+	 */
+	onDispose?: (cleanup: () => void | Promise<void>) => void;
 }
 
 const ExtensionCapabilityOptions = [

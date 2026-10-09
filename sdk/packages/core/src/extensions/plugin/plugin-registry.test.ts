@@ -422,7 +422,7 @@ export default {
 		await expect(throws?.execute({}, toolContext)).rejects.toThrow();
 		expect(registry.get(path)[0]?.state).toBe("failed");
 		await expect(throws?.execute({}, toolContext)).rejects.toThrow(
-			/bad-tools" is failed; tool "throws" is unavailable/,
+			/bad-tools" tool "throws" is unavailable/,
 		);
 	});
 
@@ -483,7 +483,20 @@ export default {
 			phase: "discover",
 			message: "not found",
 		});
-		expect(loaded.issues).toHaveLength(1);
+		// A session that would have used the settings-disabled plugin is told
+		// why it is missing.
+		expect(loaded.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ name: "off", reason: "settings" }),
+				expect.objectContaining({ state: "failed", reason: "error" }),
+			]),
+		);
+		const optedOut = await registry.loadForSession({
+			pluginPaths: [],
+			disabledPluginPaths: [disabled],
+			policy: { off: { enabled: false } },
+		});
+		expect(optedOut.issues).toEqual([]);
 	});
 
 	it("attributes a stray error to the plugin whose file is in its stack", async () => {
@@ -575,5 +588,246 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 			{ name: "from_setup", payload: { ok: true } },
 			{ name: "from_shim", payload: { cwd: "/work/project" } },
 		]);
+	});
+
+	it("keeps running sessions' copies usable across a reload", async () => {
+		const path = await write("versioned.js", toolPlugin("versioned"));
+		const before = await registry.loadForSession({
+			sessionId: "old",
+			pluginPaths: [path],
+		});
+		const [oldTool] = (await setUp(before.extensions[0])).tools;
+
+		await writeFile(path, toolPlugin("versioned", "versioned_v2"), "utf8");
+		await registry.reload(path);
+		const after = await registry.loadForSession({
+			sessionId: "new",
+			pluginPaths: [path],
+		});
+		const [newTool] = (await setUp(after.extensions[0])).tools;
+
+		await expect(oldTool?.execute({}, toolContext)).resolves.toBe(
+			"ok from versioned",
+		);
+		expect(newTool?.name).toBe("versioned_v2");
+		expect(registry.get(path)[0]?.sessionIds).toEqual(["new", "old"]);
+	});
+
+	it("does not let a broken reload turn off copies that still work", async () => {
+		const path = await write("break-on-reload.js", toolPlugin("breaks"));
+		const running = await registry.loadForSession({
+			sessionId: "running",
+			pluginPaths: [path],
+		});
+		const [tool] = (await setUp(running.extensions[0])).tools;
+
+		await writeFile(path, `throw new Error("bad edit");`, "utf8");
+		const [status] = await registry.reload(path);
+		expect(status?.state).toBe("failed");
+		await expect(tool?.execute({}, toolContext)).resolves.toBe(
+			"ok from breaks",
+		);
+	});
+
+	it("times out and stops commands, rule content, and message builders", async () => {
+		const path = await write(
+			"callbacks.js",
+			`export default {
+	name: "callbacks",
+	manifest: { capabilities: ["commands", "rules", "messageBuilders"] },
+	setup(api) {
+		api.registerCommand({ name: "hang", handler: () => new Promise(() => {}) });
+		api.registerCommand({ name: "boom", handler: () => { throw new Error("command broke"); } });
+		api.registerRule({ id: "slow-rule", content: () => new Promise(() => {}) });
+		api.registerMessageBuilder({ name: "bad-builder", build: () => { throw new Error("builder broke"); } });
+	},
+};
+`,
+		);
+		const loaded = await registry.loadForSession({
+			sessionId: "s1",
+			pluginPaths: [path],
+			callTimeoutMs: 50,
+		});
+		const commands: Array<{
+			name: string;
+			handler?: (input: string) => unknown;
+		}> = [];
+		const rules: Array<{ content: unknown }> = [];
+		const builders: Array<{ build: (messages: Message[]) => unknown }> = [];
+		await loaded.extensions[0]?.setup?.(
+			{
+				...collectingApi().api,
+				registerCommand: (command) => commands.push(command),
+				registerRule: (rule) => rules.push(rule),
+				registerMessageBuilder: (builder) => builders.push(builder),
+			},
+			{},
+		);
+
+		const hang = commands.find((command) => command.name === "hang");
+		await expect(hang?.handler?.("")).rejects.toBeInstanceOf(
+			PluginCallTimeoutError,
+		);
+		const content = rules[0]?.content as () => Promise<string>;
+		await expect(content()).resolves.toBe("");
+		const messages = [{ role: "user", content: "hi" }] as Message[];
+		await expect(builders[0]?.build(messages)).resolves.toBe(messages);
+		expect(registry.get(path)[0]).toMatchObject({
+			state: "failed",
+			timeoutCount: 2,
+		});
+
+		// Turned off after repeated failures: commands are refused.
+		const boom = commands.find((command) => command.name === "boom");
+		await expect(boom?.handler?.("")).rejects.toThrow(/is unavailable/);
+	});
+
+	it("runs onDispose cleanup and clears the copy's timers when the session ends", async () => {
+		const path = await write(
+			"timers.js",
+			`globalThis.__timerTicks = 0;
+setInterval(() => { globalThis.__timerTicks++; }, 5);
+export default {
+	name: "timers",
+	manifest: { capabilities: ["tools"] },
+	setup(api, ctx) {
+		setInterval(() => { globalThis.__timerTicks++; }, 5);
+		ctx.onDispose?.(() => { globalThis.__disposedSession = ctx.session?.sessionId; });
+	},
+};
+`,
+		);
+		const loaded = await registry.loadForSession({
+			sessionId: "s1",
+			pluginPaths: [path],
+			setupContext: { session: { sessionId: "s1" } },
+		});
+		await setUp(loaded.extensions[0]);
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		const globals = globalThis as unknown as Record<string, unknown>;
+		expect(globals.__timerTicks).toBeGreaterThan(0);
+
+		await loaded.release();
+		const ticks = globals.__timerTicks;
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(globals.__timerTicks).toBe(ticks);
+		expect(globals.__disposedSession).toBe("s1");
+	});
+
+	it("does not track timers the host creates for a plugin", async () => {
+		const path = await write(
+			"host-callback.js",
+			`export default {
+	name: "host-callback",
+	manifest: { capabilities: ["tools"] },
+	setup(_api, ctx) { ctx.emitEvent?.("start_host_timer"); },
+};
+`,
+		);
+		let hostTimerFired = false;
+		const loaded = await registry.loadForSession({
+			sessionId: "s1",
+			pluginPaths: [path],
+			emitEvent: () => {
+				setTimeout(() => {
+					hostTimerFired = true;
+				}, 20);
+			},
+		});
+		await setUp(loaded.extensions[0]);
+		await loaded.release();
+		await new Promise((resolve) => setTimeout(resolve, 40));
+		expect(hostTimerFired).toBe(true);
+	});
+
+	it("treats a registration the host rejects as a setup failure", async () => {
+		const path = await write(
+			"bad-registration.js",
+			`export default {
+	name: "bad-registration",
+	manifest: { capabilities: ["tools"] },
+	setup(api) {
+		api.registerTool({ name: "kept_out", description: "", inputSchema: {}, execute: () => "" });
+		api.registerProvider({ name: "rejected" });
+	},
+};
+`,
+		);
+		const told: string[] = [];
+		const loaded = await registry.loadForSession({
+			sessionId: "s1",
+			pluginPaths: [path],
+			onIssue: (issue) =>
+				told.push(`${issue.state}:${issue.lastError?.message}`),
+		});
+		const { api } = collectingApi();
+		await expect(
+			loaded.extensions[0]?.setup?.(
+				{
+					...api,
+					registerProvider: () => {
+						throw new Error("provider rejected by host");
+					},
+				},
+				{},
+			),
+		).rejects.toThrow("provider rejected by host");
+		expect(told).toEqual(["failed:provider rejected by host"]);
+		expect(registry.get(path)[0]?.lastError?.phase).toBe("setup");
+
+		const invalid = await write(
+			"bad-event-type.js",
+			`export default {
+	name: "bad-event-type",
+	manifest: { capabilities: ["automationEvents"] },
+	setup(api) { api.registerAutomationEventType({ eventType: "", source: "x" }); },
+};
+`,
+		);
+		const second = await registry.loadForSession({ pluginPaths: [invalid] });
+		await setUp(second.extensions[0]);
+		expect(registry.get(invalid)[0]?.lastError).toMatchObject({
+			phase: "setup",
+			message: "registerAutomationEventType requires an eventType",
+		});
+	});
+
+	it("applies per-session timeout overrides", async () => {
+		const path = await write(
+			"slow-hook.js",
+			`export default {
+	name: "slow-hook",
+	manifest: { capabilities: ["hooks"] },
+	hooks: { beforeRun: () => new Promise((resolve) => setTimeout(() => resolve({ ok: true }), 150)) },
+};
+`,
+		);
+		const patient = await registry.loadForSession({
+			sessionId: "patient",
+			pluginPaths: [path],
+			hookTimeoutMs: 1_000,
+		});
+		await expect(
+			patient.extensions[0]?.hooks?.beforeRun?.({ snapshot: {} } as never),
+		).resolves.toEqual({ ok: true });
+		expect(registry.get(path)[0]?.timeoutCount).toBe(0);
+	});
+
+	it("keeps the module copy imported by preload for the first session", async () => {
+		const path = await write(
+			"counted.js",
+			`globalThis.__countedImports = (globalThis.__countedImports ?? 0) + 1;
+export default { name: "counted", manifest: { capabilities: ["tools"] } };
+`,
+		);
+		const globals = globalThis as unknown as Record<string, number>;
+		globals.__countedImports = 0;
+		await registry.preload({ pluginPaths: [path] });
+		expect(globals.__countedImports).toBe(1);
+		await registry.loadForSession({ sessionId: "first", pluginPaths: [path] });
+		expect(globals.__countedImports).toBe(1);
+		await registry.loadForSession({ sessionId: "second", pluginPaths: [path] });
+		expect(globals.__countedImports).toBe(2);
 	});
 });

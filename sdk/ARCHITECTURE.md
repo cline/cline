@@ -644,24 +644,52 @@ Each session gets its own guarded view of the plugins it enabled:
   and `emitEvent` in their call context. `globalThis.__clinePluginHost.emitEvent`
   remains as a shim for sandbox-era plugins and routes to the calling session
   through async context.
-- Every import (4 s), setup (4 s), hook (3 s), tool (60 s, or the tool's own
-  `timeoutMs`), and command call is wrapped with a timeout and error capture.
-  A failing tool throws its error back to the model as a tool error. A failing
-  hook follows `hookErrorMode` (`"ignore"` by default; `"throw"` rethrows).
-  Registrations from a setup that throws are discarded as a unit.
+- Every import (4 s), setup (4 s), hook (3 s), and tool, command, rule
+  content, and message-builder call (60 s, or a tool's own `timeoutMs`) is
+  wrapped with a timeout and error capture. `resolveAndLoadAgentPlugins`
+  overrides (`importTimeoutMs`, `hookTimeoutMs`, `contributionTimeoutMs`)
+  apply per session. A failing tool or command throws its error back to the
+  caller. A failing hook follows `hookErrorMode` (`"ignore"` by default;
+  `"throw"` rethrows). A failing rule contributes no text, and a failing
+  message builder leaves the messages unchanged. Calls into a copy that is
+  turned off, whose setup failed, or whose session ended are refused.
+- Registrations are buffered and validated (capabilities, automation event
+  types) during setup, so a setup that throws contributes nothing. If the host
+  still rejects a registration while committing, the copy's setup is recorded
+  as failed and the error is rethrown so the contribution registry discards
+  what was already committed.
+- Each copy owns its cleanup. `ctx.onDispose(fn)` registers cleanup that runs
+  when the session releases the copy (session stop, dispose, or a failed
+  start). The registry also records timers (`setTimeout`, `setInterval`,
+  `setImmediate`) created while the copy's code runs, including at import, and
+  clears them on release; a released copy cannot schedule new ones. Host
+  callbacks handed to plugins (`emitEvent`, `automation`, `logger`,
+  `telemetry`, a tool's `emitUpdate`) run outside the copy's scope so timers
+  the host creates are never cleared with the plugin. Not tracked: child
+  processes, sockets, listeners on shared emitters, timers from `node:timers`
+  imports, and timers created by host modules a plugin imports directly.
+  Plugins must stop those in `ctx.onDispose`.
 
 The registry tracks one status per plugin: `loading`, `ready`, `degraded`,
 `failed`, or `disabled`. It records the last error with its phase (`discover`,
-`import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or
-`uncaught`), message, stack, plugin path, timestamp, and session, plus error
-and timeout counts. Import failures, discovery failures, and attributed
-uncaught errors mark a plugin `failed` and turn it off for every session. A
-hook or tool failure marks it `degraded`, and five consecutive failures turn it
-off for every session as well. A turned-off plugin is not called again until it
-is reloaded or its entry file changes. A `setup()` failure is per session: that
-session loses its copy (no tools or hooks), the status shows `failed` with the
-error, other sessions keep their working copies, and the next session tries
-setup again; a successful setup returns the status to `ready`.
+`import`, `setup`, `dispose`, `hook:<name>`, `tool:<name>`, `command:<name>`,
+`rule:<id>`, `messageBuilder:<name>`, or `uncaught`), message, stack, plugin
+path, timestamp, and session, plus error and timeout counts.
+
+Failures are counted per generation. A generation is one import of the
+module; `plugins.reload` or a change to the entry file starts a new one.
+Sessions started afterwards get copies of the new generation, and running
+sessions keep the copy they set up, which stays callable. Import failures,
+discovery failures, and five consecutive call failures turn off one
+generation for every session using it, so a broken reload cannot turn off
+copies that still work, and failures in an old copy cannot change the status
+of the new one (status always describes the current generation). An
+attributed uncaught error turns off every live generation, because a stack
+cannot tell copies of the same file apart. A `setup()` failure is per
+session: that session loses its copy (no tools or hooks), the status shows
+`failed` with the error, only that session is told, other sessions keep
+their working copies, and the next session tries setup again; a successful
+setup returns the status to `ready`.
 
 Status is surfaced, never only logged:
 
@@ -671,13 +699,19 @@ Status is surfaced, never only logged:
   wraps these.
 - The Hub broadcasts `plugin.status_changed` to attached clients.
 - `session.create` replies and `session.created` events carry `pluginIssues`
-  for plugins the session asked for but does not have (failed or disabled).
+  for plugins the session asked for but does not have: failed, disabled in
+  settings (`reason: "settings"`), or turned off by the session's policy
+  (`reason: "session_policy"`).
   `StartSessionResult.pluginIssues` exposes the same list to SDK hosts.
 - Because `setup()` and hooks run on the first turn, after the start reply,
   later degraded/failed transitions reach each affected session as a status
   notice (`AgentNoticeEvent` with `metadata.pluginIssue`).
 - Registry logs are structured lines with `pluginName`, `phase`, and
   `sessionId`; in the Hub they go through `logHubMessage`.
+- Settings listings (`listPluginToolsWithDiagnostics`, `CoreSettingsService`)
+  report failed plugins with their state and `loadError`. Their inspection
+  cache is keyed on each plugin's registry status, so a plugin a running
+  session turned off is never answered from an earlier clean inspection.
 
 The daemon's `uncaughtException` / `unhandledRejection` handlers first ask the
 registry to attribute the error: when its stack points into a known plugin root
@@ -694,7 +728,12 @@ synchronous code; a call that overran its limit is logged once it returns.
 
 `mode: "sandbox"` on `resolveAndLoadAgentPlugins`, or `CLINE_PLUGIN_MODE=sandbox`,
 keeps the previous subprocess sandbox. It needs a `node` or `bun` runtime on
-`PATH` when the host is not itself `node` or `bun`.
+`PATH` when the host is not itself `node` or `bun`. In sandbox mode no plugin
+code runs in the host process: the Hub daemon skips its startup preload, and
+plugin tool listing and MCP settings sync inspect plugins through a sandbox
+too. The session `plugins` policy applies as well: plugins whose file name
+the policy turns off are not passed to the sandbox, and plugins matched only
+by their exported `name` are dropped after the sandbox imports them.
 
 Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

@@ -1,12 +1,16 @@
 import { stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { PluginErrorRecord, PluginRuntimeState } from "@cline/shared";
-import { resolveAgentPluginPathsWithDiagnostics } from "../extensions/plugin/plugin-config-loader";
+import {
+	resolveAgentPluginPathsWithDiagnostics,
+	resolvePluginExecutionMode,
+} from "../extensions/plugin/plugin-config-loader";
 import { collectPluginContributions } from "../extensions/plugin/plugin-contributions";
 import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
+import { getProcessPluginRegistry } from "../extensions/plugin/plugin-registry";
 import { resolveDisabledToolNames } from "./global-settings";
 
 function isPathWithin(parentPath: string, childPath: string): boolean {
@@ -95,12 +99,21 @@ async function buildPluginToolDescriptorCacheKey(input: {
 			}
 		}),
 	);
+	// Status is part of the key: a plugin a running session turned off (or a
+	// reload revived) must not be answered from an inspection made before.
+	const registry = getProcessPluginRegistry();
+	const statuses = input.pluginPaths.map((pluginPath) => {
+		const status = registry.get(pluginPath)[0];
+		return status ? `${status.state}:${status.updatedAt}` : "unknown";
+	});
 	return JSON.stringify({
 		workspacePath: input.workspacePath,
 		cwd: input.cwd,
 		providerId: input.providerId,
 		modelId: input.modelId,
+		mode: resolvePluginExecutionMode(),
 		pathStats,
+		statuses,
 	});
 }
 

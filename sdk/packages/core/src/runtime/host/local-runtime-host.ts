@@ -20,6 +20,7 @@ import {
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
+import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -30,7 +31,6 @@ import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
-import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
@@ -655,11 +655,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build({
-			...bootstrap.runtimeBuilderInput,
-			distinctId: this.distinctId,
-			runCommandExecutionController: this.runCommandExecutionController,
-		});
+		let runtime: Awaited<ReturnType<typeof this.runtimeBuilder.build>>;
+		try {
+			runtime = await this.runtimeBuilder.build({
+				...bootstrap.runtimeBuilderInput,
+				distinctId: this.distinctId,
+				runCommandExecutionController: this.runCommandExecutionController,
+			});
+		} catch (error) {
+			// The session never registers, so its stop/dispose paths will not
+			// run; release the plugin copies the bootstrap loaded for it.
+			await bootstrap.pluginSandboxShutdown?.().catch(() => undefined);
+			throw error;
+		}
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {

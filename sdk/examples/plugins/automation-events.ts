@@ -14,12 +14,6 @@
 
 import type { AgentPlugin } from "@cline/core";
 
-const stopLocalEmitters = new Map<string, () => void>();
-
-function emitterKey(sessionId: string | undefined): string | undefined {
-	return sessionId?.trim() || undefined;
-}
-
 export const plugin: AgentPlugin = {
 	name: "local-automation-events",
 	manifest: {
@@ -59,16 +53,6 @@ export const plugin: AgentPlugin = {
 			return;
 		}
 
-		const key = emitterKey(ctx.session?.sessionId);
-		if (!key) {
-			ctx.logger?.log(
-				"local automation event emitter disabled; setup context has no session id",
-				{ severity: "warn" },
-			);
-			return;
-		}
-		stopLocalEmitters.get(key)?.();
-
 		const timer = setInterval(() => {
 			void ctx.automation?.ingestEvent({
 				eventId: `local-plugin-${Date.now()}`,
@@ -84,7 +68,10 @@ export const plugin: AgentPlugin = {
 			});
 		}, intervalMs);
 
-		stopLocalEmitters.set(key, () => clearInterval(timer));
+		// Stop emitting when the session that set this plugin up ends. The
+		// host also clears timers a plugin creates, but explicit cleanup keeps
+		// the plugin correct in any host.
+		ctx.onDispose?.(() => clearInterval(timer));
 	},
 };
 

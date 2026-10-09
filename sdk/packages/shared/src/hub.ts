@@ -506,18 +506,22 @@ export type PluginRuntimeState =
 	| "disabled";
 
 /**
- * Where a plugin error happened: `discover`, `import`, `setup`,
- * `hook:<name>`, `tool:<name>`, `command:<name>`, or `uncaught` for a stray
- * exception or rejection the host attributed to the plugin from its stack.
+ * Where a plugin error happened: `discover`, `import`, `setup`, `dispose`,
+ * `hook:<name>`, `tool:<name>`, `command:<name>`, `rule:<id>`,
+ * `messageBuilder:<name>`, or `uncaught` for a stray exception or rejection
+ * the host attributed to the plugin from its stack.
  */
 export type PluginErrorPhase =
 	| "discover"
 	| "import"
 	| "setup"
+	| "dispose"
 	| "uncaught"
 	| `hook:${string}`
 	| `tool:${string}`
-	| `command:${string}`;
+	| `command:${string}`
+	| `rule:${string}`
+	| `messageBuilder:${string}`;
 
 export interface PluginErrorRecord {
 	phase: PluginErrorPhase;

@@ -102,7 +102,7 @@ File-based plugins load in the host process. Each session gets its own copy of e
 
 Plugins still share one process: globals, `process.env`, and the working directory are common to every session, and a plugin stuck in a synchronous loop blocks the hub. Use `ctx.cwd` rather than `process.cwd()`.
 
-The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
+The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. In sandbox mode no plugin code runs in the host process, including tool listing and MCP settings sync. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
 
 ## Choosing Plugins per Session
 
@@ -131,6 +131,16 @@ A session only gets tools, hooks, rules, and providers from plugins it enabled. 
 | `ctx.session?.sessionId` | The session that is setting the plugin up |
 | `ctx.emitEvent(name, payload)` | Sends a plugin event, such as `steer_message`, to that session |
 | `ctx.workspaceInfo` | Workspace root and git metadata |
+| `ctx.onDispose(fn)` | Registers cleanup to run when that session ends |
+
+When a session ends, the host runs your `onDispose` callbacks and clears timers (`setTimeout`, `setInterval`, `setImmediate`) your plugin created for that session. Stop anything else you start, such as child processes, sockets, or listeners on shared emitters, in `onDispose`:
+
+```typescript
+setup(api, ctx) {
+  const child = spawn("my-watcher", { cwd: ctx.cwd })
+  ctx.onDispose?.(() => child.kill())
+}
+```
 
 Plugin tools also receive `cwd` and `emitEvent` in their call context (`execute(input, context)`). `globalThis.__clinePluginHost.emitEvent` still works for plugins written for the sandbox; it routes to the session whose hook or tool is running.
 
@@ -144,8 +154,9 @@ The host wraps every plugin call and records what goes wrong, so a broken plugin
 | `setup()` | 4 s | That session loses the plugin (none of its registrations are kept) and the status shows `failed`; other sessions keep working, and the next session tries again |
 | Hook | 3 s | Plugin is `degraded`; the run continues unless `hookErrorMode` is `"throw"` |
 | Tool | 60 s, or the tool's `timeoutMs` | The error goes back to the model as a tool error; plugin is `degraded` |
+| Command, rule content, message builder | 60 s | A command throws to its caller; a rule contributes no text; a message builder leaves messages unchanged; plugin is `degraded` |
 
-Five failures in a row turn a `degraded` plugin `failed`. An import failure, or five hook/tool failures in a row, turns the plugin off for every session until it is reloaded or its entry file changes. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
+Five failures in a row turn a `degraded` plugin `failed`. An import failure, or five failed calls in a row, turns the plugin off for every session using that version of it until it is reloaded or its entry file changes. Reloading never interrupts running sessions: they keep the copy they started with, and new sessions get the new code. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
 
 Each plugin has a status of `loading`, `ready`, `degraded`, `failed`, or `disabled`. Its last error records the phase (`discover`, `import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or `uncaught`), the message, the stack, the plugin path, and a timestamp. The status also counts errors and timeouts.
 
