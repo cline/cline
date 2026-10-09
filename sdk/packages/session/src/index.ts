@@ -173,6 +173,8 @@ export {
 	type SessionReplayModelResponseQuery,
 	type SessionReplayServedModelResponse,
 	type SessionReplaySource,
+	type SessionReplaySourceMode,
 	type SessionReplaySourcePosition,
 	type SessionReplayToolResult,
+	sessionReplayModelCallsFromTranscript,
 } from "./replay-source";

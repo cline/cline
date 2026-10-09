@@ -309,3 +309,109 @@ describe("SessionReplaySource tool results and decisions", () => {
 		expect(source.remaining().decisions).toBe(0);
 	});
 });
+
+describe("SessionReplaySource by call index", () => {
+	it("serves the transcript's model calls in order when the session has no request records", async () => {
+		const recorded = await recordFixtureSession();
+		const imported = {
+			transcript: {
+				...recorded.transcript,
+				messages: recorded.transcript.messages.map((message, index) =>
+					message.role === "assistant"
+						? {
+								...message,
+								metrics: { inputTokens: 10 * index, outputTokens: 2 },
+							}
+						: message,
+				),
+			},
+			events: [],
+			requests: [],
+			blobs: new Map(),
+		};
+		const source = createSessionReplaySource(imported);
+		expect(source.mode).toBe("call-index");
+		const unrelated = live({
+			...(recorded.sent[0] as AgentModelRequest),
+			systemPrompt: "A different system prompt.",
+		});
+		const responses = [0, 1, 2].map((index) =>
+			served(
+				source.nextModelResponse({
+					request:
+						index === 1
+							? live(recorded.sent[1] as AgentModelRequest)
+							: unrelated,
+				}),
+			),
+		);
+		expect(
+			responses.map((response) => [
+				response.match,
+				response.iteration,
+				response.record.callIndex,
+				response.record.response.messageId,
+				response.divergences,
+			]),
+		).toEqual([
+			["call-index", 1, 0, "assistant_1", []],
+			["call-index", 2, 1, "assistant_2", []],
+			["call-index", 3, 2, "assistant_3", []],
+		]);
+		expect(responses[0]?.events.map((event) => event.event)).toEqual([
+			{ type: "text-delta", text: "Listing files." },
+			{
+				type: "tool-call-delta",
+				toolCallId: "call_ls",
+				toolName: "run_commands",
+				input: { commands: ["ls"] },
+			},
+			{ type: "usage", usage: { inputTokens: 10, outputTokens: 2 } },
+			{ type: "finish", reason: "tool-calls" },
+		]);
+		expect(responses[2]?.record.response.finishReason).toBe("stop");
+		expect(source.toolResult("call_read")).toMatchObject({
+			toolName: "read_files",
+			content: "remember the milk",
+			iteration: 2,
+		});
+		expect(() => source.nextModelResponse({ request: unrelated })).toThrow(
+			/all 3 recorded model calls of session sess_replay were already served/,
+		);
+	});
+
+	it("serves the record at the live call index", async () => {
+		const recorded = await recordFixtureSession();
+		const source = createSessionReplaySource(
+			{ ...recorded, requests: [], blobs: new Map() },
+			{ strictness: "lenient" },
+		);
+		const request = live(recorded.sent[0] as AgentModelRequest);
+		expect(
+			served(source.nextModelResponse({ request, position: { callIndex: 2 } }))
+				.record.response.messageId,
+		).toBe("assistant_3");
+		expect(source.remaining().modelCalls).toEqual([0, 1]);
+		expect(
+			source.nextModelResponse({ request, position: { callIndex: 2 } }),
+		).toMatchObject({ status: "missing" });
+	});
+
+	it("serves a recording in call order without comparing requests when asked to", async () => {
+		const recorded = await recordFixtureSession();
+		const byKey = createSessionReplaySource(recorded);
+		expect(byKey.mode).toBe("match-key");
+		const source = createSessionReplaySource(recorded, { mode: "call-index" });
+		const changed = live(
+			withSystemPrompt(recorded.sent[0], "A different system prompt."),
+		);
+		const response = served(source.nextModelResponse({ request: changed }));
+		expect(response).toMatchObject({ match: "call-index", divergences: [] });
+		expect(response.record).toBe(
+			recorded.requests.find((record) => record.callIndex === 0),
+		);
+		expect(() => byKey.nextModelResponse({ request: changed })).toThrow(
+			SessionReplayMismatchError,
+		);
+	});
+});

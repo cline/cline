@@ -1,4 +1,5 @@
 import {
+	groupSessionMessageIterations,
 	type SessionRecordedModelCall,
 	type SessionReplayEvent,
 	TOOL_ENVIRONMENT_METADATA_KEY,
@@ -46,7 +47,8 @@ export interface SessionReplayModelResponseQuery {
  * - `exact`: an unconsumed record with the request's match key.
  * - `equivalent`: a fallback record whose request differs only in ways the
  *   structural comparison ignores (JSON field order).
- * - `call-index`: fallback to the record at the given (or next) call index.
+ * - `call-index`: fallback to the record at the given (or next) call index,
+ *   or any record of a source in `call-index` mode.
  * - `position`: fallback to the record with the same run, iteration and attempt.
  */
 export type SessionReplayModelResponseMatch =
@@ -105,6 +107,7 @@ export interface SessionReplayToolResult {
 export interface SessionReplaySource {
 	readonly sessionId: string;
 	readonly strictness: SessionReplayStrictness;
+	readonly mode: SessionReplaySourceMode;
 	/**
 	 * The recorded response for a live request: the lowest-`callIndex`
 	 * unconsumed record with the same match key, else a fallback by
@@ -157,9 +160,134 @@ export class SessionReplayMismatchError extends Error {
 	}
 }
 
+/**
+ * How a source picks recorded model responses:
+ * - `match-key`: by the live request's match key, with fallbacks (a recording).
+ * - `call-index`: in call order, from the transcript's assistant messages,
+ *   with no request comparison. For sessions without request records, such as
+ *   imported ATIF trajectories.
+ */
+export type SessionReplaySourceMode = "match-key" | "call-index";
+
 export interface CreateSessionReplaySourceOptions {
 	/** Default `strict`. */
 	strictness?: SessionReplayStrictness;
+	/** Default: `call-index` when the session has no request records, else `match-key`. */
+	mode?: SessionReplaySourceMode;
+}
+
+/**
+ * In-memory request records for a transcript without a recording: one per
+ * assistant message that is a model call, in order. They carry the response
+ * (message id, tool call ids, usage and a model stream rebuilt from the
+ * message) but no request, so they cannot be matched by key.
+ */
+export function sessionReplayModelCallsFromTranscript(
+	session: Pick<SessionReplaySessionData, "transcript">,
+	agentId = "agent",
+): SessionRecordedModelCall[] {
+	const { messages, sessionId } = session.transcript;
+	const groups = groupSessionMessageIterations(messages);
+	return groups.flatMap((group, position) => {
+		const index = group.assistantIndex;
+		const message = index === undefined ? undefined : messages[index];
+		if (!message || index === undefined) return [];
+		const blocks = typeof message.content === "string" ? [] : message.content;
+		const text =
+			typeof message.content === "string"
+				? message.content
+				: blocks
+						.flatMap((block) => (block.type === "text" ? [block.text] : []))
+						.join("");
+		const toolUses = blocks.filter(
+			(block): block is Extract<typeof block, { type: "tool_use" }> =>
+				block.type === "tool_use",
+		);
+		const metrics = message.metrics;
+		const usage = metrics
+			? {
+					...(metrics.inputTokens !== undefined
+						? { inputTokens: metrics.inputTokens }
+						: {}),
+					...(metrics.outputTokens !== undefined
+						? { outputTokens: metrics.outputTokens }
+						: {}),
+					...(metrics.cacheReadTokens !== undefined
+						? { cacheReadTokens: metrics.cacheReadTokens }
+						: {}),
+					...(metrics.cacheWriteTokens !== undefined
+						? { cacheWriteTokens: metrics.cacheWriteTokens }
+						: {}),
+					...(metrics.cost !== undefined ? { totalCost: metrics.cost } : {}),
+				}
+			: null;
+		const at = new Date(
+			typeof message.ts === "number" && Number.isFinite(message.ts)
+				? message.ts
+				: 0,
+		).toISOString();
+		const events: SessionRecordedModelCall["response"]["events"] = [
+			...blocks.flatMap((block) =>
+				block.type === "thinking"
+					? [{ t: 0, event: { type: "reasoning-delta", text: block.thinking } }]
+					: [],
+			),
+			...(text ? [{ t: 0, event: { type: "text-delta", text } }] : []),
+			...toolUses.map((block) => ({
+				t: 0,
+				event: {
+					type: "tool-call-delta",
+					toolCallId: block.id,
+					toolName: block.name,
+					input: block.input,
+				},
+			})),
+			...(usage ? [{ t: 0, event: { type: "usage", usage } }] : []),
+			{
+				t: 0,
+				event: {
+					type: "finish",
+					reason: toolUses.length > 0 ? "tool-calls" : "stop",
+				},
+			},
+		];
+		return [
+			{
+				callIndex: position,
+				seq: index,
+				sessionId,
+				agentId,
+				runId: null,
+				iteration: position + 1,
+				attempt: 0,
+				startedAt: at,
+				finishedAt: at,
+				durationMs: 0,
+				compaction: null,
+				request: {
+					matchKey: "",
+					systemPromptSha256: null,
+					toolsSha256: "",
+					modelToolsSha256: null,
+					messageCount: index,
+					messagePrefix: null,
+					messageSha256s: [],
+					options: null,
+					provider: {},
+				},
+				response: {
+					outcome: "completed",
+					finishReason: toolUses.length > 0 ? "tool-calls" : "stop",
+					requestId: null,
+					error: null,
+					messageId: message.id ?? null,
+					toolCallIds: toolUses.map((block) => block.id),
+					usage,
+					events,
+				},
+			},
+		];
+	});
 }
 
 interface ToolResultEntry extends SessionReplayToolResult {
@@ -178,6 +306,7 @@ function toolEnvironmentOf(
 class BundleSessionReplaySource implements SessionReplaySource {
 	readonly sessionId: string;
 	readonly strictness: SessionReplayStrictness;
+	readonly mode: SessionReplaySourceMode;
 	private readonly session: SessionReplaySessionData;
 	private readonly records: SessionRecordedModelCall[];
 	private readonly consumedCalls = new Set<number>();
@@ -195,12 +324,19 @@ class BundleSessionReplaySource implements SessionReplaySource {
 		this.session = session;
 		this.sessionId = session.transcript.sessionId;
 		this.strictness = options.strictness ?? "strict";
-		this.records = [...session.requests].sort(
-			(a, b) => a.callIndex - b.callIndex,
-		);
-		this.resolvedMessages = resolveRecordedRequestMessages(
-			this.records,
-		).messages;
+		this.mode =
+			options.mode ??
+			(session.requests.length === 0 ? "call-index" : "match-key");
+		this.records =
+			session.requests.length > 0
+				? [...session.requests].sort((a, b) => a.callIndex - b.callIndex)
+				: this.mode === "call-index"
+					? sessionReplayModelCallsFromTranscript(session)
+					: [];
+		this.resolvedMessages =
+			session.requests.length > 0
+				? resolveRecordedRequestMessages(this.records).messages
+				: new Map();
 		this.decisions = session.events
 			.filter((event) => event.kind === "decision" && event.seq !== undefined)
 			.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
@@ -330,6 +466,9 @@ class BundleSessionReplaySource implements SessionReplaySource {
 	nextModelResponse(
 		query: SessionReplayModelResponseQuery,
 	): SessionReplayModelResponse {
+		if (this.mode === "call-index") {
+			return this.nextByCallIndex(query);
+		}
 		const live = query.request;
 		const exact = this.unconsumed().find(
 			(record) => record.request.matchKey === live.matchKey,
@@ -337,19 +476,7 @@ class BundleSessionReplaySource implements SessionReplaySource {
 		const candidate = exact
 			? { record: exact, match: "exact" as const }
 			: this.fallbackCandidate(query.position);
-		if (!candidate) {
-			const reason =
-				this.records.length === 0
-					? `session ${this.sessionId} has no recorded model calls`
-					: `all ${this.records.length} recorded model calls of session ${this.sessionId} were already served`;
-			if (this.strictness === "strict") {
-				throw new SessionReplayMismatchError({
-					message: `No recorded model response for the request${query.position?.iteration !== undefined ? ` at run iteration ${query.position.iteration}` : ""}: ${reason}.`,
-					iteration: null,
-				});
-			}
-			return { status: "missing", reason };
-		}
+		if (!candidate) return this.missing(query);
 		const { record } = candidate;
 		const iteration = this.iterationOf(record);
 		const divergences = diffSessionReplayRequests(
@@ -381,6 +508,35 @@ class BundleSessionReplaySource implements SessionReplaySource {
 			});
 		}
 		return this.serve(record, candidate.match, divergences);
+	}
+
+	private missing(
+		query: SessionReplayModelResponseQuery,
+	): SessionReplayMissingModelResponse {
+		const reason =
+			this.records.length === 0
+				? `session ${this.sessionId} has no recorded model calls`
+				: `all ${this.records.length} recorded model calls of session ${this.sessionId} were already served`;
+		if (this.strictness === "strict") {
+			throw new SessionReplayMismatchError({
+				message: `No recorded model response for the request${query.position?.iteration !== undefined ? ` at run iteration ${query.position.iteration}` : ""}: ${reason}.`,
+				iteration: null,
+			});
+		}
+		return { status: "missing", reason };
+	}
+
+	/** Serves the record at the given call index, else the next one; requests are not compared. */
+	private nextByCallIndex(
+		query: SessionReplayModelResponseQuery,
+	): SessionReplayModelResponse {
+		const open = this.unconsumed();
+		const wanted = query.position?.callIndex;
+		const record =
+			wanted !== undefined
+				? open.find((candidate) => candidate.callIndex === wanted)
+				: open[0];
+		return record ? this.serve(record, "call-index", []) : this.missing(query);
 	}
 
 	toolResult(toolCallId: string): SessionReplayToolResult | undefined {
