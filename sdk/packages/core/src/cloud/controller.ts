@@ -76,7 +76,7 @@ const CLOUD_WORKSPACE_ROOT = "/workspace";
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
-const CLOUD_SESSION_SYSTEM_PROMPT =
+const CLOUD_SESSION_RULES =
 	"IMPORTANT: GitHub authentication is handled automatically by the infrastructure. " +
 	"An egress proxy transparently injects credentials into all GitHub traffic. " +
 	"You do NOT need to set up, configure, or manage any tokens, API keys, or credentials, " +
@@ -2617,6 +2617,9 @@ export class CloudSessionController {
 					cwd,
 					systemPrompt:
 						runtimeOptions.systemPrompt ?? metadata.systemPrompt ?? "",
+					...(typeof metadata.rules === "string"
+						? { rules: metadata.rules }
+						: {}),
 					mode: runtimeOptions.mode ?? metadata.mode ?? "act",
 					...(typeof thinking === "boolean" ? { thinking } : {}),
 					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
@@ -2756,18 +2759,23 @@ export class CloudSessionController {
 		const resumable =
 			connection.remote.sandboxType === "resumable" ||
 			connection.remote.metadata.sandboxType === "resumable";
-		const systemPrompt =
-			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
-			`Working directory: ${cwd}.\n\n` +
-			`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
-			"(or check it out if it already exists), and never commit directly to the default branch. " +
-			(resumable
-				? "Commit and push only when the user asks. "
-				: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
-					`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
-					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
-					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		const rules = handoffSeed
+			? `${CLOUD_SESSION_RULES}\n\n` +
+				`This session was handed off from a local workspace to a fresh Linux clone of ${connection.remote.repoContext.repoUrl ?? "the repository"}@${connection.remote.repoContext.branch ?? "the selected branch"} at ${CLOUD_WORKSPACE_ROOT}. ` +
+				"Earlier transcript references to the local OS, absolute paths, environment, and tool availability are stale." +
+				(cwd === CLOUD_WORKSPACE_ROOT
+					? ""
+					: `\n\nContinue from the original repository subdirectory at ${cwd}.`)
+			: `${CLOUD_SESSION_RULES}\n\n` +
+				`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
+				"(or check it out if it already exists), and never commit directly to the default branch. " +
+				(resumable
+					? "Commit and push only when the user asks. "
+					: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
+						`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
+						"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
+						`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
+				"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
 		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
 		const reasoningEffort =
 			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;
@@ -2786,14 +2794,7 @@ export class CloudSessionController {
 					modelId,
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
 					cwd,
-					systemPrompt: handoffSeed
-						? `${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
-							`This session was handed off from a local workspace to a fresh Linux clone of ${connection.remote.repoContext.repoUrl ?? "the repository"}@${connection.remote.repoContext.branch ?? "the selected branch"} at ${CLOUD_WORKSPACE_ROOT}. ` +
-							"Earlier transcript references to the local OS, absolute paths, environment, and tool availability are stale." +
-							(cwd === CLOUD_WORKSPACE_ROOT
-								? ""
-								: `\n\nContinue from the original repository subdirectory at ${cwd}.`)
-						: systemPrompt,
+					rules,
 					mode,
 					enableTools: true,
 					...(typeof thinking === "boolean" ? { thinking } : {}),
@@ -2804,6 +2805,8 @@ export class CloudSessionController {
 					provider: "cline",
 					model: modelId,
 					interactive: true,
+					// The Hub persists metadata but not sessionConfig.rules; restores re-send it.
+					rules,
 					thinking: thinking ?? null,
 					reasoningEffort:
 						thinking === false ? null : (reasoningEffort ?? null),
