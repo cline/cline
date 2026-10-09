@@ -292,6 +292,12 @@ export class SdkCloudSessionCoordinator {
 		})
 	}
 
+	/** An active status supersedes whatever settled status was remembered before the agent ran again. */
+	private forgetStatus(sessionId: string): void {
+		const { [sessionId]: forgotten, ...kept } = this.rememberedStatuses()
+		if (forgotten) this.options.stateManager.setGlobalState("cloudSessionStatuses", kept)
+	}
+
 	private rememberPendingStart(sessionId: string): void {
 		this.journal?.add({
 			sessionId,
@@ -764,6 +770,7 @@ export class SdkCloudSessionCoordinator {
 			if (entry.record === record) {
 				entry.agentStatus = status
 				if (isSettled(status)) this.rememberStatus(record, status, Date.now())
+				else if (ACTIVE_CLOUD_STATUSES.has(status)) this.forgetStatus(record.id)
 			}
 			this.ensurePolling()
 			return host
@@ -786,6 +793,8 @@ export class SdkCloudSessionCoordinator {
 		entry.agentStatus = status
 		if (isSettled(status)) {
 			this.rememberStatus(entry.record, status, now)
+		} else if (ACTIVE_CLOUD_STATUSES.has(status)) {
+			this.forgetStatus(entry.record.id)
 		}
 		// Learning the current status on connect is not agent activity; only a
 		// change observed while connected moves the task up in History.
