@@ -164,6 +164,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),
+		showChatView: vi.fn(async () => {}),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: async (prompt: string) => {
 			await wait("prompt")

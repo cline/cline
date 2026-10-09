@@ -720,6 +720,10 @@ export class Controller {
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),
+			showChatView: async () => {
+				const { sendChatButtonClickedEvent } = await import("@core/controller/ui/subscribeToChatButtonClicked")
+				await sendChatButtonClickedEvent()
+			},
 			invalidateHistoryCache: () => this.taskHistory.invalidateCache(),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			telemetry: this.sdkTelemetry.telemetry,

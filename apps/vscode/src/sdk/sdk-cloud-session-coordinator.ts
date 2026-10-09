@@ -183,6 +183,8 @@ export interface SdkCloudSessionCoordinatorOptions {
 	/** Forgets the previous turn's completion signal so a new cloud turn's phase is computed fresh. */
 	clearTurnOutcome: () => void
 	postStateToWebview: () => Promise<void>
+	/** Brings the chat view forward, dismissing History or any other view covering it. */
+	showChatView: () => Promise<void>
 	invalidateHistoryCache: () => void
 	resolveContextMentions: (text: string) => Promise<string>
 	telemetry?: ITelemetryService
@@ -1393,6 +1395,9 @@ export class SdkCloudSessionCoordinator {
 			{ ts: startedAt + 1, type: "say", say: "text", text: "Resuming the cloud sandbox…", partial: false },
 		])
 		await this.options.postStateToWebview()
+		// Opened from History, the chat view (and this notice) stays covered until
+		// the open completes, which is after the whole resume. Show it now.
+		await this.options.showChatView()
 		try {
 			await this.options.cloudSessions.resumeSession(suspended.id)
 		} catch (error) {
