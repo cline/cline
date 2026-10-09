@@ -133,6 +133,9 @@ function parseToolContribution(
 		name,
 		description,
 		inputSchema,
+		...(typeof record.successContext === "string"
+			? { successContext: record.successContext }
+			: {}),
 		...(cloneRecord(record.lifecycle)
 			? { lifecycle: cloneRecord(record.lifecycle) }
 			: {}),
@@ -479,6 +482,7 @@ function createToolProxies(
 		description: contribution.description,
 		inputSchema: contribution.inputSchema,
 		lifecycle: contribution.lifecycle as AgentTool["lifecycle"],
+		successContext: contribution.successContext,
 		async execute(input, context) {
 			const response = await requestCapability(
 				sessionId,
