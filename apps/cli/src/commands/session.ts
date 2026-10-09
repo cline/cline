@@ -269,6 +269,136 @@ async function runSessionExportAtif(
 	}
 }
 
+export const SESSION_IMPORT_FORMATS = ["atif"] as const;
+export type SessionImportFormat = (typeof SESSION_IMPORT_FORMATS)[number];
+
+/** `session import` exit codes: `invalid` when the file is not a valid trajectory. */
+export const SESSION_IMPORT_EXIT = { ok: 0, error: 1, invalid: 2 } as const;
+
+export interface SessionImportCommandInput {
+	file: string;
+	format?: string;
+	/** Bundle directory; `<name>.bundle` next to the file when absent. */
+	out?: string;
+	overwrite: boolean;
+	outputMode: CliOutputMode;
+	io: SessionCommandIo;
+}
+
+/**
+ * `session import`: converts an ATIF trajectory into a replay bundle. A file
+ * Cline exported is restored exactly from its `extra.cline` data; any other
+ * file is rebuilt from its steps, with what could not be carried listed in
+ * the bundle's `import-report.json`.
+ */
+export async function runSessionImport(
+	input: SessionImportCommandInput,
+): Promise<number> {
+	const { io } = input;
+	const format = input.format ?? "atif";
+	if (!(SESSION_IMPORT_FORMATS as readonly string[]).includes(format)) {
+		io.writeErr(
+			`Unsupported import format "${format}". Supported formats: ${SESSION_IMPORT_FORMATS.join(", ")}.`,
+		);
+		return SESSION_IMPORT_EXIT.error;
+	}
+	if (!input.file.trim()) {
+		io.writeErr("session import requires <file>");
+		return SESSION_IMPORT_EXIT.error;
+	}
+	const file = resolve(input.file);
+	const {
+		assertImportTarget,
+		defaultImportOutDir,
+		formatSessionImportError,
+		importAtifFile,
+		isRegularFile,
+		SessionImportInputError,
+	} = await import("../session/import");
+	if (!isRegularFile(file)) {
+		io.writeErr(
+			existsSync(file) ? `${file} is not a file.` : `${file} does not exist.`,
+		);
+		return SESSION_IMPORT_EXIT.invalid;
+	}
+	const outDir = resolve(
+		input.out?.trim() ? input.out : defaultImportOutDir(file),
+	);
+	try {
+		await assertImportTarget(outDir, input.overwrite);
+		const result = await importAtifFile({
+			file,
+			outDir,
+			overwrite: input.overwrite,
+		});
+		const { report, manifest } = result;
+		const { ATIF_IMPORT_REPORT_FILE } = await import("@cline/session");
+		const reportPath = join(outDir, ATIF_IMPORT_REPORT_FILE);
+		if (input.outputMode === "json") {
+			writeJson({
+				file,
+				format,
+				bundleDir: outDir,
+				schemaVersion: manifest.schemaVersion,
+				atifSchemaVersion: report.schemaVersion,
+				rootSessionId: report.rootSessionId,
+				restored: report.restored,
+				sessions: report.sessions,
+				unmapped: report.unmapped,
+				assumptions: report.assumptions,
+				reportPath,
+				warnings: result.warnings,
+			});
+			return SESSION_IMPORT_EXIT.ok;
+		}
+		for (const warning of result.warnings) {
+			io.writeErr(`warning: ${warning}`);
+		}
+		const messages = report.sessions.reduce(
+			(total, session) => total + session.messages,
+			0,
+		);
+		io.writeln(
+			`Imported ${report.schemaVersion ?? "ATIF"} trajectory from ${report.agent.name} ${report.agent.version} to ${outDir}`,
+		);
+		io.writeln(
+			`  ${report.restored === "extra.cline" ? "restored exactly from extra.cline" : "rebuilt from the steps"} · ${plural(report.sessions.length, "session")} · ${plural(messages, "message")} · root ${report.rootSessionId}`,
+		);
+		const recorded = manifest.sessions.filter((entry) => entry.recording);
+		io.writeln(
+			recorded.length > 0
+				? `  recording: ${recorded.length} of ${manifest.sessions.length} sessions (strict replay)`
+				: "  recording: none (replay serves model responses by call index)",
+		);
+		const list = (title: string, items: typeof report.unmapped) => {
+			if (items.length === 0) return;
+			io.writeln(`  ${title}:`);
+			for (const item of items) {
+				io.writeln(
+					`    - ${item.field} (${item.count}${item.sessionId === report.rootSessionId ? "" : `, ${item.sessionId}`}): ${item.reason}`,
+				);
+			}
+		};
+		list("not carried", report.unmapped);
+		list("assumed", report.assumptions);
+		io.writeln(`  report: ${reportPath}`);
+		return SESSION_IMPORT_EXIT.ok;
+	} catch (error) {
+		if (error instanceof SessionImportInputError) {
+			for (const line of formatSessionImportError(error)) {
+				io.writeErr(line);
+			}
+			return SESSION_IMPORT_EXIT.invalid;
+		}
+		io.writeErr(errorMessage(error));
+		return SESSION_IMPORT_EXIT.error;
+	}
+}
+
+function plural(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 function countSubagentTrajectories(trajectory: AtifTrajectory): number {
 	return (trajectory.subagent_trajectories ?? []).reduce(
 		(total, sub) => total + 1 + countSubagentTrajectories(sub),
@@ -651,13 +781,69 @@ export async function runSessionReplay(
 		return 1;
 	}
 
+	const target = resolve(input.bundleDir);
+	const { isRegularFile } = await import("../session/import");
+	if (!isRegularFile(target)) {
+		return await playBundle(input, format, target);
+	}
+	let tempDir: string | undefined;
+	try {
+		tempDir = await mkdtemp(join(tmpdir(), "cline-session-import-"));
+		const bundleDir = join(tempDir, "bundle");
+		const imported = await importForReplay(input, target, bundleDir);
+		if (typeof imported === "number") return imported;
+		return await playBundle(input, format, bundleDir);
+	} finally {
+		if (tempDir) {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	}
+}
+
+/**
+ * Imports the ATIF file `file` into `bundleDir` for `session replay`, with
+ * the import warnings on stderr. Returns an exit code when it failed: 2 for a
+ * file that is not a valid trajectory.
+ */
+async function importForReplay(
+	input: SessionReplayCommandInput,
+	file: string,
+	bundleDir: string,
+): Promise<number | undefined> {
+	const { io } = input;
+	const { formatSessionImportError, importAtifFile, SessionImportInputError } =
+		await import("../session/import");
+	try {
+		const result = await importAtifFile({ file, outDir: bundleDir });
+		for (const warning of result.warnings) {
+			io.writeErr(`warning: ${warning}`);
+		}
+		return undefined;
+	} catch (error) {
+		if (error instanceof SessionImportInputError) {
+			for (const line of formatSessionImportError(error)) {
+				io.writeErr(line);
+			}
+			return SESSION_IMPORT_EXIT.invalid;
+		}
+		io.writeErr(errorMessage(error));
+		return input.mode === "rerun" ? SESSION_DIFF_EXIT.error : 1;
+	}
+}
+
+async function playBundle(
+	input: SessionReplayCommandInput,
+	format: SessionReplayFormat,
+	bundleDir: string,
+): Promise<number> {
+	const { io } = input;
 	let replay: LoadedSessionReplay;
 	let speed: number | undefined;
 	try {
 		speed = parseSpeed(input.speed);
 		const { loadSessionReplay } = await import("../session/replay");
 		replay = await loadSessionReplay({
-			bundleDir: resolve(input.bundleDir),
+			bundleDir,
 			sessionId: input.sessionId,
 			from: parsePositiveInteger("--from", input.from),
 			to: parsePositiveInteger("--to", input.to),
@@ -719,8 +905,31 @@ async function runSessionRerunCommand(
 		return SESSION_DIFF_EXIT.error;
 	}
 	const rerunModule = await import("../session/rerun");
+	let bundleDir = input.bundleDir;
+	let outDir = flags.out;
+	let outDirEntries: string[] | undefined;
+	const target = resolve(input.bundleDir);
+	const { isRegularFile } = await import("../session/import");
+	if (isRegularFile(target)) {
+		// The import goes into the rerun's out dir so the report's recorded
+		// bundle, and the `session diff` it suggests, stay valid afterwards.
+		outDir = resolve(
+			flags.out ??
+				rerunModule.defaultRerunOutDir(target.replace(/\.json$/i, "")),
+		);
+		try {
+			await rerunModule.assertEmptyOutDir(outDir);
+		} catch (error) {
+			io.writeErr(errorMessage(error));
+			return SESSION_DIFF_EXIT.error;
+		}
+		bundleDir = join(outDir, "recorded");
+		const imported = await importForReplay(input, target, bundleDir);
+		if (typeof imported === "number") return imported;
+		outDirEntries = ["recorded"];
+	}
 	const options = {
-		bundleDir: input.bundleDir,
+		bundleDir,
 		...(input.sessionId ? { sessionId: input.sessionId } : {}),
 		...(flags.workspace ? { workspace: flags.workspace } : {}),
 		inPlace: flags.inPlace === true,
@@ -731,7 +940,8 @@ async function runSessionRerunCommand(
 		interactive: flags.interactive === true,
 		...(flags.model ? { model: flags.model } : {}),
 		...(flags.provider ? { provider: flags.provider } : {}),
-		...(flags.out ? { outDir: flags.out } : {}),
+		...(outDir ? { outDir } : {}),
+		...(outDirEntries ? { outDirEntries } : {}),
 	};
 	const run = async (handlers: {
 		onLine: (line: string) => void;

@@ -220,7 +220,7 @@ export async function runSessionRerunInContainer(
 			? recordedRoot
 			: posix.join(recordedRoot, environment.cwdRelative);
 	const outDir = resolve(input.outDir ?? defaultRerunOutDir(bundleDir));
-	await assertEmptyOutDir(outDir);
+	await assertEmptyOutDir(outDir, input.outDirEntries);
 
 	let workspace: SessionReplayRebuiltWorkspace;
 	try {

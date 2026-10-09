@@ -3,10 +3,12 @@ import type { CliOutputMode } from "../utils/types";
 import {
 	runSessionDiff,
 	runSessionExport,
+	runSessionImport,
 	runSessionReplay,
 	runSessionValidate,
 	SESSION_DIFF_FORMATS,
 	SESSION_EXPORT_FORMATS,
+	SESSION_IMPORT_FORMATS,
 	SESSION_REPLAY_FORMATS,
 	SESSION_REPLAY_MODES,
 	type SessionExportFormat,
@@ -34,7 +36,7 @@ export function registerSessionCommand({
 }: RegisterSessionCommandOptions): void {
 	const sessionCmd = program
 		.command("session")
-		.description("Export, replay and compare recorded sessions")
+		.description("Export, import, replay and compare recorded sessions")
 		.option("--json", "Output as JSON")
 		.action(() => {
 			sessionCmd.outputHelp();
@@ -95,10 +97,44 @@ export function registerSessionCommand({
 			);
 		});
 
+	const importCmd = sessionCmd
+		.command("import <file>")
+		.description(
+			"Import an ATIF trajectory as a session replay bundle (exit 2: not a valid trajectory)",
+		)
+		.addOption(
+			new Option("--format <format>", "Format of the file")
+				.choices([...SESSION_IMPORT_FORMATS])
+				.default("atif"),
+		)
+		.option(
+			"--out <dir>",
+			"Directory to write the bundle to (default: <file>.bundle next to the file)",
+		)
+		.option("--force", "Replace an existing bundle in the target directory")
+		.option("--json", "Output as JSON")
+		.action(async (file: string) => {
+			const opts = importCmd.opts<{
+				format: string;
+				out?: string;
+				force?: boolean;
+			}>();
+			setExitCode(
+				await runSessionImport({
+					file,
+					format: opts.format,
+					...(opts.out !== undefined ? { out: opts.out } : {}),
+					overwrite: opts.force === true,
+					outputMode: outputMode(importCmd),
+					io,
+				}),
+			);
+		});
+
 	const replayCmd = sessionCmd
 		.command("replay <bundle>")
 		.description(
-			"Play back a session replay bundle, or rerun it live with --mode rerun (rerun exit 0: no divergence, 1: diverged, 2: error)",
+			"Play back a session replay bundle or an ATIF trajectory file, or rerun it live with --mode rerun (rerun exit 0: no divergence, 1: diverged, 2: error)",
 		)
 		.addOption(
 			new Option(
@@ -164,7 +200,7 @@ export function registerSessionCommand({
 		)
 		.option(
 			"--out <dir>",
-			"Rerun: directory for the workspace copy, the rerun bundle and rerun-report.json (default: <bundle>.rerun-<time> next to the bundle)",
+			"Rerun: directory for the workspace copy, the rerun bundle and rerun-report.json, and for an ATIF file the imported bundle (default: <bundle>.rerun-<time> next to the bundle)",
 		)
 		.option(
 			"--in-container",

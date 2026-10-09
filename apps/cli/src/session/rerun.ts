@@ -51,6 +51,8 @@ export interface SessionRerunInput {
 	provider?: string;
 	/** Directory for the workspace copy, the rerun bundle and the report. */
 	outDir?: string;
+	/** Entries `outDir` may already hold, such as the bundle imported for this rerun. */
+	outDirEntries?: readonly string[];
 	onProgress?: (progress: SessionReplayRerunProgress) => void;
 	/** Workspace and setup notes, before the session starts. */
 	onNote?: (note: string) => void;
@@ -78,13 +80,16 @@ export function defaultRerunOutDir(
 	);
 }
 
-export async function assertEmptyOutDir(outDir: string): Promise<void> {
+export async function assertEmptyOutDir(
+	outDir: string,
+	allowed: readonly string[] = [],
+): Promise<void> {
 	if (!existsSync(outDir)) return;
 	const entries = await readdir(outDir).catch(() => null);
 	if (entries === null) {
 		throw new SessionRerunError(`${outDir} exists and is not a directory.`);
 	}
-	if (entries.length > 0) {
+	if (entries.some((entry) => !allowed.includes(entry))) {
 		throw new SessionRerunError(
 			`${outDir} already exists and is not empty; pass --out <dir> to write the rerun elsewhere.`,
 		);
@@ -319,7 +324,7 @@ export async function runSessionRerun(
 		session,
 	});
 	const outDir = resolve(input.outDir ?? defaultRerunOutDir(bundleDir));
-	await assertEmptyOutDir(outDir);
+	await assertEmptyOutDir(outDir, input.outDirEntries);
 
 	let workspace: SessionReplayRebuiltWorkspace;
 	try {
