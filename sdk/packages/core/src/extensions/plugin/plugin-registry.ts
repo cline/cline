@@ -67,6 +67,13 @@ type TimerKind = "timeout" | "interval" | "immediate";
  */
 interface PluginGeneration {
 	id: number;
+	/**
+	 * Health of this generation's copies, from calls they made (setup
+	 * failures are per copy and not counted here). Session notices fire when
+	 * it changes, so an older generation's first failure after a reload is
+	 * reported to its sessions even though the status shows the new one.
+	 */
+	health: "ready" | "degraded" | "failed";
 	/** Turned off for every copy of this generation. */
 	blocked: boolean;
 	consecutiveFailures: number;
@@ -117,6 +124,13 @@ interface PluginInstance {
 	timers: Map<unknown, TimerKind>;
 	/** Cleanup registered through `ctx.onDispose`. */
 	disposers: Array<() => void | Promise<void>>;
+	/**
+	 * The async scope every call into this copy runs in, created at import.
+	 * Work the module starts at import time keeps this scope, so claiming the
+	 * copy for a session fills in its session id and event callback here
+	 * rather than in a new scope that work would never see.
+	 */
+	scope: PluginCallScope;
 }
 
 interface PluginCallScope {
@@ -401,13 +415,18 @@ function installPluginTimerTracking(): void {
 				return original.call(this, handler, ...rest);
 			}
 			let handle: unknown;
+			// A regular function so the runtime's `this` (the timer handle in
+			// Node and Bun) reaches the plugin's callback unchanged.
 			const callback =
 				kind === "interval"
 					? handler
-					: (...args: unknown[]) => {
+					: function (this: unknown, ...args: unknown[]) {
 							owner.timers.delete(handle);
 							timerOwners.delete(handle);
-							return (handler as (...a: unknown[]) => unknown)(...args);
+							return (handler as (...a: unknown[]) => unknown).apply(
+								this,
+								args,
+							);
 						};
 			handle = original.call(this, callback, ...rest);
 			if (owner.closed) {
@@ -476,14 +495,21 @@ export function installPluginHostShim(): void {
 }
 
 function newGeneration(id: number): PluginGeneration {
-	return { id, blocked: false, consecutiveFailures: 0, liveCopies: 0 };
+	return {
+		id,
+		health: "ready",
+		blocked: false,
+		consecutiveFailures: 0,
+		liveCopies: 0,
+	};
 }
 
 function newInstance(
 	extension: AgentExtension | undefined,
 	generation: PluginGeneration,
+	pluginName: string,
 ): PluginInstance {
-	return {
+	const instance: PluginInstance = {
 		// Assigned as soon as the import resolves; never read before that.
 		extension: extension as AgentExtension,
 		generation,
@@ -491,7 +517,10 @@ function newInstance(
 		closed: false,
 		timers: new Map(),
 		disposers: [],
+		scope: { pluginName },
 	};
+	instance.scope.instance = instance;
+	return instance;
 }
 
 /**
@@ -885,16 +914,12 @@ export class PluginRegistry {
 	): Promise<PluginInstance> {
 		// The copy exists before its module does, so timers the module starts
 		// at import time are attributed to it.
-		const instance = newInstance(undefined, generation);
-		const scope: PluginCallScope = {
-			sessionId,
-			pluginName: entry.name,
-			instance,
-		};
+		const instance = newInstance(undefined, generation, entry.name);
+		instance.scope.sessionId = sessionId;
 		try {
 			instance.extension = await runWithTimeout(
 				() =>
-					runInPluginScope(scope, () =>
+					runInPluginScope(instance.scope, () =>
 						loadAgentPluginFromPath(entry.pluginPath, {
 							exportName,
 							freshModule: true,
@@ -992,12 +1017,12 @@ export class PluginRegistry {
 			? (name: string, payload?: unknown) =>
 					pluginCallScope.exit(() => input.emitEvent?.({ name, payload }))
 			: undefined;
-		const scope: PluginCallScope = {
-			sessionId,
-			pluginName: entry.name,
-			instance,
-			emitEvent,
-		};
+		// Connect the copy's own scope (the one its import-time work holds) to
+		// this session.
+		const scope = instance.scope;
+		scope.sessionId = sessionId;
+		scope.pluginName = entry.name;
+		scope.emitEvent = emitEvent;
 		const originalSetup = extension.setup;
 		const wrapped: AgentExtension & { __clinePluginPath?: string } = {
 			...extension,
@@ -1038,7 +1063,8 @@ export class PluginRegistry {
 						await this.runSetup(
 							entry,
 							instance,
-							(bufferedApi) => originalSetup(bufferedApi, setupContext),
+							(bufferedApi) =>
+								originalSetup.call(extension, bufferedApi, setupContext),
 							api,
 							scope,
 							input,
@@ -1266,7 +1292,7 @@ export class PluginRegistry {
 					timeouts.call,
 					scope,
 					input,
-					() => handler(commandInput),
+					() => handler.call(command, commandInput),
 				);
 			},
 		};
@@ -1295,7 +1321,7 @@ export class PluginRegistry {
 						timeouts.call,
 						scope,
 						input,
-						() => content(),
+						() => content.call(rule),
 					);
 				} catch {
 					return "";
@@ -1325,7 +1351,7 @@ export class PluginRegistry {
 						timeouts.call,
 						scope,
 						input,
-						() => builder.build(messages),
+						() => builder.build.call(builder, messages),
 					);
 				} catch {
 					return messages;
@@ -1470,7 +1496,6 @@ export class PluginRegistry {
 			options.fatal === true ||
 			(!options.state &&
 				generation.consecutiveFailures >= this.failureThreshold);
-		const wasBlocked = generation.blocked;
 		if (block) generation.blocked = true;
 		const issueRecord: PluginErrorRecord = {
 			phase,
@@ -1482,7 +1507,12 @@ export class PluginRegistry {
 			...(timedOut ? { timedOut } : {}),
 		};
 
-		let changed = block && !wasBlocked;
+		const nextHealth: PluginGeneration["health"] = block
+			? "failed"
+			: "degraded";
+		// Per-copy failures (setup) leave the generation's health alone.
+		const healthChanged = !options.state && generation.health !== nextHealth;
+		if (!options.state) generation.health = nextHealth;
 		if (isCurrent) {
 			// Status reflects the current generation only; an older copy still
 			// running in a session must not overwrite it.
@@ -1496,7 +1526,6 @@ export class PluginRegistry {
 				entry.extension = undefined;
 				this.discardSpare(entry);
 			}
-			changed = entry.state !== next;
 			this.setState(entry, next, true);
 		}
 
@@ -1511,7 +1540,7 @@ export class PluginRegistry {
 		// other sessions' copies still work, so do not tell them otherwise.
 		// Otherwise tell the sessions running this generation.
 		const notified: Array<(issue: SessionPluginIssue) => void> = [];
-		if (changed && !options.state) {
+		if (healthChanged) {
 			for (const attachment of entry.sessions.values()) {
 				if (attachment.generation === generation && attachment.onIssue) {
 					notified.push(attachment.onIssue);

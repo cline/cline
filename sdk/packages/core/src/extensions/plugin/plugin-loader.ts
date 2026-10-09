@@ -138,7 +138,7 @@ export async function loadAgentPluginFromPath(
 					logger: options.logger ?? _ctx.logger,
 					telemetry: options.telemetry ?? _ctx.telemetry,
 				};
-				return originalSetup(api, ctx);
+				return originalSetup.call(pluginTyped, api, ctx);
 			}
 		: undefined;
 

@@ -830,4 +830,102 @@ export default { name: "counted", manifest: { capabilities: ["tools"] } };
 		await registry.loadForSession({ sessionId: "second", pluginPaths: [path] });
 		expect(globals.__countedImports).toBe(2);
 	});
+
+	it("keeps the runtime's this for timer callbacks and the plugin's this for its methods", async () => {
+		const path = await write(
+			"this-binding.js",
+			`export default {
+	name: "this-binding",
+	label: "plugin-object",
+	manifest: { capabilities: ["commands", "rules", "messageBuilders"] },
+	setup(api) {
+		globalThis.__setupThis = this?.label;
+		const handle = setTimeout(function () {
+			globalThis.__timerThisIsHandle = this === handle;
+		}, 1);
+		api.registerRule({ id: "self-rule", content() { return this.id; } });
+		api.registerCommand({ name: "who", handler(input) { return this.name + ":" + input; } });
+		api.registerMessageBuilder({ name: "tagger", build(messages) { return [...messages, { role: "user", content: this.name }]; } });
+	},
+};
+`,
+		);
+		const loaded = await registry.loadForSession({
+			sessionId: "s1",
+			pluginPaths: [path],
+		});
+		const rules: Array<{ content: unknown }> = [];
+		const commands: Array<{ handler?: (input: string) => unknown }> = [];
+		const builders: Array<{ build: (messages: Message[]) => unknown }> = [];
+		await loaded.extensions[0]?.setup?.(
+			{
+				...collectingApi().api,
+				registerRule: (rule) => rules.push(rule),
+				registerCommand: (command) => commands.push(command),
+				registerMessageBuilder: (builder) => builders.push(builder),
+			},
+			{},
+		);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		const globals = globalThis as unknown as Record<string, unknown>;
+
+		expect(globals.__setupThis).toBe("plugin-object");
+		expect(globals.__timerThisIsHandle).toBe(true);
+		await expect((rules[0]?.content as () => Promise<string>)()).resolves.toBe(
+			"self-rule",
+		);
+		await expect(commands[0]?.handler?.("me")).resolves.toBe("who:me");
+		await expect(builders[0]?.build([])).resolves.toEqual([
+			{ role: "user", content: "tagger" },
+		]);
+		expect(registry.get(path)[0]?.errorCount).toBe(0);
+	});
+
+	it("routes events from work the module started at import to the session that claimed it", async () => {
+		const path = await write(
+			"import-time-work.js",
+			`setTimeout(() => {
+	globalThis.__clinePluginHost?.emitEvent?.("steer_message", { prompt: "from import" });
+}, 40);
+export default { name: "import-time-work", manifest: { capabilities: ["tools"] } };
+`,
+		);
+		const events: Array<{ name: string; payload?: unknown }> = [];
+		await registry.loadForSession({
+			sessionId: "claimer",
+			pluginPaths: [path],
+			emitEvent: (event) => events.push(event),
+		});
+		await new Promise((resolve) => setTimeout(resolve, 80));
+		expect(events).toEqual([
+			{ name: "steer_message", payload: { prompt: "from import" } },
+		]);
+	});
+
+	it("tells an older generation's sessions about its first failure after a reload", async () => {
+		const path = await write(
+			"old-hook.js",
+			`export default {
+	name: "old-hook",
+	manifest: { capabilities: ["hooks"] },
+	hooks: { beforeRun: async () => { throw new Error("old copy broke"); } },
+};
+`,
+		);
+		const told: string[] = [];
+		const old = await registry.loadForSession({
+			sessionId: "old",
+			pluginPaths: [path],
+			onIssue: (issue) =>
+				told.push(`${issue.state}:${issue.lastError?.message}`),
+		});
+		await writeFile(path, toolPlugin("old-hook"), "utf8");
+		await registry.reload(path);
+
+		await old.extensions[0]?.hooks?.beforeRun?.({ snapshot: {} } as never);
+
+		expect(told).toEqual(["degraded:old copy broke"]);
+		// Status still describes the reloaded generation.
+		expect(registry.get(path)[0]?.state).toBe("ready");
+	});
 });
