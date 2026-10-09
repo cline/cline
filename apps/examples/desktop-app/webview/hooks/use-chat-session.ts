@@ -43,6 +43,7 @@ import type {
 	ProcessContext,
 	PromptInQueue,
 	ReasoningDeltaEvent,
+	SerializedAttachments,
 	ToolApprovalRequestItem,
 	ToolCallEndEvent,
 	ToolCallStartEvent,
@@ -2603,7 +2604,11 @@ export function useChatSession(environmentId: string) {
 	const startSession = useCallback(
 		async (
 			validatedConfig: ChatSessionConfig,
-			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
+			options: {
+				preserveStatus?: boolean;
+				initialPrompt?: string;
+				attachments?: SerializedAttachments;
+			} = {},
 		): Promise<string> => {
 			hydrationRequestIdRef.current += 1;
 			setIsHydratingSession(false);
@@ -2611,6 +2616,7 @@ export function useChatSession(environmentId: string) {
 			const payload = await postSession({
 				action: "start",
 				config: boundConfig,
+				attachments: options.attachments,
 				...(options.initialPrompt?.trim()
 					? { prompt: options.initialPrompt.trim() }
 					: {}),
@@ -2884,6 +2890,7 @@ export function useChatSession(environmentId: string) {
 
 			const failureGenerationAtSubmission = failureTurnGenerationRef.current;
 			let sendTask: ReturnType<typeof postSession> | null = null;
+			let startedCloudSession = false;
 			// The turn epoch at send-RPC dispatch time. chat_queued_prompt_start
 			// bumps the epoch when the runtime starts consuming a queued prompt,
 			// so a mismatch when the send response arrives means the stream has
@@ -2936,52 +2943,68 @@ export function useChatSession(environmentId: string) {
 					// submitted while it runs queues behind it instead of cutting a
 					// second worktree and session.
 					const startPromise =
-						options?.inNewWorktree && parsed.executionTarget !== "cloud"
-							? desktopClient
-									.invoke<{ path: string }>("create_git_worktree", {
-										cwd: parsed.cwd || parsed.workspaceRoot,
-									})
-									.catch((err) => {
+						parsed.executionTarget === "cloud"
+							? (async () => {
+									const serialized = await serializedAttachmentsTask;
+									if (!serialized.ok) throw serialized.error;
+									if (serialized.attachments.userFiles.length)
 										throw new Error(
-											`Couldn't create a worktree: ${errorMessage(err)}`,
+											"File attachments are not supported in cloud sessions",
 										);
-									})
-									.then(async (worktree) => {
-										parsed = {
-											...parsed,
-											cwd: worktree.path,
-											workspaceRoot: worktree.path,
-										};
-										try {
-											return await startSession(
-												{ ...parsed, sessionId: plannedSessionId },
-												{ preserveStatus: true },
+									return startSession(
+										{ ...parsed, sessionId: plannedSessionId },
+										{
+											preserveStatus: true,
+											initialPrompt: trimmed,
+											attachments: serialized.attachments,
+										},
+									);
+								})()
+							: options?.inNewWorktree
+								? desktopClient
+										.invoke<{ path: string }>("create_git_worktree", {
+											cwd: parsed.cwd || parsed.workspaceRoot,
+										})
+										.catch((err) => {
+											throw new Error(
+												`Couldn't create a worktree: ${errorMessage(err)}`,
 											);
-										} catch (err) {
-											// No session owns the worktree yet: drop it rather
-											// than leave an orphan directory and branch behind.
-											void desktopClient
-												.invoke("remove_git_worktree", { path: worktree.path })
-												.catch(() => undefined);
-											throw err;
-										}
-									})
-							: startSession(
-									{
-										...parsed,
-										sessionId: plannedSessionId,
-									},
-									{
-										preserveStatus: true,
-										initialPrompt:
-											parsed.executionTarget === "cloud"
-												? userLabel
-												: undefined,
-									},
-								);
+										})
+										.then(async (worktree) => {
+											parsed = {
+												...parsed,
+												cwd: worktree.path,
+												workspaceRoot: worktree.path,
+											};
+											try {
+												return await startSession(
+													{ ...parsed, sessionId: plannedSessionId },
+													{ preserveStatus: true },
+												);
+											} catch (err) {
+												// No session owns the worktree yet: drop it rather
+												// than leave an orphan directory and branch behind.
+												void desktopClient
+													.invoke("remove_git_worktree", {
+														path: worktree.path,
+													})
+													.catch(() => undefined);
+												throw err;
+											}
+										})
+								: startSession(
+										{
+											...parsed,
+											sessionId: plannedSessionId,
+										},
+										{
+											preserveStatus: true,
+										},
+									);
 					sessionStartPromiseRef.current = startPromise;
 					try {
 						activeSessionId = await startPromise;
+						startedCloudSession = parsed.executionTarget === "cloud";
 					} catch (err) {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
@@ -3045,6 +3068,28 @@ export function useChatSession(environmentId: string) {
 							})),
 						);
 					}
+				}
+				if (startedCloudSession) {
+					activeSessionIdRef.current = activeSessionId;
+					finishPromptSubmission();
+					const createdSessionId = activeSessionId;
+					void desktopClient
+						.invoke(
+							"read_session_messages",
+							{
+								environmentId,
+								sessionId: createdSessionId,
+								maxMessages: MAX_MESSAGES,
+							},
+							{ timeoutMs: null },
+						)
+						.catch((error) => {
+							if (activeSessionIdRef.current === createdSessionId)
+								setErrorState(errorMessage(error), createdSessionId);
+						});
+					if (turnEpochRef.current === turnSettledEpochRef.current)
+						finalizeSettledTurn(activeSessionId);
+					return true;
 				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;

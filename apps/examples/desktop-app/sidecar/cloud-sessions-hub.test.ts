@@ -270,6 +270,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		undefined,
 		"task-established",
 	])("never recreates a missing established task (%s)", async (taskId) => {
+		vi.useFakeTimers();
 		const hub = new FakeHubClient(false);
 		hub.commandHook = (command) => {
 			if (command === "session.get")
@@ -290,14 +291,22 @@ describe("CloudSessionManager Hub runtime", () => {
 			} as unknown as CloudSessionApi,
 		});
 		try {
-			await expect(manager.readMessages("ses-outer")).resolves.toEqual(archive);
+			const archived = expect(
+				manager.readMessages("ses-outer"),
+			).resolves.toEqual(archive);
+			await vi.advanceTimersByTimeAsync(100_000);
+			await archived;
 			history.mockResolvedValueOnce(null);
-			await expect(manager.readMessages("ses-outer")).rejects.toThrow(
+			const missing = expect(manager.readMessages("ses-outer")).rejects.toThrow(
 				"task is unavailable",
 			);
-			await expect(manager.send("ses-outer", "continue")).rejects.toThrow(
-				"task is unavailable",
-			);
+			await vi.advanceTimersByTimeAsync(100_000);
+			await missing;
+			const sending = expect(
+				manager.send("ses-outer", "continue"),
+			).rejects.toThrow("task is unavailable");
+			await vi.advanceTimersByTimeAsync(100_000);
+			await sending;
 			expect(
 				hub.commands.some(
 					({ command }) =>
@@ -306,6 +315,7 @@ describe("CloudSessionManager Hub runtime", () => {
 			).toBe(false);
 		} finally {
 			await manager.dispose();
+			vi.useRealTimers();
 		}
 	});
 
@@ -1553,7 +1563,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.dispose();
 	});
 
-	it("creates and sends to an inner session while preserving the outer id", async () => {
+	it("creates an inner session for a legacy empty start and sends while preserving the outer id", async () => {
 		const { manager, hub } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
@@ -1575,7 +1585,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		const created = await manager.create({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
-			initialPrompt: "Fix it",
 			thinking: true,
 			reasoningEffort: "high",
 		});
@@ -1583,8 +1592,8 @@ describe("CloudSessionManager Hub runtime", () => {
 		const sent = await manager.send("ses-outer", "Fix it");
 
 		expect(created.sessionId).toBe("ses-outer");
-		expect(created.prompt).toBe("Fix it");
-		expect(attached.prompt).toBe("Fix it");
+		expect(created.prompt).toBeUndefined();
+		expect(attached.prompt).toBeUndefined();
 		expect(hub.commands).toContainEqual(
 			expect.objectContaining({
 				command: "session.create",

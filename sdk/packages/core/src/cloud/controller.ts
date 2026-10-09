@@ -18,6 +18,7 @@ import {
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
 	deriveCloudSessionTitle,
+	hasInitialPrompt,
 	parseCloudProvisioningPhase,
 } from "./api";
 import { type CloudModel, loadCloudModels } from "./models";
@@ -40,6 +41,10 @@ import {
 	reduceCloudEvent,
 	resolveSessionListTitle,
 } from "./state";
+import {
+	CLOUD_SESSION_SYSTEM_PROMPT,
+	cloudSystemPrompt,
+} from "./system-prompt";
 import type {
 	CloudApproval,
 	CloudCreationOptions,
@@ -76,15 +81,6 @@ const CLOUD_WORKSPACE_ROOT = "/workspace";
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
-const CLOUD_SESSION_SYSTEM_PROMPT =
-	"IMPORTANT: GitHub authentication is handled automatically by the infrastructure. " +
-	"An egress proxy transparently injects credentials into all GitHub traffic. " +
-	"You do NOT need to set up, configure, or manage any tokens, API keys, or credentials, " +
-	"and you must never run `gh auth login` or attempt to authenticate manually. " +
-	"The GitHub CLI (`gh`) is installed and already authenticated — prefer it for GitHub work " +
-	"(`gh pr create`, `gh pr diff`, `gh issue list`, `gh api`, ...). " +
-	"`git` push and pull are authenticated the same way. " +
-	"Simply run the commands normally — credentials are injected transparently.";
 
 function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
 	if (!workspaceRelativePath) return CLOUD_WORKSPACE_ROOT;
@@ -198,6 +194,8 @@ type CloudConnection = {
 	bufferedEvents: HubEventEnvelope[];
 	bufferedEventsDropped: number;
 	transcriptKnown: boolean;
+	hasResolvedSession?: boolean;
+	discoveryDeadline?: number;
 	seenEventIds: Set<string>;
 	/** Exact command correlation; optimistic transcript text is never acceptance. */
 	pendingInputs?: Map<
@@ -1153,13 +1151,11 @@ export class CloudSessionController {
 		};
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, record);
-		// REST does not round-trip these client-side first-task preferences.
 		const { autoApproveTools, thinking, reasoningEffort } = input;
-		this.pendingInitialTasks.set(record.id, {
-			autoApproveTools,
-			thinking,
-			reasoningEffort,
-		});
+		const creationOptions = { autoApproveTools, thinking, reasoningEffort };
+		this.restoreCreationOptions(record.id, creationOptions);
+		if (!hasInitialPrompt(input))
+			this.pendingInitialTasks.set(record.id, creationOptions);
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
 		live.config.mode = input.mode ?? "act";
@@ -1202,6 +1198,20 @@ export class CloudSessionController {
 			sessionId: record.id,
 			status: live.status,
 		});
+		if (hasInitialPrompt(input)) {
+			this.setInitialTitle(record.id, input.initialPrompt ?? "");
+			void this.ensureConnection(record.id)
+				.then((connection) =>
+					this.rehydrateAfterTransportDrop(record.id, connection),
+				)
+				.catch((error) => {
+					if (this.disposed || this.detachedSessions.has(record.id)) return;
+					this.notify("cloud_session_sync_failed", {
+						sessionId: record.id,
+						message: error instanceof Error ? error.message : String(error),
+					});
+				});
+		}
 		return {
 			sessionId: record.id,
 			origin: "cloud",
@@ -1285,6 +1295,34 @@ export class CloudSessionController {
 			live?.status ?? record.status,
 			live?.prompt,
 		);
+	}
+
+	private setInitialTitle(outerSessionId: string, prompt: string): void {
+		const live = this.sessions.get(outerSessionId);
+		const record = this.knownSessions.get(outerSessionId);
+		if (
+			record &&
+			!record.title?.trim() &&
+			!this.titleWrites.has(outerSessionId)
+		) {
+			const title = deriveCloudSessionTitle(prompt);
+			if (title) {
+				record.title = title;
+				if (live) {
+					live.title = title;
+				}
+				const write = this.options.api
+					.updateTitle?.(outerSessionId, title)
+					.then(() => {})
+					.catch(() => {})
+					.finally(() => {
+						if (this.titleWrites.get(outerSessionId) === write) {
+							this.titleWrites.delete(outerSessionId);
+						}
+					});
+				if (write) this.titleWrites.set(outerSessionId, write);
+			}
+		}
 	}
 
 	async send(
@@ -1371,30 +1409,7 @@ export class CloudSessionController {
 			live.prompt ||= prompt;
 			if (statusChanged) this.publishSnapshot(outerSessionId, false, "status");
 		}
-		const record = this.knownSessions.get(outerSessionId);
-		if (
-			record &&
-			!record.title?.trim() &&
-			!this.titleWrites.has(outerSessionId)
-		) {
-			const title = deriveCloudSessionTitle(prompt);
-			if (title) {
-				record.title = title;
-				if (live) {
-					live.title = title;
-				}
-				const write = this.options.api
-					.updateTitle?.(outerSessionId, title)
-					.then(() => {})
-					.catch(() => {})
-					.finally(() => {
-						if (this.titleWrites.get(outerSessionId) === write) {
-							this.titleWrites.delete(outerSessionId);
-						}
-					});
-				if (write) this.titleWrites.set(outerSessionId, write);
-			}
-		}
+		this.setInitialTitle(outerSessionId, prompt);
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
 		const accept = () => {
@@ -1933,7 +1948,11 @@ export class CloudSessionController {
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
 		const known = this.knownSessions.get(outerSessionId);
-		if (known?.status === "provisioning" || known?.status === "failed") {
+		if (
+			(known?.status === "provisioning" &&
+				!this.connectionPromises.has(outerSessionId)) ||
+			known?.status === "failed"
+		) {
 			return [];
 		}
 		if (known && isExpiredRecord(known)) {
@@ -2500,41 +2519,88 @@ export class CloudSessionController {
 		this.assertSessionActive(outerSessionId, connection);
 		if (connection.innerSessionId) return;
 		const taskId = connection.remote.metadata.taskId?.trim();
+		const deadline = (connection.discoveryDeadline ??= Date.now() + 100_000);
 		let session: JsonRecord | undefined;
-		if (taskId) {
-			try {
-				const reply = await connection.client.command(
-					"session.get",
-					{ sessionId: taskId },
-					taskId,
+		while (true) {
+			if (taskId) {
+				try {
+					const reply = await connection.client.command(
+						"session.get",
+						{ sessionId: taskId },
+						taskId,
+					);
+					this.assertSessionActive(outerSessionId, connection);
+					session =
+						reply.payload?.session &&
+						typeof reply.payload.session === "object" &&
+						!Array.isArray(reply.payload.session)
+							? (reply.payload.session as JsonRecord)
+							: undefined;
+				} catch (error) {
+					if (!isSessionNotFoundError(error)) throw error;
+				}
+			} else {
+				const listed = await connection.client.command("session.list", {
+					limit: 100,
+				});
+				this.assertSessionActive(outerSessionId, connection);
+				session = readSessionRows(listed.payload)
+					.filter(isRootSessionRow)
+					.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
+			}
+
+			this.assertSessionActive(outerSessionId, connection);
+			if (session && String(session.sessionId ?? "").trim()) break;
+			if (allowMissing || this.pendingInitialTasks.has(outerSessionId)) return;
+			if (connection.hasResolvedSession || Date.now() >= deadline) {
+				throw new Error(
+					"This cloud session's task is unavailable. Reconnect to check its progress.",
+				);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 1_000));
+			this.assertSessionActive(outerSessionId, connection);
+		}
+		const innerSessionId = String(session.sessionId).trim();
+		// Backend-created roots can appear before their first input is queued.
+		if (
+			(session.metadata as JsonRecord | undefined)?.source === "cloud" &&
+			!connection.hasResolvedSession
+		) {
+			while (true) {
+				const history = await connection.client.command(
+					"session.messages",
+					{},
+					innerSessionId,
 				);
 				this.assertSessionActive(outerSessionId, connection);
-				session =
-					reply.payload?.session &&
-					typeof reply.payload.session === "object" &&
-					!Array.isArray(reply.payload.session)
-						? (reply.payload.session as JsonRecord)
-						: undefined;
-			} catch (error) {
-				if (!isSessionNotFoundError(error)) throw error;
-			}
-		} else {
-			const listed = await connection.client.command("session.list", {
-				limit: 100,
-			});
-			this.assertSessionActive(outerSessionId, connection);
-			session = readSessionRows(listed.payload)
-				.filter(isRootSessionRow)
-				.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
-		}
-		const innerSessionId = String(session?.sessionId ?? "").trim();
-		if (!innerSessionId || !session) {
-			if (!allowMissing && !this.pendingInitialTasks.has(outerSessionId)) {
-				throw new Error(
-					"This cloud session's task is unavailable. Start a new cloud session to continue.",
+				if (
+					Array.isArray(history.payload?.messages) &&
+					history.payload.messages.some(
+						(message) =>
+							message &&
+							typeof message === "object" &&
+							(message as JsonRecord).role === "user",
+					)
+				)
+					break;
+				const queued = await connection.client.command(
+					"session.pending_prompts",
+					{},
+					innerSessionId,
 				);
+				this.assertSessionActive(outerSessionId, connection);
+				if (
+					Array.isArray(queued.payload?.prompts) &&
+					queued.payload.prompts.length
+				)
+					break;
+				if (Date.now() >= deadline)
+					throw new Error(
+						"Could not confirm the cloud task's first input. Reconnect to check its progress.",
+					);
+				await new Promise((resolve) => setTimeout(resolve, 1_000));
+				this.assertSessionActive(outerSessionId, connection);
 			}
-			return;
 		}
 		if (
 			connection.remote.sandboxType === "resumable" ||
@@ -2549,6 +2615,7 @@ export class CloudSessionController {
 		const modelId = sessionRowModelId(session);
 		if (modelId) this.applyModel(connection, modelId);
 		await this.ensureAttached(connection);
+		connection.hasResolvedSession = true;
 	}
 
 	private async restoreSavedInnerSession(
@@ -2731,6 +2798,7 @@ export class CloudSessionController {
 		this.subscribeToInnerSession(connection.remote.id, connection);
 		this.applySessionModel(connection, only);
 		await this.ensureAttached(connection);
+		connection.hasResolvedSession = true;
 		return true;
 	}
 
@@ -2756,17 +2824,7 @@ export class CloudSessionController {
 		const resumable =
 			connection.remote.sandboxType === "resumable" ||
 			connection.remote.metadata.sandboxType === "resumable";
-		const systemPrompt =
-			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
-			`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
-			"(or check it out if it already exists), and never commit directly to the default branch. " +
-			(resumable
-				? "Commit and push only when the user asks. "
-				: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
-					`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
-					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
-					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		const systemPrompt = cloudSystemPrompt(branch, resumable);
 		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
 		const reasoningEffort =
 			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;
@@ -2874,6 +2932,7 @@ export class CloudSessionController {
 		}
 		this.subscribeToInnerSession(connection.remote.id, connection);
 		this.applySessionModel(connection, session);
+		connection.hasResolvedSession = true;
 		// Seeded content is authoritative only after a strict session.messages
 		// read-back verifies that the pod persisted initialMessages.
 		connection.transcriptKnown = !handoffSeed;

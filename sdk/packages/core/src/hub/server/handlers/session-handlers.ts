@@ -103,6 +103,12 @@ async function deleteSessionAndCleanDerivedState(
 	ctx: HubTransportContext,
 	sessionId: string,
 ): Promise<boolean> {
+	// Shutdown waits for running tools, so settle pending questions first.
+	cancelPendingCapabilityRequests(
+		ctx,
+		(request) => request.sessionId === sessionId && !request.targetClientId,
+		"Session deleted before the question was answered.",
+	);
 	const deleted = await ctx.sessionHost.deleteSession(sessionId);
 	ctx.sessionState.delete(sessionId);
 	// False means canonical history was already absent. Eviction is still safe
@@ -358,6 +364,10 @@ export async function handleSessionCreate(
 		targetClientId: clientId,
 		contributions: clientContributions,
 		sessionConfig,
+		enableAskQuestion:
+			metadata.source === "cloud" &&
+			metadata.interactive !== false &&
+			metadata.enableAskQuestion === true,
 		requestCapability: ctx.requestCapability,
 	});
 	logHubMessage("info", "session.create.start_session.begin", {
@@ -638,6 +648,10 @@ export async function handleSessionRestore(
 			targetClientId: clientId,
 			contributions: clientContributions,
 			sessionConfig,
+			enableAskQuestion:
+				metadata.source === "cloud" &&
+				metadata.interactive !== false &&
+				metadata.enableAskQuestion === true,
 			requestCapability: ctx.requestCapability,
 		});
 		const service = new SessionVersioningService();

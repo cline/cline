@@ -58,10 +58,57 @@ describe("CloudSessionApi", () => {
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 			sandboxType,
+			initialPrompt: "First prompt",
+			requestId: "chat-abcdefgh",
+			mode: "plan",
+			thinking: false,
+			reasoningEffort: "high",
+			autoApproveTools: false,
 		});
 		const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+		expect(body.initialPrompt).not.toHaveProperty("enableAskQuestion");
+		expect(body.initialPrompt).toMatchObject({
+			prompt: "First prompt",
+			mode: "plan",
+			thinking: false,
+			reasoningEffort: "high",
+			autoApproveTools: false,
+		});
+		expect(body.initialPrompt.systemPrompt).toContain(
+			"branch `cline/abcdefgh`",
+		);
+		expect(body.initialPrompt.systemPrompt.includes("SAVE YOUR WORK")).toBe(
+			sandboxType === "standard",
+		);
 		if (sandboxType) expect(body.sandboxType).toBe(sandboxType);
 		else expect(body).not.toHaveProperty("sandboxType");
+	});
+
+	it.each([
+		undefined,
+		[],
+		["data:image/png;base64,aGVsbG8="],
+	])("only starts an empty prompt when images are supplied: %j", async (userImages) => {
+		const fetch = vi.fn(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				jsonResponse({ data: { sessionId: "ses-new" } }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch,
+		});
+		await api.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "  ",
+			userImages,
+		});
+		const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+		if (userImages?.length)
+			expect(body.initialPrompt).toMatchObject({ prompt: "", userImages });
+		else expect(body).not.toHaveProperty("initialPrompt");
 	});
 
 	it("resumes through authenticated REST and preserves quota errors", async () => {
@@ -1026,13 +1073,21 @@ describe("seeded cloud provisioning recovery", () => {
 		const onCreating = vi.fn(() => gate);
 		const api = createApi(async (_url, init) => {
 			methods.push(init?.method ?? "GET");
+			if (init?.method === "POST")
+				expect(JSON.parse(String(init.body))).not.toHaveProperty(
+					"initialPrompt",
+				);
 			return response(
 				init?.method === "POST"
 					? { sessionId: record.id, status: "ready" }
 					: [],
 			);
 		});
-		const creating = api.create(input({ onCreating }));
+		const creating = api.create({
+			...input({ onCreating }),
+			initialPrompt: "Handoff title",
+			userImages: ["data:image/png;base64,AQID"],
+		});
 		await vi.waitFor(() => expect(onCreating).toHaveBeenCalledOnce());
 		expect(methods).toEqual(["GET"]);
 		release();

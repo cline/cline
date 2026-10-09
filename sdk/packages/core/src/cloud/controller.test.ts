@@ -38,6 +38,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 	let messages: MessageWithMetadata[] = [];
 	let hasInner = true;
 	let runtimeStatus = "idle";
+	let rootSource: string | undefined;
 	const commands: Array<{
 		command: string;
 		payload: unknown;
@@ -94,7 +95,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 					session: {
 						sessionId: "inner",
 						status: runtimeStatus,
-						metadata: { model: "model" },
+						metadata: { model: "model", source: rootSource },
 					},
 				};
 			if (name === "session.attach") {
@@ -111,7 +112,7 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 								{
 									sessionId: "inner",
 									status: "idle",
-									metadata: { model: "model" },
+									metadata: { model: "model", source: rootSource },
 								},
 							]
 						: [],
@@ -170,6 +171,9 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		setStatus: (value: string) => {
 			runtimeStatus = value;
 		},
+		setRootSource: (source: string) => {
+			rootSource = source;
+		},
 		setHasInner: (value: boolean) => {
 			hasInner = value;
 		},
@@ -210,6 +214,63 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it.each([
+		"create",
+		"reopen",
+		"reconnect",
+	])("waits for the backend's first input before a follow-up on %s", async (entry) => {
+		vi.useFakeTimers();
+		const pendingInitialTasks = new Map<string, CloudCreationOptions>();
+		const f = fixture({ pendingInitialTasks });
+		f.setHasInner(false);
+		f.setRootSource("cloud");
+		try {
+			if (entry === "create") {
+				await f.controller.create({
+					modelId: "model",
+					repoUrl: "https://github.com/cline/test",
+					initialPrompt: "First",
+					autoApproveTools: false,
+					thinking: false,
+				});
+				expect(pendingInitialTasks.has(record.id)).toBe(false);
+				expect(f.api.updateTitle).toHaveBeenCalledWith(record.id, "First");
+			}
+			const sending = f.controller.send(record.id, "Second", "queue");
+			await vi.advanceTimersByTimeAsync(1_000);
+			if (entry === "reconnect") {
+				const resolveHeaders =
+					f.getConnectionOptions().resolveConnectionHeaders;
+				await resolveHeaders?.();
+				await resolveHeaders?.();
+				await vi.advanceTimersByTimeAsync(1_000);
+			}
+			f.setHasInner(true);
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(
+				f.commands.some(
+					(c) =>
+						c.command === "session.create" ||
+						c.command === "session.send_input",
+				),
+			).toBe(false);
+			f.setMessages([
+				{ role: "user", content: [{ type: "text", text: "First" }] },
+			]);
+			await vi.advanceTimersByTimeAsync(1_000);
+			await sending;
+			expect(
+				f.commands.filter((c) => c.command === "session.send_input"),
+			).toHaveLength(1);
+			expect(f.commands.some((c) => c.command === "session.create")).toBe(
+				false,
+			);
+		} finally {
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+
 	it("refreshes an attached session title after an external rename", async () => {
 		const f = await attached();
 		await f.controller.updateTitle(record.id, "Desktop title");
@@ -1116,15 +1177,19 @@ describe("CloudSessionController neutral host contract", () => {
 		}
 		const replacement = fixture({ pendingInitialTasks });
 		replacement.setHasInner(false);
+		vi.useFakeTimers();
 		try {
-			await expect(
+			const rejected = expect(
 				replacement.controller.attach(record.id, options),
 			).rejects.toThrow("task is unavailable");
+			await vi.advanceTimersByTimeAsync(100_000);
+			await rejected;
 			expect(
 				replacement.commands.some((c) => c.command === "session.create"),
 			).toBe(false);
 		} finally {
 			await replacement.controller.dispose();
+			vi.useRealTimers();
 		}
 	});
 	it.each([
@@ -1162,19 +1227,23 @@ describe("CloudSessionController neutral host contract", () => {
 		}
 	});
 	it("does not recreate a missing established session with manual creation options", async () => {
+		vi.useFakeTimers();
 		const f = fixture();
 		f.setHasInner(false);
-		await expect(
+		const rejected = expect(
 			f.controller.attach(record.id, {
 				autoApproveTools: false,
 				thinking: true,
 				reasoningEffort: "high",
 			}),
 		).rejects.toThrow("task is unavailable");
+		await vi.advanceTimersByTimeAsync(100_000);
+		await rejected;
 		expect(f.commands.some((item) => item.command === "session.create")).toBe(
 			false,
 		);
 		await f.controller.dispose();
+		vi.useRealTimers();
 	});
 	it.each([
 		"preserve",
