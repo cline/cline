@@ -1891,6 +1891,40 @@ describe("default editor tool", () => {
 		expect(schema.properties?.old_text?.type).toBe("string");
 	});
 
+	it.each([
+		{ name: "creating a missing file", insert_line: undefined, query: "edit" },
+		{ name: "inserting a line", insert_line: 1, query: "insert" },
+	])("normalizes null old_text when $name", async ({ insert_line, query }) => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const result = await tool.execute(
+			{
+				path: "/tmp/example.ts",
+				// @ts-expect-error Models may send null despite the advertised string schema.
+				old_text: null,
+				new_text: "created",
+				insert_line,
+			},
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(result).toEqual({
+			query: `${query}:/tmp/example.ts`,
+			result: "patched",
+			success: true,
+		});
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				path: "/tmp/example.ts",
+				old_text: undefined,
+				new_text: "created",
+				insert_line,
+			}),
+			process.cwd(),
+			expect.anything(),
+		);
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
