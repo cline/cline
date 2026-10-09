@@ -1640,9 +1640,10 @@ export class SqliteCronStore {
 				LIMIT 1
 			`);
 			while (claimed.length < limit) {
+				// Bun's non-strict SQLite driver requires the ":" prefix when binding named parameters.
 				const row = nextDueRun.get({
-					now: referenceIso,
-					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+					":now": referenceIso,
+					":capacity": Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
 				});
 				if (!row) break;
 				const runId = asString(row.run_id);
