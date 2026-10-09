@@ -48,7 +48,7 @@ import {
 	normalizeWorkspacePath,
 } from "@/lib/workspace-paths";
 
-export function formatWorkspacePath(path: string): string {
+function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
 	if (unixHome) return unixHome[1] ? `~/${unixHome[1]}` : "~";
 	const linuxHome = path.match(/^\/home\/[^/]+\/(.*)$/);

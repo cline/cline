@@ -2,7 +2,7 @@
 
 import "@xterm/xterm/css/xterm.css";
 
-import { Folder, Plus, SquareTerminal, X } from "lucide-react";
+import { Plus, SquareTerminal, X } from "lucide-react";
 import {
 	type PointerEvent as ReactPointerEvent,
 	useCallback,
@@ -10,7 +10,6 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { formatWorkspacePath } from "@/components/views/chat/welcome-workspace-controls";
 import { clampTerminalPanelHeight } from "@/lib/terminal-panel-state";
 import {
 	activeTerminalTabId,
@@ -168,8 +167,10 @@ function TerminalPanelForCwd({
 			>
 				<div className="absolute left-1/2 top-1/2 h-[3px] w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border transition-colors group-hover:bg-primary/60" />
 			</div>
-			<div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 bg-sidebar/50 px-2">
-				<div className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
+			{/* Tabs sit on the strip's bottom border; the active one paints over
+			    it so it reads as attached to the terminal below. */}
+			<div className="flex h-9 shrink-0 items-end gap-1 border-b border-border/60 bg-sidebar/50 px-2">
+				<div className="flex min-w-0 items-end gap-0.5">
 					{tabs.map((tab) => (
 						<TerminalTabButton
 							active={tab.id === activeTab?.id}
@@ -181,7 +182,7 @@ function TerminalPanelForCwd({
 					))}
 					<button
 						aria-label="New terminal"
-						className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+						className="mb-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 						onClick={() => createTerminalTab(cwd)}
 						title="New terminal"
 						type="button"
@@ -189,16 +190,7 @@ function TerminalPanelForCwd({
 						<Plus className="size-3.5" />
 					</button>
 				</div>
-				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
-					<span
-						className="hidden min-w-0 items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-2 py-0.5 font-mono text-[11px] text-muted-foreground sm:inline-flex"
-						title={cwd}
-					>
-						<Folder className="size-3 shrink-0" />
-						<span className="max-w-72 truncate text-foreground/80">
-							{cwd === "~" ? "~" : formatWorkspacePath(cwd)}
-						</span>
-					</span>
+				<div className="mb-0.5 ml-auto flex shrink-0 items-center">
 					<button
 						aria-label="Hide terminal"
 						className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
@@ -230,14 +222,14 @@ function TerminalTabButton({
 	onClose: () => void;
 }) {
 	return (
-		<div className="group/tab relative shrink-0">
+		<div className={cn("group/tab relative shrink-0", active && "-mb-px")}>
 			<button
 				aria-current={active ? "true" : undefined}
 				className={cn(
-					"inline-flex h-7 items-center gap-1.5 rounded-md pl-2 pr-6 text-xs",
+					"inline-flex h-8 items-center gap-1.5 rounded-t-md border border-b-0 pl-2.5 pr-7 text-xs",
 					active
-						? "bg-surface-hover text-foreground"
-						: "text-muted-foreground hover:bg-surface-hover/60 hover:text-foreground",
+						? "border-border/60 bg-background text-foreground"
+						: "border-transparent text-muted-foreground hover:bg-surface-hover/60 hover:text-foreground",
 				)}
 				onClick={onSelect}
 				type="button"
@@ -247,7 +239,7 @@ function TerminalTabButton({
 			</button>
 			<button
 				aria-label={`Close ${tab.label}`}
-				className="absolute right-1 top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-surface-hover-lighter hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100"
+				className="absolute right-1.5 top-1/2 inline-flex size-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-surface-hover-lighter hover:text-foreground focus-visible:opacity-100 group-hover/tab:opacity-100"
 				onClick={(event) => {
 					event.stopPropagation();
 					onClose();
