@@ -358,7 +358,7 @@ export type SessionReplayRerunProgress =
 export interface CreateSessionReplayRerunOptions {
 	/** The recorded session (a loaded bundle session). */
 	recorded: SessionReplaySessionData & {
-		entry?: { interactive?: boolean };
+		entry?: { interactive?: boolean; source?: string };
 	};
 	/** Kinds that count. Default {@link SESSION_REPLAY_RERUN_DIVERGENCE_KINDS}. */
 	kinds?: readonly SessionReplayDivergenceKind[];

@@ -1038,6 +1038,7 @@ describe("runSessionDiff", () => {
 		expect(out.at(-1)).toBe("Result: no divergence across 2 iterations");
 		expect(err).toEqual([
 			"warning: request comparison skipped for 2 of 2 iterations: no recorded request on one side (record sessions with --record-session)",
+			"warning: decision comparison skipped for 2 of 2 iterations: no recorded decisions on one side (record sessions with --record-session)",
 		]);
 	});
 

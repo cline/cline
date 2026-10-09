@@ -36,17 +36,17 @@ import {
 	type AtifExportBundle,
 	exportSessionReplayBundleToAtif,
 } from "./atif-export";
-import type {
-	AtifContent,
-	AtifExtra,
-	AtifStep,
-	AtifSubagentTrajectoryRef,
-	AtifTrajectory,
+import {
+	ATIF_IMPORT_SOURCE,
+	type AtifContent,
+	type AtifExtra,
+	type AtifStep,
+	type AtifSubagentTrajectoryRef,
+	type AtifTrajectory,
 } from "./atif-types";
 import { validateAtifTrajectory } from "./atif-validate";
 
-/** `sessions[].source` of sessions rebuilt from ATIF steps. */
-export const ATIF_IMPORT_SOURCE = "atif-import";
+export { ATIF_IMPORT_SOURCE };
 /** Written next to the manifest of an imported bundle; not indexed in it. */
 export const ATIF_IMPORT_REPORT_FILE = "import-report.json";
 export const ATIF_IMPORT_REPORT_FORMAT = "cline.atif-import-report";

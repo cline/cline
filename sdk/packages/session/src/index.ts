@@ -110,6 +110,7 @@ export {
 	SESSION_REPLAY_RERUN_DIVERGENCE_KINDS,
 	type SessionReplayComparableDecision,
 	type SessionReplayComparableIteration,
+	type SessionReplayComparableSession,
 	type SessionReplayComparableToolCall,
 	type SessionReplayComparableToolResult,
 	type SessionReplayCompareOptions,

@@ -420,6 +420,98 @@ describe("compareSessionReplaySessions", () => {
 			"request comparison skipped for 3 of 3 iterations: no recorded request on one side (record sessions with --record-session)",
 		]);
 	});
+
+	it("skips decisions with a warning when a side recorded none", async () => {
+		const denied = await recordFixtureSession(
+			steps((copy) => {
+				const decision = copy[0]?.decisionsAfter?.[0];
+				if (decision?.payload) decision.payload.approved = false;
+			}),
+		);
+		const unrecorded = {
+			...(await recordFixtureSession()),
+			requests: [],
+			blobs: new Map(),
+			events: [],
+		};
+		expect(
+			buildSessionReplayComparableIterations(unrecorded)[0]?.decisionsRecorded,
+		).toBe(false);
+		expect(
+			buildSessionReplayComparableIterations(denied)[0],
+		).not.toHaveProperty("decisionsRecorded");
+		const report = compareSessionReplaySessions(denied, unrecorded);
+		expect(report.divergences).toEqual([]);
+		expect(report.warnings).toEqual([
+			"request comparison skipped for 3 of 3 iterations: no recorded request on one side (record sessions with --record-session)",
+			"decision comparison skipped for 3 of 3 iterations: no recorded decisions on one side (record sessions with --record-session)",
+		]);
+	});
+
+	it("compares tool results by text when a side was imported from ATIF", async () => {
+		const recorded = await recordFixtureSession();
+		const asTextBlocks = (
+			session: typeof recorded,
+			edit: (text: string) => string = (text) => text,
+		) => ({
+			...session,
+			transcript: {
+				...session.transcript,
+				messages: session.transcript.messages.map((message) =>
+					Array.isArray(message.content)
+						? {
+								...message,
+								content: message.content.map((block) =>
+									block.type === "tool_result" &&
+									typeof block.content === "string"
+										? {
+												...block,
+												content: [
+													{ type: "text" as const, text: edit(block.content) },
+												],
+											}
+										: block,
+								),
+							}
+						: message,
+				),
+			},
+		});
+		const structured = asTextBlocks(recorded);
+		expect(
+			kindsByIteration(compareSessionReplaySessions(recorded, structured)),
+		).toEqual([
+			[1, "tool-results"],
+			[2, "tool-results"],
+		]);
+
+		const imported = { ...recorded, entry: { source: "atif-import" } };
+		expect(
+			buildSessionReplayComparableIterations(imported)[0]?.toolResultsAs,
+		).toBe("text");
+		const byText = compareSessionReplaySessions(imported, structured);
+		expect(byText.divergences).toEqual([]);
+		expect(byText.warnings).toContain(
+			"tool results compared by text: one side was imported from a trajectory that keeps only their text",
+		);
+
+		const changed = asTextBlocks(recorded, (text) =>
+			text === "remember the milk" ? "remember the eggs" : text,
+		);
+		expect(compareSessionReplaySessions(imported, changed).first).toMatchObject(
+			{
+				kind: "tool-results",
+				iteration: 2,
+				entries: [
+					{
+						path: "text",
+						recorded: { excerpt: "remember the milk" },
+						live: { excerpt: "remember the eggs" },
+					},
+				],
+			},
+		);
+	});
 });
 
 describe("formatSessionReplayDivergence", () => {

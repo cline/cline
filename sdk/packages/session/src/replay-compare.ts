@@ -1,4 +1,5 @@
 import type { SessionReplayEvent } from "@cline/shared";
+import { ATIF_IMPORT_SOURCE } from "./atif/atif-types";
 import type { LoadedSessionReplaySession } from "./bundle-io";
 import {
 	buildSessionReplayIterations,
@@ -82,7 +83,23 @@ export interface SessionReplayComparableIteration {
 		beforeModelCall: SessionReplayComparableDecision[];
 		afterModelCall: SessionReplayComparableDecision[];
 	};
+	/**
+	 * `false` when the session carries no decisions at all (it was not
+	 * recorded); decisions are then not compared, like a missing request.
+	 */
+	decisionsRecorded?: boolean;
+	/**
+	 * `text` when only the text of tool results is known (a session imported
+	 * from a trajectory format that keeps text); results are then compared by
+	 * their text instead of their structure.
+	 */
+	toolResultsAs?: "content" | "text";
 }
+
+/** What {@link buildSessionReplayComparableIterations} reads from a session. */
+export type SessionReplayComparableSession = SessionReplaySessionData & {
+	entry?: { source?: string } | null;
+};
 
 const VOLATILE_DECISION_KEY = /^(id|ts)$|(Ms|At|Id|Ids)$/;
 
@@ -119,8 +136,12 @@ function toComparableDecision(
  * approvals of the calls it made land after it.
  */
 export function buildSessionReplayComparableIterations(
-	session: SessionReplaySessionData,
+	session: SessionReplayComparableSession,
 ): SessionReplayComparableIteration[] {
+	const decisionsRecorded =
+		session.requests.length > 0 ||
+		session.events.some((event) => event.kind === "decision");
+	const textResults = session.entry?.source === ATIF_IMPORT_SOURCE;
 	const iterations = buildSessionReplayIterations({
 		transcript: session.transcript,
 		events: session.events,
@@ -189,6 +210,8 @@ export function buildSessionReplayComparableIterations(
 					: [],
 			),
 			decisions: { beforeModelCall: before, afterModelCall: after },
+			...(decisionsRecorded ? {} : { decisionsRecorded: false }),
+			...(textResults ? { toolResultsAs: "text" as const } : {}),
 		};
 	});
 }
@@ -273,10 +296,11 @@ function diffToolCalls(
 function diffToolResults(
 	recorded: readonly SessionReplayComparableToolResult[],
 	live: readonly SessionReplayComparableToolResult[],
+	byText = false,
 ): SessionReplayDiffEntry[] {
 	const entries: SessionReplayDiffEntry[] = [];
 	const value = (result: SessionReplayComparableToolResult) => ({
-		sha256: canonicalSha256(result.content),
+		sha256: canonicalSha256(byText ? result.text : result.content),
 		excerpt: `${result.isError ? "error: " : ""}${excerptText(result.text)}`,
 	});
 	for (
@@ -299,11 +323,11 @@ function diffToolResults(
 				});
 				continue;
 			}
-			const difference = firstStructuralDifference(
-				r.content,
-				l.content,
-				"content",
-			);
+			const difference = byText
+				? r.text === l.text
+					? undefined
+					: { path: "text", recorded: r.text, live: l.text }
+				: firstStructuralDifference(r.content, l.content, "content");
 			if (!difference) continue;
 			const strings =
 				typeof difference.recorded === "string" &&
@@ -398,7 +422,8 @@ function listSummary(
  * order: decisions before the model call, the request (model, system
  * prompt, tools, messages), assistant text, tool calls, decisions after the
  * model call, tool results. Request kinds are compared only when both
- * sides carry a request.
+ * sides carry a request, decisions only when both sides recorded them, and
+ * tool results by text when one side only has their text.
  */
 export function compareSessionReplayIteration(
 	recorded: SessionReplayComparableIteration,
@@ -417,7 +442,10 @@ export function compareSessionReplayIteration(
 			counted: counted.has(divergence.kind),
 		});
 	};
+	const compareDecisions =
+		recorded.decisionsRecorded !== false && live.decisionsRecorded !== false;
 	const decisions = (phase: "before-model-call" | "after-model-call") => {
+		if (!compareDecisions) return;
 		const key =
 			phase === "before-model-call" ? "beforeModelCall" : "afterModelCall";
 		const entries = diffDecisions(recorded.decisions[key], live.decisions[key]);
@@ -468,7 +496,11 @@ export function compareSessionReplayIteration(
 		});
 	}
 	decisions("after-model-call");
-	const toolResults = diffToolResults(recorded.toolResults, live.toolResults);
+	const toolResults = diffToolResults(
+		recorded.toolResults,
+		live.toolResults,
+		recorded.toolResultsAs === "text" || live.toolResultsAs === "text",
+	);
 	if (toolResults.length > 0) {
 		push({
 			kind: "tool-results",
@@ -513,11 +545,17 @@ export function compareSessionReplayIterations(
 	const perIteration: SessionReplayDivergenceReport["perIteration"] = [];
 	const compared = Math.min(recorded.length, live.length);
 	let withoutRequest = 0;
+	let withoutDecisions = 0;
+	let byText = 0;
 	for (let index = 0; index < compared; index += 1) {
 		const r = recorded[index];
 		const l = live[index];
 		if (!r || !l) continue;
 		if (!r.request || !l.request) withoutRequest += 1;
+		if (r.decisionsRecorded === false || l.decisionsRecorded === false) {
+			withoutDecisions += 1;
+		}
+		if (r.toolResultsAs === "text" || l.toolResultsAs === "text") byText += 1;
 		const found = compareSessionReplayIteration(r, l, options);
 		divergences.push(...found);
 		perIteration.push({
@@ -558,6 +596,16 @@ export function compareSessionReplayIterations(
 			`request comparison skipped for ${withoutRequest} of ${compared} iteration${compared === 1 ? "" : "s"}: no recorded request on one side (record sessions with --record-session)`,
 		);
 	}
+	if (withoutDecisions > 0 && kinds.includes("decisions")) {
+		warnings.push(
+			`decision comparison skipped for ${withoutDecisions} of ${compared} iteration${compared === 1 ? "" : "s"}: no recorded decisions on one side (record sessions with --record-session)`,
+		);
+	}
+	if (byText > 0) {
+		warnings.push(
+			"tool results compared by text: one side was imported from a trajectory that keeps only their text",
+		);
+	}
 	const first = divergences.find((divergence) => divergence.counted) ?? null;
 	return {
 		strictness,
@@ -574,8 +622,8 @@ export function compareSessionReplayIterations(
 
 /** Compares two bundle sessions (a recording and a later run of the same task). */
 export function compareSessionReplaySessions(
-	recorded: SessionReplaySessionData,
-	live: SessionReplaySessionData,
+	recorded: SessionReplayComparableSession,
+	live: SessionReplayComparableSession,
 	options: SessionReplayCompareOptions = {},
 ): SessionReplayDivergenceReport {
 	return compareSessionReplayIterations(

@@ -8,6 +8,9 @@
 
 export const ATIF_SCHEMA_VERSION = "ATIF-v1.7";
 
+/** `sessions[].source` of bundle sessions rebuilt from ATIF steps. */
+export const ATIF_IMPORT_SOURCE = "atif-import";
+
 export type AtifExtra = Record<string, unknown>;
 
 export interface AtifImageSource {
