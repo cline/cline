@@ -1,5 +1,35 @@
 # Cline CLI Changelog
 
+## 3.0.70
+
+- Commit message generation and tasks with reasoning off no longer fail with a 400 error on GPT-6 Astra, GPT-6.1 Sol, Claude Fable 5 or Claude Opus 5.5
+- Cline no longer exits about 3 seconds after an MCP server or hook quits before reading all of its input
+- Settings migrated from the VS Code extension no longer add an empty SAP AI Core provider
+- `cline mcp add` keeps your `--header` values when it opens the setup wizard. Before, accepting the prefilled answers saved a remote server without its headers (for example, `Authorization`). The wizard now asks for one header per prompt and validates each one the same way as `--yes`
+- `cline dashboard` is now `cline hub dashboard`. The old command still works as a hidden alias
+- A bare `cline hub` prints its subcommands
+- `cline doctor log` opens the file set by `CLINE_LOG_PATH` when that variable is set
+- `cline --help` is corrected: `--retries` shows its real default of 3 (it said 6), and `--thinking` explains that it falls back to the level picked in `/model`
+- A bare `--retries` with no count is now rejected with an error instead of crashing
+- Options that were accepted but never did anything are removed and now fail with "unknown option": `cline history --page`, and `cline schedule create`/`update` `--autonomous`, `--no-autonomous`, `--idle-timeout`, `--poll-interval` and `--delivery-channel`. Remove them from scripts. Existing schedules saved with them still load
+- `cline schedule create`, `update` and `import` reject a delivery that could never be posted, such as `--delivery-adapter` without `--delivery-thread` or an adapter that isn't a known connector. Before, the schedule was saved and its results were silently never posted. Errors name the flag or `--metadata-json` path to fix
+- Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
+
+## 3.0.69
+
+- MCP servers launched with `npx` or `uvx` on Windows now load. They often took longer than the 3-second startup limit and were silently dropped, so their tools never showed up. The default is now 10 seconds
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. The CLI picks the closest level the model supports
+- OpenAI-compatible providers no longer print a `providerOptions key 'openai-compatible'` deprecation warning on every response
+- If a model's response ends without a recognized finish reason, the agent asks it to continue once instead of treating the response as complete
+- `cline config --json` prints JSON again. It opened the interactive view instead, which failed outside a terminal; `cline config --json mcp` printed plain text
+- `-y`/`--yolo` is now listed in `cline --help`, with a warning to use it only in sandboxed environments
+
+## 3.0.68
+
+- Agent teams stay fast in long sessions and while teammates are streaming. Every streamed chunk used to re-save the whole team state, so team runs got slower over time and `~/.cline/data/db/teams.db` could grow to gigabytes. Existing team data is compacted automatically the first time it's opened
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
 ## 3.0.67
 
 - When an MCP tool returns more output than fits in context, the agent can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost

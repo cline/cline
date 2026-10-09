@@ -1,5 +1,48 @@
 # Cline Desktop Changelog
 
+## 0.0.45
+
+- SSH remotes start again. Since 0.0.38, connecting to an SSH environment failed with `SyntaxError: Invalid character`
+- On SSH environments, the git branch label no longer opens two new SSH logins every 5 seconds. It checks every 30 seconds now, and switching branches from the picker still updates it right away
+- Long model names in the composer show in full when the row has room, and only truncate when it runs out
+- Turning reasoning off no longer fails with a 400 error on GPT-6 Astra, GPT-6.1 Sol, Claude Fable 5 or Claude Opus 5.5
+- The background service no longer crashes about 3 seconds after an MCP server or hook quits before reading all of its input
+- Settings migrated from the VS Code extension no longer add an empty SAP AI Core provider
+- Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
+
+## 0.0.44
+
+- Mermaid diagrams in chat now render inline as interactive diagrams, with copy, download, fullscreen, and pan/zoom. Links inside a diagram go through the same confirmation dialog as other links, showing the real destination before anything opens
+- If the Cline Hub connection drops mid-chat, the app now reconnects your session automatically for up to a minute instead of failing right away. Queued messages are sent once the session is back. If it can't reconnect, the turn ends with a notice so you can resend
+- Local and self-hosted providers that don't need an API key (LM Studio, Ollama, vLLM, LiteLLM, and custom OpenAI-compatible endpoints) can start sessions again. They failed every turn with "Missing API key"
+- MCP servers launched with `npx` or `uvx` on Windows now load. They often took longer than the 3-second startup limit and were silently dropped. The default is now 10 seconds
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. The app picks the closest level the model supports
+- If a model's response ends without a recognized finish reason, the agent asks it to continue once instead of treating the response as complete
+- Refreshed the model catalog. The Cline free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Default models change for AKI.IO, Blue Claw, CoralBricks, CrossModel, DevPass, LLM Gateway, Mistral, NanoGPT, Requesty, Neon, Subconscious, and The Grid AI
+
+## 0.0.43
+
+- Existing users get a one-time **What's new** dialog introducing Connectors, with connector logos, a clickable example prompt, and an **Open Connectors** button. You can replay it from **Settings → About → Show what's new**
+
+## 0.0.42
+
+- New `/compact` slash command. It summarizes the conversation so far to free up context. The summary uses your session's provider settings and is not sent to the model as a prompt
+- **Connectors** is now the first and default tab in **Customize**. A new **Browse** section lists the full connector catalog in two columns with search, so you no longer need the Marketplace to find a connector. Installed and Browse each have their own search box
+- Connectors now show their brand logo, both in Customize and in Marketplace rows
+- If connectors aren't available to you, the Connectors tab now says why: a sign-in card when you're signed out, or a rollout notice with **Check again** when your account doesn't have beta access yet
+
+## 0.0.41
+
+- Cloud sessions can now use the same models as Cline on the web. The model picker lists **Cline Usage-Billing**, **ClinePass**, and **ClineFree** models (organization accounts don't get ClinePass), instead of only Cline. A new Cloud session waits until a model is ready before sending, and you can retry if the model list fails to load
+- An unsent prompt is no longer lost when you switch to another session and back. **New** in the sidebar returns to your unfinished draft; **Cmd/Ctrl+N** still starts a fresh session
+- Sessions you start in the app are now highlighted in the sidebar while open, instead of only sessions reopened from history. They also no longer get marked unread by their own messages
+- **Customize → Connectors** now matches the Skills, Plugins, and MCP tabs, with search, a refresh button, and an Installed section. A new Suggested section offers ready-made connector combos (such as incident root-cause analysis or organizing your day), each with an example prompt and one-click installs for its connectors
+- Marketplace rows now show what type each item is, so same-named entries like the Figma MCP server and the Figma connector are easy to tell apart. Category filters moved into a single dropdown
+- A connector's details now show how many tools it adds to new sessions, instead of the catalog's total tool count
+- Agent teams stay fast in long sessions and while teammates are streaming. Existing team data is compacted automatically the first time it's opened
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
 ## 0.0.40
 
 - Custom providers added with **Add Provider** now work when you run a task. They showed up in the provider and model pickers but failed with `Unknown or disabled provider`

@@ -51,13 +51,17 @@ export function captureHookDiscoveryTelemetry(
 	const globalHooksDir = resolveDocumentsExtensionPath("Hooks");
 	const entries = listHookConfigFiles(options.workspacePath);
 	const counts = new Map<string, { global: number; workspace: number }>();
+	const normalizedGlobal = globalHooksDir.replace(/\\/g, "/");
+
 	for (const entry of entries) {
 		const hookName = entry.hookEventName ?? "unknown";
 		const current = counts.get(hookName) ?? { global: 0, workspace: 0 };
-		if (
-			entry.path === globalHooksDir ||
-			entry.path.startsWith(`${globalHooksDir}/`)
-		) {
+		const normalizedPath = entry.path.replace(/\\/g, "/");
+		const isGlobal =
+			normalizedPath === normalizedGlobal ||
+			normalizedPath.startsWith(`${normalizedGlobal}/`);
+
+		if (isGlobal) {
 			current.global += 1;
 		} else {
 			current.workspace += 1;

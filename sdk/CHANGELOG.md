@@ -1,5 +1,32 @@
 # Cline SDK Changelog
 
+## 0.0.92
+
+- The AI SDK moves together to one release line: `ai` 7.0.120 and every `@ai-sdk/*` package on `@ai-sdk/provider-utils` 5.0.50 (previously `ai` 7.0.79 with packages bumped one by one). Turning reasoning off no longer sends `reasoning.effort: "none"` to OpenAI models that can't turn it off, such as GPT-6 Astra and GPT-6.1 Sol (GPT-6 Astra answered with a 400, for example from commit message generation); GPT-5.x and GPT-6 Sol/Luna still get `"none"`. Turning reasoning off also no longer sends `thinking: {type: "disabled"}` to Claude models that can't turn thinking off, such as Claude Fable 5 and Opus 5.5 (they answered with `"thinking.type.disabled" is not supported for this model`); other Claude models still get `disabled`
+- Stdio MCP clients handle EPIPE when a server exits before reading all of its input. Previously that raised an uncaught exception on the host process. The SAP AI Core provider also no longer installs winston's process-wide `uncaughtException` handler, which called `process.exit(1)` three seconds after any uncaught error
+- The legacy provider-settings migration no longer adds an empty `sapaicore` entry to `providers.json`. It used to do this for every migrated user, because the extension writes `sapAiCoreUseOrchestrationMode` as a default
+- `@cline/core` exports `parseMcpHeaders`, used by the CLI's `mcp add` wizard to keep `--header` values
+- Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
+
+## 0.0.91
+
+- Responses that end with a missing or unrecognized finish reason are no longer treated as successful completions. `AgentModelFinishReason` gains `unknown` (the AI SDK adapter maps unified `other` and missing reasons to it instead of `stop`). Without tool activity, the agent keeps the partial response and continues once with a hidden user message; a second unknown finish fails the run. Queued user messages are now consumed at every request boundary, including the first iteration
+- Stdio MCP servers get a 10s default initialize budget (was 3s). `npx`/`uvx` launchers through cmd.exe on Windows routinely took 3-6s and were silently dropped from the session. An explicit `timeout` still overrides it
+- The Anthropic provider sends the server-side refusal `fallbacks` option only to `api.anthropic.com`. Custom endpoints such as Azure AI Foundry rejected it with a 400. New `isOfficialAnthropicEndpoint` helper
+- The portable reasoning level for the `cline` and `openai-compatible` adapters snaps to the model's advertised effort levels. Kimi K3 (low/high/max) was sent `medium` and `minimal`, which it rejects
+- OpenAI-compatible providers (generic, `vercel-ai-gateway`, user-defined ids) write `providerOptions` under the camelCase alias only, which stops the per-chunk `providerOptions key 'openai-compatible'` deprecation warning from `@ai-sdk/openai-compatible`
+- New `apiKeyOptional` provider fact (`GatewayProviderMetadata.apiKeyOptional`, `resolveProviderApiKeyOptional`, `ProviderListItem.auth.apiKeyOptional`), declared on openai-compatible, ollama, lmstudio, litellm, vertex, bedrock, and user-added endpoints from `providers.json`/`models.json`
+- Rules: new `listEnabledRulesFromRecords` / `loadRulesForSystemPromptFromRecords` exports. The combined user-instruction service now orders rules by name, matching the single-workspace path
+- Opt-in Langfuse tracing for BYOK providers (`CLINE_LANGFUSE_ALL_PROVIDERS`), plus operator tags, metadata and environment via `CLINE_LANGFUSE_TAGS`, `CLINE_LANGFUSE_METADATA`, `LANGFUSE_TRACING_ENVIRONMENT`
+- Hook discovery telemetry handles Windows path separators
+- Refreshed the model catalog. The Cline free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Adds the Engy provider. Default models change for AKI.IO, Blue Claw, CoralBricks, CrossModel (GPT-6.1 Sol), DevPass, LLM Gateway, Mistral, NanoGPT, Requesty (Mistral Large 4), Neon (Claude Opus 5.5), Subconscious, and The Grid AI
+
+## 0.0.90
+
+- Agent teams no longer slow down as a session runs or while a teammate is streaming. Every streamed chunk and 2-second heartbeat used to re-save the whole team state, including every finished teammate's full transcript (one local `teams.db` reached 1.66 GB, with a single run row rewritten ~339k times). Stream chunks and heartbeats now go to live UIs only and are never persisted, only changed entities are written (batched into one transaction every ~300 ms), run records keep a summary instead of the transcript, and `team_events` is capped per team (2000 rows, 30 days). SQLite team storage moves to schema v2 with a one-time migration that compacts existing data; `SqliteTeamStore.vacuum()` returns the freed space when called explicitly. Failed team writes are retried instead of dropped
+- Standalone provider requests made outside a session (such as commit message generation) can now resolve Cline surface headers. `sessionId` is optional in `resolveProviderRequestHeaders`, and `X-Task-ID` is omitted rather than sent empty
+- Refreshed the model catalog. Default models change for DigitalOcean (GPT-6.1 Sol), GMI Cloud (Qwen 3.8 Flash), NanoGPT (Pareto 26.10 Preview), Nvidia (DeepSeek V4.1 Flash), and Ofox (GPT-6.1 Sol)
+
 ## 0.0.89
 
 - Oversized MCP and Composio tool results can now be recovered in full. Core caches the oversized output in a per-session in-memory cache and sends the model a bounded preview plus a `cline://cache/...` URI that `read_files` can page through by line range. Custom tools can opt in with `resultPolicy: "cache-oversized"` on `createTool`. Entries expire after five model iterations without a read, the cache is capped at 16 MiB per session, and original output stays in history and tool events
