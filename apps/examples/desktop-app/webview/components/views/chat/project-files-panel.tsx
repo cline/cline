@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import {
 	type SourceControlAction,
 	type SourceControlFile,
+	unstagePaths,
 	useSourceControl,
 } from "@/hooks/use-source-control";
 import { toast } from "@/hooks/use-toast";
@@ -512,6 +513,10 @@ export function ProjectFilesPanel({
 					cwd: workspaceRoot,
 					path: toRelative(activePath),
 					staged: activeScope === "staged",
+					originalPath:
+						activeScope === "staged"
+							? changesByPath.get(activePath)?.staged?.originalPath
+							: undefined,
 				},
 			)
 			.then((result) => {
@@ -532,6 +537,7 @@ export function ProjectFilesPanel({
 	}, [
 		activePath,
 		activeScope,
+		changesByPath,
 		effectiveMode,
 		environmentId,
 		gitDiffKey,
@@ -947,7 +953,7 @@ export function ProjectFilesPanel({
 											activeChange.staged &&
 											void runAction({
 												type: "unstage",
-												paths: [activeChange.staged.path],
+												paths: unstagePaths([activeChange.staged]),
 											})
 										}
 										size="sm"

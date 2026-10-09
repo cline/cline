@@ -8,6 +8,8 @@ export type SourceControlStatus = "M" | "A" | "D" | "R" | "?" | "U";
 export type SourceControlFile = {
 	/** Repository-root-relative, forward slashes. */
 	path: string;
+	/** Previous path of a staged rename or copy; unstaging must cover both. */
+	originalPath?: string;
 	status: SourceControlStatus;
 	additions: number | null;
 	deletions: number | null;
@@ -42,6 +44,16 @@ export type SourceControlAction =
 	| { type: "push" };
 
 const POLL_INTERVAL_MS = 10_000;
+
+/** Paths `git restore --staged` needs to fully undo staging these files. */
+export function unstagePaths(files: SourceControlFile[]): string[] {
+	const paths: string[] = [];
+	for (const file of files) {
+		paths.push(file.path);
+		if (file.originalPath) paths.push(file.originalPath);
+	}
+	return paths;
+}
 
 /**
  * Repository state for the workspace panel. Refreshes on mount, on an

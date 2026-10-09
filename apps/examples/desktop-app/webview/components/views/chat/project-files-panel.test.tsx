@@ -278,6 +278,24 @@ describe("ProjectFilesPanel source control view", () => {
 	});
 });
 
+describe("unstagePaths", () => {
+	it("includes the original path of a staged rename", async () => {
+		const { unstagePaths } = await import("@/hooks/use-source-control");
+		expect(
+			unstagePaths([
+				{
+					path: "new.ts",
+					originalPath: "old.ts",
+					status: "R",
+					additions: 0,
+					deletions: 0,
+				},
+				{ path: "a.ts", status: "M", additions: 1, deletions: 0 },
+			]),
+		).toEqual(["new.ts", "old.ts", "a.ts"]);
+	});
+});
+
 describe("ProjectFilesPanel files view", () => {
 	async function showFiles() {
 		await click(button(/^Files$/));

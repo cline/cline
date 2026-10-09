@@ -16,10 +16,11 @@ import {
 import { type ReactNode, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-	SourceControlAction,
-	SourceControlFile,
-	SourceControlState,
+import {
+	type SourceControlAction,
+	type SourceControlFile,
+	type SourceControlState,
+	unstagePaths,
 } from "@/hooks/use-source-control";
 import { cn } from "@/lib/utils";
 
@@ -164,7 +165,7 @@ export function SourceControlColumn({
 										onClick={() =>
 											void onAction({
 												type: "unstage",
-												paths: staged.map((file) => file.path),
+												paths: unstagePaths(staged),
 											})
 										}
 									>
@@ -184,7 +185,10 @@ export function SourceControlColumn({
 											disabled={busy}
 											label={`Unstage ${file.path}`}
 											onClick={() =>
-												void onAction({ type: "unstage", paths: [file.path] })
+												void onAction({
+													type: "unstage",
+													paths: unstagePaths([file]),
+												})
 											}
 										>
 											<Minus className="size-3" />
@@ -473,6 +477,11 @@ function ChangeRow({
 					>
 						{sourceControlFileName(file.path)}
 					</span>
+					{file.originalPath ? (
+						<span className="min-w-0 truncate text-[10.5px] text-muted-foreground/80">
+							← {sourceControlFileName(file.originalPath)}
+						</span>
+					) : null}
 					{directory ? (
 						<span className="min-w-0 truncate text-[10.5px] text-muted-foreground/80">
 							{directory}

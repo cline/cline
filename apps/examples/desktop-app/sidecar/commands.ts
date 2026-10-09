@@ -3583,8 +3583,13 @@ export async function handleCommand(
 		}
 		if (!root) throw new Error("Not a git repository");
 		if (command === "get_git_file_diff") {
-			const path = String(args?.path ?? "").trim();
+			// Git's filename as-is: leading or trailing spaces are part of it.
+			const path = String(args?.path ?? "");
 			if (!path) throw new Error("path is required");
+			const originalPath =
+				typeof args?.originalPath === "string" && args.originalPath
+					? args.originalPath
+					: undefined;
 			return await getGitFileDiff(
 				git,
 				async (relative) =>
@@ -3601,6 +3606,7 @@ export async function handleCommand(
 				binding.environmentId,
 				path,
 				args?.staged === true,
+				originalPath,
 			);
 		}
 		await runSourceControlAction(git, parseSourceControlAction(args?.action));

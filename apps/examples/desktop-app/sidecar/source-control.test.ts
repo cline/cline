@@ -40,7 +40,7 @@ describe("parseStatus", () => {
 			{ path: "staged.ts", status: "M" },
 			{ path: "both.ts", status: "M" },
 			{ path: "added.ts", status: "A" },
-			{ path: "renamed.ts", status: "R" },
+			{ path: "renamed.ts", originalPath: "old.ts", status: "R" },
 		]);
 		expect(status.unstaged).toEqual([
 			{ path: "dirty.ts", status: "M" },
@@ -75,6 +75,14 @@ describe("parseNumstat", () => {
 		expect(counts.get("a.ts")).toEqual({ additions: 3, deletions: 1 });
 		expect(counts.get("img.png")).toEqual({ additions: null, deletions: null });
 		expect(counts.get("new.ts")).toEqual({ additions: 5, deletions: 0 });
+	});
+
+	it("keeps tabs inside filenames", () => {
+		const counts = parseNumstat("1\t2\tweird\tname.txt\0");
+		expect(counts.get("weird\tname.txt")).toEqual({
+			additions: 1,
+			deletions: 2,
+		});
 	});
 });
 
@@ -197,6 +205,51 @@ describe("against a real repository", () => {
 		);
 		expect(untracked.oldText).toBeUndefined();
 		expect(untracked.newText).toBe("x\ny\n");
+	});
+
+	it("tracks staged renames back to their original path", async () => {
+		const read = async (path: string) => readFileSync(join(root, path), "utf8");
+		// a.ts has unstaged edits; move the committed version so git sees a
+		// pure rename in the index.
+		await git(["checkout", "--", "a.ts"]);
+		await git(["mv", "a.ts", "renamed.ts"]);
+		let state = await getSourceControlState(git, "local");
+		const renamed = state.staged.find((file) => file.path === "renamed.ts");
+		expect(renamed?.originalPath).toBe("a.ts");
+
+		const diff = await getGitFileDiff(
+			git,
+			read,
+			"local",
+			"renamed.ts",
+			true,
+			"a.ts",
+		);
+		expect(diff.oldText).toBe("one\ntwo\n");
+		expect(diff.newText).toBe("one\ntwo\n");
+
+		await runSourceControlAction(git, {
+			type: "unstage",
+			paths: ["renamed.ts", "a.ts"],
+		});
+		state = await getSourceControlState(git, "local");
+		expect(state.staged.map((file) => file.path)).toEqual(["b.ts"]);
+		expect(state.unstaged.map((file) => [file.path, file.status])).toEqual([
+			["a.ts", "D"],
+		]);
+		expect(state.untracked.map((file) => file.path)).toEqual([
+			"new.txt",
+			"renamed.ts",
+		]);
+	});
+
+	it("flags a staged change as binary when either side has NUL bytes", async () => {
+		const read = async (path: string) => readFileSync(join(root, path), "utf8");
+		writeFileSync(join(root, "b.ts"), Buffer.from([0x62, 0x00, 0x69, 0x6e]));
+		await git(["add", "b.ts"]);
+		const diff = await getGitFileDiff(git, read, "local", "b.ts", true);
+		expect(diff.oldText).toBe("keep\n");
+		expect(diff.binary).toBe(true);
 	});
 
 	it("stages, unstages, discards, and commits", async () => {

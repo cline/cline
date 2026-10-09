@@ -10,6 +10,8 @@ export type SourceControlStatus = "M" | "A" | "D" | "R" | "?" | "U";
 export type SourceControlFile = {
 	/** Repository-root-relative, forward slashes. */
 	path: string;
+	/** Previous path of a staged rename or copy; unstaging must cover both. */
+	originalPath?: string;
 	status: SourceControlStatus;
 	additions: number | null;
 	deletions: number | null;
@@ -71,9 +73,15 @@ export type ParsedStatus = {
 	hasUpstream: boolean;
 	ahead: number;
 	behind: number;
-	staged: Array<{ path: string; status: SourceControlStatus }>;
-	unstaged: Array<{ path: string; status: SourceControlStatus }>;
+	staged: ParsedStatusEntry[];
+	unstaged: ParsedStatusEntry[];
 	untracked: string[];
+};
+
+type ParsedStatusEntry = {
+	path: string;
+	originalPath?: string;
+	status: SourceControlStatus;
 };
 
 /** Parses `git status --porcelain=v1 -z --branch --untracked-files=all`. */
@@ -117,23 +125,26 @@ export function parseStatus(output: string): ParsedStatus {
 			continue;
 		}
 		if (x === "!" && y === "!") continue;
+		// Renames and copies carry the original path in the next record.
+		const renamed = x === "R" || x === "C" || y === "R" || y === "C";
+		const originalPath = renamed ? records[++index] : undefined;
+		const entry = (status: SourceControlStatus): ParsedStatusEntry =>
+			originalPath ? { path, originalPath, status } : { path, status };
 		if (
 			x === "U" ||
 			y === "U" ||
 			(x === "A" && y === "A") ||
 			(x === "D" && y === "D")
 		) {
-			result.unstaged.push({ path, status: "U" });
+			result.unstaged.push(entry("U"));
 		} else {
 			if (x !== " " && x !== "?") {
-				result.staged.push({ path, status: statusFromCode(x) });
+				result.staged.push(entry(statusFromCode(x)));
 			}
 			if (y !== " " && y !== "?") {
-				result.unstaged.push({ path, status: statusFromCode(y) });
+				result.unstaged.push(entry(statusFromCode(y)));
 			}
 		}
-		// Renames and copies carry the original path in the next record.
-		if (x === "R" || x === "C" || y === "R" || y === "C") index++;
 	}
 	return result;
 }
@@ -150,8 +161,11 @@ export function parseNumstat(
 	for (let index = 0; index < records.length; index++) {
 		const record = records[index];
 		if (!record) continue;
-		const [add, del, inlinePath] = record.split("\t");
-		let path = inlinePath;
+		// Only the first two tabs are separators; filenames may contain tabs.
+		const [add, del, ...pathParts] = record.split("\t");
+		let path: string | undefined = pathParts.length
+			? pathParts.join("\t")
+			: undefined;
 		if (path === undefined) continue;
 		// Renames: `add\tdel\t\0old\0new\0`.
 		if (path === "") {
@@ -248,7 +262,7 @@ export async function getSourceControlState(
 				: Promise.resolve(""),
 		]);
 	const withCounts = (
-		files: Array<{ path: string; status: SourceControlStatus }>,
+		files: ParsedStatusEntry[],
 		counts: Map<string, { additions: number | null; deletions: number | null }>,
 	): SourceControlFile[] =>
 		files.map((file) => ({
@@ -301,24 +315,31 @@ export async function getGitFileDiff(
 	environmentId: string,
 	path: string,
 	staged: boolean,
+	/** For staged renames, the path the old contents live at in HEAD. */
+	originalPath?: string,
 ): Promise<GitFileDiff> {
-	const show = (rev: string) =>
-		git(["show", `${rev}:${path}`]).then(
+	const show = (rev: string, at: string) =>
+		git(["show", `${rev}:${at}`]).then(
 			(text) => text,
 			() => undefined,
 		);
+	const isBinary = (...texts: Array<string | null | undefined>) =>
+		texts.some((text) => text?.includes("\0"));
 	if (staged) {
-		const [oldText, newText] = await Promise.all([show("HEAD"), show("")]);
+		const [oldText, newText] = await Promise.all([
+			show("HEAD", originalPath ?? path),
+			show("", path),
+		]);
 		return {
 			environmentId,
 			path,
 			oldText,
 			newText: newText ?? "",
-			binary: (oldText ?? newText ?? "").includes("\0"),
+			binary: isBinary(oldText, newText),
 		};
 	}
 	const [oldText, working] = await Promise.all([
-		show(""),
+		show("", path),
 		readWorkingFile(path),
 	]);
 	return {
@@ -326,7 +347,7 @@ export async function getGitFileDiff(
 		path,
 		oldText,
 		newText: working ?? "",
-		binary: working === null || (oldText ?? "").includes("\0"),
+		binary: working === null || isBinary(oldText, working),
 	};
 }
 
