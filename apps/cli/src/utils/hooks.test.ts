@@ -1,3 +1,4 @@
+import { parseHookEventPayload } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const outputMocks = vi.hoisted(() => ({
@@ -225,6 +226,39 @@ describe("createRuntimeHooks", () => {
 				}),
 			}),
 		);
+	});
+
+	it("sends a schema-valid agent_error payload when the error arrives as plain JSON", async () => {
+		// Hub-run sessions receive hook contexts as JSON, where an Error
+		// serializes to {} and loses its name and message.
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			dispatchHookEvent,
+		});
+		const snapshot = {
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			parentAgentId: null,
+		};
+
+		for (const error of [{}, { name: "AuthError", message: "Unauthorized" }]) {
+			await runtimeHooks.hooks?.afterRun?.({
+				snapshot,
+				result: { status: "failed", iterations: 1, error },
+			} as never);
+		}
+
+		const payloads = dispatchHookEvent.mock.calls.map(([payload]) => payload);
+		expect(payloads.map((payload) => payload.error)).toEqual([
+			{ name: "Error", message: "Agent run failed" },
+			{ name: "AuthError", message: "Unauthorized" },
+		]);
+		for (const payload of payloads) {
+			expect(parseHookEventPayload(payload)).toBeDefined();
+		}
 	});
 
 	it("suppresses text hook output when verbose is disabled", async () => {

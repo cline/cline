@@ -511,6 +511,55 @@ const STREAMING_EVENT_TYPES = new Set<AgentRuntimeEvent["type"]>([
 	"tool-updated",
 ]);
 
+/**
+ * Hook contexts reach the client as JSON, where an `Error` serializes to `{}`
+ * because its `name`, `message`, and `stack` are not enumerable. Replace
+ * errors with plain objects first so, for example, `afterRun`'s
+ * `result.error` keeps its message. Subtrees without an error are returned
+ * as-is, so the common case allocates nothing.
+ */
+export function toHookWireValue(
+	value: unknown,
+	converted: Map<object, unknown> = new Map(),
+): unknown {
+	if (!value || typeof value !== "object") return value;
+	if (converted.has(value)) return converted.get(value);
+	if (value instanceof Error) {
+		const wire: Record<string, unknown> = {};
+		converted.set(value, wire);
+		for (const [key, item] of Object.entries(value)) {
+			wire[key] = toHookWireValue(item, converted);
+		}
+		wire.name = value.name;
+		wire.message = value.message;
+		if (value.stack) wire.stack = value.stack;
+		if (value.cause !== undefined) {
+			wire.cause = toHookWireValue(value.cause, converted);
+		}
+		return wire;
+	}
+	const prototype = Object.getPrototypeOf(value);
+	const isArray = Array.isArray(value);
+	if (!isArray && prototype !== Object.prototype && prototype !== null) {
+		return value;
+	}
+	// Cycles resolve to the original object until the copy (if any) is known.
+	converted.set(value, value);
+	let copy: Record<string, unknown> | unknown[] | undefined;
+	for (const [key, item] of Object.entries(value)) {
+		const next = toHookWireValue(item, converted);
+		if (next !== item) {
+			copy ??= isArray
+				? [...(value as unknown[])]
+				: { ...(value as Record<string, unknown>) };
+			(copy as Record<string, unknown>)[key] = next;
+		}
+	}
+	const result = copy ?? value;
+	converted.set(value, result);
+	return result;
+}
+
 function createHookProxies(
 	sessionId: string,
 	targetClientId: string,
@@ -533,7 +582,7 @@ function createHookProxies(
 			const response = await requestCapability(
 				sessionId,
 				contribution.capabilityName,
-				{ context: ctx },
+				{ context: toHookWireValue(ctx) },
 				targetClientId,
 			);
 			return response?.control;
