@@ -27,7 +27,12 @@ function runScript(strategy: "agentic" | "basic") {
 		{
 			encoding: "utf8",
 			env: { ...process.env, ANTHROPIC_API_KEY: "" },
-			timeout: 20_000,
+			// A hang guard, not a timing assertion. The first, cold `bun` start of
+			// this script transpiles the shared/llms/core sources it imports; on a
+			// loaded hosted Windows runner that start regularly takes 10-20s and
+			// occasionally longer, while a warm start takes under a second. Keep the
+			// per-test timeouts above this so the spawn error is what gets reported.
+			timeout: 60_000,
 			windowsHide: true,
 		},
 	);
@@ -41,7 +46,7 @@ describe("test:compaction script", () => {
 		expect(result.status, result.stderr).toBe(0);
 		expect(result.stderr).toContain("Running basic compaction");
 		expect(result.stderr).not.toContain("Missing API key");
-	}, 30_000);
+	}, 70_000);
 
 	it("still requires an API key for agentic compaction", () => {
 		const result = runScript("agentic");
@@ -49,5 +54,5 @@ describe("test:compaction script", () => {
 		expect(result.error).toBeUndefined();
 		expect(result.status).not.toBe(0);
 		expect(result.stderr).toContain("Missing API key in ANTHROPIC_API_KEY");
-	}, 30_000);
+	}, 70_000);
 });
