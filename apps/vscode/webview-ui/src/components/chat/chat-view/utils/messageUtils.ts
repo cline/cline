@@ -73,6 +73,35 @@ function isDuplicateAskOptionEcho(message: ClineMessage, previousMessage: ClineM
 	}
 }
 
+/**
+ * Detect when a plan_mode_respond or act_mode_respond ask row repeats the
+ * exact same text as the immediately preceding say: "text" row (the model
+ * streams its plan as text and then calls the mode-respond tool with the
+ * same content). Hide the text row so the response only appears once inside
+ * the mode-response box.
+ */
+function isPrecedingDuplicatePlanText(message: ClineMessage, nextMessage: ClineMessage | undefined): boolean {
+	if (
+		message.type !== "say" ||
+		message.say !== "text" ||
+		message.partial ||
+		!message.text ||
+		(message.images?.length ?? 0) > 0 ||
+		(message.files?.length ?? 0) > 0 ||
+		nextMessage?.type !== "ask" ||
+		(nextMessage.ask !== "plan_mode_respond" && nextMessage.ask !== "act_mode_respond")
+	) {
+		return false
+	}
+
+	try {
+		const parsed = JSON.parse(nextMessage.text || "{}") as ClinePlanModeResponse
+		return parsed.response === message.text
+	} catch {
+		return false
+	}
+}
+
 function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
 	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
 }
@@ -116,6 +145,9 @@ export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], message
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
 		if (isDuplicateAskOptionEcho(message, arr[index - 1])) {
+			return false
+		}
+		if (isPrecedingDuplicatePlanText(message, arr[index + 1])) {
 			return false
 		}
 
