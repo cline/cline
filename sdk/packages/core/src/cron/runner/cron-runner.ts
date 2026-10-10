@@ -59,6 +59,7 @@ const DEFAULT_CRON_EXTENSIONS = ["rules", "skills", "plugins"] as const;
 
 interface HubTurnResult {
 	text: string;
+	finishReason?: string;
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
@@ -437,6 +438,14 @@ export class CronRunner {
 			const sendResult = await withCancellation(sendPromise, signal);
 			checkActive();
 			const result = sendResult.result as HubTurnResult;
+			// Provider failures (unknown model, auth, quota) resolve the turn
+			// with finishReason "error" and the message as its text rather
+			// than throwing; a run that never got a model response is a failure.
+			if (result.finishReason === "error") {
+				throw new Error(
+					result.text?.trim() || "the agent turn ended with an error",
+				);
+			}
 
 			const endMs = Date.now();
 			const completed = this.store.completeRun(run.runId, {

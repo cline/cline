@@ -463,6 +463,30 @@ describe("CronRunner", () => {
 		expect(run.error).toMatch(/no runtime/);
 	});
 
+	it("marks runs failed when the agent turn ends with an error", async () => {
+		const { handlers, calls } = fakeHandlers();
+		handlers.sendSession = async () => ({
+			result: {
+				text: "model not found",
+				finishReason: "error",
+				usage: { inputTokens: 0, outputTokens: 0 },
+				toolCalls: [],
+			},
+		});
+		const { run: queued } = queuedSchedule("retired-model");
+		const runner = testRunner(handlers);
+		await runner.tick();
+		await runner.dispose();
+
+		const run = requireValue(store.getRun(queued.runId));
+		expect(run.status).toBe("failed");
+		expect(run.error).toBe("model not found");
+		expect(calls.stop).toBe(1);
+		expect(readFileSync(requireValue(run.reportPath), "utf8")).toContain(
+			"The run failed while running the agent turn:",
+		);
+	});
+
 	it("executes queued event runs with trigger context and report provenance", async () => {
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({
