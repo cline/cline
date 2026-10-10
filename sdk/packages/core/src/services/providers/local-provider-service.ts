@@ -55,7 +55,9 @@ import {
 	writeModelsFile,
 } from "./local-provider-registry";
 import {
-	fetchModelIdsFromSource,
+	fetchModelEntriesFromSource,
+	type ModelSourceEntry,
+	mergeModelEntries,
 	resolveModelsSourceUrl,
 } from "./model-source";
 import { isProviderSettingsUsable } from "./provider-readiness";
@@ -367,20 +369,45 @@ function normalizeHeaders(
 }
 
 function buildProviderModels(
-	modelIds: string[],
+	entries: ModelSourceEntry[],
 	existingModels: StoredProviderEntry["models"] = {},
 ) {
 	// Provider capabilities are inherited at registration. Persist only model
-	// overrides so refreshing defaults cannot overwrite user customizations.
+	// overrides so refreshing defaults cannot overwrite user customizations: a
+	// stored value wins over the source, so the context pair the source reports
+	// (window + input budget) is only persisted while the entry has no stored
+	// limit of its own — filling in a budget the registry never had without
+	// pairing a source window with an unrelated stored override. Without these
+	// fields an input budget falls back to the 128K default even when the
+	// payload reports context_length.
 	return Object.fromEntries(
-		modelIds.map((id) => [
-			id,
-			{
-				id,
-				name: id,
-				...existingModels[id],
-			},
-		]),
+		entries.map((entry) => {
+			const stored = existingModels[entry.id];
+			const contextLimits =
+				entry.contextLength !== undefined &&
+				stored?.contextWindow === undefined &&
+				stored?.maxInputTokens === undefined
+					? {
+							contextWindow: entry.contextLength,
+							maxInputTokens: entry.contextLength,
+						}
+					: {};
+			const completionLimits =
+				entry.maxCompletionTokens !== undefined &&
+				stored?.maxTokens === undefined
+					? { maxTokens: entry.maxCompletionTokens }
+					: {};
+			return [
+				entry.id,
+				{
+					id: entry.id,
+					name: entry.id,
+					...stored,
+					...contextLimits,
+					...completionLimits,
+				},
+			];
+		}),
 	);
 }
 
@@ -405,32 +432,49 @@ class EmptyModelCatalogError extends ModelDiscoveryError {
 	}
 }
 
-async function resolveModelIds(params: {
+async function resolveModelEntries(params: {
 	providerId: string;
 	baseUrl: string;
 	apiKey?: string;
 	headers?: Record<string, string>;
 	explicitModels?: string[];
 	modelsSourceUrl?: string;
-	fallbackModelIds?: string[];
+	fallbackModels?: StoredProviderEntry["models"];
 	shouldRecompute: boolean;
-}): Promise<string[]> {
+}): Promise<ModelSourceEntry[]> {
 	if (!params.shouldRecompute) {
-		return params.fallbackModelIds ?? [];
+		// A partial update (a rename, a capability change) keeps the stored
+		// models verbatim: re-deriving limits here would rewrite the stored
+		// budget of every entry the update is not about.
+		return Object.entries(params.fallbackModels ?? {})
+			.map(([id]) => ({ id: id.trim() }))
+			.filter((entry) => entry.id.length > 0);
 	}
-	let fetchedModels: string[] = [];
+	let fetched: ModelSourceEntry[] = [];
 	if (params.modelsSourceUrl) {
 		try {
-			fetchedModels = await fetchModelIdsFromSource(
-				params.modelsSourceUrl,
-				params.providerId,
-				params,
+			fetched = mergeModelEntries(
+				await fetchModelEntriesFromSource(
+					params.modelsSourceUrl,
+					params.providerId,
+					params,
+				),
 			);
 		} catch (cause) {
 			throw new ModelDiscoveryError(cause);
 		}
 	}
-	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
+	// A source-reported limit applies to the id no matter where the id came
+	// from, so an explicitly listed model that the source also reports keeps
+	// the reported context budget.
+	const fetchedById = new Map(fetched.map((entry) => [entry.id, entry]));
+	const ids = [
+		...new Set([
+			...(params.explicitModels ?? []),
+			...fetched.map((entry) => entry.id),
+		]),
+	];
+	return ids.map((id) => fetchedById.get(id) ?? { id });
 }
 
 function removeProviderFromSettingsState(
@@ -583,7 +627,7 @@ async function addLocalProviderUnlocked(
 	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
 	const normalizedHeaders = normalizeHeaders(request.headers);
-	const modelIds = await resolveModelIds({
+	const modelEntries = await resolveModelEntries({
 		providerId,
 		explicitModels: typedModels,
 		modelsSourceUrl: sourceUrl,
@@ -592,6 +636,7 @@ async function addLocalProviderUnlocked(
 		headers: normalizedHeaders,
 		shouldRecompute: true,
 	});
+	const modelIds = modelEntries.map((entry) => entry.id);
 	if (modelIds.length === 0) {
 		throw new Error(
 			"at least one model is required (manual or via modelsSourceUrl)",
@@ -635,7 +680,7 @@ async function addLocalProviderUnlocked(
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
-		models: buildProviderModels(modelIds),
+		models: buildProviderModels(modelEntries),
 		discoveredModelIds: modelIds.filter((id) => !typedModels.includes(id)),
 	};
 	await writeModelsFile(modelsPath, modelsState);
@@ -725,7 +770,7 @@ async function prepareProviderUpdate(
 					existingSettings.capabilities ?? registeredProvider?.capabilities,
 				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
-			models: seedModelId ? buildProviderModels([seedModelId]) : {},
+			models: seedModelId ? buildProviderModels([{ id: seedModelId }]) : {},
 			// A saved selection is not a manual catalog addition. Let source
 			// discovery replace it when initializing a source-backed catalog.
 			discoveredModelIds:
@@ -803,19 +848,17 @@ async function prepareProviderUpdate(
 				request.apiKey !== undefined ||
 				request.headers !== undefined ||
 				request.baseUrl !== undefined));
-	const existingModelIds = Object.keys(existingEntry.models ?? {})
-		.map((id) => id.trim())
-		.filter(Boolean);
-	const modelIds = await resolveModelIds({
+	const modelEntries = await resolveModelEntries({
 		providerId,
 		explicitModels,
 		modelsSourceUrl: nextModelsSourceUrl,
 		baseUrl,
 		apiKey,
 		headers,
-		fallbackModelIds: existingModelIds,
+		fallbackModels: existingEntry.models,
 		shouldRecompute: shouldRecomputeModels,
 	});
+	const modelIds = modelEntries.map((entry) => entry.id);
 	if (modelIds.length === 0) {
 		// An empty source is a discovery outcome, which credential saves treat
 		// as best-effort; an explicitly emptied model list is a validation error.
@@ -872,7 +915,7 @@ async function prepareProviderUpdate(
 			capabilities,
 			modelsSourceUrl: nextModelsSourceUrl,
 		},
-		models: buildProviderModels(modelIds, existingEntry.models),
+		models: buildProviderModels(modelEntries, existingEntry.models),
 		discoveredModelIds: nextModelsSourceUrl
 			? shouldRecomputeModels
 				? modelIds.filter((id) => !explicitModels.includes(id))

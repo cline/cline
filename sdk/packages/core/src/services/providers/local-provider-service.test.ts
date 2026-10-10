@@ -455,7 +455,8 @@ describe("models registry parsing", () => {
 });
 
 // ===========================================================================
-// extractModelIdsFromPayload is tested indirectly via addLocalProvider
+// extractModelEntriesFromPayload is tested indirectly via addLocalProvider,
+// and directly in model-source.test.ts
 // ===========================================================================
 
 describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
@@ -831,6 +832,128 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("data-array-provider");
 		expect(models.map((m) => m.id).sort()).toEqual(["model-x", "model-y"]);
+	});
+
+	it("keeps source-reported context limits on the stored models", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: "limited-model",
+							context_length: 131_072,
+							max_completion_tokens: 8_192,
+						},
+						{ id: "plain-model" },
+					],
+				}),
+			}),
+		);
+
+		await addLocalProvider(manager, {
+			providerId: "limits-provider",
+			name: "Limits",
+			baseUrl: "https://example.invalid/v1",
+			models: [],
+			modelsSourceUrl: "https://example.invalid/models",
+		});
+
+		const stored = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(
+			stored.providers["limits-provider"]?.models?.["limited-model"],
+		).toMatchObject({
+			contextWindow: 131_072,
+			maxInputTokens: 131_072,
+			maxTokens: 8_192,
+		});
+		expect(
+			stored.providers["limits-provider"]?.models?.["plain-model"],
+		).not.toHaveProperty("contextWindow");
+
+		const { models } = await getLocalProviderModels("limits-provider");
+		expect(models.find((m) => m.id === "limited-model")?.contextWindow).toBe(
+			131_072,
+		);
+
+		// A partial update that does not touch the model list must not wipe the
+		// limits the source reported.
+		await updateLocalProvider(manager, {
+			providerId: "limits-provider",
+			name: "Limits Renamed",
+		});
+
+		const updated = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(
+			updated.providers["limits-provider"]?.models?.["limited-model"],
+		).toMatchObject({
+			contextWindow: 131_072,
+			maxInputTokens: 131_072,
+			maxTokens: 8_192,
+		});
+	});
+
+	it("keeps limits reported by a duplicate source entry", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{ id: "dup-model", context_length: 262_144 },
+						{ id: "dup-model" },
+					],
+				}),
+			}),
+		);
+
+		await addLocalProvider(manager, {
+			providerId: "dup-provider",
+			name: "Dup",
+			baseUrl: "https://example.invalid/v1",
+			models: [],
+			modelsSourceUrl: "https://example.invalid/models",
+		});
+
+		const stored = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(
+			stored.providers["dup-provider"]?.models?.["dup-model"],
+		).toMatchObject({
+			contextWindow: 262_144,
+			maxInputTokens: 262_144,
+		});
+	});
+
+	it("applies source limits to an explicitly listed model id", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{ id: "explicit-model", context_length: 131_072 },
+						{ id: "discovered-model" },
+					],
+				}),
+			}),
+		);
+
+		await addLocalProvider(manager, {
+			providerId: "explicit-limits-provider",
+			name: "Explicit Limits",
+			baseUrl: "https://example.invalid/v1",
+			models: ["explicit-model"],
+			modelsSourceUrl: "https://example.invalid/models",
+		});
+
+		const stored = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(
+			stored.providers["explicit-limits-provider"]?.models?.["explicit-model"],
+		).toMatchObject({
+			contextWindow: 131_072,
+			maxInputTokens: 131_072,
+		});
 	});
 
 	it("surfaces a failing Ollama modelsSourceUrl fetch instead of an empty list", async () => {
@@ -3328,5 +3451,108 @@ describe("refreshProviderModelsFromSource", () => {
 		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
 			modelsState,
 		);
+	});
+
+	it("fills limits the registry is missing on refresh and keeps stored overrides", async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({
+				models: [
+					{
+						name: "kept",
+						context_length: 131_072,
+						max_completion_tokens: 8_192,
+					},
+					{ name: "filled", context_length: 65_536 },
+				],
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		await saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://localhost:11434/v1",
+		});
+		await refreshProviderModelsFromSource(manager, "ollama");
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const state = await readModelsFile(modelsPath);
+		const models = state.providers.ollama?.models ?? {};
+		state.providers.ollama.models = {
+			...models,
+			// A stored override keeps its own limits...
+			kept: {
+				...models.kept,
+				contextWindow: 8_000,
+				maxInputTokens: 8_000,
+				maxTokens: 1_024,
+			},
+			// ...while an entry stored before this fix has nothing to override.
+			filled: { id: "filled", name: "filled" },
+		};
+		await LocalProviderRegistry.writeModelsFile(modelsPath, state);
+
+		await refreshProviderModelsFromSource(manager, "ollama");
+
+		const refreshed = (await readModelsFile(modelsPath)).providers.ollama;
+		// The source reports 131_072 / 8_192 for this id; the stored override
+		// wins as a whole, so no source window is mixed into the stored pair.
+		expect(refreshed?.models?.kept).toMatchObject({
+			contextWindow: 8_000,
+			maxInputTokens: 8_000,
+			maxTokens: 1_024,
+		});
+		expect(refreshed?.models?.filled).toMatchObject({
+			contextWindow: 65_536,
+			maxInputTokens: 65_536,
+		});
+	});
+
+	it("does not mix a source window into a stored half-pair", async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({
+				models: [
+					{ name: "input-half", context_length: 131_072 },
+					{ name: "window-half", context_length: 131_072 },
+				],
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		await saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://localhost:11434/v1",
+		});
+		await refreshProviderModelsFromSource(manager, "ollama");
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const state = await readModelsFile(modelsPath);
+		const models = state.providers.ollama?.models ?? {};
+		state.providers.ollama.models = {
+			...models,
+			// A stored entry can carry only one half of the context pair.
+			"input-half": {
+				id: "input-half",
+				name: "input-half",
+				maxInputTokens: 8_000,
+			},
+			"window-half": {
+				id: "window-half",
+				name: "window-half",
+				contextWindow: 50_000,
+			},
+		};
+		await LocalProviderRegistry.writeModelsFile(modelsPath, state);
+
+		await refreshProviderModelsFromSource(manager, "ollama");
+
+		// The source reports 131_072 for both ids; a stored half must stay
+		// unpaired instead of adopting half of the source's context pair.
+		const refreshed = (await readModelsFile(modelsPath)).providers.ollama;
+		expect(refreshed?.models?.["input-half"]).toEqual({
+			id: "input-half",
+			name: "input-half",
+			maxInputTokens: 8_000,
+		});
+		expect(refreshed?.models?.["window-half"]).toEqual({
+			id: "window-half",
+			name: "window-half",
+			contextWindow: 50_000,
+		});
 	});
 });
