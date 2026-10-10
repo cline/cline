@@ -658,17 +658,42 @@ export async function importPluginModule(
 	// plugins). Pin `interopDefault: true` going into babel by overriding it
 	// in the transform call, while keeping `interopDefault: false` on the jiti
 	// instance so the loader sees raw exports.
+	//
+	// Babel's first transform installs a process-wide `Error.prepareStackTrace`
+	// (and raises `Error.stackTraceLimit`) to hide its own frames. That hook
+	// stays active while the plugin's dependencies initialize; under Bun it
+	// rejects the non-Error objects some packages (follow-redirects via axios)
+	// pass to `Error.captureStackTrace`, which breaks loading of any host SDK
+	// bundle that includes them. Restore both after each transform so the
+	// compiler's behavior never leaks into module evaluation.
 	const baseBabelTransform = loadJitiBabelTransform();
 	const babelTransform: JitiTransform | undefined = baseBabelTransform
-		? (opts) => baseBabelTransform({ ...opts, interopDefault: true })
+		? (opts) => {
+				const prepareStackTrace = Error.prepareStackTrace;
+				const stackTraceLimit = Error.stackTraceLimit;
+				try {
+					return baseBabelTransform({ ...opts, interopDefault: true });
+				} finally {
+					Error.prepareStackTrace = prepareStackTrace;
+					Error.stackTraceLimit = stackTraceLimit;
+				}
+			}
 		: undefined;
+	// Host packages that resolve to compiled CommonJS (`.cjs`) need no
+	// transform. Without listing them as native, a failing native require makes
+	// jiti silently fall back to Babel-transforming the whole file; for a
+	// bundled SDK that is tens of megabytes, which exhausts the import timeout
+	// and hides the real error.
+	const nativeHostPackages = Object.entries(sortedAliases)
+		.filter(([, target]) => extname(target) === ".cjs")
+		.map(([specifier]) => getPackageName(specifier));
 	const jiti = createJiti(pluginPath, {
 		alias: sortedAliases,
 		cache: options.useCache,
 		requireCache: options.useCache,
 		esmResolve: true,
 		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
+		nativeModules: [...BUILTIN_MODULES, ...nativeHostPackages],
 		transformModules,
 		// On Bun (the packaged binary), tryNative defaults to true, which makes
 		// jiti hand the plugin path straight to Bun's `import()`. Bun then owns

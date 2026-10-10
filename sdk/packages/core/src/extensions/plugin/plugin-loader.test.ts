@@ -303,6 +303,45 @@ describe("plugin-loader", () => {
 		expect(plugin.name).toBe("plugin-ts");
 	});
 
+	it("keeps Babel's stack formatter scoped to transpilation", async () => {
+		// A fresh file so the jiti cache cannot skip the transform.
+		const pluginPath = join(dir, "plugin-ts-stack-trace.ts");
+		// The fixture records both values while its own top level evaluates:
+		// that is when a plugin's dependencies initialize, so the formatter must
+		// already be restored by then, not merely after loading finishes.
+		await writeFile(
+			pluginPath,
+			[
+				"const name: string = 'plugin-ts-stack-trace';",
+				"export default {",
+				"  name,",
+				"  manifest: { capabilities: ['tools'] },",
+				"  seenPrepareStackTrace: Error.prepareStackTrace,",
+				"  seenStackTraceLimit: Error.stackTraceLimit,",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+		const previousPrepare = Error.prepareStackTrace;
+		const previousLimit = Error.stackTraceLimit;
+		const sentinel = (error: Error) => String(error);
+		Error.prepareStackTrace = sentinel;
+		Error.stackTraceLimit = 7;
+		try {
+			const plugin = (await loadAgentPluginFromPath(pluginPath)) as Awaited<
+				ReturnType<typeof loadAgentPluginFromPath>
+			> & { seenPrepareStackTrace?: unknown; seenStackTraceLimit?: number };
+			expect(plugin.name).toBe("plugin-ts-stack-trace");
+			expect(plugin.seenPrepareStackTrace).toBe(sentinel);
+			expect(plugin.seenStackTraceLimit).toBe(7);
+			expect(Error.prepareStackTrace).toBe(sentinel);
+			expect(Error.stackTraceLimit).toBe(7);
+		} finally {
+			Error.prepareStackTrace = previousPrepare;
+			Error.stackTraceLimit = previousLimit;
+		}
+	});
+
 	it("resolves plugin-local dependencies from the plugin path", async () => {
 		const plugin = await loadAgentPluginFromPath(
 			join(dir, "plugin-with-dep.ts"),
