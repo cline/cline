@@ -688,6 +688,24 @@
         "posthog-node",
       ],
     },
+    "sdk/packages/i18n": {
+      "name": "@cline/i18n",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/bun": "^1.3.13",
+        "@types/node": "^25.3.5",
+        "@types/react": "19.2.14",
+        "react": "19.2.4",
+        "typescript": "5.9.3",
+        "vitest": "^4.0.18",
+      },
+      "peerDependencies": {
+        "react": ">=18.3.0 <20",
+      },
+      "optionalPeers": [
+        "react",
+      ],
+    },
     "sdk/packages/llms": {
       "name": "@cline/llms",
       "version": "0.0.92",
@@ -1111,6 +1129,8 @@
     "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
 
     "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
+
+    "@cline/i18n": ["@cline/i18n@workspace:sdk/packages/i18n"],
 
     "@cline/llms": ["@cline/llms@workspace:sdk/packages/llms"],
 
