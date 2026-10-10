@@ -633,6 +633,46 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 		expect(registry.get(path)[0]?.sessionIds).toEqual(["new", "old"]);
 	});
 
+	it("does not let a stale copy's failures turn off a reloaded plugin", async () => {
+		const path = await write(
+			"stale.js",
+			`export default {
+	name: "stale",
+	manifest: { capabilities: ["hooks"] },
+	hooks: { beforeRun: async () => { throw new Error("old copy broke"); } },
+};
+`,
+		);
+		const told: string[] = [];
+		const old = await registry.loadForSession({
+			sessionId: "old",
+			pluginPaths: [path],
+			onIssue: (issue) => told.push(`${issue.state}:${issue.lastError?.phase}`),
+		});
+		// Fix the file and reload; the old session keeps its broken copy.
+		await writeFile(path, toolPlugin("stale"), "utf8");
+		await registry.reload(path);
+
+		// Well past the failure threshold (3).
+		for (let index = 0; index < 5; index++) {
+			await old.extensions[0]?.hooks?.beforeRun?.({ snapshot: {} } as never);
+		}
+
+		// Its own session hears about it; the fixed plugin is unaffected.
+		expect(told).toEqual(Array(5).fill("degraded:hook:beforeRun"));
+		expect(registry.get(path)[0]).toMatchObject({
+			state: "ready",
+			errorCount: 0,
+		});
+		const fresh = await registry.loadForSession({
+			sessionId: "fresh",
+			pluginPaths: [path],
+		});
+		expect((await setUp(fresh.extensions[0])).tools.map((t) => t.name)).toEqual(
+			["stale_tool"],
+		);
+	});
+
 	it("lets a successful reload clear a block recorded while it was importing", async () => {
 		const path = await write(
 			"flaky.js",

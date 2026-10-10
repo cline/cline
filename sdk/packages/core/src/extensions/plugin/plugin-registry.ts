@@ -71,6 +71,12 @@ interface PluginEntry {
 	 */
 	blocked: boolean;
 	consecutiveFailures: number;
+	/**
+	 * Bumped on every (re)import of the entry. Copies stamped with an older
+	 * value are stale: their failures are reported to their own session but
+	 * do not count against the current module.
+	 */
+	importId: number;
 	/** The imported module, read for metadata (name, manifest). */
 	extension?: AgentExtension;
 	/**
@@ -91,6 +97,8 @@ interface PluginEntry {
 /** One session's copy of a plugin module. */
 interface PluginInstance {
 	extension: AgentExtension;
+	/** The entry's `importId` when this copy was imported. */
+	importId: number;
 	setupFailed: boolean;
 	closed: boolean;
 	/** Cleanup registered through `ctx.onDispose`. */
@@ -344,10 +352,12 @@ export function installPluginHostShim(): void {
 function newInstance(
 	extension: AgentExtension | undefined,
 	pluginName: string,
+	importId: number,
 ): PluginInstance {
 	return {
 		// Assigned as soon as the import resolves; never read before that.
 		extension: extension as AgentExtension,
+		importId,
 		setupFailed: false,
 		closed: false,
 		disposers: [],
@@ -679,6 +689,7 @@ export class PluginRegistry {
 				state: "loading",
 				blocked: false,
 				consecutiveFailures: 0,
+				importId: 0,
 				errorCount: 0,
 				timeoutCount: 0,
 				sessions: new Map(),
@@ -727,7 +738,7 @@ export class PluginRegistry {
 		timeoutMs: number,
 		sessionId: string | undefined,
 	): Promise<PluginInstance> {
-		const instance = newInstance(undefined, entry.name);
+		const instance = newInstance(undefined, entry.name, entry.importId);
 		instance.scope.sessionId = sessionId;
 		instance.extension = await runWithTimeout(
 			() =>
@@ -771,6 +782,9 @@ export class PluginRegistry {
 		entry.fingerprint = fingerprint;
 		entry.extension = undefined;
 		entry.spare = undefined;
+		// Copies from before this import are stale from here on: what they
+		// report no longer describes the module being imported.
+		entry.importId += 1;
 		this.setState(entry, "loading", true);
 		const startedAt = Date.now();
 		try {
@@ -781,7 +795,7 @@ export class PluginRegistry {
 				undefined,
 			);
 			// A successful re-import (reload or source change) gives the plugin
-			// a clean slate, including failures copies recorded while it ran.
+			// a clean slate.
 			entry.blocked = false;
 			entry.consecutiveFailures = 0;
 			entry.extension = instance.extension;
@@ -939,6 +953,7 @@ export class PluginRegistry {
 			// other sessions keep theirs, and the next session tries again.
 			instance.setupFailed = true;
 			this.recordFailure(entry, "setup", error, {
+				instance,
 				sessionId: input.sessionId,
 				state: "failed",
 				notify: input.onIssue,
@@ -976,7 +991,11 @@ export class PluginRegistry {
 			failSetup(error);
 			throw error;
 		}
-		if (!entry.blocked && entry.state === "failed") {
+		if (
+			instance.importId === entry.importId &&
+			!entry.blocked &&
+			entry.state === "failed"
+		) {
 			this.setState(entry, "ready");
 		}
 	}
@@ -999,6 +1018,7 @@ export class PluginRegistry {
 				try {
 					return await this.guardedCall(
 						entry,
+						instance,
 						phase,
 						timeouts.hook,
 						scope,
@@ -1029,6 +1049,7 @@ export class PluginRegistry {
 				this.assertUsable(entry, instance, `tool "${tool.name}"`);
 				return this.guardedCall(
 					entry,
+					instance,
 					phase,
 					tool.timeoutMs ?? timeouts.call,
 					scope,
@@ -1062,6 +1083,7 @@ export class PluginRegistry {
 				this.assertUsable(entry, instance, `command "/${command.name}"`);
 				return this.guardedCall(
 					entry,
+					instance,
 					`command:${command.name}`,
 					timeouts.call,
 					scope,
@@ -1090,6 +1112,7 @@ export class PluginRegistry {
 				try {
 					return await this.guardedCall(
 						entry,
+						instance,
 						`rule:${rule.id}`,
 						timeouts.call,
 						scope,
@@ -1119,6 +1142,7 @@ export class PluginRegistry {
 				try {
 					return await this.guardedCall(
 						entry,
+						instance,
 						`messageBuilder:${builder.name}`,
 						timeouts.call,
 						scope,
@@ -1138,6 +1162,7 @@ export class PluginRegistry {
 	 */
 	private async guardedCall<T>(
 		entry: PluginEntry,
+		instance: PluginInstance,
 		phase: PluginErrorPhase,
 		timeoutMs: number,
 		scope: PluginCallScope,
@@ -1152,12 +1177,13 @@ export class PluginRegistry {
 				timeoutMs,
 				`Plugin "${entry.name}" ${phase}`,
 			);
-			entry.consecutiveFailures = 0;
+			if (instance.importId === entry.importId) entry.consecutiveFailures = 0;
 			this.warnIfSlow(entry, phase, startedAt, timeoutMs, input);
 			return result;
 		} catch (error) {
 			if (!isCancelled?.()) {
 				this.recordFailure(entry, phase, error, {
+					instance,
 					sessionId: input.sessionId,
 				});
 			}
@@ -1233,21 +1259,24 @@ export class PluginRegistry {
 			messagePrefix?: string;
 			/** Tell the calling session even if the state did not change. */
 			notify?: (issue: SessionPluginIssue) => void;
+			/** The copy the failure came from, when it came from one. */
+			instance?: PluginInstance;
 		},
 	): void {
 		const { message, stack } = toErrorParts(error);
 		const timedOut = error instanceof PluginCallTimeoutError;
+		const stale =
+			options.instance !== undefined &&
+			options.instance.importId !== entry.importId;
 		this.log("warn", "plugin.error", entry, {
 			phase,
 			sessionId: options.sessionId,
 			errorMessage: message,
 			timedOut,
+			stale,
 			stack,
 		});
-		entry.errorCount += 1;
-		if (timedOut) entry.timeoutCount += 1;
-		entry.consecutiveFailures += 1;
-		entry.lastError = {
+		const record: PluginErrorRecord = {
 			phase,
 			message: `${options.messagePrefix ?? ""}${message}`,
 			...(stack ? { stack } : {}),
@@ -1256,6 +1285,29 @@ export class PluginRegistry {
 			...(options.sessionId ? { sessionId: options.sessionId } : {}),
 			...(timedOut ? { timedOut } : {}),
 		};
+		if (stale) {
+			// A copy from before a reload says nothing about the current module:
+			// tell its own session, but leave the status and counts alone.
+			const onIssue =
+				options.notify ??
+				(options.sessionId ? entry.sessions.get(options.sessionId) : undefined);
+			try {
+				onIssue?.({
+					name: entry.name,
+					pluginPath: entry.pluginPath,
+					state: options.state ?? "degraded",
+					reason: "error",
+					lastError: record,
+				});
+			} catch {
+				// Reporting must never turn into a second failure.
+			}
+			return;
+		}
+		entry.errorCount += 1;
+		if (timedOut) entry.timeoutCount += 1;
+		entry.consecutiveFailures += 1;
+		entry.lastError = record;
 		const block =
 			options.fatal === true ||
 			(!options.state && entry.consecutiveFailures >= this.failureThreshold);

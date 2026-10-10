@@ -686,7 +686,10 @@ attributed uncaught error, and five consecutive call failures turn the
 plugin off for every session using it; a re-import (`plugins.reload` or a
 fingerprint change) starts over with a clean slate. Running sessions keep
 the copy they set up, which stays callable unless the plugin is turned off
-(a broken reload fails closed for them too). A `setup()` failure is per
+(a broken reload fails closed for them too). Each copy is stamped with the
+import it came from; a failure in a copy from before a re-import is reported
+to its own session but does not count against, or change the status of, the
+current module. A `setup()` failure is per
 session: that session loses its copy (no tools or hooks), the status shows
 `failed` with the error, only that session is told, other sessions keep
 their working copies, and the next session tries setup again; a successful
