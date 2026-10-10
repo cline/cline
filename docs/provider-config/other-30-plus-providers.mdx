@@ -38,6 +38,7 @@ Use this page for providers that follow the same setup pattern.
   - [Vercel AI Gateway](#vercel-ai-gateway)
   - [VS Code Language Model API](#vs-code-language-model-api)
   - [xAI (Grok)](#xai-grok)
+  - [Yolo-Auto](#yolo-auto)
 
 ## Shared Configuration in Cline
 
@@ -372,3 +373,16 @@ xAI provides Grok models through its API platform.
 1. Sign in to xAI platform.
 2. Generate an API key.
 3. In Cline, choose **xAI (Grok)** and paste the key.
+
+### Yolo-Auto
+Yolo-Auto is a flat-rate, OpenAI-compatible gateway aimed at coding agents. It bills a fixed monthly rate instead of per-token charges.
+
+**Website:** [https://yolo-auto.com/](https://yolo-auto.com/)
+
+#### Basic Setup
+
+1. Create a Yolo-Auto account and generate an API key.
+2. In Cline, select **Yolo-Auto** and paste the key (or set `YOLO_AUTO_API_KEY`).
+3. Choose a model from the model picker.
+
+The model list is fetched live from the Yolo-Auto endpoint (`GET /v1/models`), so it always reflects what your key can call; you do not need to update Cline when new models are added. The stable default model ID is `yolo`. For manual configuration, select **OpenAI Compatible**, set the base URL to `https://yolo-auto.com/v1`, and enter your key.

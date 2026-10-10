@@ -108,6 +108,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://chutes.ai/app/api",
 	},
 	"zai-coding-plan": {},
+	"yolo-auto": { signupUrl: "https://yolo-auto.com/app" },
 }
 
 const GENERIC_PROVIDER_PROTOCOLS = new Set(["anthropic", "gemini", "openai-chat", "openai-responses"])
@@ -168,8 +169,8 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	wandb: "CoreWeave",
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",
-	chutes: "Chutes",
 	"zai-coding-plan": "Z.AI Coding Plan",
+	"yolo-auto": "Yolo-Auto",
 } as const
 
 export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {

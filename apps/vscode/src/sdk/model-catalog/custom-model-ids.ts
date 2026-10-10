@@ -6,7 +6,7 @@ import { toSdkProviderId } from "./sdk-provider-id"
 // list that the user can also bypass (ollama/lmstudio/litellm/vertex). For these,
 // the picker must allow arbitrary model ids and model resolution must honor
 // the requested id instead of coercing to the catalog default.
-const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm", "vertex"])
+const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm", "vertex", "yolo-auto"])
 
 /**
  * Whether a provider id accepts a user-supplied (custom) model id.

@@ -44,6 +44,7 @@ export enum BUILT_IN_PROVIDER {
 	LITELLM = "litellm",
 	HUGGINGFACE = "huggingface",
 	VERCEL_AI_GATEWAY = "vercel-ai-gateway",
+	YOLO_AUTO = "yolo-auto",
 	V0 = "v0",
 	AIAND = "aiand",
 	AIHUBMIX = "aihubmix",
