@@ -125,6 +125,8 @@ function normalizeUsageEvent(usageEvent: {
 export class MessageTranslatorState {
 	/** Current streaming text message timestamp (used for dedup) */
 	private streamingTextTs: number | undefined
+	private streamingTextText = ""
+	private hasInterruptedContent = false
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
 	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
@@ -224,10 +226,52 @@ export class MessageTranslatorState {
 		return this.streamingTextTs
 	}
 
+	/** Accumulate the displayed row, independently of the runtime's history checkpoints. */
+	appendStreamingText(delta: string): string {
+		this.streamingTextText += delta
+		return this.streamingTextText
+	}
+
+	/** Finalize the actual open rows before the retry divider. */
+	endInterruptedContent(): ClineMessage[] {
+		this.hasInterruptedContent = true
+		const rows: ClineMessage[] = []
+		if (this.streamingTextTs !== undefined) {
+			const text = this.streamingTextText
+			rows.push({ ts: this.clearStreamingText(), type: "say", say: "text", text, partial: false })
+		}
+		if (this.streamingReasoningTs !== undefined) {
+			const reasoning = this.streamingReasoningText
+			rows.push({
+				ts: this.clearStreamingReasoning(),
+				type: "say",
+				say: "reasoning",
+				text: reasoning,
+				reasoning,
+				partial: false,
+			})
+		}
+		return rows
+	}
+
+	recoveredRowText(): string | undefined {
+		return !this.hasInterruptedContent || this.streamingTextTs === undefined ? undefined : this.streamingTextText
+	}
+
+	recoveredRowReasoning(): string | undefined {
+		return !this.hasInterruptedContent || this.streamingReasoningTs === undefined ? undefined : this.streamingReasoningText
+	}
+
+	/** A final history snapshot must not reopen content already closed by a retry. */
+	shouldFinalizeContent(type: "text" | "reasoning"): boolean {
+		return !this.hasInterruptedContent || (type === "text" ? this.streamingTextTs : this.streamingReasoningTs) !== undefined
+	}
+
 	/** Clear streaming text (content ended) */
 	clearStreamingText(): number {
 		const ts = this.streamingTextTs ?? this.nextTs()
 		this.streamingTextTs = undefined
+		this.streamingTextText = ""
 		return ts
 	}
 
@@ -530,6 +574,9 @@ export class MessageTranslatorState {
 	 * `attemptCompletionSeen` — those are scoped to the whole turn and survive its iterations.
 	 */
 	reset(): void {
+		this.hasInterruptedContent = false
+		this.streamingTextText = ""
+		this.streamingReasoningText = ""
 		this.streamingTextTs = undefined
 		this.streamingReasoningTs = undefined
 		this.streamingToolTs = undefined
@@ -1312,18 +1359,14 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_start": {
 			switch (event.contentType) {
 				case "text": {
-					// The SDK emits MULTIPLE content_start events for streaming text.
-					// Each has `text` (the delta) and `accumulated` (full text so far).
-					// We use `accumulated` so the webview can update the message in-place
-					// with the growing text, giving smooth streaming. Using `text` (delta)
-					// would cause a "flip book" effect where each update replaces the
-					// previous content with just the new chunk.
+					// Each row accumulates deltas locally so retries start below the notice
+					// without repeating completed steps from the runtime's accumulated text.
 					const ts = state.getStreamingTextTs()
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.accumulated ?? event.text ?? "",
+						text: state.appendStreamingText(event.text ?? ""),
 						partial: true,
 					})
 					break
@@ -1546,8 +1589,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_end": {
 			switch (event.contentType) {
 				case "text": {
+					if (!state.shouldFinalizeContent("text")) break
+					const finalText = state.recoveredRowText() ?? event.text ?? ""
 					const ts = state.clearStreamingText()
-					const finalText = event.text ?? ""
 					messages.push({
 						ts,
 						type: "say",
@@ -1563,8 +1607,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					break
 				}
 				case "reasoning": {
+					if (!state.shouldFinalizeContent("reasoning")) break
+					const reasoning = state.recoveredRowReasoning() ?? event.reasoning ?? ""
 					const ts = state.clearStreamingReasoning()
-					const reasoning = event.reasoning ?? ""
 					messages.push({
 						ts,
 						type: "say",
@@ -1872,6 +1917,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 
 		case "notice": {
 			if (event.metadata?.kind === "provider_stream_retry") {
+				messages.push(...state.endInterruptedContent())
 				// Interrupted text remains visible but cannot be the completed answer.
 				state.takeTurnFinalText()
 			}

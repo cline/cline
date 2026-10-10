@@ -245,24 +245,7 @@ export class RuntimeEventAdapter {
 			case "usage-updated":
 				return this.translateUsage(event.usage);
 			case "status-notice": {
-				const endedParts: AgentEvent[] = [];
-				if (event.metadata?.kind === "provider_stream_retry") {
-					const { partialText, partialReasoning } = event.metadata;
-					if (typeof partialText === "string" && partialText)
-						endedParts.push({
-							type: "content_end",
-							contentType: "text",
-							text: partialText,
-						});
-					if (typeof partialReasoning === "string" && partialReasoning)
-						endedParts.push({
-							type: "content_end",
-							contentType: "reasoning",
-							reasoning: partialReasoning,
-						});
-				}
 				return [
-					...endedParts,
 					{
 						type: "notice",
 						noticeType: "status",

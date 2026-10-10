@@ -52,7 +52,7 @@ function makeSnapshot(
 	};
 }
 
-it("ends interrupted text and reasoning before displaying a stream retry notice", () => {
+it("forwards retry notices without synthesizing display content from failed-step content", () => {
 	const adapter = new RuntimeEventAdapter();
 	const metadata = {
 		kind: "provider_stream_retry",
@@ -68,8 +68,6 @@ it("ends interrupted text and reasoning before displaying a stream retry notice"
 		metadata,
 	});
 	expect(events).toEqual([
-		{ type: "content_end", contentType: "text", text: "Partial" },
-		{ type: "content_end", contentType: "reasoning", reasoning: "Thinking" },
 		{
 			type: "notice",
 			noticeType: "status",
