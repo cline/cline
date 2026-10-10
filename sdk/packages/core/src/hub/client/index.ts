@@ -637,7 +637,26 @@ export class NodeHubClient {
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
-			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
+			const text = decodeSocketData(data);
+			let frame: HubTransportFrame;
+			try {
+				frame = JSON.parse(text) as HubTransportFrame;
+			} catch (error) {
+				// A frame we cannot parse (truncated or corrupted on the wire) means
+				// the stream is no longer trustworthy. Throwing here would be an
+				// uncaught exception in a socket listener, which exits the host
+				// process; close the socket instead so pending replies fail with a
+				// real cause and the normal reconnect takes over.
+				suppressCloseMessage = true;
+				this.lastCloseError = new HubTransportError(
+					"hub_connection_closed",
+					`Hub sent a frame this client could not parse (${Buffer.byteLength(text)} bytes): ${error instanceof Error ? error.message : String(error)}`,
+				);
+				this.sawSocketClose = true;
+				socket.close();
+				return;
+			}
+			this.handleFrame(frame);
 		});
 		socket.addEventListener("close", (event: unknown) => {
 			if (this.socket !== socket) {
