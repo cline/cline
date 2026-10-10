@@ -351,17 +351,22 @@ export function ProjectFilesPanel({
 	// edited outside the app re-read without blanking the viewer first.
 	// Reloads what is open and forgets the rest, so a folder expanded later
 	// lists what is on disk now; open rows keep their entries while loading.
+	// Read through a ref: callers may fire after an await (pull, discard),
+	// by which time the user may have expanded more folders.
+	const expandedRef = useRef(expanded);
+	expandedRef.current = expanded;
 	const reloadDirectories = useCallback(() => {
+		const open = expandedRef.current;
 		setDirectories((current) => {
 			const next = new Map<string, DirectoryState>();
-			for (const path of expanded) {
+			for (const path of open) {
 				const entry = current.get(path);
 				if (entry) next.set(path, entry);
 			}
 			return next;
 		});
-		for (const path of expanded) void loadDirectory(path);
-	}, [expanded, loadDirectory]);
+		for (const path of open) void loadDirectory(path);
+	}, [loadDirectory]);
 	const refresh = useCallback(() => {
 		reloadDirectories();
 		void sourceControl.refresh();

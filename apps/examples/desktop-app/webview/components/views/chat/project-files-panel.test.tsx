@@ -310,19 +310,32 @@ describe("ProjectFilesPanel source control view", () => {
 		}
 	});
 
-	it("reloads expanded folders after a pull", async () => {
+	it("reloads the folders expanded by the time a pull finishes", async () => {
 		await render();
-		await click(button(/^Files$/));
-		await click(button(/^src/));
 		const listings = () =>
 			invokeMock.mock.calls.filter(
 				([command]) => command === "list_project_entries",
 			).length;
-		const before = listings();
-		await click(button(/^Source Control$/));
+		// Hold the pull open and expand a folder while it runs.
+		let finishPull: (value: unknown) => void = () => {};
+		invokeMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishPull = resolve;
+				}),
+		);
 		await click(byLabel("Pull", container));
-		// Root and src were expanded, so both list again.
+		await click(button(/^Files$/));
+		await click(button(/^src/));
+		const before = listings();
+		await act(async () => {
+			finishPull({ environmentId: "local" });
+			await Promise.resolve();
+		});
+		// Root and the newly expanded src both list again, and src keeps
+		// its children on screen.
 		expect(listings()).toBe(before + 2);
+		expect(container.textContent).toContain("app.ts");
 	});
 
 	it("disables Push when nothing is ahead", async () => {
