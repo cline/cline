@@ -1,3 +1,4 @@
+import { openRouterDefaultModelId } from "@shared/api"
 import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
@@ -169,7 +170,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.SetModel: {
-					const modelId = action.arg || "anthropic/claude-sonnet-4.5"
+					const modelId = action.arg || openRouterDefaultModelId
 					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
