@@ -1795,15 +1795,75 @@ export class AgentRuntime {
 		let requestId: string | undefined;
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
+		let checkpoint = {
+			length: 0,
+			text: "",
+			reasoning: "",
+			nextToolIndex: 0,
+			modelToolIds: new Set<string>(),
+		};
 
 		for await (const event of stream) {
 			if (steerController.signal.aborted) break;
 			this.throwIfAborted();
 			switch (event.type) {
+				case "response-checkpoint": {
+					checkpoint = {
+						length: sequence.length,
+						text: accumulatedText,
+						reasoning: accumulatedReasoning,
+						nextToolIndex,
+						modelToolIds: new Set(modelToolActivities.keys()),
+					};
+					break;
+				}
+				case "stream-retry": {
+					const discarded = sequence.splice(checkpoint.length);
+					const partialText = discarded
+						.flatMap((item) =>
+							item.type === "part" && item.part.type === "text"
+								? [item.part.text]
+								: [],
+						)
+						.join("");
+					const partialReasoning = discarded
+						.flatMap((item) =>
+							item.type === "part" && item.part.type === "reasoning"
+								? [item.part.text]
+								: [],
+						)
+						.join("");
+					for (const item of discarded)
+						if (item.type === "tool") toolAssemblies.delete(item.key);
+					accumulatedText = checkpoint.text;
+					accumulatedReasoning = checkpoint.reasoning;
+					nextToolIndex = checkpoint.nextToolIndex;
+					for (const id of modelToolActivities.keys())
+						if (!checkpoint.modelToolIds.has(id))
+							modelToolActivities.delete(id);
+					await this.emit({
+						type: "status-notice",
+						snapshot: this.snapshot(),
+						message: `Response interrupted: ${event.error} Retrying (${event.attempt}/${event.maxRetries}).`,
+						metadata: {
+							kind: "provider_stream_retry",
+							attempt: event.attempt,
+							maxRetries: event.maxRetries,
+							error: event.error,
+							partialText,
+							partialReasoning,
+						},
+					});
+					break;
+				}
 				case "text-delta": {
 					accumulatedText += event.text;
 					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "text") {
+					if (
+						sequence.length > checkpoint.length &&
+						last?.type === "part" &&
+						last.part.type === "text"
+					) {
 						last.part.text += event.text;
 					} else {
 						sequence.push({
@@ -1839,7 +1899,11 @@ export class AgentRuntime {
 				case "reasoning-delta": {
 					accumulatedReasoning += event.text;
 					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "reasoning") {
+					if (
+						sequence.length > checkpoint.length &&
+						last?.type === "part" &&
+						last.part.type === "reasoning"
+					) {
 						last.part.text += event.text;
 						last.part.redacted = event.redacted ?? last.part.redacted;
 						last.part.metadata = event.metadata ?? last.part.metadata;

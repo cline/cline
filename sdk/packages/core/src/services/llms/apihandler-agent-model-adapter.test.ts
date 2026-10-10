@@ -63,6 +63,30 @@ const baseRequest: AgentModelRequest = {
 };
 
 describe("createAgentModelFromApiHandler", () => {
+	it("preserves retry and completed-step boundaries from ApiHandler streams", async () => {
+		const model = createAgentModelFromApiHandler(
+			fakeHandler([
+				{ type: "text", id: "attempt", text: "Partial" },
+				{
+					type: "stream-retry",
+					id: "attempt",
+					error: "EOF",
+					attempt: 1,
+					maxRetries: 5,
+				},
+				{ type: "text", id: "attempt", text: "Recovered" },
+				{ type: "response-checkpoint", id: "attempt" },
+				{ type: "done", id: "attempt", success: true },
+			]),
+		);
+		const events = await collect(model.stream(baseRequest));
+		expect(events.slice(0, 4)).toEqual([
+			{ type: "text-delta", text: "Partial" },
+			{ type: "stream-retry", error: "EOF", attempt: 1, maxRetries: 5 },
+			{ type: "text-delta", text: "Recovered" },
+			{ type: "response-checkpoint" },
+		]);
+	});
 	it("maps text + usage chunks to events and appends a finish", async () => {
 		const handler = fakeHandler([
 			{ type: "text", text: "hello", id: "x" },

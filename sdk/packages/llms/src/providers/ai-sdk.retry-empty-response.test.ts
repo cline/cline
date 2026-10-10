@@ -17,6 +17,7 @@ import {
 	createOpenAICompatibleProvider,
 	withEmptyResponseRetry,
 } from "./ai-sdk";
+import * as openAICompatibleVendor from "./vendors/openai-compatible";
 
 /**
  * Integration tests proving `createRetryEmptyResponseMiddleware` is engaged
@@ -147,23 +148,166 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		chunk({}, "tool_calls") +
 		"data: [DONE]\n\n";
 
-	async function run(bodies: string[], tools: AgentToolDefinition[] = []) {
+	async function run(
+		bodies: string[],
+		tools: AgentToolDefinition[] = [],
+		providerId = "openai-compatible",
+	) {
 		const fetchMock = queuedFetch(bodies);
 		const config = {
-			providerId: "openai-compatible",
+			providerId,
 			apiKey: "test-key",
 			baseUrl: "http://fake.local/v1",
 			fetch: fetchMock as unknown as typeof fetch,
 		};
-		const provider = await createOpenAICompatibleProvider(config);
+		const createProvider =
+			providerId === "cline" || providerId === "cline-pass"
+				? createClineProvider
+				: createOpenAICompatibleProvider;
+		const provider = await createProvider(config);
 		const events = await collect(
 			await provider.stream(
 				streamRequest(tools),
-				providerContext("openai-compatible", config),
+				providerContext(providerId, config),
 			),
 		);
 		return { fetchMock, events };
 	}
+
+	describe.each([
+		"openai-compatible",
+		"openrouter",
+		"cline",
+		"cline-pass",
+	])("%s stream recovery", (providerId) => {
+		it.each([
+			{ reasoning_content: "Thinking" },
+			{ content: "Partial answer" },
+		])("recovers EOF after %j on the sixth attempt", async (delta) => {
+			const partialSse = chunk({ role: "assistant", ...delta });
+			const { fetchMock, events } = await run(
+				[...Array<string>(5).fill(partialSse), textSse],
+				[],
+				providerId,
+			);
+
+			expect(fetchMock).toHaveBeenCalledTimes(6);
+			expect(events.filter((event) => event.type === "stream-retry")).toEqual(
+				Array.from({ length: 5 }, (_, index) => ({
+					type: "stream-retry",
+					error: "Response stream ended without a finish reason.",
+					attempt: index + 1,
+					maxRetries: 5,
+				})),
+			);
+			const visible = events.filter(
+				(event) =>
+					event.type === "text-delta" ||
+					event.type === "reasoning-delta" ||
+					event.type === "stream-retry",
+			);
+			for (let index = 0; index < 5; index++) {
+				expect(visible[index * 2]?.type).toBe(
+					"reasoning_content" in delta ? "reasoning-delta" : "text-delta",
+				);
+				expect(visible[index * 2 + 1]?.type).toBe("stream-retry");
+			}
+			expect(visible.at(-1)).toEqual({ type: "text-delta", text: "hello" });
+			expect(
+				events.filter(
+					(event) =>
+						event.type ===
+							("reasoning_content" in delta
+								? "reasoning-delta"
+								: "text-delta") &&
+						event.text ===
+							("reasoning_content" in delta
+								? delta.reasoning_content
+								: delta.content),
+				),
+			).toHaveLength(5);
+			expect(hasTextDelta(events, "hello")).toBe(true);
+			expect(finishEvents(events)).toEqual([
+				expect.objectContaining({
+					reason: "stop",
+					requestId: "request-6",
+					error: undefined,
+				}),
+			]);
+		});
+
+		it("surfaces persistent EOF after six attempts", async () => {
+			const { fetchMock, events } = await run(
+				[chunk({ role: "assistant", content: "Partial answer" })],
+				[],
+				providerId,
+			);
+			expect(fetchMock).toHaveBeenCalledTimes(6);
+			expect(
+				events.filter((event) => event.type === "stream-retry"),
+			).toHaveLength(5);
+			expect(finishEvents(events)).toEqual([
+				expect.objectContaining({
+					reason: "error",
+					error: "Response stream ended without a finish reason.",
+				}),
+			]);
+		});
+
+		it("recovers an in-band provider error", async () => {
+			const { fetchMock, events } = await run(
+				[
+					'data: {"error":{"message":"Provider failed","code":500}}\n\n',
+					textSse,
+				],
+				[],
+				providerId,
+			);
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(hasTextDelta(events, "hello")).toBe(true);
+			expect(finishEvents(events)).toEqual([
+				expect.objectContaining({ reason: "stop", error: undefined }),
+			]);
+		});
+
+		it("discards tool calls from a failed attempt", async () => {
+			const partialToolSse = toolCallSse.slice(
+				0,
+				toolCallSse.indexOf(chunk({}, "tool_calls")),
+			);
+			const { fetchMock, events } = await run(
+				[partialToolSse, textSse],
+				[READ_FILES_TOOL],
+				providerId,
+			);
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+			expect(events.some((event) => event.type === "tool-call-delta")).toBe(
+				false,
+			);
+			expect(hasTextDelta(events, "hello")).toBe(true);
+			expect(finishEvents(events)[0]).toMatchObject({ reason: "stop" });
+		});
+	});
+
+	it.each([0, 1])("honors a vendor retry budget of %i", async (maxRetries) => {
+		const createModule =
+			openAICompatibleVendor.createOpenAICompatibleProviderModule;
+		const factory = vi
+			.spyOn(openAICompatibleVendor, "createOpenAICompatibleProviderModule")
+			.mockImplementation(async (...args) => ({
+				...(await createModule(...args)),
+				maxRetries,
+			}));
+		try {
+			const { fetchMock, events } = await run([
+				chunk({ role: "assistant", content: "Partial answer" }),
+			]);
+			expect(fetchMock).toHaveBeenCalledTimes(maxRetries + 1);
+			expect(finishEvents(events)[0]).toMatchObject({ reason: "error" });
+		} finally {
+			factory.mockRestore();
+		}
+	});
 
 	it("retries an empty turn and streams the successful attempt", async () => {
 		const { fetchMock, events } = await run([emptySse, textSse]);
@@ -378,6 +522,22 @@ describe("anthropic wire format", () => {
 		);
 		return { fetchMock, events };
 	}
+
+	it("uses the default stream retry budget for native Anthropic errors", async () => {
+		const { fetchMock, events } = await run([
+			sse([
+				messageStart,
+				{
+					type: "error",
+					error: { type: "overloaded_error", message: "Overloaded" },
+				},
+			]),
+			textSse,
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(hasTextDelta(events, "hello")).toBe(true);
+		expect(finishEvents(events)[0]).toMatchObject({ reason: "stop" });
+	});
 
 	it("retries an empty turn and streams the successful attempt", async () => {
 		const { fetchMock, events } = await run([emptySse, textSse]);

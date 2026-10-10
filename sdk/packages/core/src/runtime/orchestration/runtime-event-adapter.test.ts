@@ -52,6 +52,33 @@ function makeSnapshot(
 	};
 }
 
+it("forwards retry notices without synthesizing display content from failed-step content", () => {
+	const adapter = new RuntimeEventAdapter();
+	const metadata = {
+		kind: "provider_stream_retry",
+		partialText: "Partial",
+		partialReasoning: "Thinking",
+		attempt: 1,
+		maxRetries: 5,
+	};
+	const events = adapter.translate({
+		type: "status-notice",
+		snapshot: makeSnapshot(),
+		message: "Response interrupted — retrying (1/5).",
+		metadata,
+	});
+	expect(events).toEqual([
+		{
+			type: "notice",
+			noticeType: "status",
+			displayRole: "status",
+			message: "Response interrupted — retrying (1/5).",
+			reason: undefined,
+			metadata,
+		},
+	]);
+});
+
 function makeMessage(
 	overrides: Partial<AgentMessage> = {},
 	content: AgentMessage["content"] = [],

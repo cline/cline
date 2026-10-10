@@ -93,6 +93,73 @@ function createTelemetryMock(): {
 }
 
 describe("AgentRuntime", () => {
+	it("keeps failed stream attempts visible while excluding them from hooks and history", async () => {
+		const afterModel = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Completed step" },
+				{ type: "response-checkpoint" },
+				{ type: "reasoning-delta", text: "Wrong reasoning" },
+				{ type: "text-delta", text: "The answer is 4" },
+				{ type: "stream-retry", error: "EOF", attempt: 1, maxRetries: 5 },
+				{ type: "text-delta", text: "The answer is 4" },
+				{ type: "stream-retry", error: "EOF", attempt: 2, maxRetries: 5 },
+				{ type: "reasoning-delta", text: "Recovered reasoning" },
+				{ type: "text-delta", text: "hello" },
+				{ type: "response-checkpoint" },
+				{ type: "finish", reason: "stop" },
+			],
+			(request) => {
+				expect(JSON.stringify(request.messages)).not.toContain(
+					"The answer is 4",
+				);
+				expect(JSON.stringify(request.messages)).not.toContain(
+					"Wrong reasoning",
+				);
+				return [
+					{ type: "text-delta", text: "Next answer" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model, hooks: { afterModel } });
+		const events: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			events.push(event);
+		});
+		const result = await runtime.run("Hi");
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Completed stephello");
+		expect(result.messages.at(-1)?.content).toEqual([
+			{ type: "text", text: "Completed step" },
+			{
+				type: "reasoning",
+				text: "Recovered reasoning",
+				redacted: undefined,
+				metadata: undefined,
+			},
+			{ type: "text", text: "hello" },
+		]);
+		expect(afterModel.mock.calls[0][0].assistantMessage.content).toEqual(
+			result.messages.at(-1)?.content,
+		);
+		expect(
+			events
+				.filter((event) => event.type === "assistant-text-delta")
+				.map((event) => event.text),
+		).toEqual([
+			"Completed step",
+			"The answer is 4",
+			"The answer is 4",
+			"hello",
+		]);
+		expect(
+			events
+				.filter((event) => event.type === "status-notice")
+				.map((event) => event.metadata?.attempt),
+		).toEqual([1, 2]);
+		await runtime.continue("Next question");
+	});
 	it("completes a simple turn without tools", async () => {
 		const model = new ScriptedModel([
 			() => [

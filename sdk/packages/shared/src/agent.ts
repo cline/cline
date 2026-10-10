@@ -300,6 +300,9 @@ export type AgentModelFinishReason =
 export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
 
 export type AgentModelEvent =
+	| { type: "stream-retry"; error: string; attempt: number; maxRetries: number }
+	/** A completed model step cannot be replayed by a later stream retry. */
+	| { type: "response-checkpoint" }
 	| { type: "text-delta"; text: string }
 	| { type: "media"; media: GeneratedMedia }
 	| {

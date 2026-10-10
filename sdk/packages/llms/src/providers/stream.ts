@@ -15,6 +15,14 @@ export type ApiStream = AsyncGenerator<ApiStreamChunk> & { id?: string };
  * Union of all possible chunk types
  */
 export type ApiStreamChunk =
+	| {
+			type: "stream-retry";
+			id: string;
+			error: string;
+			attempt: number;
+			maxRetries: number;
+	  }
+	| { type: "response-checkpoint"; id: string }
 	| ApiStreamTextChunk
 	| ApiStreamMediaChunk
 	| ApiStreamReasoningChunk

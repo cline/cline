@@ -2065,6 +2065,96 @@ describe("translateSessionEvent — agent_event notice", () => {
 		}
 	}
 
+	it.each(["", "Failed step. "])("preserves open rows and starts recovery below the notice with partial %j", (partial) => {
+		const state = new MessageTranslatorState()
+		const send = (event: AgentEvent) =>
+			translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: { sessionId: "session-1", event },
+				},
+				state,
+			).messages
+		const text = send({
+			type: "content_start",
+			contentType: "text",
+			text: "Completed step. ",
+			accumulated: "Completed step. ",
+		})[0]
+		const reasoning = send({ type: "content_start", contentType: "reasoning", reasoning: "Completed thinking. " })[0]
+		if (partial) {
+			send({ type: "content_start", contentType: "text", text: partial, accumulated: "Completed step. " + partial })
+			send({ type: "content_start", contentType: "reasoning", reasoning: partial })
+		}
+		const notice = translateSessionEvent(
+			noticeEvent("Retrying (1/5)", {
+				kind: "provider_stream_retry",
+				partialText: partial,
+				partialReasoning: partial,
+			}),
+			state,
+		).messages
+		expect(notice).toMatchObject([
+			{ ts: text.ts, say: "text", text: "Completed step. " + partial, partial: false },
+			{ ts: reasoning.ts, say: "reasoning", text: "Completed thinking. " + partial, partial: false },
+			{ say: "info", text: "Retrying (1/5)" },
+		])
+		const recoveredText = send({
+			type: "content_start",
+			contentType: "text",
+			text: "hello",
+			accumulated: "Completed step. hello",
+		})[0]
+		const recoveredReasoning = send({ type: "content_start", contentType: "reasoning", reasoning: "Recovered thinking" })[0]
+		expect(recoveredText.ts).toBeGreaterThan(notice[2].ts)
+		expect(recoveredReasoning.ts).toBeGreaterThan(notice[2].ts)
+		expect(recoveredText.text).toBe("hello")
+		expect(recoveredReasoning.text).toBe("Recovered thinking")
+		expect(send({ type: "content_end", contentType: "text", text: "Completed step. hello" })[0]).toMatchObject({
+			ts: recoveredText.ts,
+			text: "hello",
+			partial: false,
+		})
+		expect(
+			send({ type: "content_end", contentType: "reasoning", reasoning: "Completed thinking. Recovered thinking" })[0],
+		).toMatchObject({
+			ts: recoveredReasoning.ts,
+			text: "Recovered thinking",
+			partial: false,
+		})
+	})
+
+	it("does not reopen completed reasoning from the final history snapshot after recovery", () => {
+		const state = new MessageTranslatorState()
+		const send = (event: AgentEvent) =>
+			translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: { sessionId: "session-1", event },
+				},
+				state,
+			).messages
+		send({ type: "content_start", contentType: "reasoning", reasoning: "Completed thinking" })
+		translateSessionEvent(noticeEvent("Retrying", { kind: "provider_stream_retry" }), state)
+		const emptyRetry = translateSessionEvent(noticeEvent("Retrying again", { kind: "provider_stream_retry" }), state).messages
+		expect(emptyRetry).toHaveLength(1)
+		expect(emptyRetry[0].say).toBe("info")
+		send({ type: "content_start", contentType: "text", text: "hello" })
+		expect(send({ type: "content_end", contentType: "reasoning", reasoning: "Completed thinking" })).toEqual([])
+		expect(send({ type: "content_end", contentType: "text", text: "hello" })[0].text).toBe("hello")
+	})
+
+	it("does not use interrupted text as the completed answer after a retry notice", () => {
+		const state = new MessageTranslatorState()
+		state.recordTurnFinalText(state.nextTs(), "The answer is 4")
+		const result = translateSessionEvent(
+			noticeEvent("Response interrupted — retrying (1/5).", { kind: "provider_stream_retry" }),
+			state,
+		)
+		expect(result.messages[0]).toMatchObject({ say: "info", text: "Response interrupted — retrying (1/5).", partial: false })
+		expect(state.takeTurnFinalText()).toBeUndefined()
+	})
+
 	it("translates compaction status notices into a divider row updated in place", () => {
 		const state = new MessageTranslatorState()
 
@@ -2442,7 +2532,7 @@ describe("historyItemToSessionFields", () => {
 })
 
 describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () => {
-	it("uses accumulated text for smooth streaming instead of delta", () => {
+	it("accumulates text deltas for smooth streaming within a row", () => {
 		const state = new MessageTranslatorState()
 
 		// First chunk: text="Hello ", accumulated="Hello "

@@ -36,6 +36,12 @@ export interface ProviderFactoryResult {
 	/** AI SDK executes provider-defined client tools and continues model steps. */
 	executesModelTools?: boolean;
 	/**
+	 * AI SDK retry budget for request-start failures and provider stream errors.
+	 * Defaults to MODEL_REQUEST_MAX_RETRIES; set 0 to disable automatic retries.
+	 * Already-emitted non-tool output remains visible across attempts.
+	 */
+	maxRetries?: number;
+	/**
 	 * Policy for the gateway-level transient-failure retry. Every vendor
 	 * model is wrapped with `createRetryEmptyResponseMiddleware` at the
 	 * central composition point in `ai-sdk.ts`, which retries two transient

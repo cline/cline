@@ -75,11 +75,21 @@ async function generateSummary(options: {
 	const handler = await createHandlerAsync(options.providerConfig);
 	let text = "";
 	let reasoningChars = 0;
+	let checkpoint = { text: "", reasoningChars: 0 };
 	let incompleteReason: string | undefined;
 	for await (const chunk of handler.createMessage(
 		"Summarize the provided coding session into a concise continuation note with detailed next steps.",
 		[{ role: "user", content: options.request }],
 	)) {
+		if (chunk.type === "response-checkpoint") {
+			checkpoint = { text, reasoningChars };
+			continue;
+		}
+		if (chunk.type === "stream-retry") {
+			text = checkpoint.text;
+			reasoningChars = checkpoint.reasoningChars;
+			continue;
+		}
 		if (chunk.type === "text") {
 			text += chunk.text;
 			continue;

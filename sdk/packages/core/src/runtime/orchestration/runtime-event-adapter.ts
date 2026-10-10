@@ -244,7 +244,7 @@ export class RuntimeEventAdapter {
 				return this.translateToolFinished(event);
 			case "usage-updated":
 				return this.translateUsage(event.usage);
-			case "status-notice":
+			case "status-notice": {
 				return [
 					{
 						type: "notice",
@@ -255,6 +255,7 @@ export class RuntimeEventAdapter {
 						metadata: event.metadata,
 					},
 				];
+			}
 			case "run-finished":
 				return this.translateRunFinished(event.result);
 			case "run-failed":

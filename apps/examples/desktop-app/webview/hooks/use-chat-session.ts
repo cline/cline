@@ -1987,6 +1987,18 @@ export function useChatSession(environmentId: string) {
 				// here rather than on the turn-completion event.
 				try {
 					const parsed = JSON.parse(payload.chunk) as CoreLogChunk;
+					if (parsed.metadata?.kind === "provider_stream_retry") {
+						flushPendingStream();
+						activeAssistantMessageIdRef.current = null;
+						setActiveAssistantMessageId(null);
+						addMessage({
+							id: makeId("stream_retry"),
+							sessionId: listeningSessionId,
+							role: "status",
+							content: parsed.message ?? "Response interrupted — retrying.",
+							createdAt: chunkCreatedAt(),
+						});
+					}
 					if (
 						parsed.level?.trim().toLowerCase() === "error" &&
 						parsed.message?.trim()

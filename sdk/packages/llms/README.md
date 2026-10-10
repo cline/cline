@@ -11,6 +11,24 @@ AI SDK-backed handler creation for supported LLM backends.
 - `@cline/llms/models` for model catalogs and query helpers
 - `@cline/llms` root exports for the gateway registry and shared llm contracts
 
+## Stream recovery
+
+AI SDK language adapters use the same budget for stream and request-start
+retries. Vendor factories can override it with `maxRetries`; the default is
+`MODEL_REQUEST_MAX_RETRIES`:
+five retries per model step, or six total attempts including the initial attempt.
+This includes OpenRouter, Cline Pass, and custom endpoints using those adapters.
+Provider error parts, including EOF without a finish reason, restart the current
+step; exhausted errors are surfaced normally. Request-start and empty-response
+retries retain their separate budgets.
+
+Already-emitted text and reasoning remain visible. Ordered retry events separate
+interrupted attempts with a user-facing notice. AgentRuntime discards the failed
+attempt's provisional content before recovery, so hooks, saved messages, and
+subsequent requests contain only retained completed steps and the recovered attempt.
+The AI SDK isolates failed-attempt tool calls before client-side execution, but
+provider-executed work can repeat. Retries can add latency and provider cost.
+
 ## Installation
 
 ```bash
