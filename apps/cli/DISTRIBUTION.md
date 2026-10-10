@@ -198,6 +198,7 @@ Cross-compiles the CLI for all target platforms:
 2. Builds SDK packages (`bun run build:sdk`) and the CLI JS bundle (`bun -F @cline/cli build`)
 3. For each target platform:
    - Runs `bun build --compile --target bun-{os}-{arch}` to create a standalone executable
+   - Ad-hoc codesigns Darwin binaries when building on macOS, then verifies the signature
    - Generates a `package.json` with `os` and `cpu` fields for npm platform filtering
    - Runs a smoke test on the current platform's binary (`cline --version`)
    - Copies the plugin sandbox bootstrap file if present
@@ -207,6 +208,7 @@ Flags:
 - `--install-native-variants` -- allow the script to download all OpenTUI native packages required for cross-platform builds
 - `--skip-install` -- skip re-downloading platform-specific native packages if they're already installed
 - `--skip-sdk-build` -- skip rebuilding SDK packages (if already built)
+- `--require-darwin-codesign` -- fail the build if Darwin binaries cannot be codesigned (used by release publishing)
 
 ## Publish Script (`script/publish-npm.ts`)
 
@@ -272,6 +274,9 @@ Windows binaries are `.exe` files. The build script appends `.exe` to the output
 
 ### Windows code signing
 Windows application control (Smart App Control, WDAC, AppLocker) blocks unsigned executables at launch, regardless of how they were installed — npm distribution gets no exemption ([#12934](https://github.com/cline/cline/issues/12934)). The publish workflow Authenticode-signs `cli-windows-x64/bin/cline.exe` and `cli-windows-arm64/bin/cline.exe` with Azure Trusted Signing before publishing, via the `.github/actions/sign-windows-cli` composite action. Signing runs on the Linux publish runner using [jsign](https://ebourg.github.io/jsign/) (`--storetype TRUSTEDSIGNING`) with an OIDC-federated Entra app, then verifies the signature chain with `osslsigncode` against the Microsoft Identity Verification Root CA 2020. If all `AZURE_*` / `AZURE_TRUSTED_SIGNING_*` repository secrets are absent, the action logs a warning and the release ships unsigned rather than failing; if only some resolve (a typo'd or renamed secret), the release fails loudly instead. The certificate profile secret is suffixed `_CLI` because the desktop app will later get its own profile; the other five secrets are shared. Note that signing bun-compiled executables requires Bun >= 1.2.23 (earlier versions located the embedded bundle relative to the end of the file, which signing corrupts).
+
+### Darwin code signatures
+`bun build --compile` produces a Darwin binary by appending the bundle to a Bun base executable. For cross-targets that base is Bun's released binary, signed with Bun's Developer ID, and appending invalidates that signature — macOS then refuses to launch the binary. Release builds therefore re-sign ad-hoc via `--require-darwin-codesign`, which replaces the broken signature and clears the hardened-runtime flag. `codesign` is macOS-only, so Darwin release binaries are built on a macOS runner. Local cross-compilation from Linux can still produce Darwin binaries for packaging tests, but they will not launch on macOS and are not suitable for npm release packages.
 
 ### File permissions
 Compiled binaries need to be executable (`chmod 755`). The build script sets this after copying. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.
