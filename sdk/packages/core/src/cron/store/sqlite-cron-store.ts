@@ -1594,6 +1594,32 @@ export class SqliteCronStore {
 		return changes;
 	}
 
+	/**
+	 * Cancels queued cron occurrences superseded by a newer queued occurrence
+	 * of the same spec, so a backlog runs once instead of replaying every
+	 * missed slot back to back.
+	 */
+	public cancelSupersededScheduleRuns(): number {
+		const now = nowIso();
+		return (
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET status = 'cancelled', error = ?, completed_at = ?, updated_at = ?
+						WHERE status = 'queued' AND trigger_kind = 'schedule'
+							AND scheduled_for IS NOT NULL
+							AND EXISTS (
+								SELECT 1 FROM cron_runs newer
+								WHERE newer.spec_id = cron_runs.spec_id
+									AND newer.status = 'queued'
+									AND newer.trigger_kind = 'schedule'
+									AND newer.scheduled_for > cron_runs.scheduled_for
+							)`,
+				)
+				.run("Skipped: superseded by a newer scheduled run", now, now)
+				.changes ?? 0
+		);
+	}
+
 	private cancelQueuedOneOffRunsForSpec(specId: string): number {
 		const changes =
 			this.db

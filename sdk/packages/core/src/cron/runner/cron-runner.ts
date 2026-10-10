@@ -269,6 +269,7 @@ export class CronRunner {
 				}
 			}
 			this.materializer.materializeAll();
+			this.store.cancelSupersededScheduleRuns();
 			const claims = this.store.claimDueRuns({
 				nowIso: nowIso(),
 				leaseMs: this.claimLeaseMs,

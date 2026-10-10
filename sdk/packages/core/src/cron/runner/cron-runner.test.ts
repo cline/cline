@@ -604,6 +604,42 @@ describe("CronRunner", () => {
 		expect(requeued?.error).toBeUndefined();
 	});
 
+	it("runs only the newest of a backlog of queued cron occurrences", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const spec = store.createHubSchedule({
+			name: "daily",
+			prompt: "daily",
+			cronPattern: "0 0 * * *",
+			workspaceRoot,
+			maxParallel: 1,
+		});
+		const backlog = [3, 2, 1].map((daysAgo) =>
+			store.enqueueRun({
+				specId: spec.specId,
+				specRevision: spec.revision,
+				triggerKind: "schedule",
+				scheduledFor: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+			}),
+		);
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		await runner.dispose();
+
+		expect(calls.send).toBe(1);
+		expect(backlog.map((run) => store.getRun(run.runId)?.status)).toEqual([
+			"cancelled",
+			"cancelled",
+			"done",
+		]);
+		expect(store.getRun(backlog[0].runId)?.error).toMatch(/superseded/);
+	});
+
 	function queuedSchedule(name: string, timeoutSeconds?: number) {
 		const spec = store.createHubSchedule({
 			name,
