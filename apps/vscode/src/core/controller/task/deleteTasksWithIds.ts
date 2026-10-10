@@ -35,6 +35,7 @@ export async function deleteTasksWithIds(controller: Controller, request: String
 	for (const id of request.value) {
 		await deleteTaskWithId(controller, id)
 	}
+	controller.terminalManager?.disposeAll(false)
 
 	return Empty.create()
 }
