@@ -197,3 +197,25 @@ describe("ClineError", () => {
 		})
 	})
 })
+
+describe("ClineError messageless errors", () => {
+	it("uses the nested provider message for a plain object", () => {
+		new ClineError({ error: { message: "model is required" } }).message.should.equal("model is required")
+	})
+
+	it("uses the cause message for an empty Error", () => {
+		new ClineError(new Error("", { cause: new Error("connect ECONNREFUSED 127.0.0.1:11434") })).message.should.equal(
+			"connect ECONNREFUSED 127.0.0.1:11434",
+		)
+	})
+
+	it("serializes an unrecognized plain object instead of [object Object]", () => {
+		const message = ClineError.transform({ status: 500, reason: "boom" }).message
+		message.should.not.equal("[object Object]")
+		message.should.containEql("boom")
+	})
+
+	it("keeps an existing message unchanged", () => {
+		new ClineError(new Error("Invalid API key")).message.should.equal("Invalid API key")
+	})
+})

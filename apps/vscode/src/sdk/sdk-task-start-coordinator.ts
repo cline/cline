@@ -6,6 +6,7 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import { ClineError } from "@/services/error/ClineError"
 import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
@@ -263,7 +264,7 @@ export class SdkTaskStartCoordinator {
 					ts: Date.now(),
 					type: "say",
 					say: "error",
-					text: `Failed to start task: ${error instanceof Error ? error.message : String(error)}`,
+					text: `Failed to start task: ${ClineError.transform(error).message}`,
 					partial: false,
 				},
 			],
