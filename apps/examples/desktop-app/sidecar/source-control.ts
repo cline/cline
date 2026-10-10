@@ -368,7 +368,8 @@ export type SourceControlAction =
 	| { type: "unstage"; paths: string[] }
 	| { type: "discard"; paths: string[]; untrackedPaths: string[] }
 	| { type: "commit"; message: string; push: boolean }
-	| { type: "push" };
+	| { type: "push" }
+	| { type: "pull" };
 
 function stringList(value: unknown): string[] {
 	return Array.isArray(value)
@@ -401,7 +402,8 @@ export function parseSourceControlAction(value: unknown): SourceControlAction {
 				push: record.push === true,
 			};
 		case "push":
-			return { type: "push" };
+		case "pull":
+			return { type: record.type };
 		default:
 			throw new Error("Unknown source control action");
 	}
@@ -481,6 +483,11 @@ export async function runSourceControlAction(
 		}
 		case "push":
 			await push(git);
+			return;
+		case "pull":
+			// Non-interactive: git skips the merge editor without a TTY, and
+			// conflicts surface as the error message in the UI.
+			await git(["pull"]);
 			return;
 	}
 }

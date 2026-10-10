@@ -41,7 +41,8 @@ export type SourceControlAction =
 	| { type: "unstage"; paths: string[] }
 	| { type: "discard"; paths: string[]; untrackedPaths: string[] }
 	| { type: "commit"; message: string; push: boolean }
-	| { type: "push" };
+	| { type: "push" }
+	| { type: "pull" };
 
 const POLL_INTERVAL_MS = 10_000;
 

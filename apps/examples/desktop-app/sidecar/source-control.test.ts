@@ -139,6 +139,9 @@ describe("parseSourceControlAction", () => {
 			message: "m",
 			push: true,
 		});
+		expect(parseSourceControlAction({ type: "pull" })).toEqual({
+			type: "pull",
+		});
 		expect(() => parseSourceControlAction({ type: "rebase" })).toThrow(
 			/Unknown/,
 		);
@@ -341,6 +344,51 @@ describe("against a real repository", () => {
 			expect(existsSync(join(fresh, "first.ts"))).toBe(true);
 		} finally {
 			rmSync(fresh, { recursive: true, force: true });
+		}
+	});
+
+	it("pushes to and pulls from an upstream", async () => {
+		const remote = mkdtempSync(join(tmpdir(), "cline-remote-"));
+		const other = mkdtempSync(join(tmpdir(), "cline-clone-"));
+		const run = (cwd: string) => async (args: string[]) =>
+			(await execFileAsync("git", args, { cwd, encoding: "utf8" })).stdout;
+		try {
+			await execFileAsync("git", [
+				"init",
+				"-q",
+				"--bare",
+				"-b",
+				"main",
+				remote,
+			]);
+			await git(["remote", "add", "origin", remote]);
+			// First push publishes the branch (no upstream yet).
+			await runSourceControlAction(git, { type: "push" });
+			let state = await getSourceControlState(git, "local");
+			expect(state.hasUpstream).toBe(true);
+			expect(state.commits[0]?.pushed).toBe(true);
+
+			// Someone else lands a commit; pull brings it in.
+			await execFileAsync("git", ["clone", "-q", remote, other]);
+			const otherGit = run(other);
+			await otherGit(["config", "user.email", "o@example.com"]);
+			await otherGit(["config", "user.name", "Other"]);
+			writeFileSync(join(other, "remote.txt"), "hi\n");
+			await otherGit(["add", "remote.txt"]);
+			await otherGit(["commit", "-q", "-m", "remote work"]);
+			await otherGit(["push", "-q"]);
+			await git(["fetch", "-q"]);
+			state = await getSourceControlState(git, "local");
+			expect(state.behind).toBe(1);
+			// Park the local edits so the pull is a clean fast-forward.
+			await git(["stash", "-q", "--include-untracked"]);
+			await runSourceControlAction(git, { type: "pull" });
+			state = await getSourceControlState(git, "local");
+			expect(state.behind).toBe(0);
+			expect(state.commits[0]?.subject).toBe("remote work");
+		} finally {
+			rmSync(remote, { recursive: true, force: true });
+			rmSync(other, { recursive: true, force: true });
 		}
 	});
 

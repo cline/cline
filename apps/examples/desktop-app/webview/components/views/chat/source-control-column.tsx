@@ -76,17 +76,25 @@ export function SourceControlColumn({
 	const staged = state?.staged ?? [];
 	const changes = [...(state?.unstaged ?? []), ...(state?.untracked ?? [])];
 	const canCommit = staged.length > 0 && message.trim().length > 0 && !busy;
+	// Pushing publishes a branch without an upstream; otherwise it needs
+	// something ahead. Pulling always needs an upstream.
+	const canPush =
+		!busy &&
+		Boolean(state?.root) &&
+		(state?.hasUpstream === false
+			? state.commits.length > 0
+			: (state?.ahead ?? 0) > 0);
+	const canPull = !busy && Boolean(state?.root && state.hasUpstream);
 
-	const commit = useCallback(
-		async (push: boolean) => {
-			if (!canCommit) return;
-			// A rejected hook or missing identity keeps the message for retry.
-			if (await onAction({ type: "commit", message: message.trim(), push })) {
-				setMessage("");
-			}
-		},
-		[canCommit, message, onAction],
-	);
+	const commit = useCallback(async () => {
+		if (!canCommit) return;
+		// A rejected hook or missing identity keeps the message for retry.
+		if (
+			await onAction({ type: "commit", message: message.trim(), push: false })
+		) {
+			setMessage("");
+		}
+	}, [canCommit, message, onAction]);
 
 	if (state && !state.root) {
 		return (
@@ -111,7 +119,7 @@ export function SourceControlColumn({
 					onKeyDown={(event) => {
 						if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
 							event.preventDefault();
-							void commit(false);
+							void commit();
 						}
 					}}
 					placeholder={
@@ -121,30 +129,62 @@ export function SourceControlColumn({
 					}
 					value={message}
 				/>
-				<div className="flex items-center gap-1.5">
+				<Button
+					className="h-7 w-full text-xs"
+					disabled={!canCommit}
+					onClick={() => void commit()}
+					size="sm"
+					type="button"
+				>
+					{busy ? (
+						<Loader2 className="size-3.5 animate-spin" />
+					) : (
+						<Check className="size-3.5" />
+					)}
+					Commit
+				</Button>
+				<div className="grid grid-cols-2 gap-1.5">
 					<Button
-						className="h-7 flex-1 text-xs"
-						disabled={!canCommit}
-						onClick={() => void commit(false)}
-						size="sm"
-						type="button"
-					>
-						{busy ? (
-							<Loader2 className="size-3.5 animate-spin" />
-						) : (
-							<Check className="size-3.5" />
-						)}
-						Commit
-					</Button>
-					<Button
+						aria-label={
+							state?.hasUpstream === false ? "Publish branch" : "Push"
+						}
 						className="h-7 text-xs"
-						disabled={!canCommit}
-						onClick={() => void commit(true)}
+						disabled={!canPush}
+						onClick={() => void onAction({ type: "push" })}
 						size="sm"
+						title={
+							state?.hasUpstream === false
+								? "Publish this branch to origin"
+								: state?.ahead
+									? `Push ${state.ahead} commit${state.ahead === 1 ? "" : "s"}`
+									: "Nothing to push"
+						}
 						type="button"
 						variant="outline"
 					>
-						Commit &amp; Push
+						<ArrowUp className="size-3.5" />
+						Push
+						{state?.ahead ? <CountBadge count={state.ahead} /> : null}
+					</Button>
+					<Button
+						aria-label="Pull"
+						className="h-7 text-xs"
+						disabled={!canPull}
+						onClick={() => void onAction({ type: "pull" })}
+						size="sm"
+						title={
+							state?.hasUpstream
+								? state.behind
+									? `Pull ${state.behind} commit${state.behind === 1 ? "" : "s"}`
+									: "Pull from upstream"
+								: "No upstream branch to pull from"
+						}
+						type="button"
+						variant="outline"
+					>
+						<ArrowDown className="size-3.5" />
+						Pull
+						{state?.behind ? <CountBadge count={state.behind} /> : null}
 					</Button>
 				</div>
 			</div>
@@ -277,45 +317,44 @@ export function SourceControlColumn({
 							))}
 						</Group>
 						<Group
-							actions={
-								state.ahead > 0 ||
-								(!state.hasUpstream && state.commits.length > 0) ? (
-									<Button
-										className="h-5 gap-1 px-1.5 text-[10.5px]"
-										disabled={busy}
-										onClick={() => void onAction({ type: "push" })}
-										size="sm"
-										type="button"
-										variant="ghost"
-									>
-										<ArrowUp className="size-3" />
-										{state.hasUpstream
-											? `Push ${state.ahead}`
-											: "Publish branch"}
-									</Button>
-								) : null
-							}
 							count={state.commits.length}
 							empty="No commits yet"
 							label="Recent commits"
 							onToggle={() => setCommitsOpen((open) => !open)}
 							open={commitsOpen}
 						>
-							{state.commits.map((commit) => (
+							{state.commits.map((commit, index) => (
 								<div
 									className="flex h-7 items-center gap-2 px-2 text-xs"
 									key={commit.sha}
 									title={commit.subject}
 								>
-									<span
-										title={commit.pushed ? "Pushed" : "Not pushed"}
-										className={cn(
-											"size-2 shrink-0 rounded-full border",
-											commit.pushed
-												? "border-muted-foreground/60"
-												: "border-primary bg-primary",
-										)}
-									/>
+									{/* Graph gutter: the dot plus the rail connecting it to
+									    its neighbours, trimmed at the ends of the list. */}
+									<span className="relative flex h-full w-2 shrink-0 items-center justify-center">
+										{state.commits.length > 1 ? (
+											<span
+												aria-hidden
+												className={cn(
+													"absolute left-1/2 w-px -translate-x-1/2 bg-border",
+													index === 0
+														? "top-1/2 bottom-0"
+														: index === state.commits.length - 1
+															? "top-0 bottom-1/2"
+															: "inset-y-0",
+												)}
+											/>
+										) : null}
+										<span
+											title={commit.pushed ? "Pushed" : "Not pushed"}
+											className={cn(
+												"relative size-2 rounded-full border bg-background",
+												commit.pushed
+													? "border-muted-foreground/60"
+													: "border-primary bg-primary",
+											)}
+										/>
+									</span>
 									<span className="shrink-0 font-mono text-[10.5px] text-muted-foreground">
 										{commit.shortSha}
 									</span>
@@ -364,6 +403,14 @@ export function BranchIndicator({
 					{state.behind}
 				</span>
 			) : null}
+		</span>
+	);
+}
+
+function CountBadge({ count }: { count: number }) {
+	return (
+		<span className="rounded bg-foreground/10 px-1 font-mono text-[10px] leading-4">
+			{count}
 		</span>
 	);
 }

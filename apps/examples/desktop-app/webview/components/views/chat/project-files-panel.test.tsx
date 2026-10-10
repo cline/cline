@@ -199,7 +199,15 @@ describe("ProjectFilesPanel source control view", () => {
 		expect(text).toContain("README.md");
 		expect(text).toContain("notes.txt");
 		expect(text).toContain("Latest work");
-		expect(text).toContain("Push 1");
+		// One commit ahead: Push is enabled with a count, Pull is available.
+		const push = byLabel("Push", container) as HTMLButtonElement;
+		expect(push.disabled).toBe(false);
+		expect(push.textContent).toContain("1");
+		expect((byLabel("Pull", container) as HTMLButtonElement).disabled).toBe(
+			false,
+		);
+		await click(byLabel("Pull", container));
+		expect(actionCalls()).toContainEqual({ type: "pull" });
 		expect(container.textContent).toContain("main");
 		// Session-touched rows carry the marker.
 		expect(
@@ -287,13 +295,29 @@ describe("ProjectFilesPanel source control view", () => {
 		);
 	});
 
-	it("offers to publish a branch that has no upstream", async () => {
+	it("publishes a branch that has no upstream and disables Pull", async () => {
 		const previous = { ...sourceControlState };
 		Object.assign(sourceControlState, { hasUpstream: false, ahead: 0 });
 		try {
 			await render();
-			await click(button(/Publish branch/));
+			expect((byLabel("Pull", container) as HTMLButtonElement).disabled).toBe(
+				true,
+			);
+			await click(byLabel("Publish branch", container));
 			expect(actionCalls()).toContainEqual({ type: "push" });
+		} finally {
+			Object.assign(sourceControlState, previous);
+		}
+	});
+
+	it("disables Push when nothing is ahead", async () => {
+		const previous = { ...sourceControlState };
+		Object.assign(sourceControlState, { ahead: 0 });
+		try {
+			await render();
+			expect((byLabel("Push", container) as HTMLButtonElement).disabled).toBe(
+				true,
+			);
 		} finally {
 			Object.assign(sourceControlState, previous);
 		}
