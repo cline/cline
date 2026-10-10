@@ -144,21 +144,21 @@ export type BedrockModelId = string
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-5.5" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
-	maxTokens: 64_000,
+	maxTokens: 128_000,
 	// OpenRouter reports the full 1m extended context window for this model and we pass it
 	// through unchanged (the legacy 200k restriction was dropped). Keep in sync with the SDK
 	// model catalog and refreshOpenRouterModels.ts.
 	contextWindow: 1_000_000,
 	supportsImages: true,
 	supportsPromptCache: true,
-	inputPrice: 3.0,
-	outputPrice: 15.0,
-	cacheWritesPrice: 3.75,
-	cacheReadsPrice: 0.3,
+	inputPrice: 2.0,
+	outputPrice: 10.0,
+	cacheWritesPrice: 2.5,
+	cacheReadsPrice: 0.1,
 	description:
-		"Claude Sonnet 4.5 is an Anthropic model for coding, agentic search, and AI agent workflows. It supports planning and implementation tasks across the software development lifecycle.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+		"Claude Sonnet 5.5 is an Anthropic model for coding, agentic search, and AI agent workflows. It supports planning and implementation tasks across the software development lifecycle.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
 export const clinePassDefaultModelId = "cline-pass/glm-5.2"
