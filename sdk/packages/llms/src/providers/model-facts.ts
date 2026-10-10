@@ -7,7 +7,7 @@ import type {
 	ModelReasoningOption,
 	ReasoningEffort,
 } from "@cline/shared";
-import { REASONING_LEVELS } from "@cline/shared";
+import { modelSupportsToolCalling, REASONING_LEVELS } from "@cline/shared";
 
 const ACTIVE_REASONING_EFFORTS = REASONING_LEVELS.filter(
 	(level): level is ReasoningEffort => level !== "none",
@@ -434,6 +434,24 @@ export function modelSupportsImageInput(
 		return true;
 	}
 	return capabilities.includes("images");
+}
+
+/**
+ * Ollama resolves native tool support from /api/show for each tool-bearing
+ * request. Keep that partial dynamic fact separate from catalog capabilities
+ * so it cannot change the meaning of unknown image or other modality support.
+ */
+export function modelSupportsNativeToolCalling(
+	context: GatewayProviderContext,
+): boolean {
+	const ollamaToolSupport = context.model.metadata?.ollamaToolSupport;
+	if (
+		context.provider.id === "ollama" &&
+		typeof ollamaToolSupport === "boolean"
+	) {
+		return ollamaToolSupport;
+	}
+	return modelSupportsToolCalling(context.model);
 }
 
 export function getReasoningDefaultOnMetadata(
