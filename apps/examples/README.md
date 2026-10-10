@@ -63,6 +63,6 @@ npm add @cline/sdk
 ## Learn more
 
 - [SDK package docs](../../sdk/packages/README.md)
-- [Architecture guide](../../ARCHITECTURE.md)
-- [Plugin examples](../../examples/plugins) - extend the Cline SDK and CLI with custom tools and event hooks
-- [Hook examples](../../examples/hooks) - lifecycle hooks for logging, blocking, and injection for Cline SDK and CLI
+- [Architecture guide](../../sdk/ARCHITECTURE.md)
+- [Plugin examples](./plugins) - extend the Cline SDK and CLI with custom tools and event hooks
+- [Hook examples](./hooks) - lifecycle hooks for logging, blocking, and injection for Cline SDK and CLI
