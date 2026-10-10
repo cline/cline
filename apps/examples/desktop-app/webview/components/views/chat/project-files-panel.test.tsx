@@ -310,6 +310,21 @@ describe("ProjectFilesPanel source control view", () => {
 		}
 	});
 
+	it("reloads expanded folders after a pull", async () => {
+		await render();
+		await click(button(/^Files$/));
+		await click(button(/^src/));
+		const listings = () =>
+			invokeMock.mock.calls.filter(
+				([command]) => command === "list_project_entries",
+			).length;
+		const before = listings();
+		await click(button(/^Source Control$/));
+		await click(byLabel("Pull", container));
+		// Root and src were expanded, so both list again.
+		expect(listings()).toBe(before + 2);
+	});
+
 	it("disables Push when nothing is ahead", async () => {
 		const previous = { ...sourceControlState };
 		Object.assign(sourceControlState, { ahead: 0 });

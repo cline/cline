@@ -349,10 +349,23 @@ export function ProjectFilesPanel({
 
 	// The new repository snapshot marks cached contents stale, so files
 	// edited outside the app re-read without blanking the viewer first.
-	const refresh = useCallback(() => {
+	// Reloads what is open and forgets the rest, so a folder expanded later
+	// lists what is on disk now; open rows keep their entries while loading.
+	const reloadDirectories = useCallback(() => {
+		setDirectories((current) => {
+			const next = new Map<string, DirectoryState>();
+			for (const path of expanded) {
+				const entry = current.get(path);
+				if (entry) next.set(path, entry);
+			}
+			return next;
+		});
 		for (const path of expanded) void loadDirectory(path);
+	}, [expanded, loadDirectory]);
+	const refresh = useCallback(() => {
+		reloadDirectories();
 		void sourceControl.refresh();
-	}, [expanded, loadDirectory, sourceControl.refresh]);
+	}, [reloadDirectories, sourceControl.refresh]);
 
 	useEffect(() => {
 		const handleResize = () => setWidth((current) => clampPanelWidth(current));
@@ -591,6 +604,10 @@ export function ProjectFilesPanel({
 				// Discards and commits change what is on disk and in the index.
 				setFiles(markStale);
 				setGitDiffs(markStale);
+				// Pulls and discards can add or remove files in the tree.
+				if (action.type === "pull" || action.type === "discard") {
+					reloadDirectories();
+				}
 				return true;
 			} catch (error) {
 				toast({
@@ -606,7 +623,7 @@ export function ProjectFilesPanel({
 				return false;
 			}
 		},
-		[sourceControl.runAction],
+		[reloadDirectories, sourceControl.runAction],
 	);
 	const confirmDiscard = useCallback(async () => {
 		const files = pendingDiscard;
