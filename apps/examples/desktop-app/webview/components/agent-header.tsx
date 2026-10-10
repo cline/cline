@@ -8,6 +8,7 @@ import {
 	ChevronRight,
 	Clock3,
 	CornerUpLeft,
+	FolderTree,
 	Loader2,
 	MoreHorizontal,
 	Plus,
@@ -45,6 +46,9 @@ type AgentHeaderProps = {
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
 	onOpenDiff?: () => void;
+	/** Omit when the session has no browsable workspace (e.g. cloud runs). */
+	onToggleFiles?: () => void;
+	filesOpen?: boolean;
 	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
 	diff?: {
@@ -72,6 +76,8 @@ function AgentHeaderImpl({
 	canDeleteSession,
 	deletingSession,
 	onOpenDiff,
+	onToggleFiles,
+	filesOpen = false,
 	showSessionActions = true,
 	status,
 	diff,
@@ -136,6 +142,26 @@ function AgentHeaderImpl({
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenChange={onAgentsOpenChange}
 						/>
+						{onToggleFiles ? (
+							<Button
+								aria-label={
+									filesOpen ? "Hide project files" : "Show project files"
+								}
+								aria-pressed={filesOpen}
+								className={cn(
+									"text-muted-foreground transition-colors hover:text-foreground",
+									filesOpen && "bg-secondary text-foreground",
+								)}
+								id="toggle-project-files"
+								onClick={onToggleFiles}
+								size="icon-sm"
+								title={filesOpen ? "Hide project files" : "Show project files"}
+								type="button"
+								variant="ghost"
+							>
+								<FolderTree className="size-4" />
+							</Button>
+						) : null}
 						{additions !== 0 && (
 							<Button
 								aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}

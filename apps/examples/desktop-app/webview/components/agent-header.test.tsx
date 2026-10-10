@@ -103,6 +103,38 @@ describe("AgentHeader title editor", () => {
 	});
 });
 
+describe("AgentHeader project files toggle", () => {
+	it("is absent when the session has no browsable workspace", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="running" title="S" />);
+		});
+		expect(container.querySelector("#toggle-project-files")).toBeNull();
+	});
+
+	it("reflects the open state and toggles on click", async () => {
+		const onToggleFiles = vi.fn();
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					filesOpen
+					onToggleFiles={onToggleFiles}
+					status="running"
+					title="S"
+				/>,
+			);
+		});
+		const toggle = container.querySelector<HTMLButtonElement>(
+			"#toggle-project-files",
+		);
+		expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+		expect(toggle?.getAttribute("aria-label")).toBe("Hide project files");
+		await act(async () => {
+			toggle?.click();
+		});
+		expect(onToggleFiles).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("AgentHeader agent activity", () => {
 	const renderHeader = async (
 		agentActivity?: Parameters<typeof AgentHeader>[0]["agentActivity"],
