@@ -61,6 +61,7 @@ const apiKeyFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	wandb: "wandbApiKey",
 	oca: "ocaApiKey",
 	cline: "clineApiKey",
+	"yolo-auto": "yoloAutoApiKey",
 }
 
 const baseUrlFields: Partial<Record<string, keyof ApiConfiguration>> = {
