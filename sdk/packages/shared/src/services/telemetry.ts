@@ -220,6 +220,7 @@ function sdkErrorRateLimitKey(
 		properties.error_type,
 		properties.error_code ?? "",
 		properties.error_status ?? "",
+		properties.error_transport_code ?? "",
 		message
 			.replace(/\d+/g, "#")
 			.replace(/\s+/g, " ")
@@ -402,7 +403,60 @@ export function normalizeSdkError(
 		),
 		...(code !== undefined ? { error_code: code } : {}),
 		...(status !== undefined ? { error_status: status } : {}),
+		...transportErrorDiagnostics(error),
 	};
+}
+
+const TRANSPORT_ERROR_CODES = new Set([
+	"UND_ERR_BODY_TIMEOUT",
+	"UND_ERR_HEADERS_TIMEOUT",
+	"UND_ERR_CONNECT_TIMEOUT",
+	"UND_ERR_SOCKET",
+	"UND_ERR_ABORTED",
+	"ECONNRESET",
+	"ECONNREFUSED",
+	"ETIMEDOUT",
+	"EPIPE",
+	"ENOTFOUND",
+	"EAI_AGAIN",
+]);
+
+function transportErrorDiagnostics(error: unknown): TelemetryProperties {
+	const diagnostics: TelemetryProperties = {};
+	const seen = new Set<unknown>();
+	let current = error;
+	// Provider wrappers preserve transport failures in cause. Never copy their
+	// messages, request bodies, or arbitrary headers into these diagnostics.
+	for (
+		let depth = 0;
+		depth < 8 && isRecord(current) && !seen.has(current);
+		depth++
+	) {
+		seen.add(current);
+		if (
+			typeof current.code === "string" &&
+			TRANSPORT_ERROR_CODES.has(current.code)
+		) {
+			diagnostics.error_transport_code = current.code;
+		}
+		if (current.name === "AbortError" || current.code === "UND_ERR_ABORTED") {
+			diagnostics.error_cancelled = true;
+		}
+		const headers = current.responseHeaders;
+		if (diagnostics.response_request_id === undefined && isRecord(headers)) {
+			const requestId = Object.entries(headers).find(
+				([key]) => key.toLowerCase() === "x-request-id",
+			)?.[1];
+			if (
+				typeof requestId === "string" &&
+				/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(requestId)
+			) {
+				diagnostics.response_request_id = requestId;
+			}
+		}
+		current = current.cause;
+	}
+	return diagnostics;
 }
 
 function sanitizeTelemetryErrorMessage(message: string): string {

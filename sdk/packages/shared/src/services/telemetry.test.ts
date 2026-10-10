@@ -61,6 +61,71 @@ describe("SDK error telemetry", () => {
 		});
 	});
 
+	it("captures a nested transport code and response request ID without raw error details", () => {
+		const error = Object.assign(
+			new Error("Failed to process successful response"),
+			{
+				name: "AI_APICallError",
+				statusCode: 200,
+				responseHeaders: {
+					"X-Request-ID": "test-request-1",
+					authorization: "private-token",
+				},
+				requestBodyValues: { prompt: "private-prompt" },
+				cause: new TypeError("private-response", {
+					cause: Object.assign(new Error("private-socket-details"), {
+						code: "UND_ERR_BODY_TIMEOUT",
+					}),
+				}),
+			},
+		);
+		expect(normalizeSdkError(error)).toEqual({
+			error_type: "AI_APICallError",
+			error_message: "Failed to process successful response",
+			error_status: 200,
+			error_transport_code: "UND_ERR_BODY_TIMEOUT",
+			response_request_id: "test-request-1",
+		});
+	});
+
+	it("retains cancellation alongside its transport cause and stops at cycles", () => {
+		const cause = { name: "AbortError", code: "UND_ERR_SOCKET", cause: {} };
+		cause.cause = cause;
+		expect(normalizeSdkError(new Error("cancelled", { cause }))).toMatchObject({
+			error_cancelled: true,
+			error_transport_code: "UND_ERR_SOCKET",
+		});
+	});
+
+	it("bounds cause traversal and ignores unknown codes and malformed request IDs", () => {
+		let error: unknown = { code: "UND_ERR_BODY_TIMEOUT" };
+		for (let i = 0; i < 7; i++) error = { cause: error };
+		expect(normalizeSdkError(error).error_transport_code).toBe(
+			"UND_ERR_BODY_TIMEOUT",
+		);
+		expect(
+			normalizeSdkError({ cause: error }).error_transport_code,
+		).toBeUndefined();
+		expect(
+			normalizeSdkError({
+				responseHeaders: { "x-request-id": "x".repeat(128) },
+			}).response_request_id,
+		).toHaveLength(128);
+		for (const requestId of ["private\nheader", "x".repeat(129)]) {
+			const normalized = normalizeSdkError({
+				message: "failed",
+				cause: {
+					code: "private-code",
+					responseHeaders: { "x-request-id": requestId },
+				},
+			});
+			expect(normalized).toEqual({
+				error_type: "Error",
+				error_message: "failed",
+			});
+		}
+	});
+
 	it("captures canonical SDK error events with context", () => {
 		const telemetry = {
 			capture: vi.fn(),
@@ -190,14 +255,24 @@ describe("SDK error rate limiting", () => {
 		);
 	});
 
-	it("keeps failures with distinct error_code on separate budgets", () => {
+	it.each([
+		"outer",
+		"cause",
+	])("keeps distinct %s error codes on separate budgets", (source) => {
 		const capture = vi.fn();
-		for (const code of ["rate_limit_error", "authentication_error"]) {
+		const codes =
+			source === "outer"
+				? ["rate_limit_error", "authentication_error"]
+				: ["UND_ERR_BODY_TIMEOUT", "UND_ERR_SOCKET"];
+		for (const code of codes) {
 			for (let i = 0; i < 100; i++) {
 				captureSdkError({ capture } as never, {
 					component: "llms",
 					operation: "provider.stream",
-					error: Object.assign(new Error("request rejected"), { code }),
+					error: Object.assign(
+						new Error("request rejected"),
+						source === "outer" ? { code } : { cause: { code } },
+					),
 				});
 			}
 		}
