@@ -2514,6 +2514,9 @@ describe("sdk-gateway", () => {
 								input: ["text", "image"],
 								output: ["text", "image"],
 							},
+							reasoningOptions: [
+								{ type: "budget_tokens", min: 128, max: 32_768 },
+							],
 						},
 					],
 				},

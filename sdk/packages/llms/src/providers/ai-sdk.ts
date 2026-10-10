@@ -68,7 +68,10 @@ import {
 	applyBedrockCachePointToLastUserMessage,
 	shouldApplyBedrockCachePoint,
 } from "./routing/bedrock-cache-point";
-import { resolvePortableReasoning } from "./routing/portable-reasoning";
+import {
+	reconcilePortableReasoning,
+	resolvePortableReasoning,
+} from "./routing/portable-reasoning";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -329,9 +332,9 @@ function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Partial<CallSettings> {
-	const reasoning = resolvePortableReasoning(request);
+	const reasoning = resolvePortableReasoning(request, { context });
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
@@ -2295,13 +2298,15 @@ function createAiSdkProvider(
 					context,
 					messagesSystemPrompt,
 				);
-				const portableReasoning = resolvePortableReasoning(request, {
-					adapter: kind,
-					context,
-				});
-				const requestConfig = provider.buildStreamConfig
-					? provider.buildStreamConfig(request, context)
-					: buildAiSdkStreamConfig(request, context);
+				const portableReasoning = reconcilePortableReasoning(
+					resolvePortableReasoning(request, { adapter: kind, context }),
+					providerOptions,
+				);
+				// Reasoning is decided once above, after provider options are known.
+				const { reasoning: _configReasoning, ...requestConfig } =
+					provider.buildStreamConfig
+						? provider.buildStreamConfig(request, context)
+						: buildAiSdkStreamConfig(request, context);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
