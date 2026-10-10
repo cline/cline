@@ -17,6 +17,7 @@ import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-suppo
 import { ExtensionRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
+import { buildClaudeCodeProviderConfig } from "./claude-code-config"
 import {
 	type HostClientContext,
 	resolveApiKey,
@@ -146,6 +147,10 @@ export function buildSdkProviderConfig(
 		// Bedrock needs its region + structured AWS auth options forwarded to the
 		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.
 		...(providerId === "bedrock" ? buildBedrockProviderConfig(configuration, mode) : {}),
+		// Claude Code needs its CLI path forwarded to the SDK gateway. Without
+		// this, the provider falls back to PATH lookup, which can silently find
+		// the wrong binary or fail to spawn (spawn EINVAL) on Windows.
+		...(providerId === "claude-code" ? buildClaudeCodeProviderConfig(configuration) : {}),
 		// Ollama carries the user's request timeout and context window
 		// (`num_ctx`) on the provider config; without this, standalone callers
 		// ignore an explicit Request Timeout setting and load models with
