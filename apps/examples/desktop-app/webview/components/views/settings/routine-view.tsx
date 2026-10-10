@@ -78,6 +78,7 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
+import { describePendingExecution } from "@/lib/routine-execution-status";
 import { preserveRoutineCron } from "@/lib/routine-schedule-cron";
 import { routineScheduleTimezone } from "@/lib/routine-schedule-timezone";
 import { cn } from "@/lib/utils";
@@ -617,10 +618,20 @@ export function RoutineSchedulesContent({
 		[visibleProviderModels],
 	);
 
-	const availableModelsForProvider = useMemo(
-		() => visibleProviderModels[createForm.provider] ?? [],
-		[createForm.provider, visibleProviderModels],
-	);
+	// An edited schedule may be configured with a model the live list no
+	// longer offers. Keep it selectable so opening the editor never silently
+	// swaps the schedule's model; the user can still pick a current one.
+	const availableModelsForProvider = useMemo(() => {
+		const models = visibleProviderModels[createForm.provider] ?? [];
+		const current = editingSchedule
+			? getScheduleProviderModel(editingSchedule)
+			: undefined;
+		return current &&
+			current.provider === createForm.provider &&
+			!models.includes(current.model)
+			? [...models, current.model]
+			: models;
+	}, [createForm.provider, editingSchedule, visibleProviderModels]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -658,12 +669,12 @@ export function RoutineSchedulesContent({
 		};
 	}, [createForm.provider]);
 
+	// The catalog above is the bundled snapshot, which can still list retired
+	// models and miss new ones. While the editor is open, replace the selected
+	// provider's list with the live one, as the chat composer does.
 	useEffect(() => {
 		const normalizedProvider = normalizeProviderId(createForm.provider);
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
+		if (!isCreateOpen || !normalizedProvider) {
 			return;
 		}
 
@@ -685,7 +696,7 @@ export function RoutineSchedulesContent({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog list when the live refresh fails.
 			}
 		}
 
@@ -693,7 +704,7 @@ export function RoutineSchedulesContent({
 		return () => {
 			cancelled = true;
 		};
-	}, [createForm.provider, providerModels]);
+	}, [createForm.provider, isCreateOpen]);
 
 	useEffect(() => {
 		if (availableProviders.length === 0) {
@@ -716,7 +727,7 @@ export function RoutineSchedulesContent({
 					: (models[0] ?? "");
 			nextSelection = { provider: nextProvider, model: nextModel };
 		} else {
-			const models = visibleProviderModels[normalizedFormProvider] ?? [];
+			const models = availableModelsForProvider;
 			if (models.length === 0 || models.includes(createForm.model)) {
 				return;
 			}
@@ -738,6 +749,7 @@ export function RoutineSchedulesContent({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [
+		availableModelsForProvider,
 		availableProviders,
 		createForm.model,
 		createForm.provider,
@@ -985,14 +997,6 @@ export function RoutineSchedulesContent({
 		setEnabledProviderIds((current) =>
 			current.includes(provider) ? current : [...current, provider],
 		);
-		setProviderModels((current) =>
-			current[provider]?.includes(model)
-				? current
-				: {
-						...current,
-						[provider]: [...(current[provider] ?? []), model],
-					},
-		);
 		setCreateForm({
 			name: schedule.name,
 			...parsedTrigger,
@@ -1239,6 +1243,14 @@ export function RoutineSchedulesContent({
 						const lastExecution = lastExecutionBySchedule.get(
 							schedule.scheduleId,
 						);
+						const pendingReason = lastExecution
+							? describePendingExecution(
+									lastExecution,
+									lastExecutions.filter(
+										(execution) => execution.scheduleId === schedule.scheduleId,
+									),
+								)
+							: undefined;
 						const upcoming = upcomingRuns.find(
 							(item) => item.scheduleId === schedule.scheduleId,
 						);
@@ -1415,6 +1427,12 @@ export function RoutineSchedulesContent({
 											Last result:
 										</span>{" "}
 										{formatExecutionResult(lastExecution)}
+										{pendingReason && (
+											<span className="text-muted-foreground/70">
+												{" "}
+												· {pendingReason}
+											</span>
+										)}
 									</p>
 									{lastExecution?.sessionId && (
 										<p>
@@ -1564,6 +1582,10 @@ export function RoutineSchedulesContent({
 										const failed = ["failed", "timeout", "aborted"].includes(
 											status,
 										);
+										const pendingReason = describePendingExecution(
+											execution,
+											viewingExecutions,
+										);
 										return (
 											<button
 												className="group flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-transparent"
@@ -1590,6 +1612,11 @@ export function RoutineSchedulesContent({
 													{execution.errorMessage && (
 														<span className="block truncate text-xs text-destructive">
 															{execution.errorMessage}
+														</span>
+													)}
+													{pendingReason && (
+														<span className="block truncate text-xs text-muted-foreground">
+															{pendingReason}
 														</span>
 													)}
 												</span>
