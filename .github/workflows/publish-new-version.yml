@@ -1,0 +1,155 @@
+name: publish-new-version
+run-name: "${{ github.event_name == 'workflow_dispatch' && 'Prepare release PR' || 'Publish merged release' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_bump:
+        description: SDK version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+        required: true
+      cli_bump:
+        description: CLI version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+        required: true
+      desktop_bump:
+        description: Desktop version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+        required: true
+  push:
+    branches: [main]
+    paths: [.github/release-plan.json]
+
+# Serialize preparation and publication. Never cancel a partially published release.
+concurrency:
+  group: coordinated-stable-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.repository == 'cline/cline' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.13"
+      - name: Check for an open release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN=$(gh api --paginate --slurp "repos/cline/cline/pulls?state=open&base=main&per_page=100" --jq '[.[][] | select(.head.ref | startswith("bee/release-"))] | length')
+          if [ "$OPEN" != 0 ]; then
+            echo "An open release PR already exists. Merge or close it before preparing another."
+            exit 1
+          fi
+      - name: Calculate versions and draft changelogs
+        id: plan
+        env:
+          SDK_BUMP: ${{ inputs.sdk_bump }}
+          CLI_BUMP: ${{ inputs.cli_bump }}
+          DESKTOP_BUMP: ${{ inputs.desktop_bump }}
+        run: bun .github/scripts/release/plan.ts prepare
+      - name: Refresh workspace lockfile
+        run: bun install --lockfile-only --ignore-scripts
+      - name: Open release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE: ${{ steps.plan.outputs.title }}
+        run: |
+          BRANCH="bee/release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$BRANCH"
+          git add .github/release-plan.json sdk/packages/*/package.json sdk/CHANGELOG.md apps/cli/package.json apps/cli/CHANGELOG.md apps/examples/desktop-app/package.json apps/examples/desktop-app/src-tauri/tauri.conf.json apps/examples/desktop-app/CHANGELOG.md bun.lock
+          git -c core.hooksPath=/dev/null commit -m "$RELEASE_TITLE"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          gh pr create --repo cline/cline --base main --head "$BRANCH" --title "$RELEASE_TITLE" --body-file "$RUNNER_TEMP/release-pr.md" >> "$GITHUB_STEP_SUMMARY"
+
+  tag:
+    if: github.repository == 'cline/cline' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      sha: ${{ steps.tags.outputs.sha }}
+      cli_tag: ${{ steps.tags.outputs.cli_tag }}
+      desktop_tag: ${{ steps.tags.outputs.desktop_tag }}
+    steps:
+      - name: Verify this commit merged a release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          gh api --paginate --slurp "repos/cline/cline/commits/$RELEASE_SHA/pulls" > "$RUNNER_TEMP/release-pulls.json"
+          jq -e --arg sha "$RELEASE_SHA" 'any(.[][]; .merged_at != null and .merge_commit_sha == $sha and .base.ref == "main" and .head.repo.full_name == "cline/cline" and (.head.ref | startswith("bee/release-")))' "$RUNNER_TEMP/release-pulls.json"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.13"
+      - name: Validate merged plan and create immutable release tags
+        id: tags
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main --tags
+          bun .github/scripts/release/plan.ts tag
+
+  sdk:
+    needs: tag
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/sdk-publish.yml
+    with:
+      channel: latest
+      confirm_publish: publish
+      release_sha: ${{ needs.tag.outputs.sha }}
+    secrets: inherit
+
+  cli:
+    needs: [tag, sdk]
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/cli-publish.yml
+    with:
+      publish_target: main
+      confirm_publish: publish
+      git_tag: ${{ needs.tag.outputs.cli_tag }}
+      release_sha: ${{ needs.tag.outputs.sha }}
+    secrets: inherit
+
+  desktop:
+    needs: [tag, cli]
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/desktop-publish.yml
+    with:
+      channel: stable
+      confirm_publish: publish
+      git_tag: ${{ needs.tag.outputs.desktop_tag }}
+      release_sha: ${{ needs.tag.outputs.sha }}
+    secrets: inherit
