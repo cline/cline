@@ -278,6 +278,7 @@ export async function runAgent(
 			userImages,
 			userFiles,
 		} = await buildUserInputMessage(prompt, userInstructionService, {
+			cwd: config.cwd,
 			mode: config.mode,
 		});
 		const started = await sessionManager.start({
