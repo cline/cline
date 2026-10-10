@@ -52,6 +52,7 @@ import {
 	type ToolCallRecord,
 	usesImageGenerationOperation,
 } from "@cline/shared";
+import { filterToolsByPolicies } from "../../extensions/tools/runtime";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
@@ -148,29 +149,6 @@ function mergeSystemPromptRules(
 		return `${base}\n\n${additional}`;
 	}
 	return base || additional;
-}
-
-function isToolEnabledByPolicies(
-	toolName: string,
-	toolPolicies: AgentConfig["toolPolicies"],
-): boolean {
-	const globalPolicy = toolPolicies?.["*"] ?? {};
-	const toolPolicy = toolPolicies?.[toolName] ?? {};
-	return (
-		{
-			...globalPolicy,
-			...toolPolicy,
-		}.enabled !== false
-	);
-}
-
-function filterToolsByPolicies(
-	tools: AgentTool[],
-	toolPolicies: AgentConfig["toolPolicies"],
-): AgentTool[] {
-	return tools.filter((tool) =>
-		isToolEnabledByPolicies(tool.name, toolPolicies),
-	);
 }
 
 function filterAvailableExtensionTools(

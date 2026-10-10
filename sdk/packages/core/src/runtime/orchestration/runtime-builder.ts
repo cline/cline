@@ -38,6 +38,7 @@ import {
 	type ToolRoutingRule,
 } from "../../extensions/tools";
 import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
+import { filterToolsByPolicies } from "../../extensions/tools/runtime";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
@@ -66,29 +67,6 @@ function hasConfigExtension(
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
 	return hasRuntimeConfigExtension(extensions, kind);
-}
-
-function isToolEnabledByPolicies(
-	toolName: string,
-	toolPolicies: CoreSessionConfig["toolPolicies"],
-): boolean {
-	const globalPolicy = toolPolicies?.["*"] ?? {};
-	const toolPolicy = toolPolicies?.[toolName] ?? {};
-	return (
-		{
-			...globalPolicy,
-			...toolPolicy,
-		}.enabled !== false
-	);
-}
-
-function filterToolsByPolicies(
-	tools: AgentTool[],
-	toolPolicies: CoreSessionConfig["toolPolicies"],
-): AgentTool[] {
-	return tools.filter((tool) =>
-		isToolEnabledByPolicies(tool.name, toolPolicies),
-	);
 }
 
 function filterAvailableTools(
