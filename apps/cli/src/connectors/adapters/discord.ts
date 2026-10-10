@@ -1071,10 +1071,7 @@ class DiscordConnector extends ConnectorBase<
 		});
 		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
-		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
-			cwd: commandCwd,
-			workspaceRoot: startRequest.workspaceRoot || commandCwd,
-		});
+
 		const { url: rpcAddress, authToken: rpcAuthToken } =
 			await ensureCliHubServer(
 				startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
@@ -1097,6 +1094,11 @@ class DiscordConnector extends ConnectorBase<
 			},
 		});
 		await client.connect();
+		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
+			commands: client.pluginCommands,
+			cwd: commandCwd,
+			workspaceRoot: startRequest.workspaceRoot || commandCwd,
+		});
 		this.writeConnectorState(statePath, {
 			userName: options.userName,
 			applicationId: options.applicationId,

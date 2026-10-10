@@ -899,6 +899,8 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	return {
+		getPluginCommandsApi: async () =>
+			(await ensureSessionManager()).pluginCommands,
 		ensureReady,
 		listCoreSettings,
 		toggleCoreSettings,
