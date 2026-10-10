@@ -200,7 +200,15 @@ async function insertInFile(
 	const content = await fs.readFile(filePath, encoding);
 	const eol = detectLineEnding(content);
 	const lines = content.split(/\r\n|\n/);
-	const maxBoundaryLine = lines.length + 1;
+	// A trailing newline terminates the last line instead of starting a new one,
+	// but `split` still yields an empty trailing segment. Counting it as a line
+	// accepted — and advertised in the message below — a boundary one past the
+	// end, which wrote a blank line instead of appending. `read_files` reports
+	// the line count from readline, which does not count that segment either, so
+	// this keeps the range consistent with the documented `line_count + 1`
+	// (github.com/cline/cline/issues/13545).
+	const trailingSegment = lines[lines.length - 1] === "" ? 1 : 0;
+	const maxBoundaryLine = lines.length - trailingSegment + 1;
 
 	if (insertLineOneBased < 1 || insertLineOneBased > maxBoundaryLine) {
 		throw new Error(

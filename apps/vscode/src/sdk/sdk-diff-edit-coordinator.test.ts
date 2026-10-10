@@ -67,6 +67,21 @@ describe("computeNewEditorContent", () => {
 		expect(computeNewEditorContent("a\nb", input, filePath, "modify")).toBe("a\nb\nx")
 	})
 
+	// Same boundary rule as the executor: a trailing newline ends the last line,
+	// so the append boundary is line_count + 1 and nothing beyond it is a line
+	// boundary (github.com/cline/cline/issues/13545).
+	it("appends at the EOF boundary of a newline-terminated file without a blank line", () => {
+		const input: EditFileInput = { path: filePath, new_text: "x", insert_line: 3 }
+		expect(computeNewEditorContent("a\nb\n", input, filePath, "modify")).toBe("a\nb\nx\n")
+	})
+
+	it("throws for the boundary past the last line of a newline-terminated file", () => {
+		const input: EditFileInput = { path: filePath, new_text: "x", insert_line: 4 }
+		expect(() => computeNewEditorContent("a\nb\n", input, filePath, "modify")).toThrow(
+			"Invalid insert_line: 4. insert_line must be a positive one-based boundary line in the range 1-3. Use 3 to append at EOF.",
+		)
+	})
+
 	// Reads strip "\r", so models emit LF-only old_text even for CRLF files. The SDK
 	// executor normalizes to the file's EOL before matching (#12305); the preview must
 	// too, or every multi-line edit in a CRLF file silently skips its diff view while
