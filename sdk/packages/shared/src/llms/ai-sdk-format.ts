@@ -139,9 +139,33 @@ function pushAiSdkMessage(result: AiSdkMessage[], message: AiSdkMessage): void {
 }
 
 /**
+ * Normalize an image content block into the internal
+ * `{type:'image', data, mediaType}` shape. MCP `ImageContent` wire blocks
+ * carry the MIME type in `mimeType` rather than `mediaType`; without this,
+ * MCP tool image results are not recognized below and never reach the
+ * model's native media path (see issue #14421).
+ */
+function normalizeImageContentBlock(
+	block: Record<string, unknown>,
+): AiSdkImageContentBlock | undefined {
+	if (block.type !== "image" || typeof block.data !== "string") {
+		return undefined;
+	}
+	const mediaType = [block.mediaType, block.mimeType, block.mime_type].find(
+		(value): value is string =>
+			typeof value === "string" && value.trim().length > 0,
+	);
+	if (!mediaType) {
+		return undefined;
+	}
+	return { type: "image", data: block.data, mediaType };
+}
+
+/**
  * Type guard for tool-output content blocks that should be passed to the model
  * as native multimodal parts (rather than JSON-encoded). We accept the cline
- * `image` and `text` block shapes used by `formatStructuredToolResult`.
+ * `image` and `text` block shapes used by `formatStructuredToolResult`, plus
+ * MCP `ImageContent` wire blocks which use `mimeType` (see issue #14421).
  */
 function isAiSdkContentBlockArray(
 	value: unknown,
@@ -158,7 +182,7 @@ function isAiSdkContentBlockArray(
 			return typeof b.text === "string";
 		}
 		if (b.type === "image") {
-			return typeof b.data === "string" && typeof b.mediaType === "string";
+			return normalizeImageContentBlock(b) !== undefined;
 		}
 		return false;
 	});
@@ -423,22 +447,14 @@ function stripImagesFromOutput(
 		for (const item of value) {
 			if (item && typeof item === "object") {
 				const obj = item as Record<string, unknown>;
-				if (
-					obj.type === "image" &&
-					typeof obj.data === "string" &&
-					typeof obj.mediaType === "string"
-				) {
+				const image = normalizeImageContentBlock(obj);
+				if (image) {
 					if (!hoistImages) {
 						out.push(inlineImagePlaceholder);
 						changed = true;
 						mediaChanged = true;
 						continue;
 					}
-					const image = {
-						type: "image",
-						data: obj.data,
-						mediaType: obj.mediaType,
-					} satisfies AiSdkImageContentBlock;
 					const part = toToolResultImagePart(image, state);
 					if (part.type === "file") {
 						images.push({
@@ -475,7 +491,8 @@ function stripImagesFromOutput(
 
 	const obj = value as Record<string, unknown>;
 	if (obj.type === "image") {
-		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
+		const image = normalizeImageContentBlock(obj);
+		if (image) {
 			if (!hoistImages) {
 				return {
 					value: inlineImagePlaceholder,
@@ -483,11 +500,6 @@ function stripImagesFromOutput(
 					mediaChanged: true,
 				};
 			}
-			const image = {
-				type: "image",
-				data: obj.data,
-				mediaType: obj.mediaType,
-			} satisfies AiSdkImageContentBlock;
 			const part = toToolResultImagePart(image, state);
 			if (part.type === "file") {
 				images.push({
@@ -570,7 +582,10 @@ export function toAiSdkToolResultOutput(
 			value: output.map((block) =>
 				block.type === "image"
 					? supportsImages
-						? toToolResultImagePart(block, mediaState)
+						? toToolResultImagePart(
+								normalizeImageContentBlock(block) ?? block,
+								mediaState,
+							)
 						: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
 					: { type: "text", text: sanitizeSurrogates(block.text) },
 			),
