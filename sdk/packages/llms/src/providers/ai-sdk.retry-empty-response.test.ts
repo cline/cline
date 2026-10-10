@@ -192,6 +192,27 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 			);
 
 			expect(fetchMock).toHaveBeenCalledTimes(6);
+			expect(events.filter((event) => event.type === "stream-retry")).toEqual(
+				Array.from({ length: 5 }, (_, index) => ({
+					type: "stream-retry",
+					error: "Response stream ended without a finish reason.",
+					attempt: index + 1,
+					maxRetries: 5,
+				})),
+			);
+			const visible = events.filter(
+				(event) =>
+					event.type === "text-delta" ||
+					event.type === "reasoning-delta" ||
+					event.type === "stream-retry",
+			);
+			for (let index = 0; index < 5; index++) {
+				expect(visible[index * 2]?.type).toBe(
+					"reasoning_content" in delta ? "reasoning-delta" : "text-delta",
+				);
+				expect(visible[index * 2 + 1]?.type).toBe("stream-retry");
+			}
+			expect(visible.at(-1)).toEqual({ type: "text-delta", text: "hello" });
 			expect(
 				events.filter(
 					(event) =>
@@ -222,6 +243,9 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 				providerId,
 			);
 			expect(fetchMock).toHaveBeenCalledTimes(6);
+			expect(
+				events.filter((event) => event.type === "stream-retry"),
+			).toHaveLength(5);
 			expect(finishEvents(events)).toEqual([
 				expect.objectContaining({
 					reason: "error",

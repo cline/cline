@@ -530,6 +530,10 @@ function toApiStreamChunk(
 	event: AgentModelEvent,
 ): ApiStreamChunk | undefined {
 	switch (event.type) {
+		case "stream-retry":
+			return { ...event, id };
+		case "response-checkpoint":
+			return { ...event, id };
 		case "text-delta":
 			return { type: "text", id, text: event.text };
 		case "media":

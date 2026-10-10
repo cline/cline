@@ -1871,6 +1871,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "notice": {
+			if (event.metadata?.kind === "provider_stream_retry") {
+				// Interrupted text remains visible but cannot be the completed answer.
+				state.takeTurnFinalText()
+			}
 			// Status notices carry structured runtime progress. Compaction ones
 			// become a live divider row that is updated in place from "started" to
 			// its terminal state; the known-internal ones are diagnostics with no

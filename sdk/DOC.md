@@ -1,4 +1,20 @@
 
+## Stream retry boundaries
+
+AI SDK language adapters share a vendor `maxRetries` budget for request-start
+and stream recovery (default: five retries). `AgentModelEvent` includes
+`stream-retry` with the error, retry number, and budget, and
+`response-checkpoint` after each completed model step. These are ordered with
+content deltas using public AI SDK callbacks. A retry rolls back provisional
+message content to the last completed step before the next attempt starts.
+Completed tool work from earlier steps stays in history.
+
+Previously displayed output stays visible, followed by a status notice before
+recovered output. Failed-attempt text, reasoning, and media do not enter the
+recorded assistant message, `afterModel` hooks, or subsequent request history.
+Terminal errors retain the existing failure path; no retry notice is emitted
+when the budget is exhausted. Provider-executed side effects may still repeat.
+
 ## Oversized tool result recovery
 
 Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.

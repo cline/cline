@@ -1378,7 +1378,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(explicitWins.maxOutputTokens).toBe(6_000);
 	});
 
-	it("skips with a diagnostic warning when the summarizer only produced reasoning output", async () => {
+	it("skips a reasoning-only recovered summary instead of saving failed-attempt text", async () => {
 		// Repro for CLINE-2911: a reasoning model can spend the entire output
 		// budget thinking. Reasoning chunks are discarded, so no summary text
 		// arrives and compaction is skipped — that skip must be diagnosable.
@@ -1387,6 +1387,23 @@ describe("createContextCompactionPrepareTurn", () => {
 		createHandlerMock.mockReturnValue({
 			createMessage: vi.fn(() =>
 				streamChunks([
+					{
+						type: "text",
+						id: "failed-summary",
+						text: "Invalid partial summary",
+					},
+					{
+						type: "reasoning",
+						id: "failed-summary",
+						reasoning: "Failed reasoning",
+					},
+					{
+						type: "stream-retry",
+						id: "failed-summary",
+						error: "EOF",
+						attempt: 1,
+						maxRetries: 5,
+					},
 					{
 						type: "reasoning",
 						id: "summary-think",

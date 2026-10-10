@@ -73,6 +73,7 @@ import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
 } from "./routing/provider-options";
+import { StreamRecovery } from "./stream-recovery";
 import type {
 	AiSdkStreamPart,
 	AiSdkStreamResult,
@@ -1505,10 +1506,40 @@ async function* emitAiSdkEvents(
 	// error parts are matched by ID because some providers omit the
 	// providerExecuted flag on the result half of the pair.
 	const observationalProviderToolCallIds = new Set<string>();
+	let mediaCheckpoint = {
+		...mediaBudget,
+		omittedReasons: { ...mediaBudget.omittedReasons },
+	};
+	let rejectedMediaCheckpoint = 0;
+	let visibleContentCheckpoint = false;
 
 	try {
 		if (stream.fullStream) {
 			for await (const part of stream.fullStream) {
+				if (part.type === "response-checkpoint") {
+					mediaCheckpoint = {
+						...mediaBudget,
+						omittedReasons: { ...mediaBudget.omittedReasons },
+					};
+					rejectedMediaCheckpoint = rejectedMediaErrors.length;
+					visibleContentCheckpoint = sawVisibleContent;
+					yield { type: "response-checkpoint" };
+					continue;
+				}
+				if (part.type === "stream-retry") {
+					Object.assign(mediaBudget, mediaCheckpoint, {
+						omittedReasons: { ...mediaCheckpoint.omittedReasons },
+					});
+					rejectedMediaErrors.length = rejectedMediaCheckpoint;
+					sawVisibleContent = visibleContentCheckpoint;
+					yield {
+						type: "stream-retry",
+						error: part.error as string,
+						attempt: part.attempt as number,
+						maxRetries: part.maxRetries as number,
+					};
+					continue;
+				}
 				if (part.type === "start-step") {
 					requestId = undefined;
 					continue;
@@ -2303,6 +2334,9 @@ function createAiSdkProvider(
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
+				const recovery = new StreamRecovery(
+					provider.maxRetries ?? MODEL_REQUEST_MAX_RETRIES,
+				);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
@@ -2360,6 +2394,7 @@ function createAiSdkProvider(
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),
 							onError: ({ error: streamError }) => {
 								const captured = captureStreamError(streamError);
+								recovery.onError(captured.message);
 								const msg = captured.message;
 								capturedError.current = captured;
 								if (log?.error) {
@@ -2388,6 +2423,15 @@ function createAiSdkProvider(
 									},
 								});
 							},
+							onChunk: ({ chunk }) =>
+								recovery.onChunk(chunk as AiSdkStreamPart),
+							onStepStart: () => recovery.onStepStart(),
+							onLanguageModelCallStart: () => recovery.onCallStart(),
+							onStepEnd: (step) => {
+								if (step.finishReason !== "error")
+									capturedError.current = undefined;
+								recovery.onStepEnd();
+							},
 						}) as unknown as AiSdkStreamResult,
 				);
 
@@ -2396,9 +2440,15 @@ function createAiSdkProvider(
 				// flush callback, which runs during iteration, so we must attach .catch() handlers
 				// upfront or Bun/Node will surface them as unhandled rejections.
 				suppressDanglingStreamPromises(stream);
+				const eventStream = stream.fullStream
+					? {
+							fullStream: recovery.stream(stream.fullStream),
+							usage: stream.usage,
+						}
+					: stream;
 
 				yield* emitAiSdkEvents(
-					stream,
+					eventStream,
 					modelToolRequest,
 					context,
 					context.model.metadata?.pricing,

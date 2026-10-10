@@ -22,7 +22,10 @@ Provider error parts, including EOF without a finish reason, restart the current
 step; exhausted errors are surfaced normally. Request-start and empty-response
 retries retain their separate budgets.
 
-Already-emitted text and reasoning remain visible and may repeat across attempts.
+Already-emitted text and reasoning remain visible. Ordered retry events separate
+interrupted attempts with a user-facing notice. AgentRuntime discards the failed
+attempt's provisional content before recovery, so hooks, saved messages, and
+subsequent requests contain only retained completed steps and the recovered attempt.
 The AI SDK isolates failed-attempt tool calls before client-side execution, but
 provider-executed work can repeat. Retries can add latency and provider cost.
 

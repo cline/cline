@@ -2065,6 +2065,17 @@ describe("translateSessionEvent — agent_event notice", () => {
 		}
 	}
 
+	it("does not use interrupted text as the completed answer after a retry notice", () => {
+		const state = new MessageTranslatorState()
+		state.recordTurnFinalText(state.nextTs(), "The answer is 4")
+		const result = translateSessionEvent(
+			noticeEvent("Response interrupted — retrying (1/5).", { kind: "provider_stream_retry" }),
+			state,
+		)
+		expect(result.messages[0]).toMatchObject({ say: "info", text: "Response interrupted — retrying (1/5).", partial: false })
+		expect(state.takeTurnFinalText()).toBeUndefined()
+	})
+
 	it("translates compaction status notices into a divider row updated in place", () => {
 		const state = new MessageTranslatorState()
 

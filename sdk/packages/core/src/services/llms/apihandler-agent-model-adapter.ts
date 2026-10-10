@@ -30,6 +30,17 @@ type ApiStreamDoneChunk = Extract<ApiStreamChunk, { type: "done" }>;
 
 function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 	switch (chunk.type) {
+		case "stream-retry":
+			return [
+				{
+					type: "stream-retry",
+					error: chunk.error,
+					attempt: chunk.attempt,
+					maxRetries: chunk.maxRetries,
+				},
+			];
+		case "response-checkpoint":
+			return [{ type: "response-checkpoint" }];
 		case "text":
 			return [{ type: "text-delta", text: chunk.text }];
 		case "media":
