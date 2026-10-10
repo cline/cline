@@ -423,6 +423,20 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("registers Cheaper Inference as an OpenAI-compatible provider", async () => {
+		await expect(getProvider("cheaperinference")).resolves.toMatchObject({
+			id: "cheaperinference",
+			name: "Cheaper Inference",
+			baseUrl: "https://api.cheaperinference.com/v1",
+			defaultModelId: "gpt-5.4-mini",
+			client: "openai-compatible",
+			env: ["CHEAPER_INFERENCE_API_KEY"],
+		});
+
+		const models = await getModelsForProvider("cheaperinference");
+		expect(models["gpt-5.4-mini"]).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
