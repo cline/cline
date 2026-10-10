@@ -90,7 +90,7 @@ import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
-import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { SdkTaskHistory, sessionHistoryDisplayTimestamp, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { isToolAutoApproved } from "./sdk-tool-policies"
@@ -137,14 +137,6 @@ function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined,
 function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): string | undefined {
 	const value = metadata?.[key]
 	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
-}
-
-function dateStringToTimestamp(value: string | null | undefined): number {
-	if (!value) {
-		return 0
-	}
-	const timestamp = Date.parse(value)
-	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function historyItemToTaskResponse(item: HistoryItem): TaskResponse {
@@ -2090,7 +2082,7 @@ export class Controller {
 		})
 
 		let filteredTasks = sessionHistory.filter((item) => {
-			const ts = dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt)
+			const ts = sessionHistoryDisplayTimestamp(item)
 			const task = metadataString(item.metadata, "title") ?? item.prompt ?? ""
 
 			if (!ts || !task) {
@@ -2124,10 +2116,7 @@ export class Controller {
 		filteredTasks.sort((a, b) => {
 			switch (sortBy) {
 				case "oldest":
-					return (
-						dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt) -
-						dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt)
-					)
+					return sessionHistoryDisplayTimestamp(a) - sessionHistoryDisplayTimestamp(b)
 				case "mostExpensive":
 					return (metadataNumber(b.metadata, "totalCost") ?? 0) - (metadataNumber(a.metadata, "totalCost") ?? 0)
 				case "mostTokens":
@@ -2142,10 +2131,7 @@ export class Controller {
 							(metadataNumber(a.metadata, "cacheReads") ?? 0))
 					)
 				default:
-					return (
-						dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
-						dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
-					)
+					return sessionHistoryDisplayTimestamp(b) - sessionHistoryDisplayTimestamp(a)
 			}
 		})
 
@@ -2155,7 +2141,7 @@ export class Controller {
 			return {
 				id: item.sessionId,
 				task: formatDisplayUserInput(metadataString(metadata, "title") ?? item.prompt ?? ""),
-				ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
+				ts: sessionHistoryDisplayTimestamp(item),
 				isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 				size: metadataNumber(metadata, "size") ?? 0,
 				totalCost: metadataNumber(metadata, "totalCost") ?? 0,
