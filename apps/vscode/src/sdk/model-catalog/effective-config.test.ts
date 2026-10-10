@@ -78,6 +78,28 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("builds LM Studio config with ProviderSettings.apiKey as its credential source", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			lmstudio: {
+				provider: "lmstudio",
+				apiKey: "provider-lmstudio-key",
+			},
+		})
+		mocks.setApiConfiguration({
+			apiKey: "anthropic-key-should-not-be-used",
+			lmStudioBaseUrl: "http://localhost:1234",
+			lmStudioMaxTokens: "8192",
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("lmstudio"))).toEqual({
+			providerId: parseProviderId("lmstudio"),
+			apiKey: "provider-lmstudio-key",
+			baseUrl: "http://localhost:1234",
+			extras: { lmStudioMaxTokens: "8192" },
+		})
+	})
+
 	it("builds LiteLLM config by merging providers.json fields and StateManager overlays", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({

@@ -25,6 +25,14 @@ describe("configured agent tools", () => {
 					modelId: "claude-sonnet-4-6",
 					apiKey: "key",
 				}),
+				getConnectionSnapshot: () => ({
+					version: 0,
+					config: {
+						providerId: "anthropic",
+						modelId: "claude-sonnet-4-6",
+						apiKey: "key",
+					},
+				}),
 				updateConnectionDefaults: () => {},
 			},
 			agents: [

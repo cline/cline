@@ -60,6 +60,8 @@ export interface CreateAgentRuntimeConfigInput {
 	readonly plugins?: readonly AgentRuntimePlugin[];
 	/** Runtime hooks supplied by the session/runtime builder. */
 	readonly hooks?: Partial<AgentRuntimeHooks>;
+	/** Session-owned connection refresh wrapper. Defaults to the agent config. */
+	readonly beforeModelRequest?: AgentRuntimeConfig["beforeModelRequest"];
 	/** Host-owned context pipeline invoked before runtime model hooks. */
 	readonly prepareTurn?: (
 		context: AgentRuntimePrepareTurnContext,
@@ -113,6 +115,8 @@ export function createAgentRuntimeConfig(
 		modelTools: agentConfig.modelTools,
 		tools: input.tools,
 		hooks,
+		beforeModelRequest:
+			input.beforeModelRequest ?? agentConfig.beforeModelRequest,
 		prepareTurn: input.prepareTurn,
 		consumePendingUserMessage: agentConfig.consumePendingUserMessage,
 		plugins: input.plugins,
