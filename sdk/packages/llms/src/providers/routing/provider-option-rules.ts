@@ -13,6 +13,10 @@ import {
 } from "../model-facts";
 import { isOfficialAnthropicEndpoint } from "../url";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
+import {
+	buildChutesThinkingProviderOptionsPatch,
+	usesChutesChatTemplateReasoning,
+} from "./chutes-thinking";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {
 	buildNativeGlmThinkingProviderOptionsPatch,
@@ -252,6 +256,22 @@ const openRouterReasoningRule: ProviderOptionRule = {
 		buildReasoningPatchForProvider(
 			input,
 			buildOpenRouterReasoningOptions(input.request, input.context),
+		),
+};
+
+const chutesChatTemplateReasoningRule: ProviderOptionRule = {
+	id: "provider.chutes.chat-template-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Chutes Kimi and hybrid Qwen families use chat_template_kwargs thinking controls.",
+	applies: (input) =>
+		usesChutesChatTemplateReasoning(input.request, input.context),
+	suppresses: { genericThinking: true },
+	build: (input) =>
+		buildChutesThinkingProviderOptionsPatch(
+			input.request,
+			input.context,
+			input.providerOptionsKey,
 		),
 };
 
@@ -549,6 +569,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	genericProviderFanoutRule,
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,
+	chutesChatTemplateReasoningRule,
 	clineMiniMaxM3GatewayReasoningRule,
 	vercelReasoningRule,
 	directMoonshotReasoningRule,
