@@ -104,7 +104,7 @@ Plugins still share one process: globals, `process.env`, and the working directo
 
 The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. In sandbox mode no plugin code runs in the host process, including tool listing and MCP settings sync. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
 
-Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Edits to the plugin's entry file or any file it imports by relative path are picked up automatically. After changing a dependency in `node_modules`, or a file the plugin loads dynamically, run `cline hub plugins --reload <plugin>`.
+Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Edits to the plugin's entry file, or to any file it reaches through a relative `import ... from` or `require()`, are picked up automatically. After changing anything else the plugin loads (a dependency in `node_modules`, a side-effect `import "./x"`, a dynamic import), run `cline hub plugins --reload <plugin>`.
 
 ## Choosing Plugins per Session
 
@@ -121,7 +121,7 @@ await cline.start({
 })
 ```
 
-A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`.
+A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`. The policy applies to the default in-process mode; the opt-in sandbox loads every discovered plugin.
 
 ## Setup and Call Context
 
@@ -159,7 +159,7 @@ The host wraps every plugin call and records what goes wrong, so a broken plugin
 | Tool | 60 s, or the tool's `timeoutMs` | The error goes back to the model as a tool error; plugin is `degraded` |
 | Command, rule content, message builder | 60 s | A command throws to its caller; a rule contributes no text; a message builder leaves messages unchanged; plugin is `degraded` |
 
-Five failures in a row turn a `degraded` plugin `failed`. An import failure, or five failed calls in a row, turns the plugin off for every session using that version of it until it is reloaded or its entry file changes. Reloading never interrupts running sessions: they keep the copy they started with, and new sessions get the new code. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
+Five failures in a row turn a `degraded` plugin `failed`. An import failure, or five failed calls in a row, turns the plugin off for every session using it until it is reloaded or its source changes. A successful reload does not interrupt running sessions: they keep the copy they started with, and new sessions get the new code. A reload whose import fails turns the plugin off for running sessions too, and they are told why. In the hub, a stray exception or unhandled rejection whose stack points into a plugin marks that plugin `failed` instead of stopping the hub.
 
 Each plugin has a status of `loading`, `ready`, `degraded`, `failed`, or `disabled`. Its last error records the phase (`discover`, `import`, `setup`, `hook:<name>`, `tool:<name>`, `command:<name>`, or `uncaught`), the message, the stack, the plugin path, and a timestamp. The status also counts errors and timeouts.
 

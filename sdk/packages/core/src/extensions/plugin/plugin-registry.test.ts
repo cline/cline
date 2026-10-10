@@ -613,6 +613,76 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 		expect(registry.get(path)[0]?.sessionIds).toEqual(["new", "old"]);
 	});
 
+	it("lets a successful reload clear a block recorded while it was importing", async () => {
+		const path = await write(
+			"flaky.js",
+			`export default {
+	name: "flaky",
+	manifest: { capabilities: ["hooks"] },
+	hooks: { beforeRun: async () => { throw new Error("still broken"); } },
+};
+`,
+		);
+		const running = await registry.loadForSession({
+			sessionId: "running",
+			pluginPaths: [path],
+		});
+		const hook = running.extensions[0]?.hooks?.beforeRun;
+		// Reaches the failure threshold (3) while the reload's import is in
+		// flight, which blocks the plugin mid-import.
+		const reloading = registry.reload(path);
+		for (let index = 0; index < 3; index++) {
+			await hook?.({ snapshot: {} } as never);
+		}
+		await reloading;
+
+		expect(registry.get(path)[0]?.state).toBe("ready");
+		const next = await registry.loadForSession({
+			sessionId: "next",
+			pluginPaths: [path],
+		});
+		expect(next.extensions.map((extension) => extension.name)).toEqual([
+			"flaky",
+		]);
+	});
+
+	it("tells working sessions when an uncaught error turns off a plugin another session's setup already failed", async () => {
+		const path = await write(
+			"setup-then-crash.js",
+			`export default {
+	name: "setup-then-crash",
+	manifest: { capabilities: ["tools"] },
+	setup() { if (globalThis.__failNextSetup) { globalThis.__failNextSetup = false; throw new Error("setup broke"); } },
+};
+`,
+		);
+		const told: string[] = [];
+		const healthy = await registry.loadForSession({
+			sessionId: "healthy",
+			pluginPaths: [path],
+			onIssue: (issue) => told.push(`healthy:${issue.lastError?.phase}`),
+		});
+		await setUp(healthy.extensions[0]);
+		(globalThis as Record<string, unknown>).__failNextSetup = true;
+		const unlucky = await registry.loadForSession({
+			sessionId: "unlucky",
+			pluginPaths: [path],
+			onIssue: (issue) => told.push(`unlucky:${issue.lastError?.phase}`),
+		});
+		await setUp(unlucky.extensions[0]);
+		expect(registry.get(path)[0]?.state).toBe("failed");
+		expect(told).toEqual(["unlucky:setup"]);
+
+		const stray = new Error("boom");
+		stray.stack = `Error: boom\n    at run (${path}:3:5)`;
+		registry.attributeUncaughtError(stray);
+		expect(told).toEqual([
+			"unlucky:setup",
+			"healthy:uncaught",
+			"unlucky:uncaught",
+		]);
+	});
+
 	it("times out and stops commands, rule content, and message builders", async () => {
 		const path = await write(
 			"callbacks.js",

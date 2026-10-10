@@ -732,9 +732,8 @@ keeps the previous subprocess sandbox. It needs a `node` or `bun` runtime on
 `PATH` when the host is not itself `node` or `bun`. In sandbox mode no plugin
 code runs in the host process: the Hub daemon skips its startup preload, and
 plugin tool listing and MCP settings sync inspect plugins through a sandbox
-too. The session `plugins` policy applies as well: plugins whose file name
-the policy turns off are not passed to the sandbox, and plugins matched only
-by their exported `name` are dropped after the sandbox imports them.
+too. The session `plugins` policy is not applied in sandbox mode; the sandbox
+loads every discovered plugin.
 
 Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

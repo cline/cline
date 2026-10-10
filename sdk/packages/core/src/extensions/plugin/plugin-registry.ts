@@ -745,9 +745,6 @@ export class PluginRegistry {
 		entry.fingerprint = fingerprint;
 		entry.extension = undefined;
 		entry.spare = undefined;
-		// A re-import (reload or source change) gives the plugin a clean slate.
-		entry.blocked = false;
-		entry.consecutiveFailures = 0;
 		this.setState(entry, "loading", true);
 		const startedAt = Date.now();
 		try {
@@ -757,6 +754,10 @@ export class PluginRegistry {
 				importTimeoutMs,
 				undefined,
 			);
+			// A successful re-import (reload or source change) gives the plugin
+			// a clean slate, including failures copies recorded while it ran.
+			entry.blocked = false;
+			entry.consecutiveFailures = 0;
 			entry.extension = instance.extension;
 			entry.spare = instance;
 			entry.name = instance.extension.name;
@@ -1235,12 +1236,14 @@ export class PluginRegistry {
 		const next: PluginRuntimeState = block
 			? "failed"
 			: (options.state ?? "degraded");
+		// Sessions are told when the plugin is turned off even if the state
+		// already read `failed` from a per-session setup failure.
+		const changed = entry.state !== next || (block && !entry.blocked);
 		if (block) {
 			entry.blocked = true;
 			entry.extension = undefined;
 			entry.spare = undefined;
 		}
-		const changed = entry.state !== next;
 		this.setState(entry, next, true);
 		const issue = this.toIssue(entry, "error");
 		// A per-session failure (setup) concerns only the calling session;
