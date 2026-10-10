@@ -1,29 +1,18 @@
+import { APICallError, RetryError } from "ai";
+
 const REQUEST_ID_HEADER = "x-request-id";
 
 export function extractResponseRequestId(error: unknown): string | undefined {
-	if (!error || typeof error !== "object") {
+	if (RetryError.isInstance(error)) {
+		return extractResponseRequestId(error.lastError);
+	}
+	if (!APICallError.isInstance(error)) {
 		return undefined;
 	}
-
-	const candidate = error as {
-		responseHeaders?: unknown;
-		lastError?: unknown;
-		errors?: unknown;
-		cause?: unknown;
-	};
-	if (
-		candidate.responseHeaders &&
-		typeof candidate.responseHeaders === "object"
-	) {
-		const value = Object.entries(candidate.responseHeaders).find(
-			([name]) => name.toLowerCase() === REQUEST_ID_HEADER,
-		)?.[1];
-		if (typeof value === "string" && value.trim()) {
-			return value.trim();
-		}
-	}
-
-	return undefined;
+	const value = Object.entries(error.responseHeaders ?? {}).find(
+		([name]) => name.toLowerCase() === REQUEST_ID_HEADER,
+	)?.[1];
+	return value?.trim() || undefined;
 }
 
 export function appendRequestId(
