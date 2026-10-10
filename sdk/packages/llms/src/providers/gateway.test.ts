@@ -2439,6 +2439,283 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("normalizes MCP object schemas before sending them to Gemini", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "serial.open",
+						description: "Open a serial port",
+						inputSchema: {
+							type: "OBJECT",
+							required: ["port"],
+							properties: {
+								settings: {
+									type: "OBJECT",
+									required: true,
+									properties: {
+										label: { type: "STRING" },
+									},
+								},
+							},
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.["serial.open"].inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			required: ["port"],
+			properties: {
+				port: {},
+				settings: {
+					type: "object",
+					properties: {
+						label: { type: "string" },
+					},
+				},
+			},
+		});
+	});
+
+	it("normalizes nested array items and combinator branches before Gemini", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "db.insert",
+						description: "Insert rows",
+						inputSchema: {
+							type: "OBJECT",
+							properties: {
+								rows: {
+									type: "ARRAY",
+									items: {
+										type: "OBJECT",
+										properties: { id: { type: "STRING" } },
+									},
+								},
+								mode: {
+									anyOf: [{ type: "STRING" }, { type: "OBJECT" }],
+								},
+							},
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.["db.insert"].inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				rows: {
+					type: "array",
+					items: {
+						type: "object",
+						properties: { id: { type: "string" } },
+					},
+				},
+				mode: {
+					anyOf: [{ type: "string" }, { type: "object" }],
+				},
+			},
+		});
+	});
+
+	it("recurses through every schema-valued position but never payload fields", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "audit.log",
+						description: "Write an audit record",
+						inputSchema: {
+							type: "OBJECT",
+							properties: {
+								tags: {
+									type: "ARRAY",
+									prefixItems: [{ type: "STRING" }],
+									items: { type: "STRING" },
+								},
+								meta: {
+									type: "OBJECT",
+									patternProperties: { "^x-": { type: "STRING" } },
+									additionalProperties: { type: "NUMBER" },
+								},
+								payload: {
+									if: { type: "OBJECT" },
+									then: { type: "OBJECT" },
+									else: { type: "STRING" },
+									not: { type: "BOOLEAN" },
+								},
+							},
+							$defs: {
+								severity: { type: "STRING", enum: ["LOW", "HIGH"] },
+							},
+							// "type" here is payload data, not a schema keyword; the
+							// normalizer must leave example/default values alone.
+							examples: [{ type: "OBJECT", severity: "LOW" }],
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.["audit.log"].inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				tags: {
+					type: "array",
+					prefixItems: [{ type: "string" }],
+					items: { type: "string" },
+				},
+				meta: {
+					type: "object",
+					patternProperties: { "^x-": { type: "string" } },
+					additionalProperties: { type: "number" },
+				},
+				payload: {
+					if: { type: "object" },
+					then: { type: "object" },
+					else: { type: "string" },
+					not: { type: "boolean" },
+				},
+			},
+			$defs: {
+				severity: { type: "string", enum: ["LOW", "HIGH"] },
+			},
+			examples: [{ type: "OBJECT", severity: "LOW" }],
+		});
+	});
+
+	it("defaults a bare or typeless MCP inputSchema to an object at the root", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "ping",
+						description: "No-arg ping",
+						inputSchema: {},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.ping.inputSchema?.jsonSchema;
+		expect(schema).toEqual({ type: "object" });
+	});
+
+	it("passes a canonical lowercase schema through unchanged", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		const canonical = {
+			type: "object",
+			required: ["query"],
+			properties: {
+				query: { type: "string", default: "type" },
+				limit: { type: "number" },
+			},
+			additionalProperties: false,
+		};
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "search",
+						description: "Search the index",
+						inputSchema: canonical,
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.search.inputSchema?.jsonSchema;
+		expect(schema).toEqual(canonical);
+	});
+
 	it("requests Google text and image output without dropping thinking options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

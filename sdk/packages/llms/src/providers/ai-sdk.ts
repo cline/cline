@@ -861,7 +861,7 @@ function toAiSdkTools(request: GatewayStreamRequest): ToolSet | undefined {
 		tools[definition.name] = {
 			description: definition.description,
 			inputSchema: jsonSchema(
-				normalizeAiSdkToolInputSchema(definition.inputSchema),
+				normalizeAiSdkToolInputSchema(definition.inputSchema, true),
 			),
 		};
 	}
@@ -927,17 +927,96 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 	return { ...toolCall, input: JSON.stringify(repaired) };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+// Schema-valued positions per the JSON Schema contract. Recursion is limited
+// to these so payload fields in examples/defaults that happen to be named
+// "type" are never rewritten.
+const SUBSCHEMA_KEYS = [
+	"items",
+	"additionalProperties",
+	"not",
+	"if",
+	"then",
+	"else",
+] as const;
+const SUBSCHEMA_ARRAY_KEYS = [
+	"anyOf",
+	"oneOf",
+	"allOf",
+	"prefixItems",
+] as const;
+const SUBSCHEMA_MAP_KEYS = [
+	"properties",
+	"patternProperties",
+	"$defs",
+	"definitions",
+] as const;
+
 function normalizeAiSdkToolInputSchema(
 	inputSchema: Record<string, unknown>,
+	isRoot = false,
 ): Record<string, unknown> {
-	if (inputSchema.type === "object") {
-		return inputSchema;
+	const schema: Record<string, unknown> = { ...inputSchema };
+	// Gemini rejects uppercase type tokens ("OBJECT", "STRING", ...) and MCP
+	// servers do emit them, so lowercase at every schema depth.
+	if (typeof schema.type === "string") {
+		schema.type = schema.type.toLowerCase();
 	}
 
-	return {
-		type: "object",
-		...inputSchema,
-	};
+	for (const key of SUBSCHEMA_KEYS) {
+		if (isRecord(schema[key])) {
+			schema[key] = normalizeAiSdkToolInputSchema(schema[key]);
+		}
+	}
+	for (const key of SUBSCHEMA_ARRAY_KEYS) {
+		const branches = schema[key];
+		if (Array.isArray(branches)) {
+			schema[key] = branches.map((branch) =>
+				isRecord(branch) ? normalizeAiSdkToolInputSchema(branch) : branch,
+			);
+		}
+	}
+	for (const key of SUBSCHEMA_MAP_KEYS) {
+		const entries = schema[key];
+		if (isRecord(entries)) {
+			schema[key] = Object.fromEntries(
+				Object.entries(entries).map(([name, subschema]) => [
+					name,
+					isRecord(subschema) ? normalizeAiSdkToolInputSchema(subschema) : subschema,
+				]),
+			);
+		}
+	}
+
+	// A non-array `required` (older drafts allow a boolean) is invalid for
+	// Gemini; drop it rather than forward a schema the API rejects.
+	if (schema.required !== undefined && !Array.isArray(schema.required)) {
+		delete schema.required;
+	}
+	// Gemini also rejects required keys with no matching entry in properties.
+	if (isRecord(schema.properties) && Array.isArray(schema.required)) {
+		const properties = schema.properties;
+		for (const key of schema.required) {
+			if (typeof key === "string") {
+				properties[key] ??= {};
+			}
+		}
+	}
+
+	const isObjectLike =
+		schema.type === "object" ||
+		"properties" in schema ||
+		"required" in schema ||
+		"additionalProperties" in schema;
+	if (isObjectLike || isRoot) {
+		// Spread order matters: an explicit non-object type on the node wins,
+		// the default only fills in a missing one.
+		return { type: "object", ...schema };
+	}
+	return schema;
 }
 
 function providerDisablesExternalToolExecution(
