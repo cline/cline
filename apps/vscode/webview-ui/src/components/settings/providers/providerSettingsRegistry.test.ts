@@ -126,6 +126,24 @@ describe("providerSettingsRegistry", () => {
 		})
 	})
 
+	it("builds Eden AI settings through the generic registry", () => {
+		expect(
+			getGenericProviderSettings(
+				"edenai",
+				listing({ id: "edenai", name: "Eden AI", protocol: "openai-chat", allowsCustomModelIds: false }),
+			),
+		).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Base URL",
+				placeholder: "https://api.edenai.run/v3",
+			},
+			providerId: "edenai",
+			providerName: "Eden AI",
+			signupUrl: "https://app.edenai.run/settings/api-keys",
+		})
+	})
+
 	it("allows future simple SDK providers to use the generic fallback", () => {
 		const futureProvider = listing({
 			allowsCustomModelIds: true,
