@@ -593,6 +593,7 @@ Context compaction is owned by `core`.
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
+- automatic compaction requires a positive input limit or context window from model metadata (catalog or caller configuration); unknown custom-model limits do not trigger compaction or status notices based on a guessed window. Manual compaction and provider-confirmed overflow recovery remain available with a default working budget.
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact

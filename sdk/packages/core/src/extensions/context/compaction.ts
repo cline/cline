@@ -321,11 +321,19 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const rawMaxInputTokens =
-			resolveEffectiveMaxInputTokens({
-				maxInputTokens: context.model.info?.maxInputTokens,
-				contextWindow: context.model.info?.contextWindow,
-			}) ?? DEFAULT_MAX_INPUT_TOKENS;
+		const modelMaxInputTokens = resolveEffectiveMaxInputTokens({
+			maxInputTokens: context.model.info?.maxInputTokens,
+			contextWindow: context.model.info?.contextWindow,
+		});
+		// An unknown model limit is not evidence that the request is full.
+		// Custom models can have any context window; using a guessed limit here
+		// can trigger compaction even on a new session's system prompt/tools.
+		// Manual compaction and provider-confirmed overflow recovery still need
+		// a working budget, so only those modes use the default.
+		if (effectiveMode === "auto" && modelMaxInputTokens === undefined) {
+			return undefined;
+		}
+		const rawMaxInputTokens = modelMaxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS;
 		// The char-based estimate under-counts dense content (disassembly, image
 		// dumps, minified sources). When the provider's actual count for the
 		// PREVIOUS request already exceeds our estimate for the (larger) current
