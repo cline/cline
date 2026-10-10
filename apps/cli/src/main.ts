@@ -12,6 +12,7 @@ import {
 	commanderToParsedArgs,
 	createProgram,
 } from "./commands/program";
+import { registerSessionCommand } from "./commands/session-command";
 import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
@@ -561,6 +562,15 @@ export async function runCli(): Promise<void> {
 		},
 		setStartupTarget: (target) => {
 			ctx.startupTarget = target;
+		},
+		isInteractiveTTY: () => isFullTTY,
+	});
+
+	registerSessionCommand({
+		program,
+		io,
+		setExitCode: (code) => {
+			ctx.exitCode = code;
 		},
 		isInteractiveTTY: () => isFullTTY,
 	});

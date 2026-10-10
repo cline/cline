@@ -815,6 +815,39 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
+	it("mirrors audit lines into the per-session hook log", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "hooks-audit-session-"));
+		const globalPath = join(dir, "global.jsonl");
+		const sessionPath = join(dir, "sess_1", "sess_1.hooks.jsonl");
+		const originalLogPath = process.env.CLINE_HOOKS_LOG_PATH;
+		process.env.CLINE_HOOKS_LOG_PATH = globalPath;
+		try {
+			const hooks = createHookAuditHooks({
+				workspacePath: "/workspace",
+				rootSessionId: "sess_1",
+				sessionLogPath: sessionPath,
+			});
+			await hooks.afterTool?.(afterToolContext());
+
+			const globalLog = await readFile(globalPath, "utf8");
+			const sessionLog = await readFile(sessionPath, "utf8");
+			expect(sessionLog).toBe(globalLog);
+			const [entry] = sessionLog
+				.trim()
+				.split("\n")
+				.map((line) => JSON.parse(line));
+			expect(entry.hookName).toBe("tool_result");
+			expect(entry.sessionContext.rootSessionId).toBe("sess_1");
+		} finally {
+			if (originalLogPath === undefined) {
+				delete process.env.CLINE_HOOKS_LOG_PATH;
+			} else {
+				process.env.CLINE_HOOKS_LOG_PATH = originalLogPath;
+			}
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("merges before-model controls across hook layers", async () => {
 		const hooks = mergeAgentHooks([
 			{
