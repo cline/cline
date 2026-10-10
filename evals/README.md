@@ -141,7 +141,7 @@ Contribute to [cline/cline-bench](https://github.com/cline/cline-bench)
 ## Resources
 
 - [cline-bench tasks](evals/cline-bench/README.md)
-- [Smoke test scenarios](evals/smoke-tests/README.md)
+- [Smoke test scenarios](smoke-tests/README.md)
 
 ## TODO
 
