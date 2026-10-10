@@ -70,6 +70,12 @@
 	[data-slot="window-title-bar-content-host"] {
 		padding-right: 9rem;
 	}
+
+	html[data-windows-custom-titlebar]
+		[data-slot="window-title-bar-content-host"]
+		> * {
+		border-bottom-color: transparent;
+	}
 }
 
 /* Mobile toasts start below the caption row so both close buttons remain reachable. */

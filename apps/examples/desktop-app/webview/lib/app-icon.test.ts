@@ -13,6 +13,7 @@ vi.mock("@/lib/desktop-client", () => ({
 
 import {
 	APP_ICON_STORAGE_KEY,
+	type AppIconId,
 	appIconAssetPath,
 	appIconSurface,
 	DEFAULT_APP_ICON,
@@ -23,6 +24,7 @@ import {
 } from "./app-icon";
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	window.localStorage.clear();
 	document.querySelector('link[rel="icon"]')?.remove();
 	invoke.mockReset();
@@ -46,7 +48,7 @@ describe("app icon", () => {
 	});
 
 	it.each([
-		["Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Taskbar"],
+		["Mozilla/5.0 (Windows NT 10.0; Win64; x64)", null],
 		["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "Dock"],
 		["Mozilla/5.0 (X11; Linux x86_64)", "desktop"],
 	])("names the app icon surface for %s", (userAgent, surface) => {
@@ -81,6 +83,37 @@ describe("app icon", () => {
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
 	});
 
+	it("applies rapid native selections in request order", async () => {
+		isTauriAvailable.mockReturnValue(true);
+		let finishClassic: () => void = () => undefined;
+		let finishChip: () => void = () => undefined;
+		invoke.mockImplementation(
+			(_command: string, { icon }: { icon: AppIconId }) =>
+				new Promise<void>((resolve) => {
+					if (icon === "classic") finishClassic = resolve;
+					if (icon === "chip") finishChip = resolve;
+				}),
+		);
+
+		const classic = setStoredAppIcon("classic");
+		const chip = setStoredAppIcon("chip");
+		await Promise.resolve();
+		expect(invoke).toHaveBeenCalledTimes(1);
+		expect(invoke).toHaveBeenLastCalledWith("set_app_icon", {
+			icon: "classic",
+		});
+
+		finishClassic();
+		await classic;
+		await Promise.resolve();
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(invoke).toHaveBeenLastCalledWith("set_app_icon", { icon: "chip" });
+
+		finishChip();
+		await chip;
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("chip");
+	});
+
 	it("does not persist a native selection that fails to apply", async () => {
 		isTauriAvailable.mockReturnValue(true);
 		invoke.mockRejectedValue(new Error("native update failed"));
@@ -108,5 +141,33 @@ describe("app icon", () => {
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "classic");
 		await syncAppIcon();
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "classic" });
+	});
+
+	it.each([
+		"classic",
+		"midnight",
+		"hologram",
+		"chip",
+		"sunrise",
+		"steel",
+		"bogus",
+	])("ignores the saved %s icon on Windows without changing storage or shell surfaces", async (savedIcon) => {
+		vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Windows NT 10.0");
+		isTauriAvailable.mockReturnValue(true);
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, savedIcon);
+		const favicon = document.createElement("link");
+		favicon.rel = "icon";
+		favicon.href = appIconAssetPath(DEFAULT_APP_ICON);
+		document.head.appendChild(favicon);
+
+		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
+		await syncAppIcon();
+		await setStoredAppIcon("classic");
+
+		expect(invoke).not.toHaveBeenCalled();
+		expect(favicon.getAttribute("href")).toBe(
+			appIconAssetPath(DEFAULT_APP_ICON),
+		);
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe(savedIcon);
 	});
 });

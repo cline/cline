@@ -24,6 +24,7 @@
 				"title": "Cline",
 				"width": 1500,
 				"height": 980,
+				"preventOverflow": true,
 				"resizable": true,
 				"titleBarStyle": "Overlay",
 				"hiddenTitle": true,
