@@ -141,6 +141,49 @@ describe("createTokenEstimator", () => {
 			Math.ceil(JSON.stringify(message).length / 3),
 		);
 	});
+
+	it("does not bill an image block's base64 payload at CHARS_PER_TOKEN", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const base64Data = "A".repeat(90_000);
+		const message: MessageWithMetadata = {
+			role: "user",
+			content: [{ type: "image", data: base64Data, mediaType: "image/png" }],
+		};
+
+		const naiveCharBasedEstimate = Math.ceil(base64Data.length / 3);
+		expect(estimateMessageTokens(message)).toBeLessThan(
+			naiveCharBasedEstimate / 10,
+		);
+	});
+
+	it("does not add a duplicate per-image bonus after JSON.stringify falls back", () => {
+		// A BigInt in the message's metadata makes the primary,
+		// replacer-driven JSON.stringify throw, so createTokenEstimator
+		// falls back to serializeMessage, which already renders images
+		// without base64 ("[User image]: mediaType"). The images the
+		// replacer counted before the throw must not still add
+		// ESTIMATED_TOKENS_PER_IMAGE on top of that fallback text.
+		const base64Data = "A".repeat(90_000);
+		const imageBlock = {
+			type: "image" as const,
+			data: base64Data,
+			mediaType: "image/png",
+		};
+		const buildMessage = (imageCount: number): MessageWithMetadata =>
+			({
+				role: "user",
+				content: Array.from({ length: imageCount }, () => imageBlock),
+				metadata: { broken: 1n },
+			}) as unknown as MessageWithMetadata;
+
+		const estimateMessageTokens = createTokenEstimator();
+		const oneImage = estimateMessageTokens(buildMessage(1));
+		const twoImages = estimateMessageTokens(buildMessage(2));
+
+		// serializeMessage's fallback text differs by only a short constant
+		// line per extra image, not another flat 1600-token bonus.
+		expect(twoImages - oneImage).toBeLessThan(50);
+	});
 });
 
 describe("resolveEffectiveMaxInputTokens", () => {
