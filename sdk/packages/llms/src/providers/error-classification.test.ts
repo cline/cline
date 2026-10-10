@@ -1,5 +1,6 @@
 import {
 	APICallError,
+	InvalidResponseDataError,
 	NoOutputGeneratedError,
 	RetryError,
 	TypeValidationError,
@@ -446,6 +447,17 @@ describe("isRetryableProviderError", () => {
 
 		it("retries OpenRouter's bare mid-stream 'Provider returned error' string", () => {
 			expect(isRetryableProviderError("Provider returned error")).toBe(true);
+		});
+
+		it("retries an openai-compatible stream that ended without a finish reason", () => {
+			expect(
+				isRetryableProviderError(
+					new InvalidResponseDataError({
+						data: undefined,
+						message: "Response stream ended without a finish reason.",
+					}),
+				),
+			).toBe(true);
 		});
 	});
 
