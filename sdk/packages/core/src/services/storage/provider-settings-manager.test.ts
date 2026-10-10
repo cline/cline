@@ -15,6 +15,32 @@ import { ProviderSettingsManager } from "./provider-settings-manager";
 describe("ProviderSettingsManager", () => {
 	const tempDirs: string[] = [];
 
+	it("round trips priority service tier independently of reasoning", () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), "core-provider-tier-"));
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		const settings = {
+			provider: "openai-codex",
+			serviceTier: "priority" as const,
+			reasoning: { enabled: false, effort: "none" as const },
+		};
+		manager.saveProviderSettings(settings);
+		const reloaded = new ProviderSettingsManager({ filePath });
+		expect(reloaded.getProviderSettings("openai-codex")).toMatchObject(
+			settings,
+		);
+		manager.saveProviderSettings({
+			provider: "openai-codex",
+			reasoning: settings.reasoning,
+		});
+		expect(
+			new ProviderSettingsManager({ filePath }).getProviderSettings(
+				"openai-codex",
+			)?.serviceTier,
+		).toBeUndefined();
+	});
+
 	afterEach(() => {
 		LlmsModels.resetRegistry();
 		for (const dir of tempDirs.splice(0)) {

@@ -1068,6 +1068,7 @@ export async function runCli(): Promise<void> {
 			verbose: args.verbose,
 			thinking: resolvedReasoning.thinking,
 			reasoningEffort: resolvedReasoning.reasoningEffort,
+			serviceTier: selectedProviderSettings?.serviceTier,
 			outputMode: args.outputMode,
 			mode: effectiveMode,
 			logger: loggerAdapter.core,
