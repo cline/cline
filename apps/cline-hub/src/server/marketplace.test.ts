@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SKILLS_CLI_PACKAGE } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildMarketplaceMcpInput,
@@ -171,7 +172,7 @@ describe("marketplace installer", () => {
 
 		expect(spawnCommand).toHaveBeenCalledWith("npx", [
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"add",
 			"vercel-labs/agent-skills",
 			"--skill",
@@ -314,7 +315,7 @@ describe("marketplace installer", () => {
 		});
 		expect(spawnCommand).toHaveBeenCalledWith("npx", [
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"remove",
 			"cline-sdk",
 			"-g",

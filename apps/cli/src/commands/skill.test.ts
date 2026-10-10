@@ -1,15 +1,20 @@
+import { SKILLS_CLI_PACKAGE } from "@cline/core";
 import { describe, expect, it } from "vitest";
 import { buildSkillsArgs } from "./skill";
 
 describe("buildSkillsArgs", () => {
 	it("runs the skills package through npx with -y", () => {
-		expect(buildSkillsArgs(["list"])).toEqual(["-y", "skills@latest", "list"]);
+		expect(buildSkillsArgs(["list"])).toEqual([
+			"-y",
+			SKILLS_CLI_PACKAGE,
+			"list",
+		]);
 	});
 
 	it("injects --agent cline for install-style subcommands", () => {
 		expect(buildSkillsArgs(["install", "owner/repo"])).toEqual([
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"add",
 			"owner/repo",
 			"--agent",
@@ -23,7 +28,7 @@ describe("buildSkillsArgs", () => {
 	it("aliases uninstall to the skills remove subcommand", () => {
 		expect(buildSkillsArgs(["uninstall", "my-skill"])).toEqual([
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"remove",
 			"my-skill",
 			"--agent",
@@ -48,7 +53,7 @@ describe("buildSkillsArgs", () => {
 			buildSkillsArgs(["--agent", "cursor", "install", "owner/repo"]),
 		).toEqual([
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"--agent",
 			"cursor",
 			"add",
@@ -56,7 +61,13 @@ describe("buildSkillsArgs", () => {
 		]);
 		expect(
 			buildSkillsArgs(["--agent=cursor", "uninstall", "my-skill"]),
-		).toEqual(["-y", "skills@latest", "--agent=cursor", "remove", "my-skill"]);
+		).toEqual([
+			"-y",
+			SKILLS_CLI_PACKAGE,
+			"--agent=cursor",
+			"remove",
+			"my-skill",
+		]);
 	});
 
 	it("does not scope non-install subcommands to cline", () => {
@@ -67,7 +78,7 @@ describe("buildSkillsArgs", () => {
 	it("scopes remove-style subcommands to cline", () => {
 		expect(buildSkillsArgs(["remove"])).toEqual([
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"remove",
 			"--agent",
 			"cline",
@@ -83,6 +94,6 @@ describe("buildSkillsArgs", () => {
 	});
 
 	it("forwards an empty arg list unchanged", () => {
-		expect(buildSkillsArgs([])).toEqual(["-y", "skills@latest"]);
+		expect(buildSkillsArgs([])).toEqual(["-y", SKILLS_CLI_PACKAGE]);
 	});
 });

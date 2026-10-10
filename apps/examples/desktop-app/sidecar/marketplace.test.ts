@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installPlugin } from "@cline/core";
+import { installPlugin, SKILLS_CLI_PACKAGE } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getOfficialPluginInstallPath,
@@ -229,7 +229,7 @@ describe("skill install failures", () => {
 		);
 		expect(spawnCommand).toHaveBeenCalledWith("npx", [
 			"-y",
-			"skills@latest",
+			SKILLS_CLI_PACKAGE,
 			"add",
 			"https://github.com/cline/skills.git",
 			"-g",

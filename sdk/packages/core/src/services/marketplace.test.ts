@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { uninstallMarketplaceEntry } from "./marketplace";
+import { SKILLS_CLI_PACKAGE } from "./skills-cli";
 
 describe("marketplace service", () => {
 	let root = "";
@@ -114,7 +115,7 @@ describe("marketplace service", () => {
 		expect(calls).toEqual([
 			{
 				command: "npx",
-				args: ["-y", "skills@latest", "remove", "review-team", "-g", "-y"],
+				args: ["-y", SKILLS_CLI_PACKAGE, "remove", "review-team", "-g", "-y"],
 			},
 		]);
 		expect(existsSync(skillDir)).toBe(false);
