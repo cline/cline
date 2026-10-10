@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type {
@@ -222,12 +222,35 @@ export function derivePluginNameFromPath(pluginPath: string): string {
 	return derivePluginName(absolute, resolveAttributionRoot(absolute));
 }
 
+/**
+ * Windows stack frames may spell a path differently from how it was
+ * configured (case, separators, 8.3 short names such as `RUNNER~1`), so
+ * compare a normalized form there.
+ */
+function normalizeStackPath(value: string): string {
+	return process.platform === "win32"
+		? value.replace(/\\/g, "/").toLowerCase()
+		: value;
+}
+
 function stackMentionsPath(stack: string, root: string): boolean {
-	const candidates = [root, pathToFileURL(root).href];
+	const roots = new Set([root]);
+	try {
+		// Module resolution follows symlinks and expands short names, so the
+		// stack may name the real path rather than the configured one.
+		roots.add(realpathSync.native(root));
+	} catch {
+		// A missing root can only match by its configured spelling.
+	}
+	const haystack = normalizeStackPath(stack);
+	const candidates = [...roots].flatMap((candidate) => [
+		normalizeStackPath(candidate),
+		normalizeStackPath(pathToFileURL(candidate).href),
+	]);
 	return candidates.some((candidate) => {
-		let index = stack.indexOf(candidate);
+		let index = haystack.indexOf(candidate);
 		while (index !== -1) {
-			const next = stack[index + candidate.length];
+			const next = haystack[index + candidate.length];
 			// Require a boundary so /plugins/foo does not match /plugins/foobar.
 			if (
 				next === undefined ||
@@ -240,7 +263,7 @@ function stackMentionsPath(stack: string, root: string): boolean {
 			) {
 				return true;
 			}
-			index = stack.indexOf(candidate, index + 1);
+			index = haystack.indexOf(candidate, index + 1);
 		}
 		return false;
 	});

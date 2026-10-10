@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -526,6 +527,21 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 			},
 		});
 		expect(registry.get(other)[0]?.state).toBe("ready");
+	});
+
+	it("attributes a stray error whose stack names the plugin's real path", async () => {
+		const realDir = join(root, "real");
+		const linkDir = join(root, "link");
+		await mkdir(realDir);
+		// A junction works without elevated rights on Windows.
+		await symlink(realDir, linkDir, "junction");
+		await writeFile(join(realDir, "linked.js"), toolPlugin("linked"), "utf8");
+		const viaLink = join(linkDir, "linked.js");
+		await registry.loadForSession({ pluginPaths: [viaLink] });
+
+		const error = new Error("from the real path");
+		error.stack = `Error: from the real path\n    at run (${realpathSync(viaLink)}:3:5)`;
+		expect(registry.attributeUncaughtError(error)?.name).toBe("linked");
 	});
 
 	it("reloads a plugin after it is fixed", async () => {
