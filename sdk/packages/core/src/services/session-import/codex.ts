@@ -74,11 +74,26 @@ function isInjectedUserContext(text: string): boolean {
 		trimmed.startsWith("<ENVIRONMENT_CONTEXT>") ||
 		trimmed.startsWith("<turn_aborted>") ||
 		trimmed.startsWith("# AGENTS.md instructions") ||
-		trimmed.startsWith("<INSTRUCTIONS>")
+		trimmed.startsWith("<INSTRUCTIONS>") ||
+		trimmed.startsWith("<recommended_plugins>")
 	);
 }
 
+/** Clean display metadata only; imported conversation text stays verbatim. */
+function userTextForDisplay(text: string | undefined): string | undefined {
+	if (text === undefined) return undefined;
+	const trimmed = text.trim();
+	const envelope = /^<user_input\b[^>]*>([\s\S]*?)<\/user_input>$/.exec(
+		trimmed,
+	);
+	return (envelope?.[1] ?? trimmed)
+		.replace(/^(?:\[external unsupported block:[^\]]*\]\s*)+/, "")
+		.trim();
+}
+
 interface CodexFileMeta {
+	/** Guardian and spawned-agent rollouts are not top-level conversations. */
+	isSubagent?: boolean;
 	sessionId?: string;
 	cwd: string;
 	gitBranch?: string;
@@ -100,6 +115,8 @@ function scanFileMeta(raw: string): CodexFileMeta {
 		fallbackUserCount: 0,
 		assistantEventCount: 0,
 	};
+	let firstEventText: string | undefined;
+	let firstFallbackText: string | undefined;
 	for (const rawLine of raw.split("\n")) {
 		const line = parseLine(rawLine);
 		if (!line?.payload) continue;
@@ -110,6 +127,11 @@ function scanFileMeta(raw: string): CodexFileMeta {
 		}
 		const payload = line.payload;
 		if (line.type === "session_meta") {
+			// Codex persists guardian and thread_spawn sessions beside user rollouts.
+			// Use provenance rather than their prompts to distinguish them.
+			if (isRecord(payload.source) && "subagent" in payload.source) {
+				meta.isSubagent = true;
+			}
 			if (typeof payload.id === "string") meta.sessionId = payload.id;
 			if (typeof payload.cwd === "string") meta.cwd = payload.cwd;
 			const git = isRecord(payload.git) ? payload.git : undefined;
@@ -125,7 +147,7 @@ function scanFileMeta(raw: string): CodexFileMeta {
 			const text = typeof payload.message === "string" ? payload.message : "";
 			if (text.trim()) {
 				meta.userMessageCount++;
-				meta.firstUserText = meta.firstUserText ?? text;
+				firstEventText ??= text;
 			}
 			continue;
 		}
@@ -136,11 +158,13 @@ function scanFileMeta(raw: string): CodexFileMeta {
 				const text = messageText(payload);
 				if (text.trim() && !isInjectedUserContext(text)) {
 					meta.fallbackUserCount++;
-					meta.firstUserText = meta.firstUserText ?? text;
+					firstFallbackText ??= text;
 				}
 			}
 		}
 	}
+	// Match convert(): event prompts take precedence over response-item fallback.
+	meta.firstUserText = userTextForDisplay(firstEventText ?? firstFallbackText);
 	return meta;
 }
 
@@ -242,7 +266,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 			try {
 				const meta = scanFileMeta(readFileSync(file, "utf8"));
 				const userCount = meta.userMessageCount || meta.fallbackUserCount;
-				if (!meta.sessionId || userCount === 0) continue;
+				if (!meta.sessionId || meta.isSubagent || userCount === 0) continue;
 				const candidate = { file, meta };
 				const current = best.get(meta.sessionId);
 				if (!current || CodexImportAdapter.pickRicherFile(current, candidate)) {
