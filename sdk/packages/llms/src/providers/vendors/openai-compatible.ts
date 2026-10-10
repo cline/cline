@@ -11,6 +11,7 @@ import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import { isOpenAIReasoningEraModelId } from "../model-facts";
+import { mapMimoReasoningEffortInRequestBody } from "../routing/mimo-reasoning-effort";
 import type { ProviderFactoryResult } from "./types";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -247,7 +248,11 @@ export async function createOpenAICompatibleProviderModule(
 		...(config.headers ? { headers: config.headers } : {}),
 		...(providerFetch ? { fetch: providerFetch } : {}),
 		includeUsage: true,
-		transformRequestBody: withMaxCompletionTokensForReasoningModels,
+		transformRequestBody: (body: Record<string, unknown>) =>
+			mapMimoReasoningEffortInRequestBody(
+				withMaxCompletionTokensForReasoningModels(body),
+				context,
+			),
 	} as never);
 	const useOpenRouterImageTransport =
 		context.provider.metadata?.imageTransport === "openrouter" &&
