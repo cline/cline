@@ -91,6 +91,13 @@ export interface OpenTelemetryClientConfig {
 	 * Maximum queue size for log records (default: 2048)
 	 */
 	logMaxQueueSize?: number
+
+	/**
+	 * Additional resource attributes to include in the OTEL Resource.
+	 * Parsed from CLINE_OTEL_RESOURCE_ATTRIBUTES (comma-separated key=value pairs).
+	 * Example: "deployment.environment=production,team=backend"
+	 */
+	resourceAttributes?: Record<string, string>
 }
 
 /**
@@ -170,6 +177,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  * - CLINE_OTEL_LOG_BATCH_SIZE: Maximum batch size for log records (default: 512)
  * - CLINE_OTEL_LOG_BATCH_TIMEOUT: Maximum time to wait before exporting logs in ms (default: 5000)
  * - CLINE_OTEL_LOG_MAX_QUEUE_SIZE: Maximum queue size for log records (default: 2048)
+ * - CLINE_OTEL_RESOURCE_ATTRIBUTES: Comma-separated resource attribute key=value pairs (e.g., "deployment.environment=prod,team=backend")
  *
  * @private
  * @see .env.example for development setup
@@ -202,6 +210,9 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 			: undefined,
 		otlpHeaders: process.env.CLINE_OTEL_EXPORTER_OTLP_HEADERS
 			? parseKeyPairsIntoRecord(process.env.CLINE_OTEL_EXPORTER_OTLP_HEADERS)
+			: undefined,
+		resourceAttributes: process.env.CLINE_OTEL_RESOURCE_ATTRIBUTES
+			? parseKeyPairsIntoRecord(process.env.CLINE_OTEL_RESOURCE_ATTRIBUTES)
 			: undefined,
 	}
 }
