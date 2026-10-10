@@ -25,6 +25,7 @@ describe("default tool presets", () => {
 	it("disables search and web fetch in yolo mode", () => {
 		expect(ToolPresets.yolo.enableSearch).toBe(false);
 		expect(ToolPresets.yolo.enableWebFetch).toBe(false);
+		expect(ToolPresets.yolo.enableMonitor).toBe(false);
 	});
 
 	it("keeps shell access enabled in plan mode", () => {
@@ -35,7 +36,7 @@ describe("default tool presets", () => {
 		expect(ToolPresets.plan.enableEditor).toBe(false);
 	});
 
-	it("yolo preset excludes ask_question even when its executor exists", () => {
+	it("yolo preset excludes interactive and background tools", () => {
 		const tools = createDefaultToolsWithPreset("yolo", {
 			executors: {
 				readFile: async () => "ok",
@@ -54,6 +55,14 @@ describe("default tool presets", () => {
 			"run_commands",
 			"editor",
 		]);
+	});
+
+	it("omits monitor when the preset enables it but no registry exists", () => {
+		const tools = createDefaultToolsWithPreset("act", {
+			executors: { readFile: async () => "ok", bash: async () => "ok" },
+		});
+
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});
 });
 
