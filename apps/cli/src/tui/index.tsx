@@ -11,10 +11,12 @@ export type { TuiProps } from "./types";
 export async function renderOpenTui(
 	props: TuiProps,
 ): Promise<{ destroy: () => void; waitUntilExit: () => Promise<void> }> {
+	const useMouse = props.mouse !== false && props.config?.mouse !== false;
 	const renderer = await createCliRenderer({
 		exitOnCtrlC: false,
 		autoFocus: false,
-		enableMouseMovement: true,
+		useMouse,
+		enableMouseMovement: useMouse,
 	});
 	const restoreStdio = installTuiStdioCapture();
 

@@ -430,9 +430,27 @@ renderer.keyInput.on("paste", (event: PasteEvent) => {
 })
 ```
 
+### React
+
+React provides a dedicated `usePaste` hook:
+
+```tsx
+import { usePaste } from "@opentui/react"
+import { decodePasteBytes } from "@opentui/core"
+
+function App() {
+  usePaste((event) => {
+    const text = decodePasteBytes(event.bytes)
+    console.log("Pasted:", text)
+  })
+
+  return <text>Paste something</text>
+}
+```
+
 ### Solid
 
-Solid provides a dedicated `usePaste` hook:
+Solid provides the same `usePaste` hook:
 
 ```tsx
 import { usePaste } from "@opentui/solid"
@@ -448,7 +466,7 @@ function App() {
 }
 ```
 
-> **Note**: `usePaste` is **Solid-only**. React does not have this hook - handle paste via the Core event emitter or input component's `onChange`.
+> **Note**: `usePaste` is available in both React (`@opentui/react`) and Solid (`@opentui/solid`). It subscribes to the renderer's `keyInput.on("paste", ...)` and receives a `PasteEvent` with raw `bytes`.
 
 ## Text Selection
 
@@ -504,7 +522,7 @@ function App() {
 }
 ```
 
-> **Note**: `useSelectionHandler` is **Solid-only**. React does not have this hook -- use the Core `renderer.on("selection", ...)` event.
+> **Note**: `useSelectionHandler` is available in both React (`@opentui/react`) and Solid (`@opentui/solid`). You can also subscribe via the Core `renderer.on("selection", ...)` event directly.
 
 ### Selection Object
 

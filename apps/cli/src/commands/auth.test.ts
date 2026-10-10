@@ -32,6 +32,21 @@ describe("parseAuthCommandArgs", () => {
 			azureApiVersion: "2025-01-01-preview",
 		});
 	});
+
+	it("reports mouse as false when --no-mouse is supplied", () => {
+		expect(parseAuthCommandArgs(["--no-mouse"])).toMatchObject({
+			mouse: false,
+		});
+	});
+
+	it("leaves mouse undefined when --no-mouse is absent so env vars still apply", () => {
+		// Commander defaults a negatable `--no-mouse` option to `true`. Reporting
+		// that default would clobber the CLINE_NO_MOUSE / CLINE_MOUSE fallback in
+		// the auth TUI, so the parsed value must stay undefined.
+		expect(
+			parseAuthCommandArgs(["--provider", "anthropic"]).mouse,
+		).toBeUndefined();
+	});
 });
 
 describe("saveOAuthProviderSettings", () => {
