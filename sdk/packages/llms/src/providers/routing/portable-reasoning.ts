@@ -86,9 +86,10 @@ const LOWEST_LEVEL_DISABLE_ADAPTERS = new Set<AiSdkProviderOptionsTarget>([
 ]);
 
 /**
- * Fit a disable to what the model accepts: "none" when it can turn reasoning
- * off, otherwise its lowest advertised effort. A model the catalog does not
- * describe keeps "none", except on adapters that would guess a level for it.
+ * Send a disable only to models that accept one: "none" when the catalog
+ * advertises an off option (`none` or a toggle), and nothing when it does not,
+ * so the model keeps its default. A model the catalog does not describe keeps
+ * "none", except on adapters that would guess a level for it.
  */
 function fitDisableToModel(
 	wire: PortableReasoningWire,
@@ -101,11 +102,7 @@ function fitDisableToModel(
 			? undefined
 			: "none";
 	}
-	if (controls.supportsOff) {
-		return "none";
-	}
-	const lowest = controls.efforts[0];
-	return lowest ? toPortableLevel(lowest) : undefined;
+	return controls.supportsOff ? "none" : undefined;
 }
 
 /**

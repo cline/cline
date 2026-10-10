@@ -126,12 +126,12 @@ describe("Gemini thinking wire contract", () => {
 		});
 	});
 
-	it("disables thinking at the lowest level the model advertises", async () => {
+	it("sends no thinking level when the model advertises no off option", async () => {
 		const config = await generationConfig({
 			...LEVEL_MODEL,
 			reasoning: { enabled: false },
 		});
-		expect(config.thinkingConfig).toEqual({ thinkingLevel: "low" });
+		expect(config).not.toHaveProperty("thinkingConfig");
 	});
 
 	it("leaves an unlisted model's thinking level alone when disabling", async () => {

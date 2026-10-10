@@ -13,8 +13,8 @@
 //      portable reasoning setting;
 //   3. models the catalog does not describe get the requested level as-is;
 //   4. disabling reasoning sends `none`, since default-on reasoning models
-//      otherwise keep thinking, except to models known not to reason; a model
-//      that cannot turn reasoning off gets its lowest advertised level.
+//      otherwise keep thinking, except to models known not to reason and
+//      models whose catalog advertises no off option.
 import type {
 	GatewayStreamRequest,
 	ModelInfo,
@@ -167,13 +167,13 @@ describe("OpenAI-compatible reasoning disable wire contract", () => {
 		expect(body.reasoning_effort).toBe("none");
 	});
 
-	it("sends the lowest advertised level to a model that cannot turn off", async () => {
+	it("sends nothing to a model whose catalog has no off option", async () => {
 		const body = await wireBody({
 			modelId: KIMI_K3_ID,
 			reasoning: { enabled: false },
 			reasoningOptions: KIMI_K3_EFFORTS,
 		});
-		expect(body.reasoning_effort).toBe("low");
+		expect(body).not.toHaveProperty("reasoning_effort");
 	});
 
 	it("sends nothing to a model known not to reason", async () => {

@@ -222,12 +222,12 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 		).toBe("medium");
 	});
 
-	it("fits a disable to the lowest level a model that cannot turn off accepts", () => {
+	it("sends no disable to a model whose catalog has no off option", () => {
 		expect(
 			resolvePortableReasoning(
 				request({ enabled: false }),
 				wire("openai-compatible", kimiK3),
 			),
-		).toBe("low");
+		).toBeUndefined();
 	});
 });
