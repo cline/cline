@@ -105,6 +105,23 @@ async function generateSummary(options: {
 	return { text: text.trim(), reasoningChars, incompleteReason };
 }
 
+/**
+ * The summarizer disables reasoning to keep compaction cheap, but some
+ * endpoints make reasoning mandatory and reject an explicit disable (#14551).
+ * Model metadata does not reliably say which ones do, so recognize the
+ * rejection and let the caller retry once without the disable.
+ */
+function isReasoningDisableRejection(
+	providerConfig: ProviderConfig,
+	error: unknown,
+): error is Error {
+	return (
+		providerConfig.thinking === false &&
+		error instanceof Error &&
+		/reasoning|thinking/i.test(error.message)
+	);
+}
+
 function safeJsonSize(value: unknown): number {
 	try {
 		return JSON.stringify(value).length;
@@ -254,6 +271,26 @@ export async function runAgenticCompaction(options: {
 		providerConfig: summarizerProviderConfig,
 		request: summaryRequest,
 		logger: options.logger,
+	}).catch((error: unknown) => {
+		if (!isReasoningDisableRejection(summarizerProviderConfig, error)) {
+			throw error;
+		}
+		options.logger?.log(
+			"Summarizer rejected disabled reasoning; retrying with the model's reasoning default",
+			{
+				severity: "warn",
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				errorMessage: error.message,
+			},
+		);
+		const { thinking: _thinking, ...retryProviderConfig } =
+			summarizerProviderConfig;
+		return generateSummary({
+			providerConfig: retryProviderConfig,
+			request: summaryRequest,
+			logger: options.logger,
+		});
 	});
 	const rawSummary = summaryResult.text;
 	if (!rawSummary) {
