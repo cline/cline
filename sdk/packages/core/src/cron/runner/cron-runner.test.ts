@@ -466,7 +466,12 @@ describe("CronRunner", () => {
 	it("marks runs failed when the agent turn finishes with an error", async () => {
 		const { handlers, calls } = fakeHandlers();
 		handlers.sendSession = async () => ({
-			result: { text: "model not found", finishReason: "error" },
+			result: {
+				text: "model not found",
+				finishReason: "error",
+				usage: { inputTokens: 11, outputTokens: 0 },
+				toolCalls: [{ name: "read_file", durationMs: 1 }],
+			},
 		});
 		const upserted = store.upsertSpec({
 			externalId: "retired-model",
@@ -499,6 +504,9 @@ describe("CronRunner", () => {
 		expect(run.status).toBe("failed");
 		expect(run.error).toBe("model not found");
 		expect(calls.stop).toBe(1);
+		const report = readFileSync(requireValue(run.reportPath), "utf8");
+		expect(report).toContain("- Input tokens: 11");
+		expect(report).toContain("- read_file");
 	});
 
 	it("executes queued event runs with trigger context and report provenance", async () => {

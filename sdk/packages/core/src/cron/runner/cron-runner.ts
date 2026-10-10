@@ -390,6 +390,7 @@ export class CronRunner {
 		}
 
 		let phase = "preparing the session request";
+		let result: HubTurnResult | undefined;
 		try {
 			releaseLeaseHeartbeat = this.startClaimLeaseHeartbeat(claim);
 			const startRequest = await withCancellation(
@@ -438,7 +439,7 @@ export class CronRunner {
 			);
 			const sendResult = await withCancellation(sendPromise, signal);
 			checkActive();
-			const result = sendResult.result as HubTurnResult;
+			result = sendResult.result as HubTurnResult;
 			// Provider failures (e.g. a retired model id) resolve the turn with an
 			// error finish instead of throwing.
 			if (result.finishReason === "error") {
@@ -527,6 +528,8 @@ export class CronRunner {
 				data: {
 					error: message,
 					errorContext,
+					usage: result?.usage,
+					toolCalls: result?.toolCalls,
 					durationMs: endMs - startMs,
 					triggerEvent,
 				},
