@@ -2067,9 +2067,8 @@ describe("translateSessionEvent — agent_event notice", () => {
 
 	it("closes interrupted text and reasoning rows before a provider retry notice", () => {
 		const state = new MessageTranslatorState()
-		const agentEvent = (event: Record<string, unknown>) =>
-			translateSessionEvent({ type: "agent_event", payload: { sessionId: "session-1", event: event as AgentEvent } }, state)
-				.messages
+		const agentEvent = (event: AgentEvent) =>
+			translateSessionEvent({ type: "agent_event", payload: { sessionId: "session-1", event } }, state).messages
 
 		const [failedReasoning] = agentEvent({ type: "content_start", contentType: "reasoning", reasoning: "partial thought" })
 		const [failedText] = agentEvent({
