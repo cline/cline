@@ -1,0 +1,71 @@
+---
+title: "ACP Editor Integrations"
+sidebarTitle: "ACP Editor Integrations"
+description: "Integrate Cline CLI with editors using Agent Client Protocol (ACP) mode."
+---
+
+<Warning>
+  This feature currently only applies to Cline CLI.
+</Warning>
+
+ACP (Agent Client Protocol) lets Cline CLI run as a backend that editors can connect to. Instead of using an extension, your editor communicates with Cline through the protocol, sending prompts and receiving responses in real time.
+
+## Supported Editors
+
+Cline works across all major editors via ACP mode:
+
+| Editor | Status |
+|--------|--------|
+| VS Code | Native extension also available |
+| Cursor | Native extension also available |
+| Windsurf | Native extension also available |
+| JetBrains (IntelliJ, PyCharm, WebStorm) | Native plugin also available |
+| Antigravity | Native extension also available |
+| Zed | Native extension also available |
+| Neovim | Via ACP mode |
+
+For editors without native extensions (like Neovim), ACP mode is the primary way to use Cline.
+
+## Quick Start
+
+Run Cline CLI in ACP mode with the `--acp` flag:
+
+```bash
+cline --acp
+```
+
+This starts Cline in protocol mode, where it listens for incoming requests from your editor. The agent initializes and waits for prompts through the ACP transport.
+
+## How It Works
+
+The ACP protocol uses a client-server model:
+
+1. **Cline CLI** runs as the backend (server) with `--acp`
+2. **Your editor** connects as the client via an ACP adapter
+3. **Prompts** flow from the editor to Cline
+4. **Responses** (text, tool calls, diffs) flow back to the editor
+
+This architecture lets any editor integrate with Cline by implementing the ACP adapter, without needing a full extension.
+
+## Combining with Other Flags
+
+ACP mode works alongside other CLI options:
+
+```bash
+# With a specific model
+cline --acp -m anthropic/claude-sonnet-4-6
+
+# In plan mode
+cline --acp -p
+
+# With verbose output
+cline --acp -v
+
+# With a specific working directory
+cline --acp -c /path/to/project
+```
+
+## See Also
+
+- [CLI Reference](/cli/cli-reference) — Full list of flags and commands
+- [CLI Overview](/usage/cli-overview) — Getting started with the CLI
