@@ -30,7 +30,11 @@ export function parseCompactionNoticeMetadata(
 		return undefined;
 	}
 	const kind = metadata.kind ?? metadata.reason;
-	if (kind !== "auto_compaction" && kind !== "manual_compaction") {
+	if (
+		kind !== "auto_compaction" &&
+		kind !== "manual_compaction" &&
+		kind !== "overflow_recovery_compaction"
+	) {
 		return undefined;
 	}
 	const compactionMode = kind === "manual_compaction" ? "manual" : "auto";
