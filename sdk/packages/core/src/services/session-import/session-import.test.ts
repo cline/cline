@@ -534,9 +534,10 @@ describe("CodexImportAdapter", () => {
 // ---------------------------------------------------------------------------
 
 /**
- * `endsWithTool` adds a second assistant row whose last part is a tool call.
- * opencode stores the tool result on that part, so such a row ends with no
- * trailing text of its own.
+ * `endsWithTool` adds a second assistant row that ends on a tool call: opencode
+ * closes such a turn with a `step-finish` part, so the row has no content part
+ * after the tool and the trailing `flushAssistant(true)` has nothing to attach
+ * the row's usage to.
  */
 function writeOpencodeFixture(dataDir: string, endsWithTool = false): void {
 	mkdirSync(dataDir, { recursive: true });
@@ -694,6 +695,18 @@ function writeOpencodeFixture(dataDir: string, endsWithTool = false): void {
 					input: { command: "bun run build" },
 					output: "ok",
 				},
+			}),
+		);
+		insertPart.run(
+			"prt_8",
+			"msg_3",
+			"ses_1",
+			t0,
+			t0,
+			JSON.stringify({
+				type: "step-finish",
+				reason: "tool-calls",
+				tokens: { input: 900, output: 40, cache: { read: 200, write: 10 } },
 			}),
 		);
 	}
