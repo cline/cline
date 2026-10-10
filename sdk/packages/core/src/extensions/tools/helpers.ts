@@ -59,6 +59,8 @@ export function withTimeout<T>(
 }
 
 export function formatReadFileQuery(request: ReadFileRequest): string {
+	if (request.start_offset != null)
+		return `${request.path}@${request.start_offset}`;
 	const { path, start_line, end_line } = request;
 	if (start_line == null && end_line == null) {
 		return path;
@@ -69,6 +71,12 @@ export function formatReadFileQuery(request: ReadFileRequest): string {
 }
 
 export function getReadFileRangeError(request: ReadFileRequest): string | null {
+	if (
+		request.start_offset != null &&
+		(request.start_line != null || request.end_line != null)
+	) {
+		return "start_offset cannot be combined with start_line/end_line";
+	}
 	const { start_line, end_line } = request;
 	if (start_line == null || end_line == null || start_line <= end_line) {
 		return null;
@@ -77,7 +85,7 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 	return `start_line must be less than or equal to end_line (received start_line: ${start_line}, end_line: ${end_line})`;
 }
 
-const READ_RANGE_KEYS = new Set(["start_line", "end_line"]);
+const READ_RANGE_KEYS = new Set(["start_line", "end_line", "start_offset"]);
 
 function isOrphanReadRangeEntry(
 	value: unknown,

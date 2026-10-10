@@ -46,9 +46,19 @@ export const ReadFileRequestSchema = z
 		path: AbsolutePath,
 		start_line: ReadFileLineRangeSchema.shape.start_line,
 		end_line: ReadFileLineRangeSchema.shape.end_line,
+		start_offset: z.coerce
+			.number()
+			.int()
+			.safe()
+			.nonnegative()
+			.nullable()
+			.optional()
+			.describe(
+				"Zero-based UTF-16 character offset. Continue with next_offset while has_more is true.",
+			),
 	})
 	.describe(
-		"A file read request with optional inclusive one-based line bounds. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
+		"A file read request. Include path and any bounds in the same object.",
 	);
 
 /**
@@ -58,11 +68,12 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Files to read. Each entry must include path and any bounds in the same object; never provide bounds as a separate entry.",
 		),
 });
 
 const ReadFileRangeAliasFields = {
+	start_offset: ReadFileRequestSchema.shape.start_offset,
 	start_line: ReadFileLineRangeSchema.shape.start_line,
 	end_line: ReadFileLineRangeSchema.shape.end_line,
 };
