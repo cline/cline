@@ -1,9 +1,33 @@
-import type {
-	ClineRecommendedModel,
-	ClineRecommendedModelsData,
+import {
+	type ClineRecommendedModel,
+	type ClineRecommendedModelsData,
+	Llms,
 } from "@cline/core";
 
 export type ClineModelPickerTier = "recommended" | "subscribed" | "free";
+
+export function findFeaturedModelOption<T extends { key: string }>(
+	models: readonly T[],
+	modelId: string,
+): T | undefined {
+	const exact = models.find((model) => model.key === modelId);
+	if (exact) return exact;
+
+	// Resolve capability metadata without changing the feed's routed model ID.
+	for (const rule of Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES) {
+		let alternateId: string | undefined;
+		if (modelId.startsWith(rule.aliasPrefix)) {
+			alternateId = `${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`;
+		} else if (modelId.startsWith(rule.canonicalPrefix)) {
+			alternateId = `${rule.aliasPrefix}${modelId.slice(rule.canonicalPrefix.length)}`;
+		}
+		if (alternateId) {
+			const alternate = models.find((model) => model.key === alternateId);
+			if (alternate) return alternate;
+		}
+	}
+	return undefined;
+}
 
 export interface ClineModelPickerItem {
 	kind: "model";
