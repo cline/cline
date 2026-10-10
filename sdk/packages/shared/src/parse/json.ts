@@ -102,15 +102,19 @@ export function parseJsonStream(input: unknown): unknown {
 }
 
 export function safeJsonStringify(input: unknown): string {
-	const seen = new WeakSet<object>();
+	const ancestors: object[] = [];
 
 	try {
-		const result = JSON.stringify(input, (_key, value) => {
+		const result = JSON.stringify(input, function (this: unknown, _key, value) {
 			if (typeof value === "bigint") return value.toString();
 
 			if (value && typeof value === "object") {
-				if (seen.has(value as object)) return "[Circular]";
-				seen.add(value as object);
+				// Only ancestors form a cycle; siblings may share the same object.
+				while (ancestors.length > 0 && ancestors.at(-1) !== this) {
+					ancestors.pop();
+				}
+				if (ancestors.includes(value)) return "[Circular]";
+				ancestors.push(value);
 			}
 
 			return value;
