@@ -847,6 +847,111 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(4);
 	});
 
+	it.each<{ content: string; events: AgentModelEvent[] }>([
+		{
+			content: "reasoning-only",
+			events: [{ type: "reasoning-delta", text: "thinking... cut mid-wo" }],
+		},
+		{
+			content: "whitespace-only text",
+			events: [{ type: "text-delta", text: "  \n" }],
+		},
+	])("nudges a $content turn instead of completing the run", async ({
+		events,
+	}) => {
+		const model = new ScriptedModel([
+			() => [...events, { type: "finish", reason: "stop" }],
+			() => [
+				{ type: "text-delta", text: "Here is the answer." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+		const notices: Array<{ message: string; metadata?: unknown }> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				notices.push({ message: event.message, metadata: event.metadata });
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Here is the answer.");
+		expect(model.requests).toHaveLength(2);
+		// user, empty assistant turn, nudge, answer
+		expect(result.messages.map((m) => m.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(result.messages[2]?.metadata).toMatchObject({ userRunSpan: 0 });
+		expect(JSON.stringify(model.requests[1]?.messages.at(-1))).toContain(
+			"without a visible response or tool call",
+		);
+		expect(notices).toMatchObject([
+			{
+				message: expect.stringContaining("attempt 1/3"),
+				metadata: { kind: "empty_turn_recovery", attempt: 1, maxRetries: 3 },
+			},
+		]);
+	});
+
+	it("fails once repeated empty turns exhaust recovery", async () => {
+		const empty = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{ type: "finish" as const, reason: "stop" as const },
+		];
+		// Initial attempt + 3 nudged retries all empty = 4 requests, then fail.
+		const model = new ScriptedModel([empty, empty, empty, empty]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("no visible response or tool call");
+		expect(model.requests).toHaveLength(4);
+	});
+
+	it("resets the empty-turn streak once the model makes a tool call", async () => {
+		const empty = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{ type: "finish" as const, reason: "stop" as const },
+		];
+		const toolCall = () => [
+			{
+				type: "tool-call-delta" as const,
+				toolCallId: "call_1",
+				toolName: "echo",
+				inputText: '{"text":"hi"}',
+			},
+			{ type: "finish" as const, reason: "tool-calls" as const },
+		];
+		// Three empty turns use up the budget, a tool call resets it, and
+		// three more empty turns are nudged again before the answer lands.
+		const model = new ScriptedModel([
+			empty,
+			empty,
+			empty,
+			toolCall,
+			empty,
+			empty,
+			empty,
+			() => [
+				{ type: "text-delta" as const, text: "done" },
+				{ type: "finish" as const, reason: "stop" as const },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done");
+		expect(model.requests).toHaveLength(8);
+	});
+
 	it("recovers a max-tokens-truncated text turn with a forced compaction and one retry", async () => {
 		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
 		const model = new ScriptedModel([
