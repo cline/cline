@@ -1,5 +1,6 @@
 import type { AgentMessageRole } from "@cline/ui/components/agent-chat";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { extractConnectorLinks } from "./connector-links";
 import { parseToolPayload } from "./tool-summaries";
 
 export type ChatRenderItem =
@@ -187,6 +188,40 @@ function isSubmitAndExitMessage(message: ChatMessage): boolean {
 	return toolName?.toLowerCase() === "submit_and_exit";
 }
 
+/**
+ * Connector cards (Connect Links the agent handed to the user) are a call to
+ * action, so they never fold into a work summary: they are lifted out of the
+ * working rows and rendered after the run's answer, where the user acts on
+ * them. Each card becomes its own `tools` item.
+ */
+function splitConnectorCards(items: ChatRenderItem[]): {
+	rows: ChatRenderItem[];
+	cards: ChatRenderItem[];
+} {
+	const rows: ChatRenderItem[] = [];
+	const cards: ChatRenderItem[] = [];
+	for (const item of items) {
+		if (item.type !== "tools") {
+			rows.push(item);
+			continue;
+		}
+		const remaining: ChatMessage[] = [];
+		for (const message of item.messages) {
+			if (extractConnectorLinks(message).length > 0) {
+				cards.push({ type: "tools", messages: [message] });
+			} else {
+				remaining.push(message);
+			}
+		}
+		if (remaining.length === item.messages.length) {
+			rows.push(item);
+		} else if (remaining.length > 0) {
+			rows.push({ type: "tools", messages: remaining });
+		}
+	}
+	return { rows, cards };
+}
+
 function firstMessageId(item: ChatRenderItem): string | undefined {
 	if (item.type === "tools") return item.messages[0]?.id;
 	if (item.type === "message") {
@@ -263,7 +298,9 @@ export function collapseCompletedWork(
 		const complete =
 			nextIndex <= lastUserIndex ||
 			(collapseTrailingRun && answer !== undefined);
-		const collapsed = complete && answer ? workRows : span;
+		const { rows: collapsed, cards } = splitConnectorCards(
+			complete && answer ? workRows : span,
+		);
 		const toolCallCount = collapsed.reduce(
 			(count, item) =>
 				item.type === "tools" ? count + item.messages.length : count,
@@ -276,9 +313,12 @@ export function collapseCompletedWork(
 			// rhythm instead of full transcript spacing. Pure prose spans have
 			// no tool work to group and keep normal spacing. A trailing submit
 			// row stays inside the group here — it only pops out once the run
-			// actually collapses.
+			// actually collapses. Connector cards trail the answer here too, so
+			// they hold their position when the run later folds.
 			const messageAnswer = answer?.type === "message" ? answer : undefined;
-			const body = messageAnswer ? span.slice(0, -1) : span;
+			const { rows: body, cards: bodyCards } = splitConnectorCards(
+				messageAnswer ? span.slice(0, -1) : span,
+			);
 			const firstBody = body[0];
 			const hasToolWork = body.some((item) => item.type === "tools");
 			if (body.length >= 2 && hasToolWork && firstBody !== undefined) {
@@ -287,12 +327,13 @@ export function collapseCompletedWork(
 					id: firstMessageId(firstBody) ?? "run",
 					items: body,
 				});
-				if (messageAnswer) {
-					out.push(messageAnswer);
-				}
 			} else {
-				out.push(...span);
+				out.push(...body);
 			}
+			if (messageAnswer) {
+				out.push(messageAnswer);
+			}
+			out.push(...bodyCards);
 		} else {
 			const startTimestamp =
 				runStartTimestamp ?? firstTimestamp(firstCollapsed);
@@ -328,6 +369,7 @@ export function collapseCompletedWork(
 			if (answer) {
 				out.push(answer);
 			}
+			out.push(...cards);
 		}
 		span = [];
 	};
