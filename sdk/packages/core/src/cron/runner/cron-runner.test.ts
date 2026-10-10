@@ -463,6 +463,52 @@ describe("CronRunner", () => {
 		expect(run.error).toMatch(/no runtime/);
 	});
 
+	it("marks runs failed when the agent turn finishes with an error", async () => {
+		const { handlers, calls } = fakeHandlers();
+		handlers.sendSession = async () => ({
+			result: {
+				text: "model not found",
+				finishReason: "error",
+				usage: { inputTokens: 11, outputTokens: 0 },
+				toolCalls: [{ name: "read_file", durationMs: 1 }],
+			},
+		});
+		const upserted = store.upsertSpec({
+			externalId: "retired-model",
+			sourcePath: "retired-model.md",
+			triggerKind: "one_off",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "retired-model",
+				title: "Retired model",
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+			},
+		});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		await runner.dispose();
+
+		const run = requireValue(
+			store.listRuns({ specId: upserted.record.specId })[0],
+		);
+		expect(run.status).toBe("failed");
+		expect(run.error).toBe("model not found");
+		expect(calls.stop).toBe(1);
+		const report = readFileSync(requireValue(run.reportPath), "utf8");
+		expect(report).toContain("- Input tokens: 11");
+		expect(report).toContain("- read_file");
+	});
+
 	it("executes queued event runs with trigger context and report provenance", async () => {
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({
@@ -564,6 +610,42 @@ describe("CronRunner", () => {
 		expect(requeued?.status).toBe("queued");
 		expect(requeued?.attemptCount).toBe(0);
 		expect(requeued?.error).toBeUndefined();
+	});
+
+	it("runs only the newest of a backlog of queued cron occurrences", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const spec = store.createHubSchedule({
+			name: "daily",
+			prompt: "daily",
+			cronPattern: "0 0 * * *",
+			workspaceRoot,
+			maxParallel: 1,
+		});
+		const backlog = [3, 2, 1].map((daysAgo) =>
+			store.enqueueRun({
+				specId: spec.specId,
+				specRevision: spec.revision,
+				triggerKind: "schedule",
+				scheduledFor: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+			}),
+		);
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		await runner.dispose();
+
+		expect(calls.send).toBe(1);
+		expect(backlog.map((run) => store.getRun(run.runId)?.status)).toEqual([
+			"cancelled",
+			"cancelled",
+			"done",
+		]);
+		expect(store.getRun(backlog[0].runId)?.error).toMatch(/superseded/);
 	});
 
 	function queuedSchedule(name: string, timeoutSeconds?: number) {
