@@ -1189,8 +1189,8 @@ export class AgentRuntime {
 	 * exponential backoff between attempts, before the error is allowed to
 	 * propagate and end the run. Non-retryable errors (auth, context-window
 	 * overflow, other client errors) and any attempt that already produced
-	 * visible output or provider tool activity are returned unchanged for the
-	 * caller to handle, so this only adds
+	 * media, tool calls, or provider tool activity are returned unchanged for
+	 * the caller to handle, so this only adds
 	 * resilience and never changes behavior for a turn that would otherwise
 	 * succeed. Context-window overflow recovery and max-tokens recovery still
 	 * run inside each attempt (the latter at most once per run). An unknown
@@ -1280,10 +1280,11 @@ export class AgentRuntime {
 	/**
 	 * True when a turn failed with a transient provider error that a retry
 	 * could plausibly recover, and the failed attempt left nothing behind that
-	 * a second stream would duplicate or repeat:
-	 * - no content at all (text, reasoning, media, or local tool calls): those
-	 *   deltas were already emitted to the UI and there is no event to retract
-	 *   them, so re-streaming would show the output twice;
+	 * a second request would repeat:
+	 * - no content beyond text and reasoning. Partial text and reasoning are
+	 *   discarded with the failed message, which is never recorded; hosts end
+	 *   the interrupted block at the retry notice. Media and local tool calls
+	 *   are kept as work, never re-requested;
 	 * - no provider-executed tool activity (recorded in message metadata, not
 	 *   content): re-issuing the request could run those side effects again;
 	 * - not an auth or context-window failure, which the same request cannot fix.
@@ -1295,7 +1296,11 @@ export class AgentRuntime {
 		if (turn.finishReason !== "error") {
 			return false;
 		}
-		if (turn.message.content.length > 0) {
+		if (
+			turn.message.content.some(
+				(part) => part.type !== "text" && part.type !== "reasoning",
+			)
+		) {
 			return false;
 		}
 		const modelToolActivities = turn.message.metadata?.modelToolActivities;

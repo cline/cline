@@ -7211,6 +7211,67 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.promptsInQueue[0]?.prompt).toBe("second prompt");
 	});
 
+	it("separates an interrupted attempt from its retry with a status row", async () => {
+		const sessionId = "session-provider-retry";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context")
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				if (
+					command === "chat_session_command" &&
+					(args?.request as { action?: string })?.action === "start"
+				)
+					return { sessionId };
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const handler = handlerFor("chat_event");
+		await act(async () => {
+			handler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "The answer is 4",
+				ts: 1,
+				index: 1,
+			});
+			handler({
+				sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "info",
+					message: "provider error - retrying (attempt 1/3)",
+					metadata: { kind: "provider_error_retry", attempt: 1 },
+				}),
+				ts: 2,
+				index: 2,
+			});
+			handler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "hello",
+				ts: 3,
+				index: 3,
+			});
+			handler({
+				sessionId,
+				stream: "chat_core_log",
+				chunk: "flush",
+				ts: 4,
+				index: 4,
+			});
+		});
+		expect(
+			current.messages
+				.slice(-3)
+				.map((message) => ({ role: message.role, content: message.content })),
+		).toEqual([
+			{ role: "assistant", content: "The answer is 4" },
+			{ role: "status", content: "provider error - retrying (attempt 1/3)" },
+			{ role: "assistant", content: "hello" },
+		]);
+	});
+
 	it("keeps rendering the live stream after the sidecar restarts its chunk index", async () => {
 		const sessionId = "session-sidecar-restart";
 		invokeMock.mockImplementation(

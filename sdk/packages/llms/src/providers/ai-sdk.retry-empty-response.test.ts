@@ -298,6 +298,77 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		// no task.provider_api_error is ever reported for it.
 		expect(finishes[0]).not.toMatchObject({ reason: "error" });
 	}, 15_000); // The retry waits out the real default backoff (2s).
+
+	it("hands a network death after streamed reasoning to the turn-level retry", async () => {
+		// Node fetch (undici) shape for a connection dropped mid-body.
+		const socketClosed = new TypeError("terminated", {
+			cause: Object.assign(new Error("other side closed"), {
+				code: "UND_ERR_SOCKET",
+			}),
+		});
+		const encoder = new TextEncoder();
+		let sentReasoning = false;
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						async pull(controller) {
+							if (sentReasoning) {
+								// Let the reasoning chunk drain through the SSE
+								// pipeline first; an immediate error discards it.
+								await new Promise((resolve) => setTimeout(resolve, 50));
+								controller.error(socketClosed);
+								return;
+							}
+							sentReasoning = true;
+							controller.enqueue(
+								encoder.encode(
+									chunk({ role: "assistant", reasoning_content: "thinking" }),
+								),
+							);
+						},
+					}),
+					{ status: 200, headers: { "content-type": "text/event-stream" } },
+				),
+		);
+		const config = {
+			providerId: "openai-compatible",
+			apiKey: "test-key",
+			baseUrl: "http://fake.local/v1",
+			fetch: fetchMock as unknown as typeof fetch,
+		};
+		const provider = await createOpenAICompatibleProvider(config);
+		const events = await collect(
+			await provider.stream(
+				streamRequest(),
+				providerContext("openai-compatible", config),
+			),
+		);
+
+		// The middleware does not replay output it already let through, so the
+		// finish marks it retryable for the agent loop instead.
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(events.some((event) => event.type === "reasoning-delta")).toBe(true);
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({ reason: "error", errorRetryable: true }),
+		]);
+	});
+
+	it("hands a stream that ended without a finish reason to the turn-level retry", async () => {
+		const { fetchMock, events } = await run([
+			chunk({ role: "assistant", content: "Partial answer" }),
+		]);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(hasTextDelta(events, "Partial answer")).toBe(true);
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({
+				reason: "error",
+				error: "Response stream ended without a finish reason.",
+				errorRetryable: true,
+			}),
+		]);
+	});
 });
 
 describe("anthropic wire format", () => {
