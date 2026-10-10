@@ -1615,7 +1615,7 @@ export function RoutineSchedulesContent({
 														</span>
 													)}
 													{pendingReason && (
-														<span className="block truncate text-xs text-muted-foreground">
+														<span className="block text-xs text-muted-foreground">
 															{pendingReason}
 														</span>
 													)}
