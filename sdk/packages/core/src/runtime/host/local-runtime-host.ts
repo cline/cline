@@ -47,6 +47,7 @@ import {
 	captureAgentTeamCreated,
 	captureConversationTurnEvent,
 	captureModeSwitch,
+	capturePendingPromptsDiscarded,
 	captureTaskCompleted,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
@@ -923,6 +924,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				resumedArtifacts?.manifest.status ??
 				(startsWithoutTurn ? "idle" : "running"),
 			aborting: false,
+			shuttingDown: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
 			compactionState: initialCompactionState,
@@ -1010,7 +1012,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 			}
 		} catch (error) {
-			if (active.interactive && active.aborting) {
+			if (active.interactive && (active.aborting || active.shuttingDown)) {
 				result = await this.completeAbortedInteractiveTurn(active);
 			} else {
 				captureSdkError(active.config.telemetry, {
@@ -1025,15 +1027,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 						modelId: active.config.modelId,
 					},
 				});
-				try {
-					await this.failSession(active);
-				} catch (cleanupError) {
-					// Never let cleanup failures mask the error that actually
-					// killed the turn; that one is what callers must see.
-					active.config.logger?.error?.("Session failure cleanup threw", {
-						sessionId: active.sessionId,
-						error: cleanupError,
-					});
+				// A session that is shutting down already has its status and
+				// end event owned by that teardown; a second one through
+				// failSession would record "failed" over its "cancelled". The
+				// failure itself still reaches the caller.
+				if (!active.shuttingDown) {
+					try {
+						await this.failSession(active);
+					} catch (cleanupError) {
+						// Never let cleanup failures mask the error that actually
+						// killed the turn; that one is what callers must see.
+						active.config.logger?.error?.("Session failure cleanup threw", {
+							sessionId: active.sessionId,
+							error: cleanupError,
+						});
+					}
 				}
 				throw error;
 			}
@@ -1084,6 +1092,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		// Resolving undefined here would look like an accepted queued prompt
+		// to the caller, who could not tell the user that the input was lost.
+		if (session.shuttingDown) {
+			throw new Error(`Session ${input.sessionId} is shutting down`);
+		}
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -1134,7 +1147,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 			return result;
 		} catch (error) {
-			if (session.interactive && session.aborting) {
+			if (session.interactive && (session.aborting || session.shuttingDown)) {
 				return await this.completeAbortedInteractiveTurn(session);
 			}
 			captureSdkError(session.config.telemetry, {
@@ -1149,7 +1162,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 					modelId: session.config.modelId,
 				},
 			});
-			await this.failSession(session);
+			if (!session.shuttingDown) {
+				await this.failSession(session);
+			}
 			throw error;
 		}
 	}
@@ -1181,7 +1196,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// brought to a full stop.
 		session.aborting = true;
 		if (session.drainingPendingPrompts) {
-			this.pendingPromptsController.discardQueue(session);
+			this.discardPendingPrompts(session, "queue_abort");
 		}
 		const teamRuntime = session.runtime.teamRuntime;
 		try {
@@ -1520,18 +1535,30 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		action: () => Promise<T>,
 	): Promise<T> {
-		const previous = session.compactionStateWriteQueue ?? Promise.resolve();
+		return this.enqueueSessionWrite(
+			session,
+			"compactionStateWriteQueue",
+			action,
+		);
+	}
+
+	private async enqueueSessionWrite<T>(
+		session: ActiveSession,
+		queue: "compactionStateWriteQueue" | "statusWriteQueue",
+		action: () => Promise<T>,
+	): Promise<T> {
+		const previous = session[queue] ?? Promise.resolve();
 		const run = previous.catch(() => undefined).then(action);
 		const tracked = run.then(
 			() => undefined,
 			() => undefined,
 		);
-		session.compactionStateWriteQueue = tracked;
+		session[queue] = tracked;
 		try {
 			return await run;
 		} finally {
-			if (session.compactionStateWriteQueue === tracked) {
-				session.compactionStateWriteQueue = undefined;
+			if (session[queue] === tracked) {
+				session[queue] = undefined;
 			}
 		}
 	}
@@ -1777,6 +1804,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
 		await this.markTurnRunning(session);
+		// Teardown may have started during the awaits above. It only aborts a
+		// run that is already in progress, so this turn has to stop itself.
+		if (session.shuttingDown) {
+			return this.abortedTurnResult(session, {
+				messages: session.agent.getMessages(),
+				usage: createInitialAccumulatedUsage(),
+				endedAt: new Date(),
+			});
+		}
 
 		try {
 			let result = await this.executeAgentTurn(
@@ -1892,10 +1928,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		queueMicrotask(() => {
 			void this.pendingPromptsController.drain(session.sessionId);
 		});
+		return this.abortedTurnResult(session, { messages, usage, endedAt });
+	}
+
+	private abortedTurnResult(
+		session: ActiveSession,
+		input: {
+			messages: AgentResult["messages"];
+			usage: AgentResult["usage"];
+			endedAt: Date;
+		},
+	): AgentResult {
 		return {
 			text: "",
-			usage,
-			messages,
+			usage: input.usage,
+			messages: input.messages,
 			toolCalls: [],
 			iterations: 0,
 			finishReason: "aborted",
@@ -1903,8 +1950,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				id: session.config.modelId,
 				provider: session.config.providerId,
 			},
-			startedAt: endedAt,
-			endedAt,
+			startedAt: input.endedAt,
+			endedAt: input.endedAt,
 			durationMs: 0,
 		};
 	}
@@ -2299,6 +2346,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
+		// Teardown aborted this run and already owns the session's status and
+		// end event; a second shutdown here would emit them again.
+		if (session.shuttingDown) return;
 		const isAborted = finishReason === "aborted" || session.aborting;
 		const isError = finishReason === "error";
 		await this.shutdownSession(session, {
@@ -2332,6 +2382,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
+		this.beginTeardown(session);
 		// Fallback `task.completed` emission for completed sessions that did
 		// not observe an explicit `submit_and_exit` tool call, routed through
 		// the shared teardown choke point so it can neither double-fire nor
@@ -2414,10 +2465,35 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	/**
+	 * Teardown aborts any in-flight turn, and the abort settling resets
+	 * `aborting` and schedules a queue drain while teardown is still awaiting
+	 * I/O. Without this, a queued prompt would start a new run in a session
+	 * that is being torn down and whose events nobody receives any more.
+	 */
+	private beginTeardown(session: ActiveSession): void {
+		session.shuttingDown = true;
+		this.discardPendingPrompts(session, "session_teardown");
+	}
+
+	private discardPendingPrompts(
+		session: ActiveSession,
+		reason: "queue_abort" | "session_teardown",
+	): void {
+		const discarded = this.pendingPromptsController.discardQueue(session);
+		if (discarded.length === 0) return;
+		capturePendingPromptsDiscarded(session.config.telemetry, {
+			sessionId: session.sessionId,
+			count: discarded.length,
+			reason,
+		});
+	}
+
 	private async releaseSessionRuntime(
 		session: ActiveSession,
 		reason: string,
 	): Promise<void> {
+		this.beginTeardown(session);
 		// Releasing is a full session exit too: interactive sessions whose
 		// reported status is already terminal are stopped/disposed through
 		// this branch. The completion emission must happen here as well —
@@ -2489,6 +2565,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 		exitCode?: number | null,
 	): Promise<void> {
 		if (!session.artifacts) return;
+		// Status writes are serialized per session so teardown's terminal
+		// status lands after a non-terminal write that was already in flight
+		// when teardown started. The persistence layer retries a write whose
+		// status lock went stale, so an overlapping earlier write would
+		// otherwise win.
+		return this.enqueueSessionWrite(session, "statusWriteQueue", () =>
+			this.writeStatus(session, status, exitCode),
+		);
+	}
+
+	private async writeStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		exitCode?: number | null,
+	): Promise<void> {
+		// Turns aborted by teardown settle concurrently with it; their idle or
+		// running transitions must not overwrite the status teardown persists.
+		if (session.shuttingDown && isNonTerminalSessionStatus(status)) return;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,

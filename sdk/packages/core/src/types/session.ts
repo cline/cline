@@ -25,10 +25,13 @@ export type ActiveSession = {
 	agent: SessionRuntime;
 	started: boolean;
 	aborting: boolean;
+	/** Set when teardown starts; the host drops the session once it finishes. */
+	shuttingDown: boolean;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
 	compactionStateWriteQueue?: Promise<void>;
+	statusWriteQueue?: Promise<void>;
 	activeTeamRunIds: Set<string>;
 	pendingTeamRunUpdates: TeamRunUpdate[];
 	teamRunWaiters: Array<() => void>;
