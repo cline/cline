@@ -816,7 +816,10 @@ orchestrator used by core and hub layers.
    queued `cron_runs`. One-off: at most one run record per `(spec_id,
    revision)`, including failed runs so specs do not retry accidentally.
    Schedule: "one overdue catch-up on startup then advance" using
-   timezone-aware `getNextCronTime`. New hub schedules persist the local IANA
+   timezone-aware `getNextCronTime`. The claim step enforces the same policy
+   on the queue itself: when several occurrences of one schedule are queued
+   (the runner was down or stalled), older ones are cancelled as superseded
+   and only the newest runs. New hub schedules persist the local IANA
    timezone when none is provided. The desktop form sends its own local timezone;
    explicit timezone choices and existing schedule timezones are preserved.
 6. **Event ingress** (`cron/events/cron-event-ingress.ts`): accepts already-normalized

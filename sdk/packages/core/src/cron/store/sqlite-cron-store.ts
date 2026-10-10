@@ -1616,6 +1616,27 @@ export class SqliteCronStore {
 		const claimed: ClaimedCronRun[] = [];
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
+			// A recurring schedule gets one catch-up run, not one per missed
+			// occurrence: when several occurrences of the same spec are queued
+			// (the runner was down or stalled), only the newest is worth running.
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET
+						status = 'cancelled',
+						error = 'superseded by a newer scheduled occurrence',
+						completed_at = ?,
+						updated_at = ?
+					WHERE status = 'queued' AND trigger_kind = 'schedule'
+						AND EXISTS (
+							SELECT 1 FROM cron_runs newer
+							WHERE newer.spec_id = cron_runs.spec_id
+								AND newer.status = 'queued'
+								AND newer.trigger_kind = 'schedule'
+								AND COALESCE(newer.scheduled_for, newer.created_at)
+									> COALESCE(cron_runs.scheduled_for, cron_runs.created_at)
+						)`,
+				)
+				.run(referenceIso, referenceIso);
 			// Re-evaluate capacity after every claim in the same write transaction.
 			// Filtering before LIMIT lets unrelated specs pass a saturated backlog.
 			const nextDueRun = this.db.prepare(`
@@ -1640,9 +1661,12 @@ export class SqliteCronStore {
 				LIMIT 1
 			`);
 			while (claimed.length < limit) {
+				// Keys must carry the `:` prefix: bun:sqlite silently binds NULL
+				// for bare names (node:sqlite accepts both), which made every
+				// `<= :now` / `< :capacity` test false and left runs queued forever.
 				const row = nextDueRun.get({
-					now: referenceIso,
-					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+					":now": referenceIso,
+					":capacity": Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
 				});
 				if (!row) break;
 				const runId = asString(row.run_id);

@@ -544,9 +544,27 @@ describe("CronRunner", () => {
 			specRevision: upserted.record.revision,
 			triggerKind: "schedule",
 		});
+		// A second spec: queued occurrences of the same schedule collapse to
+		// the newest one, so same-spec rows cannot exercise the global limit.
+		const other = store.upsertSpec({
+			externalId: "weekly",
+			sourcePath: "weekly.cron.md",
+			triggerKind: "schedule",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "schedule",
+				id: "weekly",
+				title: "Weekly",
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+				schedule: "0 2 * * 1",
+			},
+		});
 		const blocked = store.enqueueRun({
-			specId: upserted.record.specId,
-			specRevision: upserted.record.revision,
+			specId: other.record.specId,
+			specRevision: other.record.revision,
 			triggerKind: "schedule",
 		});
 		const runner = new CronRunner({

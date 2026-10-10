@@ -391,6 +391,47 @@ describe("SqliteCronStore: runs", () => {
 		expect(run?.reportPath).toBe("/tmp/report.md");
 	});
 
+	it("claims only the newest of several queued occurrences of a schedule", () => {
+		const spec = store.createHubSchedule({
+			name: "Daily",
+			cronPattern: "0 11 * * *",
+			prompt: "p",
+			workspaceRoot: "/ws",
+		});
+		const missed = ["2026-10-07", "2026-10-08", "2026-10-09"].map((day) =>
+			store.enqueueRun({
+				specId: spec.specId,
+				specRevision: spec.revision,
+				triggerKind: "schedule",
+				scheduledFor: `${day}T11:00:00.000Z`,
+			}),
+		);
+		const manual = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "manual",
+			scheduledFor: "2026-10-07T12:00:00.000Z",
+		});
+
+		const claims = store.claimDueRuns({
+			nowIso: "2026-10-10T00:00:00.000Z",
+			leaseMs: 30_000,
+		});
+
+		// The schedule allows one run at a time, so the older manual run is
+		// claimed first; the newest occurrence stays queued for the next tick.
+		expect(claims.map((claim) => claim.run.runId)).toEqual([manual.runId]);
+		expect(store.getRun(missed[2]?.runId ?? "")?.status).toBe("queued");
+		for (const run of missed.slice(0, 2)) {
+			expect(store.getRun(run.runId)).toEqual(
+				expect.objectContaining({
+					status: "cancelled",
+					error: "superseded by a newer scheduled occurrence",
+				}),
+			);
+		}
+	});
+
 	it("reclaims expired running leases", () => {
 		const spec = seedOneOff();
 		store.enqueueRun({
