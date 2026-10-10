@@ -564,6 +564,32 @@ export class SessionRuntime {
 		this.config = { ...this.config, tools: merged };
 	}
 
+	/**
+	 * Swap one coherent tool subset for another in every subsequent turn's
+	 * runtime config: tools whose names appear in `previous` are dropped,
+	 * then `next` is appended (a name present in both is replaced). Tools
+	 * outside the subset — built-ins, extension tools — are untouched, and
+	 * a `next` entry colliding with a tool outside the subset loses to it,
+	 * mirroring the per-turn merge order. Safe to call mid-run: the active
+	 * turn keeps its snapshot; the swap lands on the next one.
+	 */
+	refreshTools(
+		previous: readonly AgentTool[],
+		next: readonly AgentTool[],
+	): void {
+		const removed = new Set(previous.map((tool) => tool.name));
+		const kept = this.config.tools.filter((tool) => !removed.has(tool.name));
+		const existing = new Set(kept.map((tool) => tool.name));
+		const merged = [...kept];
+		for (const tool of next) {
+			if (!existing.has(tool.name)) {
+				merged.push(tool);
+				existing.add(tool.name);
+			}
+		}
+		this.config = { ...this.config, tools: merged };
+	}
+
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
 		const updates = normalizeConnectionUpdate(overrides);

@@ -3096,3 +3096,68 @@ describe("SessionRuntime auth retry", () => {
 		expect(result.finishReason).toBe("error");
 	});
 });
+
+// ---------------------------------------------------------------------------
+// refreshTools — swap one tool subset for another on subsequent turns
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime.refreshTools", () => {
+	const makeTool = (name: string, description = name): AgentTool => ({
+		name,
+		description,
+		inputSchema: {},
+		execute: async () => ({}),
+	});
+
+	it("swaps the refreshed subset in for every subsequent turn's runtime config", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				tools: [
+					makeTool("read_file"),
+					makeTool("mock__echo"),
+					makeTool("mock__alpha"),
+				],
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		// Refreshed set: alpha was removed server-side, beta was added.
+		session.refreshTools(
+			[makeTool("mock__echo"), makeTool("mock__alpha")],
+			[makeTool("mock__echo"), makeTool("mock__beta")],
+		);
+		await session.run("go");
+
+		const firstNames = (configs[0]?.tools ?? []).map((tool) => tool.name);
+		const secondNames = (configs[1]?.tools ?? []).map((tool) => tool.name);
+		expect(firstNames).toContain("mock__alpha");
+		expect(firstNames).not.toContain("mock__beta");
+		// The refresh removed the previous subset and appended the new one.
+		expect(secondNames).toContain("mock__beta");
+		expect(secondNames).not.toContain("mock__alpha");
+		// …without disturbing tools outside the subset.
+		expect(secondNames).toContain("read_file");
+		expect(secondNames).toContain("mock__echo");
+	});
+
+	it("replaces a same-named tool with the refreshed definition", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ tools: [makeTool("mock__echo", "Echo v1")] }),
+			deps,
+		);
+
+		await session.run("go");
+		session.refreshTools(
+			[makeTool("mock__echo", "Echo v1")],
+			[makeTool("mock__echo", "Echo v2")],
+		);
+		await session.run("go");
+
+		const secondTools = configs[1]?.tools ?? [];
+		expect(secondTools).toHaveLength(1);
+		expect(secondTools[0]?.description).toBe("Echo v2");
+	});
+});

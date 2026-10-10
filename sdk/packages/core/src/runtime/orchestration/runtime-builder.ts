@@ -211,6 +211,15 @@ async function loadConfiguredMcpTools(options: {
 }): Promise<{
 	tools: AgentTool[];
 	shutdown?: () => Promise<void>;
+	/**
+	 * Hands the lead-agent sink to `refreshTools` through. Changes signaled
+	 * before the sink registers are queued and flushed on registration, so
+	 * a notification that lands between session build and lead-agent
+	 * creation is not lost.
+	 */
+	registerMcpToolsChangeSink?: (
+		apply: (previous: AgentTool[], next: AgentTool[]) => void,
+	) => void;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
 	const hasSettings =
@@ -230,6 +239,10 @@ async function loadConfiguredMcpTools(options: {
 			registration.metadata?.source === "agent-plugin"
 				? agentPluginClientFactory(registration)
 				: settingsClientFactory(registration),
+		onToolsChanged: (serverName) => {
+			changedServers.add(serverName);
+			void flushChangedMcpTools();
+		},
 	});
 
 	let registrations: Awaited<
@@ -277,6 +290,76 @@ async function loadConfiguredMcpTools(options: {
 	}
 
 	const enabled = registrations.filter((r) => r.disabled !== true);
+	const toolsByServer = new Map<string, AgentTool[]>();
+	const timeoutByServer = new Map<string, number>();
+	// Servers whose tool list changed since their tools were built
+	// (`notifications/tools/list_changed`), and the lead-agent sink that
+	// applies rebuilt tools to subsequent turns. A notification arriving
+	// before the sink registers is queued in `changedServers` and flushed
+	// on registration.
+	const changedServers = new Set<string>();
+	let applyToolsChange:
+		| ((previous: AgentTool[], next: AgentTool[]) => void)
+		| undefined;
+	let flushInFlight = false;
+
+	const flushChangedMcpTools = async (): Promise<void> => {
+		if (changedServers.size === 0 || !applyToolsChange || flushInFlight) {
+			return;
+		}
+		flushInFlight = true;
+		const changed = [...changedServers];
+		changedServers.clear();
+		const previous: AgentTool[] = [];
+		const next: AgentTool[] = [];
+		for (const serverName of changed) {
+			const before = toolsByServer.get(serverName) ?? [];
+			previous.push(...before);
+			try {
+				const rebuilt = await createMcpTools({
+					serverName,
+					provider: manager,
+					// Manager cache invalidation happened when the notification
+					// arrived, so this re-lists instead of replaying the cache.
+					timeoutMs: timeoutByServer.get(serverName),
+				});
+				toolsByServer.set(serverName, rebuilt);
+				next.push(...rebuilt);
+			} catch (error) {
+				// Keep serving the previous tools for this server; the next
+				// notification will retry the refresh.
+				next.push(...before);
+				const message = error instanceof Error ? error.message : String(error);
+				options.logger?.log(
+					`[mcp] Failed to refresh tools for MCP server "${serverName}", keeping previous tools: ${message}`,
+				);
+			}
+		}
+		try {
+			if (previous.length > 0 || next.length > 0) {
+				applyToolsChange(previous, next);
+			}
+		} catch (error) {
+			// The sink is host-provided and must never reject the caller
+			// (every invocation is `void`-ed); log the failure instead.
+			const message = error instanceof Error ? error.message : String(error);
+			const names = changed.map((name) => `"${name}"`).join(", ");
+			options.logger?.log(
+				`[mcp] Failed to apply refreshed tools for MCP server(s) ${names} to the session: ${message}`,
+				{ severity: "warn" },
+			);
+		} finally {
+			// Never let a throw from the sink leave `flushInFlight` stuck
+			// (which would silence every later refresh).
+			flushInFlight = false;
+			// A notification that landed mid-flush re-queues here instead of
+			// being lost until the next one.
+			if (changedServers.size > 0) {
+				void flushChangedMcpTools();
+			}
+		}
+	};
+
 	const results = await Promise.allSettled(
 		enabled.map((r) =>
 			createMcpTools({
@@ -292,6 +375,11 @@ async function loadConfiguredMcpTools(options: {
 	for (const [i, result] of results.entries()) {
 		if (result.status === "fulfilled") {
 			tools.push(...result.value);
+			toolsByServer.set(enabled[i].name, result.value);
+			timeoutByServer.set(
+				enabled[i].name,
+				resolveMcpTimeoutSeconds(enabled[i].timeoutSeconds) * 1000,
+			);
 		} else {
 			const message =
 				result.reason instanceof Error
@@ -305,6 +393,10 @@ async function loadConfiguredMcpTools(options: {
 
 	return {
 		tools,
+		registerMcpToolsChangeSink: (apply) => {
+			applyToolsChange = apply;
+			void flushChangedMcpTools();
+		},
 		shutdown: async () => {
 			await manager.dispose();
 		},
@@ -463,6 +555,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
+		let mcpRuntime:
+			| Awaited<ReturnType<typeof loadConfiguredMcpTools>>
+			| undefined;
 
 		for (const error of configuredAgents.errors) {
 			(logger ?? config.logger)?.log?.(
@@ -587,7 +682,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				!normalized.disableMcpSettingsTools ||
 				agentPluginMcpServers?.length
 			) {
-				const mcpRuntime = await loadConfiguredMcpTools({
+				mcpRuntime = await loadConfiguredMcpTools({
 					logger: config.logger,
 					includeSettings: !normalized.disableMcpSettingsTools,
 					agentPluginServers: agentPluginMcpServers,
@@ -884,6 +979,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						]),
 					);
 				}
+				// Servers that signal notifications/tools/list_changed have
+				// their tools rebuilt and swapped in for every subsequent turn;
+				// changes queued before the lead agent existed flush here.
+				mcpRuntime?.registerMcpToolsChangeSink?.((previous, next) => {
+					agent.refreshTools?.(previous, next);
+				});
 			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);

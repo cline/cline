@@ -226,6 +226,54 @@ for (;;) {
 }
 `;
 
+// Answers initialize normally, then serves the pre-change tool set on the
+// first tools/list and immediately signals notifications/tools/list_changed;
+// later tools/list calls serve the extended set, so a client that reacts to
+// the notification can observe the new tool on its next list.
+const LIST_CHANGED_SERVER_SCRIPT = `
+let buffer = "";
+let listed = false;
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload) + "\\n");
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  let idx;
+  while ((idx = buffer.indexOf("\\n")) >= 0) {
+    const line = buffer.slice(0, idx).trim();
+    buffer = buffer.slice(idx + 1);
+    if (!line) continue;
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (msg.id === undefined || !msg.method || msg.method.startsWith("notifications/")) continue;
+    if (msg.method === "initialize") {
+      write({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: "2024-11-05", capabilities: {}, serverInfo: { name: "fake", version: "0.0.0" } } });
+      continue;
+    }
+    if (msg.method === "tools/list") {
+      const tools = listed
+        ? [
+            { name: "echo", description: "Echo tool", inputSchema: { type: "object" } },
+            { name: "beta", description: "Beta tool registered mid-session", inputSchema: { type: "object" } },
+          ]
+        : [{ name: "echo", description: "Echo tool", inputSchema: { type: "object" } }];
+      write({ jsonrpc: "2.0", id: msg.id, result: { tools } });
+      if (!listed) {
+        listed = true;
+        write({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+      }
+      continue;
+    }
+    write({ jsonrpc: "2.0", id: msg.id, result: {} });
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
@@ -249,6 +297,11 @@ beforeAll(() => {
 	writeFileSync(
 		join(tempRoot, "newline-rejecting-server.js"),
 		NEWLINE_REJECTING_SERVER_SCRIPT,
+		"utf8",
+	);
+	writeFileSync(
+		join(tempRoot, "list-changed-server.js"),
+		LIST_CHANGED_SERVER_SCRIPT,
 		"utf8",
 	);
 });
@@ -806,4 +859,35 @@ describe("mcp client stdin failures", () => {
 		},
 		30_000,
 	);
+});
+
+describe("mcp client tools list_changed notification", () => {
+	it("invokes onToolsChanged when the server signals notifications/tools/list_changed", async () => {
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({
+				delayMs: 0,
+				script: "list-changed-server.js",
+			}),
+		);
+		if (!client.onToolsChanged) {
+			throw new Error("client does not support onToolsChanged");
+		}
+		const onToolsChanged = vi.fn();
+		client.onToolsChanged(onToolsChanged);
+		try {
+			await client.connect();
+			// Pre-change list, delivered together with the notification.
+			const before = await client.listTools();
+			expect(before.map((tool) => tool.name)).toEqual(["echo"]);
+
+			await waitFor(() => onToolsChanged.mock.calls.length > 0);
+
+			// The re-list after the signal serves the updated tool set.
+			const after = await client.listTools();
+			expect(after.map((tool) => tool.name)).toEqual(["echo", "beta"]);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
 });

@@ -24,6 +24,15 @@ type ManagedServerState = {
 	updatedAt: number;
 	toolCache?: readonly McpToolDescriptor[];
 	toolCacheUpdatedAt?: number;
+	/**
+	 * Bumped every time the server signals its tool list changed
+	 * (`notifications/tools/list_changed`). A cached list is only current
+	 * when it was fetched under the same counter value, so a notification
+	 * landing while a list is in flight invalidates it retroactively.
+	 */
+	toolsInvalidationCounter: number;
+	/** The counter value the cached list was fetched under. */
+	toolCacheInvalidationCounter?: number;
 };
 
 function nowMs(): number {
@@ -43,11 +52,13 @@ function cloneTools(
 export class InMemoryMcpManager implements McpManager {
 	private readonly toolsCacheTtlMs: number;
 	private readonly clientFactory: McpManagerOptions["clientFactory"];
+	private readonly onToolsChanged?: McpManagerOptions["onToolsChanged"];
 	private readonly servers = new Map<string, ManagedServerState>();
 	private readonly operationLocks = new Map<string, Promise<void>>();
 
 	constructor(options: McpManagerOptions) {
 		this.clientFactory = options.clientFactory;
+		this.onToolsChanged = options.onToolsChanged;
 		this.toolsCacheTtlMs =
 			options.toolsCacheTtlMs ?? DEFAULT_TOOLS_CACHE_TTL_MS;
 	}
@@ -60,6 +71,7 @@ export class InMemoryMcpManager implements McpManager {
 					registration: { ...registration },
 					status: "disconnected",
 					updatedAt: nowMs(),
+					toolsInvalidationCounter: 0,
 				});
 				return;
 			}
@@ -84,6 +96,8 @@ export class InMemoryMcpManager implements McpManager {
 				existing.client = undefined;
 				existing.toolCache = undefined;
 				existing.toolCacheUpdatedAt = undefined;
+				existing.toolsInvalidationCounter = 0;
+				existing.toolCacheInvalidationCounter = undefined;
 			}
 		});
 	}
@@ -143,9 +157,14 @@ export class InMemoryMcpManager implements McpManager {
 
 	async listTools(serverName: string): Promise<readonly McpToolDescriptor[]> {
 		const state = this.requireServer(serverName);
+		const cached = state.toolCache;
 		const fetchedAt = state.toolCacheUpdatedAt ?? 0;
-		if (state.toolCache && nowMs() - fetchedAt <= this.toolsCacheTtlMs) {
-			return state.toolCache;
+		if (
+			cached !== undefined &&
+			state.toolCacheInvalidationCounter === state.toolsInvalidationCounter &&
+			nowMs() - fetchedAt <= this.toolsCacheTtlMs
+		) {
+			return cached;
 		}
 		return this.refreshTools(serverName);
 	}
@@ -156,10 +175,14 @@ export class InMemoryMcpManager implements McpManager {
 		return this.runExclusive(serverName, async () => {
 			const state = this.requireServer(serverName);
 			const client = await this.ensureConnectedClient(state);
+			// Snapshot before listing: a change signaled mid-list must mark
+			// the result stale rather than fresh.
+			const invalidationSnapshot = state.toolsInvalidationCounter;
 			const tools = await client.listTools();
 			const cloned = cloneTools(tools);
 			state.toolCache = cloned;
 			state.toolCacheUpdatedAt = nowMs();
+			state.toolCacheInvalidationCounter = invalidationSnapshot;
 			state.updatedAt = nowMs();
 			return cloned;
 		});
@@ -225,6 +248,15 @@ export class InMemoryMcpManager implements McpManager {
 			// be reachable for cleanup, retry, and manager disposal.
 			state.client = client;
 			await client.connect();
+			// Assigning (not adding) keeps re-connects idempotent: the client
+			// keeps only the latest handler.
+			client.onToolsChanged?.(() => {
+				// Bump first: any list that started before this point reflects
+				// the pre-change tool set and must not read as fresh, even if
+				// it finishes after this handler runs.
+				state.toolsInvalidationCounter += 1;
+				this.onToolsChanged?.(state.registration.name);
+			});
 			state.status = "connected";
 			state.lastError = undefined;
 			state.updatedAt = nowMs();

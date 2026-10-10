@@ -105,6 +105,8 @@ export interface McpServerSnapshot {
 	metadata?: Record<string, unknown>;
 }
 
+export type McpToolsChangedHandler = () => void;
+
 export interface McpServerClient {
 	connect(): Promise<void>;
 	disconnect(): Promise<void>;
@@ -114,6 +116,12 @@ export interface McpServerClient {
 		arguments?: Record<string, unknown>;
 		context?: AgentToolContext;
 	}): Promise<McpToolCallResult>;
+	/**
+	 * Register the handler invoked when the server signals that its tool
+	 * list changed (`notifications/tools/list_changed`). Optional: clients
+	 * that do not observe server notifications simply omit it.
+	 */
+	onToolsChanged?(handler: McpToolsChangedHandler): void;
 }
 
 export type McpServerClientFactory = (
@@ -137,6 +145,13 @@ export interface McpManagerOptions {
 	 * @default 5000
 	 */
 	toolsCacheTtlMs?: number;
+	/**
+	 * Invoked when a connected server signals that its tool list changed
+	 * (`notifications/tools/list_changed`). The manager has already
+	 * invalidated that server's cached tool list when this fires, so the
+	 * next `listTools` re-lists; hosts use this to refresh eagerly.
+	 */
+	onToolsChanged?: (serverName: string) => void;
 }
 
 export interface McpManager extends McpToolProvider {
