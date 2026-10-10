@@ -1,0 +1,11 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+	"mcpServers": {
+		"cline-cloud-agents": {
+			"type": "stdio",
+			"command": "bun",
+			"args": ["run", "${PLUGIN_ROOT}/server.ts"],
+			"cwd": "${PLUGIN_ROOT}"
+		}
+	}
+}
