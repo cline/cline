@@ -2065,6 +2065,37 @@ describe("translateSessionEvent — agent_event notice", () => {
 		}
 	}
 
+	it("closes interrupted text and reasoning rows before a provider retry notice", () => {
+		const state = new MessageTranslatorState()
+		const agentEvent = (event: Record<string, unknown>) =>
+			translateSessionEvent({ type: "agent_event", payload: { sessionId: "session-1", event: event as AgentEvent } }, state)
+				.messages
+
+		const [failedReasoning] = agentEvent({ type: "content_start", contentType: "reasoning", reasoning: "partial thought" })
+		const [failedText] = agentEvent({
+			type: "content_start",
+			contentType: "text",
+			text: "partial answer",
+			accumulated: "partial answer",
+		})
+		const retry = translateSessionEvent(
+			noticeEvent("provider error - retrying (attempt 1/3)", { kind: "provider_error_retry", attempt: 1 }),
+			state,
+		).messages
+		expect(retry).toEqual([
+			expect.objectContaining({ ts: failedReasoning.ts, say: "reasoning", text: "partial thought", partial: false }),
+			expect.objectContaining({ ts: failedText.ts, say: "text", text: "partial answer", partial: false }),
+			expect.objectContaining({ say: "info", text: "provider error - retrying (attempt 1/3)" }),
+		])
+
+		const [recoveredReasoning] = agentEvent({ type: "content_start", contentType: "reasoning", reasoning: "full thought" })
+		const [recoveredText] = agentEvent({ type: "content_start", contentType: "text", text: "hello", accumulated: "hello" })
+		expect(recoveredReasoning).toMatchObject({ text: "full thought", partial: true })
+		expect(recoveredReasoning.ts).not.toBe(failedReasoning.ts)
+		expect(recoveredText).toMatchObject({ text: "hello", partial: true })
+		expect(recoveredText.ts).not.toBe(failedText.ts)
+	})
+
 	it("translates compaction status notices into a divider row updated in place", () => {
 		const state = new MessageTranslatorState()
 

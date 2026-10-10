@@ -1987,6 +1987,23 @@ export function useChatSession(environmentId: string) {
 				// here rather than on the turn-completion event.
 				try {
 					const parsed = JSON.parse(payload.chunk) as CoreLogChunk;
+					// The runtime discards an interrupted attempt before retrying it.
+					// Keep what was shown, and stream the retry below a status row.
+					if (
+						(parsed.metadata as { kind?: unknown } | undefined)?.kind ===
+						"provider_error_retry"
+					) {
+						flushPendingStream();
+						activeAssistantMessageIdRef.current = null;
+						setActiveAssistantMessageId(null);
+						addMessage({
+							id: makeId("status"),
+							sessionId: listeningSessionId,
+							role: "status",
+							content: parsed.message ?? "Provider error, retrying",
+							createdAt: chunkCreatedAt(),
+						});
+					}
 					if (
 						parsed.level?.trim().toLowerCase() === "error" &&
 						parsed.message?.trim()
