@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.1.23]
+
+### Changed
+
+- If a model's response ends without a recognized finish reason, Cline asks it to continue once instead of treating the response as complete.
+- Refreshed the model catalog. The Cline recommended list adds GPT-6.1 Sol, and the free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Default models change for 302.AI, AKI.IO, Blue Claw, CoralBricks, CrossModel, DevPass, DigitalOcean, GMI Cloud, LLM Gateway, Mistral, NanoGPT, Neon, Nvidia, Ofox, Requesty, Subconscious, The Grid AI, Vivgrid, and Vultr. Vultr's model ids were renamed upstream, so a pinned Vultr model may need to be re-selected. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- **Generate Commit Message** now follows your `.clinerules`, so conventions like language, format, and ticket references apply to commit messages too.
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error. 4.1.22 started sending an option only Anthropic's own API accepts.
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. Cline picks the closest level the model supports.
+- When an MCP tool returns more output than fits in context, Cline can now read the rest. It gets a preview plus a link it can page through with `read_files`, so the output past the cutoff is no longer lost.
+- Approve and Reject on a tool approval work right away, even while the panel is still updating. A late update failure no longer rejects a later, unrelated approval.
+- Old tasks no longer show leftover Focus Chain checklist rows when reopened.
+
 ## [4.1.22]
 
 ### Added

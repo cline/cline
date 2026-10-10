@@ -346,6 +346,7 @@ export {
 export {
 	type ProviderAuthInfo,
 	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";

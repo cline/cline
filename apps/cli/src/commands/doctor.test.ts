@@ -10,6 +10,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as cliVersion } from "../../package.json";
+import {
+	flushCliLoggerAdapters,
+	shutdownCliLoggerAdapters,
+} from "../logging/adapter";
+import { logSpawnedProcess } from "../logging/process";
 import { getCliBuildInfo } from "../utils/common";
 
 const {
@@ -434,22 +439,22 @@ describe("createDoctorCommand log subcommand", () => {
 	const commandName = getCliBuildInfo().name;
 
 	afterEach(() => {
+		vi.unstubAllEnvs();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
 
-	it("opens the log file for doctor log", async () => {
-		const dataDir = mkdtempSync(
-			path.join(os.tmpdir(), `${commandName}-doctor-log-test-`),
-		);
-		tempDirs.push(dataDir);
-		mockResolveClineDataDir.mockReturnValue(dataDir);
+	async function runDoctorLog(): Promise<{
+		exitCode: number;
+		opened: string[];
+		output: string[];
+		errors: string[];
+	}> {
 		mockEnsureFileExists.mockImplementation((filePath: string) => {
 			mkdirSync(path.dirname(filePath), { recursive: true });
 			appendFileSync(filePath, "");
 		});
-
 		const opened: string[] = [];
 		const output: string[] = [];
 		const errors: string[] = [];
@@ -473,8 +478,19 @@ describe("createDoctorCommand log subcommand", () => {
 				},
 			},
 		);
-
 		await cmd.parseAsync(["log"], { from: "user" });
+		return { exitCode, opened, output, errors };
+	}
+
+	it("opens the log file for doctor log", async () => {
+		const dataDir = mkdtempSync(
+			path.join(os.tmpdir(), `${commandName}-doctor-log-test-`),
+		);
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		vi.stubEnv("CLINE_LOG_PATH", undefined);
+
+		const { exitCode, opened, output, errors } = await runDoctorLog();
 
 		const expectedPath = path.join(dataDir, "logs", `${commandName}.log`);
 		expect(exitCode).toBe(0);
@@ -484,12 +500,29 @@ describe("createDoctorCommand log subcommand", () => {
 		expect(existsSync(expectedPath)).toBe(true);
 	});
 
+	it("opens the CLINE_LOG_PATH file the CLI writes to", async () => {
+		const logDir = mkdtempSync(
+			path.join(os.tmpdir(), `${commandName}-doctor-log-path-test-`),
+		);
+		tempDirs.push(logDir);
+		const logPath = path.join(logDir, "custom", "cli.log");
+		vi.stubEnv("CLINE_LOG_PATH", logPath);
+
+		const { exitCode, opened, output } = await runDoctorLog();
+
+		expect(exitCode).toBe(0);
+		expect(opened).toEqual([logPath]);
+		expect(output).toEqual([`Opening logs stored at ${logPath}`]);
+		expect(existsSync(logPath)).toBe(true);
+	});
+
 	it("returns an error if opening log file fails", async () => {
 		const dataDir = mkdtempSync(
 			path.join(os.tmpdir(), `${commandName}-doctor-log-test-`),
 		);
 		tempDirs.push(dataDir);
 		mockResolveClineDataDir.mockReturnValue(dataDir);
+		vi.stubEnv("CLINE_LOG_PATH", undefined);
 
 		const errors: string[] = [];
 		let exitCode = 0;
@@ -516,6 +549,56 @@ describe("createDoctorCommand log subcommand", () => {
 		expect(exitCode).toBe(1);
 		expect(errors[0]).toContain("failed to open log file");
 		expect(errors[0]).toContain("open failed");
+	});
+});
+
+describe("doctor recent spawned processes", () => {
+	const tempDirs: string[] = [];
+
+	afterEach(() => {
+		shutdownCliLoggerAdapters();
+		vi.unstubAllEnvs();
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("reads them from the CLINE_LOG_PATH file the CLI logged them to", async () => {
+		const logDir = mkdtempSync(
+			path.join(os.tmpdir(), "cline-doctor-spawned-test-"),
+		);
+		tempDirs.push(logDir);
+		vi.stubEnv("CLINE_LOG_PATH", path.join(logDir, "cli.log"));
+		vi.stubEnv("CLINE_LOG_ENABLED", undefined);
+		vi.stubEnv("CLINE_LOG_LEVEL", undefined);
+
+		logSpawnedProcess({
+			component: "connector",
+			command: ["cline", "connect", "slack"],
+			childPid: 4242,
+		});
+		flushCliLoggerAdapters();
+
+		const output: string[] = [];
+		await runDoctorCommand(
+			{ cwd: "/workspace", json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(JSON.parse(output[0] ?? "{}")).toMatchObject({
+			recentSpawnedProcesses: [
+				{
+					pid: 4242,
+					component: "connector",
+					command: "cline connect slack",
+				},
+			],
+		});
 	});
 });
 

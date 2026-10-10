@@ -523,6 +523,7 @@ export {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
+	loadRulesForSystemPromptFromRecords,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
@@ -636,6 +637,7 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpHeaders,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./services/mcp-install";
