@@ -463,6 +463,44 @@ describe("CronRunner", () => {
 		expect(run.error).toMatch(/no runtime/);
 	});
 
+	it("marks runs failed when the agent turn finishes with an error", async () => {
+		const { handlers, calls } = fakeHandlers();
+		handlers.sendSession = async () => ({
+			result: { text: "model not found", finishReason: "error" },
+		});
+		const upserted = store.upsertSpec({
+			externalId: "retired-model",
+			sourcePath: "retired-model.md",
+			triggerKind: "one_off",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "retired-model",
+				title: "Retired model",
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+			},
+		});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		await runner.dispose();
+
+		const run = requireValue(
+			store.listRuns({ specId: upserted.record.specId })[0],
+		);
+		expect(run.status).toBe("failed");
+		expect(run.error).toBe("model not found");
+		expect(calls.stop).toBe(1);
+	});
+
 	it("executes queued event runs with trigger context and report provenance", async () => {
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({
