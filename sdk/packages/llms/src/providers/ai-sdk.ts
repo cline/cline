@@ -61,6 +61,10 @@ import {
 	wrapFetchForProviderRequestCapture,
 } from "./provider-request-capture";
 import {
+	appendRequestId,
+	extractResponseRequestId,
+} from "./response-request-id";
+import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
@@ -1464,13 +1468,16 @@ interface CapturedStreamError {
 	 * does not report the same failure a second time.
 	 */
 	reported?: boolean;
+	requestId?: string;
 }
 
 function captureStreamError(error: unknown): CapturedStreamError {
+	const requestId = extractResponseRequestId(error);
 	return {
-		message: extractErrorMessage(error),
+		message: appendRequestId(extractErrorMessage(error), requestId),
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
+		...(requestId ? { requestId } : {}),
 	};
 }
 
@@ -1991,10 +1998,11 @@ async function* emitAiSdkEvents(
 		};
 	}
 
+	const finishRequestId = requestId ?? streamError?.requestId;
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason),
-		...(requestId ? { requestId } : {}),
+		...(finishRequestId ? { requestId: finishRequestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
 		errorRetryable: streamError?.retryable,
