@@ -1,5 +1,6 @@
 import { supportsModelTool } from "@cline/llms";
 import type {
+	AgentConfig,
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
@@ -9,6 +10,7 @@ import type {
 } from "@cline/shared";
 import {
 	hasRuntimeConfigExtension,
+	modelSupportsImageInput,
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
@@ -52,6 +54,7 @@ import {
 	isModelToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
+import { resolveKnownModelsFromConfig } from "../../services/llms/handler-factory";
 import { createLocalTeamStore } from "../../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../../types/config";
 import type {
@@ -138,6 +141,24 @@ export function createTeamName(): string {
 	return `team-${nanoid(5)}`;
 }
 
+/**
+ * Resolve whether the session's primary model supports image input, using
+ * the same known-models resolution the session orchestrator applies when it
+ * gates image reads at execution time (tryGetModelInfo). Returns undefined
+ * when the model is unknown so the read_files description keeps its default
+ * full-capability wording instead of wrongly stripping image support.
+ */
+function resolveModelSupportsImages(
+	config: Pick<AgentConfig, "modelId" | "knownModels" | "providerConfig">,
+): boolean | undefined {
+	let modelInfo = config.knownModels?.[config.modelId];
+	if (!modelInfo) {
+		modelInfo =
+			resolveKnownModelsFromConfig(config as AgentConfig)?.[config.modelId];
+	}
+	return modelInfo ? modelSupportsImageInput(modelInfo) : undefined;
+}
+
 function createBuiltinToolsList(
 	cwd: string,
 	providerId: string,
@@ -149,6 +170,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
 	runCommandExecutionController?: RunCommandExecutionController,
+	modelSupportsImages?: boolean,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -162,6 +184,7 @@ function createBuiltinToolsList(
 		createBuiltinTools({
 			cwd,
 			telemetry,
+			...(modelSupportsImages !== undefined ? { modelSupportsImages } : {}),
 			executorOptions: {
 				bash: { executionController: runCommandExecutionController },
 			},
@@ -578,6 +601,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					input.runCommandExecutionController,
+					resolveModelSupportsImages(config),
 				),
 			);
 			const agentPluginMcpServers = pluginsEnabled
@@ -678,6 +702,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 												toolExecutors,
 												telemetry ?? config.telemetry,
 												input.runCommandExecutionController,
+											agent.modelId === config.modelId
+												? resolveModelSupportsImages(config)
+												: undefined,
 											),
 											agent,
 										)
@@ -781,6 +808,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									toolExecutors,
 									telemetry ?? config.telemetry,
 									input.runCommandExecutionController,
+									resolveModelSupportsImages(config),
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,

@@ -248,6 +248,16 @@ export interface DefaultToolsConfig {
 	telemetry?: ITelemetryService;
 
 	/**
+	 * Whether the primary model supports image input. Gates the image
+	 * wording in the read_files tool description so vision-less models are
+	 * never instructed to read image files (which would fail in the
+	 * executor). See cline/cline#13922.
+	 * @default undefined — description keeps the full "text or image files"
+	 * wording, matching the executor's per-call modelSupportsImages gate.
+	 */
+	modelSupportsImages?: boolean;
+
+	/**
 	 * Enable the read_files tool
 	 * @default true
 	 */
