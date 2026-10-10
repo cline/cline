@@ -320,6 +320,59 @@ describe("agent message codec", () => {
 		});
 	});
 
+	it("round-trips OpenAI Responses reasoning item ids and encrypted content", () => {
+		// The orchestrator persists and restores every message before each
+		// model request, so a reasoning item survives only if both directions
+		// carry the id (and, for stateless requests, the encrypted content).
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_reasoning",
+			role: "assistant",
+			createdAt: 1,
+			content: [
+				{
+					type: "reasoning",
+					text: "inspect the repo first",
+					metadata: {
+						itemId: "rs_1",
+						reasoningEncryptedContent: "gAAAA-encrypted",
+					},
+				},
+				{
+					type: "reasoning",
+					text: "then run the tests",
+					metadata: { itemId: "rs_2" },
+				},
+			],
+		});
+
+		expect(persisted.content).toEqual([
+			{
+				type: "thinking",
+				thinking: "inspect the repo first",
+				call_id: "rs_1",
+				encrypted_content: "gAAAA-encrypted",
+			},
+			{ type: "thinking", thinking: "then run the tests", call_id: "rs_2" },
+		]);
+
+		const [restored] = messagesToAgentMessages([persisted]);
+		expect(restored?.content).toEqual([
+			{
+				type: "reasoning",
+				text: "inspect the repo first",
+				metadata: {
+					itemId: "rs_1",
+					reasoningEncryptedContent: "gAAAA-encrypted",
+				},
+			},
+			{
+				type: "reasoning",
+				text: "then run the tests",
+				metadata: { itemId: "rs_2" },
+			},
+		]);
+	});
+
 	it("keeps tool result message ids stable across restore/persist round-trips", () => {
 		// Regression: the tool-id suffix used to be re-appended on every
 		// conversion, so each agent.restore() mutated the id. Ids feed the

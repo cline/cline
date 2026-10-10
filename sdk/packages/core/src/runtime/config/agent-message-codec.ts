@@ -182,16 +182,26 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 	switch (block.type) {
 		case "text":
 			return { type: "text", text: block.text };
-		case "thinking":
+		case "thinking": {
+			const metadata: Record<string, unknown> = {};
+			if (block.signature) {
+				metadata.signature = block.signature;
+			}
+			if (block.details) {
+				metadata.details = block.details;
+			}
+			if (block.call_id) {
+				metadata.itemId = block.call_id;
+			}
+			if (block.encrypted_content) {
+				metadata.reasoningEncryptedContent = block.encrypted_content;
+			}
 			return {
 				type: "reasoning",
 				text: block.thinking,
-				metadata: block.signature
-					? { signature: block.signature, details: block.details }
-					: block.details
-						? { details: block.details }
-						: undefined,
+				metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 			};
+		}
 		case "redacted_thinking":
 			return {
 				type: "reasoning",
@@ -250,13 +260,27 @@ function agentPartToContentBlock(
 				} satisfies RedactedThinkingContent;
 			}
 			const metadata = part.metadata as
-				| { signature?: string; details?: unknown[] }
+				| {
+						signature?: string;
+						details?: unknown[];
+						itemId?: string;
+						callId?: string;
+						reasoningEncryptedContent?: string;
+				  }
 				| undefined;
+			// OpenAI Responses reasoning is replayed by item id (plus the
+			// encrypted content when the response carried one), so both must
+			// survive the persist/restore round-trip that precedes every request.
+			const callId = metadata?.itemId ?? metadata?.callId;
 			return {
 				type: "thinking",
 				thinking: part.text,
 				signature: metadata?.signature,
 				details: metadata?.details,
+				...(typeof callId === "string" ? { call_id: callId } : {}),
+				...(typeof metadata?.reasoningEncryptedContent === "string"
+					? { encrypted_content: metadata.reasoningEncryptedContent }
+					: {}),
 			} satisfies ThinkingContent;
 		}
 		case "image":

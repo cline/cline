@@ -4498,6 +4498,128 @@ describe("sdk-gateway", () => {
 		}
 	});
 
+	it("keeps OpenAI Responses reasoning items and replays them with their encrypted content", async () => {
+		// The Responses provider attaches the item id to every reasoning delta
+		// and the encrypted content only to the end of the item.
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{
+					type: "reasoning-start",
+					id: "rs_1:0",
+					providerMetadata: { openai: { itemId: "rs_1" } },
+				},
+				{
+					type: "reasoning-delta",
+					id: "rs_1:0",
+					textDelta: "Consider the failing test.",
+					providerMetadata: { openai: { itemId: "rs_1" } },
+				},
+				{
+					type: "reasoning-end",
+					id: "rs_1:0",
+					providerMetadata: {
+						openai: { itemId: "rs_1", reasoningEncryptedContent: "enc_1" },
+					},
+				},
+				{ type: "text-delta", textDelta: "Fixing it." },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		const reasoningEvents = events.filter(
+			(event): event is Extract<AgentModelEvent, { type: "reasoning-delta" }> =>
+				event.type === "reasoning-delta",
+		);
+		expect(reasoningEvents.map((event) => event.text).join("")).toBe(
+			"Consider the failing test.",
+		);
+		expect(reasoningEvents.at(-1)?.metadata).toEqual({
+			itemId: "rs_1",
+			reasoningEncryptedContent: "enc_1",
+		});
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { providerOptions?: Record<string, Record<string, unknown>> }
+			| undefined;
+		expect(call?.providerOptions?.openai).toEqual(
+			expect.objectContaining({
+				store: false,
+				include: ["reasoning.encrypted_content"],
+			}),
+		);
+
+		streamTextSpy.mockReset();
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "done" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: [
+					...baseMessages,
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{
+								type: "reasoning",
+								text: "Consider the failing test.",
+								metadata: reasoningEvents.at(-1)?.metadata,
+							},
+							{ type: "text", text: "Fixing it." },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "Go on." }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "assistant",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "reasoning",
+								text: "Consider the failing test.",
+								providerOptions: {
+									openai: {
+										itemId: "rs_1",
+										reasoningEncryptedContent: "enc_1",
+									},
+								},
+							}),
+						]),
+					}),
+				]),
+			}),
+		);
+	});
+
 	it("preserves legacy Google snake_case thought signatures", async () => {
 		streamTextSpy.mockReturnValueOnce({
 			fullStream: makeStreamParts([
