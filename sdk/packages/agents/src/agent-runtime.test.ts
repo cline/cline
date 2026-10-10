@@ -1830,14 +1830,30 @@ describe("AgentRuntime", () => {
 					error: "Provider returned error",
 				},
 			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
 		]);
 		const runtime = new AgentRuntime({ model });
+		const notices: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") notices.push(event);
+		});
 
 		const result = await runtime.run("Hi");
 
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toBe("Provider returned error");
-		expect(model.requests).toHaveLength(1);
+		// The tool-call turn is kept and continued by the loop, never re-requested.
+		expect(notices).toEqual([]);
+		expect(model.requests).toHaveLength(2);
+		expect(
+			model.requests[1]?.messages.some(
+				(message) =>
+					message.role === "assistant" &&
+					message.content.some((part) => part.type === "tool-call"),
+			),
+		).toBe(true);
+		expect(result.outputText).toBe("done");
 	});
 
 	it("does not retry when the failed attempt ran a provider-executed tool", async () => {

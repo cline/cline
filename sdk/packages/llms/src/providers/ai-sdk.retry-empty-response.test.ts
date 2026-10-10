@@ -300,11 +300,12 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 	}, 15_000); // The retry waits out the real default backoff (2s).
 
 	it("hands a network death after streamed reasoning to the turn-level retry", async () => {
-		// Bun's fetch shape for a connection the other side dropped mid-body.
-		const socketClosed = new Error(
-			"The socket connection was closed unexpectedly.",
-		);
-		(socketClosed as Error & { code?: string }).code = "ConnectionClosed";
+		// Node fetch (undici) shape for a connection dropped mid-body.
+		const socketClosed = new TypeError("terminated", {
+			cause: Object.assign(new Error("other side closed"), {
+				code: "UND_ERR_SOCKET",
+			}),
+		});
 		const encoder = new TextEncoder();
 		let sentReasoning = false;
 		const fetchMock = vi.fn(
@@ -344,10 +345,10 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 			),
 		);
 
-		// The middleware does not replay output it already let through...
+		// The middleware does not replay output it already let through, so the
+		// finish marks it retryable for the agent loop instead.
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(events.some((event) => event.type === "reasoning-delta")).toBe(true);
-		// ...so the finish marks it retryable for the agent loop instead.
 		expect(finishEvents(events)).toEqual([
 			expect.objectContaining({ reason: "error", errorRetryable: true }),
 		]);

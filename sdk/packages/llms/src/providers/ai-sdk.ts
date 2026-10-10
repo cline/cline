@@ -49,10 +49,7 @@ import {
 	isRetryableBeyondSdkRetries,
 } from "./error-classification";
 import { extractErrorMessage } from "./format";
-import {
-	createRetryEmptyResponseMiddleware,
-	isTransientNetworkError,
-} from "./middleware/retry-empty-response";
+import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
@@ -1462,13 +1459,6 @@ interface CapturedStreamError {
 	 */
 	retryable: boolean;
 	/**
-	 * The connection died underneath the request (see
-	 * `isTransientNetworkError`). The empty-response middleware retries such a
-	 * death only before any model output, so once output has streamed the
-	 * turn-level retry is the only layer left that can recover it.
-	 */
-	transientNetwork: boolean;
-	/**
 	 * This layer already recorded `sdk.error` telemetry for the failure.
 	 * Forwarded as `errorReported` on the `finish` event so the agent loop
 	 * does not report the same failure a second time.
@@ -1481,7 +1471,6 @@ function captureStreamError(error: unknown): CapturedStreamError {
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
-		transientNetwork: isTransientNetworkError(error),
 	};
 }
 
@@ -2008,10 +1997,7 @@ async function* emitAiSdkEvents(
 		...(requestId ? { requestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
-		errorRetryable: streamError
-			? streamError.retryable ||
-				(streamError.transientNetwork && sawVisibleContent)
-			: undefined,
+		errorRetryable: streamError?.retryable,
 		errorReported: streamError?.reported,
 	};
 }
