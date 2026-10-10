@@ -3,6 +3,7 @@ import { isClineInternalTester } from "@shared/internal/account"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import type { UserOrganization } from "@shared/proto/index.cline"
 import {
+	BarChart3,
 	CheckCheck,
 	FlaskConical,
 	HardDriveDownload,
@@ -25,6 +26,7 @@ import ViewHeader from "../common/ViewHeader"
 import SectionHeader from "./SectionHeader"
 import SettingsTargetHighlight from "./SettingsTargetHighlight"
 import AboutSection from "./sections/AboutSection"
+import AnalyticsSection from "./sections/AnalyticsSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
@@ -36,7 +38,7 @@ import { getNextSettingsNavigationRequestId, resolveSettingsTarget, type Setting
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "api-config" | "features" | "terminal" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID = "api-config" | "features" | "terminal" | "general" | "analytics" | "about" | "debug" | "remote-config"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
@@ -74,6 +76,13 @@ const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "General Settings",
 		headerText: "General Settings",
 		icon: Wrench,
+	},
+	{
+		id: "analytics",
+		name: "Analytics",
+		tooltipText: "Token Usage Analytics",
+		headerText: "Token Usage",
+		icon: BarChart3,
 	},
 	{
 		id: "remote-config",
@@ -133,6 +142,7 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
 			terminal: TerminalSettingsSection,
+			analytics: AnalyticsSection,
 			"remote-config": RemoteConfigSection,
 			about: AboutSection,
 			debug: DebugSection,

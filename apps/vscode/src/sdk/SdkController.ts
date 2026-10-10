@@ -107,6 +107,7 @@ import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
+import { UsageTracker } from "./usage-tracker"
 import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
@@ -193,6 +194,7 @@ export class Controller {
 	private diffEdits: SdkDiffEditCoordinator
 	private sessionConfigBuilder: SdkSessionConfigBuilder
 	private taskHistory: SdkTaskHistory
+	private usageTracker: UsageTracker
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
 	private sessionConfigChanges: SdkSessionConfigChangeCoordinator
@@ -510,6 +512,7 @@ export class Controller {
 			// never overlap live-session ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 		})
+		this.usageTracker = new UsageTracker()
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -669,6 +672,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			taskHistory: this.taskHistory,
+			usageTracker: this.usageTracker,
 			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
@@ -960,6 +964,7 @@ export class Controller {
 		await this.clearTask()
 		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()
+		this.usageTracker.dispose()
 		this.mcpHub?.dispose?.()
 		this.messages.dispose()
 		await this.sdkTelemetry.dispose()
@@ -2076,6 +2081,10 @@ export class Controller {
 		await this.authService.handleHicapCallback(code)
 		this.persistProviderApiKeyFromState("hicap")
 		await this.postStateToWebview()
+	}
+
+	getUsageTracker(): UsageTracker {
+		return this.usageTracker
 	}
 
 	async getTaskHistory(request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
