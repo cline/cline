@@ -104,6 +104,56 @@ describe("PendingPromptService", () => {
 		expect(removed.prompts.map((prompt) => prompt.prompt)).toEqual(["keep"]);
 	});
 
+	it("reorders a prompt to an explicit position via drag-and-drop", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, { prompt: "first", delivery: "queue" });
+		service.enqueue(state, { prompt: "second", delivery: "queue" });
+		service.enqueue(state, { prompt: "third", delivery: "queue" });
+		const queued = service.list(state);
+		const secondId = queued[1]?.id;
+		const thirdId = queued[2]?.id;
+
+		// Move "second" to the end (position 2).
+		const moved = service.update(state, {
+			sessionId: "sess-1",
+			promptId: secondId ?? "",
+			position: 2,
+		});
+		expect(moved.updated).toBe(true);
+		expect(moved.prompts.map((prompt) => prompt.prompt)).toEqual([
+			"first",
+			"third",
+			"second",
+		]);
+
+		// Move "third" to the front (position 0).
+		const movedFront = service.update(state, {
+			sessionId: "sess-1",
+			promptId: thirdId ?? "",
+			position: 0,
+		});
+		expect(movedFront.prompts.map((prompt) => prompt.prompt)).toEqual([
+			"third",
+			"first",
+			"second",
+		]);
+
+		// Positions are clamped to the valid range.
+		const clamped = service.update(state, {
+			sessionId: "sess-1",
+			promptId: thirdId ?? "",
+			position: 99,
+		});
+		expect(clamped.updated).toBe(true);
+		expect(clamped.prompts.map((prompt) => prompt.prompt)).toEqual([
+			"first",
+			"second",
+			"third",
+		]);
+	});
+
 	it("normalizes edited prompt text and rejects empty prompts", () => {
 		const service = new PendingPromptService();
 		const state = createState();
