@@ -1378,6 +1378,198 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(explicitWins.maxOutputTokens).toBe(6_000);
 	});
 
+	/**
+	 * Transcript long enough that the summary input budget actually has to drop
+	 * messages, so halving the budget selects a different set. A four-turn fixture
+	 * is smaller than the budget and would make the retry a no-op.
+	 */
+	function truncationTranscript(): LlmsProviders.Message[] {
+		const filler = "x".repeat(600);
+		const messages: LlmsProviders.Message[] = [];
+		for (let i = 0; i < 12; i++) {
+			messages.push({
+				role: i % 2 === 0 ? "user" : "assistant",
+				content: `turn ${i} ${filler}`,
+			});
+		}
+		return messages;
+	}
+
+	it("warns and marks the summary when the summarizer reports it was truncated", async () => {
+		// A summary cut off by max_output_tokens is still text, so it replaces the
+		// compacted history. Before this change nothing distinguished it from a
+		// complete summary: no warning, and no marker on the installed summary.
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		const emitStatusNotice = vi.fn();
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary",
+						text: "The user asked about the deploy pipeline and we",
+					},
+					{
+						type: "done",
+						id: "summary",
+						success: true,
+						incompleteReason: "max_output_tokens",
+					},
+				]),
+			),
+		});
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai",
+			modelId: "local-reasoner",
+			providerConfig: {
+				providerId: "openai",
+				modelId: "local-reasoner",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: truncationTranscript(),
+			apiMessages: truncationTranscript(),
+			model: {
+				id: "local-reasoner",
+				provider: "openai",
+				info: { id: "local-reasoner", maxInputTokens: 10 },
+			},
+			emitStatusNotice,
+		});
+
+		// The summary is still installed -- skipping would grow the context, which
+		// is what compaction exists to prevent -- but it is now diagnosable.
+		expect(result?.messages[0].metadata).toEqual(
+			expect.objectContaining({
+				kind: "compaction_summary",
+				truncated: true,
+				truncatedReason: "max_output_tokens",
+				retriedAfterTruncation: true,
+			}),
+		);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agentic compaction summarizer returned an incomplete summary (attempt 1)",
+			expect.objectContaining({
+				severity: "warn",
+				incompleteReason: "max_output_tokens",
+				likelyCause: "output_budget_exhausted",
+			}),
+		);
+		// The reduced-input retry ran and was itself reported as truncated.
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agentic compaction summarizer returned an incomplete summary (attempt 2)",
+			expect.objectContaining({
+				severity: "warn",
+				incompleteReason: "max_output_tokens",
+			}),
+		);
+	});
+
+	it("retries with fewer source messages and installs the complete retry", async () => {
+		// The retry exists because max_output_tokens caps the summary itself: a
+		// smaller thing to summarise is a shorter summary. Here the first call is
+		// truncated and the second is not.
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		const emitStatusNotice = vi.fn();
+		const createMessage = vi
+			.fn()
+			.mockImplementationOnce(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary",
+						text: "Truncated summary that ran out of",
+					},
+					{
+						type: "done",
+						id: "summary",
+						success: true,
+						incompleteReason: "max_output_tokens",
+					},
+				]),
+			)
+			.mockImplementationOnce(() =>
+				streamChunks([
+					{ type: "text", id: "summary", text: "A complete summary." },
+					{ type: "done", id: "summary", success: true },
+				]),
+			);
+		createHandlerMock.mockReturnValue({ createMessage });
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai",
+			modelId: "local-reasoner",
+			providerConfig: {
+				providerId: "openai",
+				modelId: "local-reasoner",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: truncationTranscript(),
+			apiMessages: truncationTranscript(),
+			model: {
+				id: "local-reasoner",
+				provider: "openai",
+				info: { id: "local-reasoner", maxInputTokens: 10 },
+			},
+			emitStatusNotice,
+		});
+
+		// Two summarizer calls: the original and exactly one retry.
+		expect(createMessage).toHaveBeenCalledTimes(2);
+		expect(result?.messages[0].metadata).toEqual(
+			expect.objectContaining({
+				kind: "compaction_summary",
+				summary: expect.stringContaining("A complete summary."),
+			}),
+		);
+		// A complete summary must not be marked truncated.
+		expect(
+			(result?.messages[0].metadata as { truncated?: boolean }).truncated,
+		).toBeUndefined();
+		// Only the first attempt was reported as truncated -- a successful retry
+		// must not leave a second truncation warning behind.
+		expect(
+			logger.log.mock.calls.filter(
+				(call) =>
+					call[0] ===
+					"Agentic compaction summarizer returned an incomplete summary (attempt 2)",
+			),
+		).toHaveLength(0);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Agentic compaction summarizer returned an incomplete summary (attempt 1)",
+			expect.objectContaining({ incompleteReason: "max_output_tokens" }),
+		);
+	});
 	it("skips with a diagnostic warning when the summarizer only produced reasoning output", async () => {
 		// Repro for CLINE-2911: a reasoning model can spend the entire output
 		// budget thinking. Reasoning chunks are discarded, so no summary text
