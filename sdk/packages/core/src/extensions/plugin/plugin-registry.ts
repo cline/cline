@@ -235,12 +235,15 @@ function normalizeStackPath(value: string): string {
 
 function stackMentionsPath(stack: string, root: string): boolean {
 	const roots = new Set([root]);
-	try {
-		// Module resolution follows symlinks and expands short names, so the
-		// stack may name the real path rather than the configured one.
-		roots.add(realpathSync.native(root));
-	} catch {
-		// A missing root can only match by its configured spelling.
+	// Module resolution follows symlinks, and on Windows may or may not
+	// expand 8.3 short names depending on the resolver, so the stack can name
+	// the real path in either spelling.
+	for (const realpath of [realpathSync, realpathSync.native]) {
+		try {
+			roots.add(realpath(root));
+		} catch {
+			// A missing root can only match by its configured spelling.
+		}
 	}
 	const haystack = normalizeStackPath(stack);
 	const candidates = [...roots].flatMap((candidate) => [
