@@ -25,6 +25,10 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import {
+	HUB_STARTUP_RETRY_WINDOW_MS,
+	retryUntilHubAvailable,
+} from "./hub-startup-retry";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
@@ -95,7 +99,25 @@ async function main() {
 		"Login shell PATH resolution",
 		await shellPathPromise,
 	);
-	await initializeSessionManager(ctx);
+	await retryUntilHubAvailable(() => initializeSessionManager(ctx), {
+		onRetry: ({ error, attempt, elapsedMs }) => {
+			observability.logger.log("Hub not ready yet; retrying", {
+				attempt,
+				elapsedMs,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			if (attempt === 1) {
+				captureSdkError(observability.telemetry, {
+					component: "desktop",
+					operation: "sidecar.hub_startup_retry",
+					error,
+					handled: true,
+					severity: "warn",
+					context: { retryWindowMs: HUB_STARTUP_RETRY_WINDOW_MS },
+				});
+			}
+		},
+	});
 
 	let shuttingDown = false;
 	let handlingFatalError = false;
