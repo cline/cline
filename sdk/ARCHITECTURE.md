@@ -653,22 +653,15 @@ Each session gets its own guarded view of the plugins it enabled:
   `"throw"` rethrows). A failing rule contributes no text, and a failing
   message builder leaves the messages unchanged. Calls into a copy that is
   turned off, whose setup failed, or whose session ended are refused.
-- Registrations are buffered and validated (capabilities, automation event
-  types) during setup, so a setup that throws contributes nothing. If the host
-  still rejects a registration while committing, the copy's setup is recorded
-  as failed and the error is rethrown so the contribution registry discards
-  what was already committed.
+- Registrations are buffered (and capability-checked) during setup, so a
+  setup that throws contributes nothing. If the host rejects a registration
+  while committing, the copy's setup is recorded as failed and the error is
+  rethrown so the contribution registry discards what was already committed.
 - Each copy owns its cleanup. `ctx.onDispose(fn)` registers cleanup that runs
   when the session releases the copy (session stop, dispose, or a failed
-  start). The registry also records timers (`setTimeout`, `setInterval`,
-  `setImmediate`) created while the copy's code runs, including at import, and
-  clears them on release; a released copy cannot schedule new ones. Host
-  callbacks handed to plugins (`emitEvent`, `automation`, `logger`,
-  `telemetry`, a tool's `emitUpdate`) run outside the copy's scope so timers
-  the host creates are never cleared with the plugin. Not tracked: child
-  processes, sockets, listeners on shared emitters, timers from `node:timers`
-  imports, and timers created by host modules a plugin imports directly.
-  Plugins must stop those in `ctx.onDispose`.
+  start). Plugins must stop everything they start for a session there: timers,
+  child processes, sockets, listeners on shared emitters. The host does not
+  track or cancel them.
 
 The registry tracks one status per plugin: `loading`, `ready`, `degraded`,
 `failed`, or `disabled`. It records the last error with its phase (`discover`,
@@ -684,24 +677,16 @@ resuming it, or the Hub rebuilding a missing session) is a new start and gets
 the current plugins. A change is detected by a content fingerprint of the
 plugin's entry file and every file it reaches through relative static imports
 (`fingerprintPluginSources`), so edits outside the entry file count too.
-Side-effect imports at the start of a statement are followed too. Files
-reached only through dynamic imports, `require()` of computed paths, or
-`node_modules` are not fingerprinted. A plugin whose import failed is
-therefore also retried when a session starts, at most every 30 s
-(`DEFAULT_PLUGIN_FAILED_IMPORT_RETRY_MS`), so fixing any of those recovers it
-without a reload; `plugins.reload` applies a change immediately. The
-fingerprint is a non-cryptographic checksum: it only has to notice edits.
+Files reached only through dynamic imports, `require()` of computed paths, or
+`node_modules` are not fingerprinted; after changing those, use
+`plugins.reload`.
 
-Failures are counted per generation. A generation is one import of the
-module; `plugins.reload` or a fingerprint change starts a new one.
-Sessions started afterwards get copies of the new generation, and running
-sessions keep the copy they set up, which stays callable. Import failures,
-discovery failures, and five consecutive call failures turn off one
-generation for every session using it, so a broken reload cannot turn off
-copies that still work, and failures in an old copy cannot change the status
-of the new one (status always describes the current generation). An
-attributed uncaught error turns off every live generation, because a stack
-cannot tell copies of the same file apart. A `setup()` failure is per
+Failures are counted per plugin. Import failures, discovery failures, an
+attributed uncaught error, and five consecutive call failures turn the
+plugin off for every session using it; a re-import (`plugins.reload` or a
+fingerprint change) starts over with a clean slate. Running sessions keep
+the copy they set up, which stays callable unless the plugin is turned off
+(a broken reload fails closed for them too). A `setup()` failure is per
 session: that session loses its copy (no tools or hooks), the status shows
 `failed` with the error, only that session is told, other sessions keep
 their working copies, and the next session tries setup again; a successful

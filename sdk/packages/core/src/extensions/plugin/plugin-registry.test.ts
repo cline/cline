@@ -613,22 +613,6 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 		expect(registry.get(path)[0]?.sessionIds).toEqual(["new", "old"]);
 	});
 
-	it("does not let a broken reload turn off copies that still work", async () => {
-		const path = await write("break-on-reload.js", toolPlugin("breaks"));
-		const running = await registry.loadForSession({
-			sessionId: "running",
-			pluginPaths: [path],
-		});
-		const [tool] = (await setUp(running.extensions[0])).tools;
-
-		await writeFile(path, `throw new Error("bad edit");`, "utf8");
-		const [status] = await registry.reload(path);
-		expect(status?.state).toBe("failed");
-		await expect(tool?.execute({}, toolContext)).resolves.toBe(
-			"ok from breaks",
-		);
-	});
-
 	it("times out and stops commands, rule content, and message builders", async () => {
 		const path = await write(
 			"callbacks.js",
@@ -683,16 +667,13 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 		await expect(boom?.handler?.("")).rejects.toThrow(/is unavailable/);
 	});
 
-	it("runs onDispose cleanup and clears the copy's timers when the session ends", async () => {
+	it("runs onDispose cleanup when the session ends", async () => {
 		const path = await write(
-			"timers.js",
-			`globalThis.__timerTicks = 0;
-setInterval(() => { globalThis.__timerTicks++; }, 5);
-export default {
-	name: "timers",
+			"dispose.js",
+			`export default {
+	name: "dispose",
 	manifest: { capabilities: ["tools"] },
-	setup(api, ctx) {
-		setInterval(() => { globalThis.__timerTicks++; }, 5);
+	setup(_api, ctx) {
 		ctx.onDispose?.(() => { globalThis.__disposedSession = ctx.session?.sessionId; });
 	},
 };
@@ -704,41 +685,10 @@ export default {
 			setupContext: { session: { sessionId: "s1" } },
 		});
 		await setUp(loaded.extensions[0]);
-		await new Promise((resolve) => setTimeout(resolve, 30));
 		const globals = globalThis as unknown as Record<string, unknown>;
-		expect(globals.__timerTicks).toBeGreaterThan(0);
-
+		expect(globals.__disposedSession).toBeUndefined();
 		await loaded.release();
-		const ticks = globals.__timerTicks;
-		await new Promise((resolve) => setTimeout(resolve, 30));
-		expect(globals.__timerTicks).toBe(ticks);
 		expect(globals.__disposedSession).toBe("s1");
-	});
-
-	it("does not track timers the host creates for a plugin", async () => {
-		const path = await write(
-			"host-callback.js",
-			`export default {
-	name: "host-callback",
-	manifest: { capabilities: ["tools"] },
-	setup(_api, ctx) { ctx.emitEvent?.("start_host_timer"); },
-};
-`,
-		);
-		let hostTimerFired = false;
-		const loaded = await registry.loadForSession({
-			sessionId: "s1",
-			pluginPaths: [path],
-			emitEvent: () => {
-				setTimeout(() => {
-					hostTimerFired = true;
-				}, 20);
-			},
-		});
-		await setUp(loaded.extensions[0]);
-		await loaded.release();
-		await new Promise((resolve) => setTimeout(resolve, 40));
-		expect(hostTimerFired).toBe(true);
 	});
 
 	it("treats a registration the host rejects as a setup failure", async () => {
@@ -775,22 +725,6 @@ export default {
 		).rejects.toThrow("provider rejected by host");
 		expect(told).toEqual(["failed:provider rejected by host"]);
 		expect(registry.get(path)[0]?.lastError?.phase).toBe("setup");
-
-		const invalid = await write(
-			"bad-event-type.js",
-			`export default {
-	name: "bad-event-type",
-	manifest: { capabilities: ["automationEvents"] },
-	setup(api) { api.registerAutomationEventType({ eventType: "", source: "x" }); },
-};
-`,
-		);
-		const second = await registry.loadForSession({ pluginPaths: [invalid] });
-		await setUp(second.extensions[0]);
-		expect(registry.get(invalid)[0]?.lastError).toMatchObject({
-			phase: "setup",
-			message: "registerAutomationEventType requires an eventType",
-		});
 	});
 
 	it("applies per-session timeout overrides", async () => {
@@ -831,7 +765,7 @@ export default { name: "counted", manifest: { capabilities: ["tools"] } };
 		expect(globals.__countedImports).toBe(2);
 	});
 
-	it("keeps the runtime's this for timer callbacks and the plugin's this for its methods", async () => {
+	it("keeps the plugin's this for setup and its registered methods", async () => {
 		const path = await write(
 			"this-binding.js",
 			`export default {
@@ -840,9 +774,6 @@ export default { name: "counted", manifest: { capabilities: ["tools"] } };
 	manifest: { capabilities: ["commands", "rules", "messageBuilders"] },
 	setup(api) {
 		globalThis.__setupThis = this?.label;
-		const handle = setTimeout(function () {
-			globalThis.__timerThisIsHandle = this === handle;
-		}, 1);
 		api.registerRule({ id: "self-rule", content() { return this.id; } });
 		api.registerCommand({ name: "who", handler(input) { return this.name + ":" + input; } });
 		api.registerMessageBuilder({ name: "tagger", build(messages) { return [...messages, { role: "user", content: this.name }]; } });
@@ -866,11 +797,9 @@ export default { name: "counted", manifest: { capabilities: ["tools"] } };
 			},
 			{},
 		);
-		await new Promise((resolve) => setTimeout(resolve, 20));
 		const globals = globalThis as unknown as Record<string, unknown>;
 
 		expect(globals.__setupThis).toBe("plugin-object");
-		expect(globals.__timerThisIsHandle).toBe(true);
 		await expect((rules[0]?.content as () => Promise<string>)()).resolves.toBe(
 			"self-rule",
 		);
@@ -900,33 +829,6 @@ export default { name: "import-time-work", manifest: { capabilities: ["tools"] }
 		expect(events).toEqual([
 			{ name: "steer_message", payload: { prompt: "from import" } },
 		]);
-	});
-
-	it("tells an older generation's sessions about its first failure after a reload", async () => {
-		const path = await write(
-			"old-hook.js",
-			`export default {
-	name: "old-hook",
-	manifest: { capabilities: ["hooks"] },
-	hooks: { beforeRun: async () => { throw new Error("old copy broke"); } },
-};
-`,
-		);
-		const told: string[] = [];
-		const old = await registry.loadForSession({
-			sessionId: "old",
-			pluginPaths: [path],
-			onIssue: (issue) =>
-				told.push(`${issue.state}:${issue.lastError?.message}`),
-		});
-		await writeFile(path, toolPlugin("old-hook"), "utf8");
-		await registry.reload(path);
-
-		await old.extensions[0]?.hooks?.beforeRun?.({ snapshot: {} } as never);
-
-		expect(told).toEqual(["degraded:old copy broke"]);
-		// Status still describes the reloaded generation.
-		expect(registry.get(path)[0]?.state).toBe("ready");
 	});
 
 	it("gives new sessions changes made outside the entry file, and only new sessions", async () => {
@@ -966,71 +868,5 @@ export default {
 		expect((await setUp(after.extensions[0])).tools.map((t) => t.name)).toEqual(
 			["helper_v2"],
 		);
-	});
-
-	it("retries a plugin after a fix to a file it imports only for side effects", async () => {
-		await write("side-effect.js", `throw new Error("helper broken");\n`);
-		const path = await write(
-			"side-effect-entry.js",
-			`import "./side-effect.js";
-export default { name: "side-effect-entry", manifest: { capabilities: ["tools"] } };
-`,
-		);
-		const broken = await registry.loadForSession({ pluginPaths: [path] });
-		expect(broken.extensions).toEqual([]);
-		expect(registry.get(path)[0]).toMatchObject({
-			state: "failed",
-			lastError: { phase: "import" },
-		});
-
-		// Text that merely looks like an import inside a string must not be
-		// treated as one when loading.
-		const prose = await write(
-			"prose.js",
-			`export default { name: "prose", note: 'run import "x" first', manifest: { capabilities: ["tools"] } };\n`,
-		);
-		const proseLoaded = await registry.loadForSession({ pluginPaths: [prose] });
-		expect(proseLoaded.extensions.map((extension) => extension.name)).toEqual([
-			"prose",
-		]);
-
-		// Fix only the helper; the entry file is untouched.
-		await write("side-effect.js", `globalThis.__sideEffectRan = true;\n`);
-		const fixed = await registry.loadForSession({ pluginPaths: [path] });
-		expect(fixed.extensions.map((extension) => extension.name)).toEqual([
-			"side-effect-entry",
-		]);
-		expect(registry.get(path)[0]?.state).toBe("ready");
-	});
-
-	it("retries a failed import on a backoff when the fix is invisible to change detection", async () => {
-		const retrying = new PluginRegistry({ failedImportRetryMs: 100 });
-		await write("dynamic-helper.js", `throw new Error("helper broken");\n`);
-		// The helper path is computed, so change detection cannot follow it.
-		const path = await write(
-			"dynamic-entry.js",
-			`const helper = ["./dynamic", "helper.js"].join("-");
-globalThis.__dynamicImports = (globalThis.__dynamicImports ?? 0) + 1;
-await import(new URL(helper, import.meta.url).href);
-export default { name: "dynamic-entry", manifest: { capabilities: ["tools"] } };
-`,
-		);
-		const globals = globalThis as unknown as Record<string, number>;
-		globals.__dynamicImports = 0;
-		await retrying.loadForSession({ pluginPaths: [path] });
-		expect(retrying.get(path)[0]?.state).toBe("failed");
-
-		await write("dynamic-helper.js", `export const ok = true;\n`);
-		// Within the backoff window: still failed, and not imported again.
-		await retrying.loadForSession({ pluginPaths: [path] });
-		expect(globals.__dynamicImports).toBe(1);
-		expect(retrying.get(path)[0]?.state).toBe("failed");
-
-		await new Promise((resolve) => setTimeout(resolve, 120));
-		const recovered = await retrying.loadForSession({ pluginPaths: [path] });
-		expect(recovered.extensions.map((extension) => extension.name)).toEqual([
-			"dynamic-entry",
-		]);
-		expect(retrying.get(path)[0]?.state).toBe("ready");
 	});
 });
