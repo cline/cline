@@ -91,6 +91,15 @@ function createBrowserApi(): VsCodeApi {
 				socket.send(JSON.stringify(message));
 				return;
 			}
+			if (message.type === "setup_device") {
+				dispatchHostMessage({
+					type: "device_setup",
+					setup: null,
+					error:
+						"Dashboard disconnected. Reconnect before setting up a device.",
+				});
+				return;
+			}
 			pendingMessages.push(message);
 		},
 		getState() {

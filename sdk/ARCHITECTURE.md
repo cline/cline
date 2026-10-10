@@ -1070,7 +1070,7 @@ root export is browser-compatible; its separate `assets` export provides Node
 resource paths. It does not import the agent runtime or the bridge application.
 
 The shared hub daemon owns `core/src/hub/devices`: one Node HTTP/WebSocket
-listener plus an optional HTTPS browser listener. The device service uses the
+listener for hardware devices. The device service uses the
 hub's native command transport and event subscriptions inside the same process;
 there is no loopback hub client or separate bridge application. Pairing and
 session routing live here; firmware continues to use its compact device protocol.
@@ -1080,5 +1080,6 @@ and `device.pair`, or use `HubUIClient.devices()` and `subscribeDevices()`. The
 `device.changed` event publishes status across clients. The dashboard observes
 this service and never stops it when the dashboard closes. Hub shutdown waits
 for device listeners and subscriptions to close; startup errors are exposed as
-service state without failing the hub. The standalone `../device-sdk` directory
-can be extracted into a separate repository without agent dependencies.
+service state without failing the hub. The hardware SDK is maintained in the separate `cline/device-sdk` repository,
+without agent dependencies. Source development currently uses a sibling checkout
+through a local file dependency.

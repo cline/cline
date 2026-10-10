@@ -30,7 +30,7 @@ it("shares one device service across app clients, survives app disconnect, and s
 		devices: {
 			host: "127.0.0.1",
 			port: 0,
-			web: false,
+
 			mdns: false,
 			dataDir: dir,
 			log: () => {},
@@ -52,6 +52,9 @@ it("shares one device service across app clients, survives app disconnect, and s
 		const first = await desktop.devices();
 		endpoint = first.deviceEndpoint;
 		expect(first.status).toBe("running");
+		await expect(desktop.setupDevice("status")).rejects.toThrow(
+			"Start device setup first",
+		);
 		expect(endpoint).toBeDefined();
 		const other = await vscode.devices("start");
 		expect(other.deviceEndpoint).toBe(endpoint);

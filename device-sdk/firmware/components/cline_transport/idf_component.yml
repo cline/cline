@@ -1,4 +1,0 @@
-dependencies:
-  idf: ">=5.5"
-  espressif/esp_websocket_client: "^1.2.3"
-  espressif/mdns: "^1.4.0"

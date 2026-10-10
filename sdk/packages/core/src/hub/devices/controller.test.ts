@@ -47,7 +47,7 @@ it("owns one service across simultaneous app requests and waits for shutdown bef
 	expect(pair).toHaveBeenCalledTimes(1);
 	const closing = controller.stop();
 	const restarting = controller.start(status.hubUrl);
-	await Promise.resolve();
+	await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
 	expect(start).toHaveBeenCalledTimes(1);
 	stopped();
 	await closing;

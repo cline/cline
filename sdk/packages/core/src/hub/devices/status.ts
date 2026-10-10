@@ -3,7 +3,6 @@ export interface DeviceServiceStatus {
 	hubUrl: string;
 	hubConnected: boolean;
 	deviceEndpoint: string;
-	browserEndpoint?: string;
 	devices: string[];
 }
 
@@ -27,8 +26,6 @@ export function parseDeviceServiceStatus(
 		!validUrl(data.hubUrl, ["ws:", "wss:"]) ||
 		typeof data.hubConnected !== "boolean" ||
 		!validUrl(data.deviceEndpoint, ["ws:", "wss:"]) ||
-		(data.browserEndpoint !== undefined &&
-			!validUrl(data.browserEndpoint, ["http:", "https:"])) ||
 		!Array.isArray(data.devices) ||
 		!data.devices.every((name) => typeof name === "string")
 	)
@@ -38,7 +35,6 @@ export function parseDeviceServiceStatus(
 		hubUrl: data.hubUrl as string,
 		hubConnected: data.hubConnected,
 		deviceEndpoint: data.deviceEndpoint as string,
-		browserEndpoint: data.browserEndpoint as string | undefined,
 		devices: data.devices as string[],
 	};
 }

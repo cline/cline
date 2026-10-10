@@ -247,6 +247,11 @@ export type WebviewInboundMessage =
 	| { type: "stop_device_service" }
 	| { type: "pair_device_service" }
 	| {
+			type: "setup_device";
+			action: "start" | "status" | "save" | "cancel";
+			settings?: { ssid: string; password: string; host?: string };
+	  }
+	| {
 			type: "desktopCommand";
 			id: string;
 			command: string;
@@ -287,6 +292,11 @@ export type WebviewInboundMessage =
 	| { type: "forkSession" };
 
 export type WebviewOutboundMessage =
+	| {
+			type: "device_setup";
+			setup: import("@cline/core/hub").DeviceSetupState | null;
+			error?: string;
+	  }
 	| { type: "status"; text: string }
 	/**
 	 * `recoverable: true` marks an in-run notice (e.g. a MistakeTracker

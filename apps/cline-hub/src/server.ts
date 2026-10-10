@@ -250,6 +250,24 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 						ctx.deviceService = await ctx.uiClient?.devices("stop");
 					} else if (frame.type === "pair_device_service") {
 						ctx.deviceService = await ctx.uiClient?.devices("pair");
+					} else if (frame.type === "setup_device") {
+						try {
+							if (!ctx.uiClient) throw new Error("Hub disconnected");
+							const setup = await ctx.uiClient.setupDevice(
+								frame.action,
+								frame.settings,
+							);
+							ctx.send(peer, { type: "device_setup", setup });
+						} catch (error) {
+							ctx.send(peer, {
+								type: "device_setup",
+								setup: null,
+								error:
+									error instanceof Error
+										? error.message
+										: "Device setup failed",
+							});
+						}
 					} else if (frame.type === "restart_hub") {
 						await restartHub(ctx);
 					}

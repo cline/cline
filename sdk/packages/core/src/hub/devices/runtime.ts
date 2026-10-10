@@ -16,12 +16,10 @@ import { advertise, lanIPv4Addresses } from "./mdns";
 import { DeviceRegistry } from "./pairing";
 import { startDeviceServer } from "./server";
 import type { DeviceServiceStatus } from "./status";
-import { ensureSelfSignedCert } from "./tls";
 import { createVoiceTranscriber } from "./transcribe";
 
 export { type DeviceServiceStatus, parseDeviceServiceStatus } from "./status";
 export const DEFAULT_DEVICE_PORT = 25470;
-export const DEFAULT_WEB_PORT = 25471;
 const CLIENT_TYPE = "cline-device";
 const SEND_ACCEPT_MS = 1_500;
 
@@ -32,9 +30,6 @@ export interface StartDeviceServiceOptions {
 	workspace?: string;
 	host?: string;
 	port?: number;
-	webPort?: number;
-	web?: boolean;
-	webRoot?: string;
 	mdns?: boolean;
 	pair?: boolean;
 	registry?: DeviceRegistry;
@@ -284,7 +279,6 @@ export async function startDeviceService(
 	});
 
 	let server: Awaited<ReturnType<typeof startDeviceServer>> | undefined;
-	let webServer: Awaited<ReturnType<typeof startDeviceServer>> | undefined;
 	let mdns: ReturnType<typeof advertise> | undefined;
 	let stopPromise: Promise<void> | undefined;
 	const stop = () =>
@@ -295,7 +289,6 @@ export async function startDeviceService(
 			bridge.dispose();
 			await Promise.allSettled([
 				server?.stop(),
-				webServer?.stop(),
 				command("client.unregister", { clientId }),
 				cloud.dispose(),
 			]);
@@ -316,11 +309,6 @@ export async function startDeviceService(
 			hubUrl: url,
 			hubConnected: online,
 			deviceEndpoint: `ws://${ip}:${server?.port ?? port}/device`,
-			...(webServer
-				? { browserEndpoint: `https://${ip}:${webServer.port}/` }
-				: options.web !== false && server
-					? { browserEndpoint: `http://${ip}:${server.port}/` }
-					: {}),
 			devices: bridge.connectedDevices(),
 		};
 	}
@@ -331,43 +319,15 @@ export async function startDeviceService(
 		);
 		await syncRunningSessions();
 
-		const serveWeb = options.web !== false;
 		server = await startDeviceServer({
 			bridge,
 			port,
 			hostname: options.host ?? "0.0.0.0",
-			web: serveWeb,
-			webRoot: options.webRoot,
 			status: () => status(),
 		});
 		const boundPort = server.port ?? port;
 		const lanIp = lanIPv4Addresses()[0] ?? "127.0.0.1";
 		log(`device endpoint ws://${lanIp}:${boundPort}/device`);
-
-		// Browser device over HTTPS: phones only allow the mic on secure origins.
-		if (serveWeb) {
-			try {
-				const tls = ensureSelfSignedCert(
-					join(dataDir, "devices", "tls"),
-					lanIPv4Addresses(),
-				);
-				webServer = await startDeviceServer({
-					bridge,
-					port: options.webPort ?? DEFAULT_WEB_PORT,
-					hostname: options.host ?? "0.0.0.0",
-					tls: { cert: tls.cert, key: tls.key },
-					web: true,
-					webRoot: options.webRoot,
-					status: () => status(),
-				});
-				log(
-					`browser device: https://${lanIp}:${webServer.port}/  (self-signed: accept the warning once${tls.fresh ? "; new certificate" : ""})`,
-				);
-			} catch (error) {
-				log(`browser device over HTTPS unavailable: ${error}`);
-				log(`browser device (no mic): http://${lanIp}:${boundPort}/`);
-			}
-		}
 
 		mdns =
 			options.mdns === false

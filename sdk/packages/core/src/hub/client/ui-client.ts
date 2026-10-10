@@ -47,6 +47,21 @@ export class HubUIClient {
 		const reply = await this.client.command(`device.${action}`);
 		return reply.payload?.deviceService as unknown as DeviceServiceState;
 	}
+	async setupDevice(
+		action: "start" | "status" | "save" | "cancel",
+		settings?: import("../devices/provisioning").DeviceWifiSettings,
+	): Promise<import("../devices/provisioning").DeviceSetupState | null> {
+		await this.client.connect();
+		const reply = await this.client.command(
+			`device.setup.${action}`,
+			settings ? { ...settings } : {},
+		);
+		if (!reply.ok)
+			throw new Error(reply.error?.message ?? "Device setup failed");
+		return reply.payload?.setup as unknown as
+			| import("../devices/provisioning").DeviceSetupState
+			| null;
+	}
 	subscribeDevices(listener: (state: DeviceServiceState) => void): () => void {
 		return this.client.subscribe((event) => {
 			if (event.event === "device.changed" && event.payload?.deviceService)

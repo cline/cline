@@ -51,6 +51,10 @@ export type {
 	DeviceServiceOptions,
 	DeviceServiceState,
 } from "./devices/controller";
+export type {
+	DeviceSetupState,
+	DeviceWifiSettings,
+} from "./devices/provisioning";
 export * from "./discovery";
 export * from "./discovery/defaults";
 export * from "./discovery/instance-lock";

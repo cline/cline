@@ -1,8 +1,8 @@
 # Device architecture comparison
 
-- **Baseline:** `bee/cline-pet`, commit `defee6f86`: device SDK under
+- **Baseline:** commit `defee6f86`: device SDK under
   `sdk/packages/device`, standalone bridge app, dashboard-owned bridge lifecycle.
-- **Hub service:** `bee/hub-device-service`: standalone `device-sdk/`, with one
+- **Hub service:** `bee/hub-device-service`: a separate device SDK repository, with one
   Node device service owned by the shared hub daemon.
 
 The hardware protocol and firmware behavior are unchanged. Typed prompts,
@@ -25,27 +25,19 @@ and shows a **Devices** panel with pairing, endpoints and connected devices.
 **Enable devices** / **Disable devices** affect the shared hub service. Closing
 any app leaves the device service running; stopping the hub closes it.
 
-Default endpoints remain port 25470 for devices and 25471 for the HTTPS browser
-pet. Only run one variant at a time, or configure different `CLINE_DEVICE_PORT`
-and `CLINE_DEVICE_WEB_PORT` values. The new service stores pairing records under
-`<Cline data directory>/devices/`; pair existing hardware once on this branch.
-No firmware update is needed for the hub integration.
+The hardware endpoint remains on port 25470. The browser client has been removed.
+Only run one variant at a time, or configure different `CLINE_DEVICE_PORT` values.
+The service stores pairing records under `<Cline data directory>/devices/`; pair
+existing hardware once on this branch. No firmware update is needed.
 
 ## Standalone hardware SDK
 
-`device-sdk/` has its own package manifest, lockfile, TypeScript configuration,
-license, tests, assets, browser pet, firmware, and a workflow ready for an
-independent repository. Copy this directory outside the monorepo and run:
-
-```sh
-bun install --frozen-lockfile
-bun run build
-bun test
-bun run firmware
-```
-
-The monorepo currently includes it as a workspace package named `@cline/device`.
-It has no dependency on any agent package. No new remote repository is created.
+The SDK is maintained in [cline/device-sdk](https://github.com/cline/device-sdk).
+For local development, keep its checkout beside Cline (`../device-sdk` relative
+to the Cline repository root), run its `bun install` and `bun run build`, then
+run `bun install` in Cline to refresh the local `@cline/device` dependency.
+It includes protocol types, firmware, board profiles, avatar assets, tests, and
+build tooling. It has no dependency on any agent package.
 
 ## Shared host API
 

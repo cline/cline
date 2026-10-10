@@ -29,7 +29,7 @@ it("runs inside the hub through native commands, exposes no pairing secrets over
 		hubUrl: "ws://localhost/hub",
 		host: "127.0.0.1",
 		port: 0,
-		web: false,
+
 		mdns: false,
 		dataDir: dir,
 		registry,
@@ -59,6 +59,9 @@ it("runs inside the hub through native commands, exposes no pairing secrets over
 				.replace("/device", "/health"),
 		);
 		const data = await response.json();
+		const origin = new URL(response.url).origin;
+		expect((await fetch(`${origin}/`)).status).toBe(404);
+		expect((await fetch(`${origin}/app.js`)).status).toBe(404);
 		expect(parseDeviceServiceStatus(data)).toMatchObject({
 			devices: ["desk"],
 			service: "cline-device-service",
@@ -83,8 +86,7 @@ it("rejects executable endpoint URLs", () => {
 			service: "cline-device-service",
 			hubUrl: "ws://localhost/hub",
 			hubConnected: true,
-			deviceEndpoint: "ws://localhost/device",
-			browserEndpoint: "javascript:alert(1)",
+			deviceEndpoint: "javascript:alert(1)",
 			devices: [],
 		}),
 	).toBeUndefined();

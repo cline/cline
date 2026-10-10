@@ -1,4 +1,5 @@
 import type { NativeHubTransport } from "../server/native-transport";
+import { DeviceProvisioning, type DeviceWifiSettings } from "./provisioning";
 import {
 	type DeviceServiceRuntime,
 	type StartDeviceServiceOptions,
@@ -18,6 +19,7 @@ export type DeviceServiceOptions = Omit<
 >;
 /** One hub owns the service. App clients only issue commands and observe state. */
 export class HubDeviceService {
+	private readonly provisioning = new DeviceProvisioning();
 	private runtime?: DeviceServiceRuntime;
 	private pending?: Promise<void>;
 	private stopping?: Promise<void>;
@@ -74,6 +76,31 @@ export class HubDeviceService {
 		this.changed();
 		return this.snapshot();
 	}
+	async setup(
+		action: "start" | "status" | "save" | "cancel",
+		settings?: DeviceWifiSettings,
+	) {
+		if (!this.runtime || this.stopping)
+			throw new Error("Enable the device service first.");
+		switch (action) {
+			case "start":
+				return this.provisioning.start();
+			case "status":
+				return this.provisioning.status();
+			case "cancel":
+				await this.provisioning.cancel();
+				return null;
+			case "save": {
+				if (!settings) throw new Error("Wi-Fi settings are required.");
+				const state = await this.provisioning.status();
+				if (state.status !== "approved")
+					throw new Error("Confirm the code on the device first.");
+				this.runtime.pair();
+				const code = this.runtime.pairingCode()!.code;
+				return this.provisioning.save(settings, code);
+			}
+		}
+	}
 	stop(): Promise<void> {
 		if (this.stopping) return this.stopping;
 		this.stopping = this.stopRuntime().finally(() => {
@@ -83,6 +110,7 @@ export class HubDeviceService {
 	}
 	private async stopRuntime(): Promise<void> {
 		await this.pending;
+		await this.provisioning.cancel();
 		if (!this.runtime && this.state.status === "stopped") return;
 		await this.runtime?.stop();
 		this.runtime = undefined;

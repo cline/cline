@@ -309,8 +309,8 @@ To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.m
 
 ## Device SDK
 
-[`@cline/device`](../device-sdk/README.md) provides the device protocol, ESP-IDF
+[`@cline/device`](https://github.com/cline/device-sdk) provides the device protocol, ESP-IDF
 firmware, board profiles, and versioned avatars for Cline companions. It is
 independent of the agent runtime. The shared hub owns the Node device service;
 CLI, desktop, VS Code and the dashboard use the same pairing and connection API.
-See [the standalone device SDK](../device-sdk/README.md).
+See [the standalone device SDK](https://github.com/cline/device-sdk).

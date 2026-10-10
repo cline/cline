@@ -22,6 +22,10 @@ export type HubCapabilityName =
 	| "device.start"
 	| "device.stop"
 	| "device.pair"
+	| "device.setup.start"
+	| "device.setup.status"
+	| "device.setup.save"
+	| "device.setup.cancel"
 	| "client.register"
 	| "client.list"
 	| "session.create"
@@ -56,6 +60,10 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"device.start",
 	"device.stop",
 	"device.pair",
+	"device.setup.start",
+	"device.setup.status",
+	"device.setup.save",
+	"device.setup.cancel",
 	"client.register",
 	"client.list",
 	"session.create",
@@ -532,6 +540,10 @@ export type HubCommandName =
 	| "device.start"
 	| "device.stop"
 	| "device.pair"
+	| "device.setup.start"
+	| "device.setup.status"
+	| "device.setup.save"
+	| "device.setup.cancel"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"

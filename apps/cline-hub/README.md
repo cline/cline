@@ -4,7 +4,7 @@ A browser dashboard for the local Cline hub. Open it to see who's connected, wha
 
 ## Capabilities
 
-- **Device bridge** panel: start/stop the Cline Device bridge on this dashboard's hub, view device/browser endpoints and connected devices, and detect bridges using a different hub
+- **Devices** panel: enable/disable the hub-owned hardware device service, pair devices, and view its endpoint and connected devices
 - live list of connected hub clients (from `HubUIClient.subscribeUI`)
 - live list of active sessions with status, model, and titles
 - click a session to view its message history and stream new assistant output
@@ -120,3 +120,13 @@ five minutes. Enter it in the device setup page. Active codes clear after pairin
 or expiry. Endpoints and connected devices are visible here; closing the dashboard
 does not stop them. **Enable devices** / **Disable devices** control the shared
 service for every app connected to this hub.
+
+## Set up hardware Wi-Fi
+
+Connect your computer to the device's `ClineDevice-XXXX` setup Wi-Fi, keeping
+the local dashboard open. Choose **Devices → Set up device → Connect to device**.
+Compare the displayed code and press Confirm on the device (Y on Cardputer).
+Then enter Wi-Fi settings and choose **Save Wi-Fi and pair**. Reconnect the
+computer to its home network after the device restarts. The hub sends encrypted
+configuration only after physical confirmation and does not persist the password.
+This requires updated firmware from the device SDK; see its `firmware/SETUP.md`.

@@ -1,7 +1,8 @@
-import { CopyIcon, ExternalLinkIcon, SmartphoneIcon } from "lucide-react";
+import { CopyIcon, SmartphoneIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WebviewDeviceServiceState } from "../../../../webview-protocol";
 import { postToHost } from "../../vscode";
+import { DeviceSetup } from "./device-setup";
 
 export function DeviceServiceCard({
 	state,
@@ -66,7 +67,7 @@ export function DeviceServiceCard({
 			<div className="space-y-3 px-4 py-3 text-sm">
 				{!running && !state?.error && (
 					<p className="text-muted-foreground">
-						Connect your Cline device or browser device to this hub.
+						Connect your Cline device to this hub.
 					</p>
 				)}
 				{state?.error && (
@@ -90,26 +91,6 @@ export function DeviceServiceCard({
 							<CopyIcon className="size-3.5" />
 						</Button>
 					</div>
-				)}
-				{state?.browserEndpoint && (
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="w-16 text-muted-foreground">Browser</span>
-						<a
-							href={state.browserEndpoint}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex items-center gap-1 break-all text-xs underline underline-offset-4"
-						>
-							{state.browserEndpoint}
-							<ExternalLinkIcon className="size-3.5 shrink-0" />
-						</a>
-					</div>
-				)}
-				{state?.browserEndpoint?.startsWith("https:") && (
-					<p className="text-xs text-muted-foreground">
-						Accept the self-signed certificate warning once when opening the
-						browser device.
-					</p>
 				)}
 				{status === "running" && state?.pairing && (
 					<div className="space-y-2 rounded-md border bg-muted/30 p-3">
@@ -140,6 +121,7 @@ export function DeviceServiceCard({
 						</p>
 					</div>
 				)}
+				{running && <DeviceSetup connected={connected} />}
 				{running && (
 					<div className="border-t pt-3">
 						<p className="mb-1 text-xs font-medium text-muted-foreground">

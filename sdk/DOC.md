@@ -354,14 +354,13 @@ acknowledgement and never retries automatically. It also exports
 `PromptTarget`, `PromptResult`, `parseDeviceMessage`, and the single-line `clip` helper. The root API is independent
 of the host and agent runtime. `@cline/device/assets` exports Node paths
 `AVATAR_ROOT` and `FIRMWARE_ROOT`; `@cline/device/assets/manifest.json` exports the
-versioned catalog. See [the device SDK reference](../device-sdk/README.md).
+versioned catalog. See [the device SDK reference](https://github.com/cline/device-sdk).
 
 ### Shared device service
 
 The shared daemon starts the device service by default. Set `CLINE_DEVICE_ENABLED=false`
 to disable automatic startup. `CLINE_DEVICE_HOST`, `CLINE_DEVICE_PORT`,
-`CLINE_DEVICE_WEB_PORT`, `CLINE_DEVICE_WORKSPACE`, and `CLINE_DEVICE_WEB_ROOT`
-configure its listeners and resources. Pairing records and TLS files live under
+and `CLINE_DEVICE_WORKSPACE` configure the listener and workspace. Pairing records live under
 `<Cline data dir>/devices/`.
 
 Any app's `HubUIClient` can call `devices("status" | "start" | "stop" | "pair")`

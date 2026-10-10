@@ -25,13 +25,15 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 
 ### Device SDK
 
-- `../device-sdk` (`@cline/device`) is a standalone hardware SDK: wire protocol,
-  firmware, board profiles, avatars, and browser pet assets. It has its own
+- `@cline/device` is a standalone hardware SDK: wire protocol,
+  firmware, board profiles, and avatars. It has its own
   TypeScript configuration and no Cline agent package dependencies.
 - `core/src/hub/devices` owns pairing, LAN listeners, transcription and routing.
   The shared daemon starts one service; apps use `HubUIClient.devices()` and
   `subscribeDevices()` instead of creating device servers.
-- Build the device SDK before core. Run standalone SDK commands in `device-sdk/`.
+- Build the device SDK before core. The SDK is a sibling repository at
+  `../device-sdk` relative to the Cline repo root.
+  Build it there, then run `bun install` in Cline to refresh the local file dependency.
 
 ### Dependency Direction
 

@@ -614,15 +614,6 @@
         "lightningcss-win32-x64-msvc": "1.29.2",
       },
     },
-    "device-sdk": {
-      "name": "@cline/device",
-      "version": "0.0.90",
-      "devDependencies": {
-        "@types/bun": "^1.4.2",
-        "@types/node": "^25.3.5",
-        "typescript": "^5.9.3",
-      },
-    },
     "sdk/examples": {
       "name": "examples",
       "dependencies": {
@@ -665,7 +656,7 @@
         "@ai-sdk/gateway": "^4.0.64",
         "@ai-sdk/openai": "^4.0.47",
         "@cline/agents": "workspace:*",
-        "@cline/device": "workspace:*",
+        "@cline/device": "file:../../../../device-sdk",
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -1110,8 +1101,6 @@
     "@cline/code": ["@cline/code@workspace:apps/examples/desktop-app"],
 
     "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
-
-    "@cline/device": ["@cline/device@workspace:device-sdk"],
 
     "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
 
@@ -5196,6 +5185,8 @@
     "@cline/code/typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
 
     "@cline/code/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@cline/core/@cline/device": ["@cline/device@file:../device-sdk", { "devDependencies": { "@types/bun": "^1.4.2", "@types/node": "^25.3.5", "typescript": "^5.9.3" } }],
 
     "@cline/ui/@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
 

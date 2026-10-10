@@ -810,6 +810,34 @@ export class HubServerTransport implements NativeHubTransport {
 			return await this.taskCommands.handleCommand(envelope, authority);
 		}
 		switch (envelope.command) {
+			case "device.setup.start":
+			case "device.setup.status":
+			case "device.setup.save":
+			case "device.setup.cancel": {
+				try {
+					const action = envelope.command.slice("device.setup.".length) as
+						| "start"
+						| "status"
+						| "save"
+						| "cancel";
+					const setup = await this.deviceService.setup(
+						action,
+						envelope.payload as unknown as import("../devices/provisioning").DeviceWifiSettings,
+					);
+					return okReply(envelope, { setup });
+				} catch (error) {
+					return {
+						version: "v1",
+						ok: false,
+						requestId: envelope.requestId,
+						error: {
+							code: "DEVICE_SETUP_FAILED",
+							message:
+								error instanceof Error ? error.message : "Device setup failed",
+						},
+					};
+				}
+			}
 			case "device.status":
 				return okReply(envelope, {
 					deviceService: this.deviceService.snapshot(),

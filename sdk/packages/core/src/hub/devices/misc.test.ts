@@ -1,11 +1,9 @@
-import { cpSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AVATAR_ROOT } from "@cline/device/assets";
 import { describe, expect, it } from "vitest";
 import { buildResponse, parseQuestions, readName } from "./mdns";
 import { DeviceRegistry } from "./pairing";
-import { resolveWebFile, WEB_ROOT } from "./server";
 import { createPcmResampler } from "./transcribe";
 import { pcmToWav } from "./wav";
 
@@ -109,38 +107,5 @@ describe("createPcmResampler", () => {
 		for (let i = 0; i < 10; i++)
 			total += r(pcm(new Array(1024).fill(100))).byteLength / 2;
 		expect(Math.abs(total - 10 * 1024 * 1.5)).toBeLessThanOrEqual(2);
-	});
-});
-
-describe("resolveWebFile", () => {
-	it("serves the device page and assets", () => {
-		expect(resolveWebFile("/")).toBe(join(WEB_ROOT, "index.html"));
-		expect(resolveWebFile("/avatars/cline/animated-v1/idle.gif")).toBe(
-			join(AVATAR_ROOT, "cline/animated-v1/idle.gif"),
-		);
-	});
-	it("serves SDK assets in development and assembled assets in a packaged host", () => {
-		const root = mkdtempSync(join(tmpdir(), "device-web-"));
-		try {
-			expect(resolveWebFile("/avatars/manifest.json", root)).toBe(
-				join(AVATAR_ROOT, "manifest.json"),
-			);
-			cpSync(AVATAR_ROOT, join(root, "avatars"), { recursive: true });
-			expect(resolveWebFile("/avatars/manifest.json", root)).toBe(
-				join(root, "avatars/manifest.json"),
-			);
-			expect(resolveWebFile("/avatars/cline/animated-v1/idle.gif", root)).toBe(
-				join(root, "avatars/cline/animated-v1/idle.gif"),
-			);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
-	it("refuses traversal and missing files", () => {
-		expect(resolveWebFile("/../package.json")).toBeUndefined();
-		expect(resolveWebFile("/%2e%2e/package.json")).toBeUndefined();
-		expect(resolveWebFile("/avatars/../../src/main.ts")).toBeUndefined();
-		expect(resolveWebFile("/nope.js")).toBeUndefined();
-		expect(resolveWebFile("/%E0%A4%A")).toBeUndefined();
 	});
 });
