@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "./types";
 import { validateAgentEventStream } from "./stream-grammar";
-import { AgentEventFramer } from "./agent-event-framer";
+import { AgentEventFramer, SessionFramer } from "./agent-event-framer";
 import { validateFrameStream, type StreamFrame } from "./stream-frames";
 import { generateLegalV1Trace } from "./v1-trace-generator";
 
@@ -67,6 +67,112 @@ const kindsOf = (frames: StreamFrame[]): string[] =>
 		frame.kind === "open" ? `open:${frame.openKind}` : frame.kind,
 	);
 
+describe("SessionFramer — multiplexed agent paths", () => {
+	it("interleaved root and child streams share one strictly-increasing seq and validate cleanly", () => {
+		const framer = new SessionFramer();
+		const rootTrace = generateLegalV1Trace(11, { maxEvents: 30 });
+		const childTrace = generateLegalV1Trace(12, { maxEvents: 30 });
+		const frames = [];
+		// Round-robin interleave: path-independence is the point.
+		for (let i = 0; i < Math.max(rootTrace.length, childTrace.length); i += 1) {
+			if (rootTrace[i] !== undefined) {
+				frames.push(...framer.frameEvent(rootTrace[i]));
+			}
+			if (childTrace[i] !== undefined) {
+				frames.push(
+					...framer.frameRoutedEvent(["root", "agent-a"], childTrace[i]),
+				);
+			}
+		}
+		for (let i = 1; i < frames.length; i += 1) {
+			expect(frames[i].seq).toBe(frames[i - 1].seq + 1);
+		}
+		const validation = validateFrameStream(frames);
+		expect(validation.violations).toEqual([]);
+		expect(validation.openBlocks).toEqual([]);
+		expect(validation.openTurns).toEqual([]);
+	});
+
+	it("frameEvent on the root path matches a standalone AgentEventFramer", () => {
+		const trace = generateLegalV1Trace(13, { maxEvents: 20 });
+		const sessionFramer = new SessionFramer();
+		const standalone = new AgentEventFramer();
+		expect(sessionFramer.frameAll(trace)).toEqual(standalone.frameAll(trace));
+	});
+
+	it("a parent turn close emits descendant closes first (scope tree rule 3, producer-side)", () => {
+		const framer = new SessionFramer();
+		const frames = [
+			...framer.frameEvent({ type: "iteration_start", iteration: 1 }),
+			...framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "iteration_start",
+				iteration: 1,
+			}),
+			...framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "content_start",
+				contentType: "text",
+				text: "working",
+			}),
+			// Parent completes while the child is mid-flight.
+			...framer.frameEvent({
+				type: "done",
+				reason: "completed",
+				text: "ok",
+				iterations: 1,
+			}),
+		];
+		const validation = validateFrameStream(frames);
+		expect(validation.violations).toEqual([]);
+		// The producer closed the child — nothing dangles for the
+		// assembler to repair.
+		expect(validation.openTurns).toEqual([]);
+		expect(validation.openBlocks).toEqual([]);
+		// Child closes precede the parent turn close.
+		const closes = frames
+			.map((frame, index) => ({ frame, index }))
+			.filter(({ frame }) => frame.kind === "close");
+		const parentTurnClose = closes.find(
+			({ frame }) =>
+				frame.kind === "close" &&
+				frame.scope.agentPath.join("/") === "root" &&
+				frame.scope.blockId === undefined,
+		);
+		const childCloses = closes.filter(
+			({ frame }) =>
+				frame.kind === "close" &&
+				frame.scope.agentPath.join("/") === "root/agent-a",
+		);
+		expect(childCloses.length).toBeGreaterThan(0);
+		for (const child of childCloses) {
+			expect(child.index).toBeLessThan(parentTurnClose?.index ?? -1);
+		}
+	});
+
+	it("fence closes every path and bumpEpoch applies to all paths", () => {
+		const framer = new SessionFramer();
+		const allFrames = [];
+		allFrames.push(
+			...framer.frameEvent({ type: "iteration_start", iteration: 1 }),
+		);
+		allFrames.push(
+			...framer.frameRoutedEvent(["root", "agent-a"], {
+				type: "iteration_start",
+				iteration: 1,
+			}),
+		);
+		const fenced = framer.fence();
+		// Two turns closed: root and agent-a.
+		expect(fenced.filter((frame) => frame.kind === "close")).toHaveLength(2);
+		const validation = validateFrameStream([...allFrames, ...fenced]);
+		expect(validation.violations).toEqual([]);
+		expect(validation.openTurns).toEqual([]);
+
+		framer.bumpEpoch();
+		const next = framer.frameEvent({ type: "iteration_start", iteration: 1 });
+		expect(next.every((frame) => frame.epoch === 1)).toBe(true);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Property loop: v1 tables → framer → v2 tables
 // ---------------------------------------------------------------------------
@@ -86,7 +192,7 @@ describe("closed loop: legal v1 trace → frames → zero violations", () => {
 				`seed ${seed} framed with violations`,
 			).toEqual([]);
 			expect(v2.openBlocks).toEqual([]);
-			expect(v2.openTurnId).toBeUndefined();
+			expect(v2.openTurns).toEqual([]);
 		}
 	});
 
