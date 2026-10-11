@@ -361,4 +361,6 @@ with `/api/v1/connectors`; the host supplies the API origin and user authenticat
 Omit `request` to use the saved Cline account and its local connector schemas.
 For `LocalRuntimeHost`, pass `connectorsRequest: request` to initialize tools on
 startup and restore without local account discovery. Direct extension users create
-it per runtime. Execution is never retried.
+it per runtime. Schedule hosts pass the same callback to
+`createLocalHubScheduleRuntimeHandlers({ connectorsRequest: request })`.
+Execution is never retried.
