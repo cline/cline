@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	resolveNotifyMessageKey,
 	resolveNotifyTargets,
+	shouldTrackForSuperseding,
 } from "./ui-notify-delivery";
 
 const bindings = {
@@ -91,6 +92,23 @@ describe("resolveNotifyMessageKey", () => {
 	it("cannot be confused by an id that looks like a joined key", () => {
 		expect(resolveNotifyMessageKey("x", 'y","z')).not.toBe(
 			resolveNotifyMessageKey('x","y', "z"),
+		);
+	});
+});
+
+describe("shouldTrackForSuperseding", () => {
+	it("tracks the running commentary, which exists to be overwritten", () => {
+		expect(shouldTrackForSuperseding({ supersedesPrevious: true })).toBe(true);
+	});
+
+	// The defect this rule exists for. The question carries the buttons that answer it; a
+	// progress line arriving moments later used to edit it away, leaving the card waiting on
+	// an answer nobody could give. A question does not claim to supersede anything, so it
+	// never becomes the message that gets superseded.
+	it("does not track a notification that claims no superseding", () => {
+		expect(shouldTrackForSuperseding({})).toBe(false);
+		expect(shouldTrackForSuperseding({ supersedesPrevious: false })).toBe(
+			false,
 		);
 	});
 });

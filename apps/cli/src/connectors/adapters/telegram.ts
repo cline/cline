@@ -65,7 +65,10 @@ import type {
 	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
-import { resolveNotifyMessageKey } from "../ui-notify-delivery";
+import {
+	resolveNotifyMessageKey,
+	shouldTrackForSuperseding,
+} from "../ui-notify-delivery";
 import { startUiNotifyDelivery } from "../ui-notify-subscription";
 import {
 	getConnectorFirstContactMessage,
@@ -1018,7 +1021,7 @@ class TelegramConnector extends ConnectorBase<
 					const sent = await (card
 						? thread.post({ card, fallbackText: text })
 						: thread.post({ raw: text }));
-					if (messageKey) {
+					if (messageKey && shouldTrackForSuperseding(options)) {
 						notifyMessages.set(messageKey, sent);
 					}
 					if (options.itemId && options.workspacePath) {

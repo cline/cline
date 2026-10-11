@@ -95,3 +95,24 @@ export function resolveNotifyMessageKey(
 	// hand-picked separator character would allow.
 	return JSON.stringify([threadKey, trimmed]);
 }
+
+/**
+ * Whether the message just posted is the one a later notification should update.
+ *
+ * Only the running commentary is. It exists to be overwritten: a working task sends one of
+ * those every few seconds, and editing the message it already has keeps that from becoming a
+ * flood. A question and a finished-work notice are different in kind -- they are posted once,
+ * they have to stay findable, and a question also carries the buttons that answer it.
+ *
+ * Remembering a question as the updatable message is how the progress line that arrives
+ * moments later edits the question away: the text becomes `Running`, the keyboard goes with
+ * it, and the card sits waiting on an answer nobody can give any more. Observed live -- the
+ * question was replaced before the person had read it.
+ */
+export function shouldTrackForSuperseding(options: {
+	supersedesPrevious?: boolean;
+}): boolean {
+	// Deliberately the flag itself, not "is this a question": a notice that does not claim to
+	// supersede anything has no business becoming the thing that gets superseded.
+	return options.supersedesPrevious === true;
+}
