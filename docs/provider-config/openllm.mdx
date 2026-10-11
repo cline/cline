@@ -1,0 +1,56 @@
+---
+title: "OpenLLM"
+description: "Use your supported AI subscriptions in Cline through the local OpenLLM gateway."
+---
+
+[OpenLLM](https://www.openllm.sh) is a local gateway that connects supported subscription accounts (such as Claude, ChatGPT, Kimi, Grok and Cursor) and API keys behind one OpenAI-compatible endpoint. Cline talks to it as a native provider, so the models you have connected in OpenLLM show up in Cline's model picker.
+
+**Website:** [https://www.openllm.sh](https://www.openllm.sh)
+
+**Documentation:** [https://docs.openllm.sh](https://docs.openllm.sh)
+
+### Install and start OpenLLM
+
+Install OpenLLM with its official installer (macOS and Linux). The installer starts the local daemon for you:
+
+```sh
+curl -fsSL https://www.openllm.sh/install | bash
+```
+
+Then connect the accounts you want to use in OpenLLM. The daemon listens on `http://127.0.0.1:8787/v1` by default.
+
+### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
+
+1.  **Open Cline Settings:** Click the settings icon in the Cline panel.
+2.  **Select Provider:** Choose "OpenLLM" from the "API Provider" dropdown.
+3.  **API Key:** Leave it empty for the local daemon.
+4.  **Select a Model:** The default is the `ultra` alias. Pick any model from the "Model" dropdown. You can choose a different model for Plan and Act mode.
+
+### Models
+
+-   **Discovery:** Cline reads the model list from the daemon's `/v1/models`. Context and output limits, tool use, image input and reasoning come from what OpenLLM reports for each model. Cline does not guess them from model names.
+-   **Aliases:** `ultra`, `plus` and `lite` are OpenLLM fallback aliases. Each one tries a chain of models configured in OpenLLM, which can include both subscription and API-key models, so usage and billing follow whichever model serves the request.
+-   **Direct models:** Other ids in the list (often in `provider/model` form) pick one specific connected model. Cline keeps these ids exactly as OpenLLM reports them.
+-   **Media-only models hidden:** Models that only do embeddings, speech, transcription, image or video generation, or realtime are hidden from the picker. Chat models that also accept images or other media stay listed.
+-   **Daemon offline:** If the daemon is not reachable, the picker only lists `ultra`, `plus` and `lite` without limits or capabilities. Cline reloads the list each time you open the OpenLLM settings, so start the daemon and reopen settings to load the real list.
+
+### Optional: OpenLLM MCP tools
+
+OpenLLM also exposes its broader API through an MCP server. Depending on the connected accounts and models, its tools can cover speech-to-text transcription, text-to-speech, image generation and editing, video generation and embeddings. These are separate from the Cline provider above. To add it, put this entry in your MCP settings (see [MCP Overview](/mcp/mcp-overview)):
+
+```json
+{
+  "mcpServers": {
+    "openllm": {
+      "command": "openllm",
+      "args": ["mcp"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+OpenLLM supports the full `/v1/` API surface and provides an MCP server as a second integration layer. See the [OpenLLM documentation](https://docs.openllm.sh).

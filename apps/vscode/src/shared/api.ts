@@ -11,6 +11,7 @@ export type ApiProvider =
 	| "openai"
 	| "ollama"
 	| "lmstudio"
+	| "openllm"
 	| "gemini"
 	| "openai-native"
 	| "openai-codex"

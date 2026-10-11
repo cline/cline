@@ -841,6 +841,48 @@ describe("buildSessionConfig", () => {
 		}
 	})
 
+	it("builds keyless OpenLLM plan and act sessions with slash model ids intact", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((requestedProviderId?: string) =>
+			requestedProviderId === "openllm" ? ({ provider: "openllm" } as any) : undefined,
+		)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			planModeApiProvider: "openllm",
+			planModeApiModelId: "ultra",
+			actModeApiProvider: "openllm",
+			actModeApiModelId: "claude_code/claude-sonnet-4-6",
+		} as any)
+
+		const actConfig = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "act" })
+		const planConfig = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "plan" })
+
+		expect(actConfig.providerId).toBe("openllm")
+		expect(actConfig.modelId).toBe("claude_code/claude-sonnet-4-6")
+		expect(actConfig.providerConfig).not.toHaveProperty("apiKey")
+		expect(planConfig.providerId).toBe("openllm")
+		expect(planConfig.modelId).toBe("ultra")
+	})
+
+	it("passes a saved remote OpenLLM endpoint and key through providers.json", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((requestedProviderId?: string) =>
+			requestedProviderId === "openllm"
+				? ({ provider: "openllm", apiKey: "openllm-key", baseUrl: "https://openllm.example.com/v1" } as any)
+				: undefined,
+		)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openllm",
+			actModeApiModelId: "plus",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openllm",
+			modelId: "plus",
+			apiKey: "openllm-key",
+			baseUrl: "https://openllm.example.com/v1",
+		})
+	})
+
 	it("does not treat OpenAI Codex as OpenAI Native API-key auth", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai-codex",
